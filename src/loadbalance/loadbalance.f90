@@ -499,10 +499,7 @@ CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 
 ! Fill .csv file for parformance analysis and load blaaaance
 IF(MPIRoot)THEN
-  WeightOutput(1) = MinWeight        - WeightOutput(1)
-  WeightOutput(2) = MaxWeight        - WeightOutput(2)
-  WeightOutput(3) = CurrentImbalance - WeightOutput(3)
-  WeightOutput(4) = TargetWeight     - WeightOutput(4)
+  WeightOutput(3) = (MaxWeight - WeightOutput(2))/(TargetWeight - WeightOutput(4)) ! real current imbalance (no average)
   outfile='ElemTimeStatistics.csv'
   INQUIRE(FILE=TRIM(outfile),EXIST=FileExists)
   !IF (isRestart .and. FileExists) THEN
@@ -510,13 +507,16 @@ IF(MPIRoot)THEN
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') time
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(1)
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(2)
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') MinWeight        - WeightOutput(1)
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') MaxWeight        - WeightOutput(2)
     WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(3)
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(4)
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') TargetWeight     - WeightOutput(4)
     WRITE(ioUnit,'(A1)') ' '
     CLOSE(ioUnit) 
   END IF
+  WeightOutput(1) = MinWeight
+  WeightOutput(2) = MaxWeight
+  WeightOutput(4) = TargetWeight
 END IF !IF(MPIRoot)
 
 

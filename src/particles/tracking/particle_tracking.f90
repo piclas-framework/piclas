@@ -1616,7 +1616,7 @@ END SUBROUTINE FallBackFaceIntersection
 
 SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
 !===================================================================================================================================
-! checks if lost particle intersected with face and left Element
+! checks if particle is inside of linear element with planar faces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -1644,17 +1644,6 @@ REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direct
 !===================================================================================================================================
 PartisDone = .TRUE.
 PlanarSideNum = 0
-
-DO ilocSide=1,6
-  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT)
-    CYCLE
-  CASE DEFAULT
-    PartisDone = .FALSE.
-    RETURN
-  END SELECT
-END DO
 
 DO ilocSide=1,6
   SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
