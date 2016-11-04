@@ -816,6 +816,8 @@ DO iElem=1,nElems
         END IF
       END DO ! iMortar=1,4
     END IF ! locMortarSide
+    ! self connectivity in MPI case
+    IF(ElemToElemGlob(1,ilocSide,offSetElem+iElem).EQ.-1) ElemToElemGlob(1,ilocSide,offSetElem+iElem) = offSetElem+iElem
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
