@@ -204,8 +204,11 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 
 
 ! check with mortars
-nUniqueSides       = nBCSides+nInnerSides+nMPISides_MINE
+nUniqueSides       = lastMPISide_MINE ! MY_MORTAR_MPI_SIDES are missing
 #ifdef PP_HDG
+IF(nMortarInnerSides.GT.0) CALL abort(&
+      __STAMP__&
+      ,' Mortars not implemented for HDG. Fix nUniqueSides, as well!')
 #ifdef MPI
 CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #else

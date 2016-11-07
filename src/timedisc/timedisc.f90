@@ -4566,6 +4566,7 @@ USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
 USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne,CFLtoOne
 #endif
 USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
+USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne,CFLtoOne
 #if (PP_TimeDiscMethod==201)                                                                                                         
 USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
 #endif

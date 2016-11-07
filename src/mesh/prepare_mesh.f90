@@ -458,6 +458,7 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 
 #ifdef PP_HDG
 #ifdef MPI
+! CAUTION: MY-MORTAR-MPI-Sides are missing
 IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
 ALLOCATE(offsetSideMPI(nProcessors))
 CALL MPI_ALLGATHER(nSides-nMPISides_YOUR,1,MPI_INTEGER,offsetSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)

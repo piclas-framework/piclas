@@ -131,7 +131,7 @@ USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem!,Face_xGP
+USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
 #endif /*MPI*/
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
