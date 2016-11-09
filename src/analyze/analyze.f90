@@ -394,8 +394,9 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                       :: ioUnit
 #ifdef PARTICLES
-INTEGER                       :: iSide,ioUnit
+INTEGER                       :: iSide
 #ifdef MPI
 INTEGER                       :: RECI
 REAL                          :: RECR
