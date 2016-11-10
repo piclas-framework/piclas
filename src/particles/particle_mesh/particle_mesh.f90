@@ -962,7 +962,7 @@ IF (ManualTimeStep.EQ.0.0) THEN
 #else
    CALL abort(&
 __STAMP__&
-, 'ManualTimeStep is not defined correctly!')
+, 'ManualTimeStep is not defined correctly (ManualTimeStep.EQ.0.0)!')
 #endif /*PP_HDG*/
 ELSE
   deltaT=ManualTimeStep
@@ -4321,7 +4321,7 @@ IF(DoRefMapping)THEN
   ! number of element local BC-Sides
   DO iElem=1,nTotalElems
     BCElem(iElem)%nInnerSides=0
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
     ! IMPORTANT: for purely explicit pushes with Maxwell's equations, the particle can only move the the next
     !            and cloesest halo-cells. Hence, a particle may hit only its own bc sides in limited space
     ! FOR TimeDiscs 501-506, the particle may move further, hence it is required to perform this check! 
@@ -4347,7 +4347,7 @@ IF(DoRefMapping)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.
