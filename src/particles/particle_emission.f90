@@ -1778,9 +1778,10 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf,Is_BGGas_
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Timedisc_Vars, ONLY : dt
-USE MOD_Equation_Vars, ONLY : c,c2
 USE MOD_Particle_Vars
+USE MOD_Timedisc_Vars,         ONLY:dt
+USE MOD_Equation_Vars,         ONLY:c,c2
+USE MOD_PICInterpolation_vars, ONLY:externalField
 USE MOD_PIC_Vars
 !USE Ziggurat,          ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
@@ -1968,6 +1969,11 @@ CASE('tangential_constant')
   END DO
 CASE('gyrotron_circle')
   i = 1
+  IF (externalField(6).NE.0) THEN
+    PIC%GyroVecDirSIGN = -externalField(6)/(ABS(externalField(6)))
+  ELSE
+    PIC%GyroVecDirSIGN = -1
+  END IF
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
@@ -2056,7 +2062,7 @@ CASE('gyrotron_circle')
              SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(PositionNbr,4:6)
              CALL abort(&
 __STAMP__&
-,'ERROR in gyrotron_circle spaceIC!')
+,'ERROR in gyrotron_circle spaceIC!',PositionNbr)
            END If
            IF (PartState(PositionNbr,4).NE.PartState(PositionNbr,4) .OR. &
                PartState(PositionNbr,5).NE.PartState(PositionNbr,5) .OR. &

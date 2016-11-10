@@ -822,8 +822,8 @@ __STAMP__&
 , &
         " ERROR: not enough data points in curved external field file!")
   END IF
-  SWRITE(UNIT_stdOut,'(A,I4.0,A)')'Found', ncounts,' data points.'
-  SWRITE(UNIT_stdOut,'(A)')'...CURVED EXTERNAL FIELD INITIALIZATION DONE'
+  SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
+  SWRITE(UNIT_stdOut,'(A)')' ...CURVED EXTERNAL FIELD INITIALIZATION DONE'
 END SUBROUTINE read_curved_external_Field
 
 
