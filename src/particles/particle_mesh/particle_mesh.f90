@@ -4321,7 +4321,7 @@ IF(DoRefMapping)THEN
   ! number of element local BC-Sides
   DO iElem=1,nTotalElems
     BCElem(iElem)%nInnerSides=0
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
     ! IMPORTANT: for purely explicit pushes with Maxwell's equations, the particle can only move the the next
     !            and cloesest halo-cells. Hence, a particle may hit only its own bc sides in limited space
     ! FOR TimeDiscs 501-506, the particle may move further, hence it is required to perform this check! 
