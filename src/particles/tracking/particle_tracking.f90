@@ -156,7 +156,7 @@ DO iPart=1,PDM%ParticleVecLength
                                                                                         ,eta(ilocSide)      &
                                                                                         ,iPart,flip,SideID)
         CASE(CURVED,PLANAR_CURVED)
-          CALL ComputeCurvedIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+          CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)      ,iPart,SideID &
                                                                                   ,isCriticalParallelInFace)
