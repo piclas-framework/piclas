@@ -1517,7 +1517,7 @@ REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 !===================================================================================================================================
 
-IPWRITE(*,*) ' Performing fallback algorithm. PartID: ', PartID
+!IPWRITE(*,*) ' Performing fallback algorithm. PartID: ', PartID
 tmpPos=PartState(PartID,1:3)
 tmpLastPartPos(1:3)=LastPartPos(PartID,1:3)
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
