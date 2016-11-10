@@ -76,7 +76,7 @@ USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
-DoLoadBalance= GETLOGICAL('Static-LoadBalance','F')
+DoLoadBalance= GETLOGICAL('DoLoadBalance','F')
 DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0

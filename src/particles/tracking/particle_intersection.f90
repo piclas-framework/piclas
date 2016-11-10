@@ -649,7 +649,6 @@ REAL                                     :: PartFaceAngle,dXi,dEta
 LOGICAL                                  :: CriticalParallelInSide
 !REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
-!PartTrajectory = PartTrajectory
 ! set alpha to minus 1, asume no intersection
 alpha=-1.0
 Xi   = 2.0
@@ -667,17 +666,19 @@ IF(BoundingBoxIsEmpty(SideID))THEN
   ELSE
     IF(ALMOSTZERO(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory))) CriticalParallelInSide=.TRUE.
   END IF
-END IF
-! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
-IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
-  IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
-    IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
-                                                                                              ! bounding box
+  IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
+                                                                                                ! bounding box
+ELSE
+  ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
+  IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
+    IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
+      IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
+                                                                                                ! bounding box
+    END IF
   END IF
 END IF
-
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
-!PartTrajectory = PartTrajectoryOrig + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
+! PartTrajectory = PartTrajectoryOrig + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
   n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
 ELSE
@@ -2301,6 +2302,70 @@ ELSE
 END IF
 END FUNCTION BoundingBoxIntersection
 
+FUNCTION FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!================================================================================================================================
+! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
+!================================================================================================================================
+USE MOD_Globals_Vars
+USE MOD_Particle_Vars,            ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)         :: PartTrajectory
+REAL,INTENT(IN)                      :: lengthPartTrajectory
+INTEGER,INTENT(IN)                   :: iPart,SideID
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL                              :: FlatBoundingBoxIntersection
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: dnk,alpha(2,3)! alpha(2,2): dummy because we are lazy
+REAL                                 :: maxvalue,minvalue
+INTEGER                              :: i
+!================================================================================================================================
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 1.) Calculate the projection of the PartTrajectory onto the SideSlabNormals and sort accoring to the sign of T*n
+!-----------------------------------------------------------------------------------------------------------------------------------
+DO i=1,3,2!only x,z directions due to flat surface
+  !dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(i,:,SideID))
+  dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
+  !IF(ABS(dnk).LT.epsilontol)THEN
+  IF(ABS(dnk).LT.100.*epsMach)THEN
+    dnk=100.*epsMach ! ÜBERPRÜFEN OB SIGN sinn macht
+  END IF
+  IF(dnk.LT.0.)THEN
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+  ELSE
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+  END IF
+END DO!i
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2.) Get smallest subspace interval
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+maxvalue=MAX(alpha(1,1),alpha(1,2))!only x,z directions due to flat surface
+minvalue=MIN(alpha(2,1),alpha(2,2))!only x,z directions due to flat surface
+
+IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
+  !IF((maxvalue.LT.lengthPartTrajectory+epsilontol).AND.(maxvalue+epsilontol.GT.0.))THEN
+  IF((maxvalue.LT.lengthPartTrajectory+100.*epsMach).AND.(maxvalue+100.*epsMach.GT.0.))THEN
+  !the first intersection is less than lengthPartTrajectory and greater 0
+    FlatBoundingBoxIntersection=.TRUE.
+  ELSE
+    FlatBoundingBoxIntersection=.FALSE.
+  END IF
+ELSE
+  FlatBoundingBoxIntersection=.FALSE.
+END IF
+END FUNCTION FlatBoundingBoxIntersection
 
 SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
 !================================================================================================================================
