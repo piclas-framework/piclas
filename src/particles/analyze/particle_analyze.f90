@@ -562,6 +562,19 @@ SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! Analyze Routines
 !===================================================================================================================================
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+  IF((iter.GT.0).AND.(DSMC%CalcQualityFactors).AND.(DSMC%CollProbMeanCount.GT.0)) THEN
+    MaxCollProb = DSMC%CollProbMax
+    MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
+  ELSE
+    MaxCollProb = 0.0
+    MeanCollProb = 0.0
+  END IF
+#endif
+
 ! Calculate particle number per species and total number of particles
   NumSpec = 0
   DO iPart=1,PDM%ParticleVecLength
@@ -616,17 +629,6 @@ SUBROUTINE AnalyzeParticles(Time)
     CALL CalcIntTempsAndEn(IntTemp, IntEn)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-  IF((iter.GT.0).AND.(DSMC%CalcQualityFactors).AND.(DSMC%CollProbMeanCount.GT.0)) THEN
-    MaxCollProb = DSMC%CollProbMax
-    MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
-  ELSE
-    MaxCollProb = 0.0
-    MeanCollProb = 0.0
-  END IF
-#endif
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
   IF(CalcCharge) CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
   !IF(CalcNumSpec) CALL GetNumSpec(NumSpec)
@@ -662,7 +664,7 @@ IF (PartMPI%MPIRoot) THEN
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   IF(CalcNumSpec) &
-    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 #ifdef MPI 
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
@@ -704,7 +706,7 @@ ELSE ! no Root
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   IF(CalcNumSpec) &
-    CALL MPI_REDUCE(NumSpec,RECBIM,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(NumSpec,RECBIM,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 #ifdef MPI 
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
