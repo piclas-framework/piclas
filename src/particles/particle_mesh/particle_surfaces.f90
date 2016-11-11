@@ -586,6 +586,8 @@ IF(SideID.LE.lastSideID)THEN
 END IF
 END SUBROUTINE GetBezierControlPoints3D
 
+
+
 SUBROUTINE GetSideSlabNormalsAndIntervals(BezierControlPoints3D,BezierControlPoints3DElevated &
                                          ,SideSlabNormals,SideSlabInterVals,BoundingBoxIsEmpty )
 !===================================================================================================================================
@@ -626,7 +628,7 @@ LOGICAL,INTENT(OUT) :: BoundingBoxIsEmpty
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !INTEGER                           :: lastSideID,flip,SideID
-INTEGER            :: p,q
+INTEGER            :: p,q, i
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)  
 REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
 LOGICAL            :: SideIsCritical
@@ -722,6 +724,20 @@ DO q=0,NGeoElevated
     END IF
   END DO !p
 END DO !q
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2-b.) sanity check
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+DO i = 1,3
+  IF(SideSlabIntervals(2*i).LT.SideSlabIntervals(2*i-1))  CALL Abort(&
+__STAMP__&
+,' SideSlabIntervals are corrupted! ')
+END DO
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2-c.) bounding box extension
+!-----------------------------------------------------------------------------------------------------------------------------------
 
 dx=ABS(ABS(SideSlabIntervals(2))-ABS(SideSlabIntervals(1)))
 dy=ABS(ABS(SideSlabIntervals(4))-ABS(SideSlabIntervals(3)))
