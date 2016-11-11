@@ -3809,8 +3809,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot
-INTEGER                                  :: iSide,p,q, nDummy,SideID,TrueSideID,ilocSide,nBCElems,nBCelemsTot
+INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot,firstBezierPoint,lastBezierPoint
+INTEGER                                  :: iSide,p,q, nDummy,SideID,TrueSideID,ilocSide,nBCElems,nBCelemsTot,BCSideID2,BCSideID
 INTEGER                                  :: nPlanarRectangular, nPlanarNonRectangular,nPlanarCurved,nBilinear,nCurved
 INTEGER                                  :: nPlanarRectangularTot, nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
 INTEGER                                  :: nCurvedElemsHalo,nLinearElems,nLinearElemsHalo,nBCElemsHalo,flip
@@ -3818,21 +3818,21 @@ INTEGER                                  :: nCurvedElemsHalo,nLinearElems,nLinea
 INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
                                             nBilinearHalo,nCurvedHalo
 #endif /*MPI*/
-INTEGER                                  :: nSideCount, BCSideID,  s,r
+INTEGER                                  :: nSideCount, s,r
 INTEGER                                  :: iHaloElem,ElemID
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
-REAL,DIMENSION(1:3,0:NGeo,0:NGeo,1:6,1:nTotalElems)        :: xNodes
-LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
-REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
-REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER                                 :: NGeo3,NGeo2, nLoop
-REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
-REAL                                    :: Distance ,maxScaleJ
-REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
-LOGICAL                                 :: isCurvedSide,isRectangular, fullMesh, isBilinear
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
+LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
+REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER                                  :: NGeo3,NGeo2, nLoop
+REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
+REAL                                     :: Distance ,maxScaleJ
+REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
+LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh, isBilinear
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -4363,24 +4363,6 @@ IF(DoRefMapping)THEN
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       IF (SideID.LE.0) CYCLE
-      IF (PartBCSideList(SideID).GT.0) THEN
-        xNodes(:,:,:,ilocSide,iElem)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
-      ELSE
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:,ilocSide,iElem))
-        CASE(XI_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:,ilocSide,iElem))
-        CASE(ETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:,ilocSide,iElem))
-        CASE(ETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:,ilocSide,iElem))
-        CASE(ZETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:,ilocSide,iElem))
-        CASE(ZETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:,ilocSide,iElem))
-        END SELECT
-      END IF
       IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
         IF(.NOT.isBCElem(iElem))THEN
           IsBCElem(iElem)=.TRUE.
@@ -4394,6 +4376,7 @@ IF(DoRefMapping)THEN
       END IF
     END DO ! ilocSide
   END DO ! iElem
+
   ! for simplifications
   ! get distance of diagonal of mesh
   V1(1) = GEO%xmaxglob-GEO%xminglob
@@ -4406,102 +4389,188 @@ IF(DoRefMapping)THEN
   ! allocate the types for the element to bc-side mapping
   ALLOCATE( BCElem(1:nTotalElems) )
   ALLOCATE( SideIndex(1:nTotalSides) )
-  ! number of element local BC-Sides
-  DO iElem=1,nTotalElems
-    ! mark my sides
-    BCElem(iElem)%nInnerSides=0
-    DO ilocSide=1,6
-      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      IF(SideID.LE.0) CYCLE
-      IF(PartBCSideList(SideID).EQ.-1) CYCLE
-      BCElem(iElem)%nInnerSides = BCElem(iElem)%nInnerSides+1
-      !END IF
-    END DO ! ilocSide
-    BCElem(iElem)%lastSide=BCElem(iElem)%nInnerSides
-    ! loop over all sides, exclusive of own sides
-    SideIndex=0
-    DO iSide=1,nTotalSides
-      ! only bc sides
-      BCSideID  =PartBCSideList(iSide)
-      IF(BCSideID.EQ.-1) CYCLE
-      ! ignore sides of the same element
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
-      ! next, get all sides in halo-eps vicinity
-      DO ilocSide=1,6
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,PartSideToElem(S2E_ELEM_ID,iSide))
-        IF(SideID.EQ.-1) CYCLE
-        ! simplified version for full-mesh
-        IF(fullMesh)THEN
-          IF(SideIndex(iSide).EQ.0)THEN
-            BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-            SideIndex(iSide)=BCElem(iElem)%lastSide
-          END IF
-          EXIT
-        ELSE
-          leave=.FALSE.
-          ! all points of bc side
-          DO q=0,NGeo
-            DO p=0,NGeo
-              NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-              !all nodes of current side
-              DO s=0,NGeo
-                DO r=0,NGeo
-                  IF(SQRT(DOT_Product(xNodes(:,r,s,ilocSide,iElem)-NodeX &
-                                     ,xNodes(:,r,s,ilocSide,iElem)-NodeX )).LE.halo_eps)THEN
-                    IF(SideIndex(iSide).EQ.0)THEN
-                      BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-                      SideIndex(iSide)=BCElem(iElem)%lastSide
-                      leave=.TRUE.
-                      EXIT
-                    END IF
-                  END IF
-                END DO ! r
-                IF(leave) EXIT
-              END DO ! s
-              IF(leave) EXIT
-            END DO ! p
-            IF(leave) EXIT
-          END DO ! q
-        END IF
-      END DO ! ilocSide
-    END DO ! iSide
-    ! finally, allocate the bc side list and fill the list
-    IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
-    ! set true, only required for elements without an own bc side
-    IF(.NOT.isBCElem(iElem))THEN
-      IF(iElem.LE.PP_nElems) THEN
-        nBCElems=nBCElems+1
-      ELSE
-        nBCElemsHalo=nBCElemsHalo+1
-      END IF
-    END IF
-    isBCElem(iElem)=.TRUE.
-    ! allocate complete side list
-    ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
-    ! 1) inner sides
-    nSideCount=0
-    IF(BCElem(iElem)%nInnerSides.GT.0)THEN
+  ! for fullMesh, each element requires ALL BC faces
+  IF(fullMesh)THEN
+    DO iElem=1,nTotalElems
+      ! mark my sides
+      BCElem(iElem)%nInnerSides=0
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.LE.0) CYCLE
-        BCSideID=PartBCSideList(SideID)
-        IF(BCSideID.LE.0) CYCLE
-        nSideCount=nSideCount+1
-        BCElem(iElem)%BCSideID(nSideCount)=SideID
-      END DO ! ilocSide
-    END IF ! nInnerSides.GT.0
-    ! 2) outer sides
-    DO iSide=1,nTotalSides
-      IF(SideIndex(iSide).GT.0)THEN
-        nSideCount=nSideCount+1
-        !BCElem(iElem)%BCSideID(nSideCount)=BCSideID
-        !BCSideID=PartBCSideList(iSide)
-        BCElem(iElem)%BCSideID(nSideCount)=iSide !iSide
+        IF(PartBCSideList(SideID).EQ.-1) CYCLE
+        BCElem(iElem)%nInnerSides = BCElem(iElem)%nInnerSides+1
+      END DO ! ilocSide=1,6
+      BCElem(iElem)%lastSide=BCElem(iElem)%nInnerSides
+      ! loop over all sides, exclusive of own sides
+      SideIndex=0
+      DO iSide=1,nTotalSides
+        ! only bc sides
+        BCSideID  =PartBCSideList(iSide)
+        IF(BCSideID.EQ.-1) CYCLE
+        ! ignore sides of the same element
+        IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
+        IF(SideIndex(iSide).EQ.0)THEN
+          BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+          SideIndex(iSide)=BCElem(iElem)%lastSide
+        END IF
+      END DO ! iSide=1,nTotalSides
+      IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
+      ! set true, only required for elements without an own bc side
+      IF(.NOT.isBCElem(iElem))THEN
+        IF(iElem.LE.PP_nElems) THEN
+          nBCElems=nBCElems+1
+        ELSE
+          nBCElemsHalo=nBCElemsHalo+1
+        END IF
       END IF
-    END DO  ! iSide
-    SideIndex=0
-  END DO ! iElem
-ELSE
+      isBCElem(iElem)=.TRUE.
+      ! allocate complete side list
+      ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
+      ! 1) inner sides
+      nSideCount=0
+      IF(BCElem(iElem)%nInnerSides.GT.0)THEN
+        DO ilocSide=1,6
+          SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+          IF(SideID.LE.0) CYCLE
+          BCSideID=PartBCSideList(SideID)
+          IF(BCSideID.LE.0) CYCLE
+          nSideCount=nSideCount+1
+          BCElem(iElem)%BCSideID(nSideCount)=SideID
+        END DO ! ilocSide
+      END IF ! nInnerSides.GT.0
+      ! 2) outer sides
+      DO iSide=1,nTotalSides
+        IF(SideIndex(iSide).GT.0)THEN
+          nSideCount=nSideCount+1
+          BCElem(iElem)%BCSideID(nSideCount)=iSide !iSide
+        END IF
+      END DO  ! iSide
+    END DO ! iElem=1,nTotalElems
+  ELSE ! .NOT. fullMesh
+    ! each element requires only the sides in its halo region
+    DO iElem=1,nTotalElems
+      ! mark my sides
+      BCElem(iElem)%nInnerSides=0
+      DO ilocSide=1,6
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+        IF(SideID.LE.0) CYCLE
+        IF(PartBCSideList(SideID).EQ.-1) CYCLE
+        BCElem(iElem)%nInnerSides = BCElem(iElem)%nInnerSides+1
+      END DO ! ilocSide=1,6
+      BCElem(iElem)%lastSide=BCElem(iElem)%nInnerSides
+      ! loop over all sides, to reduce required storage, if a side is marked once,
+      ! it has not be checked for further sides
+      SideIndex=0
+      DO ilocSide=1,6
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+        BCSideID2=SideID
+        IF(SideID.GT.0) BCSideID2=PartBCSideList(SideID)
+        IF (BCSideID2.GT.0) THEN
+          xNodes(:,:,:)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
+          SELECT CASE(ilocSide)
+          CASE(XI_MINUS,XI_PLUS)
+            firstBezierPoint=0
+            lastBezierPoint=NGeo
+          CASE DEFAULT
+            firstBezierPoint=1
+            lastBezierPoint=NGeo-1
+          END SELECT
+        ELSE
+          SELECT CASE(ilocSide)
+          CASE(XI_MINUS)
+            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:))
+            firstBezierPoint=0
+            lastBezierPoint=NGeo
+          CASE(XI_PLUS)
+            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:))
+            firstBezierPoint=0
+            lastBezierPoint=NGeo
+          CASE(ETA_MINUS)
+            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:))
+            firstBezierPoint=1
+            lastBezierPoint=NGeo-1
+          CASE(ETA_PLUS)
+            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:))
+            firstBezierPoint=1
+            lastBezierPoint=NGeo-1
+          CASE(ZETA_MINUS)
+            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:))
+            firstBezierPoint=1
+            lastBezierPoint=NGeo-1
+          CASE(ZETA_PLUS)
+            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:))
+            firstBezierPoint=1
+            lastBezierPoint=NGeo-1
+          END SELECT
+        END IF
+        DO iSide=1,nTotalSides
+          ! only bc sides
+          BCSideID  =PartBCSideList(iSide)
+          IF(BCSideID.EQ.-1) CYCLE
+          ! ignore sides of the same element
+          IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
+          IF(SideIndex(iSide).EQ.0)THEN
+            leave=.FALSE.
+            ! all points of bc side
+            DO q=firstBezierPoint,lastBezierPoint
+              DO p=firstBezierPoint,lastBezierPoint
+                NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+                !all nodes of current side
+                DO s=firstBezierPoint,lastBezierPoint
+                  DO r=firstBezierPoint,lastBezierPoint
+                    IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+                                       ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                      IF(SideIndex(iSide).EQ.0)THEN
+                        BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                        SideIndex(iSide)=BCElem(iElem)%lastSide
+                        leave=.TRUE.
+                        EXIT
+                      END IF
+                    END IF
+                  END DO ! r
+                  IF(leave) EXIT
+                END DO ! s
+                IF(leave) EXIT
+              END DO ! p
+              IF(leave) EXIT
+            END DO ! q
+          END IF ! SideIndex(iSide).EQ.0
+        END DO ! iSide=1,nTotalSides
+      END DO ! ilocSide=1,6
+      IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
+      ! set true, only required for elements without an own bc side
+      IF(.NOT.isBCElem(iElem))THEN
+        IF(iElem.LE.PP_nElems) THEN
+          nBCElems=nBCElems+1
+        ELSE
+          nBCElemsHalo=nBCElemsHalo+1
+        END IF
+      END IF
+      isBCElem(iElem)=.TRUE.
+      ! allocate complete side list
+      ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
+      ! 1) inner sides
+      nSideCount=0
+      IF(BCElem(iElem)%nInnerSides.GT.0)THEN
+        DO ilocSide=1,6
+          SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+          IF(SideID.LE.0) CYCLE
+          BCSideID=PartBCSideList(SideID)
+          IF(BCSideID.LE.0) CYCLE
+          nSideCount=nSideCount+1
+          BCElem(iElem)%BCSideID(nSideCount)=SideID
+        END DO ! ilocSide
+      END IF ! nInnerSides.GT.0
+      ! 2) outer sides
+      DO iSide=1,nTotalSides
+        IF(SideIndex(iSide).GT.0)THEN
+          nSideCount=nSideCount+1
+          BCElem(iElem)%BCSideID(nSideCount)=iSide !iSide
+        END IF
+      END DO  ! iSide
+    END DO ! iElem=1,nTotalElems
+  END IF ! fullMesh
+ELSE ! .NOT.DoRefMapping
   ! tracing
   ! mark only elements with bc-side
   IsBCElem=.FALSE.
