@@ -76,7 +76,7 @@ ioUnit=GETFREEUNIT()
 IF(BuildContinue)CALL GetBuildContinue()
 IF(RuntimeOptionType.EQ.'')THEN ! [RuntimeOptionType] has been cleared (set to '') as the input by the user was "all", i.e., use all
                                 ! examples use fixed configuration file (maximum number of builds?) but (maximum number of builds?)
-  FilePath='./../../regressioncheck/examples/run_freestream/'
+  FilePath='./../../regressioncheck/examples/run_particle/'
 ELSE
   FilePath=TRIM(Examples(iExample)%PATH)
 END IF

@@ -71,7 +71,7 @@ ReggieBuildExe=''
 !==================================================================================================================================
 DO iExample = 1, nExamples ! loop level 1 of 3
 !==================================================================================================================================
-  ! currently: each parameter configuration is only built and tested for the "run_freestream" example
+  ! currently: each parameter configuration is only built and tested for the "run_particle" example
   dummystr=TRIM(ADJUSTL(ExampleNames(iExample)))
   IF(dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType)))).EQ.RuntimeOptionType)THEN
     SWRITE(UNIT_stdOut,*) ''
@@ -83,8 +83,11 @@ DO iExample = 1, nExamples ! loop level 1 of 3
   ELSE
     SWRITE(UNIT_stdOut,'(A,2x,A)') '  ...running'
   END IF
+!print*,"dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType))))",dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType))))
+!print*,"RuntimeOptionType",RuntimeOptionType
+!read*
   ! if "BuildSolver" is true, boltzplatz's complete valid compiler-flag parameter 
-  ! combination is tested (specified in "configuration.boltzplatz", default example is "run_freestream")
+  ! combination is tested (specified in "configuration.boltzplatz", default example is "run_particle")
   IF(BuildSolver)THEN
     IF(ReggieBuildExe.EQ.'')THEN
       CALL ReadConfiguration_boltzplatz(iExample,nReggieBuilds,BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
@@ -153,6 +156,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
         ERROR STOP '-1'
       ELSE
         CALL  GetFlagFromFile(FileName,'BOLTZPLATZ_TESTCASE',TESTCASE)
+        IF((TRIM(TESTCASE).EQ.''))TESTCASE='default' ! if not found in 'configuration.cmake', e.g. when TESTCASE is not impelemented
         IF((TRIM(TESTCASE).EQ.'flag does not exist'))CALL abort(&
           __STAMP__&
           ,'BOLTZPLATZ_TESTCASE not found in configuration.cmake!',999,999.)
@@ -188,10 +192,10 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       FolderName='default' ! for non-TESTCASE setups, set the default settings
       IF(FolderName.NE.TESTCASE)THEN ! e.g. default .NE. phill
         ! non-TESTCASE folder, but TESTCASE boltzplatz
-        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE not found in boltzplatz binary ...skipping'
+        SWRITE(UNIT_stdOut,'(A)') ' TESTCASE "default" not found in boltzplatz binary: ['//TRIM(TESTCASE)//'] ...skipping'
         CYCLE
       ELSE
-        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE is correct ...running' ! non-TESTCASE folder and non-TESTCASE boltzplatz
+        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE "default" is correct ...running' ! non-TESTCASE folder and non-TESTCASE boltzplatz
       END IF
     END IF
 
@@ -416,6 +420,8 @@ SELECT CASE (TRIM(Examples(iExample)%EQNSYSNAME))
     Examples(iExample)%Nvar=5
   CASE ('linearscalaradvection')  
     Examples(iExample)%Nvar=1
+  CASE ('maxwell')  
+    Examples(iExample)%Nvar=8
   CASE DEFAULT
     Examples(iExample)%Nvar=-1
     SWRITE(UNIT_stdOut,'(A)')   ' ERROR: missing case select for this BOLTZPLATZ_EQNSYSNAME with appropriate Nvar. Fix it by'

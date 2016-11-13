@@ -60,16 +60,16 @@ CONTAINS
 !> reads the command line options for the regressioncheck
 !> options are:
 !> run [default]:  - runs only the regressioncheck
-!> build           - builds all valid combinations of boltzplatz (default uses the configuration.boltzplatz from run_freestream) and 
+!> build           - builds all valid combinations of boltzplatz (default uses the configuration.boltzplatz from run_particle) and 
 !>                   performs the tests
 !>
 !> ./regressioncheck [RuntimeOption] [RuntimeOptionType]
 !> 
 !> ./regressioncheck                -> uses default "run" and runs the current compiler build and all "run_" examples
 !> ./regressioncheck
-!> ./regressioncheck build          -> runs "run_freestream" for numerous builds
+!> ./regressioncheck build          -> runs "run_particle" for numerous builds
 !> ./regressioncheck build convtest -> runs "feature_convtest" for numerous builds def. "feature_convtest/configuration.boltzplatz"
-!> ./regressioncheck build all      -> runs all examples for numerous builds defined in "run_freestream/configuration.boltzplatz"
+!> ./regressioncheck build all      -> runs all examples for numerous builds defined in "run_particle/configuration.boltzplatz"
 !==================================================================================================================================
 SUBROUTINE GetCommandLineOption()
 !===================================================================================================================================
@@ -112,11 +112,11 @@ ELSE
     BuildSolver=.TRUE.
     IF(TRIM(RuntimeOptionType).EQ.'debug')THEN
       BuildDebug=.TRUE.
-      RuntimeOptionType='run_freestream' ! debug uses "configuration.boltzplatz" from "run_freestream" and displays the complete 
+      RuntimeOptionType='run_particle' ! debug uses "configuration.boltzplatz" from "run_particle" and displays the complete 
                                          ! compilation process for debugging
     END IF
     IF(TRIM(RuntimeOptionTypeII).EQ.'debug')BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
-    IF(TRIM(RuntimeOptionType).EQ.'run')RuntimeOptionType='run_freestream'
+    IF(TRIM(RuntimeOptionType).EQ.'run')RuntimeOptionType='run_particle'
   ELSE IF((TRIM(RuntimeOption).EQ.'--help').OR.(TRIM(RuntimeOption).EQ.'help').OR.(TRIM(RuntimeOption).EQ.'HELP')) THEN
     CALL Print_Help_Information()
     STOP
@@ -332,31 +332,65 @@ DO ! extract reggie information
         Example%SubExampleNumber = 0
       END IF      
     END IF
-    ! Line integration
+    ! Line integration (e.g. integrate a property over time, the data is read from a .csv or .dat file)
+    ! e.g. in parameter_reggie.ini: IntegrateLine= Database.csv   ,1            ,','       ,1:2        , 1.0e2
+    !                                              data file name , header lines, delimiter, colums x:y, integral value
     IF(TRIM(temp1(1:IndNum-1)).EQ.'IntegrateLine')THEN
-       Example%IntegrateLine=.TRUE.
-       Example%IntegrateLineRange=0 ! init
+       Example%IntegrateLine            = .TRUE.
+       Example%IntegrateLineRange(1:2)  = 0.    ! init
+       Example%IntegrateLineHeaderLines = 0     ! init
+       Example%IntegrateLineDelimiter   = '999' ! init
        IndNum2=INDEX(temp1(IndNum+1:MaxNum),',')
-       IF(IndNum2.GT.0)THEN
-         temp2=temp1(IndNum+1:MaxNum)
-         Example%IntegrateLineFile=TRIM(ADJUSTL(temp2(1:IndNum2-1)))
-         temp2=temp2(IndNum2+1:LEN(TRIM(temp2)))
-         IndNum2=INDEX(temp2,',')
-         IF(IndNum2.GT.0)THEN ! get column ranges
-           IndNum3=INDEX(temp2(1:IndNum2),':')
-           IF(IndNum3.GT.0)THEN ! check range
-             CALL str2int(temp2(1        :IndNum3-1),Example%IntegrateLineRange(1),iSTATUS)
-             CALL str2int(temp2(IndNum3+1:IndNum2-1),Example%IntegrateLineRange(2),iSTATUS)
-             temp2=temp2(IndNum2+1:LEN(TRIM(temp2)))
-             IndNum2=LEN(temp2)
-             IF(IndNum2.GT.0)THEN ! get integral value
-               CALL str2real(temp2,Example%IntegrateLineValue,iSTATUS)
-             END IF ! get integral value 
-           END IF ! check range
-         END IF ! get column ranges
+       IF(IndNum2.GT.0)THEN ! get the name of the data file
+         temp2                     = temp1(IndNum+1:MaxNum)
+         Example%IntegrateLineFile = TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! data file name
+         temp2                     = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+         IndNum2                   = INDEX(temp2,',')
+
+         IF(IndNum2.GT.0)THEN ! get number of header lines in data file (they are ignored on reading the file)
+           CALL str2int(temp2(1:IndNum2-1),Example%IntegrateLineHeaderLines,iSTATUS)
+           temp2                   = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+           IndNum2                 = INDEX(temp2,"'")
+!print*,"IndNum2",IndNum2
+           IF(IndNum2.GT.0)THEN ! get delimiter for separating the columns in the data file
+             IndNum3=INDEX(temp2(IndNum2+1:LEN(TRIM(temp2))),"'")+IndNum2
+!print*,"IndNum3",IndNum3
+!print*,"temp2 ",temp2
+!read*
+             Example%IntegrateLineDelimiter=temp2(IndNum2+1:IndNum3-1)
+!print*,"[",temp2(IndNum2+1:IndNum3-1),"]"
+!read*
+             temp2                 = temp2(IndNum3+1:LEN(TRIM(temp2))) ! next
+             IndNum2               = INDEX(temp2,',')
+             IF(IndNum2.GT.0)THEN ! get column ranges
+               temp2               = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+               IndNum2             = INDEX(temp2,',')
+!print*,"temp2 ",temp2
+!read*
+               IndNum3=INDEX(temp2(1:IndNum2),':')
+               IF(IndNum3.GT.0)THEN ! check range
+                 CALL str2int(temp2(1        :IndNum3-1),Example%IntegrateLineRange(1),iSTATUS) ! column number 1
+                 CALL str2int(temp2(IndNum3+1:IndNum2-1),Example%IntegrateLineRange(2),iSTATUS) ! column number 2
+                 temp2             = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                 IndNum2           = LEN(temp2)
+                 IF(IndNum2.GT.0)THEN ! get integral value
+                   CALL str2real(temp2,Example%IntegrateLineValue,iSTATUS)
+                 END IF ! get integral value 
+               END IF ! check range
+             END IF ! get column ranges
+           END IF ! get delimiter
+         END IF !  get number of header lines
        END IF ! get file name
-      IF(ANY(Example%IntegrateLineRange(1:2).EQ.0))Example%IntegrateLine=.FALSE. 
-      IF(Example%IntegrateLineFile.EQ.'')Example%IntegrateLine=.FALSE.
+      IF(ANY(Example%IntegrateLineRange(1:2).EQ.0))   Example%IntegrateLine=.FALSE. 
+      IF(Example%IntegrateLineFile.EQ.'')             Example%IntegrateLine=.FALSE.
+      IF(Example%IntegrateLineHeaderLines.EQ.0)       Example%IntegrateLine=.FALSE.
+      IF(Example%IntegrateLineDelimiter(1:3).EQ.'999')Example%IntegrateLine=.FALSE.
+!print*,"Example%IntegrateLineRange(1:2)  ",Example%IntegrateLineRange(1:2)
+!print*,"Example%IntegrateLineFile        ",Example%IntegrateLineFile
+!print*,"Example%IntegrateLineHeaderLines ",Example%IntegrateLineHeaderLines
+!print*,"Example%IntegrateLineDelimiter "  ,Example%IntegrateLineDelimiter
+!print*,"Example%IntegrateLineValue "      ,Example%IntegrateLineValue
+!read*
     END IF ! 'IntegrateLine'
     ! Next feature
     !IF(TRIM(temp1(1:IndNum-1)).EQ.'NextFeature')
@@ -504,7 +538,7 @@ INTEGER                        :: iSTATUS                           ! Error stat
 IF((nArgs.GE.2))THEN
   CALL str2int(RuntimeOptionType,NumberOfProcs,iSTATUS)
   IF(iSTATUS.EQ.0)THEN
-    RuntimeOptionType='run' ! return to default -> needed for setting it to 'run_freestream'
+    RuntimeOptionType='run' ! return to default -> needed for setting it to 'run_particle'
   ELSE
     IF(nArgs.GE.3)THEN
       CALL str2int(RuntimeOptionTypeII,NumberOfProcs,iSTATUS)
@@ -616,10 +650,10 @@ END SUBROUTINE str2logical
 !>     
 !>     ./regressioncheck                -> uses default "run" and runs the current compiler build and all "run_" examples
 !>     ./regressioncheck
-!>     ./regressioncheck build          -> runs "run_freestream" for numerous builds
+!>     ./regressioncheck build          -> runs "run_particle" for numerous builds
 !>     ./regressioncheck build convtest -> runs "feature_convtest" for numerous builds defined in 
 !>                                              "feature_convtest/configuration.boltzplatz"
-!>     ./regressioncheck build all     -> runs all examples for numerous builds defined in "run_freestream/configuration.boltzplatz"
+!>     ./regressioncheck build all     -> runs all examples for numerous builds defined in "run_particle/configuration.boltzplatz"
 !> 2.) information on input files, e.g., comfiguration.boltzplatz and parameter_reggie.ini
 !> 3.) give information on error codes for builing/compiling the source code and running the code
 !==================================================================================================================================
@@ -651,11 +685,11 @@ SWRITE(UNIT_stdOut,'(A)') ' ----------------------------------------------------
 SWRITE(UNIT_stdOut,'(A)') ' help                       | prints this information output                                           '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------------------------'
 SWRITE(UNIT_stdOut,'(A)') ' run (default)              | runs all examples with prefix "run", e.g., "run_1" or                    '
-SWRITE(UNIT_stdOut,'(A)') '                            | "run_freestream". These tests all inlcude very                           '
+SWRITE(UNIT_stdOut,'(A)') '                            | "run_particle". These tests all inlcude very                             '
 SWRITE(UNIT_stdOut,'(A)') '                            | short simulations with <1sec execution time                              '
 SWRITE(UNIT_stdOut,'(A)') '                            | e.g. used for on-check-in tests                                          '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------------------------'
-SWRITE(UNIT_stdOut,'(A)') ' build                      | runs the example "run_freestream" on default and                         '
+SWRITE(UNIT_stdOut,'(A)') ' build                      | runs the example "run_particle" on default and                           '
 SWRITE(UNIT_stdOut,'(A)') '                            | (requires locally built HDF5 or loaded HDF5 paths)                       '
 SWRITE(UNIT_stdOut,'(A)') '                            | compiles all possible compiler flag combinations                         '
 SWRITE(UNIT_stdOut,'(A)') '                            | specified in "comfiguration.boltzplatz" and considers                    '

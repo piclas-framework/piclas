@@ -52,6 +52,8 @@ TYPE tExample                                                        !> examples
   CHARACTER(LEN=255)                     :: IntegrateLineFile        !> File name with ACSI number columns
   INTEGER                                :: IntegrateLineRange(2)    !> the numerbs of two coulumns with data
   REAL                                   :: IntegrateLineValue       !> the reference integral value
+  CHARACTER(LEN=255)                     :: IntegrateLineDelimiter   !> delimiter string for reading the data file
+  INTEGER                                :: IntegrateLineHeaderLines !> number of header lines to be ignored from data file
   LOGICAL                                :: IntegrateLine            !> read two columns from a file and integrate over line
                                                                      !> e.g. u(t) is integrated over t for comparison of the 
                                                                      !> integral value

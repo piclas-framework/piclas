@@ -139,6 +139,7 @@ IF(PRESENT(ReferenceNorm))THEN ! use user-defined norm if present, else use 0.00
   DO iVar=1,Examples(iExample)%nVar
     IF(.NOT.EQUALTOTOLERANCE(L2(iVar),ReferenceNorm(iVar,1),eps))THEN
       L2Compare=.FALSE.
+      SWRITE(UNIT_stdOut,'(A)') ''
       SWRITE(UNIT_stdOut,'(A,E20.14)')  ' L2Norm                =',L2(iVar)
       SWRITE(UNIT_stdOut,'(A,E20.14)')  ' ReferenceNorm(iVar,1) =',ReferenceNorm(iVar,1)
       SWRITE(UNIT_stdOut,'(A,E20.14)')  ' eps                   =',eps
@@ -148,6 +149,7 @@ IF(PRESENT(ReferenceNorm))THEN ! use user-defined norm if present, else use 0.00
   DO iVar=1,Examples(iExample)%nVar
     IF(.NOT.EQUALTOTOLERANCE(LInf(iVar),ReferenceNorm(iVar,2),eps))THEN
       LInfCompare=.FALSE.
+      SWRITE(UNIT_stdOut,'(A)') ''
       SWRITE(UNIT_stdOut,'(A,E20.14)')  ' LInfNorm              =',LInf(iVar)
       SWRITE(UNIT_stdOut,'(A,E20.14)')  ' ReferenceNorm(iVar,1) =',ReferenceNorm(iVar,2)
       SWRITE(UNIT_stdOut,'(A,E20.14)')  ' eps                   =',eps
@@ -159,16 +161,18 @@ ELSE ! use user-defined norm if present, else use 100.*PP_RealTolerance
   IF(Examples(iExample)%ReferenceTolerance.GT.0.)THEN
     eps=Examples(iExample)%ReferenceTolerance
   ELSE
-    eps=1000*PP_RealTolerance ! instead of 100, use 1000 because ketchesonrk4-20 failes here
+    eps=1000*PP_RealTolerance ! instead of 100, use 1000 because ketchesonrk4-20 with flex with flexii failes here
   END IF
   IF(ANY(L2.GT.eps))THEN
     L2Compare=.FALSE.
+    SWRITE(UNIT_stdOut,'(A)') ''
     SWRITE(UNIT_stdOut,'(A,E20.14)')  ' L2Norm                =',MAXVAL(L2)
     SWRITE(UNIT_stdOut,'(A,E20.14)')  ' eps                   =',eps
     RETURN ! fail
   END IF
   IF(ANY(LInf.GT.eps))THEN
     LInfCompare=.FALSE.
+    SWRITE(UNIT_stdOut,'(A)') ''
     SWRITE(UNIT_stdOut,'(A,E20.14)')  ' LInfNorm              =',MAXVAL(LInf)
     SWRITE(UNIT_stdOut,'(A,E20.14)')  ' eps                   =',eps
     RETURN ! fail
@@ -331,8 +335,9 @@ ELSE
   OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 ! init parameters for reading the data file
-HeaderLines=3
-Delimiter=' '
+HeaderLines=Examples(iExample)%IntegrateLineHeaderLines
+HeaderLines=1
+Delimiter=ADJUSTL(TRIM(Examples(iExample)%IntegrateLineDelimiter))
 MaxColumn=MAXVAL(Examples(iExample)%IntegrateLineRange)
 IndMax  =LEN(temp1) ! complete string length
 IndFirstA=1
@@ -342,6 +347,7 @@ IndLastB =IndMax
 IndexNotFound=.TRUE.
 CurrentColumn=0
 EOL=0
+print*,""
 ! read the file twice in order to determine the array size
 DO I=1,2
   LineNumbers=0
@@ -350,10 +356,11 @@ DO I=1,2
     IF(iSTATUS.EQ.-1) EXIT ! end of file (EOF) reached
     IF(INDEX(temp1,'!').GT.0)temp1=temp1(1:INDEX(temp1,'!')-1) ! if temp1 contains a '!', remove it and the following characters
     LineNumbers=LineNumbers+1
-    IF(I.EQ.2)THEN ! read the data
+    IF(I.EQ.2)THEN ! read the data on second round reading the file (in first round, collect the file length by checking each line)
       IF(LineNumbers.GT.HeaderLines)THEN ! remove header lines
         IF(IndexNotFound)THEN
-            temp2=ADJUSTL(TRIM(temp1))
+            !temp2=ADJUSTL(TRIM(temp1))  ! don't use ADJUSTL because it cuts away the spaces left to the first column
+            temp2=TRIM(temp1)
           ! get index range
           DO J=1,MaxColumn
             IndNum=INDEX(TRIM(temp2),Delimiter)
@@ -364,11 +371,11 @@ DO I=1,2
                 IF(IndNum.GT.1)EXIT
              END DO ! while
             END IF !IndNum.EQ.1
-            ! 
             IF(IndNum.GT.0)THEN
               CurrentColumn=CurrentColumn+IndNum
 !print*,'[',TRIM(temp2),']'
 !print*,'IndNum=',IndNum,'J=',J,' of ',MaxColumn
+!read*
               ! first index
               IF(J.EQ.Examples(iExample)%IntegrateLineRange(1)-1)IndFirstA=CurrentColumn+1
               IF(J.EQ.Examples(iExample)%IntegrateLineRange(2)-1)IndFirstB=CurrentColumn+1
@@ -383,10 +390,10 @@ DO I=1,2
                 Examples(iExample)%ErrorStatus=5
                 stop
                 RETURN
-              END IF
-            END IF
+              END IF!IF(EOL.GT.1)
+            END IF!IF(IndNum.GT.0)
             temp2=TRIM(temp1(CurrentColumn+1:IndMax))
-          END DO
+          END DO!J=1,MaxColumn
         IndexNotFound=.FALSE.
 !print*,'Examples(iExample)%IntegrateLineRange(1)',IndFirstA,IndLastA
 !print*,'Examples(iExample)%IntegrateLineRange(2)',IndFirstB,IndLastB
@@ -394,9 +401,10 @@ DO I=1,2
 !print*,temp1(IndFirstA:IndLastA),'  ',temp1(IndFirstB:IndLastB)
         CALL str2real(temp1(IndFirstA:IndLastA),Values(LineNumbers-HeaderLines,1),iSTATUS) 
         CALL str2real(temp1(IndFirstB:IndLastB),Values(LineNumbers-HeaderLines,2),iSTATUS) 
-      END IF
-    END IF
-  END DO
+!print*,'[',temp1(IndFirstA:IndLastA),']','[',temp1(IndFirstB:IndLastB),']'
+      END IF!IF(LineNumbers.GT.HeaderLines)
+    END IF!IF(I.EQ.2)
+  END DO ! DO [WHILE]
   IF(I.EQ.1)REWIND(ioUnit)
   IF(I.EQ.1)MaxRow=LineNumbers-HeaderLines
   IF(I.EQ.1)ALLOCATE(Values(MaxRow,MaxColumn))
@@ -413,7 +421,11 @@ DO I=1,2
 !         END IF
 !       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 END DO
-
+!read*
+!print*,""
+!DO I=1,MaxRow
+  !print*,Values(I,:)
+!END DO
 ! integrate the values numerically
 Q=0.
 DO I=1,MaxRow-1
@@ -423,15 +435,16 @@ END DO
 !print*,Examples(iExample)%IntegrateLineValue
 !print*,1.e-3!0.1*SQRT(PP_RealTolerance)
 
-IntegralValuesAreEqual=EQUALTOTOLERANCE( Q,&
-                                  Examples(iExample)%IntegrateLineValue,&
-                                  1.e-3)
+IntegralValuesAreEqual=EQUALTOTOLERANCE( Q                                     ,&
+                                         Examples(iExample)%IntegrateLineValue ,&
+                                         1.e-3                                 )
 IF(.NOT.IntegralValuesAreEqual)THEN
   IntegralCompare=1
   SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLines do not match! Error in computation!'
-  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' IntegrateLineValue                    =',Q
-  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' Examples(iExample)%IntegrateLineValue =',Examples(iExample)%IntegrateLineValue
-  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' 0.1*SQRT(PP_RealTolerance)            =',1.e-3!0.1*SQRT(PP_RealTolerance)
+  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' IntegrateLineValue                    = ',Q
+  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
+  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' Tolerance                             = ',1.e-3!0.1*SQRT(PP_RealTolerance)
+  !SWRITE(UNIT_stdOut,'(A,E20.14)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5
 ELSE
   IntegralCompare=0
