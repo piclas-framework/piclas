@@ -623,6 +623,7 @@ INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems)
 INTEGER,ALLOCATABLE      :: HaloElemToBGM(:,:)
 !=================================================================================================================================
 
+SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT BASIS...' 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
 GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
@@ -639,16 +640,19 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
 CALL BuildElementBasis()
 EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init element-basis took          [',EndT-StartT,'s]'
+  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' INIT ELEMENT-BASIS TOOK          [',EndT-StartT,'s]'
 END IF
 
 StartT=BOLTZPLATZTIME()
 ! get new min max
+SWRITE(UNIT_stdOut,'(A)')' Getting FIBGM-minmax ...' 
 CALL GetFIBGMminmax()
 ! sort elem in bgm cells
+SWRITE(UNIT_stdOut,'(A)')' Getting element range in FIBGM ...' 
 DO iElem=1,PP_nElems
   CALL BGMIndexOfElement(iElem,ElemToBGM(1:6,iElem)) 
 END DO ! iElem = nElems+1,nTotalElems
+SWRITE(UNIT_stdOut,'(A)')' Building FIBGM ...' 
 CALL GetFIBGM(ElemToBGM)
 EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
@@ -704,7 +708,8 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
 
-SWRITE(UNIT_stdOut,'(A)')' DONE!' 
+SWRITE(UNIT_stdOut,'(A)')' ... DONE!' 
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitFIBGM
 
@@ -917,12 +922,12 @@ END DO
 !--- compute number of elements in each background cell
 DO iElem=1,PP_nElems
   ! here fancy stuff, because element could be wide out of element range
-  BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
-  BGMCellXmax = MAX(MIN(ElemToBGM(2,iElem),BGMimax),BGMimin)
-  BGMCellYmin = MIN(MAX(ElemToBGM(3,iElem),BGMjmin),BGMjmax)
-  BGMCellYmax = MAX(MIN(ElemToBGM(4,iElem),BGMjmax),BGMjmin)
-  BGMCellZmin = MIN(MAX(ElemToBGM(5,iElem),BGMkmin),BGMkmax)
-  BGMCellZmax = MAX(MIN(ElemToBGM(6,iElem),BGMkmax),BGMkmin)
+  BGMCellXmin = ElemToBGM(1,iElem)
+  BGMCellXmax = ElemToBGM(2,iElem)
+  BGMCellYmin = ElemToBGM(3,iElem)
+  BGMCellYmax = ElemToBGM(4,iElem)
+  BGMCellZmin = ElemToBGM(5,iElem)
+  BGMCellZmax = ElemToBGM(6,iElem)
   ! add ecurrent element to number of BGM-elems
   DO iBGM = BGMCellXmin,BGMCellXmax
     DO jBGM = BGMCellYmin,BGMCellYmax
@@ -947,12 +952,12 @@ END DO ! iBGM
 !--- map elements to background cells
 DO iElem=1,PP_nElems
   ! here fancy stuff, because element could be wide out of element range
-  BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
-  BGMCellXmax = MAX(MIN(ElemToBGM(2,iElem),BGMimax),BGMimin)
-  BGMCellYmin = MIN(MAX(ElemToBGM(3,iElem),BGMjmin),BGMjmax)
-  BGMCellYmax = MAX(MIN(ElemToBGM(4,iElem),BGMjmax),BGMjmin)
-  BGMCellZmin = MIN(MAX(ElemToBGM(5,iElem),BGMkmin),BGMkmax)
-  BGMCellZmax = MAX(MIN(ElemToBGM(6,iElem),BGMkmax),BGMkmin)
+  BGMCellXmin = ElemToBGM(1,iElem)
+  BGMCellXmax = ElemToBGM(2,iElem)
+  BGMCellYmin = ElemToBGM(3,iElem)
+  BGMCellYmax = ElemToBGM(4,iElem)
+  BGMCellZmin = ElemToBGM(5,iElem)
+  BGMCellZmax = ElemToBGM(6,iElem)
   ! add current Element to BGM-Elem
   DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
@@ -966,13 +971,15 @@ END DO ! iElem
 
 
 !IF(mode.EQ.2) RETURN
+SWRITE(UNIT_stdOut,'(A)')' Building MPI-FIBGM ...' 
 #ifdef MPI
 !--- MPI stuff for background mesh (FastinitBGM)
 BGMCells=0 
 ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
-DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
+!Count BGMCells with Elements inside and save their indices in BGMCellsArray
+DO kBGM=BGMkmin, BGMkmax
   DO jBGM=BGMjmin, BGMjmax
-    DO kBGM=BGMkmin, BGMkmax
+    DO iBGM=BGMimin, BGMimax  
       IF (GEO%FIBGM(iBGM,jBGM,kBGM)%nElem .GT. 0) THEN
         BGMCellsArray(BGMCells*3+1)= iBGM
         BGMCellsArray(BGMCells*3+2)= jBGM
