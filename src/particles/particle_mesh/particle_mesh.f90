@@ -26,10 +26,6 @@ INTERFACE InitFIBGM
   MODULE PROCEDURE InitFIBGM
 END INTERFACE
 
-INTERFACE InitSFIBGM
-  MODULE PROCEDURE InitSFIBGM
-END INTERFACE
-
 INTERFACE SingleParticleToExactElement
   MODULE PROCEDURE SingleParticleToExactElement
 END INTERFACE
@@ -86,7 +82,7 @@ END INTERFACE
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem,BuildElementOrigin
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
-PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM,InitSFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
+PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
 PUBLIC::PartInElemCheck
 !===================================================================================================================================
@@ -593,107 +589,6 @@ IF(isHit) Check=.FALSE.
 LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
 
 END SUBROUTINE PartInElemCheck
-
-
-SUBROUTINE InitSFIBGM()
-!===================================================================================================================================
-! Build Fast-Init-Background-Mesh.
-! The BGM is a cartesian mesh for easier locating of particles
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
-!USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
-USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
-#ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitSimpleHALOMesh
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
-#endif /*MPI*/
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                     :: StartT,EndT
-!=================================================================================================================================
-
-!! Read parameter for FastInitBackgroundMesh (FIBGM)
-GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
-GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
-GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
-
-! simplified halo region
-! compute elem bary and elem radius
-StartT=BOLTZPLATZTIME()
-ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
-CALL BuildElementOrigin()
-ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
-        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
-        ,ElemRadiusNGeo(1:nTotalElems)         &
-        ,ElemRadius2NGeo(1:nTotalElems)        )
-CALL BuildElementBasis()
-EndT=BOLTZPLATZTIME()
-IF(PartMPI%MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init element-basis took          [',EndT-StartT,'s]'
-END IF
-
-StartT=BOLTZPLATZTIME()
-CALL GetSFIBGM()
-EndT=BOLTZPLATZTIME()
-IF(PartMPI%MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
-END IF
-
-#ifdef MPI
-SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
-StartT=BOLTZPLATZTIME()
-!CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
-printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
-CALL InitSimpleHaloMesh()
-#else
-StartT=BOLTZPLATZTIME()
-#endif /*MPI*/
-
-! remove inner BezierControlPoints3D and SlabNormals, usw.
-IF(DoRefMapping) CALL ReshapeBezierSides()
-
-CALL GetElemAndSideType()
-CALL GetPlanarSideBaseVectors()
-
-SDEALLOCATE(XiEtaZetaBasis)
-SDEALLOCATE(slenXiEtaZetaBasis)
-SDEALLOCATE(ElemRadiusNGeo)
-SDEALLOCATE(ElemRadius2NGeo)
-
-ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
-        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
-        ,ElemRadiusNGeo(1:nTotalElems)         &
-        ,ElemRadius2NGeo(1:nTotalElems)        )
-CALL BuildElementBasis()
-
-
-! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
-! rebuild is a local operation
-CALL AddSimpleHALOCellsToFIBGM()
-EndT=BOLTZPLATZTIME()
-IF(PartMPI%MPIROOT)THEN
-   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
-END IF
-
-!CALL MapElemToFIBGM()
-
-SWRITE(UNIT_stdOut,'(A)')' DONE!' 
-
-END SUBROUTINE InitSFIBGM
 
 
 SUBROUTINE InitFIBGM()
@@ -5070,6 +4965,8 @@ IF(nPeriodicSides.GT.0)THEN
 END IF ! nPeriodicSides .GT.0
 
 END SUBROUTINE ExtendToPeriodicSides
+
+
 
 SUBROUTINE BGMIndexOfElement(ElemID,ElemToBGM) 
 !===================================================================================================================================
