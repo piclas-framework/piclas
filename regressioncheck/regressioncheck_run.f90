@@ -235,6 +235,10 @@ DO iExample = 1, nExamples ! loop level 1 of 3
                    '/" '//TRIM(parameter_boltzplatz)
         CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       END IF
+    IF(Examples(iExample)%IntegrateLine)THEN ! delete pre-existing data files before running the code
+      SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm '//TRIM(Examples(iExample)%IntegrateLineFile)//' > /dev/null 2>&1'
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS) ! delete, e.g., "TGVAnalysis.dat" or "Database.csv"
+    END IF
       IF(Examples(iExample)%EXEC)THEN
         SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && mpirun -np 2 '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
                     //TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'

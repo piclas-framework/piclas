@@ -319,7 +319,7 @@ CHARACTER(LEN=255)             :: FileName
 !CHARACTER(LEN=255)             :: ReferenceFileName
 CHARACTER(LEN=355)             :: temp1,temp2
 !CHARACTER(LEN=20)              :: tmpTol
-INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,IndMax,CurrentColumn,IndNum,MaxColumn
+INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,IndMax,CurrentColumn,IndNum,MaxColumn!,K
 INTEGER                        :: IndFirstA,IndLastA,IndFirstB,IndLastB,EOL,MaxRow
 LOGICAL                        :: ExistFile,IndexNotFound,IntegralValuesAreEqual
 REAL,ALLOCATABLE               :: Values(:,:),Q
@@ -409,19 +409,21 @@ DO I=1,2
     END IF!IF(I.EQ.2)
   END DO ! DO [WHILE]
   IF(I.EQ.1)REWIND(ioUnit)
+  IF(I.EQ.2)CLOSE(ioUnit)
   IF(I.EQ.1)MaxRow=LineNumbers-HeaderLines
   IF(I.EQ.1)ALLOCATE(Values(MaxRow,MaxColumn))
   If(I.EQ.1)Values=0.
 !       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!         print*,shape(Values)
-!         IF(I.EQ.2)THEN
-!           DO J=1,MaxRow
-!             DO K=1,2
-!                 write(*,'(E20.14,A)', ADVANCE = 'NO') Values(J,K),'  '
-!               IF(K.EQ.2)print*,''
-!             END DO
-!           END DO
-!         END IF
+         !print*,shape(Values)
+         !IF(I.EQ.2)THEN
+           !DO J=1,MaxRow
+             !DO K=1,2
+                 !write(*,'(E20.14,A)', ADVANCE = 'NO') Values(J,K),'  '
+               !IF(K.EQ.2)print*,''
+             !END DO
+           !END DO
+         !END IF
+         !read*
 !       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 END DO
 !read*
