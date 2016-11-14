@@ -704,6 +704,7 @@ USE MOD_Mesh_Vars,                 ONLY:MortarType,MortarInfo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
+USE MOD_Mappings,                  ONLY:SideToAdjointLocSide
 !USE MOD_Particle_Tracking_Vars,    ONLY:DoRefMapping
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -723,6 +724,8 @@ REAL                     :: NodeX(1:3)!,xNodes(1:3,0:NGeo,0:NGeo)
 INTEGER                  :: iBGM,jBGM,kBGM,iPBGM,jPBGM,kPBGM
 LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
+REAL                     :: distance(1:3)
+INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint,neighbor_ElemID,flip,AdjointLocSideID(2)
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
@@ -735,72 +738,182 @@ ElemIndex=0
 NbOfSides=0
 NBOfElems=0
 
-DO iSide=1,nExternalSides
-  !IF(MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
-  DO q=0,NGeo
-    DO p=0,NGeo
-      NodeX(:) = BezierSides3D(:,p,q,iSide)
-      !iBGM = INT((NodeX(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-      !jBGM = INT((NodeX(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-      !kBGM = INT((NodeX(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-      iBGM = CEILING((NodeX(1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-      iBGM = MIN(GEO%FIBGMimax,iBGM)                             
-      jBGM = CEILING((NodeX(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-      jBGM = MIN(GEO%FIBGMjmax,jBGM) 
-      kBGM = CEILING((NodeX(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-      kBGM = MIN(GEO%FIBGMkmax,kBGM)
-      DO iPBGM = iBGM-FIBGMCellPadding(1),iBGM+FIBGMCellPadding(1)
-        DO jPBGM = jBGM-FIBGMCellPadding(2),jBGM+FIBGMCellPadding(2)
-          DO kPBGM = kBGM-FIBGMCellPadding(3),kBGM+FIBGMCellPadding(3)
-            IF((iPBGM.GT.GEO%FIBGMimax).OR.(iPBGM.LT.GEO%FIBGMimin) .OR. &
-               (jPBGM.GT.GEO%FIBGMjmax).OR.(jPBGM.LT.GEO%FIBGMjmin) .OR. &
-               (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
-            DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
-              ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
-              IF(ElemIndex(ElemID).GT.0) CYCLE ! element is already marked
-              DO ilocSide=1,6
-                SideID=ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-                ! caution, not save if corect
-                leave=.FALSE.
-                IF(SideIndex(SideID).EQ.0)THEN
-                  DO s=0,NGeo
-                    DO r=0,NGeo
-                      IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,SideID)-NodeX &
-                                         ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
-                        NbOfSides=NbOfSides+1
-                        SideIndex(SideID)=NbOfSides
-                        IF(ElemIndex(ElemID).EQ.0)THEN
-                          NbOfElems=NbOfElems+1
-                          ElemIndex(ElemID)=NbofElems
-                        END IF
-                        leave=.TRUE.
-                        ! mark potential Inner elements on the other side
-                        DO iMortar=1,4
-                          CHECKSAFEINT(ElemToElemGlob(iMortar,ilocSide,offSetElem+ElemID),4)
-                          NBElemID=ElemToElemGlob(iMortar,ilocSide,offSetElem+ElemID)-offSetElem
-                          IF(NBElemID.LE.0) CYCLE
-                          IF(NBElemID.GT.PP_nElems) CYCLE
-                          ! check if NBElem is already marked, if not, mark it!
-                          IF(ElemIndex(NbElemID).EQ.0)THEN
-                            NbOfElems=NbOfElems+1
-                            ElemIndex(NbElemID)=NbofElems
-                          END IF
-                        END DO ! iMortar=1,4
-                        EXIT
-                      END IF
-                    END DO ! r
-                    IF(leave) EXIT
-                  END DO ! s
-                END IF ! SideIndex(SideID).EQ.0
-                IF(leave) EXIT ! Element is marked, all other sides of THIS element have not to be checked
-              END DO ! ilocSide
-            END DO ! iBGMElem
-          END DO ! kPBGM
-        END DO ! jPBGM
-      END DO ! i PBGM
-    END DO ! p
-  END DO ! q
-END DO ! iSide
+! check if the full mesh is required
+Vec1(1) = GEO%xmaxglob-GEO%xminglob
+Vec1(2) = GEO%ymaxglob-GEO%yminglob
+Vec1(3) = GEO%zmaxglob-GEO%zminglob
+! if full mesh is required, then mark all elements for communication
+IF(SQRT(DOT_PRODUCT(Vec1,Vec1)).LE.halo_eps) THEN
+  NbOfElems=PP_nElems
+  DO iElem=1,PP_nElems
+    ElemIndex(iElem)=iElem
+  END DO ! iElem=1,PP_nElems
+  RETURN
+END IF 
+
+! now, check all boundary faces
+DO iElem=1,PP_nElems
+  IF(ElemIndex(iElem).GT.0)CYCLE
+  leave=.FALSE.
+  DO ilocSide=1,6
+    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    flip  =ElemToSide(E2S_FLIP,ilocSide,iElem)
+    ! get elemid of neighbor elem
+    !ElemID=SideToElem(S2E_NB_ELEM_ID,SideID)
+    !neighbor_ElemID=-1
+    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
+    !ElemID=SideToElem(S2E_ELEM_ID,SideID)
+    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
+    !IF(SideID.LE.0) CYCLE
+    !IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
+    ! reduce the number of sides which are compared to the received sides
+    ! for xi-minus,xi_plus check all 8 nodes to the element and the interior BezierControlPoints
+    ! for all other sides: only check the side-interior BezierControlPoints 
+    SELECT CASE(ilocSide)
+    CASE(XI_MINUS,XI_PLUS)
+      firstBezierPoint=0
+      lastBezierPoint=NGeo
+    CASE DEFAULT
+      firstBezierPoint=1
+      lastBezierPoint=NGeo-1
+    END SELECT
+    ! loop over all send sides, you do not have to check the halo mesh like in the svn-trunk
+    ! the distance-x,y,z check is cheaper than a modified check here and similar fast
+    DO iSide=1,nExternalSides
+      DO q=firstBezierPoint,lastBezierPoint
+        DO p=firstBezierPoint,lastBezierPoint
+          NodeX(:) = BezierSides3D(:,p,q,iSide)
+          DO s=firstBezierPoint,lastBezierPoint
+            DO r=firstBezierPoint,lastBezierPoint
+              distance(1)=ABS(BezierControlPoints3D(1,r,s,SideID)-NodeX(1))
+              IF(distance(1).GT.halo_eps) CYCLE
+              distance(2)=ABS(BezierControlPoints3D(2,r,s,SideID)-NodeX(2))
+              IF(distance(2).GT.halo_eps) CYCLE
+              distance(3)=ABS(BezierControlPoints3D(3,r,s,SideID)-NodeX(3))
+              IF(distance(3).GT.halo_eps) CYCLE
+              IF(SQRT(DOT_Product(Distance,Distance)).LE.halo_eps)THEN
+                IF(SideIndex(SideID).GT.0)THEN
+                  NbOfSides=NbOfSides+1
+                  SideIndex(SideID)=NbOfSides
+                END IF
+                NbOfElems=NbOfElems+1
+                ElemIndex(iElem)=NbofElems
+                leave=.TRUE.
+                ! mark potential Inner elements on the other side
+                DO iMortar=1,4
+                  NBElemID=ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)-offSetElem
+                  CHECKSAFEINT(NBElemID,4)
+                  IF(NBElemID.LE.0) CYCLE
+                  IF(NBElemID.GT.PP_nElems) CYCLE
+                  ! check if NBElem is already marked, if not, mark it!
+                  IF(ElemIndex(NbElemID).EQ.0)THEN
+                    NbOfElems=NbOfElems+1
+                    ElemIndex(NbElemID)=NbofElems
+                  END IF
+                END DO ! iMortar=1,4
+                EXIT
+              END IF ! Distance <halo_eps
+            END DO ! r=firstBezierPoint,lastBezierPoint
+            IF(leave) EXIT
+          END DO ! s=firstBezierPoint,lastBezierPoint
+          IF(leave) EXIT
+        END DO ! p=firstBezierPoint,lastBezierPoint
+        IF(leave) EXIT
+      END DO ! q=firstBezierPoint,lastBezierPoint
+      IF(leave) EXIT
+    END DO ! iSide=1,nExternalSides
+    IF(leave) THEN
+      ! for xi_plus,xi_minus sides (the 8 nodes of an element) the local neighbor can be marked
+      IF(((s.EQ.0).AND.(r.EQ.0)).OR.((s.EQ.0).AND.(r.EQ.NGeo)).OR.((s.EQ.NGeo).AND.(r.EQ.0)).OR.((s.EQ.NGeo).AND.(r.EQ.NGeo)))THEN
+        AdjointLocSideID = SideToAdjointLocSide(r,s,flip,ilocSide)
+        DO iMortar=1,4
+          NBElemID=ElemToElemGlob(iMortar,AdjointLocSideID(1),offSetElem+iElem)-offSetElem
+          CHECKSAFEINT(NBElemID,4)
+          IF(NBElemID.LE.0) CYCLE
+          IF(NBElemID.GT.PP_nElems) CYCLE
+          ! check if NBElem is already marked, if not, mark it!
+          IF(ElemIndex(NbElemID).EQ.0)THEN
+            NbOfElems=NbOfElems+1
+            ElemIndex(NbElemID)=NbofElems
+          END IF
+        END DO ! iMortar=1,4
+        DO iMortar=1,4
+          NBElemID=ElemToElemGlob(iMortar,AdjointLocSideID(2),offSetElem+iElem)-offSetElem
+          CHECKSAFEINT(NBElemID,4)
+          IF(NBElemID.LE.0) CYCLE
+          IF(NBElemID.GT.PP_nElems) CYCLE
+          ! check if NBElem is already marked, if not, mark it!
+          IF(ElemIndex(NbElemID).EQ.0)THEN
+            NbOfElems=NbOfElems+1
+            ElemIndex(NbElemID)=NbofElems
+          END IF
+        END DO ! iMortar=1,4
+      END IF
+      EXIT
+    END IF
+  END DO ! ilocSide=1,6
+END DO ! ! iElem=1,PP_nElems
+
+
+
+!      iBGM = CEILING((NodeX(1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+!      iBGM = MIN(GEO%FIBGMimax,iBGM)                             
+!      jBGM = CEILING((NodeX(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+!      jBGM = MIN(GEO%FIBGMjmax,jBGM) 
+!      kBGM = CEILING((NodeX(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+!      kBGM = MIN(GEO%FIBGMkmax,kBGM)
+!      DO iPBGM = iBGM-FIBGMCellPadding(1),iBGM+FIBGMCellPadding(1)
+!        DO jPBGM = jBGM-FIBGMCellPadding(2),jBGM+FIBGMCellPadding(2)
+!          DO kPBGM = kBGM-FIBGMCellPadding(3),kBGM+FIBGMCellPadding(3)
+!            IF((iPBGM.GT.GEO%FIBGMimax).OR.(iPBGM.LT.GEO%FIBGMimin) .OR. &
+!               (jPBGM.GT.GEO%FIBGMjmax).OR.(jPBGM.LT.GEO%FIBGMjmin) .OR. &
+!               (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
+!            DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
+!              ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
+!              IF(ElemIndex(ElemID).GT.0) CYCLE ! element is already marked
+!              DO ilocSide=1,6
+!                SideID=ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+!                ! caution, not save if corect
+!                leave=.FALSE.
+!                IF(SideIndex(SideID).EQ.0)THEN
+!                  DO s=0,NGeo
+!                    DO r=0,NGeo
+!                      IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,SideID)-NodeX &
+!                                         ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
+!                        NbOfSides=NbOfSides+1
+!                        SideIndex(SideID)=NbOfSides
+!                        IF(ElemIndex(ElemID).EQ.0)THEN
+!                          NbOfElems=NbOfElems+1
+!                          ElemIndex(ElemID)=NbofElems
+!                        END IF
+!                        leave=.TRUE.
+!                        ! mark potential Inner elements on the other side
+!                        DO iMortar=1,4
+!                          CHECKSAFEINT(ElemToElemGlob(iMortar,ilocSide,offSetElem+ElemID),4)
+!                          NBElemID=ElemToElemGlob(iMortar,ilocSide,offSetElem+ElemID)-offSetElem
+!                          IF(NBElemID.LE.0) CYCLE
+!                          IF(NBElemID.GT.PP_nElems) CYCLE
+!                          ! check if NBElem is already marked, if not, mark it!
+!                          IF(ElemIndex(NbElemID).EQ.0)THEN
+!                            NbOfElems=NbOfElems+1
+!                            ElemIndex(NbElemID)=NbofElems
+!                          END IF
+!                        END DO ! iMortar=1,4
+!                        EXIT
+!                      END IF
+!                    END DO ! r
+!                    IF(leave) EXIT
+!                  END DO ! s
+!                END IF ! SideIndex(SideID).EQ.0
+!                IF(leave) EXIT ! Element is marked, all other sides of THIS element have not to be checked
+!              END DO ! ilocSide
+!            END DO ! iBGMElem
+!          END DO ! kPBGM
+!        END DO ! jPBGM
+!      END DO ! i PBGM
+!    END DO ! p
+!  END DO ! q
+!END DO ! iSide
 
 !--- if there are periodic boundaries, they need to be taken into account as well:
 IF (GEO%nPeriodicVectors.GT.0) THEN
