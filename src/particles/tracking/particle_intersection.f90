@@ -283,10 +283,6 @@ ELSE
   END IF
 END IF
 IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
-  IF(iPart.EQ.8911)THEN
-    print*,'nagsadgs'
-  END IF
-
 
 !IF(DoRefMapping)THEN
 !  IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
