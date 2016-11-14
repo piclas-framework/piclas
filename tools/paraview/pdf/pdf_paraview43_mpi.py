@@ -1,7 +1,7 @@
 # Programmable Filter for computing the particle distribution
 
 Name = 'PDF'
-Label = 'Propability Distribution Function'
+Label = 'Probability Distribution Function'
 Help = 'Computes the propability distribution function.'
 
 NumberOfInputs = 1
