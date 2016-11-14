@@ -940,7 +940,7 @@ DO iProc=1, PartMPI%nMPINeighbors
         PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
         PartSendBuf(iProc)%content(       7+iPos) = REAL(PartSpecies(iPart),KIND=8)
         IF (usevMPF) PartSendBuf(iProc)%content( 8+iPos) = PartMPF(iPart)
-        ! count only, if particle is send
+        ! count only, if particle is sent
         iPos=iPos+ExtPartCommSize
       END DO ! jProc=1,nDepoProcs
     END DO ! iPart=1,PDM%ParticleVecLength 
@@ -966,7 +966,7 @@ PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 !IPWRITE(UNIT_stdOut,*) 'Number of received extparticles',SUM(PartMPIExchange%nPartsRecv(2,:))
 
 
-! caution, fancy trick, particles are send, but information is not deleted
+! caution, fancy trick, particles are sent, but information is not deleted
 ! temporary storage
 IF(DoExternalParts) THEN
   NbrOfExtParticles =SUM(PartMPIExchange%nPartsSend(1,:))+SUM(PartMPIExchange%nPartsRecv(2,:))

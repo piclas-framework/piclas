@@ -90,6 +90,10 @@ INTERFACE LegendrePolynomialAndDerivative
    MODULE PROCEDURE LegendrePolynomialAndDerivative
 END INTERFACE
 
+INTERFACE EQUALTOTOLERANCE
+   MODULE PROCEDURE EQUALTOTOLERANCE
+END INTERFACE
+
 PUBLIC::INV
 PUBLIC::BuildLegendreVdm
 !#ifdef PARTICLES
@@ -110,6 +114,7 @@ PUBLIC::LagrangeInterpolationPolys
 PUBLIC::LegendrePolynomialAndDerivative
 PUBLIC::GetInverse
 PUBLIC::GetSPDInverse
+PUBLIC::EQUALTOTOLERANCE
 
 !===================================================================================================================================
 
@@ -1055,6 +1060,39 @@ ELSE ! x, y not zero
   IF((ABS(x-y).LE.PP_RealTolerance*ABS(x)).AND.((ABS(x-y).LE.PP_RealTolerance*ABS(y)))) AlmostEqual_UNITY=.TRUE.
 END IF ! x,y zero
 END FUNCTION ALMOSTEQUAL_UNITY
+
+
+!==================================================================================================================================
+!> Determines if two real numbers are equal up to a given tolerance.
+!> Routine requires: x,y > tolerance
+!==================================================================================================================================
+FUNCTION EQUALTOTOLERANCE(x,y,tolerance) 
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+REAL,INTENT(IN) :: x                !< (IN)  first scalar to be compared
+REAL,INTENT(IN) :: y                !< (IN)  second scalar to be compared
+REAL,INTENT(IN) :: tolerance        !< (IN)  Tolerance to be checked against
+LOGICAL         :: EqualToTolerance !< (OUT) TRUE if x and y are closer than tolerance 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL            :: diff,maxInput
+!===================================================================================================================================
+EqualToTolerance = .FALSE.
+
+maxInput = MAX(ABS(x),ABS(y))
+diff = ABS(x-y)
+
+! Test absolute error
+IF (diff.LE.tolerance) THEN
+  EqualToTolerance=.TRUE.
+  RETURN
+END IF
+
+! Test relative error
+IF(diff.LT.maxInput*tolerance) EqualToTolerance=.TRUE.
+
+END FUNCTION EQUALTOTOLERANCE
 
 
 FUNCTION CHOOSE(N_in,k)
