@@ -1,40 +1,74 @@
 stages: 
   - build
   - error_clean
+  - test
 
 cache:
   key: "$CI_BUILD_NAME/$CI_BUILD_REF_NAME"
   paths: 
     - build_gnu/    
     - build_intel/    
+    - regressioncheck/examples
 
 build_gnu:
   stage: build
   tags:
     - withmodules
   script:
-    - module load env/gnu ; module list 
+    - module load env/gnu ; rm -rf build_gnu || true 
     - mkdir -p build_gnu ; cd build_gnu ; mkdir -p maxwell ; cd maxwell; cmake  ../.. ; make >/dev/null
     - cd .. ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=ImplicitO4 ../.. ; make >/dev/null
     - cd .. ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make >/dev/null
     - cd .. ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make >/dev/null
+    - cd .. ; ln -s maxwell/bin bin
 
 build_intel:
   stage: build
   tags:
     - withmodules
   script:
-    - module load env/intel ; module list 
+    - module load env/intel ; rm -rf build_intel || true 
     - mkdir -p build_intel ; cd build_intel ; mkdir -p maxwell ; cd maxwell; cmake ../.. ; make >/dev/null
     - cd .. ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=ImplicitO4 ../.. ; make >/dev/null
     - cd .. ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make >/dev/null
     - cd .. ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make >/dev/null
+    - cd .. ; ln -s maxwell/bin bin
 
 clean:
   stage: error_clean
   tags:
     - withmodules
   script:
-    - rm -rf build_gnu  ; rm -rf build_intel
+    - rm -rf build_gnu 
+    - rm -rf build_intel
   when: on_failure
+
+run_gnu:
+  stage: test
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck
+
+run_gnu_build_mpi:
+  stage: test
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build 2; fi
+
+run_intel:
+  stage: test
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck
+
+run_intel_build_mpi:
+  stage: test
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build 2; fi
+
 
