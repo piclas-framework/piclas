@@ -789,7 +789,7 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
   ALLOCATE(CurvedExternalField(1:2,1:ncounts))
   OPEN(UNIT=unit_index_CEF,FILE=FileNameCurvedExternalField,STATUS='OLD',FORM='FORMATTED')
   DO ii = 1, ncounts
-    read(unit_index_CEF,'(F8.5,x,F8.5)') CurvedExternalField(1,ii) , CurvedExternalField(2,ii)
+    read(unit_index_CEF,'(F10.5,x,F10.5)') CurvedExternalField(1,ii) , CurvedExternalField(2,ii)
     IF (ii.GE.2) THEN
       diff_comp  = CurvedExternalField(1,2)  - CurvedExternalField(1,1)
       diff_check = CurvedExternalField(1,ii) - CurvedExternalField(1,ii-1)
