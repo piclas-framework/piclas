@@ -381,6 +381,7 @@ IF(BuildValid(iReggieBuild))THEN
   ! can be executed with the compiled boltzplatz executable
   IF(iSTATUS.EQ.0)THEN
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TESTCASE',BuildTESTCASE(iReggieBuild))
+    IF(BuildTESTCASE(iReggieBuild).EQ.'')BuildTESTCASE(iReggieBuild)='default' ! e.g. for PICLas code (currently no testcases)
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
   ELSE
     CALL abort(__STAMP__&
@@ -422,6 +423,7 @@ SUBROUTINE GetFlagFromFile(FileName,Flag,output)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals,            ONLY: Getfreeunit
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -437,12 +439,13 @@ CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
 LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
 INTEGER                        :: iSTATUS      ! status
 CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
-INTEGER                        :: ioUnit=34    ! field handler unit and ??
+INTEGER                        :: ioUnit       ! field handler unit and ??
 INTEGER                        :: IndNum       ! Index Number
 !===================================================================================================================================
 output=''
 INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
 IF(ExistFile) THEN
+  ioUnit=GETFREEUNIT()
   OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
   DO
     READ(ioUnit,'(A)',iostat=iSTATUS)temp
@@ -464,7 +467,7 @@ IF(ExistFile) THEN
       END IF
     END IF
   END DO
-CLOSE(ioUnit)
+  CLOSE(ioUnit)
 ELSE 
   output=TRIM(FileName)//': file does not exist'
 END IF

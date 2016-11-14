@@ -192,10 +192,11 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       FolderName='default' ! for non-TESTCASE setups, set the default settings
       IF(FolderName.NE.TESTCASE)THEN ! e.g. default .NE. phill
         ! non-TESTCASE folder, but TESTCASE boltzplatz
-        SWRITE(UNIT_stdOut,'(A)') ' TESTCASE "default" not found in boltzplatz binary: ['//TRIM(TESTCASE)//'] ...skipping'
+        SWRITE(UNIT_stdOut,'(A)') ' TESTCASE "default" not found in boltzplatz binary: TESTCASE=['//TRIM(TESTCASE)//'] ...skipping'
         CYCLE
       ELSE
-        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE "default" is correct ...running' ! non-TESTCASE folder and non-TESTCASE boltzplatz
+        ! non-TESTCASE folder and non-TESTCASE boltzplatz
+        SWRITE(UNIT_stdOut,'(A)') ' TESTCASE "default" is correct: TESTCASE=['//TRIM(TESTCASE)//'] ...running' 
       END IF
     END IF
 

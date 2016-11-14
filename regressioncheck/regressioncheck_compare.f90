@@ -319,7 +319,7 @@ CHARACTER(LEN=255)             :: FileName
 !CHARACTER(LEN=255)             :: ReferenceFileName
 CHARACTER(LEN=355)             :: temp1,temp2
 !CHARACTER(LEN=20)              :: tmpTol
-INTEGER                        :: iSTATUS,ioUnit=35,LineNumbers,I,HeaderLines,j,IndMax,CurrentColumn,IndNum,MaxColumn
+INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,IndMax,CurrentColumn,IndNum,MaxColumn
 INTEGER                        :: IndFirstA,IndLastA,IndFirstB,IndLastB,EOL,MaxRow
 LOGICAL                        :: ExistFile,IndexNotFound,IntegralValuesAreEqual
 REAL,ALLOCATABLE               :: Values(:,:),Q
@@ -332,6 +332,7 @@ IF(.NOT.ExistFile) THEN
   Examples(iExample)%ErrorStatus=5
   RETURN
 ELSE
+  ioUnit=GETFREEUNIT()
   OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 ! init parameters for reading the data file
@@ -339,6 +340,8 @@ HeaderLines=Examples(iExample)%IntegrateLineHeaderLines
 HeaderLines=1
 Delimiter=ADJUSTL(TRIM(Examples(iExample)%IntegrateLineDelimiter))
 MaxColumn=MAXVAL(Examples(iExample)%IntegrateLineRange)
+!print*,"Examples(iExample)%IntegrateLineRange",Examples(iExample)%IntegrateLineRange
+!read*
 IndMax  =LEN(temp1) ! complete string length
 IndFirstA=1
 IndLastA =IndMax
@@ -347,7 +350,7 @@ IndLastB =IndMax
 IndexNotFound=.TRUE.
 CurrentColumn=0
 EOL=0
-print*,""
+!print*,""
 ! read the file twice in order to determine the array size
 DO I=1,2
   LineNumbers=0
@@ -426,6 +429,7 @@ END DO
 !DO I=1,MaxRow
   !print*,Values(I,:)
 !END DO
+!read*
 ! integrate the values numerically
 Q=0.
 DO I=1,MaxRow-1
@@ -437,13 +441,13 @@ END DO
 
 IntegralValuesAreEqual=EQUALTOTOLERANCE( Q                                     ,&
                                          Examples(iExample)%IntegrateLineValue ,&
-                                         1.e-3                                 )
+                                         5.e-2                                 )
 IF(.NOT.IntegralValuesAreEqual)THEN
   IntegralCompare=1
   SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLines do not match! Error in computation!'
   SWRITE(UNIT_stdOut,'(A,E20.14)')  ' IntegrateLineValue                    = ',Q
   SWRITE(UNIT_stdOut,'(A,E20.14)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
-  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' Tolerance                             = ',1.e-3!0.1*SQRT(PP_RealTolerance)
+  SWRITE(UNIT_stdOut,'(A,E20.14)')  ' Tolerance                             = ',1.e-2!0.1*SQRT(PP_RealTolerance)
   !SWRITE(UNIT_stdOut,'(A,E20.14)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5
 ELSE

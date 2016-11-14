@@ -154,7 +154,7 @@ IMPLICIT NONE
 CHARACTER(LEN=500)            :: SYSCOMMAND           ! string to fit the system command
 CHARACTER(LEN=500)            :: SYSCOMMANDTWO        ! string to fit the system command
 CHARACTER(LEN=255)            :: FilePathName,FileName! file and path strings
-INTEGER                       :: ioUnit=33            ! io-unit
+INTEGER                       :: ioUnit               ! io-unit
 INTEGER                       :: iSTATUS              ! status
 INTEGER                       :: iExample             ! loop index for example
 CHARACTER(len=255)            :: cwd                  ! current cworking directory CALL getcwd(cwd)
@@ -196,6 +196,7 @@ END IF
 
 ! read tmp.txt | list of directories if regressioncheck/examples
 FileName=TRIM(ExamplesDir)//'tmp.txt'
+ioUnit=GETFREEUNIT()
 OPEN(UNIT = ioUnit, FILE = FileName, STATUS ="OLD", IOSTAT = iSTATUS ) 
 
 nExamples=0
@@ -337,7 +338,7 @@ DO ! extract reggie information
     !                                              data file name , header lines, delimiter, colums x:y, integral value
     IF(TRIM(temp1(1:IndNum-1)).EQ.'IntegrateLine')THEN
        Example%IntegrateLine            = .TRUE.
-       Example%IntegrateLineRange(1:2)  = 0.    ! init
+       Example%IntegrateLineRange(1:2)  = 0     ! init
        Example%IntegrateLineHeaderLines = 0     ! init
        Example%IntegrateLineDelimiter   = '999' ! init
        IndNum2=INDEX(temp1(IndNum+1:MaxNum),',')
@@ -417,7 +418,7 @@ INTEGER,INTENT(IN)             :: iExample
 CHARACTER(LEN=500)             :: SYSCOMMAND
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: tmp
-INTEGER                        :: iSTATUS,ioUnit=22
+INTEGER                        :: iSTATUS,ioUnit
 !==================================================================================================================================
 ! delete all *.out files
 SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm *.out > /dev/null 2>&1'
@@ -443,6 +444,7 @@ ELSE
   END IF
   ! read tmp.txt | list of directories if regressioncheck/examples
   FileName=TRIM(Examples(iExample)%PATH)//'tmp.txt'
+  ioUnit=GETFREEUNIT()
   OPEN(UNIT = ioUnit, FILE = FileName, STATUS ="OLD", IOSTAT = iSTATUS ) 
   DO 
     READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS) tmp
