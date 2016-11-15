@@ -328,9 +328,15 @@ DO i=1,nSpecies
             END IF
           END IF
 #ifdef MPI
-          !InitGroup=Species(i)%Init(iInit)%InitCOMM
-          !CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR) !NbrOfParticle based on RandVals!
-          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR) !NbrOfParticle based on RandVals!
+          InitGroup=Species(i)%Init(iInit)%InitCOMM
+          IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+            ! only procs which are part of group take part in the communication
+             !NbrOfParticle based on RandVals!
+            CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR) 
+          ELSE
+            NbrOfParticle=0
+          END IF
+          !CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR) !NbrOfParticle based on RandVals!
 #endif
           Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
         CASE(2)    ! Emission Type: Particles per Iteration
