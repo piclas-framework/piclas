@@ -402,6 +402,7 @@ __STAMP__&
 !#endif
        ! instead of UpdateNextfreePosition we update the
        ! particleVecLength only.
+       ! and doing it later, after calcpartbalance
        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
        !CALL UpdateNextFreePosition()
@@ -457,6 +458,7 @@ __STAMP__&
 !#endif
       ! instead of UpdateNextfreePosition we update the
       ! particleVecLength only.
+      ! and doing it after calcpartbalance
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
       !CALL UpdateNextFreePosition()
@@ -465,33 +467,40 @@ __STAMP__&
     IF(CalcPartBalance) THEN
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
+      IF(PDM%CurrentNextFreePosition.GT.0)THEN
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-      IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-        nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-                                  PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      ELSE
+        IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
+          nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
+          DO iPart=1,NbrOfparticle
+            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+            IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
+                                    PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
+          END DO ! iPart
+        ELSE
+          nPartIn(i)=nPartIn(i) + NBrofParticle
+          DO iPart=1,NbrOfparticle
+            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+            IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
+                                    PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
+          END DO ! iPart
+        END IF
+#else
         nPartIn(i)=nPartIn(i) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-      END IF
-#else
-      nPartIn(i)=nPartIn(i) + NBrofParticle
-      DO iPart=1,NbrOfparticle
-        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-        IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
-                                PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-      END DO ! iPart
 #endif
+      END IF
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
     END IF ! CalcPartBalance
+    ! instead of UpdateNextfreePosition we update the
+    ! particleVecLength only.
+    !PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+    !PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    !CALL UpdateNextFreePosition()
   END DO
 END DO
 
