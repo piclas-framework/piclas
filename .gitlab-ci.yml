@@ -4,7 +4,7 @@ stages:
   - test
 
 cache:
-  key: "$CI_BUILD_NAME/$CI_BUILD_REF_NAME"
+  key: "$CI_BUILD_REF"
   paths: 
     - build_gnu/    
     - build_intel/    
