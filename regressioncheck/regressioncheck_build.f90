@@ -43,6 +43,7 @@ iExample,nReggieBuilds,BuildCounter,BuildIndex,N_compile_flags,BuildConfiguratio
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,RuntimeOptionType,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -195,6 +196,8 @@ DO I=1,2
   IF(I.EQ.1)BuildEQNSYS=''
   IF(I.EQ.1)ALLOCATE(BuildTESTCASE(nReggieBuilds))
   IF(I.EQ.1)BuildTESTCASE='default'
+  IF(I.EQ.1)ALLOCATE(BuildTIMEDISCMETHOD(nReggieBuilds))
+  IF(I.EQ.1)BuildTIMEDISCMETHOD='default'
 END DO
 
 
@@ -323,8 +326,8 @@ SUBROUTINE BuildConfiguration_boltzplatz(iReggieBuild,nReggieBuilds,&
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
-USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir
+USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
+USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -359,36 +362,49 @@ IF(BuildValid(iReggieBuild))THEN
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   SYSCOMMAND='cd '//TRIM(BuildDir)//' && mkdir build_reggie'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  WRITE(tempStr,*)iReggieBuild-1 ! print previously completed build to file for continuation possibility
+  SWRITE(tempStr,*)iReggieBuild-1 ! print previously completed build to file for continuation possibility
   SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.boltzplatz'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   OPEN(UNIT=ioUnit,FILE=TRIM(BuildDir)//'build_reggie/configurationX.cmake',STATUS="NEW",ACTION='WRITE',IOSTAT=iSTATUS)
-    DO K=1,N_compile_flags
-      write(ioUnit, '(A)', ADVANCE = "NO") ' -D'
-      write(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
-      write(ioUnit, '(A)', ADVANCE = "NO") '='
-      write(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
-    END DO
+  SWRITE(ioUnit, '(A)', ADVANCE = "NO") 'ccmake ' ! print the compiler flag command line
+  DO K=1,N_compile_flags
+    SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' -D'
+    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
+    SWRITE(ioUnit, '(A)', ADVANCE = "NO") '='
+    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
+  END DO
+  SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' ..'
   CLOSE(ioUnit)
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   SYSCOMMAND='cd '//TRIM(BuildDir)//&
-        'build_reggie && cmake `cat configurationX.cmake` ../../ > build_boltzplatz.out  && make boltzplatz >> build_boltzplatz.out'
-  IF(BuildDebug)SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../  && make boltzplatz '
+   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_boltzplatz.out  && make boltzplatz >> build_boltzplatz.out'
+  IF(BuildDebug)THEN
+    SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../  && make boltzplatz '
+  ELSEIF(BuildNoDebug)THEN
+    SYSCOMMAND='cd '//TRIM(BuildDir)//&
+   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_boltzplatz.out  && make boltzplatz >> build_boltzplatz.out 2>&1'
+  END IF
   IF(NumberOfProcs.GT.1)SYSCOMMAND=TRIM(SYSCOMMAND)//' -j '//TRIM(ADJUSTL(NumberOfProcsStr))
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   ! save compilation flags (even some that are not explicitly selected by the user) for deciding whether a supplied example folder 
   ! can be executed with the compiled boltzplatz executable
   IF(iSTATUS.EQ.0)THEN
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TESTCASE',BuildTESTCASE(iReggieBuild))
-    IF(BuildTESTCASE(iReggieBuild).EQ.'')BuildTESTCASE(iReggieBuild)='default' ! e.g. for PICLas code (currently no testcases)
+    ! set default for, e.g., PICLas code (currently no testcases are implemented)
+    IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
+    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TIMEDISCMETHOD',&
+                                                                                                BuildTIMEDISCMETHOD(iReggieBuild))
+    ! set default for, e.g., FLEXI code (not a compilation flag)
+    IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
   ELSE
     CALL abort(__STAMP__&
     ,'Could not compile boltzplatz! iSTATUS=',iSTATUS,999.)
   END IF
-  print*,"BuildEQNSYS(iReggieBuild)  =",TRIM(BuildEQNSYS(iReggieBuild))
-  print*,"BuildTESTCASE(iReggieBuild)=",TRIM(BuildTESTCASE(iReggieBuild))
+  print*,"BuildEQNSYS(iReggieBuild)          = ",TRIM(BuildEQNSYS(iReggieBuild))
+  print*,"BuildTESTCASE(iReggieBuild)        = ",TRIM(BuildTESTCASE(iReggieBuild))
+  print*,"BuildTIMEDISCMETHOD(iReggieBuild)) = ",TRIM(BuildTIMEDISCMETHOD(iReggieBuild))
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
   IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_boltzplatz.out'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
@@ -468,8 +484,9 @@ IF(ExistFile) THEN
     END IF
   END DO
   CLOSE(ioUnit)
+  IF(output.EQ.'')output='flag does not exist'
 ELSE 
-  output=TRIM(FileName)//': file does not exist'
+  output='file does not exist'
 END IF
 END SUBROUTINE GetFlagFromFile
 

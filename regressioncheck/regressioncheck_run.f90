@@ -36,31 +36,33 @@ USE MOD_RegressionCheck_Build,   ONLY: ReadConfiguration_boltzplatz,BuildConfigu
 USE MOD_RegressionCheck_Compare, ONLY: CompareNorm,CompareDataSet,CompareRuntime,ReadNorm,IntegrateLine
 USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,InitExample,CleanExample
 USE MOD_RegressionCheck_Vars,    ONLY: nExamples,ExampleNames,Examples,EXECPATH,RuntimeOptionType
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildDir,BuildSolver
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildDir,BuildSolver
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !CHARACTER(len=255)             :: cwd                               ! current cworking directory CALL getcwd(cwd)
-CHARACTER(LEN=500)             :: SYSCOMMAND,dummystr               ! string to fit the system command
-CHARACTER(LEN=255)             :: TESTCASE                          ! TESTCASE compile flag of current fexli binary
-CHARACTER(LEN=255)             :: ReggieBuildExe                    ! cache boltzplatz executables when doing "BuildSolver":
-                                                                    ! this means don't build the same cmake configuration twice
-CHARACTER(LEN=255)             :: FileName                          ! path to a file or its name
-CHARACTER(LEN=255)             :: FolderName                        ! path to a folder or its name
-CHARACTER(LEN=255)             :: parameter_boltzplatz                   ! input parameter file for boltzplatz depending on EQNSYS
-LOGICAL                        :: ExistFile                         ! file exists=.true., file does not exist=.false.
-INTEGER                        :: iSTATUS                           ! status
-INTEGER                        :: iExample                          ! loop index for example
-REAL,ALLOCATABLE               :: ReferenceNorm(:,:)                ! L2 and Linf norm of the executed example from a reference
-                                                                    ! solution
-CHARACTER(LEN=255),ALLOCATABLE :: BuildConfigurations(:,:)          ! ??
-LOGICAL,ALLOCATABLE            :: BuildValid(:)                     ! ??
-INTEGER,ALLOCATABLE            :: BuildCounter(:)                   ! ??
-INTEGER,ALLOCATABLE            :: BuildIndex(:)                     ! ??
-INTEGER                        :: ErrorStatus                       ! Error-code of regressioncheck
-INTEGER                        :: N_compile_flags                   ! number of compile-flags
+CHARACTER(LEN=500)             :: SYSCOMMAND,dummystr               !> string to fit the system command
+CHARACTER(LEN=255)             :: TESTCASE                          !> compilation flag in FLEXI
+CHARACTER(LEN=255)             :: TIMEDISCMETHOD                    !> compilation flag in PICLas
+CHARACTER(LEN=255)             :: ReggieBuildExe                    !> cache boltzplatz executables when doing "BuildSolver":
+                                                                    !> this means don't build the same cmake configuration twice
+CHARACTER(LEN=255)             :: FileName                          !> path to a file or its name
+CHARACTER(LEN=255)             :: FolderName                        !> path to a folder or its name
+CHARACTER(LEN=255)             :: parameter_boltzplatz              !> input parameter file for boltzplatz depending on EQNSYS
+CHARACTER(LEN=255)             :: parameter_boltzplatz2             !> input parameter file for boltzplatz depending on TIMEDISC
+LOGICAL                        :: ExistFile                         !> file exists=.true., file does not exist=.false.
+INTEGER                        :: iSTATUS                           !> status
+INTEGER                        :: iExample                          !> loop index for example
+REAL,ALLOCATABLE               :: ReferenceNorm(:,:)                !> L2 and Linf norm of the executed example from a reference
+                                                                    !> solution
+CHARACTER(LEN=255),ALLOCATABLE :: BuildConfigurations(:,:)          !> ??
+LOGICAL,ALLOCATABLE            :: BuildValid(:)                     !> ??
+INTEGER,ALLOCATABLE            :: BuildCounter(:)                   !> ??
+INTEGER,ALLOCATABLE            :: BuildIndex(:)                     !> ??
+INTEGER                        :: ErrorStatus                       !> Error-code of regressioncheck
+INTEGER                        :: N_compile_flags                   !> number of compile-flags
 INTEGER                        :: iReggieBuild,nReggieBuilds ! field handler unit and ??
 INTEGER                        :: IndNum
 INTEGER                        :: iSubExample
@@ -146,20 +148,27 @@ DO iExample = 1, nExamples ! loop level 1 of 3
     ! check if executable is compiled with correct TESTCASE (e.g. for tylorgreenvortex)
     IF(BuildSolver)THEN
       TESTCASE=BuildTESTCASE(iReggieBuild)
+      TIMEDISCMETHOD=BuildTIMEDISCMETHOD(iReggieBuild)
     ELSE
       FileName=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
       INQUIRE(File=FileName,EXIST=ExistFile)
-      IF(.NOT.ExistFile) THEN
+      IF(ExistFile) THEN
+        CALL  GetFlagFromFile(FileName,'BOLTZPLATZ_TESTCASE',TESTCASE)
+        ! set default for, e.g., PICLas code (currently no testcases are implemented)
+        IF((TRIM(TESTCASE).EQ.'flag does not exist'))TESTCASE='default'
+        IF(TRIM(TESTCASE).EQ.'flag does not exist')CALL abort(&
+          __STAMP__&
+          ,'BOLTZPLATZ_TESTCASE flag not found in configuration.cmake!',999,999.)
+
+        CALL GetFlagFromFile(FileName,'BOLTZPLATZ_TIMEDISCMETHOD',TIMEDISCMETHOD)
+        IF(TRIM(TIMEDISCMETHOD).EQ.'flag does not exist')CALL abort(&
+          __STAMP__&
+          ,'BOLTZPLATZ_TIMEDISCMETHOD flag not found in configuration.cmake!',999,999.)
+      ELSE
         SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the boltzplatz binary.'
         SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
         SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
         ERROR STOP '-1'
-      ELSE
-        CALL  GetFlagFromFile(FileName,'BOLTZPLATZ_TESTCASE',TESTCASE)
-        IF((TRIM(TESTCASE).EQ.''))TESTCASE='default' ! if not found in 'configuration.cmake', e.g. when TESTCASE is not impelemented
-        IF((TRIM(TESTCASE).EQ.'flag does not exist'))CALL abort(&
-          __STAMP__&
-          ,'BOLTZPLATZ_TESTCASE not found in configuration.cmake!',999,999.)
       END IF
     END IF
 
@@ -215,12 +224,26 @@ DO iExample = 1, nExamples ! loop level 1 of 3
     print*,'Example%SubExampleNumber:',     Examples(iExample)%SubExampleNumber
   !SWRITE(UNIT_stdOut,'(A,I2,A4,A)')"Example%SubExampleOption(",iSubExample,") = ",TRIM(Example%SubExampleOption(iSubExample))
     ! perform simulation
-    parameter_boltzplatz='parameter_boltzplatz_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'.ini'
+    parameter_boltzplatz2=''
+    IF(TRIM(TIMEDISCMETHOD).EQ.'DSMC')THEN
+      parameter_boltzplatz='parameter_boltzplatz_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'_DSMC.ini'
+      parameter_boltzplatz2='parameter_DSMC.ini'
+    ELSE
+      parameter_boltzplatz='parameter_boltzplatz_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'.ini'
+    END IF
     INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_boltzplatz),EXIST=ExistFile)
     IF(.NOT.ExistFile) THEN
       SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-      SWRITE(UNIT_stdOut,'(A,A)') ' parameter_boltzplatz:       ',TRIM(parameter_boltzplatz)
+      SWRITE(UNIT_stdOut,'(A,A)') ' parameter_boltzplatz:      ',TRIM(parameter_boltzplatz)
       ERROR STOP '-1'
+    END IF
+    IF(parameter_boltzplatz2.NE.'')THEN
+      INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_boltzplatz2),EXIST=ExistFile)
+      IF(.NOT.ExistFile) THEN
+        SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
+        SWRITE(UNIT_stdOut,'(A,A)') ' parameter_boltzplatz2:     ',TRIM(parameter_boltzplatz2)
+        ERROR STOP '-1'
+      END IF
     END IF
 !==================================================================================================================================
     DO iSubExample = 1, MAX(1,Examples(iExample)%SubExampleNumber) ! loop level 3 of 3: SubExamples (e.g. different TimeDiscMethods)
@@ -241,10 +264,10 @@ DO iExample = 1, nExamples ! loop level 1 of 3
     END IF
       IF(Examples(iExample)%EXEC)THEN
         SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && mpirun -np 2 '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
-                    //TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
+                    //TRIM(parameter_boltzplatz2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
       ELSE
         SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
-                    //TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
+                    //TRIM(parameter_boltzplatz2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
       END IF
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       print*,' --------------------------------------', iSTATUS
@@ -284,7 +307,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
         CALL CompareDataSet(iExample)
         IF(Examples(iExample)%ErrorStatus.EQ.3)THEN
           CALL AddError('Mismatch in HDF5-files. Datasets are unequal',iExample,iSubExample,ErrorStatus=3,ErrorCode=4)
-          SWRITE(UNIT_stdOut,'(A)')  ' Mismatch in HDF5-files. Datasets are unequal'
+          SWRITE(UNIT_stdOut,'(A)')  ' Mismatch in HDF5-files'
         END IF
       END IF
 
@@ -292,7 +315,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       IF(Examples(iExample)%IntegrateLine)THEN
         CALL IntegrateLine(ErrorStatus,iExample)
         IF(Examples(iExample)%ErrorStatus.EQ.5)THEN
-        CALL AddError('Mismatched in LineIntegral. The integrated values unequal',iExample,iSubExample,ErrorStatus=5,ErrorCode=5)
+        CALL AddError('Mismatch in LineIntegral',iExample,iSubExample,ErrorStatus=5,ErrorCode=5)
         END IF
       END IF
 

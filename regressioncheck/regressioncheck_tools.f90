@@ -76,7 +76,7 @@ SUBROUTINE GetCommandLineOption()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption,RuntimeOptionType,BuildDebug,RuntimeOptionTypeII
+USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption,RuntimeOptionType,BuildNoDebug,BuildDebug,RuntimeOptionTypeII
 USE MOD_RegressionCheck_Vars, ONLY: RuntimeOptionTypeIII,BuildContinue,BuildSolver
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -92,6 +92,8 @@ RuntimeOption='run'     ! default
 RuntimeOptionType='run' ! default
 RuntimeOptionTypeII=''  ! default
 RuntimeOptionTypeIII='' ! default
+BuildDebug=.FALSE.      ! default
+BuildNoDebug=.FALSE.    ! default
 ! Get number of command line arguments and read in runtime option of regressioncheck
 nArgs=COMMAND_ARGUMENT_COUNT()
 IF(nArgs.EQ.0)THEN
@@ -112,6 +114,10 @@ ELSE
     BuildSolver=.TRUE.
     IF(TRIM(RuntimeOptionType).EQ.'debug')THEN
       BuildDebug=.TRUE.
+      RuntimeOptionType='run_particle' ! debug uses "configuration.boltzplatz" from "run_particle" and displays the complete 
+                                         ! compilation process for debugging
+    ELSEIF(TRIM(RuntimeOptionType).EQ.'no-debug')THEN
+      BuildNoDebug=.TRUE.
       RuntimeOptionType='run_particle' ! debug uses "configuration.boltzplatz" from "run_particle" and displays the complete 
                                          ! compilation process for debugging
     END IF
@@ -697,8 +703,8 @@ SWRITE(UNIT_stdOut,'(A)') '                            | compiles all possible c
 SWRITE(UNIT_stdOut,'(A)') '                            | specified in "comfiguration.boltzplatz" and considers                    '
 SWRITE(UNIT_stdOut,'(A)') '                            | the specified exclude list for invalid combinations                      '
 SWRITE(UNIT_stdOut,'(A)') '                            | e.g. used for nightly tests                                              '
-SWRITE(UNIT_stdOut,'(A)') '                            | The cmake output may be shown on-screen by adding "debug" after possible '
-SWRITE(UNIT_stdOut,'(A)') '                            | [RuntimeOptionType] commands                                             '
+SWRITE(UNIT_stdOut,'(A)') '                            | The cmake output may be shown (disabled) on-screen by adding "debug"     '
+SWRITE(UNIT_stdOut,'(A)') '                            | ("no-debug") after possible [RuntimeOptionType] commands                 '
 SWRITE(UNIT_stdOut,'(A)') '                            | Multi-processor compilation is supported by adding "XX"  after possible  '
 SWRITE(UNIT_stdOut,'(A)') '                            | [RuntimeOptionType] commands, where "XX" is the number of processors     '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------------------------'

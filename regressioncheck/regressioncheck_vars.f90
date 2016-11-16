@@ -21,11 +21,13 @@ CHARACTER(LEN=255)             :: EXECPATH                           !> path to 
 CHARACTER(LEN=255)             :: ExamplesDir                        !> path to the regression check example folders
 CHARACTER(LEN=255)             :: BuildDir                           !> path to the regression check building environment
 CHARACTER(LEN=255),ALLOCATABLE :: BuildEQNSYS(:)                     !> EQNSYS for each build
-CHARACTER(LEN=255),ALLOCATABLE :: BuildTESTCASE(:)                   !> TESTCASE for each build
+CHARACTER(LEN=255),ALLOCATABLE :: BuildTESTCASE(:)                   !> TESTCASE for each build: only FLEXI
+CHARACTER(LEN=255),ALLOCATABLE :: BuildTIMEDISCMETHOD(:)             !> TIMEDISCMETHOD for each build: only PICLas
 
 LOGICAL                        :: BuildSolver                        !> Flag for automatic building of different flexi cmake configs
 LOGICAL                        :: BuildDebug                         !> Prints the complete compilation process for debugging when
                                                                      !> BuildSolver is true 
+LOGICAL                        :: BuildNoDebug                       !> Don't print any compiler output (if BuildSolver is true) 
 LOGICAL                        :: BuildContinue                      !> allow the building sequence to begin at the last failure
 INTEGER                        :: BuildContinueNumber                !> start building sequence from this point
 

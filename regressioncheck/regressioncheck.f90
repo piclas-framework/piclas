@@ -34,14 +34,14 @@ USE MOD_Mesh,                  ONLY: FinalizeMesh
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: Time                              ! Used to track computation time  
+REAL                           :: Time                ! Used to track computation time  
 !INTEGER                        :: iExample                       ! Loop counters 
 !INTEGER                        :: iSTATUS                           ! system-command status
-INTEGER                        :: ioUnit,nReggieBuilds              ! field handler unit and ??
-INTEGER                        :: nErrors                           ! number of errors
-CHARACTER(LEN=500)             :: SYSCOMMAND                        ! string to fit the system command
-CHARACTER(LEN=255)             :: FileName                          ! filename
-CHARACTER(LEN=255)             :: tmpstr                           ! tmp variable
+INTEGER                        :: nReggieBuilds       ! number of different cmake builds (with different flags)
+INTEGER                        :: nErrors             ! number of errors
+CHARACTER(LEN=500)             :: SYSCOMMAND          ! string to fit the system command
+CHARACTER(LEN=255)             :: FileName            ! filename
+CHARACTER(LEN=255)             :: tmpstr              ! tmp variable
 !==================================================================================================================================
 ! errorcodes
 ALLOCATE(firstError)
@@ -50,7 +50,7 @@ NULLIFY(aError)
 nReggieBuilds=0
 SYSCOMMAND=''
 FileName=''
-ioUnit=GETFREEUNIT()
+!ioUnit=GETFREEUNIT()
 CALL InitMPI()
 ! Define parameters for Converter
 
@@ -103,7 +103,7 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)') ' '
   aError=>firstError ! set aError to first error in list
   tmpstr=''
-  SWRITE(UNIT_stdOut,'(A45,2x,A20,2x,A10,2x,A10,2x,A65,2x)') 'Example','SubExample','ErrorCode','build','Information'
+  SWRITE(UNIT_stdOut,'(A45,2x,A20,2x,A10,2x,A15,2x,A35,2x)') 'Example','SubExample','ErrorCode','build','Information'
   DO WHILE (ASSOCIATED(aError))
     IF(TRIM(tmpstr).NE.TRIM(aError%Example))THEN
       SWRITE(UNIT_stdOut,*) ''
@@ -112,8 +112,8 @@ ELSE
     SWRITE(UNIT_stdOut,'(A45,2x)',ADVANCE='no') TRIM(aError%Example)
     SWRITE(UNIT_stdOut,'(A20,2x)',ADVANCE='no') TRIM(aError%SubExampleOption)
     SWRITE(UNIT_stdOut,'(I10,2x)',ADVANCE='no') aError%ErrorCode
-    SWRITE(UNIT_stdOut,'(A10,2x)',ADVANCE='no') TRIM(aError%Build)
-    SWRITE(UNIT_stdOut,'(A65,2x)',ADVANCE='no') TRIM(aError%Info)
+    SWRITE(UNIT_stdOut,'(A15,2x)',ADVANCE='no') TRIM(aError%Build)
+    SWRITE(UNIT_stdOut,'(A35,2x)',ADVANCE='no') TRIM(aError%Info)
     SWRITE(UNIT_stdOut,*) ''
     IF(aError%ErrorCode.NE.0) nErrors=nErrors+1
     aError=>aError%nextError
