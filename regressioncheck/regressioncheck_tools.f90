@@ -749,7 +749,7 @@ SWRITE(UNIT_stdOut,'(A)') ' The following parameter files are supported (within 
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------'
 SWRITE(UNIT_stdOut,'(A)') ' parameter file             | Description                                            '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------'
-SWRITE(UNIT_stdOut,'(A)') ' configuration.boltzplatz        | needed for "./regressioncheck build"              '
+SWRITE(UNIT_stdOut,'(A)') ' configuration.boltzplatz   | needed for "./regressioncheck build"                   '
 SWRITE(UNIT_stdOut,'(A)') '                            | contains all required compilation flags needed to      '
 SWRITE(UNIT_stdOut,'(A)') '                            | create a minimum of one combinations. If multiple      '
 SWRITE(UNIT_stdOut,'(A)') '                            | compiler flag cmake combinations are specified, all    '
