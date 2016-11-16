@@ -211,8 +211,8 @@ SUBROUTINE AnalyzeParticles(Time)
   LOGICAL             :: isOpen, FileExists
   CHARACTER(LEN=350)  :: outfile
   INTEGER             :: unit_index, iSpec, iPart, OutputCounter
-  INTEGER             :: SimNumSpec(nSpecies+1)
-  REAL                :: WEl, WMag, NumSpec(nSpecies+1)
+  INTEGER(KIND=8)     :: SimNumSpec(nSpecies+1)
+  REAL                :: WEl, WMag, NumSpec(nSpecies+1),NumSpecTmp(nSpecies+1)
   REAL                :: Ekin(nSpecies + 1), Temp(nSpecies+1)
   REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecies+1), Xi_Vib(nSpecies)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
@@ -644,7 +644,14 @@ tLBStart = LOCALTIME() ! LB Time Start
 #if (PP_TimeDiscMethod==42)
   IF(CalcCollRates) CALL CollRates(CRate)
   IF(CalcReacRates) THEN
-    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) CALL ReacRates(RRate, NumSpec)
+    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
+      NumSpecTmp = NumSpec
+      IF(BGGas%BGGasSpecies.NE.0) THEN
+        NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
+        NumSpecTmp(nSpecies+1) = NumSpecTmp(nSpecies+1)+NumSpecTmp(BGGas%BGGasSpecies)
+      END IF
+      CALL ReacRates(RRate, NumSpecTmp)
+    END IF
   END IF
 IF (DSMC%WallModel.GE.1) THEN
   CALL GetWallNumSpec(WallNumSpec,WallCoverage)
@@ -1330,6 +1337,7 @@ SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 ! computes the number of simulated particles AND number of real particles within the domain
 ! CAUTION: SimNumSpec equals NumSpec only for constant MPF, not vMPF
 ! Last section of the routine contains the MPI-communication
+! Please not, we do not take the paricle number of the BGGas into account
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
@@ -1347,13 +1355,13 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                   :: NumSpec(nSpecies+1)
-INTEGER,INTENT(OUT)                :: SimNumSpec(nSpecies+1)
+INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecies+1)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iPart
 #ifdef MPI
 REAL                               :: RD(nSpecies+1)
-INTEGER                            :: ID(nSpecies+1)
+INTEGER(KIND=8)                    :: ID(nSpecies+1)
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -1379,22 +1387,26 @@ ELSE ! no mpf-simulated particle number = real particle number
       SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1                      ! NumSpec =  particle number
     END IF
   END DO
+  NumSpec = REAL(SimNumSpec)
   IF(BGGas%BGGasSpecies.NE.0) THEN
-    SimNumSpec(BGGas%BGGasSpecies) = INT(BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
+  !  NumSpec(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
+  !  SimNumSpec(BGGas%BGGasSpecies) = 1.
+    NumSpec(BGGas%BGGasSpecies) = 0.
+    SimNumSpec(BGGas%BGGasSpecies) = 0
   END IF
   SimNumSpec(nSpecies + 1) = SUM(SimNumSpec(1:nSpecies))
-  NumSpec=REAL(SimNumSpec)
+  NumSpec(nSpecies + 1) = SUM(NumSpec(1:nSpecies))
 END IF
 
 #ifdef MPI
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(CalcNumSpec) & 
-  CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecies+1,MPI_INTEGER,         MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecies+1,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
   CALL MPI_REDUCE(NumSpec     ,RD         ,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(CalcNumSpec) & 
-  CALL MPI_REDUCE(SimNumSpec  ,ID         ,nSpecies+1,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(SimNumSpec  ,ID         ,nSpecies+1,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*MPI*/
 
@@ -1411,6 +1423,7 @@ USE MOD_Globals
 USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, nSpecies, PartMPF, usevMPF
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_DSMC_Vars,             ONLY: SpecDSMC, PolyatomMolDSMC,CollisMode
+USE MOD_DSMC_Vars,             ONLY: BGGas
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
