@@ -172,6 +172,10 @@ END SUBROUTINE InitParticleAnalyze
 SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
+! MPI-INFO:
+! important change: all MPI-communication is done directly in the corresponding subroutines
+! a) its easier and cleaner
+! b) reduces the probability of errors (routines are again fixed for MPI...)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -180,10 +184,7 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
   USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, PDM, nSpecies, PartMPF, usevMPF, BoltzmannConst,Species
   USE MOD_DSMC_Vars,             ONLY: DSMC,BGGas
-  USE MOD_Particle_Mesh_Vars,      ONLY : GEO
-#if (PP_TimeDiscMethod==42)
-  USE MOD_PARTICLE_Vars,         ONLY: Species
-#endif
+  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
@@ -209,8 +210,9 @@ SUBROUTINE AnalyzeParticles(Time)
 ! LOCAL VARIABLES
   LOGICAL             :: isOpen, FileExists
   CHARACTER(LEN=350)  :: outfile
-  INTEGER             :: unit_index, iSpec, iPolyatMole, iPart, iDOF, OutputCounter
-  REAL                :: WEl, WMag, NumSpec(nSpecies+1)
+  INTEGER             :: unit_index, iSpec, iPart, OutputCounter
+  INTEGER(KIND=8)     :: SimNumSpec(nSpecies+1)
+  REAL                :: WEl, WMag, NumSpec(nSpecies+1),NumSpecTmp(nSpecies+1)
   REAL                :: Ekin(nSpecies + 1), Temp(nSpecies+1)
   REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecies+1), Xi_Vib(nSpecies)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
@@ -570,150 +572,33 @@ SUBROUTINE AnalyzeParticles(Time)
   END IF
 #endif
 
-! Calculate particle number per species and total number of particles
-  NumSpec = 0.
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      IF (usevMPF) THEN 
-        NumSpec(PartSpecies(iPart)) = NumSpec(PartSpecies(iPart)) + PartMPF(iPart)          ! NumSpec = real particle number
-      ELSE
-        NumSpec(PartSpecies(iPart)) = NumSpec(PartSpecies(iPart)) + 1.                      ! NumSpec = simulation particle number
-      END IF
-    END IF
-  END DO
-  IF(BGGas%BGGasSpecies.NE.0) THEN
-    NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * SUM(GEO%Volume(:)) / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-  END IF
-  NumSpec(nSpecies + 1) = SUM(NumSpec)
+  ! computes the real and simulated number of particles
+  CALL CalcNumPartsofSpec(NumSpec,SimNumSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcTemp) THEN
-    CALL CalcTemperature(Temp, NumSpec)
-    IF (CollisMode.GT.1) THEN
-      CALL CalcIntTempsAndEn(IntTemp, IntEn)
-      TempTotal = 0.0
-      Xi_Vib = 0.0
-      DO iSpec = 1, nSpecies
-        IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpec(iSpec).GT.0)) THEN
-          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-            IF(IntTemp(iSpec,1).GT.0) THEN
-              iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-              DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-                Xi_Vib(iSpec) = Xi_Vib(iSpec) + 2*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/IntTemp(iSpec,1) &
-                              /(exp(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/IntTemp(iSpec,1)) - 1)
-              END DO
-            ELSE
-              Xi_Vib(iSpec) = 0.0
-            END IF
-            TempTotal(iSpec) = (3*Temp(iSpec)+SpecDSMC(iSpec)%Xi_Rot*IntTemp(iSpec,2) &
-                                + Xi_Vib(iSpec)*IntTemp(iSpec,1)) &
-                                / (3+SpecDSMC(iSpec)%Xi_Rot+Xi_Vib(iSpec))
-          ELSE
-            IF(IntTemp(iSpec,1).GT.0) THEN
-              Xi_Vib(iSpec) = 2*SpecDSMC(iSpec)%CharaTVib/IntTemp(iSpec,1)/(exp(SpecDSMC(iSpec)%CharaTVib/IntTemp(iSpec,1)) - 1)
-            ELSE
-              Xi_Vib(iSpec) = 0.0
-            END IF
-            TempTotal(iSpec) = (3*Temp(iSpec) + 2*IntTemp(iSpec,2) + Xi_Vib(iSpec)*IntTemp(iSpec,1))/(5+Xi_Vib(iSpec))
-          END IF
-        ELSE
-          TempTotal(iSpec) = Temp(iSpec)
-        END IF
-        TempTotal(nSpecies+1) = TempTotal(nSpecies+1) + TempTotal(iSpec)*NumSpec(iSpec)
-      END DO
-      TempTotal(nSpecies+1) = TempTotal(nSpecies+1) / NumSpec(nSpecies+1)
-    END IF
+    CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib) ! contains MPI Communication
   ELSEIF(CalcEint.AND.(CollisMode.GT.1)) THEN
-    CALL CalcIntTempsAndEn(IntTemp, IntEn)
+    CALL CalcIntTempsAndEn(IntTemp, IntEn,NumSpec)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
   IF(CalcCharge) CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
-  !IF(CalcNumSpec) CALL GetNumSpec(NumSpec)
   IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
   IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
-  !IF(CalcTemp) CALL CalcTemperature(Temp, NumSpec)
   IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
   PartVtrans=0.
   PartVtherm=0.
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm)
 !===================================================================================================================================
-! MPI Communication
+! MPI Communication for values which are not YET communicated
+! all routines ABOVE contains the required MPI-Communication
 !===================================================================================================================================
 
 ! MPI Communication
 #ifdef MPI
-  IF (CalcTemp) THEN
-    DO iSpec = 1, nSpecies + 1
-      Temp(iSpec) = Temp(iSpec) * NumSpec(iSpec)
-    END DO
-    IF (CollisMode.NE.1) THEN
-      DO iSpec = 1, nSpecies
-        IntTemp(iSpec,1) = IntTemp(iSpec,1) * NumSpec(iSpec)
-        IntTemp(iSpec,2) = IntTemp(iSpec,2) * NumSpec(iSpec)
-        IF (DSMC%ElectronicModel) IntTemp(iSpec,3) = IntTemp(iSpec,3) * NumSpec(iSpec)
-        TempTotal(iSpec) = TempTotal(iSpec) * NumSpec(iSpec)
-      END DO
-      TempTotal(nSpecies+1) = TempTotal(nSpecies+1) * NumSpec(nSpecies+1)
-    END IF
-  END IF
   IF (PartMPI%MPIRoot) THEN
-    IF (CalcEpot) THEN 
-      tLBStart = LOCALTIME() ! LB Time Start
-      CALL MPI_REDUCE(MPI_IN_PLACE,WEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,WMag, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
-    END IF
     tLBStart = LOCALTIME() ! LB Time Start
-    IF(CalcNumSpec) &
-      CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    IF (CalcEkin) &
-      CALL MPI_REDUCE(MPI_IN_PLACE,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IF (CalcTemp) THEN
-      ! Summation of product between temperature and particle number for each species within the whole domain
-      CALL MPI_REDUCE(Temp,sumIntTemp, nSpecies + 1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      ! Determination of the particle-weighted temperature with the total number of particles within the whole domain
-      DO iSpec = 1, nSpecies + 1
-          IF (NumSpec(iSpec).GT.1) THEN
-            Temp(iSpec) = sumIntTemp(iSpec) / NumSpec(iSpec)
-          END IF
-      END DO
-      IF (CollisMode.NE.1) THEN
-        CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        DO iSpec = 1, nSpecies
-          IF (NumSpec(iSpec).GT.1) THEN
-            IntTemp(iSpec,1) = sumIntTemp(iSpec) / NumSpec(iSpec)
-          END IF
-        END DO
-        CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PartMPI%COMM, IERROR)
-        DO iSpec = 1, nSpecies
-          IF (NumSpec(iSpec).GT.1) THEN
-            IntTemp(iSpec,2) = sumIntTemp(iSpec) / NumSpec(iSpec)
-          END IF
-        END DO
-        CALL MPI_REDUCE(IntEn(:,1) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        IntEn(:,1) = sumIntEn 
-        CALL MPI_REDUCE(IntEn(:,2) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        IntEn(:,2) = sumIntEn 
-        IF ( DSMC%ElectronicModel ) THEN
-          CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-          DO iSpec = 1, nSpecies
-            IF (NumSpec(iSpec).GT.1) THEN
-              IntTemp(iSpec,3) = sumIntTemp(iSpec) / NumSpec(iSpec)
-            END IF
-          END DO
-          CALL MPI_REDUCE(IntEN(:,3), sumIntEn , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-          IntEn(:,3) = sumIntEn
-        END IF
-        CALL MPI_REDUCE(TempTotal,sumTempTotal,nSpecies+1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        DO iSpec = 1, nSpecies+1
-          IF (NumSpec(iSpec).GT.1) THEN
-            TempTotal(iSpec) = sumTempTotal(iSpec) / NumSpec(iSpec)
-          END IF
-        END DO
-      END IF 
-    END IF
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -727,32 +612,7 @@ SUBROUTINE AnalyzeParticles(Time)
       MeanCollProb = sumMeanCollProb / PartMPI%nProcs
 #endif
   ELSE ! no Root
-    IF (CalcEpot) THEN 
-      tLBStart = LOCALTIME() ! LB Time Start
-      CALL MPI_REDUCE(WEl,RECBR1  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(WMag,RECBR1,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
-    END IF
     tLBStart = LOCALTIME() ! LB Time Start
-    IF(CalcNumSpec) &
-      CALL MPI_REDUCE(NumSpec,RECBIM,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    IF (CalcEkin) &
-      CALL MPI_REDUCE(Ekin,RECBR2 , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IF (CalcTemp) THEN
-      CALL MPI_REDUCE(Temp,sumIntTemp, nSpecies + 1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      IF (CollisMode.NE.1) THEN
-        CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(IntEn(:,1) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(IntEn(:,2) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        IF ( DSMC%ElectronicModel ) THEN
-          CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-          CALL MPI_REDUCE(IntEN(:,3), sumIntEn , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        END IF
-        CALL MPI_REDUCE(TempTotal,sumTempTotal,nSpecies+1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      END IF 
-    END IF
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(nPartIn,RECBR    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(nPartOut,RECBR   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -777,40 +637,26 @@ tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
-  IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
+  IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn,NumSpec) 
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==42)
   IF(CalcCollRates) CALL CollRates(CRate)
   IF(CalcReacRates) THEN
-    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) CALL ReacRates(RRate, NumSpec)
+    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
+      NumSpecTmp = NumSpec
+      IF(BGGas%BGGasSpecies.NE.0) THEN
+        NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
+        NumSpecTmp(nSpecies+1) = NumSpecTmp(nSpecies+1)+NumSpecTmp(BGGas%BGGasSpecies)
+      END IF
+      CALL ReacRates(RRate, NumSpecTmp)
+    END IF
   END IF
 IF (DSMC%WallModel.GE.1) THEN
   CALL GetWallNumSpec(WallNumSpec,WallCoverage)
   CALL CalcSurfRates(WallNumSpec,Adsorptionrate,Desorptionrate)
 END IF
-IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
-! currently, calculation of internal electronic energy not implemented !
-#ifdef MPI
-! average over all cells
-  IF (CollisMode.GT.1) THEN
-    CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IntTemp(:,1) = sumIntTemp(:) / PartMPI%nProcs
-    CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PartMPI%COMM, IERROR)
-    IntTemp(:,2) = sumIntTemp(:) / PartMPI%nProcs
-    CALL MPI_REDUCE(IntEn(:,1) , sumIntEn(:)   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IntEn(:,1) = sumIntEn(:)
-    CALL MPI_REDUCE(IntEn(:,2) , sumIntEn(:)   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IntEn(:,2) = sumIntEn(:) 
-    IF ( DSMC%ElectronicModel ) THEN
-      CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      IntTemp(:,3) = sumIntTemp(:) / PartMPI%nProcs
-      CALL MPI_REDUCE(IntEN(:,3), sumIntEn(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      IntEn(:,3) = sumIntEn(:)
-    END IF
-  END IF 
-#endif /*MPI*/
 #endif /*PP_TimeDiscMethod==42*/
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
@@ -824,7 +670,7 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcNumSpec) THEN
       DO iSpec=1, nSpecies + 1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(NumSpec(iSpec))
+        WRITE(unit_index,104,ADVANCE='NO') REAL(SimNumSpec(iSpec))
       END DO
     END IF
     IF (CalcCharge) THEN 
@@ -1077,9 +923,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY : GEO
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
-#ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY : PartMPI
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1359,9 +1203,11 @@ PartEkinOut=0.
 
 END SUBROUTINE CalcParticleBalance
 
+
 SUBROUTINE CalcKineticEnergy(Ekin) 
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+! compute the kinetic energy of particles
+! for velocity <1e3 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1373,6 +1219,9 @@ USE MOD_Particle_Analyze_Vars,  ONLY : nEkin
 #ifndef PP_HDG
 USE MOD_PML_Vars,               ONLY : DoPML,xyzPhysicalMinMax
 #endif /*PP_HDG*/ 
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1384,6 +1233,9 @@ REAL,INTENT(OUT)                :: Ekin(nEkin)
 ! LOCAL VARIABLES
 INTEGER           :: i
 REAL(KIND=8)              :: partV2, Gamma
+#ifdef MPI
+REAL                      :: RD(nEKIN)
+#endif /*MPI*/
 !===================================================================================================================================
 
 Ekin = 0.!d0
@@ -1469,64 +1321,238 @@ ELSE ! nEkin = 1 : only 1 species
   END DO ! particleveclength
 END IF
 
+#ifdef MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,Ekin,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+ELSE
+  CALL MPI_REDUCE(Ekin  ,RD        ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+END IF
+#endif /*MPI*/
+
 END SUBROUTINE CalcKineticEnergy
 
 
-SUBROUTINE CalcTemperature(Temp, NumSpec)
+SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec) 
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+! computes the number of simulated particles AND number of real particles within the domain
+! CAUTION: SimNumSpec equals NumSpec only for constant MPF, not vMPF
+! Last section of the routine contains the MPI-communication
+! Please not, we do not take the paricle number of the BGGas into account
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Particle_Vars,          ONLY: PartMPF, usevMPF, PDM,Species,nSpecies,PartSpecies
+USE MOD_Particle_Analyze_Vars,  ONLY: CalcNumSpec
+USE MOD_DSMC_Vars,              ONLY: BGGas
+USE MOD_Particle_Mesh_Vars,     ONLY: Geo
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
+#endif /*MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                   :: NumSpec(nSpecies+1)
+INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecies+1)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: iPart
+#ifdef MPI
+REAL                               :: RD(nSpecies+1)
+INTEGER(KIND=8)                    :: ID(nSpecies+1)
+#endif /*MPI*/
+!===================================================================================================================================
+
+IF(usevMPF)THEN ! for MPF differentiate between real particle number and simulated particles
+  NumSpec    = 0.
+  SimNumSpec = 0
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+        NumSpec(PartSpecies(iPart))    = NumSpec(PartSpecies(iPart)) + PartMPF(iPart)          ! NumSpec = real particle number
+        SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1                    ! NumSpec =  particle number
+    END IF
+  END DO
+  IF(BGGas%BGGasSpecies.NE.0) THEN
+    NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
+    SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
+  END IF
+  NumSpec(nSpecies + 1)    = SUM(NumSpec(1:nSpecies))
+  SimNumSpec(nSpecies + 1) = SUM(SimNumSpec(1:nSpecies))
+ELSE ! no mpf-simulated particle number = real particle number
+  SimNumSpec = 0
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+      SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1                      ! NumSpec =  particle number
+    END IF
+  END DO
+  NumSpec = REAL(SimNumSpec)
+  IF(BGGas%BGGasSpecies.NE.0) THEN
+  !  NumSpec(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
+  !  SimNumSpec(BGGas%BGGasSpecies) = 1.
+    NumSpec(BGGas%BGGasSpecies) = 0.
+    SimNumSpec(BGGas%BGGasSpecies) = 0
+  END IF
+  SimNumSpec(nSpecies + 1) = SUM(SimNumSpec(1:nSpecies))
+  NumSpec(nSpecies + 1) = SUM(NumSpec(1:nSpecies))
+END IF
+
+#ifdef MPI
+IF (PartMPI%MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcNumSpec) & 
+  CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecies+1,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(NumSpec     ,RD         ,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcNumSpec) & 
+  CALL MPI_REDUCE(SimNumSpec  ,ID         ,nSpecies+1,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*MPI*/
+
+END SUBROUTINE CalcNumPartsOfSpec
+
+
+SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib)
+!===================================================================================================================================
+! computes the temperature, subroutine performs all the MPI communication, do to it at ONE place and CORRECT
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, nSpecies, PartMPF, usevMPF
+USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
+USE MOD_DSMC_Vars,             ONLY: SpecDSMC, PolyatomMolDSMC,CollisMode
+USE MOD_DSMC_Vars,             ONLY: BGGas
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL, INTENT(IN)                   :: NumSpec(nSpecies+1)    ! number of real particles (already GLOBAL number)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)                  :: Temp(nSpecies+1)
+REAL, INTENT(OUT)                  :: IntEn(nSpecies,3)
+REAL, INTENT(OUT)                  :: IntTemp(nSpecies,3)
+REAL, INTENT(OUT)                  :: TempTotal(nSpecies+1)
+REAL, INTENT(OUT)                  :: Xi_Vib(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: iPart,iPolyatMole,iDOF,iSpec
+!===================================================================================================================================
+
+
+! next, calctranstemp
+CALL CalcTransTemp(Temp, NumSpec)
+
+IF (CollisMode.GT.1) THEN
+  CALL CalcIntTempsAndEn(IntTemp, IntEn,NumSpec)
+  IF(PartMPI%MPIRoot)THEN
+    TempTotal = 0.0
+    Xi_Vib = 0.0
+    DO iSpec = 1, nSpecies
+      IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpec(iSpec).GT.0)) THEN
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          IF(IntTemp(iSpec,1).GT.0) THEN
+            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+            DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+              Xi_Vib(iSpec) = Xi_Vib(iSpec) + 2*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/IntTemp(iSpec,1) &
+                            /(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/IntTemp(iSpec,1)) - 1)
+            END DO
+          ELSE
+            Xi_Vib(iSpec) = 0.0
+          END IF
+          TempTotal(iSpec) = (3*Temp(iSpec)+SpecDSMC(iSpec)%Xi_Rot*IntTemp(iSpec,2) &
+                              + Xi_Vib(iSpec)*IntTemp(iSpec,1)) &
+                              / (3+SpecDSMC(iSpec)%Xi_Rot+Xi_Vib(iSpec))
+        ELSE
+          IF(IntTemp(iSpec,1).GT.0) THEN
+            Xi_Vib(iSpec) = 2*SpecDSMC(iSpec)%CharaTVib/IntTemp(iSpec,1)/(EXP(SpecDSMC(iSpec)%CharaTVib/IntTemp(iSpec,1)) - 1)
+          ELSE
+            Xi_Vib(iSpec) = 0.0
+          END IF
+          TempTotal(iSpec) = (3*Temp(iSpec) + 2*IntTemp(iSpec,2) + Xi_Vib(iSpec)*IntTemp(iSpec,1))/(5+Xi_Vib(iSpec))
+        END IF
+      ELSE
+        TempTotal(iSpec) = Temp(iSpec)
+      END IF
+      TempTotal(nSpecies+1) = TempTotal(nSpecies+1) + TempTotal(iSpec)*NumSpec(iSpec)
+    END DO
+    TempTotal(nSpecies+1) = TempTotal(nSpecies+1) / NumSpec(nSpecies+1)
+  END IF
+END IF
+
+END SUBROUTINE CalcTemperature
+
+
+SUBROUTINE CalcTransTemp(Temp, NumSpec)
+!===================================================================================================================================
+! calculate the translational temperature of each species
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,      ONLY : PartState, PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_Particle_Vars,         ONLY:PartState, PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
 #if (PP_TimeDiscMethod==1000)
-USE MOD_LD_Vars,            ONLY : BulkValues
+USE MOD_LD_Vars,               ONLY:BulkValues
 #endif
+USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: NumSpec(:)
+REAL, INTENT(IN)                :: NumSpec(:)    !< global number of REAL particles in domain
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: Temp(:)
+REAL,INTENT(OUT)                :: Temp(:)       !< output value is already the GLOBAL temperature
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i, iSpec
 REAL              ::  TempDirec(nSpecies,3)
 #if (PP_TimeDiscMethod!=1000)
-REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3),Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
+REAL              :: PartVandV2(nSpecies, 6), Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
+#endif
+#ifdef MPI
+REAL              :: RD(nSpecies*6)
 #endif
 !===================================================================================================================================
 
 ! Compute velocity averages
-  Temp = 0.0
+Temp = 0.0
 ! Sum up velocity
 #if (PP_TimeDiscMethod==1000)
-  DO iSpec=1, nSpecies
-    TempDirec(iSpec,1:3) = BulkValues(1)%BulkTemperature
-    Temp(iSpec) = BulkValues(1)%BulkTemperature
-  END DO
+DO iSpec=1, nSpecies
+  TempDirec(iSpec,1:3) = BulkValues(1)%BulkTemperature
+  Temp(iSpec) = BulkValues(1)%BulkTemperature
+END DO
 #else 
-  PartV = 0
-  PartV2 = 0
-  DO i=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(i)) THEN
-      IF (usevMPF) THEN 
-        PartV(PartSpecies(i),1:3) = PartV(PartSpecies(i),1:3) + PartState(i,4:6) * PartMPF(i)
-        PartV2(PartSpecies(i),1:3) = PartV2(PartSpecies(i),1:3) + PartState(i,4:6)**2 * PartMPF(i)
-      ELSE
-        PartV(PartSpecies(i),1:3) = PartV(PartSpecies(i),1:3) + PartState(i,4:6)
-        PartV2(PartSpecies(i),1:3) = PartV2(PartSpecies(i),1:3) + PartState(i,4:6)**2
-      END IF
+PartVandV2 = 0.
+DO i=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(i)) THEN
+    IF (usevMPF) THEN 
+      PartVandV2(PartSpecies(i),1:3) = PartVandV2(PartSpecies(i),1:3) + PartState(i,4:6) * PartMPF(i)
+      PartVandV2(PartSpecies(i),4:6) = PartVandV2(PartSpecies(i),4:6) + PartState(i,4:6)**2 * PartMPF(i)
+    ELSE
+      PartVandV2(PartSpecies(i),1:3) = PartVandV2(PartSpecies(i),1:3) + PartState(i,4:6)
+      PartVandV2(PartSpecies(i),4:6) = PartVandV2(PartSpecies(i),4:6) + PartState(i,4:6)**2
     END IF
-  END DO
+  END IF
+END DO
+
+#ifdef MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,PartVandV2,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+ELSE
+  CALL MPI_REDUCE(PartVandV2  ,RD        ,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+END IF
+#endif /*MPI*/
+
+IF(PartMPI%MPIRoot)THEN
   DO iSpec=1, nSpecies
     IF(NumSpec(iSpec).NE.0) THEN
       ! Compute velocity averages
-      MeanPartV_2(iSpec,1:3)  = (PartV(iSpec,1:3) / NumSpec(iSpec))**2       ! < |v| >**2
-      Mean_PartV2(iSpec,1:3)  = PartV2(iSpec,1:3) / NumSpec(iSpec)           ! < |v|**2 >
+      MeanPartV_2(iSpec,1:3)  = (PartVandV2(iSpec,1:3) / NumSpec(iSpec))**2       ! < |v| >**2
+      Mean_PartV2(iSpec,1:3)  =  PartVandV2(iSpec,4:6) / NumSpec(iSpec)           ! < |v|**2 >
     ELSE
       MeanPartV_2(iSpec,1:3) = 0.
       Mean_PartV2(iSpec,1:3) = 0.
@@ -1538,8 +1564,10 @@ REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3),Mean_PartV2(nSpecies
     Temp(nSpecies + 1) = Temp(nSpecies + 1) + Temp(iSpec)*NumSpec(iSpec)
   END DO
   Temp(nSpecies+1) = Temp(nSpecies + 1) / NumSpec(nSpecies+1)
+END IF
 #endif
-END SUBROUTINE CalcTemperature
+END SUBROUTINE CalcTransTemp
+
 
 SUBROUTINE CalcVelocities(PartVtrans, PartVtherm)
 !===================================================================================================================================
@@ -1549,12 +1577,10 @@ SUBROUTINE CalcVelocities(PartVtrans, PartVtherm)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Analyze_Vars, ONLY : VeloDirs
-USE MOD_Particle_Vars,         ONLY : PartState, PartSpecies, PDM, nSpecies, PartMPF, usevMPF
+USE MOD_Particle_Analyze_Vars, ONLY: VeloDirs
+USE MOD_Particle_Vars,         ONLY: PartState, PartSpecies, PDM, nSpecies, PartMPF, usevMPF
+USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,    ONLY: PartMPI
-#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1683,64 +1709,74 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
 END SUBROUTINE CalcVelocities
 
 
-SUBROUTINE CalcIntTempsAndEn(IntTemp, IntEn)
+SUBROUTINE CalcIntTempsAndEn(IntTemp, IntEn,NumSpec)
 !===================================================================================================================================
-! Calculation of internal Temps (TVib, TRot)
+! Calculation of internal Temps (TVib, TRot, Telec) and gives back the global values
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,      ONLY : PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
-USE MOD_DSMC_Vars,          ONLY : PartStateIntEn, SpecDSMC, DSMC
-USE MOD_DSMC_Analyze,       ONLY : CalcTVib, CalcTelec, CalcTVibPoly
+USE MOD_Globals
+USE MOD_Particle_Vars,      ONLY: PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_DSMC_Vars,          ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Analyze,       ONLY: CalcTVib, CalcTelec, CalcTVibPoly
+USE MOD_Particle_MPI_Vars,  ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+REAL, INTENT(IN)               :: NumSpec(nSpecies+1)    ! number of real particles (already GLOBAL number)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: IntTemp(:,:) , IntEn(:,:) 
+REAL,INTENT(OUT)                :: IntTemp(nSpecies,3) , IntEn(nSpecies,3) 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iPart, iSpec
-INTEGER           :: NumSpec(nSpecies)
-REAL              :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), RealNumSpec(nSpecies), tempVib, NumSpecTemp
-!REAL              :: CalcTVib
+INTEGER                        :: iPart, iSpec
+REAL                           :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), tempVib, NumSpecTemp
+#ifdef MPI
+REAL                           :: RD(nSpecies)
+#endif /*MPI*/
 !===================================================================================================================================
-NumSpec = 0
 EVib    = 0.
 ERot    = 0.
 Eelec   = 0.
 ! set electronic state to zero
 IntTemp(:,3) = 0.
-RealNumSpec  = 0.
 
 ! Sum up internal energies
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      IF (usevMPF) THEN
-        EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1) * PartMPF(iPart)
-        ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2) * PartMPF(iPart)
-        NumSpec(PartSpecies(iPart)) = NumSpec(PartSpecies(iPart)) + 1
-        RealNumSpec(PartSpecies(iPart)) = RealNumSpec(PartSpecies(iPart)) + PartMPF(iPart)
-        IF ( DSMC%ElectronicModel ) THEN
-          Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3) * PartMPF(iPart)
-        END IF
-      ELSE
-        EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1)
-        ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2)
-        IF ( DSMC%ElectronicModel ) THEN
-          Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3)
-        END IF
-       NumSpec(PartSpecies(iPart)) = NumSpec(PartSpecies(iPart)) + 1
+DO iPart=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(iPart)) THEN
+    IF (usevMPF) THEN
+      EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1) * PartMPF(iPart)
+      ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2) * PartMPF(iPart)
+      IF ( DSMC%ElectronicModel ) THEN
+        Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3) * PartMPF(iPart)
+      END IF
+    ELSE
+      EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1)
+      ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2)
+      IF ( DSMC%ElectronicModel ) THEN
+        Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3)
       END IF
     END IF
-  END DO
-! Calc TVib, TRot
+  END IF
+END DO
+
+#ifdef MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,EVib ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,ERot ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Eelec,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+ELSE
+  CALL MPI_REDUCE(EVib        ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(ERot        ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(Eelec       ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+END IF
+#endif /*MPI*/
+
+! final computation is only done for the root
+IF(PartMPI%MPIRoot)THEN
+  ! Calc TVib, TRot
   DO iSpec = 1, nSpecies
-    IF (usevMPF) THEN
-      NumSpecTemp = RealNumSpec(iSpec)
-    ELSE
-      NumSpecTemp = REAL(NumSpec(iSpec))
-    END IF
+    NumSpecTemp = NumSpec(iSpec)
     IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpecTemp.GT.0.0)) THEN
       IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(SpecDSMC(iSpec)%Xi_Rot.EQ.3)) THEN 
         IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(3.0*BoltzmannConst*NumSpecTemp)  !Calc TRot          
@@ -1781,6 +1817,7 @@ RealNumSpec  = 0.
     IntEn(iSpec,2) = ERot(iSpec)
     IF(.NOT.usevMPF) IntEn(iSpec,:) = IntEn(iSpec,:) * Species(iSpec)%MacroParticleFactor
   END DO
+END IF
 
 END SUBROUTINE CalcIntTempsAndEn
 
@@ -1815,10 +1852,12 @@ SUBROUTINE ReacRates(RRate, NumSpec)
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DSMC_Vars,          ONLY: ChemReac, DSMC
 USE MOD_TimeDisc_Vars,      ONLY: dt
 USE MOD_Particle_Vars,      ONLY: Species, nSpecies
 USE MOD_Particle_Mesh_Vars, ONLY: GEO
+USE MOD_Particle_MPI_Vars,  ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1826,25 +1865,37 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: RRate(:) 
-REAL,INTENT(IN)                 :: NumSpec(:)
+REAL,INTENT(IN)                 :: NumSpec(:) ! is the global number of real particles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iReac
+#ifdef MPI
+REAL                            :: RD(1:ChemReac%NumOfReact)
+#endif /*MPI*/
 !===================================================================================================================================
 
+#ifdef MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE    ,ChemReac%NumReac,ChemReac%NumOfReact,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(ChemReac%NumReac,RD              ,ChemReac%NumOfReact,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*MPI*/
+
+IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
     IF ((NumSpec(ChemReac%DefinedReact(iReac,1,1)).GT.0).AND.(NumSpec(ChemReac%DefinedReact(iReac,1,2)).GT.0)) THEN
       SELECT CASE(TRIM(ChemReac%ReactType(iReac)))
       CASE('R')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * SUM(GEO%Volume(:))**2 / (dt &
+                     * GEO%MeshVolume**2 / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * SUM(GEO%Volume(:))**2 &
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * GEO%MeshVolume**2 &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
@@ -1853,53 +1904,53 @@ INTEGER                         :: iReac
       CASE('D')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                       * SUM(GEO%Volume(:)) / (dt &
+                       * GEO%MeshVolume / (dt &
                        * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                        * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor* SUM(GEO%Volume(:)) / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor* GEO%MeshVolume / (dt * ChemReac%ReacCount(iReac) &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         END IF
       CASE('E')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                       * SUM(GEO%Volume(:)) / (dt &
+                       * GEO%MeshVolume / (dt &
                        * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                        * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN 
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * SUM(GEO%Volume(:)) / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%MeshVolume / (dt * ChemReac%ReacCount(iReac) &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         END IF
       CASE('i')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                       * SUM(GEO%Volume(:)) / (dt &
+                       * GEO%MeshVolume / (dt &
                        * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                        * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * SUM(GEO%Volume(:)) / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%MeshVolume / (dt * ChemReac%ReacCount(iReac) &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         END IF
       CASE('r')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * SUM(GEO%Volume(:))**2 / (dt &
+                     * GEO%MeshVolume**2 / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
 !                     * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * SUM(GEO%Volume(:))**2 &
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * GEO%MeshVolume**2 &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
@@ -1909,39 +1960,39 @@ INTEGER                         :: iReac
       CASE('x')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                       * SUM(GEO%Volume(:)) / (dt &
+                       * GEO%MeshVolume / (dt &
                        * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                        * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
       RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
-           * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * SUM(GEO%Volume(:)) / (dt * ChemReac%ReacCount(iReac) &
+           * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%MeshVolume / (dt * ChemReac%ReacCount(iReac) &
            * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
            * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         END IF
       CASE('iQK')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                       * SUM(GEO%Volume(:)) / (dt &
+                       * GEO%MeshVolume / (dt &
                        * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                        * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
       RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
-           * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * SUM(GEO%Volume(:)) / (dt * ChemReac%ReacCount(iReac) &
+           * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%MeshVolume / (dt * ChemReac%ReacCount(iReac) &
            * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
            * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         END IF
       CASE('rQK')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * SUM(GEO%Volume(:))**2 / (dt &
+                     * GEO%MeshVolume**2 / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * SUM(GEO%Volume(:))**2 &
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * GEO%MeshVolume**2 &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
@@ -1950,7 +2001,9 @@ INTEGER                         :: iReac
       END SELECT
     END IF
   END DO
-  ChemReac%NumReac = 0
+END IF
+ChemReac%NumReac = 0.
+
 END SUBROUTINE ReacRates
 #endif 
 
@@ -1991,7 +2044,7 @@ SUBROUTINE ElectronicTransition (  Time, NumSpec )
           ! kf = ( d n_of_N^i / d t )  / ( n_of_N^i n_of_M )
               IF ( (NumSpec(iSpec2) .ne. 0) .and. (SpecDSMC(iSpec)%levelcounter(iQua1) .ne. 0 ) ) THEN
                 SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) = &
-                                      SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) * GEO%Volume(1) &
+                                      SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) * GEO%MeshVolume &
                                     / ( dt * SpecDSMC(iSpec)%levelcounter(iQua1) * NumSpec(iSpec2) *           &
                                         Species(iSpec2)%MacroParticleFactor )
               END IF
