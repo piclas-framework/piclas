@@ -1729,7 +1729,7 @@ Eelec   = 0.
 IntTemp(:,3) = 0.
 
 ! Sum up internal energies
-DO iPart=0,PDM%ParticleVecLength
+DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     IF (usevMPF) THEN
       EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1) * PartMPF(iPart)
