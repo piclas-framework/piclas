@@ -648,7 +648,7 @@ END IF
 ELSE
   ! Delete all files since we are doing a fresh start
   IF(DoWriteStateToHDF5) CALL FlushHDF5()
-END IF
+END IF !IF(DoRestart)
 END SUBROUTINE Restart
 
 

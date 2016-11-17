@@ -35,19 +35,27 @@ INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                    
                                                                                           ! ElemToSide: my geometry + halo
                                                                                           ! geometry + halo information
                                                                                           
+
 INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                                                ! extended list: 1:5,1:6,1:nTotalSides
                                                                                           ! SideToElem: my geometry + halo
                                                                                           ! geometry + halo information
 
-INTEGER,ALLOCATABLE :: PartElemToElem(:,:,:)                                              ! Mapping from ElemToElem
-                                                                                          ! 1:2,1:6,1:nTotalElems
-                                                                                          ! 1 - E2E_NB_ELEM_ID 
-                                                                                          ! 2 - E2E_NB_LOC_SIDE_ID 
+INTEGER(KIND=8),ALLOCATABLE :: PartElemToElemGlob(:,:,:)                                      ! Mapping from ElemToElem
+                                                                                          ! 1:4,1:6,1:nTotalElems
+                                                                                          ! now in global-elem-ids !!!
+INTEGER(KIND=4),ALLOCATABLE :: PartElemToElemAndSide(:,:,:)                               ! Mapping from ElemToElem
+                                                                                          ! 1:8,1:6,1:nTotalElems
+                                                                                          ! [1]1:4 - MortarNeighborElemID
+                                                                                          ! [1]5:8 -       Neighbor locSideID
+                                                                                          ! [2]1:6 - locSideID
+                                                                                          ! [3]    - nTotalElems 
+                                                                                          ! now in global-elem-ids !!!
 INTEGER             :: nTotalSides                                                        ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
 
 LOGICAL,ALLOCATABLE :: IsBCElem(:)                                                        ! is a BC elem 
                                                                                           ! or BC in halo-eps distance to BC
+INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 INTEGER             :: nTotalBCSides                                                      ! total number of BC sides (my+halo)
 INTEGER             :: nTotalBCElems                                                      ! total number of bc elems (my+halo)
 INTEGER,ALLOCATABLE :: PartBCSideList(:)                                                  ! mapping from SideID to BCSideID

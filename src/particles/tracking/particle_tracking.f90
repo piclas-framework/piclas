@@ -38,14 +38,14 @@ USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,isBCElem
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,isBCElem,ElemType
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
@@ -120,10 +120,12 @@ DO iPart=1,PDM%ParticleVecLength
     dolocSide=.TRUE.
     local=0
     firstElem=ElemID
-    CALL CheckPlanarInside(iPart,ElemID,PartisDone)
-    IF (PartisDone) THEN
-      PEM%Element(iPart) = ElemID
-      CYCLE
+    IF (ElemType(ElemID).EQ.1) THEN
+      CALL CheckPlanarInside(iPart,ElemID,PartisDone)
+      IF (PartisDone) THEN
+        PEM%Element(iPart) = ElemID
+        CYCLE
+      END IF
     END IF
     DO WHILE (.NOT.PartisDone)
       locAlpha=-1.
@@ -143,18 +145,19 @@ DO iPart=1,PDM%ParticleVecLength
                                                                                         ,eta(ilocSide)      &
                                                                                         ,iPart,flip,SideID  & 
                                                                                         ,isCriticalParallelInFace)
-        !CASE(PLANAR_NONRECT)
-        !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-        !                                                                                ,xi (ilocSide)      &
-        !                                                                                ,eta(ilocSide)   ,iPart,flip,SideID &
-        !                                                                                ,isCriticalParallelInFace)
         CASE(BILINEAR,PLANAR_NONRECT)
           CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                         ,xi (ilocSide)      &
                                                                                         ,eta(ilocSide)      &
                                                                                         ,iPart,flip,SideID)
-        CASE(CURVED,PLANAR_CURVED)
-          CALL ComputeCurvedIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+        CASE(PLANAR_CURVED)
+          CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                        ,xi (ilocSide)      &
+                                                                                        ,eta(ilocSide)   ,iPart,flip,SideID &
+                                                                                        ,isCriticalParallelInFace)
+
+        CASE(CURVED)
+          CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)      ,iPart,SideID &
                                                                                   ,isCriticalParallelInFace)
@@ -290,9 +293,11 @@ DO iPart=1,PDM%ParticleVecLength
                 END IF
                 PartTrajectory=PartTrajectory/lengthPartTrajectory
 #ifdef MPI    
-                tLBEnd = LOCALTIME() ! LB Time End
-                ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-                tLBStart = LOCALTIME() ! LB Time Start
+                IF(OldElemID.LE.PP_nElems)THEN
+                  tLBEnd = LOCALTIME() ! LB Time End
+                  ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+                  tLBStart = LOCALTIME() ! LB Time Start
+                END IF
 #endif /*MPI*/
                 EXIT
               END IF
@@ -379,13 +384,14 @@ SUBROUTINE ParticleRefTracking(doParticle_In)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
+USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,PartInElemCheck
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 #ifdef MPI
@@ -408,7 +414,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                           :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                           :: iPart, ElemID,oldElemID,newElemID
 INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
-REAL                              :: oldXi(3),newXi(3), LastPos(3)
+REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3)
 !REAL                              :: epsOne
 #ifdef MPI
 INTEGER                           :: InElem
@@ -538,7 +544,7 @@ DO iPart=1,PDM%ParticleVecLength
 
       !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
       CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
-    ELSE
+    ELSE IF(nBGMElems.EQ.1)THEN
       Distance(1)=0.
       ListDistance(1)=GEO%TFIBGM(CellX,CellY,CellZ)%Element(1)
     END IF
@@ -582,19 +588,22 @@ DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.IsBCElem(TestElem))THEN
           ! ausgabe
           IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with internal element '
-          IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
-          IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell(TestElem)
-          IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
-          IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
-          IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' xi                     ', PartPosRef(1:3,iPart)
+          IPWRITE(UNIT_stdOut,*) ' epsOneCell             ', epsOneCell(TestElem)
+          IPWRITE(UNIT_stdOut,*) ' oldxi                  ', oldXi
+          IPWRITE(UNIT_stdOut,*) ' newxi                  ', newXi
+          IPWRITE(UNIT_stdOut,*) ' ParticlePos            ', PartState(iPart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' LastPartPos            ', LastPartPos(iPart,1:3)
+          Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-          IPWRITE(UNIT_stdOut,*) ' Implicit    ', PartIsImplicit(iPart)
+          IPWRITE(UNIT_stdOut,*) ' Implicit                ', PartIsImplicit(iPart)
 #endif
 #ifdef MPI
           InElem=PEM%Element(iPart)
           IF(InElem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,*) ' halo-elem = F'
-            IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
+            IPWRITE(UNIT_stdOut,*) ' ElemID                ', InElem+offSetElem
           ELSE
             IPWRITE(UNIT_stdout,*) ' halo-elem = T'
             IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
@@ -608,6 +617,7 @@ __STAMP__ &
 ,'Particle Not inSide of Element, iPart',iPart)
         ELSE ! BCElem
           !CALL RefTrackFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
+          ! no fall back algorithm
           CALL FallBackFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
           LastPos=PartState(iPart,1:3)
           CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved)
@@ -619,35 +629,38 @@ __STAMP__ &
             CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
-              IPWRITE(UNIT_stdOut,*) ' xi          ', partposref(1:3,ipart)
-              IPWRITE(UNIT_stdOut,*) ' epsonecell  ', epsonecell
-              IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldxi
-              IPWRITE(UNIT_stdOut,*) ' newxi       ', newxi
-              IPWRITE(UNIT_stdOut,*) ' particlepos ', partstate(ipart,1:3)
+              IPWRITE(UNIT_stdOut,*) ' xi                     ', partposref(1:3,ipart)
+              IPWRITE(UNIT_stdOut,*) ' epsonecell             ', epsonecell
+              IPWRITE(UNIT_stdOut,*) ' oldxi                  ', oldxi
+              IPWRITE(UNIT_stdOut,*) ' newxi                  ', newxi
+              IPWRITE(UNIT_stdOut,*) ' particlepos            ', partstate(ipart,1:3)
+              IPWRITE(UNIT_stdOut,*) ' LastPartPos            ', LastPartPos(iPart,1:3)
+              Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
+              IPWRITE(UNIT_stdOut,*) ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-              IPWRITE(UNIT_stdOut,*) ' Implicit    ', PartIsImplicit(iPart)
+              IPWRITE(UNIT_stdOut,*) ' Implicit               ', PartIsImplicit(iPart)
 #endif
 #ifdef MPI
               inelem=PEM%Element(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,*) ' halo-elem = F'
-                IPWRITE(UNIT_stdout,*) ' elemid       ', inelem+offsetelem
+                IPWRITE(UNIT_stdout,*) ' elemid               ', inelem+offsetelem
               ELSE
                 IPWRITE(UNIT_stdout,*) ' halo-elem = T'
-                IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-                                                         + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
+                IPWRITE(UNIT_stdOut,*) ' elemid               ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
+                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,*) ' halo-elem = F'
-                IPWRITE(UNIT_stdout,*) ' testelem       ', testelem+offsetelem
+                IPWRITE(UNIT_stdout,*) ' testelem             ', testelem+offsetelem
               ELSE
-                IPWRITE(UNIT_stdout,*) ' halo-elem = T'
-                IPWRITE(UNIT_stdOut,*) ' testelem       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
-                                                         + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
+                IPWRITE(UNIT_stdout,*) ' halo-elem = T'      
+                IPWRITE(UNIT_stdOut,*) ' testelem             ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
+                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
 #else
-              IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
+              IPWRITE(UNIt_stdOut,*) ' elemid                 ', pem%element(ipart)+offsetelem
 #endif
               CALL abort(&
     __STAMP__ &
@@ -687,7 +700,7 @@ USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -750,16 +763,16 @@ DO WHILE(DoTracing)
       CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                     ,xi (ilocSide)            &
                                                                                     ,eta(ilocSide)   ,PartID,flip,BCSideID)
-    !CASE(PLANAR_NONRECT)
-    !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-    !                                                                                ,xi (ilocSide)      &
-    !                                                                                ,eta(ilocSide)   ,PartID,flip,BCSideID)
     CASE(BILINEAR,PLANAR_NONRECT)
       CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                        ,xi (ilocSide)      &
                                                                                        ,eta(ilocSide)      &
                                                                                        ,PartID,flip,BCSideID)
-    CASE(CURVED,PLANAR_CURVED)
+    CASE(PLANAR_CURVED)
+      CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                    ,xi (ilocSide)      &
+                                                                                    ,eta(ilocSide)   ,PartID,flip,BCSideID)
+    CASE(CURVED)
       CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi (ilocSide)      &
                                                                               ,eta(ilocSide)      ,PartID,BCSideID)
@@ -808,10 +821,10 @@ SUBROUTINE SelectInterSectionType(PartIsDone,Reflected,doLocSide,hitlocSide,iloc
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Mesh_Vars,                   ONLY:nBCSides
+USE MOD_Mesh_Vars,                   ONLY:nBCSides,MortarType
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElemAndSide
 USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos,PDM
 #ifdef MPI
@@ -833,7 +846,7 @@ REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory
 REAL,INTENT(INOUT)                :: lengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: flip
+INTEGER                           :: flip,locMortarType,iMortar
 !===================================================================================================================================
 IF(SideID.LE.nBCSides)THEN
   ! check if interesction is possible and take first intersection
@@ -865,9 +878,55 @@ ELSE ! no BC Side
     lengthPartTrajectory=lengthPartTrajectory
     ! update particle element
     dolocSide=.TRUE.
-    dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,ElemID))=.FALSE.
-    ElemID=PartElemToElem(E2E_NB_ELEM_ID,ilocSide,ElemID)
-    !lastlocSide=-1
+    ! move particle to new element
+    !     Type 1               Type 2              Type3
+    !      eta                  eta                 eta
+    !       ^                    ^                   ^
+    !       |                    |                   |
+    !   +---+---+            +---+---+           +---+---+
+    !   | 3 | 4 |            |   2   |           |   |   |
+    !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
+    !   | 1 | 2 |            |   1   |           |   |   |
+    !   +---+---+            +---+---+           +---+---+
+    SELECT CASE(MortarType(1,SideID))
+    CASE(1)
+      IF(Xi.GT.0.)THEN
+        IF(Eta.GT.0.)THEN
+          dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
+        ELSE
+          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+        END IF
+      ELSE
+        IF(Eta.GT.0.)THEN
+          dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
+        ELSE
+          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+        END IF
+      END IF
+    CASE(2)
+      IF(Eta.GT.0.)THEN
+        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+      ELSE
+        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+      END IF
+    CASE(3)
+      IF(Xi.LE.0.)THEN
+        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+      ELSE
+        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+      END IF
+    CASE DEFAULT ! normal side OR small mortar side
+      dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+      ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+    END SELECT
   ELSE ! no periodic side
 #ifdef MPI
     IF(SideID.GT.nSides)THEN
@@ -883,22 +942,163 @@ ELSE ! no BC Side
       ELSE
         ! inner side
         dolocSide=.TRUE.
-        dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,hitlocSide,ElemID))=.FALSE.
-        ElemID=PartElemToElem(E2E_NB_ELEM_ID,hitlocSide,ElemID)
+        ! move particle to new element
+        !     Type 1               Type 2              Type3
+        !      eta                  eta                 eta
+        !       ^                    ^                   ^
+        !       |                    |                   |
+        !   +---+---+            +---+---+           +---+---+
+        !   | 3 | 4 |            |   2   |           |   |   |
+        !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
+        !   | 1 | 2 |            |   1   |           |   |   |
+        !   +---+---+            +---+---+           +---+---+
+        SELECT CASE(MortarType(1,SideID))
+        CASE(1)
+          IF(Xi.GT.0.)THEN
+            IF(Eta.GT.0.)THEN
+              dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
+              ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
+            ELSE
+              dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+              ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+            END IF
+          ELSE
+            IF(Eta.GT.0.)THEN
+              dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
+              ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
+            ELSE
+              dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+              ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+            END IF
+          END IF
+        CASE(2)
+          IF(Eta.GT.0.)THEN
+            dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+          ELSE
+            dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+          END IF
+        CASE(3)
+          IF(Xi.LE.0.)THEN
+            dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+          ELSE
+            dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+          END IF
+        CASE DEFAULT ! normal side OR small mortar side
+          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+        END SELECT
         IF(ElemID.LE.0) CALL abort(&
 __STAMP__&
 ,' HaloRegion too small or critical error during halo region reconstruction!')
       END IF ! BC?
     ELSE
       dolocSide=.TRUE.
-      dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,hitlocSide,ElemID))=.FALSE.
-      ElemID=PartElemToElem(E2E_NB_ELEM_ID,hitlocSide,ElemID)
-      !lastlocSide=-1
+      ! move particle to new element
+      !     Type 1               Type 2              Type3
+      !      eta                  eta                 eta
+      !       ^                    ^                   ^
+      !       |                    |                   |
+      !   +---+---+            +---+---+           +---+---+
+      !   | 3 | 4 |            |   2   |           |   |   |
+      !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
+      !   | 1 | 2 |            |   1   |           |   |   |
+      !   +---+---+            +---+---+           +---+---+
+      SELECT CASE(MortarType(1,SideID))
+      CASE(1)
+        IF(Xi.GT.0.)THEN
+          IF(Eta.GT.0.)THEN
+            dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
+          ELSE
+            dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+          END IF
+        ELSE
+          IF(Eta.GT.0.)THEN
+            dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
+          ELSE
+            dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+            ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+          END IF
+        END IF
+      CASE(2)
+        IF(Eta.GT.0.)THEN
+          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+        ELSE
+          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+        END IF
+      CASE(3)
+        IF(Xi.LE.0.)THEN
+          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+        ELSE
+          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+        END IF
+      CASE DEFAULT ! normal side OR small mortar side
+        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+      END SELECT
     END IF ! SideID.GT.nSides
 #else
+    ! update particle element
     dolocSide=.TRUE.
-    dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,hitlocSide,ElemID))=.FALSE.
-    ElemID=PartElemToElem(E2E_NB_ELEM_ID,hitlocSide,ElemID)
+    ! move particle to new element
+    !     Type 1               Type 2              Type3
+    !      eta                  eta                 eta
+    !       ^                    ^                   ^
+    !       |                    |                   |
+    !   +---+---+            +---+---+           +---+---+
+    !   | 3 | 4 |            |   2   |           |   |   |
+    !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
+    !   | 1 | 2 |            |   1   |           |   |   |
+    !   +---+---+            +---+---+           +---+---+
+    SELECT CASE(MortarType(1,SideID))
+    CASE(1)
+      IF(Xi.GT.0.)THEN
+        IF(Eta.GT.0.)THEN
+          dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
+        ELSE
+          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+        END IF
+      ELSE
+        IF(Eta.GT.0.)THEN
+          dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
+        ELSE
+          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+        END IF
+      END IF
+    CASE(2)
+      IF(Eta.GT.0.)THEN
+        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+      ELSE
+        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+      END IF
+    CASE(3)
+      IF(Xi.LE.0.)THEN
+        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+      ELSE
+        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
+      END IF
+    CASE DEFAULT ! normal side OR small mortar side
+      dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
+      ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
+    END SELECT
 #endif /* MP!!I */
     END IF ! SidePeriodicType
 END IF ! SideID>nCBSides
@@ -1294,7 +1494,7 @@ USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_INtersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Vars,               ONLY:PartPosRef
@@ -1318,6 +1518,7 @@ REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 !===================================================================================================================================
 
+!IPWRITE(*,*) ' Performing fallback algorithm. PartID: ', PartID
 tmpPos=PartState(PartID,1:3)
 tmpLastPartPos(1:3)=LastPartPos(PartID,1:3)
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
@@ -1354,11 +1555,11 @@ DO iLocSide=firstSide,LastSide
                                                                                       ,xi (ilocSide)      &
                                                                                       ,eta(ilocSide)      &
                                                                                       ,PartID,flip,BCSideID)
-  !CASE(PLANAR_NONRECT)
-  !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-  !                                                                                ,xi (ilocSide)      &
-  !                                                                                ,eta(ilocSide)   ,PartID,flip,BCSideID)
-  CASE(CURVED,PLANAR_CURVED)
+  CASE(PLANAR_CURVED)
+    CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                  ,xi (ilocSide)      &
+                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
+  CASE(CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
                                                                             ,eta(ilocSide)      ,PartID,BCSideID)
@@ -1416,11 +1617,12 @@ END SUBROUTINE FallBackFaceIntersection
 
 SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
 !===================================================================================================================================
-! checks if lost particle intersected with face and left Element
+! checks if particle is inside of linear element with planar faces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
+USE MOD_Mesh_Vars,                   ONLY:nSides
 USE MOD_Particle_Vars,               ONLY:PartState
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
@@ -1438,22 +1640,11 @@ LOGICAL,INTENT(INOUT)         :: PartisDone
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
+INTEGER                       :: ilocSide, SideID,SideID2, flip, PlanarSideNum
 REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction
 !===================================================================================================================================
 PartisDone = .TRUE.
 PlanarSideNum = 0
-
-DO ilocSide=1,6
-  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT)
-    CYCLE
-  CASE DEFAULT
-    PartisDone = .FALSE.
-    RETURN
-  END SELECT
-END DO
 
 DO ilocSide=1,6
   SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 

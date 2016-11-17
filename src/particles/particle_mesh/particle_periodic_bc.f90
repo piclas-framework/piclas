@@ -190,7 +190,11 @@ DO iSide=nBCSides+1,nSides
   !  print*,'ximinus'
     v1=XCL_NGeo(1:3,0   ,NGeo,0   ,ElemID) - XCL_NGeo(1:3,0   ,0,0,ElemID)
     v2=XCL_NGeo(1:3,0   ,0,NGeo   ,ElemID) - XCL_NGeo(1:3,0   ,0,0,ElemID)
-    nVec=CROSSNORM(v1,v2)
+    IF(flip.EQ.0) THEN
+      nVec=-CROSSNORM(v1,v2)
+    ELSE
+      nVec=CROSSNORM(v1,v2)
+    END IF
   CASE(XI_PLUS)
   !  print*,'xiplus'
     v1=XCL_NGeo(1:3,NGeo,NGeo,0   ,ElemID) - XCL_NGeo(1:3,NGeo,0,0,ElemID)

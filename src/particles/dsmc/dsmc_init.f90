@@ -1160,6 +1160,7 @@ SUBROUTINE FinalizeDSMC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
+USE MOD_Particle_Vars, ONLY:PDM
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -1179,6 +1180,7 @@ IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
   SDEALLOCATE(DSMC%QualityFactors)
 END IF
+SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
@@ -1210,12 +1212,13 @@ SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
+SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
 SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_HOSolution)
-
+SDEALLOCATE(ElemNodeVol)
 END SUBROUTINE FinalizeDSMC
 
 

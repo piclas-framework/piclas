@@ -80,7 +80,7 @@ MACRO(SUBDIRLIST result curdir)
   SET(dirlist "")
   FOREACH(child ${children})
     IF(IS_DIRECTORY ${curdir}/${child})
-        LIST(APPEND dirlist ${child})
+      LIST(APPEND dirlist ${child})
     ENDIF()
   ENDFOREACH()
   SET(${result} ${dirlist})
@@ -519,6 +519,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
+                                ./src/mortar/*.f90
                                 ./src/interpolation/basis.f90
                                 ./src/interpolation/interpolation.f90
                                 ./src/interpolation/interpolation_vars.f90
@@ -580,6 +581,17 @@ ADD_DEPENDENCIES(boltzplatz boltzplatzlib HDF5)
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals.f90 PROPERTIES COMPILE_FLAGS "-Wno-intrinsic-shadow")
 ENDIF()
+# =========================================================================
+# RegressionCheck tool && Examples
+# =========================================================================
+add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
+                         ./regressioncheck/regressioncheck_vars.f90 
+                         ./regressioncheck/regressioncheck_build.f90 
+                         ./regressioncheck/regressioncheck_compare.f90 
+                         ./regressioncheck/regressioncheck_run.f90 
+                         ./regressioncheck/regressioncheck_tools.f90 )
+ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
+SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
 
 # =========================================================================
 # Userblock

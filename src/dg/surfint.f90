@@ -228,7 +228,8 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
 USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,          ONLY: nSides
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_MINE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -246,14 +247,15 @@ INTEGER            :: firstSideID,lastSideID
 REAL               ::L_HatMinus0,L_HatPlusN 
 #endif
 !===================================================================================================================================
-IF(doMPISides)THEN 
-  ! surfInt only for YOUR MPISides
-  firstSideID = nBCSides+nInnerSides+nMPISides_MINE +1
-  lastSideID  = firstSideID-1+nMPISides_YOUR 
+
+IF(doMPISides)THEN
+  ! MPI YOUR
+  firstSideID = firstMPISide_YOUR
+   lastSideID = nSides
 ELSE
-  ! fill only InnerSides
+  ! inner sides and MPI mine
   firstSideID = 1
-  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+   lastSideID = lastMPISide_MINE
 END IF
 
 #if (PP_NodeType>1)

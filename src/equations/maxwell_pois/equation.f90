@@ -158,12 +158,12 @@ nTotalPhi=4*(PP_N+1)*(PP_N+1)*(PP_N+1)*PP_nElems
 Phit=0.
 
 ! We store the interior data at the each element face
-SDEALLOCATE(Phi_Minus)
-ALLOCATE(Phi_Minus(4,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
-SDEALLOCATE(Phi_Plus)
-ALLOCATE(Phi_Plus(4,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
-Phi_Minus=0.
-Phi_Plus=0.
+SDEALLOCATE(Phi_master)
+ALLOCATE(Phi_master(4,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
+SDEALLOCATE(Phi_slave)
+ALLOCATE(Phi_slave(4,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
+Phi_master=0.
+Phi_slave=0.
 
 ! unique flux per side
 SDEALLOCATE(FluxPhi)
@@ -839,7 +839,7 @@ SUBROUTINE FillFlux(Flux,doMPISides)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Equation_Vars,         ONLY: Phi_Minus,Phi_Plus
+USE MOD_Equation_Vars,         ONLY: Phi_master,Phi_slave
 USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Riemann_Pois,         ONLY: Riemann_Pois
@@ -868,7 +868,7 @@ END IF
 !firstSideID=nBCSides+1
 !lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
 DO SideID=firstSideID,lastSideID
-  CALL Riemann_Pois(Flux(:,:,:,SideID),Phi_Minus(:,:,:,SideID),Phi_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
+  CALL Riemann_Pois(Flux(:,:,:,SideID),Phi_master(:,:,:,SideID),Phi_slave(:,:,:,SideID),NormVec(:,:,:,SideID))
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)

@@ -41,6 +41,14 @@ INTERFACE SideToVol
   MODULE PROCEDURE SideToVol
 END INTERFACE
 
+INTERFACE SideToAdjointLocSide
+  MODULE PROCEDURE SideToAdjointLocSide
+END INTERFACE
+
+INTERFACE SideToVol2
+  MODULE PROCEDURE SideToVol2
+END INTERFACE
+
 INTERFACE VolToSide
   MODULE PROCEDURE VolToSide
 END INTERFACE
@@ -60,6 +68,8 @@ PUBLIC::CGNS_SideToVol
 PUBLIC::CGNS_SideToVol2
 PUBLIC::CGNS_VolToSide
 PUBLIC::SideToVol
+PUBLIC::SideToAdjointLocSide
+PUBLIC::SideToVol2
 PUBLIC::VolToSide
 PUBLIC::VolToVol
 PUBLIC::ElemToNBElem
@@ -67,7 +77,7 @@ PUBLIC::ElemToNBElem
 
 CONTAINS
 
-SUBROUTINE InitMappings(N_in,V2S,V2SIJK,V2S2,CV2S,S2V,S2V2,CS2V)
+SUBROUTINE InitMappings(N_in,V2S,V2SIJK,V2S2,CV2S,S2V,S2V2,CS2V,FS2M)
 !===================================================================================================================================
 ! initialization of all mappings for polynomial degree N_in
 !===================================================================================================================================
@@ -87,6 +97,7 @@ INTEGER,ALLOCATABLE,INTENT(OUT) :: CV2S(:,:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: S2V(:,:,:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: S2V2(:,:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: CS2V(:,:,:,:)
+INTEGER,ALLOCATABLE,INTENT(OUT) :: FS2M(:,:,:,:)     !< FlipSlaveToMaster mapping
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                    :: i,j,k,f,s, ijk(3),pq(3),p,q
@@ -98,6 +109,7 @@ ALLOCATE(CV2S(3,0:N_in,0:N_in,0:N_in,1:6))
 ALLOCATE(S2V(3,0:N_in,0:N_in,0:N_in,0:4,1:6))
 ALLOCATE(S2V2(2,0:N_in,0:N_in,0:4,1:6))
 ALLOCATE(CS2V(2,0:N_in,0:N_in,1:6))
+ALLOCATE(FS2M(2,0:N_in,0:N_in,0:4))
 
 DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
   DO f=0,4
@@ -148,6 +160,13 @@ END DO; END DO
 DO j=0,N_in; DO i=0,N_in
   DO s=1,6
     CS2V(:,i,j,s) = CGNS_SideToVol2(i,j,s)
+  END DO
+END DO; END DO
+
+! Flip_S2M
+DO j=0,N_in; DO i=0,N_in
+  DO f=0,4
+    FS2M(:,i,j,f) = Flip_S2M(i,j,f)
   END DO
 END DO; END DO
 
@@ -459,6 +478,65 @@ INTEGER,DIMENSION(2) :: pq
 pq = Flip_M2S(p,q,flip)
 SideToVol = CGNS_SideToVol(l,pq(1),pq(2),locSideID)
 END FUNCTION SideToVol
+
+
+FUNCTION SideToAdjointLocSide(p, q, flip, locSideID)
+!===================================================================================================================================
+! Transform RHS-Coordinates of Master to Volume-Coordinates. This is: SideToVol = CGNS_SideToVol(Flip_M2S(...))
+! input: l, p,q, flip, locSideID
+!     where: p,q are in Master-RHS;
+!            l is the xi-,eta- or zeta-index in 0:PP_N corresponding to locSideID
+! output: volume-indicies
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals, ONLY:abort
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: p,q,flip,locSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,DIMENSION(2) :: SideToAdjointLocSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,DIMENSION(2) :: pq
+!===================================================================================================================================
+
+pq = SideToVol2(p, q, flip, locSideID)
+SELECT CASE(locSideID)
+CASE(XI_MINUS)
+  IF(pq(1).EQ.0)THEN
+    SideToAdjointLocSide(1)=ETA_MINUS
+  ELSE
+    SideToAdjointLocSide(1)=ETA_PLUS
+  END IF 
+  IF(pq(2).EQ.0)THEN
+    SideToAdjointLocSide(2)=ZETA_MINUS
+  ELSE
+    SideToAdjointLocSide(2)=ZETA_PLUS
+  END IF 
+CASE(XI_PLUS)
+  IF(pq(1).EQ.0)THEN
+    SideToAdjointLocSide(1)=ETA_MINUS
+  ELSE
+    SideToAdjointLocSide(1)=ETA_PLUS
+  END IF 
+  IF(pq(2).EQ.0)THEN
+    SideToAdjointLocSide(2)=ZETA_MINUS
+  ELSE
+    SideToAdjointLocSide(2)=ZETA_PLUS
+  END IF 
+CASE DEFAULT
+CALL abort(&
+__STAMP__&
+,'SideToAdjointLocSide only supports XI_PLUS,XI_MINUS')
+END SELECT
+
+END FUNCTION SideToAdjointLocSide
+
 
 FUNCTION SideToVol2(p, q, flip, locSideID)
 !===================================================================================================================================

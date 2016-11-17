@@ -224,6 +224,10 @@ IF(WriteFieldsToVTK) THEN
 ELSE
   CALL WriteDataToTecplotBinary(NVisu,PP_nElems,PP_nVar,0,VarNames,Coords_NVisu(1:3,:,:,:,:),U_NVisu,TRIM(FileString))
 END IF
+
+IF(1.EQ.2)THEN
+  WRITE(*,*) (OutputTime)
+END IF
 #endif /*PARTICLES*/
 
 ! test eval_xyz 
@@ -232,10 +236,6 @@ END IF
 !  !eval_vec = (/30,40,50/)
 !  CALL eval_xyz(eval_vec,6,PP_N,U(1:6,:,:,:,iElem),U_eval,iElem)
 !END DO !iElem
-
-IF(1.EQ.2)THEN
-  WRITE(*,*) (OutputTime)
-END IF
 
 END SUBROUTINE Visualize
 

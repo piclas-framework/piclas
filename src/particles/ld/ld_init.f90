@@ -35,7 +35,7 @@ USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
-USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElem,ElemBaryNGeo!,Geo
+USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElemAndSide,ElemBaryNGeo!,Geo
 #ifdef MPI
 USE MOD_MPI_Vars
 #endif
@@ -149,7 +149,7 @@ __STAMP__&
       DO trinum=1, 2
         CALL CalcLagNormVec(iLocSide, iElem, trinum)
 !--- calculate cellcenter distance for viscousity terms
-        Elem2=PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem) 
+        Elem2=PartElemToElemAndSide(1,ilocSide,iElem) 
         IF(Elem2.EQ.-1) CYCLE
         MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = ElemBaryNGeo(1,iElem) - ElemBaryNGeo(1,Elem2)
         MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = ElemBaryNGeo(2,iElem) - ElemBaryNGeo(2,Elem2)

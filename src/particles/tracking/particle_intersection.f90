@@ -9,8 +9,8 @@ MODULE MOD_Particle_InterSection
 IMPLICIT NONE
 PUBLIC
 
-INTERFACE ComputePlanarNonrectIntersection
-  MODULE PROCEDURE ComputePlanarNonrectIntersection
+INTERFACE ComputePlanarCurvedIntersection
+  MODULE PROCEDURE ComputePlanarCurvedIntersection
 END INTERFACE
 
 INTERFACE ComputePlanarRectInterSection
@@ -26,7 +26,7 @@ INTERFACE ComputeCurvedIntersection
 END INTERFACE
 
 PUBLIC::ComputePlanarRectInterSection
-PUBLIC::ComputePlanarNonrectIntersection
+PUBLIC::ComputePlanarCurvedIntersection
 PUBLIC::ComputeBilinearIntersection
 PUBLIC::ComputeCurvedIntersection
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,7 +56,6 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip
@@ -112,19 +111,10 @@ IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
 
 ! extension for periodic sides
 IF(.NOT.DoRefMapping)THEN
-  IF(SidePeriodicType(SideID).EQ.0)THEN
-    locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
-  ELSE
-    IF (flip.EQ.0) THEN
-      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-    ELSE ! nothing to do for master side, Side of elem to which owns the BezierPoints
-      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0flip(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-    END IF
-  END IF ! SidePeriodicType
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
 ELSE
   locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
 END IF
-alpha=locSideDistance/coeffA
   
 IF(CriticalParallelInSide)THEN ! particle parallel to side
   IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
@@ -133,10 +123,12 @@ IF(CriticalParallelInSide)THEN ! particle parallel to side
     alpha=-1.
     RETURN
   END IF
+  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
   alpha=-1.
   RETURN
 ELSE
   IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+  alpha=locSideDistance/coeffA
 END IF
 
 IF(locSideDistance.LT.-100*epsMach)THEN
@@ -156,27 +148,11 @@ IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
 END IF
 
 IF(.NOT.DoRefMapping)THEN
-  IF(SidePeriodicType(SideID).EQ.0)THEN
-    ! iSide_temp = SideID2PlanarSideID(SideID)
-    Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-    P0 =-0.25*BaseVectors0(:,SideID)+Inter1
-    P1 = 0.25*BaseVectors1(:,SideID)
-    P2 = 0.25*BaseVectors2(:,SideID)
-  ELSE
-    IF (flip.EQ.0) THEN
-      ! iSide_temp = SideID2PlanarSideID(SideID)
-      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-      P0 =-0.25*BaseVectors0(:,SideID)+Inter1
-      P1 = 0.25*BaseVectors1(:,SideID)
-      P2 = 0.25*BaseVectors2(:,SideID)
-    ELSE
-      ! iSide_temp = SideID2PlanarSideID(SideID)
-      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-      P0 =-0.25*BaseVectors0flip(:,SideID)+Inter1
-      P1 = 0.25*BaseVectors1flip(:,SideID)
-      P2 = 0.25*BaseVectors2flip(:,SideID)
-    END IF
-  END IF ! SidePeriodicType
+  ! iSide_temp = SideID2PlanarSideID(SideID)
+  Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+  P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+  P1 = 0.25*BaseVectors1(:,SideID)
+  P2 = 0.25*BaseVectors2(:,SideID)
 ELSE
   ! iSide_temp = SideID2PlanarSideID(SideID)
   Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
@@ -220,7 +196,7 @@ isHit=.TRUE.
 END SUBROUTINE ComputePlanarRectIntersection
 
 
-SUBROUTINE ComputePlanarNonrectIntersection(isHit                       &
+SUBROUTINE ComputePlanarCurvedIntersection(isHit                       &
                                            ,PartTrajectory              &
                                            ,lengthPartTrajectory        &
                                            ,alpha                       &
@@ -294,10 +270,10 @@ rBoundingBoxChecks=rBoundingBoxChecks+1.
 #endif /*CODE_ANALYZE*/
 
 CriticalParallelInSide=.FALSE.
+
 IF(DoRefMapping)THEN
   IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
 ELSE
-  ! dependend on master/slave flip
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
   IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
   IF(flip.EQ.0)THEN
@@ -306,17 +282,31 @@ ELSE
     IF(coeffA.GT.0.)RETURN
   END IF
 END IF
-! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
-IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
-  IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
-    IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
-                                                                                              ! bounding box
-  END IF
-END IF
+IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
+
+!IF(DoRefMapping)THEN
+!  IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
+!ELSE
+!  ! dependend on master/slave flip
+!  coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
+!  IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
+!  IF(flip.EQ.0)THEN
+!    IF(coeffA.LT.0.)RETURN
+!  ELSE
+!    IF(coeffA.GT.0.)RETURN
+!  END IF
+!END IF
+!! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
+!IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
+!  IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
+!    IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
+!                                                                                              ! bounding box
+!  END IF
+!END IF
 
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 !PartTrajectory = PartTrajectoryOrig + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
-IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
+IF(ABS(PartTrajectory(3)).LT.0.)THEN
   n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
 ELSE
   n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
@@ -365,7 +355,8 @@ __STAMP__&
 END SELECT
 
 
-END SUBROUTINE ComputePlanarNonrectIntersection
+END SUBROUTINE ComputePlanarCurvedIntersection
+
 
 SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
                                                    ,iPart,flip,SideID)
@@ -620,6 +611,7 @@ END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersection
 
+
 SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,opt_CriticalParllelInSide)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
@@ -662,6 +654,7 @@ REAL                                     :: n1(3),n2(3)
 INTEGER                                  :: nInterSections,iInter,p,q
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
+REAL                                     :: PartTrajectoryDif(3)
 #ifdef CODE_ANALYZE
 REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 #endif /*CODE_ANALYZE*/
@@ -673,7 +666,6 @@ REAL                                     :: PartFaceAngle,dXi,dEta
 LOGICAL                                  :: CriticalParallelInSide
 !REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
-!PartTrajectory = PartTrajectory
 ! set alpha to minus 1, asume no intersection
 alpha=-1.0
 Xi   = 2.0
@@ -691,18 +683,21 @@ IF(BoundingBoxIsEmpty(SideID))THEN
   ELSE
     IF(ALMOSTZERO(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory))) CriticalParallelInSide=.TRUE.
   END IF
-END IF
-! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
-IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
-  IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
-    IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
-                                                                                              ! bounding box
+  IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
+                                                                                                ! bounding box
+ELSE
+  ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
+  IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
+    IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
+      IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
+                                                                                                ! bounding box
+    END IF
   END IF
 END IF
-
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
-!PartTrajectory = PartTrajectoryOrig + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
-IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
+!PartTrajectoryOrig=PartTrajectory
+!PartTrajectory = PartTrajectory + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
+IF(ABS(PartTrajectory(3)).LT.0.)THEN
   n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
 ELSE
   n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
@@ -711,7 +706,7 @@ END IF
 ! check angle to boundingbox (height normal vector)
 PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
 IF(ALMOSTZERO(PartFaceAngle*180/ACOS(-1.)))THEN
-  n1=n1 +epsilontol
+  n1=n1! +epsilontol
 END IF
 
 n1=n1/SQRT(DOT_PRODUCT(n1,n1))
@@ -2265,6 +2260,7 @@ FUNCTION BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideI
 ! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
+USE MOD_Globals,                  ONLY:abort
 USE MOD_Particle_Vars,            ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
 ! IMPLICIT VARIABLE HANDLING
@@ -2313,17 +2309,113 @@ maxvalue=MAXVAL(alpha(1,:))
 minvalue=MINVAL(alpha(2,:))
 
 IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
-  !IF((maxvalue.LT.lengthPartTrajectory+epsilontol).AND.(maxvalue+epsilontol.GT.0.))THEN
-  IF((maxvalue.LT.lengthPartTrajectory+100.*epsMach).AND.(maxvalue+100.*epsMach.GT.0.))THEN
-  !the first intersection is less than lengthPartTrajectory and greater 0
-    BoundingBoxIntersection=.TRUE.
-  ELSE
-    BoundingBoxIntersection=.FALSE.
-  END IF
+!  IF((maxvalue.LT.0).AND.(minvalue.GT.0))THEN
+!    CALL abort(&
+!  __STAMP__& 
+!  ,' BoundingBox check failed!')
+!  ELSE
+    IF((maxvalue.LT.lengthPartTrajectory+100*epsMach).AND.(maxvalue+100*epsMach.GT.0.))THEN
+      !the first intersection is less than lengthPartTrajectory and greater 0
+      BoundingBoxIntersection=.TRUE.
+    ELSE
+      BoundingBoxIntersection=.FALSE.
+    END IF
+  !END IF
 ELSE
   BoundingBoxIntersection=.FALSE.
 END IF
 END FUNCTION BoundingBoxIntersection
+
+
+FUNCTION FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!================================================================================================================================
+! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
+!================================================================================================================================
+USE MOD_Globals_Vars
+USE MOD_Particle_Vars,            ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierClipTolerance
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)         :: PartTrajectory
+REAL,INTENT(IN)                      :: lengthPartTrajectory
+INTEGER,INTENT(IN)                   :: iPart,SideID
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL                              :: FlatBoundingBoxIntersection
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: dnk,alpha(2,3)! alpha(2,2): dummy because we are lazy
+REAL                                 :: maxvalue,minvalue,comparevalue
+INTEGER                              :: i
+!================================================================================================================================
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 1.) Calculate the projection of the PartTrajectory onto the SideSlabNormals and sort accoring to the sign of T*n
+!-----------------------------------------------------------------------------------------------------------------------------------
+i=1
+dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
+
+!IF(ABS(dnk).LT.epsilontol)THEN
+IF(ABS(dnk).LT.100.*epsMach)THEN
+  dnk=0. ! ÜBERPRÜFEN OB SIGN sinn macht
+ELSE
+  IF(dnk.LT.0.)THEN
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+  ELSE
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+  END IF
+END IF
+i=3
+dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
+!IF(ABS(dnk).LT.epsilontol)THEN
+IF(ABS(dnk).LT.100.*epsMach)THEN
+  dnk=0.
+ELSE
+  IF(dnk.LT.0.)THEN
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+  ELSE
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
+                                                                              +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
+  END IF
+END IF
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2.) Get smallest subspace interval
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+maxvalue=MAX(alpha(1,1),alpha(1,3))!only x,z directions due to flat surface
+minvalue=MIN(alpha(2,1),alpha(2,3))!only x,z directions due to flat surface
+
+IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
+  IF((maxvalue.LT.0).AND.(minvalue.GT.0))THEN
+    FlatBoundingBoxIntersection=.TRUE.
+  ELSE
+    IF((maxvalue.LT.lengthPartTrajectory+100.*epsMach).AND.(maxvalue+100.*epsMach.GT.0.))THEN
+    !the first intersection is less than lengthPartTrajectory and greater 0
+      FlatBoundingBoxIntersection=.TRUE.
+    ELSE
+      FlatBoundingBoxIntersection=.FALSE.
+    END IF
+  END IF
+ELSE
+  FlatBoundingBoxIntersection=.FALSE.
+END IF
+
+END FUNCTION FlatBoundingBoxIntersection
+
 
 
 SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
