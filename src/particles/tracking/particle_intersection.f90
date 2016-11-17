@@ -357,6 +357,7 @@ END SELECT
 
 END SUBROUTINE ComputePlanarCurvedIntersection
 
+
 SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
                                                    ,iPart,flip,SideID)
 !===================================================================================================================================
@@ -609,6 +610,7 @@ ELSE
 END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersection
+
 
 SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,opt_CriticalParllelInSide)
 !===================================================================================================================================
