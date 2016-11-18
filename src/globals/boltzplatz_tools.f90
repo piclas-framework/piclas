@@ -29,6 +29,7 @@ USE MOD_Mesh,                      ONLY:FinalizeMesh
 USE MOD_Equation,                  ONLY:FinalizeEquation
 USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
+USE MOD_Mortar,                    ONLY:FinalizeMortar
 #ifndef PP_HDG
 USE MOD_PML,                       ONLY:FinalizePML
 #endif /*PP_HDG*/
@@ -89,6 +90,7 @@ IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 !CALL FinalizeTimeDisc()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
+CALL FinalizeMortar()
 CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeParticleSurfaces()
@@ -135,6 +137,7 @@ USE MOD_Mesh,               ONLY:InitMesh
 USE MOD_Equation,           ONLY:InitEquation
 USE MOD_GetBoundaryFlux,    ONLY:InitBC
 USE MOD_DG,                 ONLY:InitDG
+USE MOD_Mortar,             ONLY:InitMortar
 #ifndef PP_HDG
 USE MOD_PML,                ONLY:InitPML
 #endif /*PP_HDG*/
@@ -182,7 +185,9 @@ IF(IsLoadBalance)THEN
   !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
   N_Restart=PP_N
+  CALL InitMortar()
 ELSE
+  CALL InitMortar()
   CALL InitRestart()
 END IF
 CALL InitMesh()

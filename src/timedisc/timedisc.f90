@@ -165,7 +165,11 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
-                                     ,IterDisplayStep,DoDisplayIter,sdtCFLOne,CFLtoOne
+                                     ,IterDisplayStep,DoDisplayIter
+USE MOD_TimeDisc_Vars,      ONLY: dt_Min
+#if (PP_TimeDiscMethod==201)                                                                                                         
+USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
+#endif
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
@@ -191,7 +195,7 @@ USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
-USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, useManualTimestep, WriteMacroValues, MacroValSampTime
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
@@ -236,9 +240,9 @@ IMPLICIT NONE
 REAL                         :: tFuture,tZero
 INTEGER(KIND=8)              :: nAnalyze
 INTEGER                      :: iAnalyze
-REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff
+REAL                         :: tEndDiff, tAnalyzeDiff
 #if (PP_TimeDiscMethod==201)
-REAL                         :: dt_temp,vMax,vMaxx,vMaxy,vMaxz
+REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
@@ -246,7 +250,7 @@ INTEGER                      :: TimeArray(8)              ! Array for system tim
 REAL                         :: CurrentImbalance
 LOGICAL                      :: PerformLoadBalance
 #if (PP_TimeDiscMethod==201)
-INTEGER                      :: MaximumIterNum, iPart
+INTEGER                      :: iPart
 LOGICAL                      :: NoPartInside
 #endif
 LOGICAL                      :: finalIter
@@ -325,69 +329,7 @@ END IF
 !  CALL Deposition(doInnerParts=.FALSE.)
 !#endif /*MPI*/
 !#endif
-#ifdef PARTICLES
-! For tEnd != tStart we have to advance the solution in time
-IF(useManualTimeStep)THEN
-  ! particle time step is given externally and not calculated through the solver
-  dt_Min=ManualTimeStep
-#if (PP_TimeDiscMethod==200)
-  dt_max_particles = ManualTimeStep
-  dt_maxwell = CALCTIMESTEP()
-  sdtCFLOne  = 1.0/(dt_maxwell*CFLtoOne)
-
-  NextTimeStepAdjustmentIter = 0
-  MaxwellIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
-                 / (c * dt_maxwell))
-  IF (MaxwellIterNum*dt_maxwell.GT.dt_max_particles) THEN
-    WRITE(*,*) 'WARNING: Time of Maxwell Solver is greater then particle time step!'
-  END IF
-  IterDisplayStep = MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
-  IF(MPIroot)THEN
-    print*, 'IterNum for MaxwellSolver: ', MaxwellIterNum
-    print*, 'Particle TimeStep: ', dt_max_particles  
-    print*, 'Maxwell TimeStep: ', dt_maxwell
-  END IF
-#endif
-ELSE ! .NO. ManualTimeStep
-#endif /*PARTICLES*/
-  ! time step is calculated by the solver
-  ! first Maxwell time step for explicit LSRK
-#ifndef PP_HDG
-  dt_Min=CALCTIMESTEP()
-#else
-  dt_Min=0
-#endif /*PP_HDG*/
-
-  sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
-  dt=dt_Min
-  ! calculate time step for sub-cycling of divergence correction
-  ! automatic particle time step of quasi-stationary time integration is not implemented
-#ifdef PARTICLES
-#if (PP_TimeDiscMethod==200)
-  ! this will not work if particles have velocity of zero
-   CALL abort(&
-   __STAMP__&
-   ,' Error in static computations, a maximum delta t (=ManualTimeStep) needs to be set!')
-#endif
-END IF ! useManualTimestep
-
-#if (PP_TimeDiscMethod==201)
-dt_maxwell = CALCTIMESTEP()
-sdtCFLOne  = 1.0/(dt_Maxwell*CFLtoOne)
-MaximumIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
-               / (c * dt_maxwell))
-IF(MPIroot)THEN
-  print*, 'MaxIterNum for MaxwellSolver: ', MaximumIterNum
-  print*, 'Maxwell TimeStep: ', dt_maxwell
-END IF
-dt_temp = 1E-8
-#endif
-#endif /*PARTICLES*/
-
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min
-! using sub-cycling requires an addional time step
-SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
+CALL InitTimeStep() ! Initial time step calculation
 CalcTimeStart=BOLTZPLATZTIME()
 iter=0
 iter_loc=0
@@ -458,7 +400,7 @@ DO !iter_t=0,MaxIter
     SWRITE(UNIT_StdOut,*)  'New IterNum for MaxwellSolver: ', MaxwellIterNum 
     SWRITE(UNIT_StdOut,*)  'New Particle TimeStep: ', dt_max_particles
   END IF
-#endif
+#endif /*(PP_TimeDiscMethod==201)*/
 
 #ifdef PARTICLES
   IF(enableParticleMerge) THEN
@@ -562,7 +504,7 @@ DO !iter_t=0,MaxIter
     CalcTimeEnd=BOLTZPLATZTIME()
 #ifdef MPI
     !CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
-    CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance)
+    CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
@@ -653,10 +595,11 @@ DO !iter_t=0,MaxIter
     IF(DoLoadBalance .AND. time.LT.tEnd)THEN
       RestartTime=time
       CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
-#ifndef PP_HDG
-      dt_Min=CALCTIMESTEP()
-#endif /*PP_HDG*/
-      dt=dt_Min
+!#ifndef PP_HDG
+!      dt_Min=CALCTIMESTEP()
+!#endif /*PP_HDG*/
+      IF (PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
+!      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
       CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
     END IF
@@ -4622,6 +4565,103 @@ CFLScale=CFLScale*CFLScaleAlpha(PP_N)
 CFLScale = CFLScale/(2.*PP_N+1.)
 SWRITE(UNIT_stdOut,'(A,ES16.7)') '   CFL:',CFLScale
 END SUBROUTINE fillCFL_DFL
+
+
+SUBROUTINE InitTimeStep()
+!===================================================================================================================================
+!initial time step calculations for new timedisc-loop
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+#ifdef PARTICLES
+USE MOD_PARTICLE_Vars,      ONLY: ManualTimeStep, useManualTimestep
+#if (PP_TimeDiscMethod==200)
+USE MOD_PARTICLE_Vars,      ONLY: dt_maxwell,dt_max_particles,MaxwellIterNum,NextTimeStepAdjustmentIter
+USE MOD_Particle_Mesh_Vars, ONLY: GEO
+USE MOD_TimeDisc_Vars,      ONLY: IterDisplayStep
+#endif
+#endif /*PARTICLES*/
+#ifndef PP_HDG
+USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
+USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne,CFLtoOne
+#endif
+USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
+USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne,CFLtoOne
+#if (PP_TimeDiscMethod==201)                                                                                                         
+USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+#ifdef PARTICLES
+! For tEnd != tStart we have to advance the solution in time
+IF(useManualTimeStep)THEN
+  ! particle time step is given externally and not calculated through the solver
+  dt_Min=ManualTimeStep
+#if (PP_TimeDiscMethod==200)
+  dt_max_particles = ManualTimeStep
+  dt_maxwell = CalcTimeStep()
+  sdtCFLOne  = 1.0/(dt_maxwell*CFLtoOne)
+
+  NextTimeStepAdjustmentIter = 0
+  MaxwellIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
+                 / (c * dt_maxwell))
+  IF (MaxwellIterNum*dt_maxwell.GT.dt_max_particles) THEN
+    WRITE(*,*) 'WARNING: Time of Maxwell Solver is greater then particle time step!'
+  END IF
+  IterDisplayStep = MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
+  IF(MPIroot)THEN
+    print*, 'IterNum for MaxwellSolver: ', MaxwellIterNum
+    print*, 'Particle TimeStep: ', dt_max_particles  
+    print*, 'Maxwell TimeStep: ', dt_maxwell
+  END IF
+#endif
+ELSE ! .NO. ManualTimeStep
+#endif /*PARTICLES*/
+  ! time step is calculated by the solver
+  ! first Maxwell time step for explicit LSRK
+#ifndef PP_HDG
+  dt_Min=CalcTimeStep()
+  sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
+#else
+  dt_Min=0
+  sdtCFLOne  = -1.0 !dummy for HDG!!!
+#endif /*PP_HDG*/
+
+  dt=dt_Min
+  ! calculate time step for sub-cycling of divergence correction
+  ! automatic particle time step of quasi-stationary time integration is not implemented
+#ifdef PARTICLES
+#if (PP_TimeDiscMethod==200)
+  ! this will not work if particles have velocity of zero
+   CALL abort(&
+   __STAMP__&
+   ,' Error in static computations, a maximum delta t (=ManualTimeStep) needs to be set!')
+#endif
+END IF ! useManualTimestep
+
+#if (PP_TimeDiscMethod==201)
+dt_maxwell = CALCTIMESTEP()
+sdtCFLOne  = 1.0/(dt_Maxwell*CFLtoOne)
+MaximumIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
+               / (c * dt_maxwell))
+IF(MPIroot)THEN
+  print*, 'MaxIterNum for MaxwellSolver: ', MaximumIterNum
+  print*, 'Maxwell TimeStep: ', dt_maxwell
+END IF
+dt_temp = 1E-8
+#endif
+#endif /*PARTICLES*/
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min
+! using sub-cycling requires an addional time step
+SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
+END SUBROUTINE InitTimeStep
 
 
 

@@ -221,6 +221,10 @@ SDEALLOCATE(BezierControlPoints3D)
 !SDEALLOCATE(SuperSampledBiLinearCoeff)
 SDEALLOCATE(SideSlabNormals)
 SDEALLOCATE(SideSlabIntervals)
+SDEALLOCATE(BaseVectors0)
+SDEALLOCATE(BaseVectors1)
+SDEALLOCATE(BaseVectors2)
+SDEALLOCATE(BaseVectors3)
 SDEALLOCATE(ElemSlabNormals)
 SDEALLOCATE(ElemSlabIntervals)
 SDEALLOCATE(BoundingBoxIsEmpty)
@@ -241,6 +245,9 @@ SDEALLOCATE(BezierSampleXi)
 SDEALLOCATE(SurfMeshSubSideData)
 SDEALLOCATE(SurfMeshSideAreas)
 SDEALLOCATE(BCdata_auxSF)
+#ifdef CODE_ANALYZE
+SDEALLOCATE(SideBoundingBoxVolume)
+#endif
 !SDEALLOCATE(gElemBCSide)
 ParticleSurfaceInitIsDone=.FALSE.
 
@@ -475,7 +482,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,                ONLY:nSides
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -494,7 +501,8 @@ REAL                              :: tmp(3,0:NGeo,0:NGeo)
 
 !===================================================================================================================================
 ! BCSides, InnerSides and MINE MPISides are filled
-lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+!lastSideID  = nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
+lastSideID  = nSides
 !IF(DoRefMapping) lastSideID  = nBCSides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) XI_MINUS
@@ -578,6 +586,8 @@ IF(SideID.LE.lastSideID)THEN
 END IF
 END SUBROUTINE GetBezierControlPoints3D
 
+
+
 SUBROUTINE GetSideSlabNormalsAndIntervals(BezierControlPoints3D,BezierControlPoints3DElevated &
                                          ,SideSlabNormals,SideSlabInterVals,BoundingBoxIsEmpty )
 !===================================================================================================================================
@@ -618,7 +628,7 @@ LOGICAL,INTENT(OUT) :: BoundingBoxIsEmpty
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !INTEGER                           :: lastSideID,flip,SideID
-INTEGER            :: p,q
+INTEGER            :: p,q, i
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)  
 REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
 LOGICAL            :: SideIsCritical
@@ -714,6 +724,20 @@ DO q=0,NGeoElevated
     END IF
   END DO !p
 END DO !q
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2-b.) sanity check
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+DO i = 1,3
+  IF(SideSlabIntervals(2*i).LT.SideSlabIntervals(2*i-1))  CALL Abort(&
+__STAMP__&
+,' SideSlabIntervals are corrupted! ')
+END DO
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2-c.) bounding box extension
+!-----------------------------------------------------------------------------------------------------------------------------------
 
 dx=ABS(ABS(SideSlabIntervals(2))-ABS(SideSlabIntervals(1)))
 dy=ABS(ABS(SideSlabIntervals(4))-ABS(SideSlabIntervals(3)))

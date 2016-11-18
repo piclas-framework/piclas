@@ -26,7 +26,7 @@ INTEGER                               :: nTotalU
 INTEGER                               :: nTotal_vol    !loop i,j,k
 INTEGER                               :: nTotal_face   !loop i,j
 ! interior face values for all elements
-REAL,ALLOCATABLE                      :: U_Minus(:,:,:,:),U_Plus(:,:,:,:)
+REAL,ALLOCATABLE                      :: U_master(:,:,:,:),U_slave(:,:,:,:)
 REAL,ALLOCATABLE                      :: Flux(:,:,:,:)
 LOGICAL                               :: DGInitIsDone=.FALSE.
 !===================================================================================================================================

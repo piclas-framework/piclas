@@ -80,7 +80,7 @@ MACRO(SUBDIRLIST result curdir)
   SET(dirlist "")
   FOREACH(child ${children})
     IF(IS_DIRECTORY ${curdir}/${child})
-        LIST(APPEND dirlist ${child})
+      LIST(APPEND dirlist ${child})
     ENDIF()
   ENDFOREACH()
   SET(${result} ${dirlist})
@@ -325,7 +325,7 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -march=native  -finline-functions")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -g -pg ")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall -fsanitize=address,undefined -fno-omit-frame-pointer -Wc-binding-type")
+  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
   # add flags only for compiling not linking!
   SET (BOLTZPLATZ_COMPILE_FLAGS "-xf95-cpp-input")
 
@@ -343,6 +343,15 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit")
    # add flags only for compiling not linking!
    SET (BOLTZPLATZ_COMPILE_FLAGS "-fpp -assume bscc")
+
+ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
+  # set Flags
+  SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -f free -s real64 -em -DCRAY")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -hfp3 -p . -rm")
+  #  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -O3 -hfp3 -p . -rm")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -O0 -eD -rm")
+  # add flags only for compiling not linking!
+  SET (BOLTZPLATZ_COMPILE_FLAGS "-F")
 
 ELSE()
    MESSAGE(ERROR "Unknown compiler")
@@ -510,6 +519,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
+                                ./src/mortar/*.f90
                                 ./src/interpolation/basis.f90
                                 ./src/interpolation/interpolation.f90
                                 ./src/interpolation/interpolation_vars.f90
@@ -571,6 +581,17 @@ ADD_DEPENDENCIES(boltzplatz boltzplatzlib HDF5)
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals.f90 PROPERTIES COMPILE_FLAGS "-Wno-intrinsic-shadow")
 ENDIF()
+# =========================================================================
+# RegressionCheck tool && Examples
+# =========================================================================
+add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
+                         ./regressioncheck/regressioncheck_vars.f90 
+                         ./regressioncheck/regressioncheck_build.f90 
+                         ./regressioncheck/regressioncheck_compare.f90 
+                         ./regressioncheck/regressioncheck_run.f90 
+                         ./regressioncheck/regressioncheck_tools.f90 )
+ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
+SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
 
 # =========================================================================
 # Userblock

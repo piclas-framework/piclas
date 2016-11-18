@@ -536,23 +536,23 @@ INTEGER                         :: iProbe
 !===================================================================================================================================
 ! calc Probe interpolation field
 !===================================================================================================================================
-DO iProbe=1,3;
-  !CALL eval_xyz(Probes%Coordinates(iProbe,:),6,PP_N,U(1:6,:,:,:,Probes%Element(iProbe)),field(:),Probes%Element(iProbe))
-  field2(iProbe,:)=U(1:6,Probes%iElemMinLoc(iProbe,1),& ! i
-                         Probes%iElemMinLoc(iProbe,2),& ! j
-                         Probes%iElemMinLoc(iProbe,3),& ! k
-                         Probes%iElemMinLoc(iProbe,4))  ! iElem
-END DO !iProbe
-OPEN(unit=111,FILE='probes.dat', ACCESS = 'APPEND',STATUS='UNKNOWN')
-write(111,'(ES15.7,A,&
-           & ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
-           & ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
-           & ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7)') &
-t,'  ',&
-field2(1,1),'  ',field2(1,2),'  ',field2(1,3),'  ',field2(1,4),'  ',field2(1,5),'  ',field2(1,6),'  ',&
-field2(2,1),'  ',field2(2,2),'  ',field2(2,3),'  ',field2(2,4),'  ',field2(2,5),'  ',field2(2,6),'  ',&
-field2(3,1),'  ',field2(3,2),'  ',field2(3,3),'  ',field2(3,4),'  ',field2(3,5),'  ',field2(3,6)
-CLOSE(111)
+!DO iProbe=1,3;
+  !!CALL eval_xyz(Probes%Coordinates(iProbe,:),6,PP_N,U(1:6,:,:,:,Probes%Element(iProbe)),field(:),Probes%Element(iProbe))
+  !field2(iProbe,:)=U(1:6,Probes%iElemMinLoc(iProbe,1),& ! i
+                         !Probes%iElemMinLoc(iProbe,2),& ! j
+                         !Probes%iElemMinLoc(iProbe,3),& ! k
+                         !Probes%iElemMinLoc(iProbe,4))  ! iElem
+!END DO !iProbe
+!OPEN(unit=111,FILE='probes.dat',ACCESS='APPEND',STATUS='UNKNOWN')
+!write(111,'(ES15.7,A,&
+           !& ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
+           !& ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
+           !& ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7)') &
+!t,'  ',&
+!field2(1,1),'  ',field2(1,2),'  ',field2(1,3),'  ',field2(1,4),'  ',field2(1,5),'  ',field2(1,6),'  ',&
+!field2(2,1),'  ',field2(2,2),'  ',field2(2,3),'  ',field2(2,4),'  ',field2(2,5),'  ',field2(2,6),'  ',&
+!field2(3,1),'  ',field2(3,2),'  ',field2(3,3),'  ',field2(3,4),'  ',field2(3,5),'  ',field2(3,6)
+!CLOSE(111)
 END SUBROUTINE ProbePML
 
 

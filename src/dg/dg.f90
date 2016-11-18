@@ -55,8 +55,6 @@ USE MOD_DG_Vars
 USE MOD_Restart_Vars,       ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars, ONLY: xGP,wGP,wBary,InterpolationInitIsDone
 USE MOD_Mesh_Vars,          ONLY: nSides
-USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
-USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
 #ifdef OPTIMIZED
 USE MOD_Riemann,            ONLY: GetRiemannMatrix
@@ -94,10 +92,16 @@ nTotalU=PP_nVar*nTotal_vol*PP_nElems
 IF(.NOT.DoRestart) CALL FillIni()
 
 ! We store the interior data at the each element face
-ALLOCATE(U_Minus(PP_nVar,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
-ALLOCATE(U_Plus(PP_nVar,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
-U_Minus=0.
-U_Plus=0.
+!ALLOCATE(U_Minus(PP_nVar,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
+!ALLOCATE(U_Plus(PP_nVar,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
+!U_Minus=0.
+!U_Plus=0.
+
+ALLOCATE(U_master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(U_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides))
+U_master=0.
+U_slave=0.
+
 
 #ifdef OPTIMIZED
   CALL GetRiemannMatrix()
@@ -127,8 +131,7 @@ USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem!,Face_xGP
-USE MOD_Mesh_Vars,     ONLY:SideID_minus_upper,SideID_minus_lower
+USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
 #endif /*MPI*/
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -146,7 +149,7 @@ REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
 INTEGER                                    :: iMass
 #ifdef PP_HDG
 #ifdef MPI  
-REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,SideID_minus_lower:SideID_minus_upper)
+REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
 #endif /*MPI*/
 #endif /*PP_HDG*/
 !===================================================================================================================================
@@ -177,22 +180,21 @@ L_HatMinus(:) = MATMUL(Minv,L_Minus)
 #ifdef MPI
 ! exchange is in initDGbasis as InitMesh() and InitMPI() is needed
 Geotemp=0.
-Geotemp(1,:,:,:)=SurfElem(:,:,SideID_minus_lower:SideID_minus_upper)
-Geotemp(2:4,:,:,:)=NormVec(:,:,:,SideID_minus_lower:SideID_minus_upper)
-Geotemp(5:7,:,:,:)=TangVec1(:,:,:,SideID_minus_lower:SideID_minus_upper)
-Geotemp(8:10,:,:,:)=TangVec2(:,:,:,SideID_minus_lower:SideID_minus_upper)
+Geotemp(1,:,:,:)=SurfElem(:,:,1:nSides)
+Geotemp(2:4,:,:,:)=NormVec(:,:,:,1:nSides)
+Geotemp(5:7,:,:,:)=TangVec1(:,:,:,1:nSides)
+Geotemp(8:10,:,:,:)=TangVec2(:,:,:,1:nSides)
 !Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
 
 IPWRITE(*,*) size(Geotemp)
-IPWRITE(*,*) 10,SideID_minus_lower,SideID_minus_upper
-CALL StartReceiveMPIData(10,Geotemp,SideID_minus_lower,SideID_minus_upper,RecRequest_Geo ,SendID=1) ! Receive MINE
-CALL StartSendMPIData(   10,Geotemp,SideID_minus_lower,SideID_minus_upper,SendRequest_Geo,SendID=1) ! Send YOUR
+CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
 CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE
 
-SurfElem(:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(1,:,:,:)
-NormVec(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(2:4,:,:,:)
-TangVec1(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(5:7,:,:,:)
-TangVec2(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(8:10,:,:,:)
+SurfElem(:,:,1:nSides)=Geotemp(1,:,:,:)
+NormVec(:,:,:,1:nSides)=Geotemp(2:4,:,:,:)
+TangVec1(:,:,:,1:nSides)=Geotemp(5:7,:,:,:)
+TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
 !Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
 
 #endif /*MPI*/
@@ -210,7 +212,7 @@ SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_DG_Vars,          ONLY:U,Ut,U_Plus,U_Minus,Flux !,nTotalU
+USE MOD_DG_Vars,          ONLY:U,Ut,U_master,U_slave,Flux !,nTotalU
 USE MOD_SurfInt,          ONLY:SurfInt
 USE MOD_VolInt,           ONLY:VolInt
 USE MOD_ProlongToFace,    ONLY:ProlongToFace
@@ -218,10 +220,10 @@ USE MOD_FillFlux,         ONLY:FillFlux
 USE MOD_Mesh_Vars,        ONLY:nSides
 USE MOD_Equation,         ONLY:CalcSource
 USE MOD_Interpolation,    ONLY:ApplyJacobian
+USE MOD_FillMortar,       ONLY:U_Mortar,Flux_Mortar
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,        ONLY:SideID_plus_upper,SideID_plus_lower
 USE MOD_LoadBalance_Vars, ONLY:tCurrent
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -245,22 +247,24 @@ REAL                            :: tLBStart,tLBEnd
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartReceiveMPIData(PP_nVar,U_Plus,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
-CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.TRUE.)
+CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
+CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartSendMPIData(PP_nVar,U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
+CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
+CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
+CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 ! Nullify arrays
 ! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
 !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
@@ -288,7 +292,7 @@ tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 ! fill the global surface flux list
 tLBStart = LOCALTIME() ! LB Time Start
-CALL FillFlux(t,tDeriv,Flux,U_Minus,U_Plus,doMPISides=.TRUE.)
+CALL FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
@@ -301,7 +305,8 @@ tLBStart = LOCALTIME() ! LB Time Start
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
-CALL FillFlux(t,tDeriv,Flux,U_Minus,U_Plus,doMPISides=.FALSE.)
+CALL FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides=.FALSE.)
+CALL Flux_Mortar(Flux,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 
@@ -319,6 +324,7 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 
 !FINALIZE Fluxes for MPI Sides
 tLBStart = LOCALTIME() ! LB Time Start
+CALL Flux_Mortar(Flux,doMPISides=.TRUE.)
 CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
@@ -354,12 +360,11 @@ USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfI
 USE MOD_GetBoundaryFlux, ONLY: FillFlux_BC_Pois
 USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides
 USE MOD_Equation,      ONLY: CalcSource_Pois
-USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,nTotalPhi
+USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_master,Phi_slave,FluxPhi,nTotalPhi
 USE MOD_Interpolation, ONLY: ApplyJacobian
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -378,18 +383,18 @@ INTEGER :: iElem,i,j,k,iVar
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
 
-!CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPiSides=.TRUE.)
-CALL StartReceiveMPIData(4,Phi_Plus,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
-CALL ProlongToFace_Pois(Phi,Phi_Minus,Phi_Plus,doMPiSides=.TRUE.)
+!CALL ProlongToFace(Phi,Phi_Minus,Phi_slave,doMPiSides=.TRUE.)
+CALL StartReceiveMPIData(4,Phi_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+CALL ProlongToFace_Pois(Phi,Phi_master,Phi_slave,doMPiSides=.TRUE.)
 
-!CALL StartExchangeMPIData(Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
-CALL StartSendMPIData(4,Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
+!CALL StartExchangeMPIData(Phi_slave,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
+CALL StartSendMPIData(4,Phi_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 ! Send YOUR - receive MINE
 #endif /*MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-!CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPISides=.FALSE.)
-CALL ProlongToFace_Pois(Phi,Phi_Minus,Phi_Plus,doMPISides=.FALSE.)
+!CALL ProlongToFace(Phi,Phi_Minus,Phi_slave,doMPISides=.FALSE.)
+CALL ProlongToFace_Pois(Phi,Phi_master,Phi_slave,doMPISides=.FALSE.)
 
 Phit=0.
 CALL VolInt_Pois(Phit)
@@ -512,8 +517,8 @@ SDEALLOCATE(L_HatMinus)
 SDEALLOCATE(L_HatPlus)
 SDEALLOCATE(Ut)
 SDEALLOCATE(U)
-SDEALLOCATE(U_Minus)
-SDEALLOCATE(U_Plus)
+SDEALLOCATE(U_master)
+SDEALLOCATE(U_slave)
 SDEALLOCATE(FLUX)
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG

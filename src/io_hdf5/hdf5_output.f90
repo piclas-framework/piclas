@@ -84,8 +84,10 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
+#ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER                        :: nVar
+#endif /*PARTICLES*/
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif /*MPI*/
@@ -316,7 +318,7 @@ SUBROUTINE WriteElemWeightToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY:offsetElem,nGlobalElems
-USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight
+USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight,WeightOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -365,6 +367,9 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !
 DEALLOCATE(StrVarNames)
 ElemTime=0.
+IF(MPIRoot)THEN
+  WeightOutput=0. ! elem time statistics
+END IF
 
 END SUBROUTINE WriteElemWeightToHDF5
 
@@ -992,7 +997,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_ReadInTools,ONLY: GetParameters
-#ifndef GNU 
+USE MOD_Interpolation_Vars, ONLY:NodeType
+#ifdef INTEL 
 USE IFPORT,                 ONLY:SYSTEM
 #endif
 !USE MOD_PreProcFlags
@@ -1059,10 +1065,10 @@ CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
 CALL CloseDataFile()
 
-! Add userblock to hdf5-file
-iError = SYSTEM(H5TOOLSDIR//&
-    '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
-    TRIM(FileName))
+! ! Add userblock to hdf5-file
+! CALL EXECUTE_COMMAND_LINE(H5TOOLSDIR//&
+!     '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
+!      TRIM(FileName),EXITSTAT=iError)
 
 END SUBROUTINE GenerateFileSkeleton
 
@@ -1584,6 +1590,7 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective=.FALSE.,IntegerArray =IntegerArray)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective=.FALSE.,StrArray =StrArray)
+      CALL CloseDataFile()
     ELSE 
       CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1592,8 +1599,9 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective,IntegerArray =IntegerArray)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective,StrArray =StrArray)
+      CALL CloseDataFile()
     END IF
-    CALL CloseDataFile()
+    CALL MPI_BARRIER(OutputCOMM,IERROR)
     CALL MPI_COMM_FREE(OutputCOMM,iERROR)
   END IF
   ! MPI Barrier is requried, that the other procs don't open the datafile while this procs are still writring

@@ -297,7 +297,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Normvec,SurfElem,ElemToSide,nSides
 USE MOD_Precond_Vars       ,ONLY: nVec,Surf,BuildNVecisDone
-USE MOD_Mesh_Vars          ,ONLY: SideID_minus_upper,SideID_minus_lower
+USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
 #ifdef MPI
 ! exchange of normal vector and surface element
 USE MOD_MPI_Vars
@@ -327,8 +327,7 @@ ALLOCATE(Surf(0:PP_N,0:PP_N,1:6,PP_nElems))
 ! usefull only for Precondioner and local sides
 ALLOCATE(       NormVecPlus(4,0:PP_N,0:PP_N,1:nSides)) 
 
-!DO SideID=SideID_Plus_Lower,SideID_Minus_Upper
-DO SideID=SideID_minus_Lower,SideID_Minus_Upper
+DO SideID=1,lastMPISide_MINE ! and mortar..???
   normVecPlus (1:3,:,:,SideID) = -normVec(1:3,:,:,SideID)
   normVecPlus ( 4 ,:,:,SideID) = SurfElem(:,:,SideID)
 END DO

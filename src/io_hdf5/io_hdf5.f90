@@ -42,7 +42,7 @@ SUBROUTINE InitIO_HDF5()
 USE MOD_Globals
 USE MOD_Globals_Vars,       ONLY:ProjectName
 USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR, GETSTR
-#ifndef GNU 
+#ifdef INTEL
 USE IFPORT
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -62,26 +62,26 @@ IF (MPIRoot) THEN
   ! Copy userblock file
   userblockFile = BASEDIR  &
                   // 'bin/userblock.txt'
-  iError = SYSTEM('cp ' // TRIM(userblockFile) // ' ' // TRIM(ProjectName) // '.userblock')
+  CALL EXECUTE_COMMAND_LINE(TRIM('cp ' // TRIM(userblockFile) // ' ' // TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
   IF (iError.NE.0) THEN
     CALL abort(__STAMP__,&
         'Could not copy userblock.')
   END IF
 
   ! Copy Inifile
-  iError = SYSTEM('echo "{[( INIFILE )]}" >> '//TRIM(ProjectName) // '.userblock')
+  CALL EXECUTE_COMMAND_LINE(TRIM('echo "{[( INIFILE )]}" >> '//TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
   IF (iError.NE.0) THEN
     CALL abort(__STAMP__,&
         'Could not append "{[( INIFILE )]}".')
   END IF
   CALL GET_COMMAND_ARGUMENT(1,IniFile)
-  iError = SYSTEM('cat ' // TRIM(IniFile) // ' >> ' // TRIM(ProjectName) // '.userblock')
+  CALL EXECUTE_COMMAND_LINE(TRIM('cat ' // TRIM(IniFile) // ' >> ' // TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
   IF (iError.NE.0) THEN
     CALL abort(__STAMP__,&
         'Could not copy inifile.')
   END IF
   ! Write END USERBLOCK to userblock
-  iError = SYSTEM('echo "{[( END USERBLOCK )]}" >> '//TRIM(ProjectName) // '.userblock')
+  CALL EXECUTE_COMMAND_LINE(TRIM('echo "{[( END USERBLOCK )]}" >> '//TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
   IF (iError.NE.0) THEN
     CALL abort(__STAMP__,&
         'Could not append "{[( END USERBLOCK )]}".')

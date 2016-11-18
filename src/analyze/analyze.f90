@@ -380,6 +380,7 @@ USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundi
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #endif /*MPI*/
+USE MOD_LoadBalance_Vars,      ONLY: WeightOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -393,6 +394,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                       :: ioUnit
 #ifdef PARTICLES
 INTEGER                       :: iSide
 #ifdef MPI
@@ -407,7 +409,25 @@ REAL                          :: tLBStart,tLBEnd
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
+CHARACTER(LEN=255)            :: outfile
 !===================================================================================================================================
+
+! Create .csv file for performance analysis and load blaaaance
+IF(MPIRoot)THEN
+  IF(iter.EQ.0)THEN
+    WeightOutput=0. ! initialize with 0.
+    outfile='ElemTimeStatistics.csv'
+    ioUnit=GETFREEUNIT()
+    OPEN(UNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') "time"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MinWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MaxWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') "CurrentImbalance"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') "TargetWeight (mean)"
+    WRITE(ioUnit,'(A1)') ' '
+    CLOSE(ioUnit) 
+  END IF
+END IF
 
 ! not for first iteration (when analysis is called within RK steps)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)

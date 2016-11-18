@@ -166,7 +166,7 @@ USE MOD_Mesh_Vars             ,ONLY:isPoyntingIntSide,nElems, SurfElem, NormVec,
 USE MOD_Mesh_Vars             ,ONLY:ElemToSide
 USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes, S!, STEM
 USE MOD_Interpolation_Vars    ,ONLY:L_Minus,L_Plus,wGPSurf
-USE MOD_DG_Vars               ,ONLY:U,U_Minus
+USE MOD_DG_Vars               ,ONLY:U,U_master
 USE MOD_Equation_Vars         ,ONLY:smu0
 #ifdef MPI
   USE MOD_Globals
@@ -306,7 +306,7 @@ DO iELEM = 1, nElems
         END SELECT
 #endif
         ELSE ! no prolonge to face
-          Uface=U_Minus(:,:,:,SideID)
+          Uface=U_master(:,:,:,SideID)
         END IF ! Prolong
         ! calculate poynting vector
         iPoyntingSide = iPoyntingSide + 1
@@ -606,6 +606,8 @@ USE MOD_Equation_Vars,        ONLY:B,E
 #else
 USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
 #endif /*PP_HDG*/
+#ifdef MPI
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -619,6 +621,9 @@ INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs 
+#ifdef MPI
+REAL              :: RD
+#endif
 !===================================================================================================================================
 
 Wel=0.
@@ -689,7 +694,7 @@ ELSE
 #ifdef PP_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-#else /*PP_nVar==4*/
+#elif PP_nVar==4
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #endif /*PP_nVar==3*/
 #endif /*PP_HDG*/
@@ -709,6 +714,16 @@ END IF ! noPML
 
 WEl = WEl * eps0 * 0.5 
 WMag = WMag * smu0 * 0.5
+
+#ifdef MPI
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+ELSE
+  CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+END IF
+#endif /*MPI*/
 
 END SUBROUTINE CalcPotentialEnergy
 

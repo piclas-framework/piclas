@@ -27,6 +27,11 @@ INTEGER                             :: WeightAverageMethod                      
                                                                                   ! (1: iter, 2: dt_Analyze)
 REAL,ALLOCATABLE                    :: ElemWeight(:)
 REAL                                :: LastImbalance
+REAL                                :: WeightOutput(4)                            ! current elem time statistics
+                                                                                  ! MinWeight,MaxWeight,CurrentImbalance,
+                                                                                  ! TargetWeight (mean)
+                                                                                  ! contains data of previous analyse iter if
+                                                                                  ! nSkipAnalyze is greater than 1
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------

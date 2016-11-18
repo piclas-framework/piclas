@@ -51,10 +51,6 @@ INTERFACE InitEmissionComm
   MODULE PROCEDURE InitEmissionComm
 END INTERFACE
 
-INTERFACE InitSimpleHaloMesh
-  MODULE PROCEDURE InitSimpleHaloMesh
-END INTERFACE
-
 INTERFACE BoxInProc
   MODULE PROCEDURE BoxInProc
 END INTERFACE
@@ -64,7 +60,7 @@ INTERFACE ExchangeBezierControlPoints3D
 END INTERFACE
 
 PUBLIC :: InitParticleMPI,FinalizeParticleMPI,InitHaloMesh, InitParticleCommSize, IRecvNbOfParticles, MPIParticleSend
-PUBLIC :: MPIParticleRecv, InitSimpleHaloMesh
+PUBLIC :: MPIParticleRecv
 PUBLIC :: InitEmissionComm
 PUBLIC :: ExchangeBezierControlPoints3D
 #else
@@ -940,7 +936,7 @@ DO iProc=1, PartMPI%nMPINeighbors
         PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
         PartSendBuf(iProc)%content(       7+iPos) = REAL(PartSpecies(iPart),KIND=8)
         IF (usevMPF) PartSendBuf(iProc)%content( 8+iPos) = PartMPF(iPart)
-        ! count only, if particle is send
+        ! count only, if particle is sent
         iPos=iPos+ExtPartCommSize
       END DO ! jProc=1,nDepoProcs
     END DO ! iPart=1,PDM%ParticleVecLength 
@@ -966,7 +962,7 @@ PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 !IPWRITE(UNIT_stdOut,*) 'Number of received extparticles',SUM(PartMPIExchange%nPartsRecv(2,:))
 
 
-! caution, fancy trick, particles are send, but information is not deleted
+! caution, fancy trick, particles are sent, but information is not deleted
 ! temporary storage
 IF(DoExternalParts) THEN
   NbrOfExtParticles =SUM(PartMPIExchange%nPartsSend(1,:))+SUM(PartMPIExchange%nPartsRecv(2,:))
@@ -1500,7 +1496,8 @@ SUBROUTINE ExchangeBezierControlPoints3D()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,nUniqueSides
+USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_YOUR,MortarSlave2MasterInfo,firstMPISide_MINE &
+                                        ,firstMortarMPISide,lastMortarMPISide,lastMPISide_YOUR,SideToElem
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
@@ -1512,12 +1509,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID, iSide
+INTEGER                 ::BezierSideSize,SendID, iSide,SideID,ElemID
 !===================================================================================================================================
 
 ! funny: should not be required, as sides are built for master and slave sides??
 ! communicate the MPI Master Sides to Slaves
 ! all processes have now filled sides and can compute the particles inside the proc region
+
 SendID=1
 BezierSideSize=3*(NGeo+1)*(NGeo+1)
 DO iNbProc=1,nNbProcs
@@ -1541,15 +1539,35 @@ END DO !iProc=1,nNBProcs
 
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest_Flux(iNbProc) ,MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during BezierControlPoint-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 ! Check send operations
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during BezierControlPoint-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
-! build my slave sides (your master are already built)
-DO iSide=nUniqueSides+1,nSides
-  !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
+! build the bounding box for YOUR-MPI-sides without mortar sides
+DO iSide=firstMPISide_YOUR,lastMPISide_YOUR
+  ! elevation occurs within this routine
+  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
+                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
+                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
+                                     ,SideSlabInterVals(1:6,iSide)                                           &
+                                     ,BoundingBoxIsEmpty(iSide)                                              )
+END DO
+
+! build the bounding box for missing MPI-mortar sides, or YOUR mortar sides
+! actually, I do not know, if this is requried
+DO iSide=firstMortarMPISide,lastMortarMPISide
+  ElemID=SideToElem(S2E_ELEM_ID,iSide)
+  SideID=MortarSlave2MasterInfo(iSide)
+  IF(ElemID.NE.-1) CYCLE
+  IF(SideID.EQ.-1) CYCLE
   ! elevation occurs within this routine
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
@@ -1559,14 +1577,16 @@ DO iSide=nUniqueSides+1,nSides
 END DO
 
 DO iSide=1,nSides
+  !IF(MortarSlave2MasterInfo(iSide).NE.-1)CYCLE
   IF(SUM(ABS(SideSlabIntervals(:,iSide))).EQ.0)THEN
     CALL abort(&
     __STAMP__&
-    ,'  Zero bounding box found!')
+    ,'  Zero bounding box found!, iSide',iSide)
   END IF
 END DO
 
 END SUBROUTINE ExchangeBezierControlPoints3D
+
 
 SUBROUTINE InitHaloMesh()
 !===================================================================================================================================
@@ -1581,7 +1601,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
-USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
+USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1624,13 +1644,7 @@ DO iProc=0,PartMPI%nProcs-1
   LOGWRITE(*,*)'    ...Done'
 
   LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
-  !IF(.NOT.DoRefMapping)THEN
-    !CALL ExchangeHaloGeometry(iProc,SideIndex,ElemIndex)
-    CALL ExchangeHaloGeometry(iProc,ElemIndex)
-  !ELSE
-  !  !CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
-  !  CALL ExchangeMappedHaloGeometry(iProc,ElemIndex)
-  !END IF
+  CALL ExchangeHaloGeometry(iProc,ElemIndex)
   LOGWRITE(*,*)'    ...Done'
   SideIndex(:)=0
   ElemIndex(:)=0
@@ -1643,7 +1657,6 @@ __STAMP__&
 END IF
 
 IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
-
 
 ! Make sure PMPIVAR%MPINeighbor is consistent
 DO iProc=0,PartMPI%nProcs-1
@@ -1691,7 +1704,6 @@ END DO
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&
   , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
-
 
 IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(ANY(PartHaloElemToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
@@ -1712,151 +1724,6 @@ END IF
 !CALL  WriteParticlePartitionInformation()
 
 END SUBROUTINE InitHaloMesh
-
-
-SUBROUTINE InitSimpleHaloMesh()
-!===================================================================================================================================
-! communicate all direct neighbor sides from master to slave
-! has to be called after GetSideType and MPI_INIT of DG solver
-! read required parameters
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_MPI_Vars
-USE MOD_PreProc
-USE MOD_Mesh_Vars,                  ONLY:nSides
-USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
-USE MOD_Particle_MPI_Halo,          ONLY:IdentifySimpleHaloMPINeighborhood,ExchangeHaloGeometry
-USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 ::iElem
-INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
-LOGICAL                 :: TmpNeigh
-INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
-!===================================================================================================================================
-
-
-! dirty hack
-!nTotalBCSides=nSides
-
-ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-,'  Cannot allocate SideIndex!')
-SideIndex=0
-ALLOCATE(ElemIndex(1:PP_nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-,'  Cannot allocate ElemIndex!')
-ElemIndex=0
-
-! check epsilondistance
-DO iProc=0,PartMPI%nProcs-1
-  IF(iProc.EQ.PartMPI%MyRank) CYCLE
-  LOGWRITE(*,*)'  - Identify non-immediate MPI-Neighborhood...'
-  !--- AS: identifies which of my node have to be sent to iProc w.r.t. to 
-  !        eps vicinity region.
-  CALL IdentifySimpleHaloMPINeighborhood(iProc,ElemIndex)
-  LOGWRITE(*,*)'    ...Done'
-
-  LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
-  !IF(.NOT.DoRefMapping)THEN
-  CALL ExchangeHaloGeometry(iProc,ElemIndex)
-  !ELSE
-  !  !CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
-  !  CALL ExchangeMappedHaloGeometry(iProc,ElemIndex)
-  !END IF
-  LOGWRITE(*,*)'    ...Done'
-  SideIndex(:)=0
-  ElemIndex(:)=0
-END DO 
-DEALLOCATE(SideIndex,STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-,'Could not deallocate SideIndex')
-END IF
-
-IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
-
-
-! Make sure PMPIVAR%MPINeighbor is consistent
-DO iProc=0,PartMPI%nProcs-1
-  IF (PartMPI%MyRank.EQ.iProc) CYCLE
-  IF (PartMPI%MyRank.LT.iProc) THEN
-    CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
-    CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
-  ELSE IF (PartMPI%MyRank.GT.iProc) THEN
-    CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
-    CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
-  END IF
-  !IPWRITE(UNIT_stdOut,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
-  IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
-    IF(printMPINeighborWarnings)THEN
-      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
-    END IF
-    IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
-      PartMPI%isMPINeighbor(iProc) = .TRUE.
-      PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
-    END IF
-  END IF
-END DO
-
-
-! fill list with neighbor proc id and add local neighbor id to PartHaloElemToProc
-ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors) &
-        , PartMPI%GlobalToLocal(0:PartMPI%nProcs-1)  )
-iMPINeighbor=0
-PartMPI%GlobalToLocal=-1
-!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-!IPWRITE(UNIT_stdOut,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
-!IPWRITE(UNIT_stdOut,*) 'blabla',PartMPI%isMPINeighbor
-!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-DO iProc=0,PartMPI%nProcs-1
-  IF(PartMPI%isMPINeighbor(iProc))THEN
-    iMPINeighbor=iMPINeighbor+1
-    PartMPI%MPINeighbor(iMPINeighbor)=iProc
-    PartMPI%GlobalToLocal(iProc)     =iMPINeighbor
-    DO iElem=PP_nElems+1,nTotalElems
-      IF(iProc.EQ.PartHaloElemToProc(NATIVE_PROC_ID,iElem)) PartHaloElemToProc(LOCAL_PROC_ID,iElem)=iMPINeighbor
-    END DO ! iElem
-  END IF
-END DO
-
-IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
-  __STAMP__&
-  , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
-
-
-IF(PartMPI%nMPINeighbors.GT.0)THEN
-  IF(ANY(PartHaloElemToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
-  IF(MAXVAL(PartHaloElemToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(UNIT_stdOut,*) ' Local proc id too high.'
-  IF(MINVAL(PartHaloElemToProc(NATIVE_ELEM_ID,:)).LT.1) IPWRITE(UNIT_stdOut,*) ' native elem id too low'
-  IF(MINVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
-  IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
-END IF
-!IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
-
-
-!IF(DepositionType.EQ.'shape_function') THEN
-!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
-!ELSE
-!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
-!END IF
-
-!CALL  WriteParticlePartitionInformation()
-
-END SUBROUTINE InitSimpleHaloMesh
 
 
 SUBROUTINE InitEmissionComm()
@@ -2388,7 +2255,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem!,PartElemToElemGlob
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -2434,15 +2301,15 @@ __STAMP__&
       END DO ! j=0,NGeo
     END DO ! k=0,NGeo
   END IF ! DoRefMapping
-  ! PartElemToElem 
-  DO ilocSide=1,6
-    IF(PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)) CALL abort(&
-       __STAMP__&
-       , ' Error in PartElemToElem')
-    IF(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)) CALL abort(&
-       __STAMP__&
-       , ' Error in PartElemToElem')
-  END DO ! ilocSide=1,6
+!  ! PartElemToElem 
+!  DO ilocSide=1,6
+!    IF(PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)) CALL abort(&
+!       __STAMP__&
+!       , ' Error in PartElemToElem')
+!    IF(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)) CALL abort(&
+!       __STAMP__&
+!       , ' Error in PartElemToElem')
+!  END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 IF(DoRefMapping)THEN
   ! PartBCSideList
