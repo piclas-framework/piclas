@@ -28,9 +28,10 @@ INTERFACE
 END INTERFACE
 
 INTERFACE
-  SUBROUTINE insert_userblock(filename,inifilename) BIND(C)
+  SUBROUTINE insert_userblock(filename,filename2,inifilename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR
       CHARACTER(KIND=C_CHAR) :: filename(*)
+      CHARACTER(KIND=C_CHAR) :: filename2(*)
       CHARACTER(KIND=C_CHAR) :: inifilename(*)
   END SUBROUTINE insert_userblock
 END INTERFACE
@@ -58,7 +59,7 @@ SUBROUTINE InitOutput()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars, ONLY: ParameterFile,ProjectName
+USE MOD_Globals_Vars, ONLY: ParameterFile,ProjectName,ParameterDSMCFile
 USE MOD_Preproc
 USE MOD_ReadInTools,ONLY:GetStr,GetLogical,GETINT
 USE MOD_Output_Vars,ONLY:NVisu,OutputInitIsDone,OutputFormat 
@@ -105,10 +106,9 @@ END IF
 IF (MPIRoot) THEN
   ! read userblock length in bytes from data section of flexi-executable
   userblock_len = get_userblock_size()
-  print*,'parameterfile',ParameterFile
   inifile_len = get_inifile_size(TRIM(ParameterFile)//C_NULL_CHAR)
   ! prepare userblock file
-  CALL insert_userblock(TRIM(UserBlockTmpFile)//C_NULL_CHAR,TRIM(ParameterFile)//C_NULL_CHAR)
+  CALL insert_userblock(TRIM(UserBlockTmpFile)//C_NULL_CHAR,TRIM(ParameterFile)//C_NULL_CHAR,TRIM(ParameterDSMCFile)//C_NULL_CHAR)
   INQUIRE(FILE=TRIM(UserBlockTmpFile),SIZE=userblock_total_len)
 END IF
 

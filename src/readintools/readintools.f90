@@ -424,7 +424,7 @@ SUBROUTINE FillStrings(IniFile)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars, ONLY: ParameterFile
+USE MOD_Globals_Vars, ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_ISO_VARYING_STRING
 #ifdef PARTICLES
 USE MOD_DSMC_Vars,ONLY: UseDSMC
@@ -440,11 +440,12 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL   :: IniFile                    ! Name of i
 ! LOCAL VARIABLES 
 TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
 CHARACTER(LEN=255)                          :: HelpStr,Str
-CHARACTER(LEN=300)                          :: File, DSMCFile
 TYPE(Varying_String)                        :: aStr,bStr,Separator
 INTEGER                                     :: stat,iniUnit,nLines,i
 CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent,FileContent2
 CHARACTER(LEN=1)                            :: tmpChar=''
+INTEGER                                     :: NArgs,NChar
+LOGICAL                                     :: DoReadDSMC
 !===================================================================================================================================
 ! Check if we have read in ini file already
 nLines=0
@@ -452,19 +453,16 @@ iniUnit=0
 IF (ReadInDone) RETURN
 ! Get name of ini file
 IF (PRESENT(IniFile)) THEN
-  File = TRIM(IniFile)
-  ParameterFile = TRIM(File)
+  ParameterFile = TRIM(IniFile)
 ELSE
-  CALL GETARG(1,File)
-  ParameterFile = TRIM(File)
-  !CALL GET_COMMAND_ARGUMENT(1,File)
+  CALL GETARG(1,ParameterFile)
 END IF
-SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(File),'":'
+SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(ParameterFile),'":'
 
 IF(MPIRoot)THEN
   iniUnit=GETFREEUNIT()
   OPEN(UNIT   = iniUnit,       &
-       FILE   = File,          &
+       FILE   = ParameterFile, &
        STATUS = 'OLD',         &
        ACTION = 'READ',        &
        ACCESS = 'SEQUENTIAL',  &
@@ -535,14 +533,28 @@ DO i=1,nLines
   END IF
 END DO
 
+ParameterDSMCFile=''
 #ifdef PARTICLES
-IF (useDSMC) THEN
-  CALL GETARG(2,DSMCFile)
+! Check if we want to perform a restart
+nArgs=COMMAND_ARGUMENT_COUNT()
+DoReadDSMC=.FALSE.
+IF(nArgs.GE.2)THEN
+  ! Read in the state file we want to restart from
+  CALL GETARG(2,ParameterDSMCFile)
+  nChar=LEN(TRIM(ParameterDSMCFile))
+  IF(TRIM(ParameterDSMCFile(nChar-2:nChar)).EQ.'ini') THEN
+    DoReadDSMC=.TRUE.
+  ELSE
+    ParameterDSMCFile=''
+  END IF
+END IF
+IF (DoReadDSMC) THEN
+  !CALL GETARG(2,ParameterDSMCFile)
   IF(MPIRoot) THEN  
-    SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(DSMCFile),'":'
+    SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(ParameterDSMCFile),'":'
     iniUnit=GETFREEUNIT()
     OPEN(UNIT   = iniUnit,    &
-         FILE   = DSMCFile,       &
+         FILE   = ParameterDSMCFile,       &
          STATUS = 'OLD',      &
          ACTION = 'READ',     &
          ACCESS = 'SEQUENTIAL',&

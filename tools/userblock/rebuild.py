@@ -96,6 +96,14 @@ f = open(os.path.join("ini", "parameter.ini"), 'w')
 f.write(ini)
 f.close()
 
+# write DSMC file
+if not os.path.exists("ini"):
+  os.mkdir("ini")
+DSMC = get_part(userblock, "DSMCFILE")
+f = open(os.path.join("ini", "parameter_DSMC.ini"), 'w')
+f.write(DSMC)
+f.close()
+
 # configure
 builddir = "build"
 if not os.path.exists(builddir):

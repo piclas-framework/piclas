@@ -70,7 +70,7 @@ useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
 useLD=GETLOGICAL('UseLD','.FALSE.')
 IF(useLD) useDSMC=.TRUE.
 IF (useDSMC) THEN
-  ReadInDone = .FALSE.
+  !ReadInDone = .FALSE.
   maxNArgs = 3
 ELSE
   maxNArgs = 2

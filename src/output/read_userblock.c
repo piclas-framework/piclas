@@ -18,7 +18,7 @@ long get_inifile_size(char* filename)
    return length;
 }
 
-void insert_userblock(char* filename, char* inifilename) 
+void insert_userblock(char* filename, char* inifilename, char* inifilename2) 
 {
    FILE* fp = fopen(filename, "w");
    rewind(fp);
@@ -33,6 +33,18 @@ void insert_userblock(char* filename, char* inifilename)
       if (c != EOF) fputc((char)c, fp);
    } while (c != EOF);
    fclose(fini);
+   // DSMC ini file
+   int lenIniFile2 = strlen(inifilename2);
+   if (lenIniFile2>0) {
+     fprintf(fp, "{[( DSMCFILE )]}\n");
+     FILE* fini2 = fopen(inifilename2, "rb");
+     int c;
+     do {
+        c = fgetc (fini2);
+        if (c != EOF) fputc((char)c, fp);
+     } while (c != EOF);
+     fclose(fini2);
+   }
    // compressed data ( as tar.xz )
    fprintf(fp, "{[( COMPRESSED )]}\n");
    fprintf(fp, "userblock.txt\n");      // filename
