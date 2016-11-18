@@ -40,7 +40,6 @@ SUBROUTINE InitIO_HDF5()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY:ProjectName
 USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR, GETSTR
 #ifdef INTEL
 USE IFPORT
@@ -53,7 +52,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=300)             :: IniFile
 !===================================================================================================================================
 
 gatheredWrite=.FALSE.

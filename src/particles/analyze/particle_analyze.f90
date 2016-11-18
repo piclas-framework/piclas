@@ -182,10 +182,8 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Preproc
   USE MOD_Analyze_Vars,          ONLY: DoAnalyze
   USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
-  USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, PDM, nSpecies, PartMPF, usevMPF, BoltzmannConst,Species
-  USE MOD_DSMC_Vars,             ONLY: DSMC,BGGas
-  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
-  USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
+  USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst
+  USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
@@ -197,7 +195,9 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
-  USE MOD_DSMC_Vars,             ONLY: Adsorption
+  USE MOD_DSMC_Vars,             ONLY: Adsorption,BGGas,DSMC, SpecDSMC
+  USE MOD_Particle_Vars,         ONLY: Species
+  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -210,24 +210,27 @@ SUBROUTINE AnalyzeParticles(Time)
 ! LOCAL VARIABLES
   LOGICAL             :: isOpen, FileExists
   CHARACTER(LEN=350)  :: outfile
-  INTEGER             :: unit_index, iSpec, iPart, OutputCounter
+  INTEGER             :: unit_index, iSpec, OutputCounter
   INTEGER(KIND=8)     :: SimNumSpec(nSpecies+1)
-  REAL                :: WEl, WMag, NumSpec(nSpecies+1),NumSpecTmp(nSpecies+1)
+  REAL                :: WEl, WMag, NumSpec(nSpecies+1)
   REAL                :: Ekin(nSpecies + 1), Temp(nSpecies+1)
   REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecies+1), Xi_Vib(nSpecies)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   REAL                :: MaxCollProb, MeanCollProb
+#ifdef MPI
+  REAL                :: sumMeanCollProb
+#endif /*MPI*/
 #endif
 #ifdef MPI
-  REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
+  REAL                :: RECBR(nSpecies)
   INTEGER             :: RECBIM(nSpecies)
-  REAL                :: sumIntTemp(nSpecies+1),sumIntEn(nSpecies),sumTempTotal(nSpecies+1),sumMeanCollProb
 #endif /*MPI*/
   REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
   INTEGER             :: ii, iunit, iCase, iTvib,jSpec, WallNumSpec(nSpecies)
   CHARACTER(LEN=64)   :: DebugElectronicStateFilename
   CHARACTER(LEN=350)  :: hilf
+  REAL                :: NumSpecTmp(nSpecies+1)
   REAL                :: WallCoverage(nSpecies), Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
 #endif
   REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
@@ -614,8 +617,8 @@ SUBROUTINE AnalyzeParticles(Time)
   ELSE ! no Root
     tLBStart = LOCALTIME() ! LB Time Start
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(nPartIn,RECBR    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(nPartOut,RECBR   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartIn,RECBIM    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartOut,RECBIM   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
@@ -1420,10 +1423,9 @@ SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, nSpecies, PartMPF, usevMPF
+USE MOD_PARTICLE_Vars,         ONLY: nSpecies
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_DSMC_Vars,             ONLY: SpecDSMC, PolyatomMolDSMC,CollisMode
-USE MOD_DSMC_Vars,             ONLY: BGGas
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1438,7 +1440,7 @@ REAL, INTENT(OUT)                  :: TempTotal(nSpecies+1)
 REAL, INTENT(OUT)                  :: Xi_Vib(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iPart,iPolyatMole,iDOF,iSpec
+INTEGER                            :: iPolyatMole,iDOF,iSpec
 !===================================================================================================================================
 
 

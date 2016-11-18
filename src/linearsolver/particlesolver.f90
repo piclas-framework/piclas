@@ -23,13 +23,17 @@ INTERFACE InitPartSolver
   MODULE PROCEDURE InitPartSolver
 END INTERFACE
 
+INTERFACE FinalizePartSolver
+  MODULE PROCEDURE FinalizePartSolver
+END INTERFACE
+
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 INTERFACE SelectImplicitParticles
   MODULE PROCEDURE SelectImplicitParticles
 END INTERFACE
 #endif
 
-PUBLIC:: InitPartSolver
+PUBLIC:: InitPartSolver,FinalizePartSolver
 PUBLIC:: ParticleNewton
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PUBLIC:: SelectImplicitParticles

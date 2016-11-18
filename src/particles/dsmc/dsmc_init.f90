@@ -115,7 +115,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   DSMC%WallModel = GETINT('Particles-DSMC-WallModel','0') !0: elastic/diffusive reflection, 1:ad-/desorption, 2:chem. ad-/desorption
   LD_MultiTemperaturMod=GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
-  DSMC%ElectronicModelDatabase = GETSTR('Particles-DSMCElectronicDatabase','none')
+  DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
   IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.(CollisMode .GT. 1)) THEN 
     DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
   ELSEIF(DSMC%ElectronicModel) THEN
@@ -174,7 +174,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   ALLOCATE(SpecDSMC(nSpecies))
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
-    SpecDSMC(iSpec)%Name    = GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none')
+    SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
     SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
     SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
     SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')

@@ -1496,7 +1496,7 @@ SUBROUTINE ExchangeBezierControlPoints3D()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_YOUR,MortarSlave2MasterInfo,firstMPISide_MINE &
+USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_YOUR,MortarSlave2MasterInfo&
                                         ,firstMortarMPISide,lastMortarMPISide,lastMPISide_YOUR,SideToElem
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &

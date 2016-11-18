@@ -426,9 +426,6 @@ SUBROUTINE FillStrings(IniFile)
 USE MOD_Globals
 USE MOD_Globals_Vars, ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_ISO_VARYING_STRING
-#ifdef PARTICLES
-USE MOD_DSMC_Vars,ONLY: UseDSMC
-#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

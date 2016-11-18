@@ -3189,7 +3189,8 @@ __STAMP__&
       BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber=0
       nDataBC=nDataBC+1
     END IF
-    Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant')
+    Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = &
+        TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell_lpn') THEN

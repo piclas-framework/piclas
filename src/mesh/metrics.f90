@@ -72,7 +72,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
-USE MOD_Mesh_Vars,               ONLY:nElems,nBCSides,dXCL_N
+USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
 USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
 USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
@@ -83,17 +83,16 @@ USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
-USE MOD_Mesh_Vars,               ONLY:NGeoElevated,firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_Mesh_Vars,               ONLY:nInnerSides,nMPISides_MINE,nMortarInnerSides,SideToElem
+USE MOD_Mesh_Vars,               ONLY:SideToElem
 USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
-#endif /*MPI*/
+#ifndef MPI
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
+#endif /*not MPI*/
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -399,7 +398,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, M
 #ifdef MPI
 lowerLimit=nSides ! all incl. my mortar sides
 #else
-lowerLimit=nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
+lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
 #endif /*MPI*/
 
 ! copy BezierControlPoints from master sides to slave sides for MINE mortar sides

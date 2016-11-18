@@ -1853,6 +1853,9 @@ USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRH
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
+#ifdef PARTICLES
+USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
+#endif /*PARTICLES*/
 USE MOD_Predictor    ,ONLY:FinalizePredictor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1871,6 +1874,9 @@ SDEALLOCATE(LinSolverRHS)
 SDEALLOCATE(ExplicitSource)
 #endif
 CALL FinalizePredictor
+#ifdef PARTICLES
+CALL FinalizePartSolver()
+#endif /*PARTICLES*/
 !SDEALLOCATE(FieldSource)
 END SUBROUTINE FinalizeLinearSolver
 
