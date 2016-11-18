@@ -174,7 +174,7 @@ SUBROUTINE Init_SurfDist()
   IMPLICIT NONE
 !=================================================================================================================================== 
 ! Local variable declaration
-  INTEGER                          :: SurfSideID, subsurfxi, subsurfeta, iSpec, iInterAtom
+  INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom
   INTEGER                          :: surfsquare, dist, Adsorbates
   INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
   REAL                             :: RanNum
@@ -206,11 +206,11 @@ SUBROUTINE Init_SurfDist()
 ! Except for top sites(3) they also interact with the next top site.
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides))
-DO SurfSideID = 1,SurfMesh%nSides
+DO iSurfSide = 1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1:3),&
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(1:3))
+    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1:3),&
+              SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(1:3))
   END DO
   END DO
 END DO
@@ -219,269 +219,269 @@ IF (.NOT.KeepWallParticles) THEN
   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
 END IF
 
-DO SurfSideID = 1,SurfMesh%nSides
+DO iSurfSide = 1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     IF (KeepWallParticles) THEN ! does not work with vMPF
-      surfsquare = INT(Adsorption%DensSurfAtoms(SurfSideID) &
-                    * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
+      surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
+                    * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,iSurfSide) &
                     / Species(1)%MacroParticleFactor)
       surfsquare = INT(SQRT(REAL(surfsquare))) - 1
     END IF
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1) = INT(surfsquare**2)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3) = INT((surfsquare+1)**2)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(:) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(:)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1) = INT(surfsquare**2)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(:) = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)
     
-    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(1:nSpecies,1:surfsquare+1,1:surfsquare+1))
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(:,:,:) = 0
+    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(1:nSpecies,1:surfsquare+1,1:surfsquare+1))
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(:,:,:) = 0
     
-    ALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1:3))
+    ALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1:3))
     DO Coord = 1,3    
       SELECT CASE (Coord)
       CASE(1)
-        nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom = 4
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours = 16
+        nSites = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Coord)
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nInterAtom = 4
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nNeighbours = 16
       CASE(2)
-        nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom = 2
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours = 14
+        nSites = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Coord)
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nInterAtom = 2
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nNeighbours = 14
       CASE(3)
-        nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom = 1
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours = 12
+        nSites = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Coord)
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nInterAtom = 1
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nNeighbours = 12
       END SELECT
         
-      nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-      nNeighbours = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
-      ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(1:nSites,nInterAtom),&
-                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(1:nSites,nInterAtom),&
-                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(1:nSites,1:nNeighbours),&
-                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(1:nSites,1:nNeighbours))
-      ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(1:nSites),&
-                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(1:nSites))
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(:) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(:) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(:,:) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(:,:) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(:,:) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(:,:) = 0
+      nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nInterAtom
+      nNeighbours = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nNeighbours
+      ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndx(1:nSites,nInterAtom),&
+                SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndy(1:nSites,nInterAtom),&
+                SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighPos(1:nSites,1:nNeighbours),&
+                SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighSite(1:nSites,1:nNeighbours))
+      ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(1:nSites),&
+                SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%Species(1:nSites))
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%Species(:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndx(:,:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndy(:,:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighPos(:,:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighSite(:,:) = 0
     END DO
   END DO
   END DO
 END DO
 
-DO SurfSideID = 1,SurfMesh%nSides
+DO iSurfSide = 1,SurfMesh%nSides
 DO subsurfeta = 1,nSurfSample
 DO subsurfxi = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions
-  surfsquare = INT(SQRT(REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1))))
+  surfsquare = INT(SQRT(REAL(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1))))
   ! allocate and define surface indexes for adsorbate distribution and build mapping of respective bondatoms and neighbours      
   Indx = 1
   Indy = 1
-  DO Surfpos = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1)
+  DO Surfpos = 1,SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1)
     IF (Indx.GT.surfsquare) THEN
       Indx = 1
       Indy = Indy + 1
     END IF
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%UsedSiteMap(Surfpos) = Surfpos
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%UsedSiteMap(Surfpos) = Surfpos
     ! mapping respective neighbours first hollow then bridge then top
     ! hollow
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,1) = Surfpos - surfsquare - 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,2) = Surfpos - surfsquare
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,3) = Surfpos - surfsquare + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,4) = Surfpos - 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,5) = Surfpos + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,6) = Surfpos + surfsquare - 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,7) = Surfpos + surfsquare
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,8) = Surfpos + surfsquare + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,1:8) = 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,1) = Surfpos - surfsquare - 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,2) = Surfpos - surfsquare
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,3) = Surfpos - surfsquare + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,4) = Surfpos - 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,5) = Surfpos + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,6) = Surfpos + surfsquare - 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,7) = Surfpos + surfsquare
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,8) = Surfpos + surfsquare + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:8) = 1
     ! bridge
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,9) = Surfpos +(surfsquare+1)*(Indy-1)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,10) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,11) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1) +1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,12) = Surfpos +surfsquare +(surfsquare+1)*(Indy)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,9:12) = 2
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,9) = Surfpos +(surfsquare+1)*(Indy-1)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,10) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,11) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1) +1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,12) = Surfpos +surfsquare +(surfsquare+1)*(Indy)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,9:12) = 2
     ! top
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,13) = Surfpos + (Indy-1)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,14) = Surfpos + 1 + (Indy-1)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,15) = Surfpos + (surfsquare+1) + (Indy-1)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,16) = Surfpos + (surfsquare+1) + 1 + (Indy-1)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,13:16) = 3
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,13) = Surfpos + (Indy-1)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,14) = Surfpos + 1 + (Indy-1)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,15) = Surfpos + (surfsquare+1) + (Indy-1)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,16) = Surfpos + (surfsquare+1) + 1 + (Indy-1)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:16) = 3
     ! account for empty edges
-    IF (Indy .EQ. 1) SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,1:3) = 0
-    IF (Indy .EQ. surfsquare) SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,6:8) = 0
+    IF (Indy .EQ. 1) SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:3) = 0
+    IF (Indy .EQ. surfsquare) SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6:8) = 0
     IF (Indx .EQ. 1) THEN
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,1) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,4) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,6) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,4) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6) = 0
     END IF
     IF (Indx .EQ. surfsquare) THEN
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,3) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,5) = 0
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,8) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,3) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,5) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,8) = 0
     END IF
     ! mapping respective bond atoms
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndx(Surfpos,1) = Indx
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndy(Surfpos,1) = Indy
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndx(Surfpos,2) = Indx+1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndy(Surfpos,2) = Indy
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndx(Surfpos,3) = Indx
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndy(Surfpos,3) = Indy+1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndx(Surfpos,4) = Indx+1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%BondAtomIndy(Surfpos,4) = Indy+1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,1) = Indx
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,1) = Indy
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,2) = Indx+1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,2) = Indy
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,3) = Indx
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,3) = Indy+1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,4) = Indx+1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,4) = Indy+1
     Indx = Indx + 1
   END DO
   Indx = 1
   Indy = 1
-  DO Surfpos = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(2)
+  DO Surfpos = 1,SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2)
     IF (Indx.GT.(2*surfsquare+1)) THEN
       Indx = 1
       Indy = Indy + 1
     END IF
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%UsedSiteMap(Surfpos) = Surfpos
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%UsedSiteMap(Surfpos) = Surfpos
     IF (Indx .LE. surfsquare) THEN ! surface atoms are LEFT an RIGHT of adsorbate site
       ! mapping respective neighbours first hollow then bridge then top
       ! hollow
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) +1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1) +1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) +1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1) +1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
       ! bridge
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - (surfsquare+1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - (surfsquare+1) + 1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - 1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + 1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + surfsquare
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + 1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - (surfsquare+1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - (surfsquare+1) + 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + surfsquare
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
       ! top
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -(surfsquare)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos +1 -(surfsquare)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -(surfsquare)*(Indy-1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos +1 -(surfsquare)*(Indy-1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
       ! account for empty edges
       IF (Indy .EQ. 1) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,1:3) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,7:8) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:3) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:8) = 0
       END IF
       IF (Indy .EQ. surfsquare+1) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,4:6) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,11:12) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4:6) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:12) = 0
       END IF
       IF (Indx .EQ. 1) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,1) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,4) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,9) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9) = 0
       END IF
       IF (Indx .EQ. surfsquare) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,3) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,6) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,10) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,3) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,10) = 0
       END IF
       ! mapping respective bond atoms
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx+1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx+1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy
     ELSE ! surface atoms are TOP and DOWN of adsorbate site
       ! mapping respective neighbours first hollow then bridge then top
       ! hollow
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos -(2*surfsquare) &
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos -(2*surfsquare) &
                                                                                   -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos -(2*surfsquare)&
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos -(2*surfsquare)&
                                                                                   -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos -surfsquare &
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos -surfsquare &
                                                                                   -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos - surfsquare -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos - surfsquare -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
       ! bridge
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - surfsquare - (surfsquare+1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - surfsquare - 1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - surfsquare
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + (surfsquare+1) - 1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + (surfsquare+1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + (surfsquare+1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - surfsquare - (surfsquare+1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - surfsquare - 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - surfsquare
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + (surfsquare+1) - 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + (surfsquare+1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + (surfsquare+1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
       ! top
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -surfsquare*(Indy)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos -surfsquare*(Indy) +(surfsquare+1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -surfsquare*(Indy)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos -surfsquare*(Indy) +(surfsquare+1)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
       ! account for empty edges
       IF (Indy .EQ. 1) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,7) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7) = 0
       END IF
       IF (Indy .EQ. surfsquare) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,5:6) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,12) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,5:6) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,12) = 0
       END IF
       IF (Indx .EQ. (surfsquare+1)) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,1) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,3) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,5) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,8) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,10) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,3) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,5) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,8) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,10) = 0
       END IF
       IF (Indx .EQ. 2*surfsquare+1) THEN
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,2) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,4) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,6) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,9) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,11) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,2) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11) = 0
       END IF
       ! mapping respective bond atoms
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx - surfsquare
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy 
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx - surfsquare
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx - surfsquare
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy 
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx - surfsquare
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
     END IF
     Indx = Indx + 1
   END DO
   Indx = 1
   Indy = 1
-  DO Surfpos = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)
+  DO Surfpos = 1,SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3)
     IF (Indx.GT.surfsquare+1) THEN
       Indx = 1
       Indy = Indy + 1
     END IF
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%UsedSiteMap(Surfpos) = Surfpos
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%UsedSiteMap(Surfpos) = Surfpos
     ! mapping respective neighbours first hollow then bridge then top
     ! hollow
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,1) = Surfpos - (surfsquare+1) - 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,2) = Surfpos - (surfsquare+1)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,3) = Surfpos - surfsquare + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,4) = Surfpos - 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighSite(Surfpos,1:4) = 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,1) = Surfpos - (surfsquare+1) - 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,2) = Surfpos - (surfsquare+1)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,3) = Surfpos - surfsquare + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,4) = Surfpos - 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:4) = 1
     ! bridge
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,5) = Surfpos + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,6) = Surfpos + surfsquare - 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,7) = Surfpos + surfsquare
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,8) = Surfpos + surfsquare + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighSite(Surfpos,5:8) = 2
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,5) = Surfpos + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,6) = Surfpos + surfsquare - 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,7) = Surfpos + surfsquare
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,8) = Surfpos + surfsquare + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,5:8) = 2
     ! top
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,9) = Surfpos - surfsquare - 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,10) = Surfpos - surfsquare
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,11) = Surfpos - surfsquare + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighPos(Surfpos,12) = Surfpos - surfsquare + 1
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%NeighSite(Surfpos,9:12) = 3
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,9) = Surfpos - surfsquare - 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,10) = Surfpos - surfsquare
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,11) = Surfpos - surfsquare + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,12) = Surfpos - surfsquare + 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,9:12) = 3
     ! mapping respective bond atoms
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%BondAtomIndx(Surfpos,1) = Indx
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(3)%BondAtomIndy(Surfpos,1) = Indy
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%BondAtomIndx(Surfpos,1) = Indx
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%BondAtomIndy(Surfpos,1) = Indy
     Indx = Indx + 1
   END DO
     
   DO iSpec = 1,nSpecies
-    Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) &
-                * SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec)))
-    Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) = REAL(Adsorbates) &
-        / SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec))
-    IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Adsorption%Coordination(iSpec)).LT.Adsorbates) THEN
+    Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,iSurfSide,iSpec) &
+                * SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Adsorption%Coordination(iSpec)))
+    Adsorption%Coverage(subsurfxi,subsurfeta,iSurfSide,iSpec) = REAL(Adsorbates) &
+        / SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Adsorption%Coordination(iSpec))
+    IF (SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(Adsorption%Coordination(iSpec)).LT.Adsorbates) THEN
       CALL abort(&
       __STAMP__&
       ,'Error in Init_SurfDist: Too many Adsorbates! - Choose lower Coverages')
@@ -490,27 +490,27 @@ DO subsurfxi = 1,nSurfSample
     ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
     dist = 1
     Coord = Adsorption%Coordination(iSpec)
-    Surfnum = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+    Surfnum = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(Coord)
     DO WHILE (dist.LE.Adsorbates) 
       CALL RANDOM_NUMBER(RanNum)
       Surfpos = 1 + INT(Surfnum * RanNum)
-      UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos) = iSpec
+      UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%Species(UsedSiteMapPos) = iSpec
       ! assign bond order of respective surface atoms in the surfacelattice
-      DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-        xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
-        ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) + 1
+      DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nInterAtom
+        xpos = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
+        ypos = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
+          SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) + 1
       END DO
       ! rearrange UsedSiteMap-Surfpos-array
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
+          SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum)
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
       Surfnum = Surfnum - 1
       dist = dist + 1
     END DO
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = Surfnum
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(Coord) = Surfnum
   END DO
   
 END DO
@@ -538,7 +538,8 @@ USE MOD_ReadInTools
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)                    :: hilf, hilf2
-  INTEGER                          :: iSpec, iSpec2, ReactNum, ReactNum2
+  INTEGER                          :: iSpec, iSpec2, iReactNum, iReactNum2
+  INTEGER                          :: ReactNum
   INTEGER                          :: MaxDissNum, MaxReactNum, MaxAssocNum
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
@@ -577,39 +578,39 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
   ! Read in dissociative reactions and respective dissociation bond energies
   DO iSpec = 1,nSpecies            
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
-    DO ReactNum = 1,MaxDissNum
-      WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
-      Adsorption%DissocReact(:,ReactNum,iSpec) = &
+    DO iReactNum = 1,MaxDissNum
+      WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
+      Adsorption%DissocReact(:,iReactNum,iSpec) = &
                                        GETINTARRAY('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Products',2,'0,0')
-      IF ((Adsorption%DissocReact(1,ReactNum,iSpec).GT.nSpecies) .OR. (Adsorption%DissocReact(2,ReactNum,iSpec).GT.nSpecies) ) THEN
+      IF ((Adsorption%DissocReact(1,iReactNum,iSpec).GT.nSpecies) .OR. (Adsorption%DissocReact(2,iReactNum,iSpec).GT.nSpecies) ) THEN
         CALL abort(&
         __STAMP__&
         ,'Error in Init_SurfChem: Produkt species for reaction '//TRIM(hilf2)//' not defined!')
       END IF
-      Adsorption%Diss_Powerfactor(ReactNum,iSpec) = &
+      Adsorption%Diss_Powerfactor(iReactNum,iSpec) = &
                                        GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Adsorption-Powerfactor','0.')
-      Adsorption%Diss_Prefactor(ReactNum,iSpec) = &
+      Adsorption%Diss_Prefactor(iReactNum,iSpec) = &
                                        GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Adsorption-Prefactor','0.')
-      Adsorption%EDissBond(ReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
+      Adsorption%EDissBond(iReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
     END DO
-    DO ReactNum = MaxDissNum+1,MaxReactNum
-      Adsorption%EDissBond(ReactNum,iSpec) = 0.
+    DO iReactNum = MaxDissNum+1,MaxReactNum
+      Adsorption%EDissBond(iReactNum,iSpec) = 0.
     END DO
   END DO
   ! fill associative reactions species map from defined dissociative reactions
   DO iSpec = 1,nSpecies
     ReactNum = 1
     DO iSpec2 = 1,nSpecies
-    DO ReactNum2 = 1,MaxDissNum
-      IF (Adsorption%DissocReact(1,ReactNum2,iSpec2).EQ.iSpec) THEN
-        Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(2,ReactNum2,iSpec2)
+    DO iReactNum2 = 1,MaxDissNum
+      IF (Adsorption%DissocReact(1,iReactNum2,iSpec2).EQ.iSpec) THEN
+        Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(2,iReactNum2,iSpec2)
         Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
-        Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(ReactNum2,iSpec)
+        Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec)
         ReactNum = ReactNum + 1
-      ELSE IF (Adsorption%DissocReact(2,ReactNum2,iSpec2).EQ.iSpec) THEN
-        Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,ReactNum2,iSpec2)
+      ELSE IF (Adsorption%DissocReact(2,iReactNum2,iSpec2).EQ.iSpec) THEN
+        Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,iReactNum2,iSpec2)
         Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
-        Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(ReactNum2,iSpec)
+        Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec)
         ReactNum = ReactNum + 1
       ELSE
         CYCLE
@@ -631,7 +632,7 @@ END SUBROUTINE Init_SurfChem
 
 SUBROUTINE FinalizeDSMCSurfModel()
 !===================================================================================================================================
-! Init of DSMC Vars
+! Deallocate Surface model vars
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
@@ -645,7 +646,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: subsurfxi,subsurfeta,SurfSideID,Coord
+INTEGER                      :: subsurfxi,subsurfeta,iSurfSide,iCoord
 !===================================================================================================================================
 SDEALLOCATE(PDM%ParticleAtWall)
 SDEALLOCATE(PDM%PartAdsorbSideIndx)
@@ -681,20 +682,20 @@ SDEALLOCATE(Adsorption%ProbSigma)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
 
 IF (ALLOCATED(SurfDistInfo)) THEN
-DO SurfSideID=1,SurfMesh%nSides
+DO iSurfSide=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites)
-    IF (ALLOCATED(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap)) THEN
-      DO Coord = 1,3
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite)
+    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder)
+    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain)
+    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites)
+    IF (ALLOCATED(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap)) THEN
+      DO iCoord = 1,3
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%UsedSiteMap)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%Species)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%BondAtomIndx)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%BondAtomIndy)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%NeighPos)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%NeighSite)
       END DO
     END IF
   END DO

@@ -14,8 +14,10 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC                       :: DSMC_Update_Wall_Vars
-PUBLIC                       :: Particle_Wall_Adsorb
+! PUBLIC                       :: Particle_Wall_Adsorb
+! PUBLIC                       :: CalcPartAdsorb
 PUBLIC                       :: Calc_PartNum_Wall_Desorb
+PUBLIC                       :: CalcBackgndPartAdsorb
 PUBLIC                       :: CalcBackgndPartDesorb
 PUBLIC                       :: CalcAdsorbProb
 PUBLIC                       :: CalcDesorbProb
@@ -86,271 +88,7 @@ SUBROUTINE DSMC_Update_Wall_Vars()
   END IF
 
 END SUBROUTINE DSMC_Update_Wall_Vars  
-    
-SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID) 
-!===================================================================================================================================
-! Particle Adsorption after wall collision
-!===================================================================================================================================
-  USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
-  USE MOD_Particle_Vars,          ONLY : WriteMacroValues, KeepWallParticles, PDM
-  USE MOD_Particle_Vars,          ONLY : PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
-  USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : CollisMode, Adsorption
-  USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
-  USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound
-  USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
-  USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
-  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBilinear,CalcNormAndTangBezier
-!===================================================================================================================================
-   IMPLICIT NONE
-!===================================================================================================================================
-! argument list declaration
-  INTEGER,INTENT(INOUT)            :: adsindex
-  REAL,INTENT(INOUT)               :: PartTrajectory(1:3), alpha
-  REAL,INTENT(IN)                  :: xi, eta
-  INTEGER,INTENT(IN)               :: PartID, GlobSideID
-  LOGICAL,INTENT(IN)               :: IsSpeciesSwap
-  INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
-! LOCAL VARIABLES
-  INTEGER                          :: locBCID, VibQuant, VibQuantNew, VibQuantWall
-  REAL                             :: VibQuantNewR
-  REAL                             :: VeloReal, RanNum, EtraOld
-  REAL                             :: EtraWall, EtraNew
-  REAL                             :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
-  REAL                             :: ErotNew, ErotWall, EVibNew
-  REAL                             :: Xitild,EtaTild
-  INTEGER                          :: p,q
-  REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
-  REAL                             :: Adsorption_Prob
-  INTEGER                          :: adsorption_case
-! Polyatomic Molecules
-  REAL, ALLOCATABLE                :: RanNumPoly(:), VibQuantNewRPoly(:)
-  INTEGER                          :: iPolyatMole, iDOF
-  INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
-! Local variable declaration            
-  REAL                             :: maxPart
-  INTEGER                          :: SurfSide, iSpec
-  REAL                             :: VelXold, VelYold, VelZold
-  REAL, PARAMETER                  :: PI=3.14159265358979323846
-  REAL                             :: IntersectionPos(1:3)
-  REAL                             :: TransArray(1:6),IntArray(1:6)
-  REAL                             :: Norm_velo, Norm_Ec
-  INTEGER                          :: outSpec(2)
-!===================================================================================================================================
-  ! additional states
-  locBCID=PartBound%MapToPartBC(BC(GlobSideID))
-  ! get BC values
-  WallVelo     = PartBound%WallVelo(1:3,locBCID)
-  WallTemp     = PartBound%WallTemp(locBCID)
-  TransACC     = PartBound%TransACC(locBCID)
-  VibACC       = PartBound%VibACC(locBCID)
-  RotACC       = PartBound%RotACC(locBCID)
 
-  TransArray(:) = 0.0
-  IntArray(:) = 0.0
-  SurfSide = SurfMesh%SideIDToSurfID(GlobSideID)
-  iSpec = PartSpecies(PartID)
-#if (PP_TimeDiscMethod==42)  
-  ! Update wallcollision counter
-  Adsorption%AdsorpInfo(iSpec)%WallCollCount = Adsorption%AdsorpInfo(iSpec)%WallCollCount + 1
-#endif  
-  ! compute p and q
-  ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  Xitild =MIN(MAX(-1.,xi ),0.99)
-  Etatild=MIN(MAX(-1.,eta),0.99)
-  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
-  
-  IF (DSMC%WallModel.GE.2) THEN
-    IF(PRESENT(BCSideID))THEN
-      SELECT CASE(SideType(BCSideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT)
-        n_loc=SideNormVec(1:3,BCSideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-      END SELECT 
-    ELSE
-      SELECT CASE(SideType(GlobSideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT)
-        n_loc=SideNormVec(1:3,GlobSideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      END SELECT 
-    END IF
-    
-    Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,4)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-    Norm_Ec = 0.5 * Species(iSpec)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-    
-    IF (DSMC%WallModel.GT.2) THEN
-      CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,Norm_Ec,adsorption_case,outSpec)
-    ELSE
-!       CALL CalcPartAdsorb(p,qSurfSide,PartID,Norm_Ec,adsorption_case,outSpec)
-    END IF
-  ELSE
-    adsorption_case = 0
-    Adsorption_prob = Adsorption%ProbAds(p,q,SurfSide,iSpec)
-    CALL RANDOM_NUMBER(RanNum)
-    IF ( (Adsorption_prob.GE.RanNum) .AND. & 
-       (Adsorption%Coverage(p,q,SurfSide,iSpec).LT.Adsorption%MaxCoverage(SurfSide,iSpec)) ) THEN
-      adsorption_case = 1
-    END IF
-  END IF
-  
-  SELECT CASE(adsorption_case)
-  !-----------------------------------------------------------------------------------------------------------------------------
-  CASE(-1) ! perfect elastic scattering
-  !-----------------------------------------------------------------------------------------------------------------------------
-    adsindex = -1
-  !-----------------------------------------------------------------------------------------------------------------------------
-  CASE(1) ! molecular adsorption
-  !-----------------------------------------------------------------------------------------------------------------------------    
-    maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
-    Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
-                                                 + Species(outSpec(1))%MacroParticleFactor/maxPart
-    adsindex = 1
-#if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
-#endif
-!     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
-!     IF (KeepWallParticles) THEN
-!       PDM%PartAdsorbSideIndx(1,PartID) = GlobSideID
-!       PDM%PartAdsorbSideIndx(2,PartID) = p
-!       PDM%PartAdsorbSideIndx(3,PartID) = q
-!     END IF
-!   
-!     LastPartPos(PartID,1) = PartState(PartID,1)
-!     LastPartPos(PartID,2) = PartState(PartID,2)
-!     LastPartPos(PartID,3) = PartState(PartID,3)
-!     VelXold = PartState(PartID,4)
-!     VelYold = PartState(PartID,5)
-!     VelZold = PartState(PartID,6)
-!     ! intersection point with surface
-!     IntersectionPos(1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
-!     PartState(PartID,1)  = IntersectionPos(1)
-!     PartState(PartID,2)  = IntersectionPos(2)
-!     PartState(PartID,3)  = IntersectionPos(3)
-!     PartState(PartID,4)  = WallVelo(1)
-!     PartState(PartID,5)  = WallVelo(2)
-!     PartState(PartID,6)  = WallVelo(3)
-!   
-!     VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-!     EtraOld = 0.5 * Species(iSpec)%MassIC * VeloReal**2
-!     EtraWall = 0.0
-!     EtraNew = 0.0
-!     
-!     TransArray(1) = EtraOld
-!     TransArray(2) = EtraWall
-!     TransArray(3) = EtraNew
-!     TransArray(4) = PartState(PartID,4)-VelXold
-!     TransArray(5) = PartState(PartID,5)-VelYold
-!     TransArray(6) = PartState(PartID,6)-VelZold
-!   
-!     !---- Internal energy accommodation
-!     IF (CollisMode.GT.1) THEN
-!     IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
-!       !---- Rotational energy accommodation
-!       CALL RANDOM_NUMBER(RanNum)
-!       ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
-!       ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
-!       IntArray(1) = PartStateIntEn(PartID,2)
-!       IntArray(2) = ErotWall
-!       IntArray(3) = ErotNew
-!       PartStateIntEn(PartID,2) = ErotNew
-!       !---- Vibrational energy accommodation
-!       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-!         EvibNew = 0.0
-!         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-!         ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-!                  VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-!                  VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-!         CALL RANDOM_NUMBER(RanNumPoly)
-!         VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-!         DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-!           CALL RANDOM_NUMBER(RanNumPoly)
-!           VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-!         END DO
-!         VibQuantNewRPoly(:) = VibQuantsPar(PartID)%Quants(:) + VibACC*(VibQuantWallPoly(:) - VibQuantsPar(PartID)%Quants(:))
-!         VibQuantNewPoly = INT(VibQuantNewRPoly)
-!         DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-!           CALL RANDOM_NUMBER(RanNum)
-!           IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-!             EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
-!                       * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-!             VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-!           ELSE
-!             EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
-!                       * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-!             VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-!           END IF
-!           IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-!                       * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(iSpec)%MacroParticleFactor
-!           IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
-!                       * SpecDSMC(iSpec)%CharaTVib * Species(iSpec)%MacroParticleFactor
-!         END DO
-!       ELSE
-!         VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) &
-!                     - DSMC%GammaQuant)
-!         CALL RANDOM_NUMBER(RanNum)
-!         VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
-!         DO WHILE (VibQuantWall.GE.SpecDSMC(iSpec)%MaxVibQuant)
-!           CALL RANDOM_NUMBER(RanNum)
-!           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
-!         END DO
-!         VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-!         VibQuantNew = INT(VibQuantNewR)
-!         CALL RANDOM_NUMBER(RanNum)
-!         IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-!           EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
-!         ELSE
-!           EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
-!         END IF
-!         IntArray(4) = VibQuant + DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
-!         IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
-!       END IF
-!       IntArray(6) = EvibNew
-!     END IF
-!     END IF
-!     !End internal energy accomodation
-!     
-! !----  Sampling at walls
-!     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-!       CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap)
-!     END IF
-    
-  !-----------------------------------------------------------------------------------------------------------------------------
-  CASE(2) ! dissociative adsorption
-  !-----------------------------------------------------------------------------------------------------------------------------
-    maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
-    Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
-                                                 + Species(outSpec(1))%MacroParticleFactor/maxPart
-    Adsorption%Coverage(p,q,SurfSide,outSpec(2)) = Adsorption%Coverage(p,q,SurfSide,outSpec(2)) & 
-                                                 + Species(outSpec(2))%MacroParticleFactor/maxPart
-    adsindex = 1
-#if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
-    Adsorption%AdsorpInfo(outSpec(2))%NumOfAds = Adsorption%AdsorpInfo(outSpec(2))%NumOfAds + 1
-#endif
-  !-----------------------------------------------------------------------------------------------------------------------------
-  CASE(3) ! Eley-Rideal reaction
-  !-----------------------------------------------------------------------------------------------------------------------------
-    maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
-    Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
-                                                 - Species(outSpec(1))%MacroParticleFactor/maxPart
-    adsindex = 2
-#if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
-#endif
-  !-----------------------------------------------------------------------------------------------------------------------------
-  CASE DEFAULT ! diffuse reflection
-  !-----------------------------------------------------------------------------------------------------------------------------
-    adsindex = 0
-  END SELECT
-  
-END SUBROUTINE Particle_Wall_Adsorb
 
 SUBROUTINE Calc_PartNum_Wall_Desorb()
 !===================================================================================================================================
@@ -589,7 +327,7 @@ END SUBROUTINE CalcDiffusion
 !   INTEGER,INTENT(OUT)              :: adsorption_case
 !   INTEGER,INTENT(OUT)              :: outSpec(2)
 ! ! LOCAL VARIABLES
-! END SUBROUTINE CalcBackgndPartAdsorb
+! END SUBROUTINE CalcPartAdsorb
 
 SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,adsorption_case,outSpec)
 !===================================================================================================================================
@@ -1427,7 +1165,8 @@ END SUBROUTINE CalcBackgndPartDesorb
 
 SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec)
 !===================================================================================================================================
-! Routine for calculation of number of desorbing particles from background surface distribution
+! Routine for adjusting the number of Adsorbates for background surface, if Adsorption took place in CalcBackgndPartAdsorb 
+! and Coverage changed strong enough
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : nSpecies, Species, BoltzmannConst
