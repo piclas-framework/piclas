@@ -424,6 +424,7 @@ SUBROUTINE FillStrings(IniFile)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars, ONLY: ParameterFile
 USE MOD_ISO_VARYING_STRING
 #ifdef PARTICLES
 USE MOD_DSMC_Vars,ONLY: UseDSMC
@@ -452,8 +453,10 @@ IF (ReadInDone) RETURN
 ! Get name of ini file
 IF (PRESENT(IniFile)) THEN
   File = TRIM(IniFile)
+  ParameterFile = TRIM(File)
 ELSE
   CALL GETARG(1,File)
+  ParameterFile = TRIM(File)
   !CALL GET_COMMAND_ARGUMENT(1,File)
 END IF
 SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(File),'":'

@@ -29,6 +29,14 @@ END INTERFACE
 !  MODULE PROCEDURE WriteArrayToHDF5
 !END INTERFACE
 
+INTERFACE
+  SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
+      USE ISO_C_BINDING, ONLY: C_CHAR
+      CHARACTER(KIND=C_CHAR) :: outfilename(*)
+      CHARACTER(KIND=C_CHAR) :: infilename(*)
+  END SUBROUTINE copy_userblock
+END INTERFACE
+
 INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
@@ -995,6 +1003,7 @@ SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputT
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
+USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_ReadInTools,ONLY: GetParameters
 USE MOD_Interpolation_Vars, ONLY:NodeType
@@ -1025,9 +1034,9 @@ CHARACTER(LEN=255)             :: FileName,MeshFile255
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 #ifdef MPI
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,userblockSize=userblock_total_len)
 #else
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,userblockSize=userblock_total_len)
 #endif
 
 ! Write file header
@@ -1056,19 +1065,10 @@ CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 
 CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
-! we use userblock instead
-! Write ini file parameters and compile flags
-!CALL GetParameters(params)
-!CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-!CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-!DEALLOCATE(params)
-
 CALL CloseDataFile()
 
-! ! Add userblock to hdf5-file
-! CALL EXECUTE_COMMAND_LINE(H5TOOLSDIR//&
-!     '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
-!      TRIM(FileName),EXITSTAT=iError)
+! Add userblock to hdf5-file
+CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
 
 END SUBROUTINE GenerateFileSkeleton
 

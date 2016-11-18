@@ -53,40 +53,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=300)             :: IniFile,userblockFile
+CHARACTER(LEN=300)             :: IniFile
 !===================================================================================================================================
-ProjectName=GETSTR('ProjectName')
-Logging    =GETLOGICAL('Logging','.FALSE.')
-
-IF (MPIRoot) THEN
-  ! Copy userblock file
-  userblockFile = BASEDIR  &
-                  // 'bin/userblock.txt'
-  CALL EXECUTE_COMMAND_LINE(TRIM('cp ' // TRIM(userblockFile) // ' ' // TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
-  IF (iError.NE.0) THEN
-    CALL abort(__STAMP__,&
-        'Could not copy userblock.')
-  END IF
-
-  ! Copy Inifile
-  CALL EXECUTE_COMMAND_LINE(TRIM('echo "{[( INIFILE )]}" >> '//TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
-  IF (iError.NE.0) THEN
-    CALL abort(__STAMP__,&
-        'Could not append "{[( INIFILE )]}".')
-  END IF
-  CALL GET_COMMAND_ARGUMENT(1,IniFile)
-  CALL EXECUTE_COMMAND_LINE(TRIM('cat ' // TRIM(IniFile) // ' >> ' // TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
-  IF (iError.NE.0) THEN
-    CALL abort(__STAMP__,&
-        'Could not copy inifile.')
-  END IF
-  ! Write END USERBLOCK to userblock
-  CALL EXECUTE_COMMAND_LINE(TRIM('echo "{[( END USERBLOCK )]}" >> '//TRIM(ProjectName) // '.userblock'),EXITSTAT=iError)
-  IF (iError.NE.0) THEN
-    CALL abort(__STAMP__,&
-        'Could not append "{[( END USERBLOCK )]}".')
-  END IF
-END IF
 
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
@@ -113,9 +81,9 @@ END SUBROUTINE InitIO_HDF5
 
 
 #ifdef MPI
-SUBROUTINE OpenHDF5File(FileString,create,single,communicatorOpt)
+SUBROUTINE OpenHDF5File(FileString,create,single,communicatorOpt,userblockSize)
 #else
-SUBROUTINE OpenHDF5File(FileString,create)
+SUBROUTINE OpenHDF5File(FileString,create,userblockSize)
 #endif
 !===================================================================================================================================
 ! Open HDF5 file and groups
@@ -132,6 +100,7 @@ LOGICAL,INTENT(IN)            :: create
 LOGICAL,INTENT(IN)            :: single
 INTEGER,INTENT(IN),OPTIONAL   :: communicatorOpt
 #endif
+INTEGER,INTENT(IN),OPTIONAL   :: userblockSize  !< size of the file to be prepended to HDF5 file
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -141,26 +110,41 @@ INTEGER(HID_T)                 :: Plist_ID
 INTEGER                        :: comm
 #endif
 LOGICAL                        :: fileExists
+INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
 !===================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "',TRIM(FileString),'" ...'
+
+userblockSize_loc = 0
+IF (PRESENT(userblockSize)) userblockSize_loc = userblockSize
 
 ! Initialize FORTRAN predefined datatypes
 CALL H5OPEN_F(iError)
 
 ! Setup file access property list with parallel I/O access (MPI) or with default property list.
-CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
-#ifdef MPI
-IF(PRESENT(communicatorOpt))THEN
-  comm=communicatorOpt
+IF(create)THEN
+  CALL H5PCREATE_F(H5P_FILE_CREATE_F, Plist_ID, iError)
+  IF(iError.NE.0) CALL abort(__STAMP__,&
+    'ERROR: Could not create file '//TRIM(FileString))
 ELSE
-  comm=MPI_COMM_WORLD
+  CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
+  IF(iError.NE.0) CALL abort(__STAMP__,&
+    'ERROR: Could not open file '//TRIM(FileString))
 END IF
+
+#ifdef MPI
+comm = MERGE(communicatorOpt,MPI_COMM_WORLD,PRESENT(communicatorOpt))
 IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_ID, comm, MPIInfo, iError)
 #endif /* MPI */
 
 ! Open the file collectively.
 IF(create)THEN
-  CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, access_prp = Plist_ID)
+  IF (userblockSize_loc > 0) THEN
+    tmp = userblockSize_loc/512
+    IF (MOD(userblockSize_loc,512).GT.0) tmp = tmp+1
+    tmp2 = 512*2**CEILING(LOG(REAL(tmp))/LOG(2.))
+    CALL H5PSET_USERBLOCK_F(Plist_ID, tmp2, iError)
+  END IF
+  CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, creation_prp = Plist_ID)
 ELSE !read-only ! and write (added later)
   INQUIRE(FILE=TRIM(FileString),EXIST=fileExists)
   IF(.NOT.fileExists) CALL abort(&
