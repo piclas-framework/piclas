@@ -186,16 +186,15 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-  USE MOD_TimeDisc_Vars,         ONLY : iter
-#endif
+  USE MOD_DSMC_Vars,             ONLY: DSMC
+  USE MOD_TimeDisc_Vars,         ONLY: iter
   USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
 #ifdef MPI
   USE MOD_LoadBalance_Vars,      ONLY: tCurrent
   USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
-  USE MOD_DSMC_Vars,             ONLY: Adsorption,BGGas,DSMC, SpecDSMC
+  USE MOD_DSMC_Vars,             ONLY: Adsorption,BGGas, SpecDSMC
   USE MOD_Particle_Vars,         ONLY: Species
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
 #endif
@@ -215,12 +214,10 @@ SUBROUTINE AnalyzeParticles(Time)
   REAL                :: WEl, WMag, NumSpec(nSpecies+1)
   REAL                :: Ekin(nSpecies + 1), Temp(nSpecies+1)
   REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecies+1), Xi_Vib(nSpecies)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   REAL                :: MaxCollProb, MeanCollProb
 #ifdef MPI
   REAL                :: sumMeanCollProb
 #endif /*MPI*/
-#endif
 #ifdef MPI
   REAL                :: RECBR(nSpecies)
   INTEGER             :: RECBIM(nSpecies)
@@ -428,7 +425,6 @@ SUBROUTINE AnalyzeParticles(Time)
           END DO
         END IF
 #endif
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
             DO iSpec=1, nSpecies         
@@ -487,7 +483,6 @@ SUBROUTINE AnalyzeParticles(Time)
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Pmax',' '
           OutputCounter = OutputCounter + 1
         END IF
-#endif
 #if (PP_TimeDiscMethod==42)
         IF (DSMC%WallModel.GE.1) THEN
 !                 IF (CalcWallNumSpec) THEN
@@ -565,7 +560,6 @@ SUBROUTINE AnalyzeParticles(Time)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   IF((iter.GT.0).AND.(DSMC%CalcQualityFactors).AND.(DSMC%CollProbMeanCount.GT.0)) THEN
     MaxCollProb = DSMC%CollProbMax
     MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
@@ -573,7 +567,6 @@ SUBROUTINE AnalyzeParticles(Time)
     MaxCollProb = 0.0
     MeanCollProb = 0.0
   END IF
-#endif
 
   ! computes the real and simulated number of particles
   CALL CalcNumPartsofSpec(NumSpec,SimNumSpec)
@@ -608,12 +601,10 @@ SUBROUTINE AnalyzeParticles(Time)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
       CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
       MeanCollProb = sumMeanCollProb / PartMPI%nProcs
-#endif
   ELSE ! no Root
     tLBStart = LOCALTIME() ! LB Time Start
     IF (CalcPartBalance)THEN
@@ -622,10 +613,8 @@ SUBROUTINE AnalyzeParticles(Time)
       CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
       CALL MPI_REDUCE(MaxCollProb,RECBR,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
-#endif
     tLBEnd = LOCALTIME() ! LB Time End
     tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
   END IF
@@ -763,7 +752,6 @@ IF (PartMPI%MPIROOT) THEN
     END IF
 #endif
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecies
@@ -808,14 +796,12 @@ IF (PartMPI%MPIROOT) THEN
         END IF
       END IF
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,104,ADVANCE='NO') MeanCollProb
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,104,ADVANCE='NO') MaxCollProb
     END IF
-#endif
 #if (PP_TimeDiscMethod==42)
 ! output for adsorption
     IF (DSMC%WallModel.GE.1) THEN
@@ -865,7 +851,6 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
-#endif
     WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
   END IF
