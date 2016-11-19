@@ -4563,10 +4563,10 @@ USE MOD_TimeDisc_Vars,      ONLY: IterDisplayStep
 #endif /*PARTICLES*/
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
-USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne,CFLtoOne
+USE MOD_TimeDisc_Vars,      ONLY: CFLtoOne
 #endif
 USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
-USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne,CFLtoOne
+USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
 #if (PP_TimeDiscMethod==201)                                                                                                         
 USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
 #endif

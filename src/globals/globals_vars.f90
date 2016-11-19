@@ -20,6 +20,8 @@ REAL,PARAMETER                        :: ElectronMass   = 9.1093826E-31
 REAL,PARAMETER               :: FileVersion=0.1
 CHARACTER(LEN=255),PARAMETER :: ProgramName='Boltzplatz'
 CHARACTER(LEN=255)           :: ProjectName
+CHARACTER(LEN=255)::ParameterFile  !< filename of the parameter file
+CHARACTER(LEN=255)::ParameterDSMCFile  !< filename of the parameterDSMC file
 !===================================================================================================================================
 
 !CONTAINS

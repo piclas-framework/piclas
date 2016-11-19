@@ -1,31 +1,76 @@
 #!/usr/bin/python
+#************************************************************************************
+#
+# Author:       Matthias Sonntag
+# Institution:  Inst. of Aero- and Gasdynamics, University of Stuttgart
+# Date:         14.07.2016
+#
+# Description:  This script contains routines to extract userblock data from an HDF5
+#               file containing git revision information, eventuelly a patch to
+#               the Git remote and the ini (parameter) file used for the computation.
+#
+#************************************************************************************
 
 import argparse
+import subprocess
 
 # extract userblock from HDF5 state file
-def get_userblock(filename) :
+def get_userblock(filename,userblock) :
     linesread = 0
     HDFfound = False
-    userblock = ""
-    with open(filename, 'r') as f :
-        for line in f :
-            linesread = linesread + 1
-            # check for HDF identifier (here the original HDF state file begins)
-            for i in range(len(line)) :
-                c = line[i]
-                if ord(c) == 0 : continue
-                if ord(c) == 137 : 
-                    if line[i+1:i+4] == 'HDF' : HDFfound = True
-            if HDFfound : break
-            # no HDF identifier found so far -> read line belongs to userblock
-            userblock = userblock + line
-            # check for end of userblock
-            if line.startswith('{[( END USERBLOCK )]}') : 
-                break
+    f = open(filename, 'r')
+    while True :
+      line = f.readline()
+      linesread = linesread + 1
 
-    if linesread == 1 :
-        print 'Error: HDF5 state file contains no userblock.'
+      if line == "" :
+        break
+
+      if linesread == 1 and not line.startswith('{[(') :
+        print 'Error: HDF5 state file %s contains no userblock.' % filename
         exit(1)
+
+      if line.startswith('{[( END USERBLOCK )]}') :
+        break
+
+      # check for HDF identifier (here the original HDF state file begins)
+      for i in range(len(line)) :
+          c = line[i]
+          if ord(c) == 0 : continue
+          if ord(c) == 137 : 
+              if line[i+1:i+4] == 'HDF' : HDFfound = True
+      if HDFfound :
+        break
+
+      # check for compressed data
+      if line.startswith('{[( COMPRESSED )]}') :
+        try:
+          filenamec=f.readline()      #size in bytes
+          filenametar=filenamec.strip() + ".tar.xz"
+          filesize=int(f.readline()) #size in bytes
+          userblock_compressed=f.read(filesize)
+        except:
+          print 'Error: Could not extract compressed data.'
+          exit(1)
+        fc = open(filenametar, 'w')
+        fc.write(userblock_compressed)
+        fc.close()
+        try:
+          p = subprocess.call("tar -xJf " + filenametar,shell=True)
+        except:
+          print 'Error while extracting userblock data.'
+          exit(1)
+
+        try:
+          userblock = get_userblock(filenamec.strip(),userblock)
+        except:
+          print 'Error while reading compressed userblock data.'
+          exit(1)
+        continue
+
+      # everything ok
+      userblock = userblock + line
+
     return userblock
 
 # show all parts of the userblock
@@ -84,7 +129,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    userblock = get_userblock(args.filename) 
+    userblock = get_userblock(args.filename,'') 
     if args.show :
         print_all_parts(userblock)
     if args.part :

@@ -48,7 +48,7 @@ USE MOD_Particle_Mesh_Vars,         ONLY:GEO
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nSides,firstMPISide_MINE,MortarSlave2MasterInfo
+USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nSides,firstMPISide_MINE,MortarSlave2MasterInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -251,8 +251,7 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,SideToElem,MortarSlave2MasterInfo,ElemToElemGlob,OffSetElem
-USE MOD_Mesh_Vars,                 ONLY:MortarType,MortarInfo
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,SideToElem,ElemToElemGlob,OffSetElem
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
@@ -271,13 +270,13 @@ INTEGER, INTENT(INOUT)   :: SideIndex(nSides)
 INTEGER, INTENT(INOUT)   :: ElemIndex(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iSide, NbOfSides,p,q,ElemID,ilocSide,SideID,r,s,iBGMElem,iCase,NbOfElems,NBElemID,iMortar,locMortarType
+INTEGER                  :: iSide, NbOfSides,p,q,ElemID,ilocSide,SideID,r,s,iBGMElem,iCase,NbOfElems,NBElemID,iMortar
 REAL                     :: NodeX(1:3)!,xNodes(1:3,0:NGeo,0:NGeo)
 INTEGER                  :: iBGM,jBGM,kBGM,iPBGM,jPBGM,kPBGM
 LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
 REAL                     :: distance(1:3)
-INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint,neighbor_ElemID,flip,AdjointLocSideID(2)
+INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint,flip,AdjointLocSideID(2)
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
@@ -353,7 +352,7 @@ DO iElem=1,PP_nElems
                 leave=.TRUE.
                 ! mark potential Inner elements on the other side
                 DO iMortar=1,4
-                  NBElemID=ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)-offSetElem
+                  NBElemID=INT(ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)-offSetElem,4)
                   CHECKSAFEINT(NBElemID,4)
                   IF(NBElemID.LE.0) CYCLE
                   IF(NBElemID.GT.PP_nElems) CYCLE
@@ -379,7 +378,7 @@ DO iElem=1,PP_nElems
       IF(((s.EQ.0).AND.(r.EQ.0)).OR.((s.EQ.0).AND.(r.EQ.NGeo)).OR.((s.EQ.NGeo).AND.(r.EQ.0)).OR.((s.EQ.NGeo).AND.(r.EQ.NGeo)))THEN
         AdjointLocSideID = SideToAdjointLocSide(r,s,flip,ilocSide)
         DO iMortar=1,4
-          NBElemID=ElemToElemGlob(iMortar,AdjointLocSideID(1),offSetElem+iElem)-offSetElem
+          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(1),offSetElem+iElem)-offSetElem,4)
           CHECKSAFEINT(NBElemID,4)
           IF(NBElemID.LE.0) CYCLE
           IF(NBElemID.GT.PP_nElems) CYCLE
@@ -390,7 +389,7 @@ DO iElem=1,PP_nElems
           END IF
         END DO ! iMortar=1,4
         DO iMortar=1,4
-          NBElemID=ElemToElemGlob(iMortar,AdjointLocSideID(2),offSetElem+iElem)-offSetElem
+          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(2),offSetElem+iElem)-offSetElem,4)
           CHECKSAFEINT(NBElemID,4)
           IF(NBElemID.LE.0) CYCLE
           IF(NBElemID.GT.PP_nElems) CYCLE
@@ -523,16 +522,15 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
-USE MOD_Mesh_Vars,              ONLY:MortarSlave2MasterInfo,OffSetElem
+USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, ElemToSide, BC,nGeo,SideToElem
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,GEO,nTotalBCSides,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemBaryNGeo
 !USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicDisplacement,PartElemToElemGlob
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -556,7 +554,6 @@ TYPE tMPISideMessage
   INTEGER,ALLOCATABLE       :: SideToElem(:,:)
   INTEGER,ALLOCATABLE       :: MortarType(:,:)
   INTEGER,ALLOCATABLE       :: SideBCType(:)
-  INTEGER,ALLOCATABLE       :: MortarSlave2MasterInfo(:)
   INTEGER,ALLOCATABLE       :: BC(:)
   INTEGER,ALLOCATABLE       :: NativeElemID(:)
   REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: SideSlabNormals                  ! normal vectors of bounding slab box
@@ -569,17 +566,13 @@ END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
 INTEGER                     :: ALLOCSTAT
-INTEGER                     :: newSideID,haloSideID,ioldSide,oldElemID,newElemID
-REAL                        :: xNodes(1:3,0:NGeo,0:NGeo)
-REAL                        :: xNodes2(1:3,0:NGeo,0:NGeo)
-LOGICAL                     :: isDoubleSide
+INTEGER                     :: newSideID,haloSideID,newElemID
 LOGICAL,ALLOCATABLE         :: isElem(:),isSide(:),isDone(:)
 INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:),HaloInc(:)
 INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,flip
-INTEGER                     :: nDoubleSides,nDoubleBezier,tmpnSides,tmpnElems
-INTEGER                     :: datasize,datasize2,datasize3,ElemIDGlob
-INTEGER                     :: p,q,tmpbcsides
-INTEGER                     :: ElemID,ElemID2,hostElemId,idisplace,locsideid,newbcsideid
+INTEGER                     :: nDoubleSides,tmpnSides,tmpnElems
+INTEGER                     :: datasize,datasize2,datasize3
+INTEGER                     :: tmpbcsides
 !===================================================================================================================================
 
 ALLOCATE(isElem(1:nElems))
@@ -1464,7 +1457,7 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,OffSetElem,MortarType
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
@@ -1495,8 +1488,8 @@ INTEGER,ALLOCATABLE                :: DummySideBCType(:),DummyPartBCSideList(:)
 INTEGER(KIND=8),ALLOCATABLE        :: DummyElemToElem(:,:,:)
 REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySideSlabNormals                  ! normal vectors of bounding slab box
 REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySideSlabIntervals               ! intervalls beta1, beta2, beta3
-REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummyElemSlabNormals                  ! normal vectors of bounding slab box
-REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummyElemSlabIntervals               ! intervalls beta1, beta2, beta3
+!REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummyElemSlabNormals                  ! normal vectors of bounding slab box
+!REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummyElemSlabIntervals               ! intervalls beta1, beta2, beta3
 LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 !===================================================================================================================================
 

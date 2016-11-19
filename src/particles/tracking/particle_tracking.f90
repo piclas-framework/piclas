@@ -33,12 +33,10 @@ SUBROUTINE ParticleTracing(doParticle_In)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:NGeo,BC!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,isBCElem,ElemType
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
@@ -54,8 +52,6 @@ USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
-
-USE MOD_TimeDisc_Vars, ONLY:iter,istage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -70,10 +66,9 @@ LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,Reflected,SwitchedElement,isCriticalParallelInFace
-INTEGER                       :: Collision
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
-REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
+REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 #ifdef MPI
 REAL                          :: tLBStart,tLBEnd
 INTEGER                       :: inElem
@@ -689,11 +684,9 @@ SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisD
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO
@@ -718,7 +711,7 @@ INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide
 LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
 INTEGER                       :: nInter,flip,BCSideID
-REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
+REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                       :: DoTracing,PeriMoved,Reflected
 integer :: iloop
 !===================================================================================================================================
@@ -846,7 +839,7 @@ REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory
 REAL,INTENT(INOUT)                :: lengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: flip,locMortarType,iMortar
+INTEGER                           :: flip
 !===================================================================================================================================
 IF(SideID.LE.nBCSides)THEN
   ! check if interesction is possible and take first intersection
@@ -1102,6 +1095,10 @@ __STAMP__&
 #endif /* MP!!I */
     END IF ! SidePeriodicType
 END IF ! SideID>nCBSides
+
+IF(1.EQ.2)THEN
+  flip=ilocSide
+END IF
 
 END SUBROUTINE SelectInterSectionType
 
@@ -1484,10 +1481,8 @@ SUBROUTINE FallBackFaceIntersection(ElemID,firstSide,LastSide,nlocSides,PartID)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
@@ -1515,7 +1510,7 @@ LOGICAL                       :: dolocSide(firstSide:lastSide),ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
 INTEGER                       :: nInter,flip,BCSideID
 REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
-REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
+REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
 
 !IPWRITE(*,*) ' Performing fallback algorithm. PartID: ', PartID
@@ -1615,6 +1610,7 @@ END IF ! nInter>0
 
 END SUBROUTINE FallBackFaceIntersection
 
+
 SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
 !===================================================================================================================================
 ! checks if particle is inside of linear element with planar faces
@@ -1622,12 +1618,9 @@ SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:nSides
 USE MOD_Particle_Vars,               ONLY:PartState
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1640,7 +1633,7 @@ LOGICAL,INTENT(INOUT)         :: PartisDone
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, SideID,SideID2, flip, PlanarSideNum
+INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
 REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction
 !===================================================================================================================================
 PartisDone = .TRUE.

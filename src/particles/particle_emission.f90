@@ -3189,7 +3189,8 @@ __STAMP__&
       BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber=0
       nDataBC=nDataBC+1
     END IF
-    Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant')
+    Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = &
+        TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell_lpn') THEN
@@ -3459,8 +3460,8 @@ USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 #endif
+USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
@@ -3475,7 +3476,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
 #if (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 #endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
@@ -3849,8 +3849,8 @@ __STAMP__&
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
       END IF
-#if (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
-      IF(iStage.EQ.nRKStages)
+#elif (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+      IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
@@ -3865,7 +3865,6 @@ __STAMP__&
         IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
                                 PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
       END DO ! iPart
-#endif
 #endif
     END IF ! CalcPartBalance
 

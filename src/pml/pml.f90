@@ -517,8 +517,8 @@ SUBROUTINE ProbePML(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars,            ONLY : U
-USE MOD_PML_Vars,           ONLY : Probes
+!USE MOD_DG_Vars,            ONLY : U
+!USE MOD_PML_Vars,           ONLY : Probes
 !#ifdef PARTICLES
 !USE MOD_Eval_xyz,           ONLY : eval_xyz
 !#endif /*PARTICLES*/
@@ -531,8 +531,9 @@ REAL,INTENT(IN)                 :: t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: field2(3,6)
-INTEGER                         :: iProbe
+!REAL                            :: field2(3,6)
+!INTEGER                         :: iProbe
+REAL  :: tt
 !===================================================================================================================================
 ! calc Probe interpolation field
 !===================================================================================================================================
@@ -553,6 +554,9 @@ INTEGER                         :: iProbe
 !field2(2,1),'  ',field2(2,2),'  ',field2(2,3),'  ',field2(2,4),'  ',field2(2,5),'  ',field2(2,6),'  ',&
 !field2(3,1),'  ',field2(3,2),'  ',field2(3,3),'  ',field2(3,4),'  ',field2(3,5),'  ',field2(3,6)
 !CLOSE(111)
+IF(1.EQ.2)THEN
+  tt=t
+END IF
 END SUBROUTINE ProbePML
 
 

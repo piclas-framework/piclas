@@ -408,7 +408,7 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -441,7 +441,7 @@ LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), v_help(3), WallVelo(3)
+REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), WallVelo(3)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !#if defined(LSERK)
 !REAL                                 :: absPt_temp
@@ -450,7 +450,6 @@ REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3
 REAL                                 :: absVec
 REAL                                 :: PartDiff(3)
 #endif /*IMPA*/
-INTEGER                              :: ElemID
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 !REAL                                 :: oneMinus!=0.99999999
 REAL                                  :: epsLength
@@ -507,11 +506,6 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
   PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
   v_old = PartState(PartID,4:6)
-
- ! ! move particle a bit in interior
- ! ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
- ! v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
- ! LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
 
   ! new velocity vector 
   !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
@@ -632,7 +626,6 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
 USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -664,8 +657,6 @@ LOGICAL,INTENT(OUT),OPTIONAL      :: Opt_Reflected
 INTEGER                              :: locBCID, vibQuant, vibQuantNew, VibQuantWall
 REAL                                 :: VibQuantNewR                                                !
 !REAL,PARAMETER                       :: oneMinus=0.99999999
-INTEGER                              :: ElemID
-REAL                                 :: v_help(3)
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
@@ -779,12 +770,6 @@ NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
 
 ! intersection point with surface
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
-
-! should not be required any-more
-!ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
-!v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
-!!LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
-!LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*(1.0-epsInCell)
 
 ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
 !TildPos       =PartState(PartID,1:3)-dt*RKdtFrac*PartState(PartID,4:6)

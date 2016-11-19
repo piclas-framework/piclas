@@ -37,7 +37,7 @@ USE MOD_PreProc
 USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input,         ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
+USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
 #ifdef PARTICLES
 USE MOD_DSMC_Vars,          ONLY: UseDSMC
 USE MOD_LD_Vars,            ONLY: UseLD
@@ -70,7 +70,7 @@ useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
 useLD=GETLOGICAL('UseLD','.FALSE.')
 IF(useLD) useDSMC=.TRUE.
 IF (useDSMC) THEN
-  ReadInDone = .FALSE.
+  !ReadInDone = .FALSE.
   maxNArgs = 3
 ELSE
   maxNArgs = 2

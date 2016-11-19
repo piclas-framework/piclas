@@ -391,9 +391,7 @@ USE MOD_LoadBalance_Vars,        ONLY:nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_PICDepo_Vars,            ONLY:DepositionType
 #endif /*PARTICLES*/
-USE MOD_Particle_Analyze_Vars,   ONLY:IsRestart
 USE MOD_LoadBalance_Vars,        ONLY:TargetWeight,WeightOutput
-USE MOD_TimeDisc_Vars,           ONLY:iter
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -413,7 +411,7 @@ REAL                  :: stotalDepos,stotalParts,sTotalTracks
 REAL                  :: tParts
 #endif /*PARTICLES*/
 REAL                  :: MaxWeight, MinWeight
-LOGICAL               :: isOpen, FileExists
+LOGICAL               :: FileExists
 CHARACTER(LEN=255)    :: outfile
 !===================================================================================================================================
 
@@ -502,7 +500,6 @@ IF(MPIRoot)THEN
   WeightOutput(3) = (MaxWeight - WeightOutput(2))/(TargetWeight - WeightOutput(4)) ! real current imbalance (no average)
   outfile='ElemTimeStatistics.csv'
   INQUIRE(FILE=TRIM(outfile),EXIST=FileExists)
-  !IF (isRestart .and. FileExists) THEN
   IF(FileExists)THEN
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")

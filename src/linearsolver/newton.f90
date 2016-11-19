@@ -134,7 +134,7 @@ USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,Fullga
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
