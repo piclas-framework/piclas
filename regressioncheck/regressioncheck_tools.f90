@@ -37,6 +37,14 @@ INTERFACE CheckForExecutable
   MODULE PROCEDURE CheckForExecutable
 END INTERFACE
 
+INTERFACE SummaryOfErrors
+  MODULE PROCEDURE SummaryOfErrors
+END INTERFACE
+
+INTERFACE AddError
+  MODULE PROCEDURE AddError
+END INTERFACE
+
 INTERFACE str2real
   MODULE PROCEDURE str2real
 END INTERFACE
@@ -50,6 +58,8 @@ INTERFACE str2logical
 END INTERFACE
 
 PUBLIC::GetExampleList,InitExample,CleanExample, CheckForExecutable,GetCommandLineOption
+PUBLIC::SummaryOfErrors
+PUBLIC::AddError
 PUBLIC::str2real,str2int,str2logical
 !==================================================================================================================================
 
@@ -580,6 +590,116 @@ ELSE
   NumberOfProcs=1
 END IF
 END SUBROUTINE GetNumberOfProcs
+
+
+!==================================================================================================================================
+!> Print a table containing the information of the error code pointer list
+!==================================================================================================================================
+SUBROUTINE SummaryOfErrors(EndTime)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_RegressionCheck_Vars, ONLY: firstError,aError,nErrors
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT),OPTIONAL    :: EndTime            ! Used to track computation time  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                           :: Time
+CHARACTER(LEN=255)             :: TableRowSpacing ! set row spacing between examples in table
+!===================================================================================================================================
+IF(.NOT.PRESENT(EndTime))THEN
+  Time=BOLTZPLATZTIME() ! Measure processing duration
+ELSE
+  Time=EndTime
+END IF
+SWRITE(UNIT_stdOut,'(132("="))')
+nErrors=0
+IF(.NOT.ASSOCIATED(aError))THEN
+  SWRITE(UNIT_stdOut,'(A)') ' No Examples were executed'
+ELSE
+  NULLIFY(aError%nextError) ! nullyfy unused next error pointer
+  SWRITE(UNIT_stdOut,'(A)') ' Summary of Errors (0=no Error): '
+  SWRITE(UNIT_stdOut,'(A)') ' '
+  aError=>firstError ! set aError to first error in list
+  TableRowSpacing=''
+  SWRITE(UNIT_stdOut,'(A45,2x,A20,2x,A10,2x,A15,2x,A35,2x)') 'Example','SubExample','ErrorCode','build','Information'
+  DO WHILE (ASSOCIATED(aError))
+    IF(TRIM(TableRowSpacing).NE.TRIM(aError%Example))THEN
+      SWRITE(UNIT_stdOut,*) ''
+    END IF
+    TableRowSpacing=TRIM(aError%Example)
+    SWRITE(UNIT_stdOut,'(A45,2x)',ADVANCE='no') TRIM(aError%Example)
+    SWRITE(UNIT_stdOut,'(A20,2x)',ADVANCE='no') TRIM(aError%SubExampleOption)
+    SWRITE(UNIT_stdOut,'(I10,2x)',ADVANCE='no') aError%ErrorCode
+    SWRITE(UNIT_stdOut,'(A15,2x)',ADVANCE='no') TRIM(aError%Build)
+    SWRITE(UNIT_stdOut,'(A35,2x)',ADVANCE='no') TRIM(aError%Info)
+    SWRITE(UNIT_stdOut,*) ''
+    IF(aError%ErrorCode.NE.0) nErrors=nErrors+1
+    aError=>aError%nextError
+  END DO
+  SWRITE(UNIT_stdOut,'(A,I4)') ' Number of errors:  ', nErrors
+END IF
+
+SWRITE(UNIT_stdOut,'(132("-"))')
+IF(nErrors.GT.0)THEN
+  SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' RegressionCheck FAILED! [',Time-StartTime,' sec ]'
+ELSE
+  SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' RegressionCheck SUCCESSFUL! [',Time-StartTime,' sec ]'
+END IF
+SWRITE(UNIT_stdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(132("="))')
+END SUBROUTINE SummaryOfErrors
+
+
+!==================================================================================================================================
+!> Add an Error entry to the list of pointers containing information regarding the compilation process, execution process, 
+!> Error codes and example info
+!==================================================================================================================================
+SUBROUTINE AddError(Info,iExample,iSubExample,ErrorStatus,ErrorCode)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_RegressionCheck_Vars,    ONLY: ExampleNames,Examples,EXECPATH,firstError,aError
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(len=*),INTENT(IN) :: Info
+INTEGER,INTENT(IN)          :: iExample,iSubExample,ErrorStatus,ErrorCode
+!INTEGER         :: a
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!LOGICAL         :: ALMOSTEQUAL
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+Examples(iExample)%ErrorStatus=ErrorStatus
+IF(firstError%ErrorCode.EQ.-1)THEN ! first error pointer
+  firstError%ErrorCode              =ErrorCode ! no error
+  firstError%Example                =TRIM(ExampleNames(iExample))
+  firstError%SubExampleOption       =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
+  firstError%Info                   =TRIM(Info)
+  firstError%Build                  =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
+  ALLOCATE(aError)
+  aError=>firstError
+ELSE ! next error pointer
+  ALLOCATE(aError%nextError)
+  aError%nextError%ErrorCode        =ErrorCode ! no error
+  aError%nextError%Example          =TRIM(ExampleNames(iExample))
+  aError%nextError%SubExampleOption =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
+  aError%nextError%Info             =TRIM(Info)
+  aError%nextError%Build            =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
+  aError=>aError%nextError
+END IF
+
+END SUBROUTINE AddError
 
 
 !==================================================================================================================================

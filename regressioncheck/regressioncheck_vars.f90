@@ -9,6 +9,7 @@ SAVE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                        :: nErrors                            !> number of errors encountered during reggie execution
 INTEGER                        :: NumberOfProcs                      !> number of processors for parallel build
 CHARACTER(LEN=20)              :: NumberOfProcsStr                   !> number of processors for parallel build as string
 INTEGER                        :: nExamples                          !> number of regressioncheck examples

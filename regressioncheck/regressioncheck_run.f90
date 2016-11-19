@@ -34,7 +34,7 @@ SUBROUTINE PerformRegressionCheck()
 USE MOD_Globals
 USE MOD_RegressionCheck_Build,   ONLY: ReadConfiguration_boltzplatz,BuildConfiguration_boltzplatz,GetFlagFromFile
 USE MOD_RegressionCheck_Compare, ONLY: CompareNorm,CompareDataSet,CompareRuntime,ReadNorm,IntegrateLine
-USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,InitExample,CleanExample
+USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,InitExample,CleanExample,AddError
 USE MOD_RegressionCheck_Vars,    ONLY: nExamples,ExampleNames,Examples,EXECPATH,RuntimeOptionType
 USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildDir,BuildSolver
 IMPLICIT NONE
@@ -121,7 +121,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       IF(ExistFile) THEN ! 1. build already exists (e.g. boltzplatz0001 located in ../build_reggie_bin/)
         EXECPATH=TRIM(FileName)
       ELSE ! 2. build does not exists -> create it
-        CALL BuildConfiguration_boltzplatz(iReggieBuild,nReggieBuilds,&
+        CALL BuildConfiguration_boltzplatz(iExample,iReggieBuild,nReggieBuilds,&
                                       BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
         IF(BuildValid(iReggieBuild))THEN ! only move boltzplatz exe if it has been created (only for valid builds)
           SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/boltzplatz build_reggie_bin/'//ReggieBuildExe
@@ -209,19 +209,6 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       END IF
     END IF
 
-    !Examples(iExample)%Nvar=1
-    ! debug 
-    print*,'EXECPATH:                ',TRIM(EXECPATH)
-    print*,'EQNSYSNAME:              ',TRIM(Examples(iExample)%EQNSYSNAME)
-    print*,'nVar:                    ',     Examples(iExample)%Nvar    
-    print*,'PATH:                    ',TRIM(Examples(iExample)%PATH)
-    print*,'EXEC:                    ',     Examples(iExample)%EXEC  
-    print*,'Reference:               ',TRIM(Examples(iExample)%ReferenceFile)
-    print*,'State:                   ',TRIM(Examples(iExample)%ReferenceStateFile)
-    print*,'HDF5 dataset:            ',TRIM(Examples(iExample)%ReferenceDataSetName)
-    print*,'Restart:                 ',TRIM(Examples(iExample)%RestartFileName)
-    print*,'Example%SubExample:      ',TRIM(Examples(iExample)%SubExample)
-    print*,'Example%SubExampleNumber:',     Examples(iExample)%SubExampleNumber
   !SWRITE(UNIT_stdOut,'(A,I2,A4,A)')"Example%SubExampleOption(",iSubExample,") = ",TRIM(Example%SubExampleOption(iSubExample))
     ! perform simulation
     parameter_boltzplatz2=''
@@ -245,6 +232,20 @@ DO iExample = 1, nExamples ! loop level 1 of 3
         ERROR STOP '-1'
       END IF
     END IF
+!==================================================================================================================================
+    ! Output settings
+    print*,' EXECPATH:                  ',TRIM(EXECPATH)
+    print*,' EQNSYSNAME:                ',TRIM(Examples(iExample)%EQNSYSNAME)
+    print*,' nVar:                      ',     Examples(iExample)%Nvar    
+    print*,' PATH (to example):         ',TRIM(Examples(iExample)%PATH)
+    print*,' EXEC (run with MPI):       ',     Examples(iExample)%EXEC  
+    print*,' Reference:                 ',TRIM(Examples(iExample)%ReferenceFile)
+    print*,' State:                     ',TRIM(Examples(iExample)%ReferenceStateFile)
+    print*,' HDF5 dataset:              ',TRIM(Examples(iExample)%ReferenceDataSetName)
+    print*,' Restart:                   ',TRIM(Examples(iExample)%RestartFileName)
+    print*,' Example%SubExample:        ',TRIM(Examples(iExample)%SubExample)
+    print*,' Example%SubExampleNumber:  ',     Examples(iExample)%SubExampleNumber
+    print*,' parameter files:           ',TRIM(parameter_boltzplatz)//' '//TRIM(parameter_boltzplatz2)
 !==================================================================================================================================
     DO iSubExample = 1, MAX(1,Examples(iExample)%SubExampleNumber) ! loop level 3 of 3: SubExamples (e.g. different TimeDiscMethods)
 !==================================================================================================================================
@@ -332,54 +333,10 @@ END SUBROUTINE PerformRegressionCheck
 
 
 !==================================================================================================================================
-!> Add an Error entry to the list of pointers containing information regarding the compilation process, execution process, 
-!> Error codes and example info
-!==================================================================================================================================
-SUBROUTINE AddError(Info,iExample,iSubExample,ErrorStatus,ErrorCode)
-!===================================================================================================================================
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: ExampleNames,Examples,EXECPATH,firstError,aError
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(len=*),INTENT(IN) :: Info
-INTEGER,INTENT(IN)          :: iExample,iSubExample,ErrorStatus,ErrorCode
-!INTEGER         :: a
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!LOGICAL         :: ALMOSTEQUAL
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-Examples(iExample)%ErrorStatus=ErrorStatus
-IF(firstError%ErrorCode.EQ.-1)THEN ! first error pointer
-  firstError%ErrorCode              =ErrorCode ! no error
-  firstError%Example                =TRIM(ExampleNames(iExample))
-  firstError%SubExampleOption       =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
-  firstError%Info                   =TRIM(Info)
-  firstError%Build                  =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
-  ALLOCATE(aError)
-  aError=>firstError
-ELSE ! next error pointer
-  ALLOCATE(aError%nextError)
-  aError%nextError%ErrorCode        =ErrorCode ! no error
-  aError%nextError%Example          =TRIM(ExampleNames(iExample))
-  aError%nextError%SubExampleOption =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
-  aError%nextError%Info             =TRIM(Info)
-  aError%nextError%Build            =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
-  aError=>aError%nextError
-END IF
-
-END SUBROUTINE AddError
-
-
-!==================================================================================================================================
-!> depending on the equation system -> get different Nvar for the current example
+!> depending on the equation system -> get different Nvar (number of variables in the equation system) for the current example
 !> currently supports: - navierstokes             ->    Examples(iExample)%Nvar=5
 !>                     - linearscalaradvection    ->    Examples(iExample)%Nvar=1
+!>                     - maxwell                  ->    Examples(iExample)%Nvar=8
 !==================================================================================================================================
 SUBROUTINE GetNvar(iExample,iReggieBuild)
 !===================================================================================================================================
