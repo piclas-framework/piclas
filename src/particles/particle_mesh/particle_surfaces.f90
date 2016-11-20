@@ -101,6 +101,7 @@ BezierNewtonAngle     = GETREAL('BezierNewtonAngle','1.570796326')! 1°=0.01754 
 !BezierHitEpsBi=1.0+SQRT(EPSILON(0.0))
 !BezierHitEpsBi=1.000800
 BezierClipTolerance   = GETREAL('BezierClipTolerance','1e-8')
+BezierNewtonTolerance2= GETREAL('BezierNewtonTolerance','1e-4')
 BezierSplitLimit      = GETREAL('BezierSplitLimit','0.6')
 BezierSplitLimit      = 2.*BezierSplitLimit
 BezierClipMaxIter     = GETINT('BezierClipMaxIter','100')
@@ -117,6 +118,10 @@ OneMinusEps           = 1.0 - epsilontol
 BezierClipHit         = GETREAL('BezierClipHit','0.')
 IF(ALMOSTZERO(BezierClipHit)) BezierClipHit=100.*BezierClipTolerance
 BezierClipHit         = 1.0+BezierClipHit
+BezierNewtonHit       = GETREAL('BezierNewtonHit','0.')
+IF(ALMOSTZERO(BezierNewtonHit)) BezierNewtonHit=BezierNewtonTolerance2
+BezierNewtonHit       = 1.0+BezierNewtonHit
+BezierNewtonTolerance2=BezierNewtonTolerance2**2
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 BezierClipMaxIntersec = GETINT('BezierClipMaxIntersec',dummy)

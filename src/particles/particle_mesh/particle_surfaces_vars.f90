@@ -58,6 +58,8 @@ REAL                                    :: BezierNewtonAngle            ! switch
                                                                         ! smallest angle of impact of particle trajectory on face
 REAL                                    :: BezierClipHit                ! value for clip hit
 REAL                                    :: BezierClipTolerance          ! tolerance for root of bezier clipping
+REAL                                    :: BezierNewtonTolerance2       ! tolerance for root of bezier Newton
+REAL                                    :: BezierNewtonHit              ! value for bezier Newton hit
 REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
 INTEGER                                 :: BezierClipMaxIter            ! maximal iterations per intersections

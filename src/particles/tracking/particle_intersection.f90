@@ -1839,7 +1839,7 @@ SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit,BezierClipMaxIter,BezierControlPoints3D,epsilontol
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonHit,BezierClipMaxIter,BezierControlPoints3D,epsilontol
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars,  ONLY:D_Bezier
@@ -1860,14 +1860,12 @@ REAL,INTENT(OUT)   :: alpha
 REAL               :: dXi(2),sdet,dXi2,alphaNorm
 REAL               :: dBezierControlPoints2D(2,2,0:NGeo,0:NGeo)
 REAL               :: P(2),gradXi(2,2),InterP(3)
-REAL               :: BezierClipTolerance2
 REAL               :: IntersectionVector(3)
 INTEGER            :: nIter
 INTEGER            :: dd,nn,l,i,j
 INTEGER            :: CycIJ(2),Cyc(2)
 !===================================================================================================================================
 
-BezierClipTolerance2=BezierClipTolerance**2
 nIter=1
 alpha=-1.0
 dXi2=1.0
@@ -1891,7 +1889,7 @@ DO nn=1,2
   END DO ! dd=1,2
 END DO ! nn=1,2
 
-DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
+DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierClipMaxIter))
   ! compute f(xi) and df(xi)/dxi
   CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
                                                     ,dBezierControlPoints2D(1:2,1:2,0:NGeo,0:NGeo),Point=P,Gradient=gradXi)
@@ -1920,8 +1918,9 @@ DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
 
   ! update to new position
   Xi = Xi - dXi
-
-  IF(ANY(ABS(Xi).GT.1.5)) THEN
+  ! if a particle hit the edge, then the solution process can produce an overshoot
+  ! currently, the overshoot is only accounted in the first iteration
+  IF((nIter.GE.2).AND.(ANY(ABS(Xi).GT.1.5))) THEN
     ! no intersection of ray and bezier patch
     Xi=1.5
     EXIT
@@ -1934,8 +1933,8 @@ IF(nIter.GT.BezierClipMaxIter) CALL abort(&
     ,' Bezier-Newton does not yield root! ')
 
 ! check if found Xi,Eta are in parameter range
-IF(ABS(xi(1)).GT.BezierClipHit) RETURN
-IF(ABS(xi(2)).GT.BezierClipHit) RETURN
+IF(ABS(xi(1)).GT.BezierNewtonHit) RETURN
+IF(ABS(xi(2)).GT.BezierNewtonHit) RETURN
 
 ! compute 3D intersection
 CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=InterP) 
@@ -1945,7 +1944,7 @@ alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
 alphaNorm=alpha/lengthPartTrajectory
 
-IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol)) RETURN
+IF((alphaNorm.LE.BezierNewtonHit).AND.(alphaNorm.GT.-epsilontol)) RETURN
 alpha=-1.0
  
 END SUBROUTINE BezierNewton
