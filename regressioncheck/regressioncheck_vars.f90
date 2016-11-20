@@ -71,6 +71,7 @@ TYPE(tExample), ALLOCATABLE              :: Examples(:)              !> containe
 TYPE tEC                                                             !> Type to simplify error handling
   INTEGER            :: ErrorCode                                    !> interger code of error
   CHARACTER(LEN=255) :: Example                                      !> name of the example
+  CHARACTER(LEN=255) :: SubExample                                   !> name of the subexample
   CHARACTER(LEN=255) :: SubExampleOption                             !> name of the subexample option
   CHARACTER(LEN=255) :: Info                                         !> name of the example
   CHARACTER(LEN=255) :: Build                                        !> flexi cmake build name

@@ -628,14 +628,18 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)') ' '
   aError=>firstError ! set aError to first error in list
   TableRowSpacing=''
-  SWRITE(UNIT_stdOut,'(A45,2x,A20,2x,A10,2x,A15,2x,A35,2x)') 'Example','SubExample','ErrorCode','build','Information'
+  SWRITE(UNIT_stdOut,'(A45,2x,A30,2x,A10,2x,A15,2x,A35,2x)') 'Example','SubExample','ErrorCode','build','Information'
   DO WHILE (ASSOCIATED(aError))
     IF(TRIM(TableRowSpacing).NE.TRIM(aError%Example))THEN
       SWRITE(UNIT_stdOut,*) ''
     END IF
     TableRowSpacing=TRIM(aError%Example)
     SWRITE(UNIT_stdOut,'(A45,2x)',ADVANCE='no') TRIM(aError%Example)
-    SWRITE(UNIT_stdOut,'(A20,2x)',ADVANCE='no') TRIM(aError%SubExampleOption)
+    IF(TRIM(aError%SubExampleOption).EQ.'-')THEN
+      SWRITE(UNIT_stdOut,'(A30,2x)',ADVANCE='no') '-'
+    ELSE
+      SWRITE(UNIT_stdOut,'(A30,2x)',ADVANCE='no') TRIM(aError%SubExample)//'='//TRIM(aError%SubExampleOption)
+    END IF
     SWRITE(UNIT_stdOut,'(I10,2x)',ADVANCE='no') aError%ErrorCode
     SWRITE(UNIT_stdOut,'(A15,2x)',ADVANCE='no') TRIM(aError%Build)
     SWRITE(UNIT_stdOut,'(A35,2x)',ADVANCE='no') TRIM(aError%Info)
@@ -684,6 +688,7 @@ Examples(iExample)%ErrorStatus=ErrorStatus
 IF(firstError%ErrorCode.EQ.-1)THEN ! first error pointer
   firstError%ErrorCode              =ErrorCode ! no error
   firstError%Example                =TRIM(ExampleNames(iExample))
+  firstError%SubExample             =TRIM(Examples(iExample)%SubExample)
   firstError%SubExampleOption       =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
   firstError%Info                   =TRIM(Info)
   firstError%Build                  =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
@@ -693,6 +698,7 @@ ELSE ! next error pointer
   ALLOCATE(aError%nextError)
   aError%nextError%ErrorCode        =ErrorCode ! no error
   aError%nextError%Example          =TRIM(ExampleNames(iExample))
+  aError%nextError%SubExample       =TRIM(Examples(iExample)%SubExample)
   aError%nextError%SubExampleOption =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
   aError%nextError%Info             =TRIM(Info)
   aError%nextError%Build            =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
