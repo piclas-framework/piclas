@@ -347,7 +347,7 @@ DO ! extract reggie information
       ELSE
         Example%SubExample       = ''
         Example%SubExampleNumber = 0
-      END IF      
+      END IF
     END IF
     ! Line integration (e.g. integrate a property over time, the data is read from a .csv or .dat file)
     ! e.g. in parameter_reggie.ini: IntegrateLine= Database.csv   ,1            ,','       ,1:2        , 1.0e2
