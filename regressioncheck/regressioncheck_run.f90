@@ -172,6 +172,15 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       END IF
     END IF
 
+      ! remove subexample for certain configurations: e.g. Preconditioner when running explicitly
+!print*,"TRIM(TIMEDISCMETHOD)=",TRIM(TIMEDISCMETHOD)
+!read*
+    IF(TRIM(TIMEDISCMETHOD).NE.'ImplicitO3')THEN
+      Examples(iExample)%SubExample       = ''
+      Examples(iExample)%SubExampleNumber = 0
+      Examples(iExample)%SubExampleOption(1:20) = '-' ! default option is nothing
+    END IF
+
     ! check folder name and decide whether it can be executed with the current boltzplatz binary (e.g. testcases ...)
     !CALL getcwd(cwd)
     !print*,cwd
@@ -209,8 +218,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       END IF
     END IF
 
-  !SWRITE(UNIT_stdOut,'(A,I2,A4,A)')"Example%SubExampleOption(",iSubExample,") = ",TRIM(Example%SubExampleOption(iSubExample))
-    ! perform simulation
+    ! get list of parameter files for running the simulation
     parameter_boltzplatz2=''
     IF(TRIM(TIMEDISCMETHOD).EQ.'DSMC')THEN
       parameter_boltzplatz='parameter_boltzplatz_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'_DSMC.ini'
