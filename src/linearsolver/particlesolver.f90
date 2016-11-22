@@ -306,8 +306,6 @@ END IF
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
 #endif /*MPI*/
 
-
-
 IF(DoPrintConvInfo)THEN
   ! newton per particle 
   Counter=0
