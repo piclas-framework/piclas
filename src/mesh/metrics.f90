@@ -72,7 +72,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
-USE MOD_Mesh_Vars,               ONLY:nElems,nBCSides,dXCL_N
+USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
 USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
 USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
@@ -83,17 +83,16 @@ USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
-USE MOD_Mesh_Vars,               ONLY:NGeoElevated,firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_Mesh_Vars,               ONLY:nInnerSides,nMPISides_MINE,nMortarInnerSides,SideToElem
+USE MOD_Mesh_Vars,               ONLY:SideToElem
 USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
-#endif /*MPI*/
+#ifndef MPI
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
+#endif /*not MPI*/
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -139,8 +138,10 @@ REAL    :: Vdm_CLN_N(         0:PP_N   ,0:PP_N)
 ! 3D Vandermonde matrices and lengths,nodes,weights
 REAL,DIMENSION(0:NgeoRef,0:NgeoRef) :: Vdm_xi_Ref,Vdm_eta_Ref,Vdm_zeta_Ref
 REAL,DIMENSION(0:PP_N   ,0:PP_N)    :: Vdm_xi_N  ,Vdm_eta_N  ,Vdm_zeta_N
+REAL,DIMENSION(0:NGeo   ,0:NGeo)    :: Vdm_xi_NGeo  ,Vdm_eta_NGeo  ,Vdm_zeta_NGeo
 REAL    :: xiRef( 0:NgeoRef),wBaryRef( 0:NgeoRef)
 REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
+REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
 REAL    :: xi0(3),dxi(3),length(3)
 
 #ifdef PARTICLES
@@ -184,6 +185,9 @@ CALL GetDerivativeMatrix(PP_N  , NodeTypeCL  , DCL_N)
 ! 2.d) derivatives (dXCL) by projection or by direct derivation (D_CL):
 CALL GetVandermonde(    PP_N   , NodeTypeCL  , PP_N    , NodeType,   Vdm_CLN_N         , modal=.FALSE.)
 CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
+
+! 3.a) Interpolate from Tree for particls
+CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 ! Outer loop over all elements
 detJac_Ref=0.
@@ -378,14 +382,45 @@ DO iElem=1,nElems
                          NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
   END IF
 
-  IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
-  IF(PRESENT(dXCL_Ngeo_Out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
+  ! particle mapping
+  IF(interpolateFromTree)THEN
+    IF((PRESENT(XCL_Ngeo_Out)).OR.(PRESENT(dXCL_NGeo_Out)))THEN
+      ! interpolate Metrics from Cheb-Lobatto N on tree level onto GaussPoints N on quad level
+      DO i=0,NGeo
+        dxi=0.5*(xiCL_NGeo(i)+1.)*length
+        CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),NGeo,xiCL_NGeo,wBaryCL_NGeo,Vdm_xi_NGeo(  i,:))
+        CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),NGeo,xiCL_NGeo,wBaryCL_NGeo,Vdm_eta_NGeo( i,:))
+        CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),NGeo,xiCL_NGeo,wBaryCL_NGeo,Vdm_zeta_NGeo(i,:))
+      END DO
+      IF(PRESENT(XCL_Ngeo_Out))THEN
+        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo, XCL_NGeo    (1:3,0:NGeo,0:NGeo,0:NGeo) &
+                                                                                 , XCL_NGeo_Out(1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
+      END IF
+      IF(PRESENT(dXCL_nGeo_out))THEN
+        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo,dXCL_NGeo    (1,1:3,0:NGeo,0:NGeo,0:NGeo) &
+                                                                                 ,dXCL_NGeo_Out(1,1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
+        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo,dXCL_NGeo    (2,1:3,0:NGeo,0:NGeo,0:NGeo) &
+                                                                                 ,dXCL_NGeo_Out(2,1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
+        CALL ChangeBasis3D_XYZ(3,NGeo,NGeo,Vdm_xi_NGeo,Vdm_eta_NGeo,Vdm_zeta_NGeo,dXCL_NGeo    (3,1:3,0:NGeo,0:NGeo,0:NGeo) &
+                                                                                 ,dXCL_NGeo_Out(3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem))
+      END IF
+    END IF
 #ifdef PARTICLES
-  CALL CPU_TIME(StartT2)
-  CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:),iElem)
-  CALL CPU_TIME(endT)
-  BezierTime=BezierTime+endT-StartT2
+    CALL CPU_TIME(StartT2)
+    CALL GetBezierControlPoints3D(XCL_NGeo_Out(:,:,:,:,iElem),iElem)
+    CALL CPU_TIME(endT)
+    BezierTime=BezierTime+endT-StartT2
 #endif /*PARTICLES*/
+  ELSE
+    IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
+    IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
+#ifdef PARTICLES
+    CALL CPU_TIME(StartT2)
+    CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:),iElem)
+    CALL CPU_TIME(endT)
+    BezierTime=BezierTime+endT-StartT2
+#endif /*PARTICLES*/
+  END IF
 END DO !iElem=1,nElems
 
 #ifdef PARTICLES
@@ -399,7 +434,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, M
 #ifdef MPI
 lowerLimit=nSides ! all incl. my mortar sides
 #else
-lowerLimit=nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
+lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
 #endif /*MPI*/
 
 ! copy BezierControlPoints from master sides to slave sides for MINE mortar sides

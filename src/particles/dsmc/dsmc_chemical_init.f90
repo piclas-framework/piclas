@@ -104,7 +104,7 @@ __STAMP__&
 
     DO iReac = 1, ChemReac%NumOfReact
       WRITE(UNIT=hilf,FMT='(I3)') iReac
-      ChemReac%ReactType(iReac)             = GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0')
+      ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0'))
       ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
       CHemReac%QKMethod(iReac)       = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0') 
       ChemReac%QKCoeff(iReac,1)      = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff1','0')

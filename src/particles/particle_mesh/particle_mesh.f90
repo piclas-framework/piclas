@@ -112,7 +112,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iElem, ilocSide,SideID,flip,iSide,iSample,ElemIDGlob
+INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob
 CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
 
@@ -181,19 +181,6 @@ ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
 DO iSample=0,BezierSampleN
   BezierSampleXi(iSample)=-1.+2.0/BezierSampleN*iSample
 END DO
-
-!--- Initialize Periodic Side Info
-!ALLOCATE(SidePeriodicType(1:nSides)) 
-!SidePeriodicType=0
-!DO iElem=1,nElems
-!  DO iLocSide=1,6
-!    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-!    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)           .AND. &
-!        (ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
-!      SidePeriodicType(SideID) = -1
-!    END IF
-!  END DO
-!END DO
 
 ! copy
 DO iElem=1,PP_nElems
@@ -387,11 +374,9 @@ SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:NGeo
-USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,LastPartPos
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D,SideType
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
@@ -408,7 +393,6 @@ LOGICAL,INTENT(IN)                :: doHalo
 ! LOCAL VARIABLES
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                           :: ilocSide,SideID,flip
 LOGICAL                           :: ParticleFound,InElementCheck
 REAL                              :: Distance2
 !===================================================================================================================================
@@ -492,9 +476,8 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                ONLY:Almostzero
-USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,BezierControlPoints3D,SideNormVec
+USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection
@@ -517,7 +500,7 @@ LOGICAL,INTENT(OUT)                      :: Check
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
-REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3),xNodes(1:3,1:4)
+REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3)
 LOGICAL                                  :: isHit
 REAL                                     :: alpha,eta,xi
 !===================================================================================================================================
@@ -723,11 +706,8 @@ SUBROUTINE GetFIBGM(ElemToBGM)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:NGeo
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 #ifndef PP_HDG
@@ -738,7 +718,6 @@ USE MOD_Particle_Vars,                      ONLY:manualtimestep
 #if (PP_TimeDiscMethod==201)
 USE MOD_Particle_Vars,                      ONLY:dt_part_ratio
 #endif
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
@@ -761,14 +740,13 @@ INTEGER,INTENT(IN)     :: ElemToBGM(1:6,1:PP_nElems)
 !REAL                  :: localXmin,localXmax,localymin,localymax,localzmin,localzmax
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
 !REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                          :: iBGM,jBGM,kBGM,iElem,ilocSide,iSide,SideID
+INTEGER                          :: iBGM,jBGM,kBGM,iElem
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iProc
 REAL                             :: deltaT
-REAL                             :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
 #ifdef MPI
 INTEGER                          :: ii,jj,kk,i,j
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
@@ -1425,13 +1403,7 @@ SUBROUTINE AddHALOCellsToFIBGM(ElemToBGM,HaloElemToBGM)
 USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
-USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_Tracking_Vars,             ONLY:Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
@@ -1447,12 +1419,11 @@ INTEGER,INTENT(IN),OPTIONAL      :: HaloElemToBGM(1:6,PP_nElems+1:nTotalElems)
 ! LOCAL VARIABLES
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax,Allocstat
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                          :: iBGM,jBGM,kBGM,SideID,iElem,ilocSide
+INTEGER                          :: iBGM,jBGM,kBGM,iElem
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 LOGICAL, ALLOCATABLE             :: ElementFound(:)
-REAL                             :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
 INTEGER                          :: maxnBGMElems
 !===================================================================================================================================
 
@@ -2525,7 +2496,6 @@ SUBROUTINE InitElemBoundingBox()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Mesh_Vars,               ONLY:nElems,NGeo
 !USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:ExchangeBezierControlPoints3d
@@ -2538,7 +2508,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem
 !===================================================================================================================================
 
 #ifdef PARTICLES
@@ -2547,7 +2516,6 @@ INTEGER             :: iElem
 CALL ExchangeBezierControlPoints3D()
 #endif /*MPI*/
 ! feature is not used, hence commented out!
-!DO iElem=1,nElems
 ! CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
 !END DO !iElem=1,nElems
 #endif /*PARTICLES*/
@@ -2652,7 +2620,6 @@ INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRe
                                             nBilinearHalo,nCurvedHalo
 #endif /*MPI*/
 INTEGER                                  :: nSideCount, s,r
-INTEGER                                  :: iHaloElem,ElemID
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
@@ -3527,8 +3494,7 @@ USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVector
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
 USE MOD_Particle_Mesh_Vars,            ONLY:nTotalSides,nTotalBCSides
-USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicDisplacement,GEO
-USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicType, PartBCSideList
+USE MOD_Particle_Mesh_Vars,            ONLY:PartBCSideList
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3667,7 +3633,7 @@ DO iElem=1,nTotalElems
       IF(GlobalElemID.LE.0) CYCLE
       ! check if the element is in MY range of elements
       IF((GlobalElemID.GE.OffSetElem+1).AND.(GlobalElemID.LE.(OffSetElem+PP_nElems)))THEN
-        PartElemToElemAndSide(iMortar,ilocSide,iElem)=GlobalElemID-OffSetElem
+        PartElemToElemAndSide(iMortar,ilocSide,iElem)=INT(GlobalElemID-OffSetElem,4)
         CYCLE
       END IF
 #ifdef MPI
@@ -3745,7 +3711,6 @@ SUBROUTINE ExtendToPeriodicSides()
 ! MODULES                                                                                                                          !
 USE MOD_Mesh_Vars,              ONLY:MortarType,BC,NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,SidePeriodicDisplacement
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalElems
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3758,8 +3723,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iSide,nPeriodicSides,NBElemID,tmpnSides,NBlocSideID,p,q,iElem,ElemID
-INTEGER                              :: ilocSide,flip,SideID
+INTEGER                              :: iSide,nPeriodicSides,NBElemID,tmpnSides,NBlocSideID,p,q,ElemID
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3D(:,:,:,:)                                
 REAL,ALLOCATABLE,DIMENSION(:,:,:)    :: DummySideSlabNormals                  ! normal vectors of bounding slab box
 REAL,ALLOCATABLE,DIMENSION(:,:)      :: DummySideSlabIntervals               ! intervalls beta1, beta2, beta3
@@ -3916,8 +3880,8 @@ USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
+USE MOD_Mesh_Vars,                          ONLY:NGeo
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
 !----------------------------------------------------------------------------------------------------------------------------------!

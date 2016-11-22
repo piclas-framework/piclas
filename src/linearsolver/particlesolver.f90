@@ -23,13 +23,17 @@ INTERFACE InitPartSolver
   MODULE PROCEDURE InitPartSolver
 END INTERFACE
 
+INTERFACE FinalizePartSolver
+  MODULE PROCEDURE FinalizePartSolver
+END INTERFACE
+
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 INTERFACE SelectImplicitParticles
   MODULE PROCEDURE SelectImplicitParticles
 END INTERFACE
 #endif
 
-PUBLIC:: InitPartSolver
+PUBLIC:: InitPartSolver,FinalizePartSolver
 PUBLIC:: ParticleNewton
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PUBLIC:: SelectImplicitParticles
@@ -301,8 +305,6 @@ END IF
 !set T if at least 1 proc has to do newton
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
 #endif /*MPI*/
-
-
 
 IF(DoPrintConvInfo)THEN
   ! newton per particle 

@@ -30,7 +30,7 @@ SUBROUTINE FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Mesh_Vars,       ONLY:NormVec,SurfElem
-USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides,nInnerSides
+USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides
 USE MOD_Riemann,         ONLY:Riemann
 USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux

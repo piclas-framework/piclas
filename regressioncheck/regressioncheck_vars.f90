@@ -9,6 +9,7 @@ SAVE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                        :: nErrors                            !> number of errors encountered during reggie execution
 INTEGER                        :: NumberOfProcs                      !> number of processors for parallel build
 CHARACTER(LEN=20)              :: NumberOfProcsStr                   !> number of processors for parallel build as string
 INTEGER                        :: nExamples                          !> number of regressioncheck examples
@@ -70,6 +71,7 @@ TYPE(tExample), ALLOCATABLE              :: Examples(:)              !> containe
 TYPE tEC                                                             !> Type to simplify error handling
   INTEGER            :: ErrorCode                                    !> interger code of error
   CHARACTER(LEN=255) :: Example                                      !> name of the example
+  CHARACTER(LEN=255) :: SubExample                                   !> name of the subexample
   CHARACTER(LEN=255) :: SubExampleOption                             !> name of the subexample option
   CHARACTER(LEN=255) :: Info                                         !> name of the example
   CHARACTER(LEN=255) :: Build                                        !> flexi cmake build name

@@ -321,18 +321,19 @@ END SUBROUTINE ReadConfiguration_boltzplatz
 !==================================================================================================================================
 !> reads the file "configurationsX.cmake" and creates a boltzplatz binary
 !==================================================================================================================================
-SUBROUTINE BuildConfiguration_boltzplatz(iReggieBuild,nReggieBuilds,&
+SUBROUTINE BuildConfiguration_boltzplatz(iExample,iReggieBuild,nReggieBuilds,&
                                     BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
 USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD
+USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                        :: iReggieBuild,N_compile_flags,nReggieBuilds
+INTEGER,INTENT(IN)                        :: iExample,iReggieBuild,N_compile_flags,nReggieBuilds
 INTEGER,ALLOCATABLE,INTENT(INOUT)         :: BuildCounter(:),BuildIndex(:)
 LOGICAL,ALLOCATABLE,INTENT(IN)            :: BuildValid(:)
 CHARACTER(LEN=255),ALLOCATABLE,INTENT(IN) :: BuildConfigurations(:,:)
@@ -342,9 +343,9 @@ CHARACTER(LEN=255),ALLOCATABLE,INTENT(IN) :: BuildConfigurations(:,:)
 ! LOCAL VARIABLES
 INTEGER                                   :: ioUnit,iSTATUS,J,K
 !INTEGER                                   :: N_compile_flags,N_subinclude,N_exclude
-!CHARACTER(LEN=255)                        :: FileName,temp,temp2,COMPILE_FLAG,dummystr
+CHARACTER(LEN=255)                        :: FileName!,temp,temp2,COMPILE_FLAG,dummystr
 !CHARACTER(LEN=255)                        :: EXCLUDE_FLAG_A,EXCLUDE_FLAG_B
-!LOGICAL                                   :: ExistFile,InvalidA,InvalidB
+LOGICAL                                   :: ExistFile!,InvalidA,InvalidB
 !CHARACTER(LEN=255),ALLOCATABLE            :: ExcludeConfigurations(:,:),BuildValidInfo(:)
 !INTEGER                                   :: MaxBuildConfigurations=400,N_subinclude_max,N_compile_flags_max
 !INTEGER,ALLOCATABLE                       :: BuildIndex(:),BuildCounter(:)
@@ -366,14 +367,14 @@ IF(BuildValid(iReggieBuild))THEN
   SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.boltzplatz'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   OPEN(UNIT=ioUnit,FILE=TRIM(BuildDir)//'build_reggie/configurationX.cmake',STATUS="NEW",ACTION='WRITE',IOSTAT=iSTATUS)
-  SWRITE(ioUnit, '(A)', ADVANCE = "NO") 'ccmake ' ! print the compiler flag command line
-  DO K=1,N_compile_flags
+  !SWRITE(ioUnit, '(A)', ADVANCE = "NO") 'ccmake ' ! print the compiler flag command line
+  DO K=1,N_compile_flags ! print the compiler flag command line to "configurationX.cmake"
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' -D'
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") '='
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
   END DO
-  SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' ..'
+  !SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") ' ..'
   CLOSE(ioUnit)
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
@@ -387,8 +388,8 @@ IF(BuildValid(iReggieBuild))THEN
   END IF
   IF(NumberOfProcs.GT.1)SYSCOMMAND=TRIM(SYSCOMMAND)//' -j '//TRIM(ADJUSTL(NumberOfProcsStr))
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  ! save compilation flags (even some that are not explicitly selected by the user) for deciding whether a supplied example folder 
-  ! can be executed with the compiled boltzplatz executable
+  ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
+  ! can be executed with the compiled boltzplatz executable or not
   IF(iSTATUS.EQ.0)THEN
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TESTCASE',BuildTESTCASE(iReggieBuild))
     ! set default for, e.g., PICLas code (currently no testcases are implemented)
@@ -398,7 +399,28 @@ IF(BuildValid(iReggieBuild))THEN
     ! set default for, e.g., FLEXI code (not a compilation flag)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
-  ELSE
+  ELSE ! iSTATUS.NE.0 -> failed to compile cmake configuration build
+    CALL AddError('Error while compiling',iExample,1,ErrorStatus=1,ErrorCode=1) !note: iSubExample is set to 1 as argument
+    CALL SummaryOfErrors() ! Print the summary or examples and error codes (if they exist) before calling abort
+    ! Print the error that caused the compilation abort (if it was written to "build_boltzplatz.out" due to silent compilation)
+    FileName=TRIM(BuildDir)//'build_reggie/build_boltzplatz.out'
+    INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+    !print*,"ExistFile=",ExistFile
+    IF(ExistFile) THEN ! build_boltzplatz.out exists
+      SWRITE(UNIT_stdOut, '(A)')' '
+      SWRITE(UNIT_stdOut,'(132("="))')
+      ! build [no-debug] = T
+      ! build [debug]    = F
+      ! build [-]        = T (but the error should already be printed to the screen!)
+      SWRITE(UNIT_stdOut, '(A)')"Error output from: "//TRIM(FileName)
+      SWRITE(UNIT_stdOut, '(A)')' '
+      SYSCOMMAND='grep -rin error '//TRIM(FileName)
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      SWRITE(UNIT_stdOut,'(132("="))')
+      SWRITE(UNIT_stdOut, '(A)')' '
+    !ELSE
+      !SWRITE(UNIT_stdOut, '(A)')TRIM(FileName)//" does not exist"
+    END IF
     CALL abort(__STAMP__&
     ,'Could not compile boltzplatz! iSTATUS=',iSTATUS,999.)
   END IF

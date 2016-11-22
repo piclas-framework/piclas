@@ -620,7 +620,10 @@ REAL,INTENT(OUT)                :: WEl, WMag
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs 
+REAL              :: WEl_tmp, WMag_tmp, E_abs
+#ifndef PP_HDG
+REAL              :: B_abs 
+#endif
 #ifdef MPI
 REAL              :: RD
 #endif
