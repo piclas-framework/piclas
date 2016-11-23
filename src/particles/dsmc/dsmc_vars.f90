@@ -238,7 +238,7 @@ TYPE tAdsorptionInfo
   INTEGER                                :: WallCollCount           ! counter of wallcollisions
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
   INTEGER                                :: NumOfDes                ! Number of Desorptions on Surfaces
-  REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from HS-Model
+  REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
 #endif
 END TYPE
 
@@ -281,6 +281,8 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Diss_Powerfactor(:,:)
   REAL    , ALLOCATABLE                  :: EDissBond(:,:)          ! Bond dissociation energy (K) for diss into resulting species
                                                                     ! (ReactNum,nspecies)
+  REAL    , ALLOCATABLE                  :: EDissBondAdsorbPoly(:,:)! Bond dissociation energy (K) for diss into resulting species
+                                                                    ! (ReactNum,nspecies)
   INTEGER , ALLOCATABLE                  :: AssocReact(:,:,:)       ! Partner species for associative reaction (2,ReactNum,nSpecies)
   INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   INTEGER , ALLOCATABLE                  :: DiCoord(:)              ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
@@ -292,6 +294,7 @@ TYPE tAdsorption
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies,36*nSpecies)
   REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
   REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
+  REAL                                   :: SurfMassIC              ! Mass of the surface coordination for hard cube model
   
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE

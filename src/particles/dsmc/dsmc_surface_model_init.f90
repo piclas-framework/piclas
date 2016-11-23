@@ -104,6 +104,8 @@ DO iSpec = 1,nSpecies
     Adsorption%HeatOfAdsZero(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfAdsorption-K','0.')
   END IF
 END DO
+! initialize surface atom mass: if not set define as atom mass of Pt
+IF (DSMC%WallModel.GT.1) Adsorption%SurfMassIC = GETREAL('Part-Species'//TRIM(hilf)//'-SurfMassIC','3.2395E-25')
 
 #if (PP_TimeDiscMethod==42)
   Adsorption%TPD = GETLOGICAL('Particles-DSMC-Adsorption-doTPD','.FALSE.')
@@ -574,7 +576,8 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
             Adsorption%Diss_Powerfactor(1:MaxDissNum,1:nSpecies),&
             Adsorption%Diss_Prefactor(1:MaxDissNum,1:nSpecies),&
             Adsorption%AssocReact(1:2,1:MaxAssocNum,1:nSpecies),&
-            Adsorption%EDissBond(1:MaxReactNum,1:nSpecies))
+            Adsorption%EDissBond(0:MaxReactNum,1:nSpecies))
+  ALLOCATE(Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
   ! Read in dissociative reactions and respective dissociation bond energies
   DO iSpec = 1,nSpecies            
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
@@ -585,7 +588,7 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
       IF ((Adsorption%DissocReact(1,iReactNum,iSpec).GT.nSpecies) .OR. (Adsorption%DissocReact(2,iReactNum,iSpec).GT.nSpecies) ) THEN
         CALL abort(&
         __STAMP__&
-        ,'Error in Init_SurfChem: Produkt species for reaction '//TRIM(hilf2)//' not defined!')
+        ,'Error in Init_SurfChem: Product species for reaction '//TRIM(hilf2)//' not defined!')
       END IF
       Adsorption%Diss_Powerfactor(iReactNum,iSpec) = &
                                        GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Adsorption-Powerfactor','0.')
@@ -596,6 +599,9 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
     DO iReactNum = MaxDissNum+1,MaxReactNum
       Adsorption%EDissBond(iReactNum,iSpec) = 0.
     END DO
+    Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
+    Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
+    Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
   END DO
   ! fill associative reactions species map from defined dissociative reactions
   DO iSpec = 1,nSpecies
@@ -623,6 +629,15 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
   END DO
 ELSE !MaxDissNum = 0
   MaxReactNum = 0
+  ALLOCATE(Adsorption%EDissBond(0:1,1:nSpecies))
+  ALLOCATE(Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
+  Adsorption%EDissBond(:,:)=0.
+  DO iSpec = 1,nSpecies
+    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
+    Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
+    Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
+  END DO
 END IF !MaxDissNum > 0
 ! save defined number of surface reactions
 Adsorption%DissNum = MaxDissNum
@@ -665,6 +680,7 @@ SDEALLOCATE(Adsorption%HeatOfAdsZero)
 SDEALLOCATE(Adsorption%DissocReact)
 SDEALLOCATE(Adsorption%AssocReact)
 SDEALLOCATE(Adsorption%EDissBond)
+SDEALLOCATE(Adsorption%EDissBondAdsorbPoly)
 SDEALLOCATE(Adsorption%Coordination)
 SDEALLOCATE(Adsorption%DiCoord)
 
