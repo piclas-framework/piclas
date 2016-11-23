@@ -155,9 +155,9 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change)
 !         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
       ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
       ELSE IF (adsorbindex.EQ.-1) THEN ! elastic reflection
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
       ELSE ! should not happen
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
