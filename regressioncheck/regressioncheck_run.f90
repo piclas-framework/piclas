@@ -128,7 +128,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       ELSE ! 2. build does not exists -> create it
         CALL BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,&
                                       BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
-        IF(BuildValid(iReggieBuild))THEN ! only move binarygt if it has been created (only for valid builds)
+        IF(BuildValid(iReggieBuild))THEN ! only move binary if it has been created (only for valid builds)
           SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/'//CodeNameLowCase//' build_reggie_bin/'//ReggieBuildExe
           CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
           EXECPATH=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
@@ -434,7 +434,8 @@ IF(IndNum.GT.0)THEN
     IF(BuildSolver)THEN ! get EQNSYSNAME from cmake build configuration settings
       Examples(iExample)%EQNSYSNAME=BuildEQNSYS(iReggieBuild)
     ELSE ! stop 
-      SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the execution binary.'
+      SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the '&
+                                                                                                   //CodeNameLowCase//' binary.'
       SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
       SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
       ERROR STOP '-1'
