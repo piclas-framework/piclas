@@ -41,7 +41,8 @@ TYPE tExample                                                        !> examples
   CHARACTER(LEN=255)                     :: EQNSYSNAME               !> Name of current EQNSYS (depends on current exe)
   INTEGER                                :: Nvar                     !> Size of EQNSYS 
   CHARACTER(LEN=255)                     :: PATH                     !> Path to example
-  LOGICAL                                :: EXEC                     !> execution information (MPI,nProcs,etc.)
+  LOGICAL                                :: MPIrun                   !> execution information (MPI)
+  INTEGER                                :: MPIthreads               !> number of MPI threads for execution
   CHARACTER(LEN=255)                     :: ReferenceFile            !> Name of references L2/LInf
   REAL                                   :: ReferenceTolerance       !> optional tolerance for L2/LInf
   CHARACTER(LEN=255)                     :: ReferenceStateFile       !> Name of reference state file

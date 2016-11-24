@@ -1,7 +1,7 @@
 #include "boltzplatz.h"
 
 !==================================================================================================================================
-!> Contains the routines to build boltzplatz
+!> Contains the routines to build the binaries
 !==================================================================================================================================
 MODULE MOD_RegressionCheck_Build
 ! MODULES
@@ -319,7 +319,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 END SUBROUTINE ReadConfiguration_boltzplatz
 
 !==================================================================================================================================
-!> reads the file "configurationsX.cmake" and creates a boltzplatz binary
+!> reads the file "configurationsX.cmake" and creates a binary
 !==================================================================================================================================
 SUBROUTINE BuildConfiguration_boltzplatz(iExample,iReggieBuild,nReggieBuilds,&
                                     BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
@@ -367,14 +367,12 @@ IF(BuildValid(iReggieBuild))THEN
   SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.boltzplatz'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   OPEN(UNIT=ioUnit,FILE=TRIM(BuildDir)//'build_reggie/configurationX.cmake',STATUS="NEW",ACTION='WRITE',IOSTAT=iSTATUS)
-  !SWRITE(ioUnit, '(A)', ADVANCE = "NO") 'ccmake ' ! print the compiler flag command line
   DO K=1,N_compile_flags ! print the compiler flag command line to "configurationX.cmake"
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' -D'
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") '='
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
   END DO
-  !SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") ' ..'
   CLOSE(ioUnit)
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
@@ -389,14 +387,14 @@ IF(BuildValid(iReggieBuild))THEN
   IF(NumberOfProcs.GT.1)SYSCOMMAND=TRIM(SYSCOMMAND)//' -j '//TRIM(ADJUSTL(NumberOfProcsStr))
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
-  ! can be executed with the compiled boltzplatz executable or not
+  ! can be executed with the compiled executable or not
   IF(iSTATUS.EQ.0)THEN
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TESTCASE',BuildTESTCASE(iReggieBuild))
     ! set default for, e.g., PICLas code (currently no testcases are implemented)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TIMEDISCMETHOD',&
                                                                                                 BuildTIMEDISCMETHOD(iReggieBuild))
-    ! set default for, e.g., FLEXI code (not a compilation flag)
+    ! set default for, e.g., FLEXI (not a compilation flag)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
   ELSE ! iSTATUS.NE.0 -> failed to compile cmake configuration build
@@ -424,9 +422,9 @@ IF(BuildValid(iReggieBuild))THEN
     CALL abort(__STAMP__&
     ,'Could not compile boltzplatz! iSTATUS=',iSTATUS,999.)
   END IF
-  print*,"BuildEQNSYS(iReggieBuild)          = ",TRIM(BuildEQNSYS(iReggieBuild))
-  print*,"BuildTESTCASE(iReggieBuild)        = ",TRIM(BuildTESTCASE(iReggieBuild))
-  print*,"BuildTIMEDISCMETHOD(iReggieBuild)) = ",TRIM(BuildTIMEDISCMETHOD(iReggieBuild))
+  SWRITE(UNIT_stdOut,'(A)')"BuildEQNSYS(iReggieBuild)          = ",TRIM(BuildEQNSYS(iReggieBuild))
+  SWRITE(UNIT_stdOut,'(A)')"BuildTESTCASE(iReggieBuild)        = ",TRIM(BuildTESTCASE(iReggieBuild))
+  SWRITE(UNIT_stdOut,'(A)')"BuildTIMEDISCMETHOD(iReggieBuild)) = ",TRIM(BuildTIMEDISCMETHOD(iReggieBuild))
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
   IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_boltzplatz.out'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)

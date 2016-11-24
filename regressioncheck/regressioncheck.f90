@@ -7,8 +7,8 @@
 !> Each example consists of the mesh-file (h5), parameter file, regressiocheck.ini and a reference solution. In order to deal with
 !> different compiler, a relative high tolerance is set to 100*epsMach. Please note, that this scaling factor can be modified by
 !> the user.
-!> Usage: ./regressioncheck run   - uses the prev. built versions of boltzplatz and only runs the examples with the given executable
-!>        ./regressioncheck build - previous to the execution and comparison step, boltzplatz is built with all possible 
+!> Usage: ./regressioncheck run   - uses the prev. built binaries and only runs the examples with the given executable
+!>        ./regressioncheck build - previous to the execution and comparison step, binaries are built with all possible 
 !>                                - parameter combinations. each combination is tested with each example
 !> error codes are handled by a pointer list and summarized at the end of the program
 !> error codes: 0 - no error
@@ -16,7 +16,7 @@
 !>              2 - computation of example failed
 !>              3 - mismatch in norms
 !>              4 - mismatch in dataset
-!>             77 - no boltzplatz executable found for option run
+!>             77 - no executable found for option run
 !>             99 - fail of execute_system_command
 !==================================================================================================================================
 PROGRAM RegressionCheck
@@ -44,7 +44,6 @@ NULLIFY(aError)
 nReggieBuilds=0
 SYSCOMMAND=''
 FileName=''
-!ioUnit=GETFREEUNIT()
 CALL InitMPI()
 ! Define parameters for Converter
 

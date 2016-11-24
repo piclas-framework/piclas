@@ -161,7 +161,7 @@ ELSE ! use user-defined norm if present, else use 100.*PP_RealTolerance
   IF(Examples(iExample)%ReferenceTolerance.GT.0.)THEN
     eps=Examples(iExample)%ReferenceTolerance
   ELSE
-    eps=1000*PP_RealTolerance ! instead of 100, use 1000 because ketchesonrk4-20 with flex with flexii failes here
+    eps=1000*PP_RealTolerance ! instead of 100, use 1000 because ketchesonrk4-20 with flexi failes here
   END IF
   IF(ANY(L2.GT.eps))THEN
     L2Compare=.FALSE.
@@ -337,11 +337,9 @@ ELSE
 END IF
 ! init parameters for reading the data file
 HeaderLines=Examples(iExample)%IntegrateLineHeaderLines
-HeaderLines=1
+!HeaderLines=1
 Delimiter=ADJUSTL(TRIM(Examples(iExample)%IntegrateLineDelimiter))
 MaxColumn=MAXVAL(Examples(iExample)%IntegrateLineRange)
-!print*,"Examples(iExample)%IntegrateLineRange",Examples(iExample)%IntegrateLineRange
-!read*
 IndMax  =LEN(temp1) ! complete string length
 IndFirstA=1
 IndLastA =IndMax
@@ -350,7 +348,6 @@ IndLastB =IndMax
 IndexNotFound=.TRUE.
 CurrentColumn=0
 EOL=0
-!print*,""
 ! read the file twice in order to determine the array size
 DO I=1,2
   LineNumbers=0
@@ -426,12 +423,7 @@ DO I=1,2
          !read*
 !       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 END DO
-!read*
-!print*,""
-!DO I=1,MaxRow
-  !print*,Values(I,:)
-!END DO
-!read*
+
 ! integrate the values numerically
 Q=0.
 DO I=1,MaxRow-1

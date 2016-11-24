@@ -52,6 +52,7 @@ CHARACTER(LEN=255)             :: FileName                          !> path to a
 CHARACTER(LEN=255)             :: FolderName                        !> path to a folder or its name
 CHARACTER(LEN=255)             :: parameter_boltzplatz              !> input parameter file for boltzplatz depending on EQNSYS
 CHARACTER(LEN=255)             :: parameter_boltzplatz2             !> input parameter file for boltzplatz depending on TIMEDISC
+CHARACTER(LEN=15)              :: MPIthreadsStr                     !> string for the number of MPI threads for execution
 LOGICAL                        :: ExistFile                         !> file exists=.true., file does not exist=.false.
 INTEGER                        :: iSTATUS                           !> status
 INTEGER                        :: iExample                          !> loop index for example
@@ -175,7 +176,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       ! remove subexample for certain configurations: e.g. Preconditioner when running explicitly
 !print*,"TRIM(TIMEDISCMETHOD)=",TRIM(TIMEDISCMETHOD)
 !read*
-    IF(TRIM(TIMEDISCMETHOD).NE.'ImplicitO3')THEN
+    IF((TRIM(TIMEDISCMETHOD).NE.'ImplicitO3').AND.(TRIM(Examples(iExample)%SubExample).EQ.'PrecondType'))THEN
       Examples(iExample)%SubExample       = ''
       Examples(iExample)%SubExampleNumber = 0
       Examples(iExample)%SubExampleOption(1:20) = '-' ! default option is nothing
@@ -200,8 +201,8 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       IndNum=INDEX(FolderName, '/')                   ! e.g. taylorgreenvortex/
       IF(IndNum.GT.0)FolderName=FolderName(1:IndNum-1)! e.g. taylorgreenvortex
       IF(FolderName.NE.TESTCASE)THEN ! e.g. taylorgreenvortex .NE. phill
-          ! TESTCASE folder and non-TESTCASE boltzplatz
-          SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE not found in boltzplatz binary ...skipping'
+        ! TESTCASE folder and non-TESTCASE boltzplatz
+        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE not found in boltzplatz binary ...skipping'
         CYCLE
       ELSE
         SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE is correct ...running' ! TESTCASE folder and TESTCASE boltzplatz
@@ -242,18 +243,19 @@ DO iExample = 1, nExamples ! loop level 1 of 3
     END IF
 !==================================================================================================================================
     ! Output settings
-    print*,' EXECPATH:                  ',TRIM(EXECPATH)
-    print*,' EQNSYSNAME:                ',TRIM(Examples(iExample)%EQNSYSNAME)
-    print*,' nVar:                      ',     Examples(iExample)%Nvar    
-    print*,' PATH (to example):         ',TRIM(Examples(iExample)%PATH)
-    print*,' EXEC (run with MPI):       ',     Examples(iExample)%EXEC  
-    print*,' Reference:                 ',TRIM(Examples(iExample)%ReferenceFile)
-    print*,' State:                     ',TRIM(Examples(iExample)%ReferenceStateFile)
-    print*,' HDF5 dataset:              ',TRIM(Examples(iExample)%ReferenceDataSetName)
-    print*,' Restart:                   ',TRIM(Examples(iExample)%RestartFileName)
-    print*,' Example%SubExample:        ',TRIM(Examples(iExample)%SubExample)
-    print*,' Example%SubExampleNumber:  ',     Examples(iExample)%SubExampleNumber
-    print*,' parameter files:           ',TRIM(parameter_boltzplatz)//' '//TRIM(parameter_boltzplatz2)
+    print*,' EXECPATH:                       ',TRIM(EXECPATH)
+    print*,' EQNSYSNAME:                     ',TRIM(Examples(iExample)%EQNSYSNAME)
+    print*,' nVar:                           ',     Examples(iExample)%Nvar    
+    print*,' PATH (to example):              ',TRIM(Examples(iExample)%PATH)
+    print*,' MPIrun (run with MPI):          ',     Examples(iExample)%MPIrun
+    print*,' MPIthreads (number of threads): ',     Examples(iExample)%MPIthreads
+    print*,' Reference:                      ',TRIM(Examples(iExample)%ReferenceFile)
+    print*,' State:                          ',TRIM(Examples(iExample)%ReferenceStateFile)
+    print*,' HDF5 dataset:                   ',TRIM(Examples(iExample)%ReferenceDataSetName)
+    print*,' Restart:                        ',TRIM(Examples(iExample)%RestartFileName)
+    print*,' Example%SubExample:             ',TRIM(Examples(iExample)%SubExample)
+    print*,' Example%SubExampleNumber:       ',     Examples(iExample)%SubExampleNumber
+    print*,' parameter files:                ',TRIM(parameter_boltzplatz)//' '//TRIM(parameter_boltzplatz2)
 !==================================================================================================================================
     DO iSubExample = 1, MAX(1,Examples(iExample)%SubExampleNumber) ! loop level 3 of 3: SubExamples (e.g. different TimeDiscMethods)
 !==================================================================================================================================
@@ -271,15 +273,22 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm '//TRIM(Examples(iExample)%IntegrateLineFile)//' > /dev/null 2>&1'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS) ! delete, e.g., "TGVAnalysis.dat" or "Database.csv"
     END IF
-      IF(Examples(iExample)%EXEC)THEN
-        SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && mpirun -np 2 '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
+      IF(Examples(iExample)%MPIrun)THEN
+        IF(Examples(iExample)%MPIthreads.GT.1)THEN
+          WRITE(UNIT=MPIthreadsStr,FMT='(I5)') Examples(iExample)%MPIthreads
+        ELSE
+          MPIthreadsStr='0'
+        END IF
+
+        SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && mpirun -np '//ADJUSTL(TRIM(MPIthreadsStr))&
+                                                          //' '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
                     //TRIM(parameter_boltzplatz2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
       ELSE
         SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
                     //TRIM(parameter_boltzplatz2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
       END IF
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-      print*,' --------------------------------------', iSTATUS
+      !print*,' --------------------------------------', iSTATUS
       IF(iSTATUS.EQ.0)THEN ! Computation successfull
         SWRITE(UNIT_stdOut,'(A)',ADVANCE='no')  ' Successfull computation ...'
         CALL AddError('Successfull computation',iExample,iSubExample,ErrorStatus=0,ErrorCode=0)

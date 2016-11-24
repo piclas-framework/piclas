@@ -129,7 +129,6 @@ ELSE
     ELSEIF(TRIM(RuntimeOptionType).EQ.'no-debug')THEN
       BuildNoDebug=.TRUE.
       RuntimeOptionType='run_particle' ! debug uses "configuration.boltzplatz" from "run_particle" and displays the complete 
-                                         ! compilation process for debugging
     END IF
     IF(TRIM(RuntimeOptionTypeII).EQ.'debug')BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
     IF(TRIM(RuntimeOptionType).EQ.'run')RuntimeOptionType='run_particle'
@@ -256,7 +255,7 @@ END SUBROUTINE GetExampleList
 !==================================================================================================================================
 !> Read the parameter_reggie.ini file of an example given by its relative path. It
 !> contains information for the computation of the example:
-!>  exec - a mpi or serial example
+!>  MPI - a mpi or serial example
 !>  optional reference files for error-norms, reference state file and tested dataset and name of the checked state file
 !>  optional a restart filename
 !==================================================================================================================================
@@ -292,11 +291,12 @@ ELSE
 END IF
 
 ! init
-Example%EXEC=.FALSE.
-Example%nVar=0
+Example%MPIrun                 = .FALSE. ! don't use "mpirun" n default
+Example%MPIthreads             = 1       ! run with 1 MPI thread on default
+Example%nVar                   = 0
 Example%ReferenceTolerance     = -1.
-Example%SubExampleNumber       = 0   ! init total number of subexamples
-Example%SubExampleOption(1:20) = '-' ! default option is nothing
+Example%SubExampleNumber       = 0       ! init total number of subexamples
+Example%SubExampleOption(1:20) = '-'     ! default option is nothing
 DO ! extract reggie information
   READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1 ! get first line assuming it is something like "nVar= 5"
   IF(iSTATUS.EQ.-1) EXIT ! end of file (EOF) reached
@@ -308,8 +308,9 @@ DO ! extract reggie information
   IF(IndNum.GT.0)THEN ! definition found
     ! get size of EQNSYS (deprecated)
     IF(TRIM(temp1(1:IndNum-1)).EQ.'nVar')CALL str2int(temp1(IndNum+1:MaxNum),Example%nVar,iSTATUS)
-    ! single or parallel (deprecated)
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'MPI')CALL str2logical(temp1(IndNum+1:MaxNum),Example%EXEC,iSTATUS)
+    ! single or parallel
+    IF(TRIM(temp1(1:IndNum-1)).EQ.'MPIrun')    CALL str2logical(temp1(IndNum+1:MaxNum),Example%MPIrun,iSTATUS) ! True/False
+    IF(TRIM(temp1(1:IndNum-1)).EQ.'MPIthreads')CALL str2int(    temp1(IndNum+1:MaxNum),Example%MPIthreads,iSTATUS)!number of threads
     ! Reference Norm/State
     IF(TRIM(temp1(1:IndNum-1)).EQ.'ReferenceTolerance')CALL str2real(temp1(IndNum+1:MaxNum),Example%ReferenceTolerance,iSTATUS)
     IF(TRIM(temp1(1:IndNum-1)).EQ.'ReferenceFile')          Example%ReferenceFile         =TRIM(ADJUSTL(temp1(IndNum+1:MaxNum)))
