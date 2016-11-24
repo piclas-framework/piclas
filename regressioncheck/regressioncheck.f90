@@ -27,7 +27,7 @@ USE MOD_RegressionCheck_tools, ONLY: InitExample,CleanExample,GetExampleList,Che
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors
 USE MOD_RegressionCheck_Run,   ONLY: PerformRegressionCheck
 USE MOD_RegressionCheck_Vars,  ONLY: ExampleNames,Examples,firstError,aError,BuildSolver,nErrors
-USE MOD_RegressionCheck_Vars,  ONLY: CodeNameUppCase,CodeNameUppCase
+USE MOD_RegressionCheck_Vars,  ONLY: CodeNameUppCase,CodeNameLowCase
 USE MOD_MPI,                   ONLY: InitMPI
 USE MOD_Mesh,                  ONLY: FinalizeMesh
 USE MOD_RegressionCheck_tools, ONLY: REGGIETIME

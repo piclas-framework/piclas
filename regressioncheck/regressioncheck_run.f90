@@ -165,13 +165,13 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       INQUIRE(File=FileName,EXIST=ExistFile)
       IF(ExistFile) THEN
         CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_TESTCASE',TESTCASE)
-        ! set default for, e.g., PICLas code (currently no testcases are implemented)
-        IF((TRIM(TESTCASE).EQ.'flag does not exist'))TESTCASE='default'
+        IF(CodeNameLowCase.EQ.'boltzplatz')TESTCASE='default'! set default (currently no testcases are implemented)
         IF(TRIM(TESTCASE).EQ.'flag does not exist')CALL abort(&
           __STAMP__&
           ,CodeNameUppCase//'_TESTCASE flag not found in configuration.cmake!',999,999.)
 
         CALL GetFlagFromFile(FileName,CodeNameUppCase//'_TIMEDISCMETHOD',TIMEDISCMETHOD)
+        IF(CodeNameLowCase.EQ.'flexi')TIMEDISCMETHOD='default'! set default (TIMEDISCMETHOD is not a compile flag)
         IF(TRIM(TIMEDISCMETHOD).EQ.'flag does not exist')CALL abort(&
           __STAMP__&
           ,CodeNameUppCase//'_TIMEDISCMETHOD flag not found in configuration.cmake!',999,999.)
