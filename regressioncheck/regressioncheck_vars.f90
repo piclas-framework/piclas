@@ -9,6 +9,8 @@ SAVE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
+CHARACTER(LEN=10),PARAMETER    :: CodeNameUppCase='BOLTZPLATZ'       !> Code name in upper case letters
+CHARACTER(LEN=10),PARAMETER    :: CodeNameLowCase='boltzplatz'       !> Code name in lower case letters
 INTEGER                        :: nErrors                            !> number of errors encountered during reggie execution
 INTEGER                        :: NumberOfProcs                      !> number of processors for parallel build
 CHARACTER(LEN=20)              :: NumberOfProcsStr                   !> number of processors for parallel build as string

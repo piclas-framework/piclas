@@ -29,6 +29,7 @@ USE MOD_RegressionCheck_Run,   ONLY: PerformRegressionCheck
 USE MOD_RegressionCheck_Vars,  ONLY: ExampleNames,Examples,firstError,aError,BuildSolver,nErrors
 USE MOD_MPI,                   ONLY: InitMPI
 USE MOD_Mesh,                  ONLY: FinalizeMesh
+USE MOD_RegressionCheck_tools, ONLY: REGGIETIME
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -58,7 +59,7 @@ CALL GetCommandLineOption()
 IF(.NOT.BuildSolver) CALL CheckForExecutable(Mode=1)
 
 ! Measure regressioncheck runtime 
-StartTime=BOLTZPLATZTIME()
+StartTime=REGGIETIME()
 
 ! check if examples are checked out and get list
 CALL GetExampleList()
@@ -71,7 +72,7 @@ DEALLOCATE(ExampleNames)
 DEALLOCATE(Examples)
 
 ! Measure processing duration
-EndTime=BOLTZPLATZTIME()
+EndTime=REGGIETIME()
 
 #ifdef MPI
 CALL MPI_FINALIZE(iError)

@@ -14,30 +14,30 @@ SAVE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE ReadConfiguration_boltzplatz
-  MODULE PROCEDURE ReadConfiguration_boltzplatz
+INTERFACE ReadConfiguration
+  MODULE PROCEDURE ReadConfiguration
 END INTERFACE
 
-INTERFACE BuildConfiguration_boltzplatz
-  MODULE PROCEDURE BuildConfiguration_boltzplatz
+INTERFACE BuildConfiguration
+  MODULE PROCEDURE BuildConfiguration
 END INTERFACE
 
 INTERFACE GetFlagFromFile
   MODULE PROCEDURE GetFlagFromFile
 END INTERFACE
 
-PUBLIC::ReadConfiguration_boltzplatz
-PUBLIC::BuildConfiguration_boltzplatz
+PUBLIC::ReadConfiguration
+PUBLIC::BuildConfiguration
 PUBLIC::GetFlagFromFile
 !==================================================================================================================================
 
 CONTAINS
 
 !==================================================================================================================================
-!> read the file "configuirations.boltzplatz" and creates multiple compiler flag configurations for cmake that are written to
+!> read the file "configuirations.reggie" and creates multiple compiler flag configurations for cmake that are written to
 !> "configurationsX.cmake"
 !==================================================================================================================================
-SUBROUTINE ReadConfiguration_boltzplatz(&
+SUBROUTINE ReadConfiguration(&
 iExample,nReggieBuilds,BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
 !===================================================================================================================================
 ! MODULES
@@ -77,15 +77,15 @@ ioUnit=GETFREEUNIT()
 IF(BuildContinue)CALL GetBuildContinue()
 IF(RuntimeOptionType.EQ.'')THEN ! [RuntimeOptionType] has been cleared (set to '') as the input by the user was "all", i.e., use all
                                 ! examples use fixed configuration file (maximum number of builds?) but (maximum number of builds?)
-  FilePath='./../../regressioncheck/examples/run_particle/'
+  FilePath='./../../regressioncheck/examples/run_basic/'
 ELSE
   FilePath=TRIM(Examples(iExample)%PATH)
 END IF
-FileName=TRIM(FilePath)//'configurations.boltzplatz'
+FileName=TRIM(FilePath)//'configurations.reggie'
 INQUIRE(File=FileName,EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File under: ',TRIM(Examples(iExample)%PATH)
-  SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ','configurations.boltzplatz'
+  SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ','configurations.reggie'
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
   ERROR STOP '-1'
 ELSE
@@ -253,13 +253,13 @@ DO I=1,nReggieBuilds
 ! deprecated  ! TODO!!!! exchange this procedure with the actual compilation (if e.g. the needed flag is not set by hand!!)
 ! deprecated  ! set EQNSYSNAME
 ! deprecated  DO K=1,N_compile_flags
-! deprecated    IF(TRIM(ADJUSTL(BuildConfigurations(K,1))).EQ.'BOLTZPLATZ_EQNSYSNAME')THEN
+! deprecated    IF(TRIM(ADJUSTL(BuildConfigurations(K,1))).EQ.CodeNameUppCase//'_EQNSYSNAME')THEN
 ! deprecated      BuildEQNSYS(I)=TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
 ! deprecated    END IF
 ! deprecated  END DO
 ! deprecated  ! set BuildTESTCASE
 ! deprecated  DO K=1,N_compile_flags
-! deprecated    IF(TRIM(ADJUSTL(BuildConfigurations(K,1))).EQ.'BOLTZPLATZ_TESTCASE')THEN
+! deprecated    IF(TRIM(ADJUSTL(BuildConfigurations(K,1))).EQ.CodeNameUppCase//'_TESTCASE')THEN
 ! deprecated      BuildTESTCASE(I)=TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
 ! deprecated    END IF
 ! deprecated  END DO
@@ -316,18 +316,19 @@ END IF
 
 SWRITE(UNIT_stdOut,'(132("="))')
 
-END SUBROUTINE ReadConfiguration_boltzplatz
+END SUBROUTINE ReadConfiguration
 
 !==================================================================================================================================
 !> reads the file "configurationsX.cmake" and creates a binary
 !==================================================================================================================================
-SUBROUTINE BuildConfiguration_boltzplatz(iExample,iReggieBuild,nReggieBuilds,&
+SUBROUTINE BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,&
                                     BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
 USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD
+USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -364,7 +365,7 @@ IF(BuildValid(iReggieBuild))THEN
   SYSCOMMAND='cd '//TRIM(BuildDir)//' && mkdir build_reggie'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   SWRITE(tempStr,*)iReggieBuild-1 ! print previously completed build to file for continuation possibility
-  SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.boltzplatz'
+  SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.reggie'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   OPEN(UNIT=ioUnit,FILE=TRIM(BuildDir)//'build_reggie/configurationX.cmake',STATUS="NEW",ACTION='WRITE',IOSTAT=iSTATUS)
   DO K=1,N_compile_flags ! print the compiler flag command line to "configurationX.cmake"
@@ -377,34 +378,37 @@ IF(BuildValid(iReggieBuild))THEN
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   SYSCOMMAND='cd '//TRIM(BuildDir)//&
-   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_boltzplatz.out  && make boltzplatz >> build_boltzplatz.out'
+   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_reggie.out  && make '//CodeNameLowCase//' >> build_reggie.out'
   IF(BuildDebug)THEN
-    SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../  && make boltzplatz '
+    SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../  && make '//CodeNameLowCase
   ELSEIF(BuildNoDebug)THEN
     SYSCOMMAND='cd '//TRIM(BuildDir)//&
-   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_boltzplatz.out  && make boltzplatz >> build_boltzplatz.out 2>&1'
+   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_reggie.out  && make '//CodeNameLowCase//&
+                                                                                                         ' >> build_reggie.out 2>&1'
   END IF
   IF(NumberOfProcs.GT.1)SYSCOMMAND=TRIM(SYSCOMMAND)//' -j '//TRIM(ADJUSTL(NumberOfProcsStr))
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
   ! can be executed with the compiled executable or not
   IF(iSTATUS.EQ.0)THEN
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TESTCASE',BuildTESTCASE(iReggieBuild))
+    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
+                                                               CodeNameUppCase//'_TESTCASE'      ,BuildTESTCASE(iReggieBuild))
     ! set default for, e.g., PICLas code (currently no testcases are implemented)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_TIMEDISCMETHOD',&
-                                                                                                BuildTIMEDISCMETHOD(iReggieBuild))
+    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
+                                                               CodeNameUppCase//'_TIMEDISCMETHOD',BuildTIMEDISCMETHOD(iReggieBuild))
     ! set default for, e.g., FLEXI (not a compilation flag)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake','BOLTZPLATZ_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
+    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
+                                                               CodeNameUppCase//'_EQNSYSNAME'     ,BuildEQNSYS(iReggieBuild))
   ELSE ! iSTATUS.NE.0 -> failed to compile cmake configuration build
     CALL AddError('Error while compiling',iExample,1,ErrorStatus=1,ErrorCode=1) !note: iSubExample is set to 1 as argument
     CALL SummaryOfErrors() ! Print the summary or examples and error codes (if they exist) before calling abort
-    ! Print the error that caused the compilation abort (if it was written to "build_boltzplatz.out" due to silent compilation)
-    FileName=TRIM(BuildDir)//'build_reggie/build_boltzplatz.out'
+    ! Print the error that caused the compilation abort (if it was written to "build_reggie.out" due to silent compilation)
+    FileName=TRIM(BuildDir)//'build_reggie/build_reggie.out'
     INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
     !print*,"ExistFile=",ExistFile
-    IF(ExistFile) THEN ! build_boltzplatz.out exists
+    IF(ExistFile) THEN ! build_reggie.out exists
       SWRITE(UNIT_stdOut, '(A)')' '
       SWRITE(UNIT_stdOut,'(132("="))')
       ! build [no-debug] = T
@@ -420,13 +424,13 @@ IF(BuildValid(iReggieBuild))THEN
       !SWRITE(UNIT_stdOut, '(A)')TRIM(FileName)//" does not exist"
     END IF
     CALL abort(__STAMP__&
-    ,'Could not compile boltzplatz! iSTATUS=',iSTATUS,999.)
+    ,'Could not compile '//CodeNameLowCase//'! iSTATUS=',iSTATUS,999.)
   END IF
-  SWRITE(UNIT_stdOut,'(A)')"BuildEQNSYS(iReggieBuild)          = ",TRIM(BuildEQNSYS(iReggieBuild))
-  SWRITE(UNIT_stdOut,'(A)')"BuildTESTCASE(iReggieBuild)        = ",TRIM(BuildTESTCASE(iReggieBuild))
-  SWRITE(UNIT_stdOut,'(A)')"BuildTIMEDISCMETHOD(iReggieBuild)) = ",TRIM(BuildTIMEDISCMETHOD(iReggieBuild))
+  SWRITE(UNIT_stdOut,'(A)')"BuildEQNSYS(iReggieBuild)          = ["//TRIM(BuildEQNSYS(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"BuildTESTCASE(iReggieBuild)        = ["//TRIM(BuildTESTCASE(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"BuildTIMEDISCMETHOD(iReggieBuild)) = ["//TRIM(BuildTIMEDISCMETHOD(iReggieBuild))//"]"
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
-  IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_boltzplatz.out'
+  IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 ELSE
   IF(BuildContinue)THEN
@@ -449,7 +453,7 @@ END DO
 
 SWRITE(UNIT_stdOut,'(132("="))')
 
-END SUBROUTINE BuildConfiguration_boltzplatz
+END SUBROUTINE BuildConfiguration
 
 
 !==================================================================================================================================
@@ -465,7 +469,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
-CHARACTER(LEN=*),INTENT(IN)  :: Flag     ! e.g. 'BOLTZPLATZ_EQNSYSNAME'
+CHARACTER(LEN=*),INTENT(IN)  :: Flag     ! e.g. 'XX_EQNSYSNAME'
 !INTEGER         :: a
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -488,13 +492,13 @@ IF(ExistFile) THEN
     IF(ADJUSTL(temp).EQ.'!') CYCLE  ! complete line is commented out
     IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
     IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
-      IndNum=INDEX(temp,TRIM(Flag)) ! e.g. 'BOLTZPLATZ_EQNSYSNAME'
+      IndNum=INDEX(temp,TRIM(Flag)) ! e.g. 'XX_EQNSYSNAME'
       IF(IndNum.GT.0)THEN
         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(Flag)):LEN(temp))))
         IndNum=INDEX(temp2, '"')
         IF(IndNum.GT.0)THEN
           temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
-          IF(INDEX(temp2(IndNum+1:LEN(TRIM(temp2))), '"')+IndNum.GT.IndNum)THEN ! get boltzplatz exe path up to 2nd '"' in name
+          IF(INDEX(temp2(IndNum+1:LEN(TRIM(temp2))), '"')+IndNum.GT.IndNum)THEN ! get binary path up to 2nd '"' in name
             IndNum=INDEX(temp2(IndNum+1:LEN(TRIM(temp2))), '"')+IndNum
           END IF
         END IF
@@ -535,7 +539,7 @@ INTEGER                                   :: ioUnit,iSTATUS
 CHARACTER(LEN=255)                        :: FileName,temp
 !===================================================================================================================================
 ioUnit=GETFREEUNIT()
-FileName=TRIM(BuildDir)//'build_reggie/BuildContinue.boltzplatz'
+FileName=TRIM(BuildDir)//'build_reggie/BuildContinue.reggie'
 INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A)')   ' ERROR: tried to continue building at specific point, file does not exist '
@@ -548,14 +552,14 @@ END IF
 READ(ioUnit,'(A)',iostat=iSTATUS)temp
 CLOSE(ioUnit)
 IF(iSTATUS.NE.0) THEN
-  SWRITE(UNIT_stdOut,'(A10,A)')   ' ERROR:   ','tried to read BuildContinue.boltzplatz'
+  SWRITE(UNIT_stdOut,'(A10,A)')   ' ERROR:   ','tried to read BuildContinue.reggie'
   SWRITE(UNIT_stdOut,'(A10,A)') ' temp:    ',temp
   SWRITE(UNIT_stdOut,'(A10,I5)') ' iSTATUS: ',iSTATUS
   ERROR STOP '-1'
 END IF
 CALL str2int(temp,BuildContinueNumber,iSTATUS)
 IF(iSTATUS.NE.0) THEN
-  SWRITE(UNIT_stdOut,'(A22,A)')  ' ERROR:             ','tried to read BuildContinue.boltzplatz, str2int failed'
+  SWRITE(UNIT_stdOut,'(A22,A)')  ' ERROR:             ','tried to read BuildContinue.reggie, str2int failed'
   SWRITE(UNIT_stdOut,'(A22,I5)') ' BuildContinueNumber: ',BuildContinueNumber
   SWRITE(UNIT_stdOut,'(A22,I5)') ' iSTATUS:             ',iSTATUS
   ERROR STOP '-1'

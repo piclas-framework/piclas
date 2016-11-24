@@ -32,11 +32,11 @@ CONTAINS
 SUBROUTINE PerformRegressionCheck()
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Build,   ONLY: ReadConfiguration_boltzplatz,BuildConfiguration_boltzplatz,GetFlagFromFile
+USE MOD_RegressionCheck_Build,   ONLY: ReadConfiguration,BuildConfiguration,GetFlagFromFile
 USE MOD_RegressionCheck_Compare, ONLY: CompareNorm,CompareDataSet,CompareRuntime,ReadNorm,IntegrateLine
 USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,InitExample,CleanExample,AddError
 USE MOD_RegressionCheck_Vars,    ONLY: nExamples,ExampleNames,Examples,EXECPATH,RuntimeOptionType
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildDir,BuildSolver
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildDir,BuildSolver,CodeNameLowCase,CodeNameUppCase
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -46,12 +46,12 @@ IMPLICIT NONE
 CHARACTER(LEN=500)             :: SYSCOMMAND,dummystr               !> string to fit the system command
 CHARACTER(LEN=255)             :: TESTCASE                          !> compilation flag in FLEXI
 CHARACTER(LEN=255)             :: TIMEDISCMETHOD                    !> compilation flag in PICLas
-CHARACTER(LEN=255)             :: ReggieBuildExe                    !> cache boltzplatz executables when doing "BuildSolver":
+CHARACTER(LEN=255)             :: ReggieBuildExe                    !> cache executables when doing "BuildSolver":
                                                                     !> this means don't build the same cmake configuration twice
 CHARACTER(LEN=255)             :: FileName                          !> path to a file or its name
 CHARACTER(LEN=255)             :: FolderName                        !> path to a folder or its name
-CHARACTER(LEN=255)             :: parameter_boltzplatz              !> input parameter file for boltzplatz depending on EQNSYS
-CHARACTER(LEN=255)             :: parameter_boltzplatz2             !> input parameter file for boltzplatz depending on TIMEDISC
+CHARACTER(LEN=255)             :: parameter_ini                     !> input parameter file depending on EQNSYS
+CHARACTER(LEN=255)             :: parameter_ini2                    !> input parameter file depending on TIMEDISC
 CHARACTER(LEN=15)              :: MPIthreadsStr                     !> string for the number of MPI threads for execution
 LOGICAL                        :: ExistFile                         !> file exists=.true., file does not exist=.false.
 INTEGER                        :: iSTATUS                           !> status
@@ -74,7 +74,7 @@ ReggieBuildExe=''
 !==================================================================================================================================
 DO iExample = 1, nExamples ! loop level 1 of 3
 !==================================================================================================================================
-  ! currently: each parameter configuration is only built and tested for the "run_particle" example
+  ! currently: each parameter configuration is only built and tested for the "run_basic" example
   dummystr=TRIM(ADJUSTL(ExampleNames(iExample)))
   IF(dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType)))).EQ.RuntimeOptionType)THEN
     SWRITE(UNIT_stdOut,*) ''
@@ -89,11 +89,11 @@ DO iExample = 1, nExamples ! loop level 1 of 3
 !print*,"dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType))))",dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType))))
 !print*,"RuntimeOptionType",RuntimeOptionType
 !read*
-  ! if "BuildSolver" is true, boltzplatz's complete valid compiler-flag parameter 
-  ! combination is tested (specified in "configuration.boltzplatz", default example is "run_particle")
+  ! if "BuildSolver" is true, the complete (valid) compiler-flag parameter combination
+  ! is tested (specified in "configuration.reggie", default example is "run_basic")
   IF(BuildSolver)THEN
     IF(ReggieBuildExe.EQ.'')THEN
-      CALL ReadConfiguration_boltzplatz(iExample,nReggieBuilds,BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
+      CALL ReadConfiguration(iExample,nReggieBuilds,BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
       BuildCounter=1 ! reset the counter between read and build (used for selecting the build configuration for compilation)
       SYSCOMMAND='rm -rf '//TRIM(BuildDir)//'build_reggie_bin > /dev/null 2>&1'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
@@ -101,7 +101,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
     ELSE
       !print*,ReggieBuildExe
-      print*,"CALL ReadConfiguration_boltzplatz() has already been performed, skipping..."
+      print*,"CALL ReadConfiguration() has already been performed, skipping..."
     END IF
   ELSE ! pure run, no compilation
     nReggieBuilds=1
@@ -110,22 +110,22 @@ DO iExample = 1, nExamples ! loop level 1 of 3
   DO iReggieBuild = 1, nReggieBuilds ! loop level 2 of 3: cycle the number of build configurations (no configuration = only 1 run)
 !==================================================================================================================================
     IF(BuildSolver)THEN
-      ! if build is not valid no boltzplatz binary has been built and the lopp can cycle here
+      ! if build is not valid no binary has been built and the lopp can cycle here
       IF(.NOT.BuildValid(iReggieBuild))THEN ! invalid reggie build 
         WRITE (ReggieBuildExe, '(a, i4.4)') "invalid"
       ELSE
-        WRITE (ReggieBuildExe, '(a, i4.4)') "boltzplatz", COUNT(BuildValid(1:iReggieBuild)) ! e.g. boltzplatz0001
+        WRITE (ReggieBuildExe, '(a, i4.4)') CodeNameLowCase, COUNT(BuildValid(1:iReggieBuild)) ! e.g. XXXXX0001
       END IF
       ! check if build exists -> if it does, don't build a new executable with cmake
       FileName=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
       INQUIRE(File=FileName,EXIST=ExistFile)
-      IF(ExistFile) THEN ! 1. build already exists (e.g. boltzplatz0001 located in ../build_reggie_bin/)
+      IF(ExistFile) THEN ! 1. build already exists (e.g. XXXX0001 located in ../build_reggie_bin/)
         EXECPATH=TRIM(FileName)
       ELSE ! 2. build does not exists -> create it
-        CALL BuildConfiguration_boltzplatz(iExample,iReggieBuild,nReggieBuilds,&
+        CALL BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,&
                                       BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
-        IF(BuildValid(iReggieBuild))THEN ! only move boltzplatz exe if it has been created (only for valid builds)
-          SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/boltzplatz build_reggie_bin/'//ReggieBuildExe
+        IF(BuildValid(iReggieBuild))THEN ! only move binarygt if it has been created (only for valid builds)
+          SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/'//CodeNameLowCase//' build_reggie_bin/'//ReggieBuildExe
           CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
           EXECPATH=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
         END IF
@@ -146,7 +146,9 @@ DO iExample = 1, nExamples ! loop level 1 of 3
     ! depending on the equation system -> get different Nvar 
     CALL GetNvar(iExample,iReggieBuild)
 
+    ! -----------------------------------------------------------------------------------------------------------------------
     ! check if executable is compiled with correct TESTCASE (e.g. for tylorgreenvortex)
+    ! -----------------------------------------------------------------------------------------------------------------------
     IF(BuildSolver)THEN
       TESTCASE=BuildTESTCASE(iReggieBuild)
       TIMEDISCMETHOD=BuildTIMEDISCMETHOD(iReggieBuild)
@@ -154,44 +156,38 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       FileName=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
       INQUIRE(File=FileName,EXIST=ExistFile)
       IF(ExistFile) THEN
-        CALL  GetFlagFromFile(FileName,'BOLTZPLATZ_TESTCASE',TESTCASE)
+        CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_TESTCASE',TESTCASE)
         ! set default for, e.g., PICLas code (currently no testcases are implemented)
         IF((TRIM(TESTCASE).EQ.'flag does not exist'))TESTCASE='default'
         IF(TRIM(TESTCASE).EQ.'flag does not exist')CALL abort(&
           __STAMP__&
-          ,'BOLTZPLATZ_TESTCASE flag not found in configuration.cmake!',999,999.)
+          ,CodeNameUppCase//'_TESTCASE flag not found in configuration.cmake!',999,999.)
 
-        CALL GetFlagFromFile(FileName,'BOLTZPLATZ_TIMEDISCMETHOD',TIMEDISCMETHOD)
+        CALL GetFlagFromFile(FileName,CodeNameUppCase//'_TIMEDISCMETHOD',TIMEDISCMETHOD)
         IF(TRIM(TIMEDISCMETHOD).EQ.'flag does not exist')CALL abort(&
           __STAMP__&
-          ,'BOLTZPLATZ_TIMEDISCMETHOD flag not found in configuration.cmake!',999,999.)
+          ,CodeNameUppCase//'_TIMEDISCMETHOD flag not found in configuration.cmake!',999,999.)
       ELSE
-        SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the boltzplatz binary.'
+        SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the'//CodeNameLowCase//&
+                                                                                                                          ' binary.'
         SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
         SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
         ERROR STOP '-1'
       END IF
     END IF
 
-      ! remove subexample for certain configurations: e.g. Preconditioner when running explicitly
-!print*,"TRIM(TIMEDISCMETHOD)=",TRIM(TIMEDISCMETHOD)
-!read*
+    ! -----------------------------------------------------------------------------------------------------------------------
+    ! remove subexample for certain configurations: e.g. Preconditioner when running explicitly
+    ! -----------------------------------------------------------------------------------------------------------------------
     IF((TRIM(TIMEDISCMETHOD).NE.'ImplicitO3').AND.(TRIM(Examples(iExample)%SubExample).EQ.'PrecondType'))THEN
       Examples(iExample)%SubExample       = ''
       Examples(iExample)%SubExampleNumber = 0
       Examples(iExample)%SubExampleOption(1:20) = '-' ! default option is nothing
     END IF
 
-    ! check folder name and decide whether it can be executed with the current boltzplatz binary (e.g. testcases ...)
-    !CALL getcwd(cwd)
-    !print*,cwd
-    !FolderName=cwd(INDEX(cwd,'/',BACK = .TRUE.):LEN(TRIM(cwd)))
-    !print*,FolderName
-    !IndNum=INDEX(FolderName, '/')
-    !IF(IndNum.GT.0)FolderName=FolderName(2:LEN(FolderName))
-   
-    !print*,TRIM(ExampleNames(iExample))
-    !print*,TRIM(TESTCASE)
+    ! -----------------------------------------------------------------------------------------------------------------------
+    ! check folder name and decide whether it can be executed with the current binary (e.g. testcases ...)
+    ! -----------------------------------------------------------------------------------------------------------------------
     IndNum=INDEX(ExampleNames(iExample), 'TESTCASE') ! look for TESTCASE- flag in folder name of example
     IF(IndNum.GT.0)THEN ! folder name contains 'TESTCASE'
       FolderName=ExampleNames(iExample) ! e.g. run_TESTCASE-taylorgreenvortex/
@@ -201,72 +197,77 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       IndNum=INDEX(FolderName, '/')                   ! e.g. taylorgreenvortex/
       IF(IndNum.GT.0)FolderName=FolderName(1:IndNum-1)! e.g. taylorgreenvortex
       IF(FolderName.NE.TESTCASE)THEN ! e.g. taylorgreenvortex .NE. phill
-        ! TESTCASE folder and non-TESTCASE boltzplatz
-        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE not found in boltzplatz binary ...skipping'
+        ! TESTCASE folder and non-TESTCASE binary
+        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE not found in '//CodeNameLowCase//' binary ...skipping'
         CYCLE
       ELSE
-        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE is correct ...running' ! TESTCASE folder and TESTCASE boltzplatz
+        SWRITE(UNIT_stdOut,'(A,2x,A)') ' TESTCASE is correct ...running' ! TESTCASE folder and TESTCASE binary
       END IF
     ELSE ! folder name does not contain 'TESTCASE'
       FolderName='default' ! for non-TESTCASE setups, set the default settings
       IF(FolderName.NE.TESTCASE)THEN ! e.g. default .NE. phill
-        ! non-TESTCASE folder, but TESTCASE boltzplatz
-        SWRITE(UNIT_stdOut,'(A)') ' TESTCASE "default" not found in boltzplatz binary: TESTCASE=['//TRIM(TESTCASE)//'] ...skipping'
+        ! non-TESTCASE folder, but TESTCASE binary
+        SWRITE(UNIT_stdOut,'(A)') ' TESTCASE "default" not found in '//CodeNameLowCase//&
+                                                         ' binary: TESTCASE=['//TRIM(TESTCASE)//'] ...skipping'
         CYCLE
       ELSE
-        ! non-TESTCASE folder and non-TESTCASE boltzplatz
+        ! non-TESTCASE folder and non-TESTCASE binary
         SWRITE(UNIT_stdOut,'(A)') ' TESTCASE "default" is correct: TESTCASE=['//TRIM(TESTCASE)//'] ...running' 
       END IF
     END IF
 
+    ! -----------------------------------------------------------------------------------------------------------------------
     ! get list of parameter files for running the simulation
-    parameter_boltzplatz2=''
+    ! -----------------------------------------------------------------------------------------------------------------------
+    parameter_ini2=''
     IF(TRIM(TIMEDISCMETHOD).EQ.'DSMC')THEN
-      parameter_boltzplatz='parameter_boltzplatz_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'_DSMC.ini'
-      parameter_boltzplatz2='parameter_DSMC.ini'
+      ! set main parameter.ini file: e.g. parameter_XXX_EQNSYSNAME.ini
+      parameter_ini='parameter_'//CodeNameLowCase//'_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'_DSMC.ini'
+      parameter_ini2='parameter_DSMC.ini'
     ELSE
-      parameter_boltzplatz='parameter_boltzplatz_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'.ini'
+      ! set main parameter.ini file: e.g. parameter_XXX_EQNSYSNAME.ini
+      parameter_ini='parameter_'//CodeNameLowCase//'_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'.ini'
     END IF
-    INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_boltzplatz),EXIST=ExistFile)
+    INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),EXIST=ExistFile)
     IF(.NOT.ExistFile) THEN
       SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-      SWRITE(UNIT_stdOut,'(A,A)') ' parameter_boltzplatz:      ',TRIM(parameter_boltzplatz)
+      SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini:      ',TRIM(parameter_ini)
       ERROR STOP '-1'
     END IF
-    IF(parameter_boltzplatz2.NE.'')THEN
-      INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_boltzplatz2),EXIST=ExistFile)
+    IF(parameter_ini2.NE.'')THEN
+      INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini2),EXIST=ExistFile)
       IF(.NOT.ExistFile) THEN
         SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-        SWRITE(UNIT_stdOut,'(A,A)') ' parameter_boltzplatz2:     ',TRIM(parameter_boltzplatz2)
+        SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini2:     ',TRIM(parameter_ini2)
         ERROR STOP '-1'
       END IF
     END IF
 !==================================================================================================================================
     ! Output settings
-    print*,' EXECPATH:                       ',TRIM(EXECPATH)
-    print*,' EQNSYSNAME:                     ',TRIM(Examples(iExample)%EQNSYSNAME)
-    print*,' nVar:                           ',     Examples(iExample)%Nvar    
-    print*,' PATH (to example):              ',TRIM(Examples(iExample)%PATH)
-    print*,' MPIrun (run with MPI):          ',     Examples(iExample)%MPIrun
-    print*,' MPIthreads (number of threads): ',     Examples(iExample)%MPIthreads
-    print*,' Reference:                      ',TRIM(Examples(iExample)%ReferenceFile)
-    print*,' State:                          ',TRIM(Examples(iExample)%ReferenceStateFile)
-    print*,' HDF5 dataset:                   ',TRIM(Examples(iExample)%ReferenceDataSetName)
-    print*,' Restart:                        ',TRIM(Examples(iExample)%RestartFileName)
-    print*,' Example%SubExample:             ',TRIM(Examples(iExample)%SubExample)
-    print*,' Example%SubExampleNumber:       ',     Examples(iExample)%SubExampleNumber
-    print*,' parameter files:                ',TRIM(parameter_boltzplatz)//' '//TRIM(parameter_boltzplatz2)
+    SWRITE(UNIT_stdOut,'(A)')      ' EXECPATH:                       ['//TRIM(EXECPATH)//']'
+    SWRITE(UNIT_stdOut,'(A)')      ' EQNSYSNAME:                     ['//TRIM(Examples(iExample)%EQNSYSNAME)//']'
+    SWRITE(UNIT_stdOut,'(A,I6,A1)')' nVar:                           [',      Examples(iExample)%Nvar,']'
+    SWRITE(UNIT_stdOut,'(A)')      ' PATH (to example):              ['//TRIM(Examples(iExample)%PATH)//']'
+    SWRITE(UNIT_stdOut,'(A,L)')    ' MPIrun (run with MPI):          [',      Examples(iExample)%MPIrun,']'
+    SWRITE(UNIT_stdOut,'(A,I6,A1)')' MPIthreads (number of threads): [',      Examples(iExample)%MPIthreads,']'
+    SWRITE(UNIT_stdOut,'(A)')      ' Reference:                      ['//TRIM(Examples(iExample)%ReferenceFile)//']'
+    SWRITE(UNIT_stdOut,'(A)')      ' State:                          ['//TRIM(Examples(iExample)%ReferenceStateFile)//']'
+    SWRITE(UNIT_stdOut,'(A)')      ' HDF5 dataset:                   ['//TRIM(Examples(iExample)%ReferenceDataSetName)//']'
+    SWRITE(UNIT_stdOut,'(A)')      ' Restart:                        ['//TRIM(Examples(iExample)%RestartFileName)//']'
+    SWRITE(UNIT_stdOut,'(A)')      ' Example%SubExample:             ['//TRIM(Examples(iExample)%SubExample)//']'
+    SWRITE(UNIT_stdOut,'(A,I6,A1)')' Example%SubExampleNumber:       [',      Examples(iExample)%SubExampleNumber,']'
+    SWRITE(UNIT_stdOut,'(A)')      ' parameter files:                ['//TRIM(parameter_ini)//' '//TRIM(parameter_ini2)//']'
 !==================================================================================================================================
     DO iSubExample = 1, MAX(1,Examples(iExample)%SubExampleNumber) ! loop level 3 of 3: SubExamples (e.g. different TimeDiscMethods)
 !==================================================================================================================================
       IF(Examples(iExample)%SubExampleNumber.GT.0)THEN ! SubExample has been specified
         SWRITE(UNIT_stdOut,'(A)')" "
         SWRITE(UNIT_stdOut,'(A,I2,A,A)')" SubExampleOption(",iSubExample,")=",TRIM(Examples(iExample)%SubExampleOption(iSubExample))
-        SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//& ! print the current SubExampleOption(iSubExample) to parameter_boltzplatz
+        SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//& ! print the current SubExampleOption(iSubExample) to parameter_ini
    ' && sed -i -e "s/.*'//TRIM(Examples(iExample)%SubExample)//&
                   '=.*/'//TRIM(Examples(iExample)%SubExample)//&
                      '='//TRIM(Examples(iExample)%SubExampleOption(iSubExample))//&
-                   '/" '//TRIM(parameter_boltzplatz)
+                   '/" '//TRIM(parameter_ini)
         CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       END IF
     IF(Examples(iExample)%IntegrateLine)THEN ! delete pre-existing data files before running the code
@@ -281,13 +282,13 @@ DO iExample = 1, nExamples ! loop level 1 of 3
         END IF
 
         SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && mpirun -np '//ADJUSTL(TRIM(MPIthreadsStr))&
-                                                          //' '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
-                    //TRIM(parameter_boltzplatz2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
+                                                          //' '//TRIM(EXECPATH)//' '//TRIM(parameter_ini)//' ' &
+                    //TRIM(parameter_ini2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
       ELSE
-        SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && '//TRIM(EXECPATH)//' '//TRIM(parameter_boltzplatz)//' ' &
-                    //TRIM(parameter_boltzplatz2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
+        SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && '//TRIM(EXECPATH)//' '//TRIM(parameter_ini)//' ' &
+                    //TRIM(parameter_ini2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
       END IF
-      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS) ! run the code
       !print*,' --------------------------------------', iSTATUS
       IF(iSTATUS.EQ.0)THEN ! Computation successfull
         SWRITE(UNIT_stdOut,'(A)',ADVANCE='no')  ' Successfull computation ...'
@@ -299,7 +300,9 @@ DO iExample = 1, nExamples ! loop level 1 of 3
         CALL AddError('Error while executing',iExample,iSubExample,ErrorStatus=1,ErrorCode=2)
         CYCLE ! when a computation fails no useful output is created for comparison, continue the subexample cycle
       END IF
+      ! -----------------------------------------------------------------------------------------------------------------------
       ! comparing results and writing error messages for the current case
+      ! -----------------------------------------------------------------------------------------------------------------------
       SWRITE(UNIT_stdOut,'(A)',ADVANCE='no')  ' Comparing results...'
       ! check error norms
       ALLOCATE(ReferenceNorm(Examples(iExample)%nVar,2))
@@ -354,13 +357,14 @@ END SUBROUTINE PerformRegressionCheck
 !> currently supports: - navierstokes             ->    Examples(iExample)%Nvar=5
 !>                     - linearscalaradvection    ->    Examples(iExample)%Nvar=1
 !>                     - maxwell                  ->    Examples(iExample)%Nvar=8
+!> Add equation systems at will!!!!
 !==================================================================================================================================
 SUBROUTINE GetNvar(iExample,iReggieBuild)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: Examples,EXECPATH,BuildEQNSYS,BuildSolver
+USE MOD_RegressionCheck_Vars,    ONLY: Examples,EXECPATH,BuildEQNSYS,BuildSolver,CodeNameUppCase,CodeNameLowCase
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -380,7 +384,7 @@ INTEGER                        :: ioUnit                            ! IO channel
 ioUnit=GETFREEUNIT()
 IndNum=INDEX(EXECPATH, '/')
 IF(IndNum.GT.0)THEN
-  IndNum=INDEX(EXECPATH,'/',BACK = .TRUE.) ! get path without boltzplatz binary
+  IndNum=INDEX(EXECPATH,'/',BACK = .TRUE.) ! get path without binary
   FileName=EXECPATH(1:IndNum)//'configuration.cmake'
   INQUIRE(File=FileName,EXIST=ExistFile)
   IF(ExistFile) THEN
@@ -390,13 +394,13 @@ IF(IndNum.GT.0)THEN
       IF(ADJUSTL(temp).EQ.'!') CYCLE
       IF(iSTATUS.EQ.-1)EXIT
       IF(LEN(trim(temp)).GT.1)THEN
-        IndNum=INDEX(temp,'BOLTZPLATZ_EQNSYSNAME')
+        IndNum=INDEX(temp,CodeNameUppCase//'_EQNSYSNAME')
         IF(IndNum.GT.0)THEN
-          temp2=TRIM(ADJUSTL(temp(IndNum+LEN('BOLTZPLATZ_EQNSYSNAME'):LEN(temp))))
+          temp2=TRIM(ADJUSTL(temp(IndNum+LEN(CodeNameUppCase//'_EQNSYSNAME'):LEN(temp))))
           IndNum=INDEX(temp2, '"')
           IF(IndNum.GT.0)THEN
             temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
-            IF(INDEX(temp2(IndNum+1:LEN(TRIM(temp2))), '"')+IndNum.GT.IndNum)THEN ! get boltzplatz exe path up to 2nd '"' in name
+            IF(INDEX(temp2(IndNum+1:LEN(TRIM(temp2))), '"')+IndNum.GT.IndNum)THEN ! get binary path up to 2nd '"' in name
               IndNum=INDEX(temp2(IndNum+1:LEN(TRIM(temp2))), '"')+IndNum
             END IF
           END IF
@@ -406,11 +410,11 @@ IF(IndNum.GT.0)THEN
       END IF
     END DO
     CLOSE(ioUnit)
-  ELSE ! could not find 'configuration.cmake' at location of boltzplatz binary
+  ELSE ! could not find 'configuration.cmake' at location of execution binary
     IF(BuildSolver)THEN ! get EQNSYSNAME from cmake build configuration settings
       Examples(iExample)%EQNSYSNAME=BuildEQNSYS(iReggieBuild)
     ELSE ! stop 
-      SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the boltzplatz binary.'
+      SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the execution binary.'
       SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
       SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
       ERROR STOP '-1'
@@ -426,7 +430,8 @@ SELECT CASE (TRIM(Examples(iExample)%EQNSYSNAME))
     Examples(iExample)%Nvar=8
   CASE DEFAULT
     Examples(iExample)%Nvar=-1
-    SWRITE(UNIT_stdOut,'(A)')   ' ERROR: missing case select for this BOLTZPLATZ_EQNSYSNAME with appropriate Nvar. Fix it by'
+    SWRITE(UNIT_stdOut,'(A)')   ' ERROR: missing case select for this '&
+                                                                   //CodeNameUppCase//'_EQNSYSNAME with appropriate Nvar. Fix it by'
     SWRITE(UNIT_stdOut,'(A)')   '        adding the correct line of code to ../regressioncheck/regressioncheck_run.f90'
     SWRITE(UNIT_stdOut,'(A,A)') '        Examples(iExample)%EQNSYSNAME=',Examples(iExample)%EQNSYSNAME
     ERROR STOP '77'
