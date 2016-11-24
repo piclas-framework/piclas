@@ -516,7 +516,7 @@ END SUBROUTINE GetFlagFromFile
 
 
 !==================================================================================================================================
-!> Get the number of builds that have been successfull in the previous building process in order to skip them
+!> Get the number of builds that have been successful in the previous building process in order to skip them
 !> If, e.g., the first 10 builds were successful but the 11th failes, the first 10 might want to be skipped (in manual debugging)
 !==================================================================================================================================
 SUBROUTINE GetBuildContinue()

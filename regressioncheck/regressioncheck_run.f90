@@ -74,7 +74,9 @@ ReggieBuildExe=''
 !==================================================================================================================================
 DO iExample = 1, nExamples ! loop level 1 of 3
 !==================================================================================================================================
+  ! -----------------------------------------------------------------------------------------------------------------------
   ! currently: each parameter configuration is only built and tested for the "run_basic" example
+  ! -----------------------------------------------------------------------------------------------------------------------
   dummystr=TRIM(ADJUSTL(ExampleNames(iExample)))
   IF(dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType)))).EQ.RuntimeOptionType)THEN
     SWRITE(UNIT_stdOut,*) ''
@@ -86,11 +88,10 @@ DO iExample = 1, nExamples ! loop level 1 of 3
   ELSE
     SWRITE(UNIT_stdOut,'(A,2x,A)') '  ...running'
   END IF
-!print*,"dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType))))",dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType))))
-!print*,"RuntimeOptionType",RuntimeOptionType
-!read*
+  ! -----------------------------------------------------------------------------------------------------------------------
   ! if "BuildSolver" is true, the complete (valid) compiler-flag parameter combination
   ! is tested (specified in "configuration.reggie", default example is "run_basic")
+  ! -----------------------------------------------------------------------------------------------------------------------
   IF(BuildSolver)THEN
     IF(ReggieBuildExe.EQ.'')THEN
       CALL ReadConfiguration(iExample,nReggieBuilds,BuildCounter,BuildIndex,N_compile_flags,BuildConfigurations,BuildValid)
@@ -109,6 +110,9 @@ DO iExample = 1, nExamples ! loop level 1 of 3
 !==================================================================================================================================
   DO iReggieBuild = 1, nReggieBuilds ! loop level 2 of 3: cycle the number of build configurations (no configuration = only 1 run)
 !==================================================================================================================================
+    ! -----------------------------------------------------------------------------------------------------------------------
+    ! Get code binary (build or find it)
+    ! -----------------------------------------------------------------------------------------------------------------------
     IF(BuildSolver)THEN
       ! if build is not valid no binary has been built and the lopp can cycle here
       IF(.NOT.BuildValid(iReggieBuild))THEN ! invalid reggie build 
@@ -140,10 +144,14 @@ DO iExample = 1, nExamples ! loop level 1 of 3
       CALL CheckForExecutable(Mode=2) ! check if executable was created correctly
     END IF
   
+    ! -----------------------------------------------------------------------------------------------------------------------
     ! read the parameters for the current example (parameter_reggie.ini)
+    ! -----------------------------------------------------------------------------------------------------------------------
     CALL InitExample(TRIM(Examples(iExample)%PATH),LEN(TRIM(Examples(iExample)%PATH)),Examples(iExample))
 
+    ! -----------------------------------------------------------------------------------------------------------------------
     ! depending on the equation system -> get different Nvar 
+    ! -----------------------------------------------------------------------------------------------------------------------
     CALL GetNvar(iExample,iReggieBuild)
 
     ! -----------------------------------------------------------------------------------------------------------------------
@@ -177,7 +185,7 @@ DO iExample = 1, nExamples ! loop level 1 of 3
     END IF
 
     ! -----------------------------------------------------------------------------------------------------------------------
-    ! remove subexample for certain configurations: e.g. Preconditioner when running explicitly
+    ! remove subexample (before printing the case overview) for certain configurations: e.g. Preconditioner when running explicitly
     ! -----------------------------------------------------------------------------------------------------------------------
     IF((TRIM(TIMEDISCMETHOD).NE.'ImplicitO3').AND.(TRIM(Examples(iExample)%SubExample).EQ.'PrecondType'))THEN
       Examples(iExample)%SubExample       = ''
@@ -242,8 +250,9 @@ DO iExample = 1, nExamples ! loop level 1 of 3
         ERROR STOP '-1'
       END IF
     END IF
-!==================================================================================================================================
-    ! Output settings
+    ! -----------------------------------------------------------------------------------------------------------------------
+    ! Output settings (before going into subexamples)
+    ! -----------------------------------------------------------------------------------------------------------------------
     SWRITE(UNIT_stdOut,'(A)')      ' EXECPATH:                       ['//TRIM(EXECPATH)//']'
     SWRITE(UNIT_stdOut,'(A)')      ' EQNSYSNAME:                     ['//TRIM(Examples(iExample)%EQNSYSNAME)//']'
     SWRITE(UNIT_stdOut,'(A,I6,A1)')' nVar:                           [',      Examples(iExample)%Nvar,']'
@@ -260,6 +269,9 @@ DO iExample = 1, nExamples ! loop level 1 of 3
 !==================================================================================================================================
     DO iSubExample = 1, MAX(1,Examples(iExample)%SubExampleNumber) ! loop level 3 of 3: SubExamples (e.g. different TimeDiscMethods)
 !==================================================================================================================================
+      ! -----------------------------------------------------------------------------------------------------------------------
+      ! Set the SubExample in the parameter.ini file
+      ! -----------------------------------------------------------------------------------------------------------------------
       IF(Examples(iExample)%SubExampleNumber.GT.0)THEN ! SubExample has been specified
         SWRITE(UNIT_stdOut,'(A)')" "
         SWRITE(UNIT_stdOut,'(A,I2,A,A)')" SubExampleOption(",iSubExample,")=",TRIM(Examples(iExample)%SubExampleOption(iSubExample))
@@ -270,10 +282,16 @@ DO iExample = 1, nExamples ! loop level 1 of 3
                    '/" '//TRIM(parameter_ini)
         CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       END IF
-    IF(Examples(iExample)%IntegrateLine)THEN ! delete pre-existing data files before running the code
-      SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm '//TRIM(Examples(iExample)%IntegrateLineFile)//' > /dev/null 2>&1'
-      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS) ! delete, e.g., "TGVAnalysis.dat" or "Database.csv"
-    END IF
+      ! -----------------------------------------------------------------------------------------------------------------------
+      ! delete pre-existing data files before running the code 
+      ! -----------------------------------------------------------------------------------------------------------------------
+      IF(Examples(iExample)%IntegrateLine)THEN
+        SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm '//TRIM(Examples(iExample)%IntegrateLineFile)//' > /dev/null 2>&1'
+        CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS) ! delete, e.g., "TGVAnalysis.dat" or "Database.csv"
+      END IF
+      ! -----------------------------------------------------------------------------------------------------------------------
+      ! Run the Code
+      ! -----------------------------------------------------------------------------------------------------------------------
       IF(Examples(iExample)%MPIrun)THEN
         IF(Examples(iExample)%MPIthreads.GT.1)THEN
           WRITE(UNIT=MPIthreadsStr,FMT='(I5)') Examples(iExample)%MPIthreads
@@ -289,10 +307,12 @@ DO iExample = 1, nExamples ! loop level 1 of 3
                     //TRIM(parameter_ini2)//' '//TRIM(Examples(iExample)%RestartFileName)//' 1>std.out 2>err.out'
       END IF
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS) ! run the code
-      !print*,' --------------------------------------', iSTATUS
-      IF(iSTATUS.EQ.0)THEN ! Computation successfull
-        SWRITE(UNIT_stdOut,'(A)',ADVANCE='no')  ' Successfull computation ...'
-        CALL AddError('Successfull computation',iExample,iSubExample,ErrorStatus=0,ErrorCode=0)
+      ! -----------------------------------------------------------------------------------------------------------------------
+      ! was the run successful? (iSTATUS=0)
+      ! -----------------------------------------------------------------------------------------------------------------------
+      IF(iSTATUS.EQ.0)THEN ! Computation successful
+        SWRITE(UNIT_stdOut,'(A)',ADVANCE='no')  ' successful computation ...'
+        CALL AddError('successful computation',iExample,iSubExample,ErrorStatus=0,ErrorCode=0)
       ELSE ! Computation failed
         SWRITE(UNIT_stdOut,'(A)')   ' Computation of example failed'
         SWRITE(UNIT_stdOut,'(A,A)') ' Out-file: ', TRIM(Examples(iExample)%PATH)//'std.out'
@@ -340,11 +360,11 @@ DO iExample = 1, nExamples ! loop level 1 of 3
         END IF
       END IF
 
+      ! IF all comparisons are successful the error status is 0 -> delete file in CleanExample(iExample)
       IF(Examples(iExample)%ErrorStatus.EQ.0)THEN
-        SWRITE(UNIT_stdOut,'(A)')  ' Example successfull! '
+        SWRITE(UNIT_stdOut,'(A)')  ' Example successful! '
         CALL CleanExample(iExample)
       END IF
-      !SWRITE(UNIT_stdOut,'(A)')  '-------------------------------------'
     END DO ! iSubExample = 1, MAX(1,SubExampleNumber) (for cases without specified SubExamples: SubExampleNumber=0)
   END DO ! iReggieBuild = 1, nReggieBuilds
 END DO ! iExample=1,nExamples
