@@ -15,9 +15,6 @@ USE MOD_MPI,               ONLY:InitMPI
 USE MOD_RecordPoints_Vars, ONLY:RP_Data
 USE MOD_Mesh_Vars,         ONLY: DoSwapMesh
 USE MOD_Mesh,              ONLY: SwapMesh
-#ifdef PP_HDG
-USE MOD_HDG,              ONLY:InitHDG
-#endif
 #ifdef MPI
 USE MOD_LoadBalance,       ONLY:InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI,               ONLY:FinalizeMPI
@@ -130,9 +127,6 @@ CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
 !CALL InitParticleAnalyze()
 !#endif
 !CALL IgnoredStrings()
-#ifdef PP_HDG
-CALL InitHDG()
-#endif
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   IF(MPIroot)THEN

@@ -9,6 +9,8 @@ SAVE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
+CHARACTER(LEN=10),PARAMETER    :: CodeNameUppCase='BOLTZPLATZ'       !> Code name in upper case letters. IMPORTANT: set its length!
+CHARACTER(LEN=10),PARAMETER    :: CodeNameLowCase='boltzplatz'       !> Code name in lower case letters. IMPORTANT: set its length!
 INTEGER                        :: nErrors                            !> number of errors encountered during reggie execution
 INTEGER                        :: NumberOfProcs                      !> number of processors for parallel build
 CHARACTER(LEN=20)              :: NumberOfProcsStr                   !> number of processors for parallel build as string
@@ -31,6 +33,12 @@ LOGICAL                        :: BuildDebug                         !> Prints t
 LOGICAL                        :: BuildNoDebug                       !> Don't print any compiler output (if BuildSolver is true) 
 LOGICAL                        :: BuildContinue                      !> allow the building sequence to begin at the last failure
 INTEGER                        :: BuildContinueNumber                !> start building sequence from this point
+
+CHARACTER(LEN=255),ALLOCATABLE :: BuildConfigurations(:,:)           !> CMAKE complie flag and value
+LOGICAL,ALLOCATABLE            :: BuildValid(:)                      !> use the configuration or don't
+INTEGER,ALLOCATABLE            :: BuildCounter(:)                    !> register for creaating all possible cmake configurations
+INTEGER,ALLOCATABLE            :: BuildIndex(:)                      !> number of different flag settings for each specified cmake 
+                                                                     !> compiler flag
 
 TYPE tExample                                                        !> examples for regressioncheck
   INTEGER                                :: ReferenceType            !> Type of reference
