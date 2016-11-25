@@ -759,7 +759,7 @@ SUBROUTINE CalcBackgndPartDesorb()
 !===================================================================================================================================
 ! Local variable declaration
    INTEGER                          :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
-   INTEGER                          :: Coord, Coord2, i, j, AdsorbID, numSites
+   INTEGER                          :: Coord, Coord3, i, j, AdsorbID, numSites
    REAL                             :: WallTemp, RanNum
    REAL                             :: Heat_A, Heat_B, nu_des, rate, P_actual_des
    REAL , ALLOCATABLE               :: P_des(:), Energy(:)
@@ -769,12 +769,12 @@ SUBROUTINE CalcBackgndPartDesorb()
    INTEGER , ALLOCATABLE            :: desorbnum(:), reactdesorbnum(:), adsorbnum(:)
    INTEGER , ALLOCATABLE            :: nSites(:), nSitesRemain(:), remainNum(:), adsorbates(:)
 !---------- reaction variables
-   INTEGER                          :: react_Neigh, n_react_Neigh, n_empty_Neigh, jSpec, kSpec, ReactNum, PartnerID, LastRemainID
-   INTEGER                          :: react_Neigh_pos, surf_react_case, interatom
+   INTEGER                          :: react_Neigh, n_empty_Neigh, jSpec, kSpec, ReactNum, PartnerID, LastRemainID
+   INTEGER                          :: surf_react_case, interatom, NeighID
    REAL                             :: E_a, E_d, E_diff, nu_react, P_diff, nu_diff
    REAL                             :: Heat_AB, D_AB, sum_probabilities
    REAL                             :: VarPartitionFuncWall1, VarPartitionFuncWall2
-   INTEGER , ALLOCATABLE            :: NeighbourID(:)
+   INTEGER , ALLOCATABLE            :: react_Neigh_pos(:), Coord2(:), NeighbourID(:)
    REAL , ALLOCATABLE               :: P_react(:), P_actual_react(:)
 !===================================================================================================================================
 #if (PP_TimeDiscMethod==42)
@@ -792,7 +792,10 @@ ALLOCATE (desorbnum(1:nSpecies),&
           adsorbates(1:nSpecies),&
           Energy(1:nSpecies))
 ALLOCATE( P_react(1:Adsorption%ReactNum),&
-          P_actual_react(1:Adsorption%ReactNum))
+          P_actual_react(1:Adsorption%ReactNum+1))
+
+ALLOCATE( Coord2(1:Adsorption%ReactNum),&
+          react_Neigh_pos(1:Adsorption%ReactNum+1))
 
 #if (PP_TimeDiscMethod==42)
 Adsorption%AdsorpInfo(:)%MeanEAds = 0.
@@ -870,112 +873,92 @@ DO subsurfxi = 1,nSurfSample
     Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.FALSE.)
 !     Energy(iSpec) = Energy(iSpec) + Heat_A
 
-    ! find neighbour positions with reaction partner or empty with same coord for diffusion    
+    P_actual_react(:) = 0.
+    Coord2(:) = -1
+    react_Neigh_pos(:) = 0
+    ! Choose Random surface position for each possible Reaction and if position is occupied calculate reaction probability 
+    DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
+      IF (Adsorption%AssocReact(1,ReactNum,iSpec).LT.1) CYCLE
+      Coord2(ReactNum) = Adsorption%Coordination(Adsorption%AssocReact(1,ReactNum,iSpec))
+      CALL RANDOM_NUMBER(RanNum)
+      NeighID = 1 + INT(nSites(Coord2(ReactNum))*RanNum)
+      react_Neigh_pos(ReactNum) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%UsedSiteMap(NeighID)
+      jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%Species(react_Neigh_pos(ReactNum))
+      
+      IF ( jSpec.EQ.Adsorption%AssocReact(1,ReactNum,iSpec) .AND. (jSpec.GT.0)) THEN
+        kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
+        ! calculate heats of adsorption
+!         Heat_AB = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,kSpec,-1,.FALSE.)
+        Heat_AB = 0. ! immediate desorption
+        Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,react_Neigh_pos(ReactNum),.FALSE.)
+        D_AB = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
+        ! calculate LH reaction probability
+        E_d = Calc_E_act(Heat_A,Heat_B,Heat_AB,D_AB,0.,0.,.FALSE.)
+        CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
+        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1)
+        CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2)
+        nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct &
+                    / (VarPartitionFuncWall1 * VarPartitionFuncWall2))
+        rate = nu_react * exp(-E_d/(WallTemp))
+        P_actual_react(ReactNum) = rate * dt
+        IF (rate*dt.GT.1) THEN
+          P_react(ReactNum) = P_react(ReactNum) + 1
+          P_des(kSpec) = P_des(kSpec) + 1
+        ELSE
+          P_react(ReactNum) = P_react(ReactNum) + P_actual_react(ReactNum)
+          P_des(kSpec) = P_des(kSpec) + P_actual_react(ReactNum)
+        END IF
+      END IF
+    END DO
+
+    ! find neighbour positions with empty site of same coord for diffusion    
     n_empty_Neigh = 0
-    n_react_Neigh = 0
     ALLOCATE(NeighbourID(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
     DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
-      Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,i)
-      IF (Coord2.GT.0) THEN
-        IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( &
+      Coord3 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,i)
+      IF (Coord3.GT.0) THEN
+        IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord3)%Species( &
               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
               .EQ.0) ) THEN
-          IF (Coord2.EQ.Coord) THEN
+          IF (Coord3.EQ.Coord) THEN
             n_empty_Neigh = n_empty_Neigh + 1
-            NeighbourID(n_empty_Neigh+n_react_Neigh) = i
+            NeighbourID(n_empty_Neigh) = i
           END IF
-        ELSE
-          DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-            IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( &
-                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
-                .EQ.Adsorption%AssocReact(1,ReactNum,iSpec)) THEN
-              n_react_Neigh = n_react_Neigh + 1
-              NeighbourID(n_empty_Neigh+n_react_Neigh) = i
-              EXIT
-            END IF
-          END DO
         END IF
       END IF
     END DO
     
-    IF ((n_empty_Neigh+n_react_Neigh).GT.0) THEN
-      ! choose random neighbour site from relevant neighbours
+    ! if empty sites are available choose one and calculate diffusion probability
+    IF (n_empty_Neigh.GT.0) THEN
+      ! choose random empty neighbour site from relevant neighbours
       CALL RANDOM_NUMBER(RanNum)
-      react_Neigh = 1 + INT((n_empty_Neigh+n_react_Neigh) * RanNum)
-      Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,NeighbourID(react_Neigh))
-      react_Neigh_pos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,NeighbourID(react_Neigh))
+      react_Neigh = 1 + INT(n_empty_Neigh * RanNum)
+      Coord3 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,NeighbourID(react_Neigh))
+      react_Neigh_pos(Adsorption%ReactNum+1) = &
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,NeighbourID(react_Neigh))
       DEALLOCATE(NeighbourID)
-      jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species(react_Neigh_pos)
-      ! calculate probability for 'reaction' with partner site
-      IF (jSpec.EQ.0) THEN !diffusion
-        ! calculate heat of adsorption for actual site
-        Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.FALSE.)
-        ! remove considered particle from bondorder
-        DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
-          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
-                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
-        END DO
-        !calculate heat of adsorption for diffusion site
-        Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,react_Neigh_pos,.TRUE.)
-        ! add considered particle to bondorder again
-        DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
-          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
-                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
-        END DO
-        ! calculate diffusion probability
-!         P_diff = 0.5
-        P_diff = exp(-(Heat_A - Heat_B)/WallTemp) / (1+exp(-(Heat_A - Heat_B)/Walltemp))
-!         interatom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
-!         E_diff = ( (interatom-2)/(4*interatom-2))*Heat_A
-!         CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
-!         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
-!         nu_diff = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall) * (3.E-8)**2/4.
-!         rate = nu_diff * exp(-E_diff/WallTemp)
-!         IF (rate*dt.GT.1) THEN
-!           P_diff = 1.
-!         ELSE
-!           P_diff = rate * dt
-!         END IF
-        P_actual_react(:) = 0.
-      ELSE !reaction
-        DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-          IF ( jSpec.EQ.Adsorption%AssocReact(1,ReactNum,iSpec) ) THEN
-            kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
-            ! calculate heats of adsorption
-    !         Heat_AB = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,kSpec,Surfpos,.FALSE.)
-            Heat_AB = 0. !Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,kSpec,Surfpos,.FALSE.) ! immediate desorption
-            Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,react_Neigh_pos,.FALSE.)
-            D_AB = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
-            ! calculate LH reaction probability
-            E_d = Calc_E_act(Heat_A,Heat_B,Heat_AB,D_AB,0.,0.,.FALSE.)
-    !         E_d = ((Heat_A * Heat_B)/(Heat_A + Heat_B))
-            CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
-            CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1)
-            CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2)
-            nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct &
-                       / (VarPartitionFuncWall1 * VarPartitionFuncWall2))
-            rate = nu_react * exp(-E_d/(2*WallTemp))
-            P_actual_react(ReactNum) = rate * dt
-            IF (rate*dt.GT.1) THEN
-              P_react(ReactNum) = P_react(ReactNum) + 1
-              P_des(kSpec) = P_des(kSpec) + 1
-            ELSE
-              P_react(ReactNum) = P_react(ReactNum) + P_actual_react(ReactNum)
-              P_des(kSpec) = P_des(kSpec) + P_actual_react(ReactNum)
-            END IF
-            P_diff = 0.
-          END IF
-        END DO
-      END IF
+      ! calculate heat of adsorption for actual site
+      Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.FALSE.)
+      ! remove considered particle from bondorder
+      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
+        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
+      END DO
+      !calculate heat of adsorption for diffusion site
+      Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,react_Neigh_pos(Adsorption%ReactNum+1),.TRUE.)
+      ! add considered particle to bondorder again
+      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
+        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
+      END DO
+      ! calculate diffusion probability
+      P_actual_react(Adsorption%ReactNum+1) = exp(-(Heat_A - Heat_B)/WallTemp) / (1+exp(-(Heat_A - Heat_B)/Walltemp))
     ELSE
       DEALLOCATE(NeighbourID)
-      P_diff = 0.
-      P_actual_react(:) = 0.
-      jSpec = 0
     END IF
     
     ! calculate molecular desorption probability
@@ -991,38 +974,30 @@ DO subsurfxi = 1,nSurfSample
       P_des(iSpec) = P_des(iSpec) + P_actual_des
     END IF
     
-    ! initialize choosing reaction
+    ! initialize sum of all probabilities
     sum_probabilities = P_actual_des
-    IF ((jSpec.GT.0) .AND. ((Adsorption%ReactNum-Adsorption%DissNum).GT.0)) THEN
-      DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-        sum_probabilities = sum_probabilities + P_actual_react(ReactNum)
-      END DO
-    ELSE
-      sum_probabilities = sum_probabilities + P_diff
-    END IF
+    DO ReactNum = 1,(Adsorption%ReactNum+1)
+      sum_probabilities = sum_probabilities + P_actual_react(ReactNum)
+    END DO
     
+    ! choose which surface reaction takes place
     CALL RANDOM_NUMBER(RanNum)
     IF (sum_probabilities .GT. RanNum) THEN
-      ! chose surface reaction case (1=reaction, 2=diffusion, 3=non-associative desorption)
-      IF ((jSpec.GT.0) .AND. ((Adsorption%ReactNum-Adsorption%DissNum).GT.0)) THEN
-        DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-          CALL RANDOM_NUMBER(RanNum)
-          IF ((P_actual_react(ReactNum)/sum_probabilities).GT.RanNum) THEN
-            surf_react_case = 1
-            EXIT
-          ELSE
-            surf_react_case = 3
-            sum_probabilities = sum_probabilities - P_actual_react(ReactNum)
-          END IF
-        END DO
-      ELSE
+      DO ReactNum = 1,(Adsorption%ReactNum+1)
         CALL RANDOM_NUMBER(RanNum)
-        IF (P_diff/sum_probabilities.GT.RanNum) THEN
-          surf_react_case = 2
+        IF ((P_actual_react(ReactNum)/sum_probabilities).GT.RanNum) THEN
+          IF (ReactNum.EQ.(Adsorption%ReactNum+1)) THEN
+            surf_react_case = 2
+          ELSE
+            surf_react_case = 1
+          END IF
+          EXIT
         ELSE
           surf_react_case = 3
+          sum_probabilities = sum_probabilities - P_actual_react(ReactNum)
         END IF
-      END IF
+      END DO
+      
       SELECT CASE(surf_react_case)
       !-----------------------------------------------------------------------------------------------------------------------------
       CASE(1) !reaction
@@ -1047,19 +1022,22 @@ DO subsurfxi = 1,nSurfSample
         nSitesRemain(Coord) = nSitesRemain(Coord) + 1
         nSitesRemain(4) = nSitesRemain(4) + 1
         ! remove adsorbate reaction partner and update map
-        DO PartnerID = nSitesRemain(Coord2)+1,nSites(Coord2)
-        IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%UsedSiteMap(PartnerID).EQ.react_Neigh_pos) THEN
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species(react_Neigh_pos) = 0
-          DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
-            Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%BondAtomIndx(react_Neigh_pos,j)
-            Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%BondAtomIndy(react_Neigh_pos,j)
+        DO PartnerID = nSitesRemain(Coord2(ReactNum))+1,nSites(Coord2(ReactNum))
+        IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%UsedSiteMap(PartnerID) &
+            .EQ.react_Neigh_pos(ReactNum)) THEN
+          jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%Species(react_Neigh_pos(ReactNum)) = 0
+          DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%nInterAtom
+            Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%BondAtomIndx(react_Neigh_pos(ReactNum),j)
+            Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%BondAtomIndy(react_Neigh_pos(ReactNum),j)
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(jSpec,Indx,Indy) = &
                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(jSpec,Indx,Indy) - 1
           END DO
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%UsedSiteMap(PartnerID) = &
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%UsedSiteMap(nSitesRemain(Coord2)+1)
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%UsedSiteMap(nSitesRemain(Coord2)+1) = react_Neigh_pos
-          nSitesRemain(Coord2) = nSitesRemain(Coord2) + 1
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%UsedSiteMap(PartnerID) = &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%UsedSiteMap(nSitesRemain(Coord2(ReactNum))+1)
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2(ReactNum))%UsedSiteMap(nSitesRemain(Coord2(ReactNum))+1) &
+          = react_Neigh_pos(ReactNum)
+          nSitesRemain(Coord2(ReactNum)) = nSitesRemain(Coord2(ReactNum)) + 1
           nSitesRemain(4) = nSitesRemain(4) + 1
           ! additional increment to trace number
           trace = trace + 1
@@ -1069,26 +1047,28 @@ DO subsurfxi = 1,nSurfSample
       CASE(2) !diffusion
       !-----------------------------------------------------------------------------------------------------------------------------
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(react_Neigh_pos) = iSpec
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(react_Neigh_pos(Adsorption%ReactNum+1)) = iSpec
         DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
           Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
           Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
-          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(react_Neigh_pos,j)
-          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(react_Neigh_pos,j)
+          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(react_Neigh_pos(Adsorption%ReactNum+1),j)
+          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(react_Neigh_pos(Adsorption%ReactNum+1),j)
           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
         END DO
         ! move adsorbate to empty site and update map
         DO i = 1,nSitesRemain(Coord)
-          IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i).EQ.react_Neigh_pos) THEN
+          IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i) &
+              .EQ.react_Neigh_pos(Adsorption%ReactNum+1)) THEN
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i) = Surfpos
 !             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = react_Neigh_pos
             ! move Surfpos to MapID in remainNum segment
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord))
-            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord)) =react_Neigh_pos
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord)) &
+              =react_Neigh_pos(Adsorption%ReactNum+1)
             EXIT
           END IF
         END DO
@@ -1172,6 +1152,7 @@ END IF
 
 DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,P_des,adsorbates,Energy)
 DEALLOCATE(P_react,P_actual_react)
+DEALLOCATE(Coord2,react_Neigh_pos)
 
 END SUBROUTINE CalcBackgndPartDesorb
 
@@ -1882,7 +1863,7 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                        :: Coordination, i, j, iPolyatMole, Indx, Indy, nInterAtom, k, l
-  REAL , ALLOCATABLE             :: x(:), z(:), D_AL(:), delta(:)
+  REAL , ALLOCATABLE             :: x(:), D_AL(:), delta(:) !, z(:)
   INTEGER , ALLOCATABLE          :: m(:), Neigh_bondorder(:)
   REAL                           :: D_AB, D_AX, D_BX, bondorder
   REAL                           :: Heat_A, Heat_B
@@ -1892,11 +1873,11 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
 !===================================================================================================================================
   Coordination = Adsorption%Coordination(iSpec)
   ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
-  ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
+!   ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
   ALLOCATE( m(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
   x(:) = 1. ! averaged bond-index for surface atoms 
   m(:) = 1  ! number of adsorbates belonging to surface atom
-  z(:) = 1.
+!   z(:) = 1.
   Calc_Adsorb_Heat = 0.
   sigma = 0.
   
@@ -1906,7 +1887,7 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
       Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%BondAtomIndy(Surfpos,j)
       bondorder = 0.
       DO i = 1,nSpecies
-        bondorder = bondorder + REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(i,Indx,Indy))
+        bondorder = bondorder + SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(i,Indx,Indy)
       END DO
       IF (IsAdsorption) THEN
       ! calculate bond order for heat of adsorption (in case of adsorption treatment)
@@ -1918,12 +1899,12 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
       IF (m(j).LT.1) THEN !should never occur except calculating desorb heat for empty site (IsAdsorption=FALSE)
         CALL Abort(&
 __STAMP__,&
-'Calc_Adsorb_Heat_ERROR: no adsorbate bound to surface atom on chosen site')
+'Calc_Adsorb_Heat_ERROR: Calculating Heat of adsorbtion not possible for surface position',Surfpos)
       END IF
       x(j) = 1. / REAL(m(j))
     END DO
   END IF
-  z(:) = x(:)
+!   z(:) = x(:)
   ! calculate local scaling factor for chosen surface site
   DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
     x(j) = x(j) / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
@@ -1943,12 +1924,12 @@ __STAMP__,&
       CASE(2) ! bridge
         IF (Adsorption%DiCoord(iSpec).EQ.1) THEN ! dicoordination (HCOOH --> M--(HC)O-O(H)--M) (M--O bond)
           D_AX = Adsorption%EDissBondAdsorbPoly(0,iSpec) ! Bond HC--O
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*z(1) - z(1)**2)
+          Heat_A = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(1) - z(1)**2)
           A = Heat_A**2/(D_AX*Heat_A)
           D_BX = Adsorption%EDissBondAdsorbPoly(1,iSpec) ! Bond O--H
-          Heat_B = Adsorption%HeatOfAdsZero(iSpec) * (2.*z(2) - z(2)**2)
+          Heat_B = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(2) - z(2)**2)
           B = Heat_B**2/(D_BX*Heat_B)
-          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) )
+          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma
         
 !           Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*x(1) - x(1)**2)
 !           Heat_M = Adsorption%HeatOfAdsZeroM(iSpec) * (2.*x(1) - x(1)**2)
@@ -1960,13 +1941,13 @@ __STAMP__,&
           
         ELSE IF (Adsorption%DiCoord(iSpec).EQ.2) THEN ! chelate binding (NO2 --> M--O-N-O--M)
           D_AX = Adsorption%EDissBondAdsorbPoly(0,iSpec) ! Bond O--N
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*z(1) - z(1)**2)
+          Heat_A = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(1) - z(1)**2)
           Heat_A = Heat_A**2/(D_AX*Heat_A)
           D_BX = Adsorption%EDissBondAdsorbPoly(1,iSpec) ! Bond N--O
-          Heat_B = Adsorption%HeatOfAdsZero(iSpec) * (2.*z(2) - z(2)**2)
+          Heat_B = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(2) - z(2)**2)
           Heat_B = Heat_B**2/(D_BX*Heat_B)
-          A = Heat_A**2 * ( Heat_A + 2*Heat_B ) / ( Heat_A + Heat_B )**2
-          B = Heat_B**2 * ( Heat_B + 2*Heat_A ) / ( Heat_A + Heat_B )**2
+          A = Heat_A**2 * ( Heat_A + 2*Heat_B ) / ( Heat_A + Heat_B )**2 * sigma
+          B = Heat_B**2 * ( Heat_B + 2*Heat_A ) / ( Heat_A + Heat_B )**2 * sigma
           Calc_Adsorb_Heat = A + B
         END IF
       CASE(3) ! on-top (closed shell or open shell with unlocalized electron like CO)
@@ -1981,11 +1962,11 @@ __STAMP__,&
         Calc_Adsorb_Heat = Heat_A**2/(D_AB*Heat_A)
       CASE(2) ! bridge (closed shell like O2)
         IF (Adsorption%DiCoord(iSpec).EQ.1) THEN
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*z(1) - z(1)**2)
-          Heat_B = Adsorption%HeatOfAdsZero(iSpec) * (2.*z(2) - z(2)**2)
+          Heat_A = Adsorption%HeatOfAdsZero(iSpec) !* (2.*z(1) - z(1)**2)
+          Heat_B = Adsorption%HeatOfAdsZero(iSpec) !* (2.*z(2) - z(2)**2)
           A = Heat_A**2 * ( Heat_A + 2*Heat_B ) / ( Heat_A + Heat_B )**2 
           B = Heat_B**2 * ( Heat_B + 2*Heat_A ) / ( Heat_A + Heat_B )**2
-          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) )
+          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma
         ELSE
           Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma
           Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A)
@@ -1999,70 +1980,70 @@ __STAMP__,&
     Calc_Adsorb_Heat = Adsorption%HeatOfAdsZero(iSpec) * sigma
   END IF
   
-  ! calculate additional heat of adsorption for direct interaction (attraction of associating adsorabtes)
-  IF ((Adsorption%ReactNum.GT.0) .AND. (Surfpos.GT.0)) THEN
-    ALLOCATE(D_AL(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours),&
-             delta(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours),&
-             Neigh_bondorder(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours))
-    D_AL(:) = 0.
-    delta(:) = 0.
-    Neigh_bondorder(:) = 0
-    nNeigh_interactions = 0
-    ! define dissociation bond energies of neighbours and count interacting neighbours
-    DO l = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours
-      Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%NeighSite(Surfpos,l)
-      IF (Coord2.GT.0) THEN
-        NeighPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%NeighPos(Surfpos,l)
-        neighSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species(NeighPos)
-        IF ( (neighSpec.NE.0) ) THEN
-          DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-            IF ( neighSpec.EQ.Adsorption%AssocReact(1,ReactNum,iSpec) .AND. &
-                 (Adsorption%AssocReact(2,ReactNum,iSpec).NE.0)) THEN
-              D_AL(l) = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
-              nNeigh_interactions = nNeigh_interactions + 1
-              CYCLE
-            END IF
-          END DO
-          ! associate bondorder of neighbours
-          DO k = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nNeighbours
-            Coord3 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%NeighSite(NeighPos,k)
-            IF (Coord3.GT.0) THEN
-              neighSpec2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord3)%Species( &
-                      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%NeighPos(NeighPos,k))
-              IF ( (neighSpec2.NE.0) ) THEN
-                DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-                  IF ( (neighSpec2.EQ.Adsorption%AssocReact(1,ReactNum,neighSpec)) .AND. &
-                       (Adsorption%AssocReact(2,ReactNum,neighSpec).NE.0)) THEN
-                    Neigh_bondorder(l) = Neigh_bondorder(l) + 1
-                    CYCLE
-                  END IF
-                END DO
-              END IF
-            END IF
-          END DO
-        END IF
-      END IF
-    END DO
-    ! calculate interaction energy between adsorbate and neighbours
-    IF (nNeigh_interactions.NE.0) THEN
-      Heat_D_AL = 0.
-      DO l = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours
-        IF (Neigh_bondorder(l).EQ.0) THEN
-          delta(l) = 0.
-        ELSE
-          delta(l) = 1 / REAL(Neigh_bondorder(l))
-        END IF
-        Heat_D_AL = Heat_D_AL + 0.5*D_AL(l) * (2*delta(l)-delta(l)**2)
-      END DO
-      Heat_D_AL = Heat_D_AL !/ nNeigh_interactions
-    END IF
-    
-    DEALLOCATE(D_AL,delta,Neigh_bondorder)
-    nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
-    Calc_Adsorb_Heat = (Calc_Adsorb_Heat*nInterAtom + Heat_D_AL*nNeigh_interactions) /(nInterAtom + nNeigh_interactions)
-  END IF
+  ! routine wird nicht benutz, da höheres Rauschen und größerer Rechenaufwand aber aufgehoben für spätere Einsicht
+!   ! calculate additional heat of adsorption for direct interaction (attraction of associating adsorabtes)
+!   IF ((Adsorption%ReactNum.GT.0) .AND. (Surfpos.GT.0)) THEN
+!     ALLOCATE(D_AL(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours),&
+!              delta(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours),&
+!              Neigh_bondorder(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours))
+!     D_AL(:) = 0.
+!     delta(:) = 0.
+!     Neigh_bondorder(:) = 0
+!     nNeigh_interactions = 0
+!     ! define dissociation bond energies of neighbours and count interacting neighbours
+!     DO l = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours
+!       Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%NeighSite(Surfpos,l)
+!       IF (Coord2.GT.0) THEN
+!         NeighPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%NeighPos(Surfpos,l)
+!         neighSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species(NeighPos)
+!         IF ( (neighSpec.NE.0) ) THEN
+!           DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
+!             IF ( neighSpec.EQ.Adsorption%AssocReact(1,ReactNum,iSpec) .AND. &
+!                  (Adsorption%AssocReact(2,ReactNum,iSpec).NE.0)) THEN
+!               D_AL(l) = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
+!               nNeigh_interactions = nNeigh_interactions + 1
+!               CYCLE
+!             END IF
+!           END DO
+!           ! associate bondorder of neighbours
+!           DO k = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nNeighbours
+!             Coord3 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%NeighSite(NeighPos,k)
+!             IF (Coord3.GT.0) THEN
+!               neighSpec2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord3)%Species( &
+!                       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%NeighPos(NeighPos,k))
+!               IF ( (neighSpec2.NE.0) ) THEN
+!                 DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
+!                   IF ( (neighSpec2.EQ.Adsorption%AssocReact(1,ReactNum,neighSpec)) .AND. &
+!                        (Adsorption%AssocReact(2,ReactNum,neighSpec).NE.0)) THEN
+!                     Neigh_bondorder(l) = Neigh_bondorder(l) + 1
+!                     CYCLE
+!                   END IF
+!                 END DO
+!               END IF
+!             END IF
+!           END DO
+!         END IF
+!       END IF
+!     END DO
+!     ! calculate interaction energy between adsorbate and neighbours
+!     IF (nNeigh_interactions.NE.0) THEN
+!       Heat_D_AL = 0.
+!       DO l = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nNeighbours
+!         IF (Neigh_bondorder(l).EQ.0) THEN
+!           delta(l) = 0.
+!         ELSE
+!           delta(l) = 1 / REAL(Neigh_bondorder(l))
+!         END IF
+!         Heat_D_AL = Heat_D_AL + 0.5*D_AL(l) * (2*delta(l)-delta(l)**2)
+!       END DO  
+!     nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
+!     Calc_Adsorb_Heat = (Calc_Adsorb_Heat*nInterAtom + Heat_D_AL*nNeigh_interactions) /(nInterAtom + nNeigh_interactions)
+!     END IF
+!     
+!     DEALLOCATE(D_AL,delta,Neigh_bondorder)
+!   END IF
   
-  DEALLOCATE(x,z,m)
+  DEALLOCATE(x,m)
 
 END FUNCTION Calc_Adsorb_Heat
 
