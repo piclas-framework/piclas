@@ -373,10 +373,10 @@ END FUNCTION beta
 
 SUBROUTINE FinalizeEquation()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file
+! Deallocate the vars !!!!
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,ONLY:EquationInitIsDone
+USE MOD_Equation_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -387,6 +387,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 EquationInitIsDone = .FALSE.
+SDEALLOCATE(chitens)
+SDEALLOCATE(chitensInv)
+SDEALLOCATE(chitens_face)
+SDEALLOCATE(E)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation

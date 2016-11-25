@@ -32,6 +32,8 @@ USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_Mortar,                    ONLY:FinalizeMortar
 #ifndef PP_HDG
 USE MOD_PML,                       ONLY:FinalizePML
+#else
+USE MOD_HDG,                       ONLY:FinalizeHDG
 #endif /*PP_HDG*/
 USE MOD_Filter,                    ONLY:FinalizeFilter
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
@@ -83,6 +85,8 @@ CALL FinalizeLinearSolver()
 #endif /*IMEX*/
 #ifndef PP_HDG
 CALL FinalizePML()
+#else
+CALL FinalizeHDG()
 #endif /*PP_HDG*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
@@ -165,6 +169,9 @@ USE MOD_Particle_MPI,       ONLY:InitParticleMPI
 USE MOD_ParticleSolver,       ONLY:InitPartSolver
 #endif
 #endif
+#ifdef PP_HDG
+USE MOD_HDG,              ONLY:InitHDG
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -233,6 +240,9 @@ CALL InitParticleAnalyze()
 #endif
 CALL IgnoredStrings()
 
+#ifdef PP_HDG
+CALL InitHDG()
+#endif
 
 END SUBROUTINE InitBoltzplatz
 
