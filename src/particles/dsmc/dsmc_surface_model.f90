@@ -1893,7 +1893,7 @@ __STAMP__,&
   ! calculate local scaling factor for chosen surface site
   DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
     x(j) = x(j) / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
-    sigma = sigma + (2.*x(j) - x(j)**2)
+    sigma = sigma + (2.*x(j) - x(j)**2.)
   END DO
 !   sigma = sigma / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
   
@@ -1905,16 +1905,16 @@ __STAMP__,&
       SELECT CASE(Coordination)
       CASE(1) ! hollow (radical with localized electron like NH2)
         Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma
-        Calc_Adsorb_Heat = Heat_A**2/(D_AB*Heat_A)
+        Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A)
       CASE(2) ! bridge
         IF (Adsorption%DiCoord(iSpec).EQ.1) THEN ! dicoordination (HCOOH --> M--(HC)O-O(H)--M) (M--O bond)
           D_AX = Adsorption%EDissBondAdsorbPoly(0,iSpec) ! Bond HC--O
           Heat_A = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(1) - z(1)**2)
-          A = Heat_A**2/(D_AX*Heat_A)
+          A = Heat_A**2./(D_AX+Heat_A)
           D_BX = Adsorption%EDissBondAdsorbPoly(1,iSpec) ! Bond O--H
           Heat_B = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(2) - z(2)**2)
-          B = Heat_B**2/(D_BX*Heat_B)
-          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma
+          B = Heat_B**2./(D_BX+Heat_B)
+          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma
         
 !           Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*x(1) - x(1)**2)
 !           Heat_M = Adsorption%HeatOfAdsZeroM(iSpec) * (2.*x(1) - x(1)**2)
@@ -1927,38 +1927,38 @@ __STAMP__,&
         ELSE IF (Adsorption%DiCoord(iSpec).EQ.2) THEN ! chelate binding (NO2 --> M--O-N-O--M)
           D_AX = Adsorption%EDissBondAdsorbPoly(0,iSpec) ! Bond O--N
           Heat_A = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(1) - z(1)**2)
-          Heat_A = Heat_A**2/(D_AX*Heat_A)
+          Heat_A = Heat_A**2/(D_AX+Heat_A)
           D_BX = Adsorption%EDissBondAdsorbPoly(1,iSpec) ! Bond N--O
           Heat_B = Adsorption%HeatOfAdsZero(iSpec)! * (2.*z(2) - z(2)**2)
-          Heat_B = Heat_B**2/(D_BX*Heat_B)
-          A = Heat_A**2 * ( Heat_A + 2*Heat_B ) / ( Heat_A + Heat_B )**2 * sigma
-          B = Heat_B**2 * ( Heat_B + 2*Heat_A ) / ( Heat_A + Heat_B )**2 * sigma
+          Heat_B = Heat_B**2/(D_BX+Heat_B)
+          A = Heat_A**2. * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2. * sigma
+          B = Heat_B**2. * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2. * sigma
           Calc_Adsorb_Heat = A + B
         END IF
       CASE(3) ! on-top (closed shell or open shell with unlocalized electron like CO)
         Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma
-        Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A)
+        Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A)
       END SELECT
     ELSE 
       D_AB = Adsorption%EDissBond(0,iSpec)
       SELECT CASE(Coordination)
       CASE(1) ! hollow (radical with localized electron like C-H)
         Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma
-        Calc_Adsorb_Heat = Heat_A**2/(D_AB*Heat_A)
+        Calc_Adsorb_Heat = (Heat_A**2)/(D_AB+Heat_A)
       CASE(2) ! bridge (closed shell like O2)
         IF (Adsorption%DiCoord(iSpec).EQ.1) THEN
           Heat_A = Adsorption%HeatOfAdsZero(iSpec) !* (2.*z(1) - z(1)**2)
           Heat_B = Adsorption%HeatOfAdsZero(iSpec) !* (2.*z(2) - z(2)**2)
-          A = Heat_A**2 * ( Heat_A + 2*Heat_B ) / ( Heat_A + Heat_B )**2 
-          B = Heat_B**2 * ( Heat_B + 2*Heat_A ) / ( Heat_A + Heat_B )**2
-          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma
+          A = Heat_A**2. * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2. 
+          B = Heat_B**2. * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2.
+          Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma
         ELSE
           Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma
-          Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A)
+          Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A)
         END IF
       CASE(3) ! on-top (closed shell or open shell with unlocalized electron like CO)
         Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma
-        Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A)
+        Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A)
       END SELECT
     END IF
   ELSE
