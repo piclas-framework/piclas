@@ -21,6 +21,7 @@ PUBLIC                       :: CalcBackgndPartAdsorb
 PUBLIC                       :: CalcBackgndPartDesorb
 PUBLIC                       :: CalcAdsorbProb
 PUBLIC                       :: CalcDesorbProb
+PUBLIC                       :: CalcDiffusion
 !===================================================================================================================================
 
 CONTAINS
@@ -229,35 +230,19 @@ DO subsurfxi = 1,nSurfSample
       END DO
       
       ! calculate heat of adsorption for actual site and reduce bond order of bondatoms
-      sigma = 0.
+      Heat_i = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.FALSE.)
       DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
         Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
         Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
-        
-        bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy)
-        sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
-              * (1./(bondorder)) * (2.-(1./bondorder)) )
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
       END DO
-      Heat_i = Adsorption%HeatOfAdsZero(iSpec) * sigma
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
       
       ! choose Neighbour position with highest heat of adsorption if adsorbate would move there
       Heat_j = 0.
       DO i = 1,n_equal_site_Neigh
-!       IF (n_equal_site_Neigh .GE. 1) THEN
-!         CALL RANDOM_NUMBER(RanNum)
-!         i = 1 + INT(n_equal_site_Neigh*RanNum)
-        sigma = 0.
-        DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(free_Neigh_pos(i),j)
-          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(free_Neigh_pos(i),j) 
-          bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
-          sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
-                * (1./(bondorder)) * (2.-(1./bondorder)) )
-        END DO
-        Heat_temp = Adsorption%HeatOfAdsZero(iSpec) * sigma
+        Heat_temp = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,free_Neigh_pos(i),.TRUE.)
         IF (Heat_temp .GT. Heat_j) THEN
           Heat_j = Heat_temp
           newpos = free_Neigh_pos(i)

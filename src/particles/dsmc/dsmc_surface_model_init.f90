@@ -41,6 +41,7 @@ USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -159,6 +160,12 @@ IF (DSMC%WallModel.GT.1) THEN
   CALL Init_SurfDist()
 !   IF (CollisMode.EQ.3) 
   CALL Init_SurfChem()
+  ! initial distribution into equilibrium distribution
+#if (PP_TimeDiscMethod==42)
+  DO iSurf=1,3
+    CALL CalcDiffusion()
+  END DO
+#endif
 END IF
 
 END SUBROUTINE InitDSMCSurfModel
