@@ -1282,51 +1282,46 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
     CALL RANDOM_NUMBER(RanNum)
     IF ( (Adsorption_prob.GE.RanNum) .AND. & 
        (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
+      outSpec(1) = SpecID
       adsorption_case = 1
     END IF
   END IF
   
   SELECT CASE(adsorption_case)
-  !-----------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
   CASE(-1) ! perfect elastic scattering
-  !-----------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
     adsindex = -1
-  !-----------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
   CASE(1) ! molecular adsorption
-  !-----------------------------------------------------------------------------------------------------------------------------    
-    maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(p,q,SurfSideID)
-    Adsorption%Coverage(p,q,SurfSideID,outSpec(1)) = Adsorption%Coverage(p,q,SurfSideID,outSpec(1)) & 
-                                                 + Species(outSpec(1))%MacroParticleFactor/maxPart
+  !---------------------------------------------------------------------------------------------------------------------------------
+    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
     adsindex = 1
 #if (PP_TimeDiscMethod==42)
     Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
 #endif
-  !-----------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
   CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
-  !-----------------------------------------------------------------------------------------------------------------------------
-    maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(p,q,SurfSideID)
-    Adsorption%Coverage(p,q,SurfSideID,outSpec(1)) = Adsorption%Coverage(p,q,SurfSideID,outSpec(1)) & 
-                                                 + Species(outSpec(1))%MacroParticleFactor/maxPart
-    Adsorption%Coverage(p,q,SurfSideID,outSpec(2)) = Adsorption%Coverage(p,q,SurfSideID,outSpec(2)) & 
-                                                 + Species(outSpec(2))%MacroParticleFactor/maxPart
+  !---------------------------------------------------------------------------------------------------------------------------------
+    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
+    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
     adsindex = 1
 #if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
-    Adsorption%AdsorpInfo(outSpec(2))%NumOfAds = Adsorption%AdsorpInfo(outSpec(2))%NumOfAds + 1
+    Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
+!     Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
+!     Adsorption%AdsorpInfo(outSpec(2))%NumOfAds = Adsorption%AdsorpInfo(outSpec(2))%NumOfAds + 1
 #endif
-  !-----------------------------------------------------------------------------------------------------------------------------
-  CASE(3) ! Eley-Rideal reaction (reflecting sarticle species change at contact and reaction partner removed from surface)
-  !-----------------------------------------------------------------------------------------------------------------------------
-    maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(p,q,SurfSideID)
-    Adsorption%Coverage(p,q,SurfSideID,outSpec(1)) = Adsorption%Coverage(p,q,SurfSideID,outSpec(1)) & 
-                                                 - Species(outSpec(1))%MacroParticleFactor/maxPart
+  !---------------------------------------------------------------------------------------------------------------------------------
+  CASE(3) ! Eley-Rideal reaction (reflecting particle species change at contact and reaction partner removed from surface)
+  !---------------------------------------------------------------------------------------------------------------------------------
+    Adsorption%SumDesorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumDesorbPart(p,q,SurfSideID,outSpec(1)) + 1
     adsindex = 2
 #if (PP_TimeDiscMethod==42)
     Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
 #endif
-  !-----------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
   CASE DEFAULT ! diffuse reflection
-  !-----------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
     adsindex = 0
   END SELECT
 !     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes

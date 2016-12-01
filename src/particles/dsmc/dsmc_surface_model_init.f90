@@ -136,8 +136,10 @@ DO iSide = 1,nBCSides
   END IF
 END DO
 DO iSurf = 1,SurfMesh%nSides
-  WRITE(UNIT=hilf,FMT='(I2)') iSurf
-  Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.0E+19')
+!   WRITE(UNIT=hilf,FMT='(I2)') iSurf
+!   Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.0E+19')
+!   ! extend to different boundary surfaces
+  Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
 END DO
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
@@ -219,12 +221,15 @@ DO iSurfSide = 1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1:3),&
-              SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(1:3))
+              SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(1:3),&
+              SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp(1:nSpecies),&
+              SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp(1:nSpecies),&
+              SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%reactnum_tmp(1:nSpecies))
   END DO
   END DO
 END DO
 IF (.NOT.KeepWallParticles) THEN
-  surfsquare = GETINT('Particles-DSMC-AdsorptionSites','1000')
+  surfsquare = GETINT('Particles-DSMC-AdsorptionSites','10000')
   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
 END IF
 
@@ -241,6 +246,9 @@ DO iSurfSide = 1,SurfMesh%nSides
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(:) = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp(1:nSpecies) = 0.
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp(1:nSpecies) = 0.
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%reactnum_tmp(1:nSpecies) = 0.
     
     ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(1:nSpecies,1:surfsquare+1,1:surfsquare+1))
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(:,:,:) = 0
@@ -486,11 +494,11 @@ DO subsurfxi = 1,nSurfSample
   END DO
     
   DO iSpec = 1,nSpecies
-    ! adjust coverage to actual discrete value
+    ! adjust coverage to actual discret value
     Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,iSurfSide,iSpec) &
                 * SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Adsorption%Coordination(iSpec)))
     Adsorption%Coverage(subsurfxi,subsurfeta,iSurfSide,iSpec) = REAL(Adsorbates) &
-        / SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Adsorption%Coordination(iSpec))
+        / REAL(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3))
     IF (SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(Adsorption%Coordination(iSpec)).LT.Adsorbates) THEN
       CALL abort(&
       __STAMP__&

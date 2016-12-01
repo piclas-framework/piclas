@@ -324,6 +324,9 @@ TYPE tSurfaceDistributionInfo
   INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)! bond order of surface atoms ((1:nSpecies,1:nXPos,1:nYPos)
                                                                     ! nXPos = nYPos = sqrt(nSites(3)) -> number of topsites
                                                                     ! applies for fcc(100) or similar surfaces
+  REAL    , ALLOCATABLE                  :: desorbnum_tmp(:)
+  REAL    , ALLOCATABLE                  :: adsorbnum_tmp(:)
+  REAL    , ALLOCATABLE                  :: reactnum_tmp(:)
   TYPE(tAdsorbateMapping), ALLOCATABLE   :: AdsMap(:)               ! Mapping for adsorbates, adjacent surfatoms and neighbours 
                                                                     ! (1:nCoordination)
 END TYPE

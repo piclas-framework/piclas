@@ -1102,42 +1102,33 @@ INTEGER, INTENT(OUT)            :: WallNumSpec(nSpecies)
 REAL   , INTENT(OUT)            :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i, iSurfSide, p, q
-REAL              :: Surface, Coverage(nSpecies), SurfPartDens
+INTEGER           :: i, iSurfSide, p, q, SurfPart
+REAL              :: Coverage(nSpecies)
 !===================================================================================================================================
   WallNumSpec = 0
-  SurfPartDens = 0
-  Surface = 0.
+  SurfPart = 0.
   Coverage(:) = 0.
   DO i=1,nSpecies
   DO iSurfSide=1,SurfMesh%nSides
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
-        Surface = Surface + SurfMesh%SurfaceArea(p,q,iSurfSide)
         Coverage(i) = Coverage(i) + Adsorption%Coverage(p,q,iSurfSide,i)
+        IF (.NOT.KeepWallParticles) THEN
+        SurfPart = INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide))
+!         IF ( (Adsorption%Coordination(i).EQ.2) .AND. (DSMC%WallModel.EQ.3) ) SurfPart = SurfPart * 2
+          WallNumSpec(i) = WallNumSpec(i) + INT( Adsorption%Coverage(p,q,iSurfSide,i) &
+              * SurfPart/Species(i)%MacroParticleFactor)
+        END IF
       END DO
     END DO
-    SurfPartDens = SurfPartDens + Adsorption%DensSurfAtoms(iSurfSide)/Species(i)%MacroParticleFactor
   END DO
   END DO
   WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
-  SurfPartDens = SurfPartDens / SurfMesh%nSides
   
   IF (KeepWallParticles) THEN
     DO i=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(i) .AND. PDM%ParticleAtWall(i)) THEN
         WallNumSpec(PartSpecies(i)) = WallNumSpec(PartSpecies(i)) + 1
-      END IF
-    END DO
-  ELSE 
-    DO i=1,nSpecies
-      IF ( (Adsorption%Coordination(i).EQ.2) .AND. (DSMC%WallModel.EQ.3) ) THEN
-        WallNumSpec(i) = INT(WallCoverage(i) * Surface * SurfPartDens * 2.)
-      ELSE
-        WallNumSpec(i) = INT(WallCoverage(i) * Surface * SurfPartDens)
-      END IF
-      IF (WallNumSpec(i).EQ.0) THEN
-       WallCoverage(i) = 0.
       END IF
     END DO
   END IF
@@ -1151,7 +1142,7 @@ SUBROUTINE CalcSurfRates(WallNumSpec,Accomodation,Adsorbrate,Desorbrate)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,      ONLY : nSpecies
+USE MOD_Particle_Vars,      ONLY : nSpecies, KeepWallParticles
 USE MOD_DSMC_Vars,          ONLY : Adsorption, DSMC  
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
@@ -1164,23 +1155,22 @@ INTEGER, INTENT(IN)             :: WallNumSpec(nSpecies)
 REAL   , INTENT(OUT)            :: Adsorbrate(nSpecies), Desorbrate(nSpecies), Accomodation(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec
+INTEGER                         :: iSpec
 !===================================================================================================================================
 
 IF (DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
     IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-        Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds / Adsorption%AdsorpInfo(iSpec)%WallCollCount
-        Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / Adsorption%AdsorpInfo(iSpec)%WallCollCount
-        Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / WallNumSpec(iSpec)
-      ELSE
-        Adsorbrate(iSpec) = 0.
-        Accomodation(iSpec) = 0.
-        Desorbrate(iSpec) = 0.
-      END IF
+      Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds / Adsorption%AdsorpInfo(iSpec)%WallCollCount
+      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / Adsorption%AdsorpInfo(iSpec)%WallCollCount
+      Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / WallNumSpec(iSpec)
+    ELSE
+      Adsorbrate(iSpec) = 0.
+      Accomodation(iSpec) = 0.
+      Desorbrate(iSpec) = 0.
+    END IF
   END DO
 ELSE
-
   IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(DSMC%WallModel.EQ.3)) THEN
     DO iSpec = 1,nSpecies
       IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
@@ -1193,12 +1183,23 @@ ELSE
       END IF
     END DO
   END IF
-  
   DO iSpec = 1,nSpecies
     Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
     Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
   END DO
 END IF
+
+DO iSpec = 1,nSpecies
+  Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+!   Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
+  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
+  IF (KeepWallParticles) THEN
+    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+  END IF
+!   Adsorption%AdsorpInfo(iSpec)%MeanEAds = 0.
+END DO
 
 END SUBROUTINE CalcSurfRates
 #endif

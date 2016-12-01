@@ -1860,7 +1860,6 @@ ELSE
   ! open receive buffer for number of particles
   CALL IRecvNbOfParticles()
 #endif /*MPI*/
-  CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
   IF(DoRefMapping)THEN
@@ -1880,6 +1879,7 @@ ELSE
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
+  CALL DSMC_Update_Wall_Vars()
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()

@@ -32,41 +32,54 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 !===================================================================================================================================
   USE MOD_PARTICLE_Vars,          ONLY : nSpecies
   USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, Species
-  USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption
+  USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption, SurfDistInfo
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
   IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration 
-  INTEGER                          :: iSpec, iSurfSide, p, q
+  INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
   REAL                             :: maxPart
 !===================================================================================================================================
 
-  IF (DSMC%WallModel.GT.0) THEN
-#if (PP_TimeDiscMethod==42)
-    DO iSpec = 1,nSpecies
-      Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
-      Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
-      Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
-      Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
-      IF (KeepWallParticles) THEN
-        Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
-        Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-      END IF
-!       Adsorption%AdsorpInfo(iSpec)%MeanEAds = 0.
-    END DO
-#endif
-    
+  IF (DSMC%WallModel.GT.0) THEN    
     IF (.NOT.KeepWallParticles) THEN
       ! adjust coverages of all species on surfaces
       DO iSpec = 1,nSpecies
         DO iSurfSide = 1,SurfMesh%nSides
           DO q = 1,nSurfSample
             DO p = 1,nSurfSample
-              maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
-              Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) &
-                  * Species(iSpec)%MacroParticleFactor / maxPart
+              IF (DSMC%WallModel.EQ.1) THEN
+                maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
+                Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                    + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
+                    - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+                    * Species(iSpec)%MacroParticleFactor / maxPart
+              ELSE IF (DSMC%WallModel.GT.1) THEN
+                maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)))
+                Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                    + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
+                    - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+                    * Species(iSpec)%MacroParticleFactor / maxPart
+                
+                ! adjust number of background mapping adsorbates if SumAdsorbPart > 0
+                IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).GT.0) THEN
+                  ! calculate number of adsorbed particles on background for each species
+                  numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3)
+                  SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                        + (REAL(Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
+                        / maxPart) * REAL(numSites)
+                  ! convert to integer adsorbates
+                  new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
+                  IF (new_adsorbates.GT.0) THEN
+                    ! Adjust tracking adsorbing background particles
+                    SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%desorbnum_tmp(iSpec) &
+                                                                      - new_adsorbates
+                    CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
+                  END IF
+                END IF
+
+              END IF
             END DO
           END DO
         END DO
@@ -600,9 +613,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         END IF
         IF ((Norm_Ec).GT.E_a) THEN
           Xi_Total = Xi_vib + 2 + 3 !Xi_rot + 3
-          phi_1 = Adsorption%Ads_Powerfactor(iSpec) - 3./2. + Xi_Total
+          phi_1 = Adsorption%Diss_Powerfactor(ReactNum,iSpec) - 3./2. + Xi_Total
           phi_2 = 1 - Xi_Total
-          Prob_diss(ReactNum) = Calc_Beta_Adsorb(iSpec,Xi_Total,c_f) * (Norm_Ec - E_a)**phi_1 * Norm_Ec ** phi_2
+          Prob_diss(ReactNum) = Calc_Beta_Diss(ReactNum,iSpec,Xi_Total,c_f) * (Norm_Ec - E_a)**phi_1 * Norm_Ec ** phi_2
         END IF
       END IF
       END IF
@@ -654,18 +667,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         adsorption_case = 3
         outSpec(1) = Adsorption%AssocReact(1,ReactNum,iSpec)
         outSpec(2) = Adsorption%AssocReact(2,ReactNum,iSpec)
-        ! adjust number of background mapping adsorbates
-        maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)
-        IF ( Adsorption%Coordination(outSpec(1)).EQ.2 ) maxPart = maxPart*2
-        new_coverage = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,outSpec(1)) &
-                      - Species(outSpec(1))%MacroParticleFactor / maxPart
-        numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(outSpec(1)))
-        new_adsorbates(:) = 0
-        IF ( (REAL(adsorbates(OutSpec(1)))/REAL(numSites)).GT. new_coverage) THEN
-          difference = REAL(adsorbates(OutSpec(1)))/REAL(numSites) - new_coverage
-          new_adsorbates(1) = -NINT(difference*REAL(numSites))
-        END IF
-        IF ( (new_adsorbates(1).LT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(1),outSpec(1))
         EXIT
       END IF
       sum_probabilities = sum_probabilities - P_Eley_Rideal(ReactNum)
@@ -675,21 +676,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         adsorption_case = 2
         outSpec(1) = Adsorption%DissocReact(1,ReactNum,iSpec)
         outSpec(2) = Adsorption%DissocReact(2,ReactNum,iSpec)
-        ! adjust number of background mapping adsorbates 
-        new_adsorbates(:) = 0
-        DO i = 1,2
-          maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)
-          IF ( Adsorption%Coordination(outSpec(i)).EQ.2 ) maxPart = maxPart*2
-          new_coverage = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,outSpec(i)) &
-                        + Species(outSpec(i))%MacroParticleFactor / maxPart
-          numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(outSpec(i)))
-          IF ( new_coverage .GT. (REAL(adsorbates(OutSpec(i)))/REAL(numSites)) ) THEN
-            difference = new_coverage - (REAL(adsorbates(OutSpec(i)))/REAL(numSites))
-            new_adsorbates(i) = NINT(difference*REAL(numSites))
-          END IF
-        END DO
-        IF ( (new_adsorbates(1).GT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(1),outSpec(1))
-        IF ( (new_adsorbates(2).GT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(2),outSpec(2))
         EXIT
       END IF
       sum_probabilities = sum_probabilities - Prob_diss(ReactNum)
@@ -701,18 +687,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         adsorption_case = 1
         outSpec(1) = iSpec
         outSpec(2) = 0
-        ! adjust number of background mapping adsorbates
-        maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)
-        IF ( Adsorption%Coordination(outSpec(1)).EQ.2 ) maxPart = maxPart*2
-        new_coverage = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,outSpec(1)) &
-                      + Species(outSpec(1))%MacroParticleFactor / maxPart
-        numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(outSpec(1)))
-        new_adsorbates(:) = 0
-        IF ( new_coverage .GT. (REAL(adsorbates(OutSpec(1)))/REAL(numSites)) ) THEN
-          difference = new_coverage - (REAL(adsorbates(OutSpec(1)))/REAL(numSites))
-          new_adsorbates(1) = NINT(difference*REAL(numSites))
-        END IF
-        IF ( (new_adsorbates(1).GT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(1),outSpec(1))
       END IF
     END IF
   END IF
@@ -751,7 +725,8 @@ SUBROUTINE CalcBackgndPartDesorb()
    INTEGER                          :: Indx, Indy, Surfpos
    REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall
    INTEGER                          :: trace, traceNum
-   INTEGER , ALLOCATABLE            :: desorbnum(:), reactdesorbnum(:), adsorbnum(:)
+   INTEGER , ALLOCATABLE            :: desorbnum(:), reactdesorbnum(:)
+   INTEGER , ALLOCATABLE            :: adsorbnum(:)
    INTEGER , ALLOCATABLE            :: nSites(:), nSitesRemain(:), remainNum(:), adsorbates(:)
 !---------- reaction variables
    INTEGER                          :: react_Neigh, n_empty_Neigh, jSpec, kSpec, ReactNum, PartnerID, LastRemainID
@@ -762,12 +737,8 @@ SUBROUTINE CalcBackgndPartDesorb()
    INTEGER , ALLOCATABLE            :: react_Neigh_pos(:), Coord2(:), NeighbourID(:)
    REAL , ALLOCATABLE               :: P_react(:), P_actual_react(:)
 !===================================================================================================================================
-#if (PP_TimeDiscMethod==42)
-!   Adsorption%AdsorpInfo(:)%MeanProbDes = 0.
-  Adsorption%AdsorpInfo(:)%NumOfDes = 0
-#endif
-
-ALLOCATE (desorbnum(1:nSpecies),&
+ALLOCATE (&
+          desorbnum(1:nSpecies),&
           reactdesorbnum(1:nSpecies),&
           adsorbnum(1:4),&
           nSites(1:4),&
@@ -778,12 +749,14 @@ ALLOCATE (desorbnum(1:nSpecies),&
           Energy(1:nSpecies))
 ALLOCATE( P_react(1:Adsorption%ReactNum),&
           P_actual_react(1:Adsorption%ReactNum+1))
-
 ALLOCATE( Coord2(1:Adsorption%ReactNum),&
           react_Neigh_pos(1:Adsorption%ReactNum+1))
 
 #if (PP_TimeDiscMethod==42)
 Adsorption%AdsorpInfo(:)%MeanEAds = 0.
+! Adsorption%AdsorpInfo(:)%MeanProbDes = 0.
+Adsorption%AdsorpInfo(:)%NumOfDes = 0
+Adsorption%AdsorpInfo(:)%NumOfAds = 0
 #endif
 
 DO SurfSideID = 1,SurfMesh%nSides
@@ -863,7 +836,7 @@ DO subsurfxi = 1,nSurfSample
     react_Neigh_pos(:) = 0
     ! Choose Random surface position for each possible Reaction and if position is occupied calculate reaction probability 
     DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-      IF (Adsorption%AssocReact(1,ReactNum,iSpec).LT.1) CYCLE
+      IF (Adsorption%AssocReact(1,ReactNum,iSpec).LT.1) CYCLE ! no partner for this associative reaction
       Coord2(ReactNum) = Adsorption%Coordination(Adsorption%AssocReact(1,ReactNum,iSpec))
       CALL RANDOM_NUMBER(RanNum)
       NeighID = 1 + INT(nSites(Coord2(ReactNum))*RanNum)
@@ -1093,41 +1066,59 @@ DO subsurfxi = 1,nSurfSample
     trace = trace + 1
   END DO
   END IF
-  
   DO iSpec = 1,nSpecies
-  ! calculate number of desorbed particles for each species
-  numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec))
-  Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(desorbnum(iSpec)) / REAL(numSites)) &
-                                                                  * (Adsorption%DensSurfAtoms(SurfSideID) &
-                      * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Species(iSpec)%MacroParticleFactor))
-  Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(reactdesorbnum(iSpec)) / REAL(numSites)) &
-                                                                  * (Adsorption%DensSurfAtoms(SurfSideID) &
-                      * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Species(iSpec)%MacroParticleFactor))
-  ! analyze rate data
-  IF (adsorbates(iSpec).EQ.0) THEN !(desorbnum(iSpec).EQ.0) THEN !
-    Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec) = 0
-!     Energy(iSpec) = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
-  ELSE
-    Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec) = P_des(iSpec) / REAL(adsorbates(iSpec)) !/REAL(desorbnum(iSpec)) !
-!     Energy(iSpec) = Energy(iSpec) /REAL(adsorbates(iSpec))
-  END IF
-  IF (desorbnum(iSpec).EQ.0) THEN
-    Energy(iSpec) = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
-  ELSE
-    Energy(iSpec) = Energy(iSpec) /REAL(desorbnum(iSpec))
-  END IF
+    ! calculate number of desorbed particles for each species
+    numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)
+!     IF (Adsorption%Coordination(iSpec).EQ.2) numSites = INT(REAL(numSites) / 2)
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) = &
+                        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) &
+                        + ((REAL(desorbnum(iSpec)) / REAL(numSites)) &
+                        * INT(Adsorption%DensSurfAtoms(SurfSideID) &
+                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)) / Species(iSpec)%MacroParticleFactor)
+    ! calculate number of desorbing simulation particles
+    Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = &
+                        INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec))
+    ! Adjust tracking desorbing simulation particles
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) = &
+                        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) &
+                        - Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+    ! calculate number of reacted particles for each species
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
+                        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
+                        + ((REAL(reactdesorbnum(iSpec)) / REAL(numSites)) &
+                        * INT(Adsorption%DensSurfAtoms(SurfSideID) &
+                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)) / Species(iSpec)%MacroParticleFactor)
+    ! calculate number of reacting simulation particles on surface
+    Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = &
+                        INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec))
+    ! Adjust tracking reacting simulation particles
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
+                        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
+                        - Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+    ! analyze rate data
+    IF (adsorbates(iSpec).EQ.0) THEN !(desorbnum(iSpec).EQ.0) THEN !
+      Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec) = 0
+  !     Energy(iSpec) = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
+    ELSE
+      Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec) = P_des(iSpec) / REAL(adsorbates(iSpec)) !/REAL(desorbnum(iSpec)) !
+  !     Energy(iSpec) = Energy(iSpec) /REAL(adsorbates(iSpec))
+    END IF
+    IF (desorbnum(iSpec).EQ.0) THEN
+      Energy(iSpec) = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
+    ELSE
+      Energy(iSpec) = Energy(iSpec) /REAL(desorbnum(iSpec))
+    END IF
 #if (PP_TimeDiscMethod==42)
-  Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
-                                        + Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
-  Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes &
-                                            + Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec)
-  Adsorption%AdsorpInfo(iSpec)%MeanEAds = Adsorption%AdsorpInfo(iSpec)%MeanEAds + Energy(iSpec)
+    Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
+                                          + Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes &
+                                              + Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec)
+    Adsorption%AdsorpInfo(iSpec)%MeanEAds = Adsorption%AdsorpInfo(iSpec)%MeanEAds + Energy(iSpec)
 #endif
   END DO
 END DO
 END DO
 END DO
-
 #if (PP_TimeDiscMethod==42)
 IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   Adsorption%AdsorpInfo(:)%MeanProbDes = Adsorption%AdsorpInfo(:)%MeanProbDes / (nSurfSample * nSurfSample * SurfMesh%nSides)
@@ -1172,6 +1163,11 @@ SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iS
     dist = 1
     Coord = Adsorption%Coordination(iSpec)
     Surfnum = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+    IF ((SurfNum - adsorbates_num).LT.0) THEN
+      CALL abort(&
+__STAMP__&
+,'Error in AdjustBackgndAdsNum: Too many new Adsorbates! not enough Sites for Coordination:',Adsorption%Coordination(iSpec))
+    END IF
     DO WHILE (dist.LE.adsorbates_num) 
       CALL RANDOM_NUMBER(RanNum)
       Surfpos = 1 + INT(Surfnum * RanNum)
@@ -1827,6 +1823,38 @@ REAL FUNCTION Calc_Beta_Adsorb(iSpec,Xi_Total,Constant_Adsorb)
   END IF
 
 END FUNCTION Calc_Beta_Adsorb
+
+REAL FUNCTION Calc_Beta_Diss(ReactNum,iSpec,Xi_Total,Constant_Adsorb)
+!===================================================================================================================================
+! Calculates the Beta coefficient for molecular (non-associative) adsorption reaction
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,          ONLY : Adsorption
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)            :: ReactNum
+  INTEGER, INTENT(IN)            :: iSpec
+  REAL, INTENT(IN)               :: Xi_Total
+  REAL, INTENT(IN)               :: Constant_Adsorb
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+  IF((Adsorption%Diss_Powerfactor(ReactNum,iSpec) - 0.5 + Xi_Total).GT.0.0) THEN
+    Calc_Beta_Diss = Adsorption%Diss_Prefactor(ReactNum,iSpec) * Constant_Adsorb &
+      * BoltzmannConst**(0.5 - Adsorption%Diss_Powerfactor(ReactNum,iSpec) ) * GAMMA(Xi_Total) &
+      / GAMMA(Adsorption%Diss_Powerfactor(ReactNum,iSpec) - 0.5 + Xi_Total) 
+  ELSE
+    Calc_Beta_Diss = 0.0
+  END IF
+
+END FUNCTION Calc_Beta_Diss
 
 REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsAdsorption)
 !===================================================================================================================================
