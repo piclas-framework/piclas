@@ -56,7 +56,7 @@ SUBROUTINE DSMC_Update_Wall_Vars()
                     - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
                     * Species(iSpec)%MacroParticleFactor / maxPart
               ELSE IF (DSMC%WallModel.GT.1) THEN
-                maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)))
+                maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
                 Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
                     + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
                     - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
@@ -1065,14 +1065,13 @@ DO subsurfxi = 1,nSurfSample
   END DO
   END IF
   DO iSpec = 1,nSpecies
-    ! calculate number of desorbed particles for each species
     numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)
-!     IF (Adsorption%Coordination(iSpec).EQ.2) numSites = INT(REAL(numSites) / 2)
+    ! calculate number of desorbed particles for each species
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) &
                         + ((REAL(desorbnum(iSpec)) / REAL(numSites)) &
-                        * INT(Adsorption%DensSurfAtoms(SurfSideID) &
-                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)) / Species(iSpec)%MacroParticleFactor)
+                        * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor)
     ! calculate number of desorbing simulation particles
     Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = &
                         INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec))
@@ -1084,8 +1083,8 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
                         + ((REAL(reactdesorbnum(iSpec)) / REAL(numSites)) &
-                        * INT(Adsorption%DensSurfAtoms(SurfSideID) &
-                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)) / Species(iSpec)%MacroParticleFactor)
+                        * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor)
     ! calculate number of reacting simulation particles on surface
     Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = &
                         INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec))

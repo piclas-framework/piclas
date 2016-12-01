@@ -135,12 +135,13 @@ DO iSide = 1,nBCSides
     Adsorption%SurfSideToGlobSideMap(IDcounter) = iSide
   END IF
 END DO
-DO iSurf = 1,SurfMesh%nSides
+! DO iSurf = 1,SurfMesh%nSides
 !   WRITE(UNIT=hilf,FMT='(I2)') iSurf
 !   Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.0E+19')
-!   ! extend to different boundary surfaces
-  Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
-END DO
+! END DO
+! extend later to different densities for each boundary
+Adsorption%DensSurfAtoms(:) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
+
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Adsorption%Coverage(:,:,:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialCoverage','0.')
@@ -733,6 +734,9 @@ DO iSurfSide=1,SurfMesh%nSides
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites)
+    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp)
+    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp)
+    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%reactnum_tmp)
     IF (ALLOCATED(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap)) THEN
       DO iCoord = 1,3
         DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%UsedSiteMap)

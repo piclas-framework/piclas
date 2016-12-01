@@ -1102,7 +1102,8 @@ INTEGER, INTENT(OUT)            :: WallNumSpec(nSpecies)
 REAL   , INTENT(OUT)            :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i, iSurfSide, p, q, SurfPart
+INTEGER           :: i, iSurfSide, p, q
+REAL              :: SurfPart
 REAL              :: Coverage(nSpecies)
 !===================================================================================================================================
   WallNumSpec = 0
@@ -1114,7 +1115,7 @@ REAL              :: Coverage(nSpecies)
       DO p = 1,nSurfSample
         Coverage(i) = Coverage(i) + Adsorption%Coverage(p,q,iSurfSide,i)
         IF (.NOT.KeepWallParticles) THEN
-        SurfPart = INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide))
+        SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
 !         IF ( (Adsorption%Coordination(i).EQ.2) .AND. (DSMC%WallModel.EQ.3) ) SurfPart = SurfPart * 2
           WallNumSpec(i) = WallNumSpec(i) + INT( Adsorption%Coverage(p,q,iSurfSide,i) &
               * SurfPart/Species(i)%MacroParticleFactor)
