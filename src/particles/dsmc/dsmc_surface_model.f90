@@ -350,7 +350,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   INTEGER,INTENT(OUT)              :: adsorption_case
   INTEGER,INTENT(OUT)              :: outSpec(2)
 ! LOCAL VARIABLES
-  INTEGER                          :: iSpec, globSide, iPolyatMole
+  INTEGER                          :: iSpec, globSide
   INTEGER                          :: Coord, Coord2, i, j, AdsorbID, numSites, IDRearrange
   INTEGER                          :: new_adsorbates(2), nSites, nSitesRemain
   REAL                             :: difference, maxPart, new_coverage
@@ -443,11 +443,10 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
     IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iPolyatMole)%EZeroPoint
+        EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iSpec)%EZeroPoint
         ! Calculation of the vibrational degree of freedom for the particle 
-        IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iPolyatMole)%EZeroPoint) THEN
-          Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iPolyatMole)%EZeroPoint) &
+        IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iSpec)%EZeroPoint) THEN
+          Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iSpec)%EZeroPoint) &
                   / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
         ELSE
           Xi_vib = 0.0
@@ -587,11 +586,10 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
         IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
           IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-            EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iPolyatMole)%EZeroPoint
+            EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iSpec)%EZeroPoint
             ! Calculation of the vibrational degree of freedom for the particle 
-            IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iPolyatMole)%EZeroPoint) THEN
-              Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iPolyatMole)%EZeroPoint) &
+            IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iSpec)%EZeroPoint) THEN
+              Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iSpec)%EZeroPoint) &
                       / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
             ELSE
               Xi_vib = 0.0
