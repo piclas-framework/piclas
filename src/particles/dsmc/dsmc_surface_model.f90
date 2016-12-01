@@ -1135,6 +1135,7 @@ SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iS
 ! and Coverage changed strong enough
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
+  USE MOD_Globals,                ONLY : abort
   USE MOD_Particle_Vars,          ONLY : nSpecies, Species, BoltzmannConst
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo
