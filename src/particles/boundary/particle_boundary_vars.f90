@@ -64,6 +64,7 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 7-9   E_vib (pre, wall, re)
                                                                        ! 10-12 Forces in x, y, z direction
                                                                        ! 13-12+nSpecies Wall-Collision counter
+  REAL,ALLOCATABLE                      :: E_Adsorption(:,:)           ! Enthalpie released/annihilated upon adsorption/desorption
   !REAL, ALLOCATABLE                    :: Energy(:,:,:)               ! 1-3 E_tra (pre, wall, re),
   !                                                                    ! 4-6 E_rot (pre, wall, re),
   !                                                                    ! 7-9 E_vib (pre, wall, re)

@@ -85,6 +85,7 @@ DO iSpec = 1,nSpecies
   Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanEads = 0.
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+  Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = 0
   Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
   Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
   Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
@@ -545,7 +546,7 @@ SUBROUTINE Init_SurfChem()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
-USE MOD_DSMC_Vars,              ONLY : Adsorption
+USE MOD_DSMC_Vars,              ONLY : Adsorption, SpecDSMC
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
@@ -606,6 +607,7 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
   
   ! find max number of associative reactions for each species from dissociations
   ALLOCATE(nAssocReact(1:nSpecies))
+  nAssocReact(:) = 0
   DO iSpec = 1,nSpecies
     DO iSpec2 = 1,nSpecies
     DO iReactNum = 1,MaxDissNum
@@ -624,15 +626,20 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
             Adsorption%EDissBond(0:MaxReactNum,1:nSpecies),&
             Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
   Adsorption%EDissBond(0:MaxReactNum,1:nSpecies) = 0.
+  Adsorption%EDissBondAdsorbPoly(1:2,1:nSpecies) = 0.
   DO iSpec = 1,nSpecies            
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
     DO iReactNum = 1,MaxDissNum
       WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
       Adsorption%EDissBond(iReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
     END DO
-    Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
-    Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
-    Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
+    IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
+      Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
+        Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
+      END IF
+    END IF
   END DO
   DO iSpec = 1,nSpecies
     ReactNum = 1
@@ -662,11 +669,16 @@ ELSE !MaxDissNum = 0
   ALLOCATE(Adsorption%EDissBond(0:1,1:nSpecies))
   ALLOCATE(Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
   Adsorption%EDissBond(:,:)=0.
+  Adsorption%EDissBondAdsorbPoly(:,:) = 0.
   DO iSpec = 1,nSpecies
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
-    Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
-    Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
-    Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
+    IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
+      Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
+        Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
+      END IF
+    END IF
   END DO
 END IF !MaxDissNum > 0
 ! save defined number of surface reactions

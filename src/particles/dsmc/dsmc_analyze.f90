@@ -120,7 +120,8 @@ SUBROUTINE CalcSurfaceValues
                                            +SampWall(iSurfSide)%State(7,p,q) &
                                            -SampWall(iSurfSide)%State(3,p,q) & 
                                            -SampWall(iSurfSide)%State(6,p,q) &
-                                           -SampWall(iSurfSide)%State(9,p,q))&
+                                           -SampWall(iSurfSide)%State(9,p,q) &
+                                           -SampWall(iSurfSide)%E_Adsorption(p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         DO iSpec=1,nSpecies
           MacroSurfaceCounter(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
@@ -782,7 +783,7 @@ END SELECT
 
 END SUBROUTINE InitHODSMC
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie)
 !===================================================================================================================================
 ! Sample Wall values from Particle collisions
 !===================================================================================================================================
@@ -801,6 +802,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
   REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
   REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
   LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
+  REAL,INTENT(IN)                    :: AdsorptionEnthalpie
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -825,6 +827,10 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
       
   IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
+  IF (DSMC%WallModel.GT.0) THEN
+    SampWall(SurfSideID)%E_Adsorption(p,q) = SampWall(SurfSideID)%E_Adsorption(p,q) &
+                                      + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
+  END IF
   IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
     !----  Sampling for internal (rotational) energy accommodation at walls
     SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
