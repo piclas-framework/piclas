@@ -791,11 +791,13 @@ ALLOCATE (&
           remainNum(1:4),&
           P_des(1:nSpecies),&
           adsorbates(1:nSpecies),&
-          Energy(1:nSpecies))
-ALLOCATE( P_react(1:Adsorption%ReactNum),&
-          P_actual_react(1:Adsorption%ReactNum+1))
-ALLOCATE( Coord2(1:Adsorption%ReactNum),&
+          P_react(1:Adsorption%ReactNum),&
+          P_actual_react(1:Adsorption%ReactNum+1),&
+          Coord2(1:Adsorption%ReactNum),&
           react_Neigh_pos(1:Adsorption%ReactNum+1))
+#if (PP_TimeDiscMethod==42)
+  IF (Adsorption%TPD) ALLOCATE(Energy(1:nSpecies))
+#endif
 
 #if (PP_TimeDiscMethod==42)
 IF (Adsorption%TPD) Adsorption%AdsorpInfo(:)%MeanEAds = 0.
@@ -1191,9 +1193,12 @@ IF (.NOT.DSMC%ReservoirRateStatistic) THEN
 END IF
 #endif
 
-DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,P_des,adsorbates,Energy)
+DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,P_des,adsorbates)
 DEALLOCATE(P_react,P_actual_react)
 DEALLOCATE(Coord2,react_Neigh_pos)
+#if (PP_TimeDiscMethod==42)
+IF (Adsorption%TPD) DEALLOCATE(Energy)
+#endif
 
 END SUBROUTINE CalcBackgndPartDesorb
 
