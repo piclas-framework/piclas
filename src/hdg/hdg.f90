@@ -590,6 +590,9 @@ USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,       ONLY:ExplicitSource
+#endif
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
@@ -702,6 +705,18 @@ DO iVar = 1, PP_nVar
 END DO
 
 !volume source (volume RHS of u system)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+DO iElem=1,PP_nElems
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem))
+    RHS_vol(1:PP_nVar,r,iElem)=RHS_vol(1:PP_nVar,r,iElem)+ExplicitSource(1:PP_nVar,i,j,k,iElem)
+  END DO; END DO; END DO !i,j,k    
+  DO iVar = 1, PP_nVar
+    RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
+  END DO
+END DO !iElem 
+#else
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
@@ -711,6 +726,7 @@ DO iElem=1,PP_nElems
     RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
   END DO
 END DO !iElem 
+#endif
 
 !replace lambda with exact function (debugging)
 IF(onlyPostProc.OR.ExactLambda)THEN
