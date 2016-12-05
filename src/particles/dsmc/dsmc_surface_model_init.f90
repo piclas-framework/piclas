@@ -626,7 +626,7 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
             Adsorption%EDissBond(0:MaxReactNum,1:nSpecies),&
             Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
   Adsorption%EDissBond(0:MaxReactNum,1:nSpecies) = 0.
-  Adsorption%EDissBondAdsorbPoly(1:2,1:nSpecies) = 0.
+  Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies) = 0.
   DO iSpec = 1,nSpecies            
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
     DO iReactNum = 1,MaxDissNum

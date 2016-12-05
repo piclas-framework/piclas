@@ -30,10 +30,10 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 !===================================================================================================================================
 ! Update and sample DSMC-values for adsorption, desorption and reactions on surfaces
 !===================================================================================================================================
-  USE MOD_PARTICLE_Vars,          ONLY : nSpecies
+  USE MOD_PARTICLE_Vars,          ONLY : WriteMacroValues, nSpecies
   USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, Species
   USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption, SurfDistInfo
-  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
 !===================================================================================================================================
   IMPLICIT NONE
 !===================================================================================================================================
@@ -70,7 +70,6 @@ SUBROUTINE DSMC_Update_Wall_Vars()
                     + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
                     - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
                     * Species(iSpec)%MacroParticleFactor / maxPart
-                
                 ! adjust number of background mapping adsorbates if SumAdsorbPart > 0
                 IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).GT.0) THEN
                   ! calculate number of adsorbed particles on background for each species
@@ -87,7 +86,11 @@ SUBROUTINE DSMC_Update_Wall_Vars()
                     CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
                   END IF
                 END IF
-
+              END IF
+              ! sample adsorption coverage
+              IF (WriteMacroValues) THEN
+                SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) &
+                                                            + Adsorption%Coverage(p,q,iSurfSide,iSpec)
               END IF
             END DO
           END DO
@@ -746,11 +749,12 @@ SUBROUTINE CalcBackgndPartDesorb()
 ! Routine for calculation of number of desorbing particles from background surface distribution
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
-  USE MOD_Particle_Vars,          ONLY : nSpecies, Species, BoltzmannConst
+  USE MOD_Particle_Vars,          ONLY : WriteMacroValues, nSpecies, Species, BoltzmannConst
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound, SampWall
   USE MOD_TimeDisc_Vars,          ONLY : dt
+  USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
 #if (PP_TimeDiscMethod==42)  
   USE MOD_TimeDisc_Vars,          ONLY : iter
 #endif
@@ -796,11 +800,10 @@ ALLOCATE (&
           Coord2(1:Adsorption%ReactNum),&
           react_Neigh_pos(1:Adsorption%ReactNum+1))
 #if (PP_TimeDiscMethod==42)
-  IF (Adsorption%TPD) ALLOCATE(Energy(1:nSpecies))
-#endif
-
-#if (PP_TimeDiscMethod==42)
-IF (Adsorption%TPD) Adsorption%AdsorpInfo(:)%MeanEAds = 0.
+IF (Adsorption%TPD) THEN
+  ALLOCATE(Energy(1:nSpecies))
+  Adsorption%AdsorpInfo(:)%MeanEAds = 0.
+END IF
 ! Adsorption%AdsorpInfo(:)%MeanProbDes = 0.
 Adsorption%AdsorpInfo(:)%NumOfDes = 0
 Adsorption%AdsorpInfo(:)%NumOfAds = 0
@@ -1013,17 +1016,22 @@ DO subsurfxi = 1,nSurfSample
         reactdesorbnum(Adsorption%AssocReact(2,ReactNum,iSpec)) = reactdesorbnum(Adsorption%AssocReact(2,ReactNum,iSpec)) + 1
         reactdesorbnum(Adsorption%AssocReact(1,ReactNum,iSpec)) = reactdesorbnum(Adsorption%AssocReact(1,ReactNum,iSpec)) - 1
         reactdesorbnum(iSpec) = reactdesorbnum(iSpec) - 1
-        ! calculate Enthalpie of desorption and sample
-        Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
-        Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%AssocReact(1,ReactNum,iSpec),-1,.FALSE.)
-        Heat_AB = 0.
-        D_AB = Adsorption%EDissBond(Adsorption%DissNum+ReactNum,iSpec)
-        AdsorptionEnthalpie = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
-                        / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
-                        * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
-                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor
-        SampWall(SurfSideID)%E_Adsorption(subsurfxi,subsurfeta) = SampWall(SurfSideID)%E_Adsorption(subsurfxi,subsurfeta) &
-                                      + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
+        IF (WriteMacroValues) THEN
+          ! calculate Enthalpie of desorption and sample
+          Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
+          Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%AssocReact(1,ReactNum,iSpec),-1,.FALSE.)
+          Heat_AB = 0.
+          D_AB = Adsorption%EDissBond(Adsorption%DissNum+ReactNum,iSpec)
+          AdsorptionEnthalpie = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
+                          / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
+                          * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+                          * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor
+          !----  Sampling of energies
+          IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+            SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
+                                                                  + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
+          END IF
+        END IF
         ! remove adsorbate and update map
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
         DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
@@ -1099,13 +1107,18 @@ DO subsurfxi = 1,nSurfSample
 #if (PP_TimeDiscMethod==42)
         IF (Adsorption%TPD) Energy(iSpec) = Energy(iSpec) + Heat_A
 #endif
-        ! calculate Enthalpie of desorption and sample
-        AdsorptionEnthalpie = (Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.TRUE.) * BoltzmannConst &
-                        / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
-                        * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
-                        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor
-        SampWall(SurfSideID)%E_Adsorption(subsurfxi,subsurfeta) = SampWall(SurfSideID)%E_Adsorption(subsurfxi,subsurfeta) &
-                                      + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
+        IF (WriteMacroValues) THEN
+          ! calculate Enthalpie of desorption and sample
+          AdsorptionEnthalpie = (Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.TRUE.) * BoltzmannConst &
+                          / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
+                          * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+                          * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor
+          !----  Sampling of energies
+          IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+            SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
+                                                                    + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
+          END IF
+        END IF
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
         DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
           Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
@@ -1191,14 +1204,12 @@ IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   IF (Adsorption%TPD) Adsorption%AdsorpInfo(:)%MeanEAds = Adsorption%AdsorpInfo(:)%MeanEAds &
                                                         / (nSurfSample * nSurfSample * SurfMesh%nSides)
 END IF
+IF (Adsorption%TPD) DEALLOCATE(Energy)
 #endif
 
 DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,P_des,adsorbates)
 DEALLOCATE(P_react,P_actual_react)
 DEALLOCATE(Coord2,react_Neigh_pos)
-#if (PP_TimeDiscMethod==42)
-IF (Adsorption%TPD) DEALLOCATE(Energy)
-#endif
 
 END SUBROUTINE CalcBackgndPartDesorb
 

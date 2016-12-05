@@ -537,7 +537,7 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
       CALL CalcSurfaceValues
       DO iSide=1,SurfMesh%nTotalSides 
         SampWall(iSide)%State=0. 
-        SampWall(iSide)%E_Adsorption=0.
+        SampWall(iSide)%Adsorption=0.
       END DO
     END IF
 #endif

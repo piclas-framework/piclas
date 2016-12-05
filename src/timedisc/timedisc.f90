@@ -1486,7 +1486,6 @@ REAL    :: RandVal, dtFrac
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
   IF(DoRefMapping)THEN
@@ -1506,6 +1505,7 @@ REAL    :: RandVal, dtFrac
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
+  CALL DSMC_Update_Wall_Vars()
   CALL ParticleInserting()
   IF (CollisMode.NE.0) THEN
     CALL UpdateNextFreePosition()

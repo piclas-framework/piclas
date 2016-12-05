@@ -36,7 +36,7 @@ END INTERFACE
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
 PUBLIC:: CalcKineticEnergy, CalcEkinPart, AnalyzeParticles
-#if (PP_TimeDiscMethod == 42)
+#if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
 !===================================================================================================================================
@@ -54,6 +54,9 @@ SUBROUTINE InitParticleAnalyze()
   USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot 
   USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
   USE MOD_Particle_Vars           ,ONLY: nSpecies
+#if (PP_TimeDiscMethod==42)
+  USE MOD_DSMC_Vars               ,ONLY: Adsorption
+#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -144,6 +147,12 @@ CALL abort(__STAMP__,&
   CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
   CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
   IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoAnalyze = .TRUE.
+#if (PP_TimeDiscMethod==42)
+  CalcSurfNumSpec = GETLOGICAL('CalcSurfNumSpec','.FALSE.')
+  CalcSurfReacRates = GETLOGICAL('CalcSurfReacRates','.FALSE.')
+  CalcSurfCoverage = GETLOGICAL('CalcSurfCoverage','.FALSE.')
+  IF(CalcSurfNumSpec.OR.CalcSurfReacRates.OR.CalcSurfCoverage.OR.Adsorption%TPD) DoAnalyze = .TRUE.
+#endif
   CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
   IF (CalcShapeEfficiency) THEN
     DoAnalyze = .TRUE.
@@ -492,51 +501,53 @@ SUBROUTINE AnalyzeParticles(Time)
         END IF
 #if (PP_TimeDiscMethod==42)
         IF (DSMC%WallModel.GE.1) THEN
-!                 IF (CalcWallNumSpec) THEN
+          IF (CalcSurfNumSpec) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Wall-Spec-', iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
-!                 END IF
-!                 IF (CalcWallCoverage) THEN
+          END IF
+          IF (CalcSurfCoverage) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Surf-Cov-', iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
-!                 END IF
-          DO iSpec = 1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' alpha', iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec = 1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Pads', iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec = 1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Pdes', iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec = 1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Nads', iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec = 1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Ndes', iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec = 1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' E-ads', iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
+          END IF
+          IF (CalcSurfReacRates) THEN
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' alpha', iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Nads', iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Ndes', iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Pads', iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Pdes', iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+          END IF
           IF (Adsorption%TPD) THEN
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' E-ads', iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' WallTemp', iSpec,' '
           END IF
@@ -663,8 +674,8 @@ tLBStart = LOCALTIME() ! LB Time Start
     END IF
   END IF
 IF (DSMC%WallModel.GE.1) THEN
-  CALL GetWallNumSpec(WallNumSpec,WallCoverage)
-  CALL CalcSurfRates(WallNumSpec,Accomodation,Adsorptionrate,Desorptionrate)
+  IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage)
+  IF (CalcSurfReacRates) CALL GetSurfRates(WallNumSpec,Accomodation,Adsorptionrate,Desorptionrate)
 END IF
 #endif /*PP_TimeDiscMethod==42*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -822,37 +833,40 @@ IF (PartMPI%MPIROOT) THEN
 #if (PP_TimeDiscMethod==42)
 ! output for adsorption
     IF (DSMC%WallModel.GE.1) THEN
-!         IF (CalcWallNumSpec) THEN
-      DO iSpec=1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,'(I18.1)',ADVANCE='NO') WallNumSpec(iSpec)
-      END DO
-!         END IF
-!         IF (CalcWallCoverage) THEN
-      DO iSpec=1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
-      END DO
-      DO iSpec = 1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Accomodation(iSpec)
-      END DO
-      DO iSpec = 1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
-      END DO
-      DO iSpec = 1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
-      END DO
-      DO iSpec = 1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfAds
-      END DO
-      DO iSpec = 1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfDes
-      END DO
+      IF (CalcSurfNumSpec) THEN
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I18.1)',ADVANCE='NO') WallNumSpec(iSpec)
+        END DO
+      END IF
+      IF (CalcSurfCoverage) THEN
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
+        END DO
+      END IF
+      IF (CalcSurfReacRates) THEN
+        DO iSpec = 1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') Accomodation(iSpec)
+        END DO
+        DO iSpec = 1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfAds
+        END DO
+        DO iSpec = 1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfDes
+        END DO
+        DO iSpec = 1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
+        END DO
+        DO iSpec = 1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
+        END DO
+      END IF
       IF (Adsorption%TPD) THEN
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1136,7 +1150,7 @@ REAL              :: Coverage(nSpecies)
     
 END SUBROUTINE GetWallNumSpec
 
-SUBROUTINE CalcSurfRates(WallNumSpec,Accomodation,Adsorbrate,Desorbrate)
+SUBROUTINE GetSurfRates(WallNumSpec,Accomodation,Adsorbrate,Desorbrate)
 !===================================================================================================================================
 ! Calculate number of wallparticles for all species
 !===================================================================================================================================
@@ -1206,7 +1220,7 @@ DO iSpec = 1,nSpecies
   END IF
 END DO
 
-END SUBROUTINE CalcSurfRates
+END SUBROUTINE GetSurfRates
 #endif
 
 SUBROUTINE CalcParticleBalance()

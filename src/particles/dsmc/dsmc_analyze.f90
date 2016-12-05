@@ -60,7 +60,7 @@ SUBROUTINE CalcSurfaceValues
 ! MODULES
   USE MOD_Globals
   USE MOD_Timedisc_Vars,              ONLY:time,dt
-  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter, DSMC !,SampWall
+  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter,MacroSurfaceCoverage, DSMC !,SampWall
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI
@@ -121,8 +121,11 @@ SUBROUTINE CalcSurfaceValues
                                            -SampWall(iSurfSide)%State(3,p,q) & 
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q) &
-                                           -SampWall(iSurfSide)%E_Adsorption(p,q))&
+                                           -SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        DO iSpec=1,nSpecies
+          MacroSurfaceCoverage(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) / TimeSample
+        END DO ! iSpec=1,nSpecies
         DO iSpec=1,nSpecies
           MacroSurfaceCounter(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
           IF (DSMC%CalcSurfCollis_Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
@@ -828,7 +831,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
   IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
   IF (DSMC%WallModel.GT.0) THEN
-    SampWall(SurfSideID)%E_Adsorption(p,q) = SampWall(SurfSideID)%E_Adsorption(p,q) &
+    SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
                                       + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
   END IF
   IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN

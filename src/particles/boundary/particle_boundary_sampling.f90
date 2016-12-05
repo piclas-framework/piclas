@@ -192,8 +192,8 @@ ALLOCATE(SampWall(1:SurfMesh%nTotalSides))
 DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
-  ALLOCATE(SampWall(iSide)%E_Adsorption(1:nSurfSample,1:nSurfSample))
-  SampWall(iSide)%E_Adsorption=0.
+  ALLOCATE(SampWall(iSide)%Adsorption(1:(nSpecies+1),1:nSurfSample,1:nSurfSample))
+  SampWall(iSide)%Adsorption=0.
   !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
   !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
   !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
@@ -1022,7 +1022,7 @@ SDEALLOCATE(SurfMesh%SideIDToSurfID)
 !SDEALLOCATE(SampWall%Counter)
 DO iSurfSide=1,SurfMesh%nSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
-  SDEALLOCATE(SampWall(iSurfSide)%E_Adsorption)
+  SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
 END DO
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
