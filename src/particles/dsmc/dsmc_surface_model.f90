@@ -82,7 +82,7 @@ SUBROUTINE DSMC_Update_Wall_Vars()
                   new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
                   IF (new_adsorbates.GT.0) THEN
                     ! Adjust tracking adsorbing background particles
-                    SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%desorbnum_tmp(iSpec) &
+                    SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                                                                       - new_adsorbates
                     CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
                   END IF
