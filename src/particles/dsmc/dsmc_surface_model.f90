@@ -1748,13 +1748,11 @@ REAL                          :: Qtra, Qrot, Qvib, Qelec
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-!         Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
-        Qrot = Temp / (2 * 2.1)
+        Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
       ELSE
-!         Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
-!                                                                         * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
-!                                                                         * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
-        Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( 2.1**3))
+        Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
+                                                                        * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
+                                                                        * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
       END IF
       Qvib = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
@@ -1762,8 +1760,7 @@ REAL                          :: Qtra, Qrot, Qvib, Qelec
                 / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
-!       Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
-      Qrot = Temp / (2 * 2.1)
+      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
       Qvib = EXP(-SpecDSMC(iSpec)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
     END IF
   ELSE
@@ -1807,13 +1804,11 @@ REAL                          :: Qtra, Qrot, Qvib
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-!         Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
-        Qrot = Temp / (2 * 2.1)
+        Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
       ELSE
-!         Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
-!                                                                         * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
-!                                                                         * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
-        Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( 2.1**3))
+        Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
+                                                                        * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
+                                                                        * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
       END IF
       Qvib = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
@@ -1821,8 +1816,7 @@ REAL                          :: Qtra, Qrot, Qvib
                 / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
-!       Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
-      Qrot = Temp / (2 * 2.1)
+      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
       Qvib = EXP(-SpecDSMC(iSpec)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
     END IF
   ELSE

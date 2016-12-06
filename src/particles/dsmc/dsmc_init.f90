@@ -632,6 +632,36 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
       END IF
     END DO
     CALL DSMC_chemical_init()
+  ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.GT.1) THEN
+    DO iSpec = 1, nSpecies
+      WRITE(UNIT=hilf,FMT='(I2)') iSpec
+      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor','0')
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+          IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+            IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
+              CALL abort(&
+              __STAMP__&
+              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
+            END IF
+          ELSE
+            IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
+                * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
+              CALL abort(&
+              __STAMP__&
+              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
+            END IF
+          END IF
+        ELSE            
+          IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
+            CALL abort(&
+            __STAMP__&
+            ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
+          END IF
+        END IF
+      END IF
+    END DO
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
