@@ -314,30 +314,6 @@ END DO
 
 END SUBROUTINE CalcDiffusion
 
-! SUBROUTINE CalcPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,adsorption_case,outSpec)
-! !===================================================================================================================================
-! ! Particle Adsorption probability calculation for wallmodel 2
-! !===================================================================================================================================
-!   USE MOD_Globals_Vars,           ONLY : PlanckConst
-!   USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, nSpecies, Species, BoltzmannConst
-!   USE MOD_Mesh_Vars,              ONLY : BC
-!   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
-!   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
-!   USE MOD_TimeDisc_Vars,          ONLY : dt
-!   USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
-! #if (PP_TimeDiscMethod==42)  
-!   USE MOD_TimeDisc_Vars,          ONLY : iter
-! #endif
-! !===================================================================================================================================
-!   IMPLICIT NONE
-! !===================================================================================================================================
-! ! argument list declaration
-!   INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,PartID
-!   REAL,INTENT(IN)                  :: Norm_Ec
-!   INTEGER,INTENT(OUT)              :: adsorption_case
-!   INTEGER,INTENT(OUT)              :: outSpec(2)
-! ! LOCAL VARIABLES
-! END SUBROUTINE CalcPartAdsorb
 
 SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,adsorption_case,outSpec,AdsorptionEnthalpie)
 !===================================================================================================================================
@@ -751,7 +727,7 @@ SUBROUTINE CalcBackgndPartDesorb()
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : WriteMacroValues, nSpecies, Species, BoltzmannConst
   USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PolyatomMolDSMC
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound, SampWall
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
@@ -785,6 +761,12 @@ SUBROUTINE CalcBackgndPartDesorb()
    INTEGER , ALLOCATABLE            :: react_Neigh_pos(:), Coord2(:), NeighbourID(:)
    REAL , ALLOCATABLE               :: P_react(:), P_actual_react(:)
    REAL                             :: AdsorptionEnthalpie
+!variables used for sampling of vibrational energies of reacting/desorbing particles
+  INTEGER                           :: SampleParts, iPart
+  INTEGER                           :: iPolyatMole, iDOF
+  INTEGER                           :: VibQuantWall
+  INTEGER, ALLOCATABLE              :: VibQuantWallPoly(:)
+  REAL                              :: EvibOld, EvibWall, EVibNew
 !===================================================================================================================================
 ALLOCATE (&
           desorbnum(1:nSpecies),&
@@ -1174,6 +1156,44 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
                         - Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+    ! Sample vibrational energies transformed due to reaction (emitted particles sampled in surfflux routine)
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+      IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
+        SampleParts = Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec) &
+                    - Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+        IF (SampleParts.GT.0) THEN
+          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+            ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          END IF
+          EvibNew = 0.
+          DO iPart = 1,SampleParts
+            EvibOld = 0.
+            EvibWall = 0.
+            IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+              DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+                EvibOld = EvibOld + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                          * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(iSpec)%MacroParticleFactor
+                EvibWall = EvibWall + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                          * SpecDSMC(iSpec)%CharaTVib * Species(iSpec)%MacroParticleFactor
+              END DO
+            ELSE
+              EvibOld = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+              EvibWall = VibQuantWall * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+            END IF
+            !----  Sampling for internal (vibrational) energy accommodation at walls
+            SampWall(SurfSideID)%State(7,subsurfxi,subsurfeta) = SampWall(SurfSideID)%State(7,subsurfxi,subsurfeta) &
+                                              + EvibOld * Species(iSpec)%MacroParticleFactor
+            SampWall(SurfSideID)%State(8,subsurfxi,subsurfeta) = SampWall(SurfSideID)%State(8,subsurfxi,subsurfeta) &
+                                              + EvibWall * Species(iSpec)%MacroParticleFactor
+            SampWall(SurfSideID)%State(9,subsurfxi,subsurfeta) = SampWall(SurfSideID)%State(9,subsurfxi,subsurfeta) &
+                                              + EvibNew * Species(iSpec)%MacroParticleFactor
+          END DO
+        END IF
+        
+        SDEALLOCATE(VibQuantWallPoly)
+      END IF
+    END IF
     ! analyze rate data
     IF (adsorbates(iSpec).EQ.0) THEN
       Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec) = 0
@@ -1301,6 +1321,7 @@ __STAMP__&
   END IF
     
 END SUBROUTINE AdjustBackgndAdsNum
+
 
 SUBROUTINE CalcDistNumChange()
 !===================================================================================================================================

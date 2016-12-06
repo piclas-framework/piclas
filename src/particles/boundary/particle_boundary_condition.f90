@@ -1303,7 +1303,8 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
 #if (PP_TimeDiscMethod==42)
     Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
 #endif
-    IF (KeepWallParticles.OR.WriteMacroValues) THEN
+    IF ((KeepWallParticles).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues) &
+        .OR.(DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd))) THEN
 !     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
 !     IF (KeepWallParticles) THEN
 !       PDM%PartAdsorbSideIndx(1,PartID) = GlobSideID
@@ -1337,8 +1338,8 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
       IF (SpecDSMC(SpecID)%InterID.EQ.2) THEN
         !---- Rotational energy accommodation
         CALL RANDOM_NUMBER(RanNum)
-        ErotWall = 0 !- BoltzmannConst * WallTemp * LOG(RanNum)
-        ErotNew  = 0 !PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
+        ErotWall = 0
+        ErotNew  = 0
         IntArray(1) = PartStateIntEn(PartID,2)
         IntArray(2) = ErotWall
         IntArray(3) = ErotNew
@@ -1347,59 +1348,62 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
         IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
           EvibNew = 0.0
           iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-          ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-                  VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-                  VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-          CALL RANDOM_NUMBER(RanNumPoly)
-          VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-            CALL RANDOM_NUMBER(RanNumPoly)
-            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          END DO
-          VibQuantNewRPoly(:) = VibQuantWallPoly(:)
-          VibQuantNewPoly = INT(VibQuantNewRPoly)
+!           ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                   VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                   VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+!           CALL RANDOM_NUMBER(RanNumPoly)
+!           VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+!           DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+!             CALL RANDOM_NUMBER(RanNumPoly)
+!             VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+!           END DO
+!           VibQuantNewRPoly(:) = VibQuantWallPoly(:)
+!           VibQuantNewPoly = INT(VibQuantNewRPoly)
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            CALL RANDOM_NUMBER(RanNum)
-            IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-              EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
-                        * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-              VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-            ELSE
-              EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
-                        * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-              VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-            END IF
+!             CALL RANDOM_NUMBER(RanNum)
+!             IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
+!             ELSE
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
+!             END IF
             IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
                         * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(SpecID)%MacroParticleFactor
             IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                        * SpecDSMC(SpecID)%CharaTVib * Species(SpecID)%MacroParticleFactor
+            IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
                         * SpecDSMC(SpecID)%CharaTVib * Species(SpecID)%MacroParticleFactor
           END DO
         ELSE
           VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
                       - DSMC%GammaQuant)
-          CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-          DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
-            CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-          END DO
-          VibQuantNewR = VibQuantWall
-          VibQuantNew = INT(VibQuantNewR)
-          CALL RANDOM_NUMBER(RanNum)
-          IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-            EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-          ELSE
-            EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-          END IF
-          IntArray(4) = VibQuant + DSMC%GammaQuant * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
+!           CALL RANDOM_NUMBER(RanNum)
+!           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
+!           DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+!             CALL RANDOM_NUMBER(RanNum)
+!             VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
+!           END DO
+!           VibQuantNewR = VibQuantWall
+!           VibQuantNew = INT(VibQuantNewR)
+!           CALL RANDOM_NUMBER(RanNum)
+!           IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+!             EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+!           ELSE
+!             EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+!           END IF
+          IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
           IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
+          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
         END IF
-        SDEALLOCATE(RanNumPoly)
-        SDEALLOCATE(VibQuantWallPoly)
-        SDEALLOCATE(VibQuantNewRPoly)
-        SDEALLOCATE(VibQuantNewPoly)
-        SDEALLOCATE(VibQuantTemp)
-        IntArray(6) = EvibNew
+!         SDEALLOCATE(RanNumPoly)
+!         SDEALLOCATE(VibQuantWallPoly)
+!         SDEALLOCATE(VibQuantNewRPoly)
+!         SDEALLOCATE(VibQuantNewPoly)
+!         SDEALLOCATE(VibQuantTemp)
+!         IntArray(6) = EvibNew
       END IF
       END IF
       !End internal energy accomodation
@@ -1418,7 +1422,8 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
 #if (PP_TimeDiscMethod==42)
     Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
 #endif
-    IF (KeepWallParticles.OR.WriteMacroValues) THEN
+    IF ((KeepWallParticles).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues) &
+        .OR.(DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd))) THEN
       VelXold = PartState(PartID,4)
       VelYold = PartState(PartID,5)
       VelZold = PartState(PartID,6)
@@ -1460,106 +1465,114 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
         ELSE
           VibQuant = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
                       - DSMC%GammaQuant)
-          IntArray(4) = VibQuant + DSMC%GammaQuant * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
+          IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
         END IF
         ! then do first product
         EvibNew = 0.0
         IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
-          ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-                  VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-                  VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-          CALL RANDOM_NUMBER(RanNumPoly)
-          VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-            CALL RANDOM_NUMBER(RanNumPoly)
-            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          END DO
-          VibQuantNewRPoly(:) = VibQuantWallPoly(:)
-          VibQuantNewPoly = INT(VibQuantNewRPoly)
+          ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+!           ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                   VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                   VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+!           CALL RANDOM_NUMBER(RanNumPoly)
+!           VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+!           DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+!             CALL RANDOM_NUMBER(RanNumPoly)
+!             VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+!           END DO
+!           VibQuantNewRPoly(:) = VibQuantWallPoly(:)
+!           VibQuantNewPoly = INT(VibQuantNewRPoly)
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            CALL RANDOM_NUMBER(RanNum)
-            IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-              EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
-                        * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-              VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-            ELSE
-              EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
-                        * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-              VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-            END IF
+!             CALL RANDOM_NUMBER(RanNum)
+!             IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
+!             ELSE
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
+!             END IF
             IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+            IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
                         * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
           END DO
         ELSE
-          CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-          DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
-            CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-          END DO
-          VibQuantNewR = VibQuantWall
-          VibQuantNew = INT(VibQuantNewR)
-          CALL RANDOM_NUMBER(RanNum)
-          IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-            EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
-          ELSE
-            EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
-          END IF
+!           CALL RANDOM_NUMBER(RanNum)
+!           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+!           DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
+!             CALL RANDOM_NUMBER(RanNum)
+!             VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+!           END DO
+!           VibQuantNewR = VibQuantWall
+!           VibQuantNew = INT(VibQuantNewR)
+!           CALL RANDOM_NUMBER(RanNum)
+!           IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+!             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!           ELSE
+!             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!           END IF
           IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
         END IF
         ! then do second product
         IF(SpecDSMC(outSpec(2))%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(outSpec(2))%SpecToPolyArray
-          ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-                  VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-                  VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-          CALL RANDOM_NUMBER(RanNumPoly)
-          VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-            CALL RANDOM_NUMBER(RanNumPoly)
-            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          END DO
-          VibQuantNewRPoly(:) = VibQuantWallPoly(:)
-          VibQuantNewPoly = INT(VibQuantNewRPoly)
+          ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+!           ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                   VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                   VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+!           CALL RANDOM_NUMBER(RanNumPoly)
+!           VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+!           DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+!             CALL RANDOM_NUMBER(RanNumPoly)
+!             VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+!           END DO
+!           VibQuantNewRPoly(:) = VibQuantWallPoly(:)
+!           VibQuantNewPoly = INT(VibQuantNewRPoly)
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            CALL RANDOM_NUMBER(RanNum)
-            IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-              EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
-                        * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-              VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-            ELSE
-              EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
-                        * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-              VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-            END IF
+!             CALL RANDOM_NUMBER(RanNum)
+!             IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
+!             ELSE
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
+!             END IF
             IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                        * SpecDSMC(outSpec(2))%CharaTVib * Species(outSpec(2))%MacroParticleFactor
+            IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
                         * SpecDSMC(outSpec(2))%CharaTVib * Species(outSpec(2))%MacroParticleFactor
           END DO
         ELSE
-          CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
-          DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(2))%MaxVibQuant)
-            CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
-          END DO
-          VibQuantNewR = VibQuantWall
-          VibQuantNew = INT(VibQuantNewR)
-          CALL RANDOM_NUMBER(RanNum)
-          IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-            EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
-          ELSE
-            EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
-          END IF
+!           CALL RANDOM_NUMBER(RanNum)
+!           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
+!           DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(2))%MaxVibQuant)
+!             CALL RANDOM_NUMBER(RanNum)
+!             VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
+!           END DO
+!           VibQuantNewR = VibQuantWall
+!           VibQuantNew = INT(VibQuantNewR)
+!           CALL RANDOM_NUMBER(RanNum)
+!           IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+!             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
+!           ELSE
+!             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
+!           END IF
           IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(2))%CharaTVib
+          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(2))%CharaTVib
         END IF
-        SDEALLOCATE(RanNumPoly)
+!         SDEALLOCATE(RanNumPoly)
         SDEALLOCATE(VibQuantWallPoly)
-        SDEALLOCATE(VibQuantNewRPoly)
-        SDEALLOCATE(VibQuantNewPoly)
-        SDEALLOCATE(VibQuantTemp)
+!         SDEALLOCATE(VibQuantNewRPoly)
+!         SDEALLOCATE(VibQuantNewPoly)
+!         SDEALLOCATE(VibQuantTemp)
         ! assign new vibrational energy
-        IntArray(6) = EvibNew
+!         IntArray(6) = EvibNew
       END IF
       END IF
       !End internal energy accomodation

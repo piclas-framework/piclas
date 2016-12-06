@@ -3450,10 +3450,12 @@ USE MOD_Timedisc_Vars         , ONLY : iter
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC, PolyatomMolDSMC, PartStateIntEn
+USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh
+USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, SampWall
+USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif
@@ -3500,14 +3502,25 @@ REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
 INTEGER(KIND=8)             :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
 INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:,:)
 REAL                        :: xiab(1:2,1:2),xi(2),E,F,G,D,gradXiEta2D(1:2,1:2),gradXiEta3D(1:2,1:3)
+!variables used for sampling of of energies and impulse of emitted particles from surfaces
+INTEGER,ALLOCATABLE         :: PartInsIndexes(:,:)
+INTEGER                     :: PartsEmitted
+REAL                        :: TransArray(1:6),IntArray(1:6)
+REAL                        :: VelXold, VelYold, VelZold, VeloReal
+REAL                        :: EtraOld, EtraWall, EtraNew
+REAL                        :: ErotOld, ErotWall, ErotNew
+REAL                        :: EvibOld, EvibWall, EVibNew
+INTEGER                     :: p,q,SurfSideID,PartID
 !===================================================================================================================================
-
+ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber))
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
-
+    PartInsIndexes(:,:) = 0
+    PartsEmitted = 0
+    
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
     IF (.NOT.DoPoissonRounding) THEN
       IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
@@ -3600,7 +3613,7 @@ __STAMP__&
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
       DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
         IF (useDSMC .AND. (.NOT. KeepWallParticles)) THEN !to be checked!!!
-          IF (DSMC%WallModel.GT.0) THEN
+          IF ((DSMC%WallModel.GT.0).AND.(SurfMesh%SideIDToSurfID(SideID).GT.0)) THEN
             ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
           ELSE
             ExtraParts = 0
@@ -3717,6 +3730,10 @@ __STAMP__&
           END IF
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
+            PartInsIndexes(1,PartsEmitted+iPart) = ParticleIndexNbr
+            PartInsIndexes(2,PartsEmitted+iPart) = iSample
+            PartInsIndexes(3,PartsEmitted+iPart) = jSample
+            PartInsIndexes(4,PartsEmitted+iPart) = iSide
             IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
               PartState(ParticleIndexNbr,4:5) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
             END IF !VeloIsNormal
@@ -3774,6 +3791,8 @@ __STAMP__&
           .OR. Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
           CALL SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
         END IF
+        
+        PartsEmitted = PartsEmitted + PartInsSubSide
         
       END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
     END DO ! iSide
@@ -3871,7 +3890,54 @@ __STAMP__&
     ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
     PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-
+    
+    ! Sample Energies on Surfaces when particles are emitted from them
+    IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
+      IF (useDSMC.AND.(CollisMode.GT.1).AND.(DSMC%WallModel.GT.0)) THEN
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+          DO iPart = 1,PartsEmitted
+            PartID = PartInsIndexes(1,iPart)
+            p = PartInsIndexes(2,iPart)
+            q = PartInsIndexes(3,iPart)
+            SurfSideID = PartInsIndexes(4,iPart)
+            
+            VelXold  = PartBound%WallVelo(1,CurrentBC)
+            VelYold  = PartBound%WallVelo(2,CurrentBC)
+            VelZold  = PartBound%WallVelo(3,CurrentBC)
+            VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
+            EtraOld = 0.
+            EtraWall = EtraOld
+            VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + PartState(PartID,5) * PartState(PartID,5) &
+                            + PartState(PartID,6) * PartState(PartID,6))
+            EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
+            
+            TransArray(1) = EtraOld
+            TransArray(2) = EtraWall
+            TransArray(3) = EtraNew
+            TransArray(4) = PartState(PartID,4)-VelXold
+            TransArray(5) = PartState(PartID,5)-VelYold
+            TransArray(6) = PartState(PartID,6)-VelZold
+          
+            ErotWall = 0
+            ErotOld  = ErotWall
+            ErotNew  = PartStateIntEn(PartID,2)
+            IntArray(1) = ErotOld
+            IntArray(2) = ErotWall
+            IntArray(3) = ErotNew
+            
+            EvibWall = 0
+            EvibOld  = EvibWall
+            EvibNew  = PartStateIntEn(PartID,1)
+            IntArray(4) = EvibOld
+            IntArray(5) = EvibWall
+            IntArray(6) = EvibNew
+        
+            CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,(/0.,0.,0./),0.,.False.,0.)
+          END DO
+        END IF
+      END IF
+    END IF
+    
   END DO !iSF
 END DO !iSpec
 
