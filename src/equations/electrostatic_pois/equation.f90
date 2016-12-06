@@ -155,10 +155,10 @@ nTotalPhi=PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*PP_nElems
 Phit=0.
 
 ! We store the interior data at the each element face
-ALLOCATE(Phi_Minus(PP_nVar,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
-ALLOCATE(Phi_Plus(PP_nVar,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
-Phi_Minus=0.
-Phi_Plus=0.
+ALLOCATE(Phi_master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Phi_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides))
+Phi_master=0.
+Phi_slave=0.
 
 ! unique flux per side
 ALLOCATE(FluxPhi(PP_nVar,0:PP_N,0:PP_N,1:nSides))
@@ -492,7 +492,7 @@ SUBROUTINE FinalizeEquation()
 ! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,ONLY:EquationInitIsDone,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,E,D
+USE MOD_Equation_Vars,ONLY:EquationInitIsDone,Phi,Phit,Phi_master,Phi_slave,FluxPhi,E,D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -505,8 +505,8 @@ IMPLICIT NONE
 EquationInitIsDone = .FALSE.
 SDEALLOCATE(Phi)
 SDEALLOCATE(Phit)
-SDEALLOCATE(Phi_Minus)
-SDEALLOCATE(Phi_Plus)
+SDEALLOCATE(Phi_master)
+SDEALLOCATE(Phi_slave)
 SDEALLOCATE(FluxPhi)
 SDEALLOCATE(E)
 SDEALLOCATE(D)
@@ -645,7 +645,7 @@ SUBROUTINE FillFlux(Flux,doMPISides)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Equation_Vars,         ONLY: Phi_Minus,Phi_Plus
+USE MOD_Equation_Vars,         ONLY: Phi_master,Phi_slave
 USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Riemann_Pois,         ONLY: Riemann_Pois
@@ -674,7 +674,7 @@ END IF
 !firstSideID=nBCSides+1
 !lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
 DO SideID=firstSideID,lastSideID
-  CALL Riemann_Pois(Flux(:,:,:,SideID),Phi_Minus(:,:,:,SideID),Phi_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
+  CALL Riemann_Pois(Flux(:,:,:,SideID),Phi_master(:,:,:,SideID),Phi_slave(:,:,:,SideID),NormVec(:,:,:,SideID))
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)

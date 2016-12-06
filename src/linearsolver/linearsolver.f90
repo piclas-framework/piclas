@@ -236,9 +236,9 @@ SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars,              ONLY:U,Ut
+USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
@@ -252,7 +252,6 @@ REAL,INTENT(IN)          :: t,Coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iter
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -305,7 +304,7 @@ END IF
 DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
   DO iterLinSolver=1, maxIter_LinearSolver
     ! Preconditioner
-    CALL Preconditioner(coeff,P,Pt)
+    CALL Preconditioner(P,Pt)
     CALL MatrixVector(t,coeff,Pt,V)
     CALL VectorDotProduct(V,R0,alpha) ! sig,alpha turned compared to BiCGSTAB ! caution
     CALL VectorDotProduct(R,R0,sigma)
@@ -313,7 +312,7 @@ DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
     Q=Tvec - alpha*V
     ! Preconditioner
     TvecQt=Tvec+Q
-    CALL PRECONDITIONER(coeff,TvecQt,TvecQt)
+    CALL Preconditioner(TvecQt,TvecQt)
     CALL MatrixVector(t,coeff,TvecQt,V) ! we are using V because it is not needed again
     Un=Un+alpha*TvecQt
     ! R_j+1=R_j + alpha A(uj+qj)
@@ -370,7 +369,7 @@ __STAMP__ &
 ,'CGS NOT CONVERGED WITH RESTARTS AND CGS ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 END SUBROUTINE LinearSolver_CGS
 
-
+#ifdef donotcompilethis
 SUBROUTINE LinearSolver_BiCGStab(t,Coeff)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab 
@@ -383,7 +382,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,        ONLY: U
 USE MOD_LinearSolver_Vars,  ONLY: eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
-USE MOD_LinearSolver_Vars,  ONLY: LinSolverRHS,ImplicitSource
+USE MOD_LinearSolver_Vars,  ONLY: ImplicitSource,LinsolverRHS
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
@@ -404,7 +403,7 @@ REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,eps0inv
+REAL             :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R
 INTEGER          :: chance
 !===================================================================================================================================
 chance=0
@@ -481,8 +480,10 @@ CALL abort(&
 __STAMP__&
 ,' No convergence!')
 END SUBROUTINE LinearSolver_BiCGSTAB
+#endif
 
 
+#ifdef donotcompilethis
 SUBROUTINE LinearSolver_BiCGStab_P(t,Coeff)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with right preconditioner P_r
@@ -494,7 +495,6 @@ SUBROUTINE LinearSolver_BiCGStab_P(t,Coeff)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,             ONLY: U
-USE MOD_TimeDisc_Vars,       ONLY: dt
 USE MOD_LinearSolver_Vars,   ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,   ONLY: LinSolverRHS,ImplicitSource
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
@@ -553,7 +553,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
     ! Preconditioner
-    CALL Preconditioner(coeff,P,Pt)
+    CALL Preconditioner(P,Pt)
     CALL MatrixVector(t,Coeff,Pt,V)
 
     CALL VectorDotProduct(V,R0,sigma)
@@ -563,7 +563,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
     S = R - alpha*V
 
     ! Preconditioner
-    CALL Preconditioner(coeff,S,St)
+    CALL Preconditioner(S,St)
     CALL MatrixVector(t,Coeff,St,TVec)
 
     CALL VectorDotProduct(TVec,TVec,Norm_T2)
@@ -614,6 +614,7 @@ __STAMP__ &
 ,'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance,REAL(iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_P
+#endif
 
 SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance)
 !===================================================================================================================================
@@ -626,9 +627,8 @@ SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
-USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
@@ -709,7 +709,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
 #ifdef DLINANALYZE
         CALL CPU_TIME(tStart)
 #endif /* DLINANALYZE */
-    CALL Preconditioner(coeff,P,Pt)
+    CALL Preconditioner(P,Pt)
 #ifdef DLINANALYZE
     CALL CPU_TIME(tend)
     tPrecond=tPrecond+tend-tStart
@@ -731,7 +731,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     CALL CPU_TIME(tStart)
 #endif /* DLINANALYZE */
     ! Preconditioner
-    CALL Preconditioner(coeff,S,St)
+    CALL Preconditioner(S,St)
 #ifdef DLINANALYZE
     CALL CPU_TIME(tend)
     tPrecond=tPrecond+tend-tStart
@@ -804,6 +804,7 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_BiCGSTAB_PM
 
+#ifdef donotcompilethis
 SUBROUTINE LinearSolver_StabBiCGSTAB(t,Coeff)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using stabilized BiCGStab 
@@ -816,7 +817,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,       ONLY:U
 USE MOD_LinearSolver_Vars, ONLY:eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
-USE MOD_Equation_Vars, ONLY:eps0,c_corr
 USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,ImplicitSource
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
@@ -838,7 +838,7 @@ REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,eps0inv, Norm_R02, Norm_V, Norm_S
+REAL             :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R, Norm_R02, Norm_V, Norm_S
 INTEGER          :: chance
 !===================================================================================================================================
 
@@ -941,6 +941,7 @@ __STAMP__ &
 ,'StabBiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance)
 
 END SUBROUTINE LinearSolver_StabBiCGSTAB
+#endif 
 
 
 SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance)
@@ -954,8 +955,7 @@ SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY: U
-USE MOD_Precond_Vars,            ONLY: PrecondType
-USE MOD_LinearSolver_Vars,       ONLY: eps_LinearSolver,maxIter_LinearSolver,epsTilde_LinearSolver,totalIterLinearSolver
+USE MOD_LinearSolver_Vars,       ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
@@ -979,14 +979,14 @@ REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,eps0inv, Norm_R02, Norm_V, Norm_S
+REAL                     :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,   Norm_S
 REAL                     :: AbortCrit,AbortCrit2
 INTEGER                  :: chance
 ! preconditioner
 REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: tS,tE,tStart,tend
-REAL                     :: tDG, tPrecond
+REAL                     :: tDG
 !===================================================================================================================================
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
@@ -1025,7 +1025,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   DO iter=1,maxIter_LinearSolver
     ! Preconditioner
     CALL CPU_TIME(tStart)
-    CALL Preconditioner(coeff,P,Pt)
+    CALL Preconditioner(P,Pt)
     CALL CPU_TIME(tend)
     ! matrix vector
     CALL CPU_TIME(tStart)
@@ -1046,7 +1046,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
       IF((Norm_S.GT.AbortCrit2).OR.(Norm_S.GT.1e-12))THEN
         ! Preconditioner
         CALL CPU_TIME(tStart)
-        CALL Preconditioner(coeff,S,St)
+        CALL Preconditioner(S,St)
         CALL CPU_TIME(tend)
         ! matrix vector
         CALL CPU_TIME(tStart)
@@ -1135,7 +1135,7 @@ SUBROUTINE LinearSolver_GMRES_P(t,coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY: U
-USE MOD_LinearSolver_Vars,    ONLY: LinSolverRHS,ImplicitSource
+USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
@@ -1153,9 +1153,7 @@ REAL,INTENT(IN),OPTIONAL :: relTolerance
 ! LOCAL VARIABLES
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
-REAL                     :: V2P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: W(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Z(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
 REAL                     :: Norm_R0,Resu,Temp,Bet
@@ -1164,7 +1162,6 @@ INTEGER                  :: Restart
 INTEGER                  :: m,nn,o
 ! preconditoner + Vt
 REAL                     :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
-REAL                     :: Vt2(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #ifdef DLINANALYZE
 REAL                     :: tS,tE, tS2,tE2,t1,t2
 real                     :: tstart,tend,tPrecond,tDG
@@ -1216,7 +1213,7 @@ DO WHILE (Restart<nRestarts)
 #ifdef DLINANALYZE
     CALL CPU_TIME(tStart)
 #endif /* DLINANALYZE */
-    CALL Preconditioner(coeff,V(:,:,:,:,:,m),Vt(:,:,:,:,:,m))
+    CALL Preconditioner(V(:,:,:,:,:,m),Vt(:,:,:,:,:,m))
 #ifdef DLINANALYZE
     CALL CPU_TIME(tend)
     tPrecond=tPrecond+tend-tStart
@@ -1314,9 +1311,8 @@ SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
-USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
@@ -1381,7 +1377,7 @@ ELSE
 END IF
 
 ! left precondtioning of residuum
-CALL Preconditioner(coeff,R0,R0t)
+CALL Preconditioner(R0,R0t)
 
 ! compute preconditoned R0
 Pt = R0t
@@ -1394,10 +1390,10 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
     ! Preconditioner
     ! right preconditioner before Maxtrix-Vector
-    CALL Preconditioner(coeff,Pt,V)
+    CALL Preconditioner(Pt,V)
     CALL MatrixVector(t,coeff,V,V) ! or V,Vt and V=Vt
     ! left preconditioner
-    CALL Preconditioner(coeff,V,Vt)
+    CALL Preconditioner(V,Vt)
 
     ! compute preconditioned alpha
     CALL VectorDotProduct(Rt,R0t,alpha)
@@ -1405,16 +1401,16 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     alpha=alpha/sigma
     S = R - alpha*V ! requires to save v 
     ! left preconditoner
-    !CALL Preconditioner(coeff,S,St)
+    !CALL Preconditioner(S,St)
     ! or does not require the application of the preconditioner, Meister,p.227,EQ.5.9.3
     St = Rt - alpha*Vt
 
     ! next Matrix Vector
     ! right precondtioner
-    CALL Preconditioner(coeff,St,Tvec) 
+    CALL Preconditioner(St,Tvec) 
     CALL MatrixVector(t,coeff,Tvec,TVec) ! or Tvec,Tvect;  Tvec=TvecT
     ! left preconditioner
-    CALL Preconditioner(coeff,Tvec,Tvect)
+    CALL Preconditioner(Tvec,Tvect)
 
     ! compute omega
     CALL VectorDotProduct(TVect,TVect,Norm_T2)
@@ -1436,7 +1432,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     Norm_R=SQRT(Norm_R)
     ! test if success
     IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12)) THEN
-      CALL Preconditioner(coeff,deltaX,deltaX)
+      CALL Preconditioner(deltaX,deltaX)
       U=Un+deltaX
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
@@ -1454,7 +1450,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     ENDIF
     Norm_R = Norm_RN
   END DO ! iterLinSolver
-  CALL Preconditioner(coeff,deltaX,deltaX)
+  CALL Preconditioner(deltaX,deltaX)
   U=Un+deltaX
   deltaX = 0.
   Uold = U
@@ -1469,7 +1465,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
   R = R0
   ! left precondtioning of residuum
-  CALL Preconditioner(coeff,R0,R0t)
+  CALL Preconditioner(R0,R0t)
   ! compute preconditoned R0
   Pt = R0t
   Rt = R0t
@@ -1500,9 +1496,9 @@ SUBROUTINE LinearSolver_BiCGStab_LP(t,Coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
-USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
+!USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
@@ -1566,7 +1562,7 @@ ELSE
 END IF
 
 ! left precondtioning of residuum
-CALL Preconditioner(coeff,R0,R0t)
+CALL Preconditioner(R0,R0t)
 
 ! compute preconditoned R0
 Pt = R0t
@@ -1580,7 +1576,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     ! Preconditioner
     CALL MatrixVector(t,coeff,Pt,V) ! or V,Vt and V=Vt
     ! left preconditioner
-    CALL Preconditioner(coeff,V,Vt)
+    CALL Preconditioner(V,Vt)
 
     ! compute preconditioned alpha
     CALL VectorDotProduct(Rt,R0t,alpha)
@@ -1588,14 +1584,14 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     alpha=alpha/sigma
     S = R - alpha*V ! requires to save v 
     ! left preconditoner
-    !CALL Preconditioner(coeff,S,St)
+    !CALL Preconditioner(S,St)
     ! or does not require the application of the preconditioner, Meister,p.227,EQ.5.9.3
     St = Rt - alpha*Vt
 
     ! next Matrix Vector
     CALL MatrixVector(t,coeff,St,TVec) ! or Tvec,Tvect;  Tvec=TvecT
     ! left preconditioner
-    CALL Preconditioner(coeff,Tvec,Tvect)
+    CALL Preconditioner(Tvec,Tvect)
 
     ! compute omega
     CALL VectorDotProduct(TVect,TVect,Norm_T2)
@@ -1647,7 +1643,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
   R = R0
   ! left precondtioning of residuum
-  CALL Preconditioner(coeff,R0,R0t)
+  CALL Preconditioner(R0,R0t)
   ! compute preconditoned R0
   Pt = R0t
   Rt = R0t
@@ -1677,9 +1673,8 @@ SUBROUTINE LinearSolver_BiCGSTABl(t,Coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
-USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts,ldim
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,ldim
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
@@ -1757,7 +1752,7 @@ DO WHILE(Restart.LT.nRestarts)
         P(:,:,:,:,:,m) = R(:,:,:,:,:,m) - beta * P(:,:,:,:,:,m)
       END DO ! m
       ! Preconditioner
-      CALL Preconditioner(coeff,P(:,:,:,:,:,nn),Pt)
+      CALL Preconditioner(P(:,:,:,:,:,nn),Pt)
       ! matrix vector
       CALL MatrixVector(t,coeff,Pt,P(:,:,:,:,:,nn+1))
       CALL VectorDotProduct(P(:,:,:,:,:,nn+1),R0,phi(nn))
@@ -1766,7 +1761,7 @@ DO WHILE(Restart.LT.nRestarts)
         R(:,:,:,:,:,m) = R(:,:,:,:,:,m) - alpha * P(:,:,:,:,:,m+1)
       END DO ! m
       ! Preconditioner
-      CALL Preconditioner(coeff,R(:,:,:,:,:,nn),Rt)
+      CALL Preconditioner(R(:,:,:,:,:,nn),Rt)
       ! matrix vector
       CALL MatrixVector(t,coeff,Rt,R(:,:,:,:,:,nn+1))
       deltaX=deltaX+alpha*P(:,:,:,:,:,0)
@@ -1809,7 +1804,7 @@ DO WHILE(Restart.LT.nRestarts)
     Norm_Abort=SQRT(Norm_Abort)
     IF((Norm_Abort.LE.AbortCrit).OR.(Norm_Abort.LT.1.E-12)) THEN
       ! invert preconditioner
-      CALL Preconditioner(coeff,deltaX,U)
+      CALL Preconditioner(deltaX,U)
       U=U+Un
       nInnerIter=nInnerIter+iterLinSolver*ldim
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
@@ -1821,7 +1816,7 @@ DO WHILE(Restart.LT.nRestarts)
   ! restart with new U
   ! LinSolverRHS and X0 = U
 !  U              = 0.5*(Uold+Un)
-  CALL Preconditioner(coeff,deltaX,U)
+  CALL Preconditioner(deltaX,U)
   U=U+Un
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
@@ -1857,6 +1852,9 @@ SUBROUTINE FinalizeLinearSolver()
 USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#ifdef PARTICLES
+USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
+#endif /*PARTICLES*/
 #endif
 USE MOD_Predictor    ,ONLY:FinalizePredictor
 ! IMPLICIT VARIABLE HANDLING
@@ -1872,10 +1870,13 @@ IMPLICIT NONE
 LinearSolverInitIsDone = .FALSE.
 SDEALLOCATE(ImplicitSource)
 SDEALLOCATE(LinSolverRHS)
+CALL FinalizePredictor
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 SDEALLOCATE(ExplicitSource)
+#ifdef PARTICLES
+CALL FinalizePartSolver()
+#endif /*PARTICLES*/
 #endif
-CALL FinalizePredictor
 !SDEALLOCATE(FieldSource)
 END SUBROUTINE FinalizeLinearSolver
 

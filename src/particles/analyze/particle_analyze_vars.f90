@@ -11,7 +11,7 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
-LOGICAL                       :: CalcNumSpec                           ! Calculate the number of particles per species
+LOGICAL                       :: CalcNumSpec                           ! Calculate the number of simulated particles per species
 LOGICAL                       :: CalcCollRates                         ! Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                         ! Calculate the reaction rate per reaction
 LOGICAL                       :: CalcEpot                              ! Computation of the energy stored in the electric and
@@ -44,5 +44,8 @@ LOGICAL                       :: DoVerifyCharge                        ! validat
                                                                        ! an output in std.out
 REAL                          :: PartCharge(3)                         ! contains the whole deposited charge and its absolute
                                                                        ! and relative error
+LOGICAL                       :: printDiff
+REAL                          :: printDiffTime
+REAL                          :: printDiffVec(6)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

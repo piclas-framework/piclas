@@ -30,7 +30,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcXiElec
 !===================================================================================================================================
 CONTAINS
 
@@ -39,7 +39,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 ! init electronic shell
 !===================================================================================================================================
   USE MOD_Globals,                ONLY : abort
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, PartElecQua
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
@@ -82,15 +82,13 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
     CALL RANDOM_NUMBER(iRan)
     iQua = int( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
     ElectronicPartitionTemp  = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-             exp ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
+             EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
     CALL RANDOM_NUMBER(iRan2)
   END DO
 #if ( PP_TimeDiscMethod == 42 )
     SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
 #endif
   PartStateIntEn(iPart,3) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
-  PartElecQua(iPart) = iQua
-
 END SUBROUTINE InitElectronShell
 
 
@@ -116,7 +114,7 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   REAL, INTENT(INOUT)           :: CollisionEnergy                                                !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iQuaMax, MaxElecQuant, iQua, iQuaMax2 !, iQuaMax3
+  INTEGER                       :: iQuaMax, MaxElecQuant, iQua
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp
 ! vMPF
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
@@ -125,22 +123,21 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 #endif
 !===================================================================================================================================
   iQuaMax  = 0
-  iQuaMax2 = 0
   ! Determine max electronic quant
   MaxElecQuant = SpecDSMC(PartSpecies(iPart1))%MaxElecQuant - 1
-#if ( PP_TimeDiscMethod==42 )
-  iQuaold=0
-  ! determine old Quant
-  DO iQua = 0, MaxElecQuant
-    IF ( PartStateIntEn(iPart1,3)  .GT. &
-      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)* BoltzmannConst ) THEN
-      iQuaold = iQua
-    ELSE
-    ! exit loop
-      EXIT
-    END IF
-  END DO
-#endif
+!#if ( PP_TimeDiscMethod==42 )
+!  iQuaold=0
+!  ! determine old Quant
+!  DO iQua = 0, MaxElecQuant
+!    IF ( PartStateIntEn(iPart1,3) / BoltzmannConst .ge. &
+!      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
+!      iQuaold = iQua
+!    ELSE
+!    ! exit loop
+!      EXIT
+!    END IF
+!  END DO
+!#endif
   ! determine maximal Quant and term according to Eq (7) of Liechty
   gmax = 0.
   PartStateTemp = CollisionEnergy / BoltzmannConst
@@ -154,32 +151,18 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
       IF ( gtemp .GT. gmax ) THEN
       ! Quant of largest value of Eq (7)
         gmax = gtemp
-        iQuaMax2 = iQua
       END IF
-    ELSE
-    ! exit loop
-  !    EXIT
-      CYCLE
     END IF
   END DO
-
-  ! max value for denominator == max. propability
-  !  iQuaMax3 = min(iQuaMax,iQuaMax2)
-  !  gmax = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQuaMax3) * &
-  !       ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQuaMax3))**FakXi
-  ! max iQuant for dicing
-  iQuaMax  = MAX(iQuaMax,iQuaMax2)
   CALL RANDOM_NUMBER(iRan)
-  iQua = INT( ( iQuaMax +1 ) * iRan)
-  !iQua = INT( ( iQuaMax ) * iRan)
+  iQua = int( ( iQuaMax +1 ) * iRan)
   gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
           ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
   CALL RANDOM_NUMBER(iRan2)
   ! acceptance-rejection for iQuaElec
   DO WHILE ( iRan2 .GE. gtemp / gmax )
     CALL RANDOM_NUMBER(iRan)
-    iQua = INT( ( iQuaMax+1  ) * iRan)
-!    iQua = INT( ( iQuaMax  ) * iRan)
+    iQua = int( ( iQuaMax +1 ) * iRan)
     gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
             ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
     CALL RANDOM_NUMBER(iRan2)
@@ -215,25 +198,24 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
    PartStateIntEn(iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-   CollisionEnergy = CollisionEnergy - PartStateIntEn(iPart1,3)
 #if (PP_TimeDiscMethod==42)
   END IF
 #endif
   END IF
 
-#if (PP_TimeDiscMethod==42)
-      ! list of number of particles in each energy level
-  IF (.NOT.DSMC%ReservoirSimuRate) THEN
-    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
-    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
-    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
-  END IF
-  ! collision with X resulting in a transition from i to j
-  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
-  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
-                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
-  END IF
-#endif
+!#if (PP_TimeDiscMethod==42)
+!      ! list of number of particles in each energy level
+!  IF (.NOT.DSMC%ReservoirSimuRate) THEN
+!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
+!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
+!    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
+!  END IF
+!  ! collision with X resulting in a transition from i to j
+!  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
+!  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
+!                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
+!  END IF
+!#endif
 END SUBROUTINE ElectronicEnergyExchange
 
 
@@ -256,7 +238,7 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   REAL, INTENT(INOUT)           :: CollisionEnergy                                                !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iQuaMax, MaxElecQuant, iQua, iQuaMax2   ! , iQuaMax3
+  INTEGER                       :: iQuaMax, MaxElecQuant, iQua   ! , iQuaMax3
   INTEGER                       :: jQVib, QMaxVib
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, iRanVib
   ! vMPF
@@ -266,22 +248,21 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 #endif
 !===================================================================================================================================
   iQuaMax  = 0
-  iQuaMax2 = 0
   ! Determine max electronic quant
   MaxElecQuant = SpecDSMC(PartSpecies(iPart1))%MaxElecQuant - 1
-#if ( PP_TimeDiscMethod==42 )
-  iQuaold=0
-  ! determine old Quant
-  DO iQua = 0, MaxElecQuant
-    IF ( PartStateIntEn(iPart1,3) / BoltzmannConst .ge. &
-      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
-      iQuaold = iQua
-    ELSE
-    ! exit loop
-      EXIT
-    END IF
-  END DO
-#endif
+!#if ( PP_TimeDiscMethod==42 )
+!  iQuaold=0
+!  ! determine old Quant
+!  DO iQua = 0, MaxElecQuant
+!    IF ( PartStateIntEn(iPart1,3) / BoltzmannConst .ge. &
+!      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
+!      iQuaold = iQua
+!    ELSE
+!    ! exit loop
+!      EXIT
+!    END IF
+!  END DO
+!#endif
   ! determine maximal Quant and term according to Eq (7) of Liechty
   gmax = 0
   PartStateTemp = CollisionEnergy / BoltzmannConst
@@ -298,31 +279,17 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
       IF ( gtemp .gt. gmax ) THEN
       ! Quant of largest value of Eq (7)
         gmax = gtemp
-        iQuaMax2 = iQua
       END IF
-    ELSE
-    ! exit loop
-    !  EXIT
-      CYCLE
     END IF
   END DO
-  ! max value for denominator == max. propability
-  ! iQuaMax3 = min(iQuaMax,iQuaMax2)
-  ! gmax = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQuaMax3) * &
-  !       ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQuaMax3) &
-  !         -DSMC%GammaQuant * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)**FakXi
   ! max iQuant for dicing
-  iQuaMax  = max(iQuaMax,iQuaMax2)
   QMaxVib = INT(CollisionEnergy/(BoltzmannConst*SpecDSMC(PartSpecies(iPart1))%CharaTVib)  &
               - DSMC%GammaQuant)
   QMaxVib = MIN(QMaxVib + 1, SpecDSMC(PartSpecies(iPart1))%MaxVibQuant)
   CALL RANDOM_NUMBER(iRan)
   CALL RANDOM_NUMBER(iRanVib)
-  iQua = int( ( iQuaMax +1 ) * iRan)
+  iQua = INT( ( iQuaMax +1 ) * iRan)
   jQVib =  INT(iRanVib * QMaxVib)
-  !  gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
-  !          ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) &
-  !          -(DSMC%GammaQuant + jQVib) * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)**FakXi
   gtemp =( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) &
         -(DSMC%GammaQuant + jQVib) * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)
   IF (gtemp.LE.0.0) THEN
@@ -380,25 +347,24 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
    PartStateIntEn(iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
    PartStateIntEn(iPart1,1) = (jQVib + DSMC%GammaQuant) * BoltzmannConst &
                   * SpecDSMC(PartSpecies(iPart1))%CharaTVib
-   CollisionEnergy = CollisionEnergy - PartStateIntEn(iPart1,3) - PartStateIntEn(iPart1,1)
 #if (PP_TimeDiscMethod==42)
   END IF
 #endif
   END IF
 
-#if (PP_TimeDiscMethod==42)
-    ! list of number of particles in each energy level
-  IF (.NOT.DSMC%ReservoirSimuRate) THEN
-    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
-    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
-    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
-  END IF
-  ! collision with X resulting in a transition from i to j
-  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
-  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
-                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
-  END IF
-#endif
+!#if (PP_TimeDiscMethod==42)
+!    ! list of number of particles in each energy level
+!  IF (.NOT.DSMC%ReservoirSimuRate) THEN
+!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
+!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
+!    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
+!  END IF
+!  ! collision with X resulting in a transition from i to j
+!  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
+!  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
+!                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
+!  END IF
+!#endif
 END SUBROUTINE TVEEnergyExchange
 
 
@@ -409,7 +375,8 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 ! use module
   USE MOD_io_hdf5
   USE MOD_Globals
-  USE MOD_DSMC_Vars,                    ONLY: DSMC, SpecDSMC
+  USE MOD_DSMC_Vars,            ONLY: DSMC, SpecDSMC
+  USE MOD_HDF5_Input,           ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -426,12 +393,21 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
   INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
   INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
+  REAL,ALLOCATABLE                                      :: ElectronicState(:,:)
+  INTEGER, ALLOCATABLE                                  :: SortElectronicState(:)
+  INTEGER                                               :: iQua, nQuants, iQuaTemp
+  REAL                                                  :: tempEnergyDiff, tempEnergy
+  LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
-
+  SWRITE(*,*) 'Read electronic level entries ',TRIM(dsetname),' from ',DSMC%ElectronicModelDatabase
   ! Initialize FORTRAN interface.
   CALL H5OPEN_F(err)
   ! Open the file.
-  CALL H5FOPEN_F (DSMC%ElectronicStateDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
+  CALL H5FOPEN_F (DSMC%ElectronicModelDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
+  CALL DatasetExists(File_ID_DSMC,dsetname,DataSetFound)
+  IF(.NOT.DataSetFound)THEN
+    SWRITE(*,*) 'DataSet not found: ',TRIM(dsetname),DSMC%ElectronicModelDatabase
+  END IF
   ! Open the  dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
   ! Get the file space of the dataset.
@@ -439,17 +415,167 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   ! get size
   CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
   ! Allocate electronic_state
-  ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
-  SpecDSMC(iSpec)%MaxElecQuant         = SIZE( SpecDSMC(iSpec)%ElectronicState,2) ! max Quant + 1
+  ALLOCATE (ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
   ! read data
-  CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecDSMC(iSpec)%ElectronicState, dims, err)
+  CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, ElectronicState, dims, err)
+  CALL SortEnergies(ElectronicState, INT(dims(2)))
+  IF (ALMOSTEQUAL(DSMC%EpsElecBin, 0.0).OR.(dims(2).EQ.2)) THEN
+    ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
+    SpecDSMC(iSpec)%ElectronicState = ElectronicState
+    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2) 
+  ELSE    
+    ALLOCATE (SortElectronicState(0:dims(2)-1 ))
+    SortElectronicState(0) = 0
+    nQuants = 1
+    tempEnergy =  ElectronicState(2,1)
+    SortElectronicState(1) = nQuants
+    DO iQua = 2, INT(dims(2),4)-2
+      tempEnergyDiff = DiffElecEnergy(tempEnergy, ElectronicState(2,iQua))   
+      IF (tempEnergyDiff.LE.DSMC%EpsElecBin) THEN
+        SortElectronicState(iQua) = nQuants
+      ELSE
+        nQuants = nQuants + 1
+        SortElectronicState(iQua) = nQuants
+        tempEnergy =  ElectronicState(2,iQua)
+      END IF
+    END DO
+    nQuants = nQuants + 1
+    SortElectronicState(dims(2)-1) = nQuants
+
+    ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:nQuants) )
+    SpecDSMC(iSpec)%ElectronicState = 0.0
+    DO iQua = 1, INT(dims(2),4)-2
+      iQuaTemp = SortElectronicState(iQua)
+      SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) = SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) &
+          + ElectronicState(1, iQua)
+      SpecDSMC(iSpec)%ElectronicState( 2, iQuaTemp) = SpecDSMC(iSpec)%ElectronicState( 2, iQuaTemp) &
+          + ElectronicState(1, iQua)*ElectronicState(2, iQua)
+    END DO
+    DO iQua = 1, nQuants -1
+      SpecDSMC(iSpec)%ElectronicState( 2, iQua) = SpecDSMC(iSpec)%ElectronicState( 2, iQua) &
+              / SpecDSMC(iSpec)%ElectronicState( 1, iQua)
+    END DO
+    SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
+    SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
+    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2) 
+    SWRITE(*,*) 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',dsetname
+  END IF
   ! Close the file.
   CALL H5FCLOSE_F(file_id_dsmc, err)
   ! Close FORTRAN interface.
   CALL H5CLOSE_F(err)
 
-  SWRITE(*,*) 'Read entry ',dsetname,' from ',DSMC%ElectronicStateDatabase
+
 
 END SUBROUTINE ReadSpeciesLevel
+
+
+SUBROUTINE SortEnergies(ElectronicState, nQuants)
+!===================================================================================================================================
+! Subroutine to read the electronic levels from DSMCSpeciesElectronicState.h5
+!===================================================================================================================================
+! use module
+  USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL,INTENT(INOUT)                                    :: ElectronicState(1:2,0:nQuants-1)
+  INTEGER, INTENT(IN)                                   :: nQuants
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                                               :: iStep, iLoop
+  REAL                                                  :: TempState(2)
+  LOGICAL                                               :: changed
+!===================================================================================================================================
+  iStep = nQuants
+  changed = .true.
+  DO WHILE (changed.OR.iStep.GT.1)
+    changed = .false.
+    IF (iStep.GT.1) THEN
+      iStep = INT(iStep/1.3)       
+    END IF
+    DO iLoop = 0, nQuants - 1 - iStep
+      IF (ElectronicState(2,iLoop).GT.ElectronicState(2,iLoop+iStep)) THEN
+        TempState(1:2) = ElectronicState(1:2,iLoop+iStep)
+        ElectronicState(1:2,iLoop+iStep) = ElectronicState(1:2,iLoop)
+        ElectronicState(1:2,iLoop) = TempState(1:2) 
+        changed = .true.      
+      END IF
+    END DO
+  END DO
+END SUBROUTINE SortEnergies
+
+REAL FUNCTION DiffElecEnergy(En1, En2)
+!===================================================================================================================================
+! Calculates area of mesh element
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL, INTENT(IN)         :: En1, En2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+  IF (ALMOSTEQUAL(En1,0.0)) CALL Abort(&
+     __STAMP__,&
+    'Energy of Electronic Shell is 0!!!')
+  IF (ALMOSTEQUAL(En2,0.0)) CALL Abort(&
+     __STAMP__,&
+    'Energy of Electronic Shell is 0!!!')
+  
+  IF (ALMOSTEQUAL(En1,En2)) THEN
+    DiffElecEnergy = 0.0
+  ELSE
+    DiffElecEnergy = (En2-En1)/En1
+  END IF
+  
+  RETURN
+
+END FUNCTION DiffElecEnergy
+
+
+REAL FUNCTION CalcXiElec(Telec, iSpec)
+!===================================================================================================================================
+! Calculation of the electronic degree of freedom
+!===================================================================================================================================
+! MODULES
+  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL, INTENT(IN)                :: Telec  !
+  INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+  INTEGER                         :: ii
+  REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
+!===================================================================================================================================
+
+  SumOne = 0.0
+  SumTwo = 0.0
+  DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * BoltzmannConst* SpecDSMC(iSpec)%ElectronicState(2,ii) * &
+              exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / Telec )
+    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / Telec )
+  END DO
+  CalcXiElec = 2 * SumOne / (SumTwo * BoltzmannConst * Telec)
+
+  RETURN
+
+END FUNCTION CalcXiElec
+
 
 END MODULE MOD_DSMC_ElectronicModel

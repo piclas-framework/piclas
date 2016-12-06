@@ -66,9 +66,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
 CALL InitializeVariables()
-#ifdef MPI
-CALL InitParticleCommSize()
-#endif
 IF(useBGField) CALL InitializeBackgroundField()
 
 CALL InitializeParticleEmission()
@@ -79,15 +76,20 @@ IF (useDSMC) THEN
   IF (useLD) CALL InitLD
 ELSE IF (WriteMacroValues) THEN
   DSMC%CalcSurfaceVal  = .FALSE.
-  DSMC%ElectronicState = .FALSE.
+  DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
   DSMC%OutputMeshSamp  = .FALSE.
 END IF
 
+#ifdef MPI
+! has to be called AFTER InitializeVariables and InitDSMC 
+CALL InitParticleCommSize()
+#endif
+
 IF(useDSMC .OR. WriteMacroValues) THEN
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
-  HODSMC%SampleType = GETSTR('DSMC-HOSampling-Type','cell_mean')
+  HODSMC%SampleType = TRIM(GETSTR('DSMC-HOSampling-Type','cell_mean'))
   IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
@@ -122,7 +124,7 @@ USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK, OutputMesh
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
 USE MOD_PICInit,               ONLY:InitPIC
-USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem,InitSFIBGM
+USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
@@ -325,7 +327,7 @@ IF (usevMPF) THEN
     vMPFSplitParticleTarget = GETINT('Part-vMPFSplitParticleTarget','0')
     IF (vMPFSplitParticleTarget.EQ.0) WRITE(*,*) 'vMPFSplitParticleTarget equals zero: no split is performed!'
     vMPFMergeParticleIter = GETINT('Part-vMPFMergeParticleIter','100')
-    vMPF_velocityDistribution = GETSTR('Part-vMPFvelocityDistribution','OVDR')
+    vMPF_velocityDistribution = TRIM(GETSTR('Part-vMPFvelocityDistribution','OVDR'))
     vMPF_relativistic = GETLOGICAL('Part-vMPFrelativistic','.FALSE.')
     IF(vMPF_relativistic.AND.(vMPF_velocityDistribution.EQ.'MBDR')) THEN
       CALL abort(&
@@ -348,7 +350,7 @@ OutputMesh = GETLOGICAL('Part-WriteOutputMesh','.FALSE.')
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
-!ParticlePushMethod = GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
+!ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
 WriteFieldsToVTK = GETLOGICAL('Part-WriteFieldsToVTK','.FALSE.')
 
 !!!! Logicals for Constant Pressure in Cells
@@ -393,8 +395,8 @@ DO iSpec = 1, nSpecies
     ! get emission and init data
     Species(iSpec)%Init(iInit)%UseForInit           = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
     Species(iSpec)%Init(iInit)%UseForEmission       = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
-    Species(iSpec)%Init(iInit)%SpaceIC               = GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid')
-    Species(iSpec)%Init(iInit)%velocityDistribution  = GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant')
+    Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
+    Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
@@ -500,7 +502,7 @@ __STAMP__&
         SWRITE(*,*) "WARNING: If VPI-BC is open, a backflow might not be compensated"
         SWRITE(*,*) "         (use PartDensity instead of ParticleEmission)!"
       END IF
-      Species(iSpec)%Init(iInit)%vpiDomainType = GETSTR('Part-Species'//TRIM(hilf2)//'-vpiDomainType','perpendicular_extrusion')
+      Species(iSpec)%Init(iInit)%vpiDomainType = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-vpiDomainType','perpendicular_extrusion'))
       SELECT CASE ( TRIM(Species(iSpec)%Init(iInit)%vpiDomainType) )
       CASE ( 'freestream' )
         IF ( TRIM(Species(iSpec)%Init(iInit)%SpaceIC) .NE. 'cuboid_vpi' ) THEN
@@ -576,7 +578,7 @@ __STAMP__&
           WRITE(UNIT=hilf3,FMT='(I2)') iExclude
           hilf3=TRIM(hilf2)//'-ExcludeRegion'//TRIM(hilf3)
           Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC             &
-            = GETSTR('Part-Species'//TRIM(hilf3)//'-SpaceIC','cuboid')
+            = TRIM(GETSTR('Part-Species'//TRIM(hilf3)//'-SpaceIC','cuboid'))
           Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%RadiusIC             &
             = GETREAL('Part-Species'//TRIM(hilf3)//'-RadiusIC','1.')
           Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%Radius2IC            &
@@ -814,7 +816,7 @@ END IF
 !--
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I2)') iPartBound
-  tmpString = GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open')
+  tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
   SELECT CASE (TRIM(tmpString))
   CASE('open')
      PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
@@ -866,7 +868,7 @@ DO iPartBound=1,nPartBound
 __STAMP__&
          ,'Particle Boundary Condition does not exist')
   END SELECT
-  PartBound%SourceBoundName(iPartBound) = GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName')
+  PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
 END DO
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
@@ -1018,8 +1020,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- Finalizing InitializeVariables
-!CALL InitFIBGM()
-CALL InitSFIBGM()
+CALL InitFIBGM()
+!CALL InitSFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/

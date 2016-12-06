@@ -610,6 +610,7 @@ SUBROUTINE CalcDesorbProb()
   USE MOD_TimeDisc_Vars,          ONLY : dt
 #if (PP_TimeDiscMethod==42)  
   USE MOD_TimeDisc_Vars,          ONLY : iter
+  USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
 !===================================================================================================================================
    IMPLICIT NONE

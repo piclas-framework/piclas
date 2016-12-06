@@ -22,6 +22,14 @@
 #  define IEEE_IS_NAN ISNAN
 #endif
 
+#ifdef GNU
+#define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
+#define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
+#else
+#define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  ## k).OR.x<-HUGE(1_  ## k)) CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
+#define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ ## k).OR.x<-HUGE(1._ ## k)) CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
+#endif
+
 #ifdef MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
@@ -75,12 +83,17 @@
 #define BC_STATE 2
 #define BC_ALPHA 3
 
+! Entry position in BC
+#define MI_SIDEID 1
+#define MI_FLIP   2
+
 !#define DEBUGMESH
 
 #define PLANAR_RECT   0
 #define PLANAR_NONRECT   1
 #define BILINEAR 2
-#define CURVED   3
+#define PLANAR_CURVED   3
+#define CURVED   4
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1

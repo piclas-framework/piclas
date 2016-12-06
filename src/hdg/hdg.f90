@@ -125,7 +125,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4) !dirichlet
+  CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) !Neumann, 
     nNeumannBCsides=nNeumannBCsides+1
@@ -150,7 +150,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4) !dirichlet
+  CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
   CASE(10,11) !Neumann, 
@@ -313,7 +313,7 @@ USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc
 USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:Face_xGP,BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
@@ -368,13 +368,13 @@ DO iVar = 1, PP_nVar
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
       END DO; END DO !p,q
     CASE(4) ! exact BC = Dirichlet BC !!
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-  !      CALL ExactFunc(BCstate,t,0,BCFace_xGP(:,p,q,SideID),lambda(r:r,SideID))
+  !      CALL ExactFunc(BCstate,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
          IF (iVar.EQ.1) THEN
            lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
          ELSE
@@ -585,7 +585,7 @@ USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc
 USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:Face_xGP,BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
@@ -639,14 +639,25 @@ DO iVar = 1, PP_nVar
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
       END DO; END DO !p,q
     CASE(4) ! exact BC = Dirichlet BC !!
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-  !      CALL ExactFunc(BCstate,t,0,BCFace_xGP(:,p,q,SideID),lambda(r:r,SideID))
+  !      CALL ExactFunc(BCstate,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
        lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+      END DO; END DO !p,q
+    CASE(5) ! exact BC = Dirichlet BC !!
+!print*,"BCType=",BCType,"    BCsideID=",BCsideID,"     IniExactFunc",IniExactFunc
+!read*
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        CALL ExactFunc(BCstate,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
+!print*,"t=",t,"r=",r,"BCstate=",BCstate,"Face_xGP(:,p,q,SideID)=",Face_xGP(:,p,q,SideID)
+!print*,lambda(iVar,r:r,SideID)
+!read*
+       !lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -819,7 +830,7 @@ USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc, eps0
 USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Vars     ,ONLY:  RegionElectronRef
@@ -876,7 +887,7 @@ DO BCsideID=1,nDirichletBCSides
     ! Determine the exact BC state
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
+      CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
     END DO; END DO !p,q
   CASE(4) ! exact BC = Dirichlet BC !!
     ! SPECIAL BC: BCState specifies exactfunc to be used!!
@@ -1500,22 +1511,6 @@ END DO
 END SUBROUTINE VectorDotProduct
 
 
-SUBROUTINE FinalizeHDG()
-!===================================================================================================================================
-! Finalizes variables necessary for hdg subroutines
-!===================================================================================================================================
-USE MOD_HDG_Vars
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-HDGInitIsDone = .FALSE.
-END SUBROUTINE FinalizeHDG
-
-
 
 SUBROUTINE ApplyPrecond(R, V)
 !===================================================================================================================================
@@ -1665,5 +1660,45 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
 END SUBROUTINE RestartHDG
 #endif /* PP_HDG*/
+
+
+
+SUBROUTINE FinalizeHDG()
+!===================================================================================================================================
+! Finalizes variables necessary for hdg subroutines
+!===================================================================================================================================
+USE MOD_HDG_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+HDGInitIsDone = .FALSE.
+SDEALLOCATE(NonlinVolumeFac)
+SDEALLOCATE(DirichletBC)
+SDEALLOCATE(NeumannBC)
+SDEALLOCATE(qn_face)
+SDEALLOCATE(qn_face_MagStat)
+SDEALLOCATE(delta)
+SDEALLOCATE(LL_minus)
+SDEALLOCATE(LL_plus)
+SDEALLOCATE(Lomega_m)
+SDEALLOCATE(Lomega_p)
+SDEALLOCATE(Domega)
+SDEALLOCATE(InvDhat)
+SDEALLOCATE(wGP_vol)
+SDEALLOCATE(JwGP_vol)
+SDEALLOCATE(Ehat)
+SDEALLOCATE(Smat)
+SDEALLOCATE(Tau)
+SDEALLOCATE(Fdiag)
+SDEALLOCATE(lambda)
+SDEALLOCATE(RHS_vol)
+SDEALLOCATE(Precond)
+SDEALLOCATE(InvPrecondDiag)
+END SUBROUTINE FinalizeHDG
+
 
 END MODULE MOD_HDG

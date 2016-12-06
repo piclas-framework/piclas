@@ -23,19 +23,18 @@ PUBLIC::FillFlux
 
 CONTAINS
 
-SUBROUTINE FillFlux(t,tDeriv,Flux,U_Minus,U_Plus,doMPISides)
+SUBROUTINE FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides)
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Mesh_Vars,       ONLY:NormVec,SurfElem
-USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides
 USE MOD_Riemann,         ONLY:Riemann,RiemannPML
-USE MOD_Mesh_Vars,       ONLY:SideID_plus_lower,SideID_plus_upper
-USE MOD_Mesh_Vars,       ONLY:SideID_minus_lower,SideID_minus_upper
-USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,BCFace_xGP
+USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
+USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 USE MOD_PML_vars,        ONLY:isPMLFace,FaceToPML,DoPML,isPMLFace,isPMLInterFace,PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -44,69 +43,60 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides  
 REAL,INTENT(IN)    :: t           ! time
 INTEGER,INTENT(IN) :: tDeriv      ! deriv
-REAL,INTENT(IN)    :: U_Minus(PP_nVar,0:PP_N, 0:PP_N,SideID_Minus_lower:SideID_Minus_Upper)
-REAL,INTENT(IN)    :: U_Plus( PP_nVar,0:PP_N, 0:PP_N,SideID_Plus_Lower :SideID_Plus_Upper )
+REAL,INTENT(IN)    :: U_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(IN)    :: U_slave (PP_nVar,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)   :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,p,q,firstSideID,lastSideID,firstSideID2
+INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
 IF(doMPISides)THEN 
   ! fill only flux for MINE MPISides
-  firstSideID = nBCSides+nInnerSides+1
-  firstSideID2= firstSideID
-  lastSideID  = firstSideID-1+nMPISides_MINE 
+  ! fill only flux for MINE MPISides (where the local proc is master) 
+  firstSideID_wo_BC = firstMPISide_MINE
+  firstSideID = firstMPISide_MINE
+  lastSideID =  lastMPISide_MINE
 ELSE
   ! fill only InnerSides
-  firstSideID = nBCSides+1
-  firstSideID2= 1
-  lastSideID  = firstSideID-1+nInnerSides 
+  ! fill only InnerSides that do not need communication
+  firstSideID_wo_BC = firstInnerSide ! for fluxes
+  firstSideID = firstBCSide    ! include BCs for master sides
+  lastSideID = lastInnerSide
 END IF
-!firstSideID=nBCSides+1
-!lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
 
 ! Compute fluxes on PP_N, no additional interpolation required
 DO SideID=firstSideID,lastSideID
   IF(DoPML) THEN
     IF ( isPMLFace(SideID) )THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
                                  !     (flux-splitting!)
-      CALL RiemannPML(Flux(1:32,:,:,SideID),U_Minus(:,:,:,SideID),U_Plus(:,:,:,SideID), NormVec(:,:,:,SideID))
+      CALL RiemannPML(Flux(1:32,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID), NormVec(:,:,:,SideID))
     ELSE ! 2.) no PML, standard flux
-      CALL Riemann(Flux(1:8,:,:,SideID), U_Minus(:,:,:,SideID),  U_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
+      CALL Riemann(Flux(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
     END IF
   ELSE ! no PML, standard flux
-    CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),U_Plus(  :,:,:,SideID),NormVec(:,:,:,SideID))
+    CALL Riemann(Flux(:,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
   END IF ! DoPML
 END DO ! SideID
   
-IF(doMPISides.EQV..FALSE.)THEN
-  CALL GetBoundaryFlux(t,tDeriv, Flux ,U_Minus ,NormVec, TangVec1, TangVec2, BCFace_xGP)
+IF(.NOT.doMPISides)THEN
+  CALL GetBoundaryFlux(t,tDeriv,Flux           (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,U_master       (1:PP_nVar        ,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,NormVec        (1:3              ,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,TangVec1       (1:3              ,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,TangVec2       (1:3              ,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,Face_XGP       (1:3              ,0:PP_N,0:PP_N,1:nBCSides) )
 END IF
 
 ! Apply surface element size
-DO SideID=firstSideID2,lastSideID
-  IF(DoPML) THEN
-    IF ( isPMLFace(SideID) )THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
-                                 !     (flux-splitting!)
-      DO q=0,PP_N; DO p=0,PP_N
-          Flux(1:PP_nVar+PMLnVar,p,q,SideID)=Flux(1:PP_nVar+PMLnVar,p,q,SideID)*SurfElem(p,q,SideID)
-      END DO; END DO
-    ELSE ! 2.) no PML, standard flux
-      DO q=0,PP_N; DO p=0,PP_N
-          Flux(1:PP_nVar,p,q,SideID)=Flux(1:PP_nVar,p,q,SideID)*SurfElem(p,q,SideID)
-      END DO; END DO
-      Flux(1+PP_nVar:PP_nVar+PMLnVar,:,:,SideID)=0. ! Flux for auxiliary variables at the interface is set to zero
-    END IF
-  ELSE ! no PML, standard flux
-    DO q=0,PP_N; DO p=0,PP_N
-        Flux(1:PP_nVar,p,q,SideID)=Flux(1:PP_nVar,p,q,SideID)*SurfElem(p,q,SideID)
-    END DO; END DO
-  END IF ! DoPML
-END DO ! SideID
+DO SideID=firstSideID,lastSideID
+  DO q=0,PP_N; DO p=0,PP_N
+    Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)
+  END DO; END DO
+END DO
 
 END SUBROUTINE FillFlux
 #endif

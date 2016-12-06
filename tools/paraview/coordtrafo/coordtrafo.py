@@ -20,8 +20,26 @@ def RequestData():
   import vtk.numpy_interface.dataset_adapter
   import vtk.numpy_interface.algorithms
   # -- this will import vtkMultiProcessController and vtkMPI4PyCommunicator
-  pdi = self.GetInput()
-  pdo = self.GetOutput()
+  input=self.GetInputDataObject(0,0)
+  output= self.GetOutputDataObject(0)
+  if input.IsA("vtkMultiBlockDataSet"):
+      # here: new format with vtk-multiblock
+      print(" plugin is new-plugin with vtkMultiBlockDataSet")
+      output.CopyStructure(input)
+      iter = input.NewIterator()
+      iter.UnRegister(None)
+      iter.InitTraversal()
+      pdi=iter.GetCurrentDataObject()
+      pdo=pdi.NewInstance()
+      pdo.UnRegister(None)
+      output.SetDataSet(iter, pdo)
+  else:
+      # old format without multiblock
+      print(" using old paraview plugin.")
+      pdi=input.GetInput() 
+      pdo = self.GetOutput() 
+  #pdo = self.GetOutput()
+  pdo.ShallowCopy(pdi)
   numPoints = pdi.GetNumberOfPoints()
   newField=vtk.vtkDoubleArray()
   if WhichField == 0:
@@ -45,7 +63,6 @@ def RequestData():
       newField.SetComponentName(2,'phi')
   newField.SetName(VarNameOut)
   newField.SetNumberOfTuples(numPoints)
-  pdo.GetPointData().AddArray(newField)
   if Trafo == 0:
       # computes trafo in cylindrical coordinates
       for i in range(0, numPoints):
@@ -79,6 +96,7 @@ def RequestData():
           newField.SetValue(3*i  ,FieldRho)
           newField.SetValue(3*i+1,FieldTheta)
           newField.SetValue(3*i+2,FieldPhi)
+  pdo.GetPointData().AddArray(newField)
 
 def RequestInformation():
   from paraview import util

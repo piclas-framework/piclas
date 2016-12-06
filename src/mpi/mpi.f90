@@ -150,20 +150,21 @@ RecRequest_gradUz(nNbProcs)  = MPI_REQUEST_NULL
 SendRequest_Geo(nNbProcs)    = MPI_REQUEST_NULL
 RecRequest_Geo(nNbProcs)     = MPI_REQUEST_NULL
 DataSizeSide  =(PP_N+1)*(PP_N+1)
-ALLOCATE(nMPISides_send(       nNbProcs,2))
-ALLOCATE(OffsetMPISides_send(0:nNbProcs,2))
-ALLOCATE(nMPISides_rec(        nNbProcs,2))
-ALLOCATE(OffsetMPISides_rec( 0:nNbProcs,2))
+! currenlty allocated in prepare_mesh
+!ALLOCATE(nMPISides_send(       nNbProcs,2))
+!ALLOCATE(OffsetMPISides_send(0:nNbProcs,2))
+!ALLOCATE(nMPISides_rec(        nNbProcs,2))
+!ALLOCATE(OffsetMPISides_rec( 0:nNbProcs,2))
 ! Set number of sides and offset for SEND MINE - RECEIVE YOUR case
-nMPISides_send(:,1)     =nMPISides_MINE_Proc
-OffsetMPISides_send(:,1)=OffsetMPISides_MINE
-nMPISides_rec(:,1)      =nMPISides_YOUR_Proc
-OffsetMPISides_rec(:,1) =OffsetMPISides_YOUR
-! Set number of sides and offset for SEND YOUR - RECEIVE MINE case
-nMPISides_send(:,2)     =nMPISides_YOUR_Proc
-OffsetMPISides_send(:,2)=OffsetMPISides_YOUR
-nMPISides_rec(:,2)      =nMPISides_MINE_Proc
-OffsetMPISides_rec(:,2) =OffsetMPISides_MINE
+!nMPISides_send(:,1)     =nMPISides_MINE_Proc
+!OffsetMPISides_send(:,1)=OffsetMPISides_MINE
+!nMPISides_rec(:,1)      =nMPISides_YOUR_Proc
+!OffsetMPISides_rec(:,1) =OffsetMPISides_YOUR
+!! Set number of sides and offset for SEND YOUR - RECEIVE MINE case
+!nMPISides_send(:,2)     =nMPISides_YOUR_Proc
+!OffsetMPISides_send(:,2)=OffsetMPISides_YOUR
+!nMPISides_rec(:,2)      =nMPISides_MINE_Proc
+!OffsetMPISides_rec(:,2) =OffsetMPISides_MINE
 
 
 ! split communicator into smaller groups (e.g. for local nodes)

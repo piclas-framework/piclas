@@ -5,6 +5,7 @@ MODULE MOD_Output
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
+USE ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
@@ -12,19 +13,38 @@ MODULE MOD_Output
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE InitOutput
-  MODULE PROCEDURE InitOutput
+INTERFACE
+  FUNCTION get_userblock_size()
+      INTEGER :: get_userblock_size
+  END FUNCTION 
 END INTERFACE
 
-INTERFACE Visualize
-  MODULE PROCEDURE Visualize
+INTERFACE
+  FUNCTION get_inifile_size(filename) BIND(C)
+      USE ISO_C_BINDING, ONLY: C_CHAR,C_INT
+      CHARACTER(KIND=C_CHAR) :: filename(*)
+      INTEGER(KIND=C_INT)    :: get_inifile_size
+  END FUNCTION get_inifile_size
+END INTERFACE
+
+INTERFACE
+  SUBROUTINE insert_userblock(filename,filename2,inifilename) BIND(C)
+      USE ISO_C_BINDING, ONLY: C_CHAR
+      CHARACTER(KIND=C_CHAR) :: filename(*)
+      CHARACTER(KIND=C_CHAR) :: filename2(*)
+      CHARACTER(KIND=C_CHAR) :: inifilename(*)
+  END SUBROUTINE insert_userblock
+END INTERFACE
+
+INTERFACE InitOutput
+  MODULE PROCEDURE InitOutput
 END INTERFACE
 
 INTERFACE FinalizeOutput
   MODULE PROCEDURE FinalizeOutput
 END INTERFACE
 
-PUBLIC:: InitOutput,Visualize,FinalizeOutput
+PUBLIC:: InitOutput,FinalizeOutput
 !===================================================================================================================================
 
 CONTAINS
@@ -35,10 +55,11 @@ SUBROUTINE InitOutput()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars, ONLY: ParameterFile,ProjectName,ParameterDSMCFile
 USE MOD_Preproc
 USE MOD_ReadInTools,ONLY:GetStr,GetLogical,GETINT
-USE MOD_Output_Vars,ONLY:NVisu,ProjectName,OutputInitIsDone,OutputFormat
-USE MOD_Interpolation_Vars,ONLY:xGP,wBary,InterpolationInitIsDone
+USE MOD_Output_Vars,ONLY:OutputInitIsDone,OutputFormat 
+USE MOD_Output_Vars,ONLY:userblock_len, userblock_total_len, UserBlockTmpFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -50,9 +71,9 @@ CHARACTER(LEN=8)               :: StrDate
 CHARACTER(LEN=10)              :: StrTime
 CHARACTER(LEN=255)             :: LogFile
 LOGICAL                        :: WriteErrorFiles
-CHARACTER(LEN=40)              :: DefStr
+INTEGER                        :: inifile_len
 !===================================================================================================================================
-IF ((.NOT.InterpolationInitIsDone).OR.OutputInitIsDone) THEN
+IF (OutputInitIsDone) THEN
   CALL abort(&
       __STAMP__&
       ,'InitOutput not ready to be called or already called.',999,999.)
@@ -60,14 +81,10 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT OUTPUT...'
 
-WRITE(DefStr,'(i4)') PP_N
-NVisu=GETINT('NVisu',DefStr)
-CALL initOutputBasis(PP_N,NVisu,xGP,wBary)
-! Name for all output files
-ProjectName=GETSTR('ProjectName')
+ProjectName=GETSTR('ProjectName') 
 Logging    =GETLOGICAL('Logging','.FALSE.')
 
-WriteErrorFiles=GETLOGICAL('WriteErrorFiles','.TRUE.')
+WriteErrorFiles=GETLOGICAL('WriteErrorFiles','.FALSE.')
 IF(WriteErrorFiles)THEN
   ! Open file for error output
   WRITE(ErrorFileName,'(A,A8,I6.6,A4)')TRIM(ProjectName),'_ERRORS_',myRank,'.out'
@@ -78,6 +95,15 @@ IF(WriteErrorFiles)THEN
        IOSTAT=OpenStat)
 ELSE
   UNIT_errOut=UNIT_stdOut
+END IF
+
+IF (MPIRoot) THEN
+  ! read userblock length in bytes from data section of flexi-executable
+  userblock_len = get_userblock_size()
+  inifile_len = get_inifile_size(TRIM(ParameterFile)//C_NULL_CHAR)
+  ! prepare userblock file
+  CALL insert_userblock(TRIM(UserBlockTmpFile)//C_NULL_CHAR,TRIM(ParameterFile)//C_NULL_CHAR,TRIM(ParameterDSMCFile)//C_NULL_CHAR)
+  INQUIRE(FILE=TRIM(UserBlockTmpFile),SIZE=userblock_total_len)
 END IF
 
 OutputFormat = GETINT('OutputFormat','1')
@@ -131,108 +157,6 @@ END DO
 ALLOCATE(Vdm_GaussN_NVisu(0:NVisu_in,0:N_in))
 CALL InitializeVandermonde(N_in,NVisu_in,wBary,xGP,XiVisu,Vdm_GaussN_NVisu)
 END SUBROUTINE InitOutputBasis
-
-
-#ifdef PARTICLES
-SUBROUTINE Visualize(OutputTime)
-#else
-SUBROUTINE Visualize()
-#endif /*PARTICLES/*
-!===================================================================================================================================
-! Simple visualization of conservative variables
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Output_Vars,ONLY:ProjectName,OutputFormat
-USE MOD_DG_Vars,ONLY:U
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
-USE MOD_Output_Vars,ONLY:NVisu,Vdm_GaussN_NVisu
-USE MOD_ChangeBasis,ONLY:ChangeBasis3D
-USE MOD_Tecplot,ONLY:WriteDataToTecplotBinary
-#ifdef PARTICLES
-USE MOD_OutPutVTK,ONLY:WriteDataToVTK
-USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK
-#endif /*PARTICLES*/
-!USE MOD_Eval_xyz,ONLY:eval_xyz
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-#ifdef PARTICLES
-REAL,INTENT(IN)               :: OutputTime
-#endif /*PARTICLES/*
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-#ifdef PARTICLES
-INTEGER                       :: iElem
-REAL                          :: Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,1:PP_nElems)
-REAL                          :: U_NVisu(PP_nVar,0:NVisu,0:NVisu,0:NVisu,1:PP_nElems)
-CHARACTER(LEN=255)            :: FileString
-#endif /*PARTICLES/*
-CHARACTER(LEN=32),ALLOCATABLE :: VarNames(:) ! Output variable names
-!===================================================================================================================================
-IF(outputFormat.LE.0) RETURN
-! Specify output names
-#if PP_nVar == 5
-ALLOCATE(VarNames(PP_nVar))
-VarNames(1)       ='Density'
-VarNames(2)       ='MomentumX'
-VarNames(3)       ='MomentumY'
-VarNames(4)       ='MomentumZ'
-VarNames(PP_nVar) ='EnergyStagnationDensity'
-#endif
-#if PP_nVar == 1
-ALLOCATE(VarNames(PP_nVar))
-VarNames(PP_nVar) ='Solution'
-#endif
-#if PP_nVar == 8
-ALLOCATE(VarNames(PP_nVar))
-VarNames(1)='ElectricFieldX'
-VarNames(2)='ElectricFieldY'
-VarNames(3)='ElectricFieldZ'
-VarNames(4)='MagneticFieldX'
-VarNames(5)='MagneticFieldY'
-VarNames(6)='MagneticFieldZ'
-VarNames(7)='Phi'       
-VarNames(8)='Psi'       
-#endif
-#if PP_nVar == 4
-ALLOCATE(VarNames(PP_nVar))
-VarNames(1)='ElectricFieldX'
-VarNames(2)='ElectricFieldY'
-VarNames(3)='ElectricFieldZ'    
-VarNames(4)='Psi'       
-#endif
-
-#ifdef PARTICLES
-FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))
-IF(WriteFieldsToVTK) THEN
-  FileString=TRIM(INTSTAMP(TRIM(FileString),myRank))//'.vtk'
-ELSE
-  FileString=TRIM(INTSTAMP(TRIM(FileString),myRank))//'.dat'
-END IF
-DO iElem=1,PP_nElems
-  ! Create coordinates of visualization points
-  CALL ChangeBasis3D(3,PP_N,NVisu,Vdm_GaussN_NVisu,Elem_xGP(1:3,:,:,:,iElem),Coords_NVisu(1:3,:,:,:,iElem))
-  ! Interpolate solution onto visu grid
-  CALL ChangeBasis3D(PP_nVar,PP_N,NVisu,Vdm_GaussN_NVisu,U(1:PP_nVar,:,:,:,iElem),U_NVisu(1:PP_nVar,:,:,:,iElem))
-END DO !iElem
-! Visualize data
-IF(WriteFieldsToVTK) THEN
-  CALL WriteDataToVTK(NVisu,PP_nElems,PP_nVar,VarNames,Coords_NVisu(1:3,:,:,:,:),U_NVisu,FileString)
-ELSE
-  CALL WriteDataToTecplotBinary(NVisu,PP_nElems,PP_nVar,0,VarNames,Coords_NVisu(1:3,:,:,:,:),U_NVisu,TRIM(FileString))
-END IF
-#endif /*PARTICLES*/
-
-! test eval_xyz 
-!DO iElem=1,PP_nElems
-!  eval_vec = (/0.3,0.4,0.5/)
-!  !eval_vec = (/30,40,50/)
-!  CALL eval_xyz(eval_vec,6,PP_N,U(1:6,:,:,:,iElem),U_eval,iElem)
-!END DO !iElem
-END SUBROUTINE Visualize
 
 
 

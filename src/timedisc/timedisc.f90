@@ -165,7 +165,11 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
-                                     ,IterDisplayStep,DoDisplayIter,sdtCFLOne,CFLtoOne
+                                     ,IterDisplayStep,DoDisplayIter
+USE MOD_TimeDisc_Vars,      ONLY: dt_Min
+#if (PP_TimeDiscMethod==201)                                                                                                         
+USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
+#endif
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
@@ -187,8 +191,8 @@ USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
-USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, useManualTimestep, WriteMacroValues, MacroValSampTime
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Particle_Mesh_Vars,    ONLY: Geo
@@ -232,9 +236,9 @@ IMPLICIT NONE
 REAL                         :: tFuture,tZero
 INTEGER(KIND=8)              :: nAnalyze
 INTEGER                      :: iAnalyze
-REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff
+REAL                         :: tEndDiff, tAnalyzeDiff
 #if (PP_TimeDiscMethod==201)
-REAL                         :: dt_temp,vMax,vMaxx,vMaxy,vMaxz
+REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
@@ -242,10 +246,13 @@ INTEGER                      :: TimeArray(8)              ! Array for system tim
 REAL                         :: CurrentImbalance
 LOGICAL                      :: PerformLoadBalance
 #if (PP_TimeDiscMethod==201)
-INTEGER                      :: MaximumIterNum, iPart
+INTEGER                      :: iPart
 LOGICAL                      :: NoPartInside
 #endif
 LOGICAL                      :: finalIter
+#ifdef PARTICLES
+INTEGER                      :: nLostPartsTot
+#endif /*PARTICLES*/
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -318,69 +325,7 @@ END IF
 !  CALL Deposition(doInnerParts=.FALSE.)
 !#endif /*MPI*/
 !#endif
-#ifdef PARTICLES
-! For tEnd != tStart we have to advance the solution in time
-IF(useManualTimeStep)THEN
-  ! particle time step is given externally and not calculated through the solver
-  dt_Min=ManualTimeStep
-#if (PP_TimeDiscMethod==200)
-  dt_max_particles = ManualTimeStep
-  dt_maxwell = CALCTIMESTEP()
-  sdtCFLOne  = 1.0/(dt_maxwell*CFLtoOne)
-
-  NextTimeStepAdjustmentIter = 0
-  MaxwellIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
-                 / (c * dt_maxwell))
-  IF (MaxwellIterNum*dt_maxwell.GT.dt_max_particles) THEN
-    WRITE(*,*) 'WARNING: Time of Maxwell Solver is greater then particle time step!'
-  END IF
-  IterDisplayStep = MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
-  IF(MPIroot)THEN
-    print*, 'IterNum for MaxwellSolver: ', MaxwellIterNum
-    print*, 'Particle TimeStep: ', dt_max_particles  
-    print*, 'Maxwell TimeStep: ', dt_maxwell
-  END IF
-#endif
-ELSE ! .NO. ManualTimeStep
-#endif /*PARTICLES*/
-  ! time step is calculated by the solver
-  ! first Maxwell time step for explicit LSRK
-#ifndef PP_HDG
-  dt_Min=CALCTIMESTEP()
-#else
-  dt_Min=0
-#endif /*PP_HDG*/
-
-  sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
-  dt=dt_Min
-  ! calculate time step for sub-cycling of divergence correction
-  ! automatic particle time step of quasi-stationary time integration is not implemented
-#ifdef PARTICLES
-#if (PP_TimeDiscMethod==200)
-  ! this will not work if particles have velocity of zero
-   CALL abort(&
-   __STAMP__&
-   ,' Error in static computations, a maximum delta t (=ManualTimeStep) needs to be set!')
-#endif
-END IF ! useManualTimestep
-
-#if (PP_TimeDiscMethod==201)
-dt_maxwell = CALCTIMESTEP()
-sdtCFLOne  = 1.0/(dt_Maxwell*CFLtoOne)
-MaximumIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
-               / (c * dt_maxwell))
-IF(MPIroot)THEN
-  print*, 'MaxIterNum for MaxwellSolver: ', MaximumIterNum
-  print*, 'Maxwell TimeStep: ', dt_maxwell
-END IF
-dt_temp = 1E-8
-#endif
-#endif /*PARTICLES*/
-
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min
-! using sub-cycling requires an addional time step
-SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
+CALL InitTimeStep() ! Initial time step calculation
 CalcTimeStart=BOLTZPLATZTIME()
 iter=0
 iter_loc=0
@@ -451,7 +396,7 @@ DO !iter_t=0,MaxIter
     SWRITE(UNIT_StdOut,*)  'New IterNum for MaxwellSolver: ', MaxwellIterNum 
     SWRITE(UNIT_StdOut,*)  'New Particle TimeStep: ', dt_max_particles
   END IF
-#endif
+#endif /*(PP_TimeDiscMethod==201)*/
 
 #ifdef PARTICLES
   IF(enableParticleMerge) THEN
@@ -555,7 +500,7 @@ DO !iter_t=0,MaxIter
     CalcTimeEnd=BOLTZPLATZTIME()
 #ifdef MPI
     !CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
-    CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance)
+    CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
@@ -565,6 +510,19 @@ DO !iter_t=0,MaxIter
 #else
     IF( iAnalyze.EQ.nSkipAnalyze .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #endif /*MPI*/
+#ifdef PARTICLES
+    IF(CountNbOfLostParts)THEN
+#ifdef MPI
+      IF(MPIRoot) THEN
+        CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+      ELSE ! no Root
+        CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+      END IF
+#else
+      nLostPartsTot=nLostParts
+#endif /*MPI*/
+    END IF
+#endif /*PARICLES*/
       IF(MPIroot)THEN
         ! Get calculation time per DOF
         CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
@@ -575,6 +533,11 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_stdOut,'(A,ES12.5,A)')' CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
+#ifdef PARTICLES
+        IF(CountNbOfLostParts)THEN
+          WRITE(UNIT_stdOut,'(A,I12)')' NbOfLostParticle : ',nLostPartsTot
+        END IF
+#endif /*PARICLES*/
       END IF !MPIroot
 #if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       SWRITE(UNIT_stdOut,'(132("="))')
@@ -611,7 +574,6 @@ DO !iter_t=0,MaxIter
 #ifndef PP_HDG
       ! Write state to file
 #endif /*PP_HDG*/
-
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
 !#ifdef MPI
@@ -627,10 +589,11 @@ DO !iter_t=0,MaxIter
     IF(DoLoadBalance .AND. time.LT.tEnd)THEN
       RestartTime=time
       CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
-#ifndef PP_HDG
-      dt_Min=CALCTIMESTEP()
-#endif /*PP_HDG*/
-      dt=dt_Min
+!#ifndef PP_HDG
+!      dt_Min=CALCTIMESTEP()
+!#endif /*PP_HDG*/
+      IF (PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
+!      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
       CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
     END IF
@@ -679,7 +642,7 @@ USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, & 
                                         doParticleMerge,PartPressureCell
 USE MOD_part_RHS,                ONLY: CalcPartRHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
@@ -886,7 +849,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1064,7 +1027,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
     IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
@@ -1259,7 +1222,7 @@ END IF
 ! #ifdef MPI
 ! CALL IRecvNbofParticles()
 ! #endif /*MPI*/
-! CALL ParticleTrackingCurved()
+! CALL ParticleTracing()
 ! #ifdef MPI
 ! CALL MPIParticleSend()
 ! #endif /*MPI*/
@@ -1335,7 +1298,7 @@ END IF
 ! #ifdef MPI
 !     CALL IRecvNbofParticles()
 ! #endif
-!     CALL ParticleTrackingCurved()
+!     CALL ParticleTracing()
 ! #ifdef MPI
 !     CALL MPIParticleSend()
 ! #endif
@@ -1450,16 +1413,15 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroValues
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode, Adsorption
+USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 #endif /*MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1518,7 +1480,7 @@ REAL    :: RandVal, dtFrac
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1591,7 +1553,7 @@ USE MOD_part_MPFtools,    ONLY : StartParticleMerge
 USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
@@ -1658,7 +1620,7 @@ IF ((t.GE.DelayTime)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1769,7 +1731,7 @@ USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -1879,7 +1841,7 @@ ELSE
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1989,7 +1951,7 @@ END IF
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -2068,7 +2030,7 @@ USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -2189,7 +2151,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
 #ifdef MPI
     ! send number of particles
@@ -2286,7 +2248,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
 #ifdef MPI
   ! send number of particles
@@ -2475,7 +2437,7 @@ USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
 USE MOD_ParticleSolver,          ONLY: ParticleNewton
-!USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+!USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 !USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping
 !#ifdef MPI
 !USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -2563,7 +2525,7 @@ IF (t.GE.DelayTime) THEN
 !  IF(DoRefMapping)THEN
 !    CALL ParticleRefTracking()
 !  ELSE
-!   CALL ParticleTrackingCurved()
+!   CALL ParticleTracing()
 !  END IF
 !#ifdef MPI
 !  ! send number of particles
@@ -2635,7 +2597,7 @@ USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_ParticleSolver,          ONLY: ParticleNewton
 #ifdef MPI
@@ -2796,7 +2758,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
 #ifdef MPI
     ! here: could use deposition as hiding, not done yet
@@ -2877,17 +2839,16 @@ SUBROUTINE TimeStepByImplicitRK(t)
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,time
+USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs,RKdtFrac
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver,DoPrintConvInfo
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,DoPrintConvInfo
 USE MOD_Equation,                ONLY:DivCleaningDamping
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
-USE MOD_Precond_Vars,            ONLY:PrecondType
 #endif /*maxwell*/
 USE MOD_JacDG,                   ONLY:BuildJacDG
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
@@ -2897,20 +2858,19 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
 USE MOD_Predictor,               ONLY:PartPredictor
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType, doParticleMerge,PartPressureCell
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_PIC_Vars,                ONLY:PIC
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species,nSpecies
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF, DoSurfaceFlux
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
-USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
-USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
@@ -2942,12 +2902,11 @@ REAL               :: sgamma
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: tRatio, tphi, LorentzFacInv
+REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
-REAL               :: dtFrac,RandVal
+REAL               :: dtFrac,RandVal, LorentzFac
 ! RK counter
 INTEGER            :: iCounter !, iStage
-logical :: first
 #ifdef PARTICLES
 INTEGER            :: iPart,iSpec,iSF
 #endif /*PARTICLES*/
@@ -3191,9 +3150,13 @@ DO iStage=2,nRKStages
           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
           PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac*RandVal
           PartIsImplicit(iPart)=.FALSE.
-          IF(iStage.EQ.nRKStages)THEN
-            ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
-            Pt(iPart,1:3)=0.
+          IF(PartLorentzType.EQ.5)THEN
+            ! lorentztype
+            LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
+            LorentzFac=1.0/SQRT(LorentzFac)
+            PartState(iPart,4) = LorentzFac*PartState(iPart,4)
+            PartState(iPart,5) = LorentzFac*PartState(iPart,5)
+            PartState(iPart,6) = LorentzFac*PartState(iPart,6)
           END IF
         END IF ! ParticleIsNew
       END DO ! iPart
@@ -3208,7 +3171,7 @@ DO iStage=2,nRKStages
       ! tracking routines has to be extended for optional flag, like deposition
       CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ELSE
-      CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+      CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     END IF
 #ifdef MPI
     ! send number of particles
@@ -3298,19 +3261,6 @@ DO iStage=2,nRKStages
       CALL UpdateNextFreePosition()
     END IF
     ! surface flux, select if implicit or explicit particle treatment
-    IF(DoSurfaceFlux)THEN
-      IF(RKdtFrac.GT.0.)THEN
-        DO iPart=1,PDM%ParticleVecLength
-          IF(PDM%ParticleInside(iPart))THEN
-            IF(Species(PartSpecies(iPart))%IsImplicit) THEN
-              PartIsImplicit(iPart)=.TRUE.
-            ELSE
-              PartIsImplicit(iPart)=.FALSE.
-            END IF
-          END IF ! ParticleInside
-        END DO ! iPart
-      END IF  ! RKdtFrac>0
-    END IF ! DoSurfaceFlux
   END IF
 #endif /*PARTICLES*/
 END DO
@@ -3321,9 +3271,32 @@ IF (t.GE.DelayTime) THEN
   ! add here new method
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-    IF(PDM%IsNewPart(iPart))THEN
-      PDM%IsNewPart(iPart)=.FALSE.
-      CYCLE
+    IF(DoSurfaceFlux)THEN
+      IF(PDM%IsNewPart(iPart))THEN
+        PDM%IsNewPart(iPart)=.FALSE.
+        PEM%lastElement(iPart)=PEM%Element(iPart)
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
+        LorentzFac=1.0/SQRT(LorentzFac)
+        PartState(iPart,4) = LorentzFac*PartState(iPart,4)
+        PartState(iPart,5) = LorentzFac*PartState(iPart,5)
+        PartState(iPart,6) = LorentzFac*PartState(iPart,6)
+        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+        SELECT CASE(PartLorentzType)
+        CASE(0)
+          Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(1)
+          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(3)
+          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(5)
+          Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE DEFAULT
+        END SELECT
+        CYCLE
+      END IF
     END IF
     IF(.NOT.PartIsImplicit(iPart))THEN
       LastPartPos(iPart,1)=PartState(iPart,1)
@@ -3399,8 +3372,8 @@ IF (t.GE.DelayTime) THEN
     CALL ParticleRefTracking()
     !CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   ELSE
-    CALL ParticleTrackingCurved()
-    !CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    CALL ParticleTracing()
+    !CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
 #ifdef MPI
   ! send number of particles
@@ -3506,7 +3479,7 @@ USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_part_tools,              ONLY : UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
@@ -3574,7 +3547,7 @@ END IF
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -3693,7 +3666,7 @@ USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
@@ -3760,7 +3733,7 @@ END IF
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -3886,7 +3859,7 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3972,7 +3945,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
 #ifdef MPI
   CALL SendNbOfParticles() ! send number of particles
@@ -4055,7 +4028,7 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif
 USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking,      ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,      ONLY: ParticleTracing,ParticleRefTracking
 #endif /*PARTICLES*/
 USE MOD_HDG           ,ONLY: HDG
 ! IMPLICIT VARIABLE HANDLING
@@ -4174,7 +4147,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
 #ifdef MPI
   CALL SendNbOfParticles() ! send number of particles
@@ -4278,7 +4251,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
 #ifdef MPI
     CALL SendNbOfParticles() ! send number of particles
@@ -4567,6 +4540,103 @@ CFLScale=CFLScale*CFLScaleAlpha(PP_N)
 CFLScale = CFLScale/(2.*PP_N+1.)
 SWRITE(UNIT_stdOut,'(A,ES16.7)') '   CFL:',CFLScale
 END SUBROUTINE fillCFL_DFL
+
+
+SUBROUTINE InitTimeStep()
+!===================================================================================================================================
+!initial time step calculations for new timedisc-loop
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+#ifdef PARTICLES
+USE MOD_PARTICLE_Vars,      ONLY: ManualTimeStep, useManualTimestep
+#if (PP_TimeDiscMethod==200)
+USE MOD_PARTICLE_Vars,      ONLY: dt_maxwell,dt_max_particles,MaxwellIterNum,NextTimeStepAdjustmentIter
+USE MOD_Particle_Mesh_Vars, ONLY: GEO
+USE MOD_TimeDisc_Vars,      ONLY: IterDisplayStep
+#endif
+#endif /*PARTICLES*/
+#ifndef PP_HDG
+USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
+USE MOD_TimeDisc_Vars,      ONLY: CFLtoOne
+#endif
+USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
+USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
+#if (PP_TimeDiscMethod==201)                                                                                                         
+USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+#ifdef PARTICLES
+! For tEnd != tStart we have to advance the solution in time
+IF(useManualTimeStep)THEN
+  ! particle time step is given externally and not calculated through the solver
+  dt_Min=ManualTimeStep
+#if (PP_TimeDiscMethod==200)
+  dt_max_particles = ManualTimeStep
+  dt_maxwell = CalcTimeStep()
+  sdtCFLOne  = 1.0/(dt_maxwell*CFLtoOne)
+
+  NextTimeStepAdjustmentIter = 0
+  MaxwellIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
+                 / (c * dt_maxwell))
+  IF (MaxwellIterNum*dt_maxwell.GT.dt_max_particles) THEN
+    WRITE(*,*) 'WARNING: Time of Maxwell Solver is greater then particle time step!'
+  END IF
+  IterDisplayStep = MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
+  IF(MPIroot)THEN
+    print*, 'IterNum for MaxwellSolver: ', MaxwellIterNum
+    print*, 'Particle TimeStep: ', dt_max_particles  
+    print*, 'Maxwell TimeStep: ', dt_maxwell
+  END IF
+#endif
+ELSE ! .NO. ManualTimeStep
+#endif /*PARTICLES*/
+  ! time step is calculated by the solver
+  ! first Maxwell time step for explicit LSRK
+#ifndef PP_HDG
+  dt_Min=CalcTimeStep()
+  sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
+#else
+  dt_Min=0
+  sdtCFLOne  = -1.0 !dummy for HDG!!!
+#endif /*PP_HDG*/
+
+  dt=dt_Min
+  ! calculate time step for sub-cycling of divergence correction
+  ! automatic particle time step of quasi-stationary time integration is not implemented
+#ifdef PARTICLES
+#if (PP_TimeDiscMethod==200)
+  ! this will not work if particles have velocity of zero
+   CALL abort(&
+   __STAMP__&
+   ,' Error in static computations, a maximum delta t (=ManualTimeStep) needs to be set!')
+#endif
+END IF ! useManualTimestep
+
+#if (PP_TimeDiscMethod==201)
+dt_maxwell = CALCTIMESTEP()
+sdtCFLOne  = 1.0/(dt_Maxwell*CFLtoOne)
+MaximumIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
+               / (c * dt_maxwell))
+IF(MPIroot)THEN
+  print*, 'MaxIterNum for MaxwellSolver: ', MaximumIterNum
+  print*, 'Maxwell TimeStep: ', dt_maxwell
+END IF
+dt_temp = 1E-8
+#endif
+#endif /*PARTICLES*/
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min
+! using sub-cycling requires an addional time step
+SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
+END SUBROUTINE InitTimeStep
 
 
 

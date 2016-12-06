@@ -14,6 +14,23 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3D        ! Bezier basis control points of degree equal to NGeo
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors0                 ! vectors for building intersectionsurfaces for particle
+                                                                        ! from Bezierpoints (1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors1                 ! vectors for building intersectionsurfaces for particle
+                                                                        ! from Bezierpoints (1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors2                 ! vectors for building intersectionsurfaces for particle
+                                                                        ! from Bezierpoints (1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors3                 ! additional vector for bilinear intersection
+                                                                        ! from Bezierpoints (1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors0flip             ! vectors for building intersectionsurfaces for particle
+                                                                        ! from Bezierpoints for Periodic sites (1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors1flip             ! vectors for building intersectionsurfaces for particle
+                                                                        ! from Bezierpoints for Periodic sites(1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors2flip             ! vectors for building intersectionsurfaces for particle
+                                                                        ! from Bezierpoints for Periodic sites(1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors3flip             ! additional vector for bilinear intersection
+                                                                        ! from Bezierpoints for Periodic sites(1:3,1:nBCSurfaces)
+! INTEGER,ALLOCATABLE,DIMENSION(:)        :: SideID2PlanarSideID
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3DElevated! Bezier basis control points of degree equal to NGeo
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElevationMatrix              ! array for binomial coefficients used for Bezier Elevation
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SideSlabNormals              ! normal vectors of bounding slab box (Sides)
@@ -41,6 +58,8 @@ REAL                                    :: BezierNewtonAngle            ! switch
                                                                         ! smallest angle of impact of particle trajectory on face
 REAL                                    :: BezierClipHit                ! value for clip hit
 REAL                                    :: BezierClipTolerance          ! tolerance for root of bezier clipping
+REAL                                    :: BezierNewtonTolerance2       ! tolerance for root of bezier Newton
+REAL                                    :: BezierNewtonHit              ! value for bezier Newton hit
 REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
 INTEGER                                 :: BezierClipMaxIter            ! maximal iterations per intersections

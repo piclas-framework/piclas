@@ -237,7 +237,7 @@ SUBROUTINE vMPF_AfterSplitting(OrgPartIndex, W_Part, W_Spec)
     PartStateIntEn(PositionNbr, 2)  = PartStateIntEn(OrgPartIndex, 2)
     PEM%Element(PositionNbr)        = PEM%Element(OrgPartIndex)
     PartMPF(PositionNbr)            = W_Spec
-    IF (DSMC%ElectronicState) THEN
+    IF (DSMC%ElectronicModel) THEN
       PartStateIntEn(PositionNbr, 3)  = PartStateIntEn(OrgPartIndex, 3)
     END IF
 
@@ -318,7 +318,7 @@ IMPLICIT NONE                                                                   
     PartState(NonReacPart,1:6)      = PartState(React1Inx,1:6)
     PartStateIntEn(NonReacPart, 1)  = PartStateIntEn(React1Inx, 1)
     PartStateIntEn(NonReacPart, 2)  = PartStateIntEn(React1Inx, 2)
-    IF (DSMC%ElectronicState) THEN
+    IF (DSMC%ElectronicModel) THEN
       PartStateIntEn(NonReacPart, 3)  = PartStateIntEn(React1Inx, 3)
     END IF
     PEM%Element(NonReacPart)        = PEM%Element(React1Inx)
@@ -339,7 +339,7 @@ IMPLICIT NONE                                                                   
       PartState(NonReacPart2,1:6)      = PartState(React2Inx,1:6)
       PartStateIntEn(NonReacPart2, 1)  = PartStateIntEn(React2Inx, 1)
       PartStateIntEn(NonReacPart2, 2)  = PartStateIntEn(React2Inx, 2)
-      IF (DSMC%ElectronicState) THEN
+      IF (DSMC%ElectronicModel) THEN
         PartStateIntEn(NonReacPart2, 3)  = PartStateIntEn(React2Inx, 3)
       END IF
       PEM%Element(NonReacPart2)        = PEM%Element(React2Inx)
@@ -364,7 +364,7 @@ IMPLICIT NONE                                                                   
     PartState(NonReacPart,1:6)      = PartState(React2Inx,1:6)
     PartStateIntEn(NonReacPart, 1)  = PartStateIntEn(React2Inx, 1)
     PartStateIntEn(NonReacPart, 2)  = PartStateIntEn(React2Inx, 2)
-    IF (DSMC%ElectronicState) THEN
+    IF (DSMC%ElectronicModel) THEN
       PartStateIntEn(NonReacPart2, 3)  = PartStateIntEn(React2Inx, 3)
     END IF
     PEM%Element(NonReacPart)        = PEM%Element(React2Inx)
@@ -388,7 +388,7 @@ IMPLICIT NONE                                                                   
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
   ! check if atomic electron shell is modelled
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
   ! Add heat of formation to collision energy
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + ChemReac%EForm(iReac) - MPartStateVibEnOrg + &
                            PartStateIntEn(Coll_pData(iPair)%iPart_p1,3) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
@@ -593,7 +593,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
 ! Decision if Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------! 
 
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
     ! step as TRUE
     IF ( SpecDSMC(PartSpec1)%InterID .ne. 4 ) THEN
       CALL RANDOM_NUMBER(iRan)
@@ -612,7 +612,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
       IF(SpecDSMC(PartSpec1)%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
     END IF
   END IF
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
     ! step as TRUE
     IF ( SpecDSMC(PartSpec2)%InterID .ne. 4 ) THEN
       IF ( SpecDSMC(PartSpec2)%ElecRelaxProb .GT. iRAN ) THEN
@@ -623,7 +623,9 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
 !--------------------------------------------------------------------------------------------------!
-  IF ( DSMC%ElectronicState ) THEN
+                       ! moved from "Vibrational Relaxation" up here as it is used in function calls
+  FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+  IF ( DSMC%ElectronicModel ) THEN
     ! Relaxation of first particle
     IF ( DoElec1 ) THEN
       ! calculate energy for electronic relaxation of particle 1
@@ -642,7 +644,6 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
 ! Vibrational Relaxation
 !--------------------------------------------------------------------------------------------------! 
 
-  FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
   IF(DoVib2) THEN
     CollisionEnergy = CollisionEnergy + PartStateIntEn(Part_2,1) ! adding vib energy to coll energy
     MaxColQua = CollisionEnergy/(BoltzmannConst*SpecDSMC(PartSpec2)%CharaTVib)  &

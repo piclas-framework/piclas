@@ -586,7 +586,7 @@ SUBROUTINE SetPMLdampingProfile()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP!,Face_xGP
+USE MOD_Mesh_Vars,     ONLY: Elem_xGP,Face_xGP!,Face_xGP
 USE MOD_PML_Vars,      ONLY: PMLzeta,PMLzetaEff,PMLalpha,usePMLMinMax,xyzPMLzetaShapeBase!,xyPMLMinMax,PMLRamp
 USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLprintInfoProcs
 USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape!,PMLRampLength!,PMLwriteFields
@@ -615,9 +615,9 @@ PMLzetaEff=0.
 PMLalpha=PMLalpha0 ! currently only constant a alpha distribution in the PML region is used
 DOFcount=0
 ! get processor local bounding box of faces for damping value ramp
-xyzMinMaxloc(:) = (/MINVAL(BCFace_xGP(1,:,:,:)),MAXVAL(BCFace_xGP(1,:,:,:)),&
-                    MINVAL(BCFace_xGP(2,:,:,:)),MAXVAL(BCFace_xGP(2,:,:,:)),&
-                    MINVAL(BCFace_xGP(3,:,:,:)),MAXVAL(BCFace_xGP(3,:,:,:))/)
+xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,:)),MAXVAL(Face_xGP(1,:,:,:)),&
+                    MINVAL(Face_xGP(2,:,:,:)),MAXVAL(Face_xGP(2,:,:,:)),&
+                    MINVAL(Face_xGP(3,:,:,:)),MAXVAL(Face_xGP(3,:,:,:))/)
 ! get global bounding box of faces for damping value ramp
 #ifdef MPI
    CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
@@ -845,7 +845,6 @@ DEALLOCATE(PMLalpha)
 !         END DO; END DO; END DO; END DO !iPMLElem,k,i,j
 
 END SUBROUTINE SetPMLdampingProfile
-
 
 
 SUBROUTINE FinalizePML()

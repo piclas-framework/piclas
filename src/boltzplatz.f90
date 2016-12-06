@@ -15,13 +15,11 @@ USE MOD_MPI,               ONLY:InitMPI
 USE MOD_RecordPoints_Vars, ONLY:RP_Data
 USE MOD_Mesh_Vars,         ONLY: DoSwapMesh
 USE MOD_Mesh,              ONLY: SwapMesh
-#ifdef PP_HDG
-USE MOD_HDG,              ONLY:InitHDG
-#endif
 #ifdef MPI
 USE MOD_LoadBalance,       ONLY:InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI,               ONLY:FinalizeMPI
 #endif /*MPI*/
+USE MOD_Output,           ONLY:InitOutput
 !USE MOD_ReadInTools,      ONLY:IgnoredStrings
 !
 !USE MOD_Restart,          ONLY:InitRestart,Restart,FinalizeRestart
@@ -30,7 +28,6 @@ USE MOD_MPI,               ONLY:FinalizeMPI
 !USE MOD_DG,               ONLY:InitDG,FinalizeDG
 !USE MOD_PML,              ONLY:InitPML,FinalizePML
 !USE MOD_Filter,           ONLY:InitFilter,FinalizeFilter
-!USE MOD_Output,           ONLY:InitOutput,FinalizeOutput
 !USE MOD_RecordPoints,     ONLY:InitRecordPoints,FinalizeRecordPoints
 !USE MOD_TimeDisc,         ONLY:TimeDisc
 !#ifdef MPI
@@ -62,8 +59,6 @@ REAL    :: Time
 !===================================================================================================================================
 
 CALL InitMPI()
-CALL InitIO()
-
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "
@@ -86,6 +81,10 @@ SWRITE(UNIT_stdOut,'(A)')&
 SWRITE(UNIT_stdOut,'(A)')&
  ' '
 SWRITE(UNIT_stdOut,'(132("="))')
+
+CALL InitOutput()
+CALL InitIO()
+
 CALL InitGlobals()
 #ifdef MPI
 CALL InitLoadBalance()
@@ -100,7 +99,6 @@ CALL InitTimeDisc()
 
 CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
 !CALL InitRestart()
-!CALL InitOutput()
 !CALL InitMesh()
 !#ifdef MPI
 !CALL InitMPIVars()
@@ -129,9 +127,6 @@ CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
 !CALL InitParticleAnalyze()
 !#endif
 !CALL IgnoredStrings()
-#ifdef PP_HDG
-CALL InitHDG()
-#endif
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   IF(MPIroot)THEN

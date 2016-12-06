@@ -69,12 +69,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE    :: NodeCoords(:,:,:,:,:)
 REAL                :: x(3),PI,meshScale
-INTEGER             :: iElem,i,j,k!,iRegions
+REAL,POINTER        :: coords(:,:,:,:,:)
+INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
-LOGICAL             :: ExistFile
+LOGICAL             :: validMesh,ExistFile
+INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
+INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
+INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
+INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -111,6 +115,10 @@ END IF
 
 ! prepare pointer structure (get nElems, etc.)
 MeshFile = GETSTR('MeshFile')
+validMesh = ISVALIDMESHFILE(MeshFile)
+IF(.NOT.validMesh) &
+    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
@@ -134,7 +142,7 @@ ELSE
   END IF
 END IF
 
-CALL readMesh(MeshFile,NodeCoords) !set nElems
+CALL readMesh(MeshFile) !set nElems
 
 !schmutz fink
 PP_nElems=nElems
@@ -142,105 +150,154 @@ PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-XCL_NGeo = 0.
-
 #ifdef MPI
 ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
 
+!RANGES
+!-----------------|-----------------|-------------------|
+!    U_master     | U_slave         |    FLUX           |
+!-----------------|-----------------|-------------------|
+!  BCsides        |                 |    BCSides        |
+!  InnerMortars   |                 |    InnerMortars   |
+!  InnerSides     | InnerSides      |    InnerSides     |
+!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
+!                 | MPI_YOUR sides  |    MPI_YOUR sides |
+!  MPIMortars     |                 |    MPIMortars     |
+!-----------------|-----------------|-------------------|
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides
+firstMPISide_MINE    = firstInnerSide      +nInnerSides
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
+
+
+firstMasterSide = 1
+lastMasterSide  = nSides
+firstSlaveSide  = firstInnerSide
+lastSlaveSide   = lastMPISide_YOUR
+nSidesMaster    = lastMasterSide-firstMasterSide+1
+nSidesSlave     = lastSlaveSide -firstSlaveSide+1
+
+LOGWRITE(*,*)'-------------------------------------------------------'
+LOGWRITE(*,'(A25,I8)')   'first/lastMasterSide     ', firstMasterSide,lastMasterSide
+LOGWRITE(*,'(A25,I8)')   'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
+LOGWRITE(*,*)'-------------------------------------------------------'
+LOGWRITE(*,'(A25,I8,I8)')'first/lastBCSide         ', firstBCSide         ,lastBCSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
+LOGWRITE(*,'(A30,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
+LOGWRITE(*,*)'-------------------------------------------------------'
+
+
+! check with mortars
+nUniqueSides       = lastMPISide_MINE ! MY_MORTAR_MPI_SIDES are missing
+#ifdef PP_HDG
+IF(nMortarInnerSides.GT.0) CALL abort(&
+      __STAMP__&
+      ,' Mortars not implemented for HDG. Fix nUniqueSides, as well!')
+#ifdef MPI
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#else
+nGlobalUniqueSides=nSides
+#endif
+#endif
+
 ! fill ElemToSide, SideToElem,BC
 ALLOCATE(ElemToSide(2,6,nElems))
 ALLOCATE(SideToElem(5,nSides))
-ALLOCATE(SideToElem2(4,2*nInnerSides+nBCSides+nMPISides))
 ALLOCATE(BC(1:nSides))
-!ALLOCATE(AnalyzeSide(1:nSides))
+ALLOCATE(AnalyzeSide(1:nSides))
 ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
-SideToElem2 = -1   !mapping side to elem, sorted by elem ID (for ProlongToFace) 
 BC          = 0
-!AnalyzeSide = 0
+AnalyzeSide = 0
 
-!lower and upper index of U/gradUx/y/z _plus
-!lower and upper index of U/gradUx/y/z _plus
-#ifdef PP_HDG
-sideID_minus_upper = nBCSides+nInnerSides+nMPISides
-#else
-sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
-#endif /*PP_HDG*/
-sideID_minus_lower = 1
-nUniqueSides       = nBCSides+nInnerSides+nMPISides_MINE
-sideID_plus_lower  = nBCSides+1
-sideID_plus_upper  = nBCSides+nInnerSides+nMPISides
-
-#ifdef PP_HDG
-#ifdef MPI
-CALL MPI_ALLREDUCE(SideID_Minus_Upper,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-#else
-nGlobalUniqueSides=SideID_minus_upper
-#endif
-#endif
+!NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
+ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
+ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
+ALLOCATE(MortarSlave2MasterInfo(1:nSides))
+MortarType=-1
+MortarInfo=-1
 
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
 
-! PO: is done in particle_Init
-!!-- Read parameters for region mapping
-!NbrOfRegions = GETINT('NbrOfRegions','0')
-!IF (NbrOfRegions .GT. 0) THEN
-!  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-!  DO iRegions=1,NbrOfRegions
-!    WRITE(UNIT=hilf2,FMT='(I2)') iRegions
-!    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
-!  END DO
-!END IF
-
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitParticleMesh()
-!CALL InitElemVolumes()
 #endif
-
 
 ! dealloacte pointers
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 
+! build necessary mappings
+CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
+                       SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
+
+! if trees are available: compute metrics on tree level and interpolate to elements
+interpolateFromTree=.FALSE.
+IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
+IF(interpolateFromTree)THEN
+  coords=>TreeCoords
+  NGeo=NGeoTree
+  nElemsLoc=nTrees
+ELSE
+  coords=>NodeCoords
+  nElemsLoc=nElems
+ENDIF
+
 ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 ! scale and deform mesh if desired (warning: no mesh output!)
 meshScale=GETREAL('meshScale','1.0')
 IF(ABS(meshScale-1.).GT.1e-14)&
-  NodeCoords = NodeCoords*meshScale
+  Coords =Coords*meshScale
 
 IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   Pi = ACOS(-1.) 
   DO iElem=1,nElems
     DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
-      x(:)=NodeCoords(:,i,j,k,iElem)
-      NodeCoords(:,i,j,k,iElem) = x+ 0.1*SIN(Pi*x(1))*SIN(Pi*x(2))*SIN(Pi*x(3))
+      x(:)=Coords(:,i,j,k,iElem)
+      Coords(:,i,j,k,iElem) = x+ 0.1*SIN(Pi*x(1))*SIN(Pi*x(2))*SIN(Pi*x(3))
     END DO; END DO; END DO;
   END DO
 END IF
 
-
-ALLOCATE(Elem_xGP(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(BCFace_xGP(3,0:PP_N,0:PP_N,1:nBCSides))
-
-! PoyntingVecIntegral
-CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
-!IF (CalcPoyntingInt.OR.DoPML) ! DoPML is not loaded yet, however, InitPML needs initMesh 
-ALLOCATE(Face_xGP(3,0:PP_N,0:PP_N,1:nSides)) ! maybe deallocate in initPML if not needed ? -> better: get PP_nFaces somewhere
-
+! allocate type Mesh
+! volume data
+ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
+ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! temp
 ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(            sJ(  0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(       NormVec(3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
-ALLOCATE(      TangVec1(3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
-ALLOCATE(      TangVec2(3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
-ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
+ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
+NGeoRef=3*NGeo ! build jacobian at higher degree
+ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+
+! surface data
+ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides)) 
+ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides)) 
+ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
+ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
+ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
+
+! PoyntingVecIntegral
+CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
 
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
@@ -265,17 +322,22 @@ SideBoundingBoxVolume=0.
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 CALL InitMeshBasis(NGeo,PP_N,xGP)
-CALL CalcMetrics(NodeCoords)
-DEALLOCATE(NodeCoords)
 
-CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
-                       SideToVolA,SideToVol2A,CGNS_SideToVol2A)
-#ifndef PARTICLES
-DEALLOCATE(XCL_NGeo)
-#else
+
+#ifdef PARTICLES
+ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+XCL_NGeo = 0.
+ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,nElems))
+dXCL_NGeo = 0.
+CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 ! init element volume
 CALL InitElemVolumes()
+#else
+CALL CalcMetrics()
 #endif
+DEALLOCATE(NodeCoords)
+DEALLOCATE(dXCL_N)
+DEALLOCATE(Ja_Face)
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -605,6 +667,7 @@ IMPLICIT NONE
 !local variables
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
+! geometry information and VDMS
 SDEALLOCATE(Xi_NGeo)
 SDEALLOCATE(DCL_N)
 SDEALLOCATE(DCL_NGeo)
@@ -612,14 +675,16 @@ SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
+! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
+! mapping from elems to sides and vice-versa
 SDEALLOCATE(ElemToSide)
+SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
-SDEALLOCATE(SideToElem2)
 SDEALLOCATE(BC)
+! elem-xgp and metrics
 SDEALLOCATE(Elem_xGP)
-SDEALLOCATE(BCFace_xGP)
 SDEALLOCATE(Metrics_fTilde)
 SDEALLOCATE(Metrics_gTilde)
 SDEALLOCATE(Metrics_hTilde)
@@ -629,17 +694,28 @@ SDEALLOCATE(TangVec1)
 SDEALLOCATE(TangVec2)  
 SDEALLOCATE(SurfElem)  
 SDEALLOCATE(Face_xGP)
+SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)
 SDEALLOCATE(dXCL_NGeo)
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
+! mortars
+SDEALLOCATE(MortarType)
+SDEALLOCATE(MortarInfo)
+SDEALLOCATE(MortarSlave2MasterInfo)
+SDEALLOCATE(xiMinMax)
+SDEALLOCATE(ElemToTree)
+SDEALLOCATE(TreeCoords)
+! mappings
 SDEALLOCATE(VolToSideA)
 SDEALLOCATE(VolToSide2A)
 SDEALLOCATE(CGNS_VolToSideA)
 SDEALLOCATE(SideToVolA)
 SDEALLOCATE(SideToVol2A)
 SDEALLOCATE(CGNS_SideToVol2A)
+SDEALLOCATE(FS2M)
+SDEALLOCATE(DetJac_Ref)
 SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)

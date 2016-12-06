@@ -21,6 +21,8 @@ INTEGER                                 :: nCurrentParts                 ! curre
 LOGICAL                                 :: MeasureTrackTime              ! switch, if tracking time is measure
 LOGICAL                                 :: FastPeriodic                  ! moves the particle along whole periodic vector, 
                                                                          ! neglecting possible reflexions
+LOGICAL                                 :: CountNbOfLostParts            ! logical, to count the lost particles
+INTEGER                                 :: nLostParts                    ! Counter for lost particle
 REAL,ALLOCATABLE                        :: Distance(:)                   ! list of distance between particle and element-origin
                                                                          ! to all elements in the same background element
 INTEGER,ALLOCATABLE                     :: ListDistance(:)               ! the corresponding element id

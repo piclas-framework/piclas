@@ -642,7 +642,7 @@ CheckDens=.false. !initialize somehow?!
                 History(iElem,iSpecies,iTime)%EVib          = History(iElem,iSpecies,iTime+1)%EVib
               END IF
             END IF
-            IF(DSMC%ElectronicState) THEN
+            IF(DSMC%ElectronicModel) THEN
               History(iElem,iSpecies,iTime)%EElec         = History(iElem,iSpecies,iTime+1)%EElec
             ENDIF
           ENDDO
@@ -667,7 +667,7 @@ CheckDens=.false. !initialize somehow?!
               History(iElem,iSpecies,HistTime)%EVib        = Sampler(iElem,iSpecies)%EVib  / Sampler(iElem,iSpecies)%PartNum
             END IF
           END IF
-          IF(DSMC%ElectronicState) THEN
+          IF(DSMC%ElectronicModel) THEN
             History(iElem,iSpecies,HistTime)%EElec       = Sampler(iElem,iSpecies)%EElec / Sampler(iElem,iSpecies)%PartNum
           ENDIF
         ELSE
@@ -680,7 +680,7 @@ CheckDens=.false. !initialize somehow?!
               History(iElem,iSpecies,HistTime)%EVib        = -1.0
             END IF
           END IF
-          IF(DSMC%ElectronicState) THEN
+          IF(DSMC%ElectronicModel) THEN
             History(iElem,iSpecies,HistTime)%EElec       = -1.0
           ENDIF
         ENDIF
@@ -761,7 +761,7 @@ CheckDens=.false. !initialize somehow?!
         ELSE
           Check(8:9) = Check(8:9)+1
         ENDIF
-        IF(DSMC%ElectronicState.AND.CheckIntEn(3)) THEN
+        IF(DSMC%ElectronicModel.AND.CheckIntEn(3)) THEN
           CheckHistory(1:nElems,1:nTime) = History(1:nElems,iSpecies,1:nTime)%EElec
           CALL SteadyStateDetection_Algorithm(iSpecies,10)
           IF(SteadyIdentGlobal(iSpecies,10).EQ.1) THEN
@@ -822,7 +822,7 @@ SUBROUTINE SteadyStateDetection_Sampling()
                                                               + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
           END IF
         END IF
-        IF(DSMC%ElectronicState) THEN
+        IF(DSMC%ElectronicModel) THEN
           Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
                                                             + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
         ENDIF
@@ -841,7 +841,7 @@ SUBROUTINE SteadyStateDetection_Sampling()
                                                               + PartStateIntEn(PartIndex,2)
           END IF
         END IF
-        IF(DSMC%ElectronicState) THEN
+        IF(DSMC%ElectronicModel) THEN
           Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
                                                             + PartStateIntEn(PartIndex,2)
         ENDIF

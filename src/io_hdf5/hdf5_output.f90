@@ -29,6 +29,14 @@ INTERFACE GenerateFileSkeleton
   MODULE PROCEDURE GenerateFileSkeleton 
 END INTERFACE
 
+INTERFACE
+  SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
+      USE ISO_C_BINDING, ONLY: C_CHAR
+      CHARACTER(KIND=C_CHAR) :: outfilename(*)
+      CHARACTER(KIND=C_CHAR) :: infilename(*)
+  END SUBROUTINE copy_userblock
+END INTERFACE
+
 INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
@@ -88,8 +96,10 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
+#ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER                        :: nVar
+#endif /*PARTICLES*/
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif /*MPI*/
@@ -320,7 +330,7 @@ SUBROUTINE WriteElemWeightToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY:offsetElem,nGlobalElems
-USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight
+USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight,WeightOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -369,6 +379,9 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !
 DEALLOCATE(StrVarNames)
 ElemTime=0.
+IF(MPIRoot)THEN
+  WeightOutput=0. ! elem time statistics
+END IF
 
 END SUBROUTINE WriteElemWeightToHDF5
 
@@ -632,9 +645,9 @@ INTEGER                        :: minnParts
   withDSMC=useDSMC
   IF (withDSMC.AND.(.NOT.(useLD))) THEN
   !IF (withDSMC) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
       PartDataSize=11
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
                                                                               ! or int energ +3 but no vmpf +1
       PartDataSize=10
     ELSE IF (CollisMode.GT.1) THEN
@@ -645,9 +658,9 @@ INTEGER                        :: minnParts
       PartDataSize=7 !+ 0
     END IF
   ELSE IF (useLD) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
       PartDataSize=16
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
                                                                              ! or int energ +3 but no vmpf +1
       PartDataSize=15
     ELSE IF (CollisMode.GT.1) THEN
@@ -731,7 +744,7 @@ INTEGER                        :: minnParts
         PartData(iPart,7)=REAL(PartSpecies(pcount))
         IF (withDSMC.AND.(.NOT.(useLD))) THEN
         !IF (withDSMC) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
             PartData(iPart,10)=PartStateIntEn(pcount,3)    
@@ -740,7 +753,7 @@ INTEGER                        :: minnParts
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
             PartData(iPart,10)=PartMPF(pcount)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)
             PartData(iPart,10)=PartStateIntEn(pcount,3)
@@ -751,7 +764,7 @@ INTEGER                        :: minnParts
             PartData(iPart,8)=PartMPF(pcount)    
           END IF
         ELSE IF (useLD) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
             PartData(iPart,10)=PartMPF(pcount)
@@ -770,7 +783,7 @@ INTEGER                        :: minnParts
             PartData(iPart,13)=PartStateBulkValues(pcount,3)
             PartData(iPart,14)=PartStateBulkValues(pcount,4)
             PartData(iPart,15)=PartStateBulkValues(pcount,5)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)
             PartData(iPart,10)=PartStateIntEn(pcount,3)
@@ -867,7 +880,7 @@ INTEGER                        :: minnParts
   StrVarNames(7)='Species'
   IF(withDSMC.AND.(.NOT.(useLD)))THEN
  ! IF(withDSMC)THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicState))THEN
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -876,7 +889,7 @@ INTEGER                        :: minnParts
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='MPF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -887,7 +900,7 @@ INTEGER                        :: minnParts
       StrVarNames( 8)='MPF'
     END IF
   ELSE IF (useLD) THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicState))THEN
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -906,7 +919,7 @@ INTEGER                        :: minnParts
       StrVarNames(13)='BulkVelocityZ'
       StrVarNames(14)='BulkTemperature'
       StrVarNames(15)='BulkDOF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -1009,9 +1022,11 @@ SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputT
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
+USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_ReadInTools,ONLY: GetParameters
-#ifndef GNU 
+USE MOD_Interpolation_Vars, ONLY:NodeType
+#ifdef INTEL 
 USE IFPORT,                 ONLY:SYSTEM
 #endif
 !USE MOD_PreProcFlags
@@ -1038,9 +1053,9 @@ CHARACTER(LEN=255)             :: FileName,MeshFile255
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 #ifdef MPI
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,userblockSize=userblock_total_len)
 #else
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,userblockSize=userblock_total_len)
 #endif
 
 ! Write file header
@@ -1069,19 +1084,10 @@ CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 
 CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
-! we use userblock instead
-! Write ini file parameters and compile flags
-!CALL GetParameters(params)
-!CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-!CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-!DEALLOCATE(params)
-
 CALL CloseDataFile()
 
 ! Add userblock to hdf5-file
-iError = SYSTEM(H5TOOLSDIR//&
-    '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
-    TRIM(FileName))
+CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
 
 END SUBROUTINE GenerateFileSkeleton
 
@@ -1603,6 +1609,7 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective=.FALSE.,IntegerArray =IntegerArray)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective=.FALSE.,StrArray =StrArray)
+      CALL CloseDataFile()
     ELSE 
       CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1611,8 +1618,9 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective,IntegerArray =IntegerArray)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective,StrArray =StrArray)
+      CALL CloseDataFile()
     END IF
-    CALL CloseDataFile()
+    CALL MPI_BARRIER(OutputCOMM,IERROR)
     CALL MPI_COMM_FREE(OutputCOMM,iERROR)
   END IF
   ! MPI Barrier is requried, that the other procs don't open the datafile while this procs are still writring

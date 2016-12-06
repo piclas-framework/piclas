@@ -17,13 +17,7 @@ INCLUDE(CMakeDependentOption)
 # =========================================================================
 # Check whether we are on Github or at IAG
 # =========================================================================
-execute_process(
-  COMMAND git config --get remote.origin.url
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE GIT_ORIGIN
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
+EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
 STRING(FIND "${GIT_ORIGIN}" ".iag.uni-stuttgart.de" HOMERUN)
 STRING(FIND "${GIT_ORIGIN}" "git@" USESSH)
 IF (HOMERUN GREATER -1)
@@ -38,18 +32,6 @@ ELSE()
   ELSE()
     SET(BOLTZPLATZ_DLPATH "https://github.com/piclas-framework")
   ENDIF()
-ENDIF()
-
-# =========================================================================
-# Project definitions and output paths
-# =========================================================================
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-
-IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  SET(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Prefix prepended to install directories" FORCE)
 ENDIF()
 
 # =========================================================================
@@ -69,18 +51,32 @@ IF (ONHORNET GREATER -1)
 ENDIF()
 
 # =========================================================================
-# Options
+# Project definitions and output paths
 # =========================================================================
 
 PROJECT(Boltzplatz)
 ENABLE_LANGUAGE(Fortran)
+
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+
+# Set custom install dir (needs to be done after project has been defined!)
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  SET(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Prefix prepended to install directories" FORCE)
+ENDIF()
+
+# =========================================================================
+# Options
+# =========================================================================
 
 MACRO(SUBDIRLIST result curdir)
   FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
   SET(dirlist "")
   FOREACH(child ${children})
     IF(IS_DIRECTORY ${curdir}/${child})
-        LIST(APPEND dirlist ${child})
+      LIST(APPEND dirlist ${child})
     ENDIF()
   ENDFOREACH()
   SET(${result} ${dirlist})
@@ -117,7 +113,7 @@ ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
 # code development
 OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
-OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
+#OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
 
 # =========================================================================
 # Equation system
@@ -282,12 +278,14 @@ ENDFOREACH()
 # make sure that the default is a RELEASE
 
 IF (NOT CMAKE_BUILD_TYPE)
-   SET (CMAKE_BUILD_TYPE Debug CACHE STRING
+   SET (CMAKE_BUILD_TYPE Release CACHE STRING
       "Choose the type of build, options are: None Debug Release Profile."
       FORCE)
    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
      SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile SANI)
    ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile)
+   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
      SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile)
    ENDIF()
 ENDIF (NOT CMAKE_BUILD_TYPE)
@@ -318,14 +316,14 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   IF(ONHORNET GREATER -1)
     SET(BOLTZPLATZ_INSTRUCTION "-march=core-avx2")
   ELSE()
-    SET(BOLTZPLATZ_INSTRUCTION "-march=native -finline-functions")
+    SET(BOLTZPLATZ_INSTRUCTION "-march=native")
   ENDIF()
   # set Flags
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
-  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -march=native  -finline-functions")
-  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O3 -march=native  -finline-functions")
-  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace  -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace  -Wall -fsanitize=address,undefined -fno-omit-frame-pointer -Wc-binding-type")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${BOLTZPLATZ_INSTRUCTION} -finline-functions -fstack-arrays ")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O0 ${BOLTZPLATZ_INSTRUCTION} ")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall")
+  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
   # add flags only for compiling not linking!
   SET (BOLTZPLATZ_COMPILE_FLAGS "-xf95-cpp-input")
 
@@ -343,6 +341,15 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays -init=zero")
    # add flags only for compiling not linking!
    SET (BOLTZPLATZ_COMPILE_FLAGS "-fpp -assume bscc")
+
+ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
+  # set Flags
+  SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -f free -s real64 -em -DCRAY")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -hfp3 -p . -rm")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -O3 -hfp3 -h profile_generate -p . -rm")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -O0 -eD -rm")
+  # add flags only for compiling not linking!
+  SET (BOLTZPLATZ_COMPILE_FLAGS "-F")
 
 ELSE()
    MESSAGE(ERROR "Unknown compiler")
@@ -373,21 +380,16 @@ IF(NOT BOLTZPLATZ_BUILD_HDF5)
       SET(BOLTZPLATZ_HDF5_CMAKE TRUE)
       MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
       MESSAGE (STATUS "HDF5 Fortran libs: static:${HDF5_static_Fortran_FOUND} and shared:${HDF5_shared_Fortran_FOUND}")
+      MESSAGE (STATUS "h5diff found:${HDF5_DIFF_EXECUTABLE}")
     ENDIF()
-  ENDIF()
-  IF (ONHORNET GREATER -1)
-     # customized location of the tools on hazelhen
-    ADD_DEFINITIONS(-DH5TOOLSDIR=\"$ENV{HDF5_DIR}/../../../../hdf5/1.8.14/bin/\")
-  ELSE()
-    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${HDF5_INCLUDE_DIR_FORTRAN}/../../bin\")
   ENDIF()
 ELSE()
   # define here the path to download from
   SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}/HDF5.git )
   SET (HDF5TAG "1.10.0-patch1" CACHE STRING "HDF5 version tag")
 
-  SET(BOLTZPLATZ_HDF5_DLDIR ${BOLTZPLATZ}/HDF5)
-  SET(BOLTZPLATZ_HDF5_DIR  ${BOLTZPLATZ}/build)
+  SET(BOLTZPLATZ_HDF5_DLDIR ${BOLTZPLATZ_EXTERNAL_LIB_DIR}/HDF5)
+  SET(BOLTZPLATZ_HDF5_DIR  ${BOLTZPLATZ_HDF5_DLDIR}/build)
   IF (NOT EXISTS "${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5.a")
     IF(BOLTZPLATZ_MPI)
       SET(BOLTZPLATZ_HDF5PARALLEL --enable-parallel)
@@ -417,7 +419,6 @@ ELSE()
     #  BUILD_COMMAND ${MAKE}
     #)
   ENDIF()
-  ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/bin/\")
   SET(HDF5_hdf5_LIBRARY_RELEASE         ${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5.a)
   SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5_fortran.a)
   SET(HDF5_C_INCLUDE_DIR                ${BOLTZPLATZ_HDF5_DIR}/include)
@@ -425,6 +426,8 @@ ELSE()
   UNSET(HDF5_LIBRARIES)
   UNSET(HDF5_INCLUDE_DIR_FORTRAN)
   UNSET(HDF5_INCLUDE_DIR)
+  UNSET(HDF5_DIFF_EXECUTABLE)
+  SET(HDF5_DIFF_EXECUTABLE              ${FLEXI_HDF5_DIR}/bin/h5diff)
   LIST(APPEND HDF5_INCLUDE_DIR_FORTRAN ${HDF5_Fortran_INCLUDE_DIR} ${HDF5_C_INCLUDE_DIR})
   LIST(APPEND HDF5_INCLUDE_DIR  ${HDF5_C_INCLUDE_DIR})
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
@@ -495,7 +498,7 @@ ENDIF()
 
 function(add_exec target)
   ADD_EXECUTABLE(${target} ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} boltzplatzlib ${linkedlibs})
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o boltzplatzlib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
   SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
@@ -510,6 +513,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
+                                ./src/mortar/*.f90
                                 ./src/interpolation/basis.f90
                                 ./src/interpolation/interpolation.f90
                                 ./src/interpolation/interpolation_vars.f90
@@ -561,7 +565,9 @@ ENDIF(BOLTZPLATZ_PARTICLES)
 # define libs
 ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )
 SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
-ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90>)
+ADD_LIBRARY(userblocklib OBJECT ./src/output/read_userblock.c)
+SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
+ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90> $<TARGET_OBJECTS:userblocklib>)
 ADD_DEPENDENCIES(boltzplatzlibF90 HDF5)
 
 add_exec(boltzplatz ./src/boltzplatz.f90)
@@ -572,28 +578,39 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals.f90 PROPERTIES COMPILE_FLAGS "-Wno-intrinsic-shadow")
 ENDIF()
 
+# -------------------------------------------------------------------------
+# echo COMPILE_DEFINITIONS
+# -------------------------------------------------------------------------
+GET_DIRECTORY_PROPERTY(comp_defs DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
+SET(comp_defs_str "COMPILE_DEFINITIONS = ")
+FOREACH (def ${comp_defs})
+   SET(comp_defs_str "${comp_defs_str} -D${def}")
+ENDFOREACH()
+ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
+
+# =========================================================================
+# RegressionCheck tool && Examples
+# =========================================================================
+add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
+                         ./regressioncheck/regressioncheck_vars.f90 
+                         ./regressioncheck/regressioncheck_build.f90 
+                         ./regressioncheck/regressioncheck_compare.f90 
+                         ./regressioncheck/regressioncheck_run.f90 
+                         ./regressioncheck/regressioncheck_tools.f90 )
+ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
+SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
+
 # =========================================================================
 # Userblock
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET boltzplatzlib PRE_BUILD COMMAND touch ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatzlib PRE_BUILD COMMAND rm ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( CMAKE \)]}\" > ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cat ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT REVISIONS \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git rev-parse --abbrev-ref HEAD >>  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt && git log --oneline -1  >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && echo "master: " >>  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt && git log master --oneline -1  >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT DIFF \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git diff -p origin/master >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT URL \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git config --get remote.origin.url >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
-
+ADD_CUSTOM_COMMAND(TARGET boltzplatzlib PRE_BUILD COMMAND 
+  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # =========================================================================
 # generate .boltzplatz in $HOME
 # =========================================================================
 ADD_CUSTOM_COMMAND(TARGET boltzplatz     POST_BUILD COMMAND echo \"export BOLTZPLATZ_DIR=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\" > $ENV{HOME}/.boltzplatz)
 ADD_CUSTOM_COMMAND(TARGET boltzplatz     POST_BUILD COMMAND echo \"alias boltzplatz='${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz'\" >> $ENV{HOME}/.boltzplatz)
-
 
 # =========================================================================
 # Install
@@ -603,12 +620,16 @@ INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_R
 # =========================================================================
 # Ctags
 # =========================================================================
-IF(BOLTZPLATZ_CTAGS)
-  ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt src)
-  ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
-  FIND_PROGRAM(CTAGS_PATH ctags)
-  IF(CTAGS_PATH)
-      MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
-      ADD_DEPENDENCIES(boltzplatz tags)
-  ENDIF(CTAGS_PATH)
-ENDIF(BOLTZPLATZ_CTAGS)
+SET(EQNS_WO_ACTUAL ${EQNSYSTEMS})
+LIST(REMOVE_ITEM EQNS_WO_ACTUAL ${BOLTZPLATZ_EQNSYSNAME})
+SET(EXLUDES "")
+FOREACH(item ${EQNS_WO_ACTUAL})
+   SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
+ENDFOREACH()
+ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt ${EXLUDES} src)
+ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
+FIND_PROGRAM(CTAGS_PATH ctags)
+IF(CTAGS_PATH)
+    MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
+    ADD_DEPENDENCIES(boltzplatz tags)
+ENDIF(CTAGS_PATH)

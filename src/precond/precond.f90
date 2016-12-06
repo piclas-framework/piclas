@@ -65,7 +65,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: locSize
 !===================================================================================================================================
 IF(PrecondInitIsDone)THEN
    SWRITE(*,*) "InitPrecond already called."
@@ -144,21 +143,15 @@ SUBROUTINE BuildPrecond(t,tStage,tDeriv,alpha,dt)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Basis             ,ONLY:GetInverse
-USE MOD_LinearSolver_Vars ,ONLY:nDOFelem,nDOFLine,mass
-USE MOD_Precond_Vars      ,ONLY:invP,PrecondType,DebugMatrix,invBJ,invJ, neighborElemID, ProcJacobian
+USE MOD_LinearSolver_Vars ,ONLY:nDOFelem,mass
+USE MOD_Precond_Vars      ,ONLY:invP,PrecondType,DebugMatrix
 USE MOD_Jac_ex            ,ONLY:Jac_ex, Jac_Ex_Neighbor,Jac_ex1D
 USE MOD_Jac_FD            ,ONLY:Jac_FD_slow!,Jac_FD
-USE MOD_Jac_FD_Vars,       ONLY:reps0,XK
 USE MOD_JacDG             ,ONLY:BuildJacDG
-USE MOD_Mesh_Vars         ,ONLY:nBCSides,ElemToSide,SideToElem
-!USE MOD_Prepare_FD    ,ONLY:PrepareFD
-USE MOD_Precond_Vars      ,ONLy:invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
 USE MOD_DG,                ONLY: DGTimeDerivative_WeakForm
-USE MOD_DG_Vars,           ONLY: U,Ut
 USE MOD_SparseILU,         ONLY: BuildILU0
 USE MOD_ILU,               ONLY: BuildBILU0BCSR
 USE MOD_CSR,               ONLY: CSR
-USE MOD_Mesh_Vars,         ONLY: nInnerSides,nMPISides_MINE,nMPISides_YOUR,nSides
 !USE MOD_CSR_Vars,      ONLY: DiagonalEntries
 #ifdef MPI
 USE MOD_MPI_Vars
@@ -171,24 +164,14 @@ REAL,INTENT(IN)    :: alpha,dt,t,tStage
 INTEGER,INTENT(IN) :: tDeriv
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: r,s,iElem,ilocSide,SideID,iElem2
+INTEGER            :: r,s,iElem
 REAL,DIMENSION(:,:),ALLOCATABLE :: Ploc,Ploc1!,Ploc2
-REAL,DIMENSION(:,:,:,:,:),ALLOCATABLE :: BJDOF
-!REAL,DIMENSION(:,:,:,:),ALLOCATABLE :: dRdXi,dRdEta,dRdZeta
-!REAL,DIMENSION(:,:,:,:),ALLOCATABLE   :: GlobalJacobian
-!REAL,DIMENSION(:,:),ALLOCATABLE       :: GlobalJacobian2,GlobalJacobianTild
-REAL               :: dummy
 REAL               :: TimeStart(3)
 REAL               :: TimeEnd(3)
 REAL               :: TotalTime(3)
 REAL               :: delta(0:PP_N,0:PP_N)
-REAL               :: tmpMat(PP_nVar,PP_nVar),tmp2Mat(PP_nVar,PP_nVar)
-CHARACTER(LEN=255) :: Filename
-CHARACTER(LEN=17)  :: strfmt
-INTEGER            :: i,j,k,vn1,vn2,mm,iVar,nn,oo,p,q,vni,vnj,vnk,vnmm,vnoo,vnnn,l,vnl
+INTEGER            :: i,j,k
 REAL               :: coeff
-REAL               :: tmp(1:nDOFLine,1:nDOFLine)
-INTEGER            :: nTotalDOF,NBElemID,nlocSides
 #ifdef MPI
 REAL               :: TotalTimeMPI(3)
 #endif /*MPI*/
@@ -314,7 +297,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Normvec,SurfElem,ElemToSide,nSides
 USE MOD_Precond_Vars       ,ONLY: nVec,Surf,BuildNVecisDone
-USE MOD_Mesh_Vars          ,ONLY:SideID_plus_lower,SideID_plus_upper,SideID_minus_upper,SideID_minus_lower
+USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
 #ifdef MPI
 ! exchange of normal vector and surface element
 USE MOD_MPI_Vars
@@ -329,7 +312,7 @@ INTEGER                                      :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                      :: p,q,iSide,SideID,Flip
+INTEGER                                      :: p,q,SideID,Flip
 REAL,ALLOCATABLE                             :: NormVecPlus(:,:,:,:)  
 !===================================================================================================================================
 
@@ -344,8 +327,7 @@ ALLOCATE(Surf(0:PP_N,0:PP_N,1:6,PP_nElems))
 ! usefull only for Precondioner and local sides
 ALLOCATE(       NormVecPlus(4,0:PP_N,0:PP_N,1:nSides)) 
 
-!DO SideID=SideID_Plus_Lower,SideID_Minus_Upper
-DO SideID=SideID_minus_Lower,SideID_Minus_Upper
+DO SideID=1,lastMPISide_MINE ! and mortar..???
   normVecPlus (1:3,:,:,SideID) = -normVec(1:3,:,:,SideID)
   normVecPlus ( 4 ,:,:,SideID) = SurfElem(:,:,SideID)
 END DO
@@ -680,7 +662,6 @@ SUBROUTINE FinalizePrecond()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Precond_Vars,ONLY:invP,PrecondInitIsDone,PrecondType
-USE MOD_Precond_Vars,ONLy:invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
 USE MOD_SparseILU   ,ONLY:FinalizeSparseILU
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -258,6 +258,7 @@ INTEGER(KIND=8)                 :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
 #ifdef MPI
 INTEGER                          :: mode                                            
+INTEGER                          :: InitGroup
 #endif
 !===================================================================================================================================
 
@@ -327,7 +328,15 @@ DO i=1,nSpecies
             END IF
           END IF
 #ifdef MPI
-          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR) !NbrOfParticle based on RandVals!
+          InitGroup=Species(i)%Init(iInit)%InitCOMM
+          IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+            ! only procs which are part of group take part in the communication
+             !NbrOfParticle based on RandVals!
+            CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR) 
+          ELSE
+            NbrOfParticle=0
+          END IF
+          !CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR) !NbrOfParticle based on RandVals!
 #endif
           Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
         CASE(2)    ! Emission Type: Particles per Iteration
@@ -399,6 +408,7 @@ __STAMP__&
 !#endif
        ! instead of UpdateNextfreePosition we update the
        ! particleVecLength only.
+       ! and doing it later, after calcpartbalance
        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
        !CALL UpdateNextFreePosition()
@@ -454,31 +464,49 @@ __STAMP__&
 !#endif
       ! instead of UpdateNextfreePosition we update the
       ! particleVecLength only.
+      ! and doing it after calcpartbalance
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
       !CALL UpdateNextFreePosition()
     END IF
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
+      ! alter history, dirty hack for balance calculation
+      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
+      IF(PDM%CurrentNextFreePosition.GT.0)THEN
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-      IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-        nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PartEkinInTmp(PartSpecies(iPart))=PartEkinInTmp(PartSpecies(iPart))+CalcEkinPart(iPart)
-        END DO ! iPart
-      ELSE
+        IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
+          nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
+          DO iPart=1,NbrOfparticle
+            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+            IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
+                                    PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
+          END DO ! iPart
+        ELSE
+          nPartIn(i)=nPartIn(i) + NBrofParticle
+          DO iPart=1,NbrOfparticle
+            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+            IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
+                                    PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
+          END DO ! iPart
+        END IF
+#else
         nPartIn(i)=nPartIn(i) + NBrofParticle
         DO iPart=1,NbrOfparticle
-          PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
+                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-      END IF
-#else
-      nPartIn(i)=nPartIn(i) + NBrofParticle
-      DO iPart=1,NbrOfparticle
-        PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
-      END DO ! iPart
 #endif
+      END IF
+      ! alter history, dirty hack for balance calculation
+      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
     END IF ! CalcPartBalance
+    ! instead of UpdateNextfreePosition we update the
+    ! particleVecLength only.
+    !PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+    !PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    !CALL UpdateNextFreePosition()
   END DO
 END DO
 
@@ -1778,9 +1806,10 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf,Is_BGGas_
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Timedisc_Vars, ONLY : dt
-USE MOD_Equation_Vars, ONLY : c,c2
 USE MOD_Particle_Vars
+USE MOD_Timedisc_Vars,         ONLY:dt
+USE MOD_Equation_Vars,         ONLY:c,c2
+USE MOD_PICInterpolation_vars, ONLY:externalField
 USE MOD_PIC_Vars
 !USE Ziggurat,          ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
@@ -1968,6 +1997,11 @@ CASE('tangential_constant')
   END DO
 CASE('gyrotron_circle')
   i = 1
+  IF (externalField(6).NE.0) THEN
+    PIC%GyroVecDirSIGN = -externalField(6)/(ABS(externalField(6)))
+  ELSE
+    PIC%GyroVecDirSIGN = -1
+  END IF
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
@@ -2056,7 +2090,7 @@ CASE('gyrotron_circle')
              SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(PositionNbr,4:6)
              CALL abort(&
 __STAMP__&
-,'ERROR in gyrotron_circle spaceIC!')
+,'ERROR in gyrotron_circle spaceIC!',PositionNbr)
            END If
            IF (PartState(PositionNbr,4).NE.PartState(PositionNbr,4) .OR. &
                PartState(PositionNbr,5).NE.PartState(PositionNbr,5) .OR. &
@@ -3155,7 +3189,8 @@ __STAMP__&
       BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber=0
       nDataBC=nDataBC+1
     END IF
-    Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant')
+    Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = &
+        TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell_lpn') THEN
@@ -3422,10 +3457,11 @@ USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
+USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
@@ -3695,7 +3731,7 @@ __STAMP__&
             CASE(PLANAR_RECT,PLANAR_NONRECT)
               LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
               + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
-            CASE(BILINEAR,CURVED) !to be changed into more efficient method using known xi
+            CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
               CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
               DO iLoop=1,3 !shift border-RefCoords into elem
                 IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
@@ -3793,9 +3829,6 @@ __STAMP__&
          iPart = iPart + 1
        END DO
 #endif
-    ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
 !    CALL UpdateNextFreePosition()
     
     ! compute number of input particles and energy
@@ -3804,29 +3837,41 @@ __STAMP__&
       IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
         nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
-          PartEkinInTmp(PartSpecies(iPart))=PartEkinInTmp(PartSpecies(iPart))+CalcEkinPart(iPart)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
+                                  PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
       ELSE
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
-          PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
+                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
       END IF
-#if ((PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122))
-      IF(iStage.EQ.nRKStages)
+#elif (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+      IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
-          PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
+                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
       END IF
 #else
       nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
       DO iPart=1,NbrOfparticle
-        PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+        IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
+                                PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
       END DO ! iPart
 #endif
-#endif
     END IF ! CalcPartBalance
+
+    ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
+    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+
   END DO !iSF
 END DO !iSpec
 

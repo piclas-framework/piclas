@@ -25,201 +25,7 @@ PUBLIC::SurfInt
 !===================================================================================================================================
 CONTAINS
 
-#ifdef DONTCOMPILETHIS
-SUBROUTINE SurfInt1(Flux,Ut,doMPISides)
-!===================================================================================================================================
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
-USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE  
-REAL,INTENT(IN)    :: Flux(1:PP_nVar,0:PP_N,0:PP_N,nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/ OUTPUT VARIABLES
-REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: Flux_loc(1:PP_nVar,0:PP_N,0:PP_N)
-INTEGER            :: i,ElemID(2),p,q,l,Flip(2),SideID,locSideID(2)
-INTEGER            :: firstSideID,lastSideID
-!===================================================================================================================================
-IF(doMPISides)THEN 
-  ! surfInt only for YOUR MPISides
-  firstSideID = nBCSides+nInnerSides+nMPISides_MINE +1
-  lastSideID  = firstSideID-1+nMPISides_YOUR 
-ELSE
-  ! fill only InnerSides
-  firstSideID = 1
-  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
-END IF
-DO SideID=firstSideID,lastSideID
-  ! master side, flip=0
-  ElemID(1)     = SideToElem(S2E_ELEM_ID,SideID)  
-  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  flip(1)      = 0
-  ! neighbor side
-  ElemID(2)     = SideToElem(S2E_NB_ELEM_ID,SideID)
-  locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-  flip(2)      = SideToElem(S2E_FLIP,SideID)
-  DO i=1,2
-    ! prepare flux (with correct inverse flip and sign)
-    ! store local face data into global data structure U_Minus and U_Plus
-    SELECT CASE(Flip(i))
-      CASE(0) ! master side
-        Flux_loc(:,:,:)=Flux(:,:,:,SideID)
-      CASE(1) ! slave side, SideID=q,jSide=p
-        DO q=0,PP_N
-          DO p=0,PP_N
-            Flux_loc(:,q,p)=-Flux(:,p,q,SideID)
-          END DO ! p
-        END DO ! q
-      CASE(2) ! slave side, SideID=N-p,jSide=q
-        DO q=0,PP_N
-          DO p=0,PP_N
-            Flux_loc(:,PP_N-p,q)=-Flux(:,p,q,SideID)
-          END DO ! p
-        END DO ! q
-      CASE(3) ! slave side, SideID=N-q,jSide=N-p
-        DO q=0,PP_N
-          DO p=0,PP_N
-            Flux_loc(:,PP_N-q,PP_N-p)=-Flux(:,p,q,SideID)
-          END DO ! p
-        END DO ! q
-      CASE(4) ! slave side, SideID=p,jSide=N-q
-        DO q=0,PP_N
-          DO p=0,PP_N
-            Flux_loc(:,p,PP_N-q)=-Flux(:,p,q,SideID)
-          END DO ! p
-        END DO ! q
-    END SELECT
 
-  ! update DG time derivative with corresponding SurfInt contribution
-#if (PP_NodeType==1)
-    SELECT CASE(locSideID(i))
-    CASE(XI_MINUS)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          DO l=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for XI_MINUS direction
-            Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))+Flux_loc(:,q,p)*L_hatMinus(l)
-          END DO ! l
-        END DO ! p
-      END DO ! q
-    CASE(ETA_MINUS)
-      DO q=0,PP_N
-        DO l=0,PP_N
-          DO p=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for ETA_PLUS direction
-            Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))+Flux_loc(:,p,q)*L_hatMinus(l)
-          END DO ! l
-        END DO ! p
-      END DO ! q
-    CASE(ZETA_MINUS)
-      DO l=0,PP_N
-        DO q=0,PP_N
-          DO p=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for ZETA_MINUS direction
-            Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))+Flux_loc(:,q,p)*L_hatMinus(l)
-          END DO ! l
-        END DO ! p
-      END DO ! q
-    CASE(XI_PLUS)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          DO l=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for XI_MINUS direction
-            Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))+Flux_loc(:,p,q)*L_hatPlus(l)
-          END DO ! l
-        END DO ! p
-      END DO ! q
-    CASE(ETA_PLUS)
-      DO q=0,PP_N
-        DO l=0,PP_N
-          DO p=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for ETA_PLUS direction
-            Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))+Flux_loc(:,PP_N-p,q)*L_hatPlus(l)
-          END DO ! l
-        END DO ! p
-      END DO ! q
-    CASE(ZETA_PLUS)
-      DO l=0,PP_N
-        DO q=0,PP_N
-          DO p=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for ZETA_MINUS direction
-            Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))+Flux_loc(:,p,q)*L_hatPlus(l)
-          END DO ! l
-        END DO ! p
-      END DO ! q
-    END SELECT !locSideID
-#else
-    SELECT CASE(locSideID(i))
-    CASE(XI_MINUS)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          Ut(:,0,p,q,ElemID(i))=Ut(:,0,p,q,ElemID(i))+Flux_loc(:,q,p)*L_hatMinus(0)
-        END DO ! p
-      END DO ! q
-    CASE(ETA_MINUS)
-      DO q=0,PP_N
-          DO p=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for ETA_PLUS direction
-            Ut(:,p,0,q,ElemID(i))=Ut(:,p,0,q,ElemID(i))+Flux_loc(:,p,q)*L_hatMinus(0)
-        END DO ! p
-      END DO ! q
-    CASE(ZETA_MINUS)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          ! update of local grid cell
-          ! switch to right hand system for ZETA_MINUS direction
-          Ut(:,p,q,0,ElemID(i))=Ut(:,p,q,0,ElemID(i))+Flux_loc(:,q,p)*L_hatMinus(0)
-        END DO ! p
-      END DO ! q
-    CASE(XI_PLUS)
-      DO q=0,PP_N
-        DO p=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for XI_MINUS direction
-            Ut(:,PP_N,p,q,ElemID(i))=Ut(:,PP_N,p,q,ElemID(i))+Flux_loc(:,p,q)*L_hatPlus(PP_N)
-        END DO ! p
-      END DO ! q
-    CASE(ETA_PLUS)
-      DO q=0,PP_N
-          DO p=0,PP_N
-            ! update of local grid cell
-            ! switch to right hand system for ETA_PLUS direction
-            Ut(:,p,PP_N,q,ElemID(i))=Ut(:,p,PP_N,q,ElemID(i))+Flux_loc(:,PP_N-p,q)*L_hatPlus(PP_N)
-        END DO ! p
-      END DO ! q
-    CASE(ZETA_PLUS)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          ! update of local grid cell
-          ! switch to right hand system for ZETA_MINUS direction
-          Ut(:,p,q,PP_N,ElemID(i))=Ut(:,p,q,PP_N,ElemID(i))+Flux_loc(:,p,q)*L_hatPlus(PP_N)
-        END DO ! p
-      END DO ! q
-    END SELECT !locSideID
-#endif /*(PP_NodeType==1)*/
-  END DO ! i=1,2 master side, slave side
-END DO ! SideID=1,nSides
-END SUBROUTINE SurfInt1
-#endif /*DONTCOMPILETHIS*/
-
-! surfint optimized for performance (but ugly to read)
 SUBROUTINE SurfInt2(Flux,Ut,doMPISides)
 !===================================================================================================================================
 !===================================================================================================================================
@@ -230,8 +36,9 @@ USE MOD_PreProc
 USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
 #endif
 USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
 USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,isPMLElem
+USE MOD_Mesh_Vars,          ONLY: nSides
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_MINE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -249,14 +56,15 @@ INTEGER            :: firstSideID,lastSideID
 REAL               ::L_HatMinus0,L_HatPlusN 
 #endif
 !===================================================================================================================================
-IF(doMPISides)THEN 
-  ! surfInt only for YOUR MPISides
-  firstSideID = nBCSides+nInnerSides+nMPISides_MINE +1
-  lastSideID  = firstSideID-1+nMPISides_YOUR 
+
+IF(doMPISides)THEN
+  ! MPI YOUR
+  firstSideID = firstMPISide_YOUR
+   lastSideID = nSides
 ELSE
-  ! fill only InnerSides
+  ! inner sides and MPI mine
   firstSideID = 1
-  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+   lastSideID = lastMPISide_MINE
 END IF
 
 #if (PP_NodeType>1)
@@ -301,7 +109,6 @@ END DO ! SideID=1,nSides
 
 END SUBROUTINE SurfInt2
 
-
 SUBROUTINE CalcSurfInt2(Flux,Ut,flip,ElemID,locSideID)
 !===================================================================================================================================
 ! MODULES
@@ -333,7 +140,6 @@ REAL            ::L_HatMinus0,L_HatPlusN
 L_HatMinus0 = L_HatMinus(0)
 L_HatPlusN  = L_HatPlus(PP_N)
 #endif
-
 
 #if (PP_NodeType==1)
   SELECT CASE(locSideID)

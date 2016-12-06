@@ -29,8 +29,11 @@ USE MOD_Mesh,                      ONLY:FinalizeMesh
 USE MOD_Equation,                  ONLY:FinalizeEquation
 USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
+USE MOD_Mortar,                    ONLY:FinalizeMortar
 #ifndef PP_HDG
 USE MOD_PML,                       ONLY:FinalizePML
+#else
+USE MOD_HDG,                       ONLY:FinalizeHDG
 #endif /*PP_HDG*/
 USE MOD_Filter,                    ONLY:FinalizeFilter
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
@@ -82,6 +85,8 @@ CALL FinalizeLinearSolver()
 #endif /*IMEX*/
 #ifndef PP_HDG
 CALL FinalizePML()
+#else
+CALL FinalizeHDG()
 #endif /*PP_HDG*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
@@ -89,6 +94,7 @@ IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 !CALL FinalizeTimeDisc()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
+CALL FinalizeMortar()
 CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeParticleSurfaces()
@@ -135,6 +141,7 @@ USE MOD_Mesh,               ONLY:InitMesh
 USE MOD_Equation,           ONLY:InitEquation
 USE MOD_GetBoundaryFlux,    ONLY:InitBC
 USE MOD_DG,                 ONLY:InitDG
+USE MOD_Mortar,             ONLY:InitMortar
 #ifndef PP_HDG
 USE MOD_PML,                ONLY:InitPML
 #endif /*PP_HDG*/
@@ -162,6 +169,9 @@ USE MOD_Particle_MPI,       ONLY:InitParticleMPI
 USE MOD_ParticleSolver,       ONLY:InitPartSolver
 #endif
 #endif
+#ifdef PP_HDG
+USE MOD_HDG,              ONLY:InitHDG
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -182,7 +192,9 @@ IF(IsLoadBalance)THEN
   !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
   N_Restart=PP_N
+  CALL InitMortar()
 ELSE
+  CALL InitMortar()
   CALL InitRestart()
 END IF
 CALL InitMesh()
@@ -228,6 +240,9 @@ CALL InitParticleAnalyze()
 #endif
 CALL IgnoredStrings()
 
+#ifdef PP_HDG
+CALL InitHDG()
+#endif
 
 END SUBROUTINE InitBoltzplatz
 

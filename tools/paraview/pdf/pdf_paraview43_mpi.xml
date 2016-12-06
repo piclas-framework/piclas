@@ -1,10 +1,10 @@
 <ServerManagerConfiguration>
   <ProxyGroup name="filters">
-    <SourceProxy name="PDF" class="vtkPythonProgrammableFilter" label="Propability Distribution Function">
+    <SourceProxy name="PDF" class="vtkPythonProgrammableFilter" label="Probability Distribution Function">
 
       <Documentation
-        long_help="Computes the propability distribution function."
-        short_help="Computes the propability distribution function.">
+        long_help="Computes the probability distribution function."
+        short_help="Computes the probability distribution function.">
       </Documentation>
 
 

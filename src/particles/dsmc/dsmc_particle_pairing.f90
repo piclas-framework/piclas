@@ -36,13 +36,12 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF
   USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF
-  USE MOD_DSMC_ChemReact,         ONLY : SetMeanVibQua
+  USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
   USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
   USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,         ONLY : DSMC_vmpf_prob
-  USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_XiVib_Poly
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -70,7 +69,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     ChemReac%nPairForRec = 0
   END IF
 
-  IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) THEN
+  IF (CollisMode.EQ.3) THEN
     ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
     DO iPart = 1, PartNum
       ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
@@ -158,7 +157,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   IF (CollisMode.EQ.3) THEN
     CALL SetMeanVibQua()
-    IF(DSMC%NumPolyatomMolecs.GT.0) CALL Calc_XiVib_Poly
   END IF
 
   DO iPair = 1,  PairNum_Node
@@ -218,7 +216,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     nPart = PEM%pNumber(iElem)
   END IF
   nPair = INT(nPart/2)
-
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
   END IF
@@ -227,12 +224,11 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   CollInf%Coll_CaseNum = 0
   CRelaMax = 0
   CRelaAv = 0
-
   ALLOCATE(Coll_pData(nPair))
   ALLOCATE(iPartIndx(nPart))
   Coll_pData%Ec=0
   iPartIndx = 0
-  IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
+  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
@@ -249,7 +245,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
       CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + 1
     END IF
     ! counter for part num of spec per cell
-    IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
+    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
                           ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
                         + PartStateIntEn(iPart,1) !Calculation of mean evib per cell and iter, necessary for disso prob
     ! choose next particle in Element
@@ -413,7 +409,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                     :: iElem
-  TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
+  TYPE(tTreeNode),INTENT(INOUT), POINTER     :: TreeNode
   TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -792,128 +788,129 @@ END IF
 END SUBROUTINE AddNodeVolumes
 
 
-!SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
-!!===================================================================================================================================
-!! Classic statistical pairing method for the use in the octree routines
-!!===================================================================================================================================
-!! MODULES
-  !USE MOD_DSMC_ChemReact,        ONLY : SetMeanVibQua
-  !USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
-  !USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
-  !USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
-  !USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, BGGas, DSMC
-  !USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, PartState, usevMPF, PartMPF
-  !USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_XiVib_Poly
-!! IMPLICIT VARIABLE HANDLING
-  !IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-  !REAL, INTENT(IN)                        :: NodeVolume
-  !INTEGER, INTENT(IN)                     :: PartNum
-  !INTEGER, INTENT(IN)                     :: iElem
-  !INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-  !INTEGER                       :: nPair, iPair, iPart, cPart1, cPart2, nPart
-  !INTEGER                       :: cSpec1, cSpec2, iCase
-  !REAL                          :: iRan
-  !REAL                          :: TempMPFFac, MPFFac
-!!===================================================================================================================================
+#ifdef DONTCOMPILETHIS
+SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
+!===================================================================================================================================
+! Classic statistical pairing method for the use in the octree routines
+!===================================================================================================================================
+! MODULES
+  USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
+  USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
+  USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
+  USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, BGGas
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, PartState, usevMPF, PartMPF
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL, INTENT(IN)                        :: NodeVolume
+  INTEGER, INTENT(IN)                     :: PartNum
+  INTEGER, INTENT(IN)                     :: iElem
+  INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                       :: nPair, iPair, iPart, cPart1, cPart2, nPart
+  INTEGER                       :: cSpec1, cSpec2, iCase
+  REAL                          :: iRan
+  REAL                          :: TempMPFFac, MPFFac
+!===================================================================================================================================
   
-  !nPart = PartNum
-  !nPair = INT(nPart/2)
+  nPart = PartNum
+  nPair = INT(nPart/2)
 
-  !IF (CollisMode.EQ.3) THEN
-    !ChemReac%RecombParticle = 0
-    !ChemReac%nPairForRec = 0
-  !END IF
+  IF (CollisMode.EQ.3) THEN
+    ChemReac%RecombParticle = 0
+    ChemReac%nPairForRec = 0
+  END IF
 
-  !CollInf%Coll_SpecPartNum = 0
-  !CollInf%Coll_CaseNum = 0
+  CollInf%Coll_SpecPartNum = 0
+  CollInf%Coll_CaseNum = 0
 
-  !ALLOCATE(Coll_pData(nPair))
-  !Coll_pData%Ec=0
+  ALLOCATE(Coll_pData(nPair))
+  Coll_pData%Ec=0
 
-  !IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) THEN
-    !ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
-    !DO iPart = 1, PartNum
-      !ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-        !ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1)
-    !END DO
-  !END IF
+  IF (CollisMode.EQ.3) THEN
+    ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
+    DO iPart = 1, PartNum
+      ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
+        ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1)
+    END DO
+  END IF
 
-  !DO iPart = 1, PartNum
-    !CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-              !CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + 1 
-  !END DO
+  DO iPart = 1, PartNum
+    CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
+              CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + 1 
+  END DO
 
-  !IF (usevMPF) MPFFac = 1
+  IF (usevMPF) MPFFac = 1
 
-  !DO iPair = 1, nPair                               ! statistical pairing
-    !CALL RANDOM_NUMBER(iRan) 
-    !cPart1 = 1 + INT(nPart * iRan)                       ! first pair particle
-    !Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(cPart1)
-    !iPartIndx_Node(cPart1) = iPartIndx_Node(nPart)
-    !nPart = nPart - 1
-    !CALL RANDOM_NUMBER(iRan)
-    !cPart2 = 1 + INT(nPart * iRan)                       ! second pair particle
-    !Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(cPart2)
-    !iPartIndx_Node(cPart2) = iPartIndx_Node(nPart)
-    !nPart = nPart - 1
+  DO iPair = 1, nPair                               ! statistical pairing
+    CALL RANDOM_NUMBER(iRan) 
+    cPart1 = 1 + INT(nPart * iRan)                       ! first pair particle
+    Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(cPart1)
+    iPartIndx_Node(cPart1) = iPartIndx_Node(nPart)
+    nPart = nPart - 1
+    CALL RANDOM_NUMBER(iRan)
+    cPart2 = 1 + INT(nPart * iRan)                       ! second pair particle
+    Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(cPart2)
+    iPartIndx_Node(cPart2) = iPartIndx_Node(nPart)
+    nPart = nPart - 1
 
-    !cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
-    !cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
+    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
+    cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
 
-    !IF (usevMPF) THEN
-      !TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
-      !IF (TempMPFFac .GE. MPFFac) THEN
-          !MPFFac = TempMPFFac
-          !PairE_vMPF(1) = iPair
-        !IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-          !PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
-        !ELSE
-          !PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
-        !END IF
-      !END IF
-    !END IF
+    IF (usevMPF) THEN
+      TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
+      IF (TempMPFFac .GE. MPFFac) THEN
+          MPFFac = TempMPFFac
+          PairE_vMPF(1) = iPair
+        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
+        ELSE
+          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
+        END IF
+      END IF
+    END IF
 
-    !iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    !CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    !Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                             !-  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                             !+ (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                             !-  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                             !+ (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             !-  PartState(Coll_pData(iPair)%iPart_p2,6))**2
-    !Coll_pData(iPair)%PairType = iCase
-    !Coll_pData(iPair)%NeedForRec = .FALSE.
-  !END DO  
-  !IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
-    !ChemReac%RecombParticle = iPartIndx_Node(1)
-  !END IF
+    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
+    Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
+                             -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
+                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
+                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
+                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
+                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+    Coll_pData(iPair)%PairType = iCase
+    Coll_pData(iPair)%NeedForRec = .FALSE.
+  END DO  
+  IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
+    ChemReac%RecombParticle = iPartIndx_Node(1)
+  END IF
 
-  !IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) THEN
-    !CALL SetMeanVibQua()
-    !IF(DSMC%NumPolyatomMolecs.GT.0) CALL Calc_XiVib_Poly
-  !END IF
+  IF (CollisMode.EQ.3) THEN
+    CALL SetMeanVibQua()
+  END IF
   
-  !DO iPair = 1, nPair
-    !IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-      !IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0)) THEN            ! calculation of collision prob
-        !CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
-      !ELSE
-        !CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
-      !END IF
-      !CALL RANDOM_NUMBER(iRan)
-      !IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
-        !CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
-      !END IF
-    !END IF
-  !END DO
-  !DEALLOCATE(Coll_pData)
+  DO iPair = 1, nPair
+    IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+      IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0)) THEN            ! calculation of collision prob
+        CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
+      ELSE
+        CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
+      END IF
+      CALL RANDOM_NUMBER(iRan)
+      IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+        CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
+      END IF
+    END IF
+  END DO
+  DEALLOCATE(Coll_pData)
   
-!END SUBROUTINE FindStatisticalNeigh
+END SUBROUTINE FindStatisticalNeigh
+#endif /*DONTCOMPILETHIS,NOOOW*/
+
 
 END MODULE MOD_DSMC_ParticlePairing

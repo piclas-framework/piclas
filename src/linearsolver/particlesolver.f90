@@ -23,13 +23,17 @@ INTERFACE InitPartSolver
   MODULE PROCEDURE InitPartSolver
 END INTERFACE
 
+INTERFACE FinalizePartSolver
+  MODULE PROCEDURE FinalizePartSolver
+END INTERFACE
+
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 INTERFACE SelectImplicitParticles
   MODULE PROCEDURE SelectImplicitParticles
 END INTERFACE
 #endif
 
-PUBLIC:: InitPartSolver
+PUBLIC:: InitPartSolver,FinalizePartSolver
 PUBLIC:: ParticleNewton
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PUBLIC:: SelectImplicitParticles
@@ -106,7 +110,7 @@ SUBROUTINE SelectImplicitParticles()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit,PDM,Pt,PartState
+USE MOD_Particle_Vars,     ONLY:Species,PartSpecies,PartIsImplicit,PDM,Pt,PartState
 USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
 USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter
 USE MOD_Equation_Vars,     ONLY:c2_inv
@@ -119,7 +123,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER     :: iPart
-REAL        :: NewVelo(3),Vabs,PartGamma,VabsNew
+REAL        :: NewVelo(3),Vabs,PartGamma
 !===================================================================================================================================
 
 PartIsImplicit=.FALSE.
@@ -180,16 +184,15 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF,PartLorentzType
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Part_RHS,                ONLY:CalcPartRHS
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartMPI
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #endif /*MPI*/
 USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton,DoPrintConvInfo
@@ -198,9 +201,6 @@ USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_P
 USE MOD_Equation_vars,           ONLY:c2_inv
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-#endif
 !USE MOD_Equation,       ONLY: CalcImplicitSource
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -222,7 +222,6 @@ REAL                         :: AbortCritLinSolver,gammaA,gammaB
 !REAL                         :: FieldAtParticle(1:6)
 REAL                         :: DeltaX(1:6), DeltaX_Norm
 REAL                         :: Pt_tmp(1:6)
-LOGICAL                      :: doParticle(1:PDM%maxParticleNumber)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
 LOGICAL                      :: DoNewton
@@ -307,8 +306,6 @@ END IF
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
 #endif /*MPI*/
 
-
-
 IF(DoPrintConvInfo)THEN
   ! newton per particle 
   Counter=0
@@ -366,7 +363,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       CALL ParticleRefTracking(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     ELSE
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-      CALL ParticleTrackingCurved(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
+      CALL ParticleTracing(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     END IF
 #ifdef MPI
     ! send number of particles
@@ -380,6 +377,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
     SDEALLOCATE(ExtPartSpecies)
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
+    NbrOfExtParticles=0
 !#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 !    DO iPart=1,PDM%ParticleVecLength
 !      IF(.NOT.PartIsImplicit(iPart)) DoPartInNewton(iPart)=.FALSE.
@@ -477,7 +475,7 @@ USE MOD_Globals
 USE MOD_LinearSolver_Vars,    ONLY: epsPartlinSolver,TotalPartIterLinearSolver
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nPartInnerIter,EisenstatWalker
 USE MOD_LinearOperator,       ONLY: PartMatrixVector, PartVectorDotProduct
-USE MOD_TimeDisc_Vars,        ONLY: dt,iter
+USE MOD_TimeDisc_Vars,        ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -490,9 +488,7 @@ INTEGER,INTENT(IN):: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: V(1:6,1:nKDim)
-REAL              :: V2P(1:6)
 REAL              :: W(1:6)
-REAL              :: Z(1:6)
 REAL              :: R0(1:6)
 REAL              :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
 REAL              :: Norm_R0,Resu,Temp,Bet

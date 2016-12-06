@@ -42,7 +42,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars           ,ONLY: ElemToSide
 USE MOD_Mesh_Vars           ,ONLY: BC,BoundaryType,nBCSides
 USE MOD_Precond_Vars        ,ONLY: nVec, Surf
-USE MOD_LinearSolver_Vars   ,ONLY: nDOFElem,nDOFSide
+USE MOD_LinearSolver_Vars   ,ONLY: nDOFElem
 USE MOD_Jac_Ex_Vars         ,ONLY: LL_minus, LL_plus
 USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann
 ! IMPLICIT VARIABLE HANDLING
@@ -58,7 +58,7 @@ REAL,INTENT(INOUT)                                  :: BJ(nDOFElem,nDOFElem)
 INTEGER                                             :: SideID
 REAL,DIMENSION(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,6) :: JacA
 REAL,DIMENSION(0:PP_N,0:PP_N)                       :: delta
-INTEGER                                             :: i,j,k,mm,nn,oo,r,s,v,w
+INTEGER                                             :: i,j,k,mm,nn,oo,r,s
 INTEGER                                             :: vn1, vn2
 INTEGER                                             :: iLocSide
 REAL,DIMENSION(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N)   :: JacBC
@@ -374,11 +374,10 @@ SUBROUTINE DGJacSurfInt_Neighbor(BJ,locSideID,ElemID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,SideToElem
-USE MOD_Mesh_Vars              ,ONLY: BC,BoundaryType,nBCSides
+USE MOD_Mesh_Vars              ,ONLY: nBCSides
 USE MOD_Mappings               ,ONLY: VolToSide,SideToVol
 USE MOD_Precond_Vars           ,ONLY: nVec, Surf, neighborElemID
-USE MOD_LinearSolver_Vars      ,ONLY: nDOFElem,nDOFSide
-USE MOD_Jac_Ex_Vars            ,ONLY: LL_minus, LL_plus
+USE MOD_LinearSolver_Vars      ,ONLY: nDOFElem
 USE MOD_Interpolation_Vars     ,ONLY: L_PlusMinus
 USE MOD_CSR_Vars               ,ONLY: L_HatPlusMinus
 USE MOD_JacExRiemann           ,ONLY: ConstructJacNeighborRiemann,ConstructJacBCRiemann
@@ -396,8 +395,7 @@ REAL,INTENT(INOUT)                                  :: BJ(nDOFElem,nDOFElem)
 INTEGER                                             :: SideID,neighbor_locSideID, flip, neighbor_flip, neighbor_ElemID
 REAL,DIMENSION(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N)   :: JacA
 REAL,DIMENSION(0:PP_N,0:PP_N)                       :: delta
-REAL,DIMENSION(1:3,0:PP_N,0:PP_N)                   :: nloc
-INTEGER                                             :: i,j,k,mm,nn,oo,r,s,v,w,p,q
+INTEGER                                             :: i,j,k,mm,nn,oo,r,s
 INTEGER,DIMENSION(3)                                :: pq,mn
 INTEGER                                             :: vn1, vn2
 !===================================================================================================================================
@@ -839,39 +837,6 @@ END SELECT ! locSideID
 #endif
 
 END SUBROUTINE DGJacSurfInt_Neighbor
-
-SUBROUTINE Apply_sJ(BJ,iElem)
-!===================================================================================================================================
-! Deallocate global variables
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_LinearSolver_Vars ,ONLY:nDOFElem
-USE MOD_Mesh_Vars         ,ONLY:sJ
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: iElem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT) :: BJ(nDOFelem,nDOFelem)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-INTEGER :: r,s,i,j,k
-!===================================================================================================================================
-DO s=0,nDOFelem-1,PP_nVar
-  r=0
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-        BJ(r+1:r+PP_nVar,s+1:s+PP_nVar) = -sJ(i,j,k,iElem)*BJ(r+1:r+PP_nVar,s+1:s+PP_nVar)
-        r=r+PP_nVar
-      END DO !i
-    END DO !j
-  END DO !k
-END DO ! s
-END SUBROUTINE Apply_sJ
 
 
 END MODULE MOD_JacSurfInt

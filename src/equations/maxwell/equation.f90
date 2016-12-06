@@ -43,6 +43,7 @@ USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars 
 USE MOD_TimeDisc_Vars, ONLY: TEnd
+USE MOD_Mesh_Vars,     ONLY: BoundaryType,nBCs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -52,6 +53,9 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: c_test
+INTEGER                          :: nRefStates,iBC,ntmp,iRefState
+INTEGER,ALLOCATABLE              :: RefStates(:)
+LOGICAL                          :: isNew
 #ifdef MPI
 #endif
 !===================================================================================================================================
@@ -78,11 +82,11 @@ c                  = GETREAL('c0','1.')
 eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 smu0               = 1./mu0
-fDamping           = GETREAL('fDamping','0.99')
+fDamping           = GETREAL('fDamping','0.999')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
+CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 !scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
-DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
-tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
+
 c_test = 1./SQRT(eps0*mu0)
 IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
@@ -104,13 +108,72 @@ c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
-! planar wave input
-WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
-WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
-WaveVector=UNITVECTOR(WaveVector)
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
+nRefStates=nBCs+1
+nTmp=0
+ALLOCATE(RefStates(nRefStates))
+RefStates=0
+IF(IniExactFunc.GT.0) THEN
+  RefStates(1)=IniExactFunc
+  nTmp=1
+END IF
+DO iBC=1,nBCs
+  IF(BoundaryType(iBC,BC_STATE).GT.0)THEN
+    isNew=.TRUE.
+    ! check if boundarytype already exists
+    DO iRefState=1,nTmp
+      IF(BoundaryType(iBC,BC_STATE).EQ.RefStates(iRefState)) isNew=.FALSE.
+    END DO
+    IF(isNew)THEN
+      nTmp=nTmp+1
+      RefStates(ntmp)=BoundaryType(iBC,BC_STATE)
+    END IF
+  END IF
+END DO
+DO iRefState=1,nTmp
+  SELECT CASE(RefStates(iRefState))
+  CASE(4)
+    DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
+    tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
+  CASE(12)
+    ! planar wave input
+    WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
+    WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
+    WaveVector=UNITVECTOR(WaveVector)
+  CASE(14,15)
+    ! spatial Gaussian beam, only in x,y or z direction
+    ! additional tFWHM is a temporal gauss
+    ! note:
+    ! 14: Gaussian pulse is initialized IN the domain
+    ! 15: Gaussian pulse is a boundary condition, HENCE tDelayTime is used
+    WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
+    WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
+    WaveVector=UNITVECTOR(WaveVector)
+    WaveBasePoint =GETREALARRAY('WaveBasePoint',3,'0.5 , 0.5 , 0.')
+    I_0     = GETREAL ('I_0','1.')
+    sigma_t = GETREAL ('sigma_t','0.')
+    tFWHM   = GETREAL ('tFWHM','0.')
+    IF((sigma_t.GT.0).AND.(tFWHM.EQ.0))THEN
+      tFWHM=2.*SQRT(2.*LOG(2.))*sigma_t
+    ELSE IF((sigma_t.EQ.0).AND.(tFWHM.GT.0))THEN
+      sigma_t=tFWHM/(2.*SQRT(2.*LOG(2.)))
+    ELSE
+      CALL abort(&
+  __STAMP__&
+      ,' Input of pulse length is wrong.')
+    END IF
+    ! in 15: scaling by a_0 or intensity
+    Beam_a0 = GETREAL ('Beam_a0','0.0')
+    omega_0 = GETREAL ('omega_0','1.')
+    omega_0_2inv =1.0/(omega_0**2)
+  
+  END SELECT
+END DO
+
+DEALLOCATE(RefStates)
+
 BCStateFile=GETSTR('BCStateFile','')
 !WRITE(DefBCState,'(I3,A,I3,A,I3,A,I3,A,I3,A,I3)') &
 !  IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc
@@ -144,9 +207,10 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,ONLY:PI
+USE MOD_Globals_Vars,            ONLY:PI,ElectronMass,ElectronCharge
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,WaveLength, c_inv
+USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
+                                     ,I_0,tFWHM, sigma_t, omega_0_2inv
 # if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
 # endif
@@ -166,7 +230,7 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative vari
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3),r,r2,zlen
-REAL                            :: a, b, d, l, m, n, B0            ! aux. Variables for Resonator-Example
+REAL                            :: a, b, d, l, m, nn, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
 REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/)          ! aux. Constants for Dipole
@@ -179,7 +243,10 @@ REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Consta
 REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
 REAL                            :: E_0(1:3), omegaW                ! electric field and omega for plane wave
 REAL                            :: WaveNumber                      ! wavenumber
+REAL                            :: scaleR0,local_a0,scaleR,timeFac,timeFac2
 INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
+INTEGER                         :: idir1,idir2,idir3
+REAL                            :: eta
 !===================================================================================================================================
 Cent=x
 SELECT CASE (ExactFunction)
@@ -219,7 +286,7 @@ CASE(3) ! Resonator
   !geometric perameters
   a=1.5; b=1.0; d=3.0
   !time parameters
-  l=5.; m=4.; n=3.; B0=1.
+  l=5.; m=4.; nn=3.; B0=1.
   IF(a.eq.0)THEN
     CALL abort(&
       __STAMP__&
@@ -235,16 +302,16 @@ CASE(3) ! Resonator
       __STAMP__&
       ,' Parameter d of resonator is zero!')
   END IF
-  omega = Pi*c*sqrt((m/a)**2+(n/b)**2+(l/d)**2)
+  omega = Pi*c*sqrt((m/a)**2+(nn/b)**2+(l/d)**2)
   gamma = sqrt((omega/c)**2-(l*pi/d)**2)
   IF(gamma.eq.0)THEN
     CALL abort(&
     __STAMP__&
     ,' gamma is computed to zero!')
   END IF
-  Psi      =   B0          * cos((m*pi/a)*x(1)) * cos((n*pi/b)*x(2))
-  GradPsiX = -(B0*(m*pi/a) * sin((m*pi/a)*x(1)) * cos((n*pi/b)*x(2)))
-  GradPsiY = -(B0*(n*pi/b) * cos((m*pi/a)*x(1)) * sin((n*pi/b)*x(2)))
+  Psi      =   B0          * cos((m*pi/a)*x(1)) * cos((nn*pi/b)*x(2))
+  GradPsiX = -(B0*(m*pi/a) * sin((m*pi/a)*x(1)) * cos((nn*pi/b)*x(2)))
+  GradPsiY = -(B0*(nn*pi/b) * cos((m*pi/a)*x(1)) * sin((nn*pi/b)*x(2)))
 
   resu(1)= (-omega/gamma**2) * sin((l*pi/d)*x(3)) *(-GradPsiY)* sin(omega*t)
   resu(2)= (-omega/gamma**2) * sin((l*pi/d)*x(3)) *  GradPsiX * sin(omega*t)
@@ -369,24 +436,7 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
   resu(5)=(COS(t)-1.)*resu(5)
   resu(6)=(COS(t)-1.)*resu(6)
 
-CASE(12) ! plane wave (Issam)
-  ! initial E vector
-  !IF(ALMOSTZERO(WaveVector(3)))THEN
-    !E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
-  !ELSE
-    !E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
-  !END IF
-  !E_0=E_0/SQRT(DOT_PRODUCT(E_0,E_0))  
-  !n= 2*pi/WaveLength
-  !ome=n*c  
-  !resu(1:3)=E_0*cos(n*DOT_PRODUCT(WaveVector,x)-ome*t)
-  !resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3))  
-                                  
-  !resu(7)= 0.0
-  !resu(8)= 0.0
-
-
-CASE(13) ! planar wave test case
+CASE(12) ! planar wave test case
   resu(:)=0.
 
   ! construct perpendicular electric field
@@ -402,26 +452,105 @@ CASE(13) ! planar wave test case
   resu(1:3)=E_0*cos(WaveNumber*DOT_PRODUCT(WaveVector,x)-omegaW*t)
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
 
-
 CASE(14) ! planar wave test case
-  resu(:)=0.
-
-  ! construct perpendicular electric field
-  IF(ABS(WaveVector(3)).LT.epsilontol)THEN
+  ! spatial gauss beam, still planar wave
+  ! scaled by intensity
+  eta=2.*SQRT(mu0/eps0)
+  IF(ALMOSTEQUAL(ABS(WaveVector(1)),1.))THEN
+    idir1=2
+    idir2=3
+    idir3=1
+  ELSE IF(ALMOSTEQUAL(ABS(WaveVector(2)),1.))THEN
+    idir1=1
+    idir2=3
+    idir3=2
+  ELSE IF(ALMOSTEQUAL(ABS(WaveVector(3)),1.))THEN
+    idir1=1
+    idir2=2
+    idir3=3
+  ELSE
+    !CALL abort(__STAMP__,'Wave-vector has to be parallel to one cartesian axis!')
+    CALL abort(__STAMP__,'wave vector only in x,y,z!')
+  END IF
+  ! vector of electric field
+  IF(ALMOSTZERO(WaveVector(3)))THEN
     E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
   ELSE
     E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
   END IF
-  ! normalize E-field
-  E_0=UNITVECTOR(E_0)
-  WaveNumber=2.*PI/WaveLength
-  omegaW=WaveNumber*c
-  resu(1:3)=E_0*cos(WaveNumber*DOT_PRODUCT(WaveVector,x)-omegaW*t)&
-            *EXP(-4*(x(2)-1.00)**2)&
-            *EXP(-4*(x(3)-1.00)**2)
-            !*EXP(-10*(x(1)-0.50)**2)&
-  resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
+  E_0=E_0/SQRT(DOT_PRODUCT(E_0,E_0))  
+  ! get wave number and period time
+  WaveNumber= 2*pi/WaveLength
+  omegaW=WaveNumber*c  
+  ! intensity * Gaussian filter in transversal and longitudinal direction
+  ! ATTENTION: the filter is applied to the intensity!!
+  scaleR = SQRT(eta*I_0*EXP(-((x(idir1)-WaveBasePoint(idir1))**2+(x(idir2)-WaveBasePoint(idir2))**2)*omega_0_2inv)) &
+           *SQRT(EXP(-(x(idir3)-WaveBasePoint(idir3))**2/(tFWHM*c)**2))
+  ! decide if pulse maxima is scaled by intensity or a_0 parameter
+  IF(ALMOSTZERO(Beam_a0))THEN
+    scaleR0=1.0
+    local_a0=1.
+  ELSE
+    scaleR0=1./SQRT(eta*I_0)
+    local_a0=Beam_a0*2.*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
+  END IF
+  ! build final coefficients
+  scaleR=scaleR*scaleR0*local_a0
+  timeFac=COS(WaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-omegaW*t)
+  resu(1:3)=scaleR*E_0*timeFac
+  resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
+  resu(7:8)=0.
 
+CASE(15) !Gauß-shape with perfektem Fokus
+  resu(1:8)=0.
+  IF (t.LE.8*sigma_t) THEN
+    eta=2.*SQRT(mu0/eps0)
+    IF(ALMOSTEQUAL(ABS(WaveVector(1)),1.))THEN
+      idir1=2
+      idir2=3
+      idir3=1
+    ELSE IF(ALMOSTEQUAL(ABS(WaveVector(2)),1.))THEN
+      idir1=1
+      idir2=3
+      idir3=2
+    ELSE IF(ALMOSTEQUAL(ABS(WaveVector(3)),1.))THEN
+      idir1=1
+      idir2=2
+      idir3=3
+    ELSE
+      !CALL abort(__STAMP__,'Wave-vector has to be parallel to one cartesian axis!')
+      CALL abort(__STAMP__,'wave vector only in x,y,z!')
+    END IF
+    ! vector of electric field
+    IF(ALMOSTZERO(WaveVector(3)))THEN
+      E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
+    ELSE
+      E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
+    END IF
+    E_0=E_0/SQRT(DOT_PRODUCT(E_0,E_0))  
+    ! get wave number and period time
+    WaveNumber= 2*pi/WaveLength
+    omegaW=WaveNumber*c  
+    ! intensity * Gaussian filter in transversal direction
+    ! ATTENTION: the filter is applied to the intensity!!
+    scaleR = SQRT(eta*I_0*EXP(-((x(idir1)-WaveBasePoint(idir1))**2+(x(idir2)-WaveBasePoint(idir2))**2)*omega_0_2inv))
+    ! decide if pulse maxima is scaled by intensity or a_0 parameter
+    IF(ALMOSTZERO(Beam_a0))THEN
+      scaleR0=1.0
+      local_a0=1.
+    ELSE
+      scaleR0=1./SQRT(eta*I_0)
+      local_a0=Beam_a0*2*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
+    END IF
+    ! build final coefficients
+    WaveBasePoint(idir3)=0.
+    scaleR=scaleR*scaleR0*local_a0
+    timeFac=COS(WaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-omegaW*(t-4*sigma_t))
+    timeFac2=SQRT(EXP(-0.5*((t-4*sigma_t)/sigma_t)**2))
+    resu(1:3)=scaleR*E_0*timeFac*timeFac2
+    resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
+    resu(7:8)=0.
+  END IF
 
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
@@ -595,11 +724,10 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
     END DO; END DO; END DO
   END DO
 
-CASE(12) ! plane wave (Issam)
+CASE(12) ! plane wave
+CASE(14) ! gauss pulse, spatial
+CASE(15) ! gauss pulse, temporal
 
-CASE(13) ! nothing to do
-
-CASE(14) ! nothing to do
 
 CASE(41) ! Dipole via temporal Gausspuls
 !t0=TEnd/5, w=t0/4 ! for pulsed Dipole (t0=offset and w=width of pulse)

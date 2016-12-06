@@ -320,7 +320,7 @@ DO iPart = 1, PDM%ParticleVecLength
           SampDSMC(iElem,PartSpecies(iPart))%ERot      = SampDSMC(iElem,PartSpecies(iPart))%ERot &
                                                        + PartStateIntEn(iPart,2) * PartMPF(iPart)
         END IF
-        IF (DSMC%ElectronicState) THEN
+        IF (DSMC%ElectronicModel) THEN
           SampDSMC(iElem,PartSpecies(iPart))%EElec     = SampDSMC(iElem,PartSpecies(iPart))%EElec &
                                                        + PartStateIntEn(iPart,3) * PartMPF(iPart)
         END IF
@@ -337,7 +337,7 @@ DO iPart = 1, PDM%ParticleVecLength
           SampDSMC(iElem,PartSpecies(iPart))%ERot      = SampDSMC(iElem,PartSpecies(iPart))%ERot &
                                                        + PartStateIntEn(iPart,2)
         END IF
-        IF (DSMC%ElectronicState) THEN
+        IF (DSMC%ElectronicModel) THEN
           SampDSMC(iElem,PartSpecies(iPart))%EElec     = SampDSMC(iElem,PartSpecies(iPart))%EElec &
                                                        + PartStateIntEn(iPart,3)
         END IF
@@ -444,13 +444,13 @@ DO iSpec = 1, nSpecies
                 , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant) 
           END IF       
           MacroDSMC(iElem,iSpec)%TRot = SampDSMC(iElem, iSpec)%ERot/(BoltzmannConst*SampDSMC(iElem,iSpec)%PartNum)
-          IF (DSMC%ElectronicState) THEN
+          IF (DSMC%ElectronicModel) THEN
             MacroDSMC(iElem,iSpec)%TElec= CalcTelec( SampDSMC(iElem,iSpec)%EElec/SampDSMC(iElem,iSpec)%PartNum, iSpec)
           END IF
         ELSE ! -----------------------------> LD (no differentiation in LD)
           MacroDSMC(iElem,iSpec)%TVib = MacroDSMC(iElem,iSpec)%Temp(4)
           MacroDSMC(iElem,iSpec)%TRot = MacroDSMC(iElem,iSpec)%Temp(4)
-          IF (DSMC%ElectronicState) THEN
+          IF (DSMC%ElectronicModel) THEN
             MacroDSMC(iElem,iSpec)%TElec= MacroDSMC(iElem,iSpec)%Temp(4)
           END IF
         END IF
@@ -485,7 +485,7 @@ DO iElem = 1, nElems ! element/cell main loop
                                                + MacroDSMC(iElem,iSpec)%TRot * MacroDSMC(iElem,iSpec)%PartNum
             MolecPartNum                       = MolecPartNum + MacroDSMC(iElem,iSpec)%PartNum
       END IF
-      IF ( DSMC%ElectronicState .AND. (SpecDSMC(iSpec)%InterID.NE.4) ) THEN
+      IF ( DSMC%ElectronicModel .AND. (SpecDSMC(iSpec)%InterID.NE.4) ) THEN
         MacroDSMC(iElem,nSpecies + 1)%TElec = MacroDSMC(iElem, nSpecies+1)%TElec &
                                             + MacroDSMC(iElem,iSpec)%TElec * MacroDSMC(iElem,iSpec)%PartNum
         HeavyPartNum                        = HeavyPartNum + MacroDSMC(iElem,iSpec)%PartNum
@@ -526,7 +526,7 @@ DO iElem = 1, nElems ! element/cell main loop
     END IF
 
 
-    IF ( DSMC%ElectronicState) THEN
+    IF ( DSMC%ElectronicModel) THEN
       MacroDSMC(iElem,nSpecies + 1)%TElec = MacroDSMC(iElem, nSpecies+1)%TElec / HeavyPartNum
     END IF
   END IF
