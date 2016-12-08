@@ -41,7 +41,6 @@ USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
-USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -164,12 +163,6 @@ IF (DSMC%WallModel.GT.1) THEN
   CALL Init_SurfDist()
 !   IF (CollisMode.EQ.3) 
   CALL Init_SurfChem()
-  ! initial distribution into equilibrium distribution
-#if (PP_TimeDiscMethod==42)
-  DO iSurf=1,3
-    CALL CalcDiffusion()
-  END DO
-#endif
 END IF
 
 END SUBROUTINE InitDSMCSurfModel
@@ -183,11 +176,12 @@ SUBROUTINE Init_SurfDist()
   USE MOD_Particle_Vars,          ONLY : nSpecies, Species, KeepWallParticles
   USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+  USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
 !===================================================================================================================================
   IMPLICIT NONE
 !=================================================================================================================================== 
 ! Local variable declaration
-  INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom
+  INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom, i
   INTEGER                          :: surfsquare, dist, Adsorbates
   INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
   REAL                             :: RanNum
@@ -536,6 +530,14 @@ DO subsurfxi = 1,nSurfSample
 END DO
 END DO
 END DO
+
+! initial distribution into equilibrium distribution
+#if (PP_TimeDiscMethod==42)
+  DO i=1,3
+    CALL CalcDiffusion()
+  END DO
+#endif
+
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
     
 END SUBROUTINE Init_SurfDist

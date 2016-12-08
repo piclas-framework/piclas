@@ -768,15 +768,14 @@ SUBROUTINE CalcBackgndPartDesorb()
   INTEGER, ALLOCATABLE              :: VibQuantWallPoly(:)
   REAL                              :: EvibOld, EvibWall, EVibNew
 !===================================================================================================================================
-ALLOCATE (&
-          desorbnum(1:nSpecies),&
+ALLOCATE (desorbnum(1:nSpecies),&
           reactdesorbnum(1:nSpecies),&
           adsorbnum(1:4),&
           nSites(1:4),&
           nSitesRemain(1:4),&
           remainNum(1:4),&
-          P_des(1:nSpecies),&
           adsorbates(1:nSpecies),&
+          P_des(1:nSpecies),&
           P_react(1:Adsorption%ReactNum),&
           P_actual_react(1:Adsorption%ReactNum+1),&
           Coord2(1:Adsorption%ReactNum),&
@@ -1159,8 +1158,8 @@ DO subsurfxi = 1,nSurfSample
     ! Sample vibrational energies transformed due to reaction (emitted particles sampled in surfflux routine)
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
-        SampleParts = Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec) &
-                    - Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+        SampleParts = Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) &
+                    - Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
         IF (SampleParts.GT.0) THEN
           IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
             iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray

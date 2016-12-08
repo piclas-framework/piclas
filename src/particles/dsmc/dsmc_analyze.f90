@@ -123,9 +123,9 @@ SUBROUTINE CalcSurfaceValues
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        DO iSpec=1,nSpecies
-          MacroSurfaceCoverage(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) / TimeSample
-        END DO ! iSpec=1,nSpecies
+!         DO iSpec=1,nSpecies
+!           MacroSurfaceCoverage(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) / TimeSample
+!         END DO ! iSpec=1,nSpecies
         DO iSpec=1,nSpecies
           MacroSurfaceCounter(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
           IF (DSMC%CalcSurfCollis_Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
