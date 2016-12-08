@@ -302,6 +302,7 @@ IF(time.EQ.tEnd)RETURN
 IF ((TRIM(DepositionType).EQ."shape_function")             &
 .OR.(TRIM(DepositionType).EQ."shape_function_1d")          &
 .OR.(TRIM(DepositionType).EQ."shape_function_spherical")   &
+.OR.(TRIM(DepositionType).EQ."shape_function_simple")      &
 .OR.(TRIM(DepositionType).EQ."shape_function_cylindrical"))THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
