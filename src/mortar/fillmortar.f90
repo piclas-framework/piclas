@@ -195,11 +195,12 @@ USE MOD_Mortar_Vars, ONLY: M_1_0,M_2_0
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,FS2M
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_PML_vars,    ONLY:PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT) :: Flux(1:PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT) :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)
 LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -209,8 +210,8 @@ INTEGER  :: p,q,l
 INTEGER  :: iMortar,nMortars
 INTEGER  :: firstMortarSideID,lastMortarSideID
 INTEGER  :: MortarSideID,SideID,iSide,flip
-REAL         :: Flux_tmp( PP_nVar,0:PP_N,0:PP_N,1:4)
-REAL         :: Flux_tmp2(PP_nVar,0:PP_N,0:PP_N,1:2)
+REAL         :: Flux_tmp( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:4)
+REAL         :: Flux_tmp2(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:2)
 REAL,POINTER :: M1(:,:),M2(:,:)
 !===================================================================================================================================
 
