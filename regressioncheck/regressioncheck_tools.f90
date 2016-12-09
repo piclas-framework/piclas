@@ -267,7 +267,7 @@ END SUBROUTINE GetExampleList
 SUBROUTINE InitExample(FilePath,FilePathLength,Example)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,  ONLY: tExample
+USE MOD_RegressionCheck_Vars,  ONLY: tExample,readRHS
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -278,7 +278,6 @@ TYPE(tExample),INTENT(INOUT)              :: Example
 ! LOCAL VARIABLES
 INTEGER                                   :: ioUnit
 INTEGER                                   :: iSTATUS,IndNum,IndNum2,IndNum3,MaxNum
-INTEGER                                   :: iSubExample
 CHARACTER(LEN=255)                        :: FileName,temp1,temp2
 LOGICAL                                   :: ExistFile
 !==================================================================================================================================
@@ -297,7 +296,10 @@ END IF
 
 ! init
 Example%MPIrun                 = .FALSE. ! don't use "mpirun" n default
-Example%MPIthreads             = 1       ! run with 1 MPI thread on default
+Example%MPIcommand             = 'mpirun'! use mpirun for running parallel simulations as default
+Example%MPIthreads             = '1'     ! run with 1 MPI thread on default
+Example%MPIthreadsN            = 1       ! minimum
+Example%nRuns                  = 1       ! minimum
 Example%nVar                   = 0
 Example%ReferenceTolerance     = -1.
 Example%SubExampleNumber       = 0       ! init total number of subexamples
@@ -311,61 +313,42 @@ DO ! extract reggie information
   IndNum=INDEX(temp1,'=')
   MaxNum=LEN(TRIM(temp1))
   IF(IndNum.GT.0)THEN ! definition found
+    readRHS(1)=temp1(1:IndNum-1)      ! parameter name
+    readRHS(2)=temp1(IndNum+1:MaxNum) ! parameter setting
     ! get size of EQNSYS (deprecated)
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'nVar')CALL str2int(temp1(IndNum+1:MaxNum),Example%nVar,iSTATUS)
+    IF(TRIM(readRHS(1)).EQ.'nVar')CALL str2int(readRHS(2),Example%nVar,iSTATUS)
     ! single or parallel
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'MPIrun')    CALL str2logical(temp1(IndNum+1:MaxNum),Example%MPIrun,iSTATUS) ! True/False
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'MPIthreads')CALL str2int(    temp1(IndNum+1:MaxNum),Example%MPIthreads,iSTATUS)!number of threads
+    IF(TRIM(readRHS(1)).EQ.'MPIrun')    CALL str2logical(readRHS(2),Example%MPIrun,iSTATUS) ! True/False
+    IF(TRIM(readRHS(1)).EQ.'MPIcommand')            Example%MPIcommand        =TRIM(ADJUSTL(readRHS(2)))
+    !IF(TRIM(readRHS(1)).EQ.'MPIthreads')CALL str2int(    readRHS(2),Example%MPIthreads,iSTATUS)!number of threads
+    IF(TRIM(readRHS(1)).EQ.'MPIthreads')CALL GetParameterList(ParameterList   = Example%MPIthreads,&
+                                                              nParameters     = 100,               &
+                                                              ParameterNumber = Example%MPIthreadsN)
+    ! number of scaling runs
+    IF(TRIM(readRHS(1)).EQ.'nRuns')CALL str2int(readRHS(2),Example%nRuns,iSTATUS)
     ! Reference Norm/State
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'ReferenceTolerance')CALL str2real(temp1(IndNum+1:MaxNum),Example%ReferenceTolerance,iSTATUS)
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'ReferenceFile')          Example%ReferenceFile         =TRIM(ADJUSTL(temp1(IndNum+1:MaxNum)))
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'ReferenceStateFile')     Example%ReferenceStateFile    =TRIM(ADJUSTL(temp1(IndNum+1:MaxNum)))
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'CheckedStateFile')       Example%CheckedStateFile      =TRIM(ADJUSTL(temp1(IndNum+1:MaxNum)))
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'ReferenceDataSetName')   Example%ReferenceDataSetName  =TRIM(ADJUSTL(temp1(IndNum+1:MaxNum)))
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'RestartFileName')        Example%RestartFileName       =TRIM(ADJUSTL(temp1(IndNum+1:MaxNum)))
+    IF(TRIM(readRHS(1)).EQ.'ReferenceTolerance')CALL str2real(readRHS(2),Example%ReferenceTolerance,iSTATUS)
+    IF(TRIM(readRHS(1)).EQ.'ReferenceFile')          Example%ReferenceFile         =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'ReferenceStateFile')     Example%ReferenceStateFile    =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'CheckedStateFile')       Example%CheckedStateFile      =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'ReferenceDataSetName')   Example%ReferenceDataSetName  =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'RestartFileName')        Example%RestartFileName       =TRIM(ADJUSTL(readRHS(2)))
     ! SubExamples - currently one subexample class is allowed with multiple options
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'SubExample')THEN
-      temp1=temp1(IndNum+1:MaxNum)
-      MaxNum=LEN(TRIM(temp1))
-      IndNum2=INDEX(temp1(1:MaxNum),'{')
-      IF(IndNum2.GT.0)THEN
-        Example%SubExample     = TRIM(ADJUSTL(temp1(1:IndNum2-1)))
-        temp1=TRIM(ADJUSTL(temp1(IndNum2+1:MaxNum)))
-        IndNum2=INDEX(temp1(1:MaxNum),'}')
-        IF(IndNum2.GT.0)THEN
-          temp1=temp1(1:IndNum2-1)
-          !IndNum2=1
-          DO iSubExample=1,19
-            IndNum2=INDEX(temp1(1:LEN(TRIM(temp1))),',')
-            Example%SubExampleNumber = Example%SubExampleNumber + 1 ! get total number of subexamples
-            IF(IndNum2.GT.0)THEN
-              Example%SubExampleOption(iSubExample)=TRIM(ADJUSTL(temp1(1:IndNum2-1)))
-              temp1=temp1(IndNum2+1:LEN(TRIM(temp1)))
-            ELSE
-              Example%SubExampleOption(iSubExample)=TRIM(ADJUSTL(temp1(1:LEN(TRIM(temp1)))))
-              EXIT
-            END IF
-          END DO 
-        ELSE
-          Example%SubExample       = ''
-          Example%SubExampleNumber = 0
-        END IF      
-      ELSE
-        Example%SubExample       = ''
-        Example%SubExampleNumber = 0
-      END IF
-    END IF
+    IF(TRIM(readRHS(1)).EQ.'SubExample') CALL GetParameterList(ParameterName   = Example%SubExample,       &
+                                                               ParameterList   = Example%SubExampleOption, &
+                                                               nParameters     = 20,                       &
+                                                               ParameterNumber = Example%SubExampleNumber)
     ! Line integration (e.g. integrate a property over time, the data is read from a .csv or .dat file)
     ! e.g. in parameter_reggie.ini: IntegrateLine= Database.csv   ,1            ,','       ,1:2        , 1.0e2
     !                                              data file name , header lines, delimiter, colums x:y, integral value
-    IF(TRIM(temp1(1:IndNum-1)).EQ.'IntegrateLine')THEN
+    IF(TRIM(readRHS(1)).EQ.'IntegrateLine')THEN
        Example%IntegrateLine            = .TRUE.
        Example%IntegrateLineRange(1:2)  = 0     ! init
        Example%IntegrateLineHeaderLines = 0     ! init
        Example%IntegrateLineDelimiter   = '999' ! init
-       IndNum2=INDEX(temp1(IndNum+1:MaxNum),',')
+       IndNum2=INDEX(readRHS(2),',')
        IF(IndNum2.GT.0)THEN ! get the name of the data file
-         temp2                     = temp1(IndNum+1:MaxNum)
+         temp2                     = readRHS(2)
          Example%IntegrateLineFile = TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! data file name
          temp2                     = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
          IndNum2                   = INDEX(temp2,',')
@@ -374,22 +357,14 @@ DO ! extract reggie information
            CALL str2int(temp2(1:IndNum2-1),Example%IntegrateLineHeaderLines,iSTATUS)
            temp2                   = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
            IndNum2                 = INDEX(temp2,"'")
-!print*,"IndNum2",IndNum2
            IF(IndNum2.GT.0)THEN ! get delimiter for separating the columns in the data file
              IndNum3=INDEX(temp2(IndNum2+1:LEN(TRIM(temp2))),"'")+IndNum2
-!print*,"IndNum3",IndNum3
-!print*,"temp2 ",temp2
-!read*
              Example%IntegrateLineDelimiter=temp2(IndNum2+1:IndNum3-1)
-!print*,"[",temp2(IndNum2+1:IndNum3-1),"]"
-!read*
              temp2                 = temp2(IndNum3+1:LEN(TRIM(temp2))) ! next
              IndNum2               = INDEX(temp2,',')
              IF(IndNum2.GT.0)THEN ! get column ranges
                temp2               = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
                IndNum2             = INDEX(temp2,',')
-!print*,"temp2 ",temp2
-!read*
                IndNum3=INDEX(temp2(1:IndNum2),':')
                IF(IndNum3.GT.0)THEN ! check range
                  CALL str2int(temp2(1        :IndNum3-1),Example%IntegrateLineRange(1),iSTATUS) ! column number 1
@@ -408,19 +383,81 @@ DO ! extract reggie information
       IF(Example%IntegrateLineFile.EQ.'')             Example%IntegrateLine=.FALSE.
       IF(Example%IntegrateLineHeaderLines.EQ.0)       Example%IntegrateLine=.FALSE.
       IF(Example%IntegrateLineDelimiter(1:3).EQ.'999')Example%IntegrateLine=.FALSE.
-!print*,"Example%IntegrateLineRange(1:2)  ",Example%IntegrateLineRange(1:2)
-!print*,"Example%IntegrateLineFile        ",Example%IntegrateLineFile
-!print*,"Example%IntegrateLineHeaderLines ",Example%IntegrateLineHeaderLines
-!print*,"Example%IntegrateLineDelimiter "  ,Example%IntegrateLineDelimiter
-!print*,"Example%IntegrateLineValue "      ,Example%IntegrateLineValue
-!read*
     END IF ! 'IntegrateLine'
     ! Next feature
-    !IF(TRIM(temp1(1:IndNum-1)).EQ.'NextFeature')
+    !IF(TRIM(readRHS(1)).EQ.'NextFeature')
   END IF ! IndNum.GT.0 -> definition found
 END DO
 CLOSE(ioUnit)
 END SUBROUTINE InitExample
+
+
+!==================================================================================================================================
+!> reads a list of parameters from parameter_reggie: Option=Name{parameter1,parameter2,parameter3,.....,parameterN}
+!> e.g. SubExample=TimeDiscMethod{standardrk3-3,niegemannrk4-14,toulorgerk4-8c}
+!>                 ParameterName   = TimeDiscMethod
+!>                 ParameterList   = [standardrk3-3,niegemannrk4-14,toulorgerk4-8c]
+!>                 ParameterNumber = 3
+!==================================================================================================================================
+SUBROUTINE GetParameterList(ParameterName,ParameterList,nParameters,ParameterNumber)
+! MODULES
+USE MOD_Globals
+USE MOD_RegressionCheck_Vars,  ONLY: tExample,readRHS
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)                       :: nParameters
+CHARACTER(LEN=*),INTENT(INOUT)           :: ParameterList(1:nParameters)
+CHARACTER(LEN=*),INTENT(INOUT),OPTIONAL  :: ParameterName
+INTEGER,INTENT(INOUT),OPTIONAL           :: ParameterNumber
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                   :: IndNum2,MaxNum
+INTEGER                                   :: iParameter
+CHARACTER(LEN=255)                        :: temp1
+!==================================================================================================================================
+temp1=readRHS(2)
+MaxNum=LEN(TRIM(temp1))
+IndNum2=INDEX(temp1(1:MaxNum),'{') ! check for bracket "{" -> indicates a list, otherwise only single argument is expected
+IF(IndNum2.GT.0)THEN
+  IF(PRESENT(ParameterName))THEN
+    ParameterName  = TRIM(ADJUSTL(temp1(1:IndNum2-1))) ! e.g. SubExample=[TimeDiscMethod]{sta...
+  END IF
+  temp1=TRIM(ADJUSTL(temp1(IndNum2+1:MaxNum))) ! e.g. SubExample=TimeDiscMethod{[sta...  ...enterrk4-5}]
+  IndNum2=INDEX(temp1(1:MaxNum),'}')
+  IF(IndNum2.GT.0)THEN
+  ParameterList=''  ! set default
+  ParameterNumber=0 ! set default
+    temp1=temp1(1:IndNum2-1) ! e.g. SubExample=TimeDiscMethod{[sta...  ...enterrk4-5]}
+    DO iParameter=1,19
+      IndNum2=INDEX(temp1(1:LEN(TRIM(temp1))),',')
+      ParameterNumber = ParameterNumber + 1 ! get total number of parameters in list {1,2,3,4,5,....,N}
+      IF(IndNum2.GT.0)THEN
+        ParameterList(iParameter)=TRIM(ADJUSTL(temp1(1:IndNum2-1)))
+        temp1=temp1(IndNum2+1:LEN(TRIM(temp1)))
+      ELSE
+        ParameterList(iParameter)=TRIM(ADJUSTL(temp1(1:LEN(TRIM(temp1)))))
+        EXIT
+      END IF
+    END DO 
+  ELSE
+    CALL abort(&
+      __STAMP__&
+      ,'GetParameterList: expecting closing bracket "}" in string')
+  END IF      
+ELSE ! no opening bracket "{" found, single argument is expected
+  IndNum2=INDEX(temp1(1:MaxNum),',') ! look for "," which would indicate an error
+  IF(IndNum2.GT.0)THEN
+    CALL abort(&
+      __STAMP__&
+      ,'GetParameterList(): found more than one parameter argument -> expecting brackets "{ }" in string')
+  ELSE ! single parameter argument expected
+    ParameterList(1)=TRIM(ADJUSTL(temp1(IndNum2+1:MaxNum)))
+    ParameterList(2:nParameters)=''
+    IF(PRESENT(ParameterNumber))ParameterNumber=1
+  END IF
+END IF
+END SUBROUTINE GetParameterList
 
 
 !==================================================================================================================================
@@ -637,7 +674,7 @@ ELSE
   SWRITE(UNIT_stdOut,'(A45,2x,A30,2x,A10,2x,A15,2x,A35,2x)') 'Example','SubExample','ErrorCode','build','Information'
   DO WHILE (ASSOCIATED(aError))
     IF(TRIM(TableRowSpacing).NE.TRIM(aError%Example))THEN
-      SWRITE(UNIT_stdOut,*) ''
+      SWRITE(UNIT_stdOut,'(A)') ''
     END IF
     TableRowSpacing=TRIM(aError%Example)
     SWRITE(UNIT_stdOut,'(A45,2x)',ADVANCE='no') TRIM(aError%Example)
@@ -649,7 +686,7 @@ ELSE
     SWRITE(UNIT_stdOut,'(I10,2x)',ADVANCE='no') aError%ErrorCode
     SWRITE(UNIT_stdOut,'(A15,2x)',ADVANCE='no') TRIM(aError%Build)
     SWRITE(UNIT_stdOut,'(A35,2x)',ADVANCE='no') TRIM(aError%Info)
-    SWRITE(UNIT_stdOut,*) ''
+    SWRITE(UNIT_stdOut,'(A)') ' '
     IF(aError%ErrorCode.NE.0) nErrors=nErrors+1
     aError=>aError%nextError
   END DO
@@ -717,7 +754,7 @@ END SUBROUTINE AddError
 !==================================================================================================================================
 !> Calculates current time (own function because of a laterMPI implementation)
 !==================================================================================================================================
-#ifdef MPI
+#if MPI
 FUNCTION REGGIETIME(Comm)
 USE MOD_Globals, ONLY:iError,MPI_COMM_WORLD
 USE mpi
@@ -729,7 +766,7 @@ FUNCTION REGGIETIME()
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifdef MPI
+#if MPI
 INTEGER, INTENT(IN),OPTIONAL    :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -738,7 +775,7 @@ REAL                            :: REGGIETIME
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !===================================================================================================================================
-#ifdef MPI
+#if MPI
 IF(PRESENT(Comm))THEN
   CALL MPI_BARRIER(Comm,iError)
 ELSE
