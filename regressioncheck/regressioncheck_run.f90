@@ -535,11 +535,11 @@ IF(TRIM(TIMEDISCMETHOD).EQ.'DSMC')THEN
   ! set main parameter.ini file: e.g. parameter_XXX_EQNSYSNAME.ini
   parameter_ini='parameter_'//CodeNameLowCase//'_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'_DSMC.ini'
   parameter_ini2='parameter_DSMC.ini'
-ELSE ! PIC or PIC-DSMC run
+ELSE ! standard flexi or PIC related simulation
   ! set main parameter.ini file: e.g. parameter_XXX_EQNSYSNAME.ini
   parameter_ini='parameter_'//CodeNameLowCase//'_'//TRIM(ADJUSTL(Examples(iExample)%EQNSYSNAME))//'.ini'
 
-  ! Check for DSMC in "parameter_ini" -> "UseDSMC=T"
+  ! PIC-DSMC run: Check for DSMC in "parameter_ini" -> "UseDSMC=T"
   CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),'UseDSMC',TempStr)
   IF(TempStr.EQ.'ParameterName does not exist'.OR.Tempstr.EQ.'file does not exist')THEN
     UseDSMC=.FALSE.
@@ -605,6 +605,7 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)')    ' MPIthreads (number of threads): ['//TRIM(Examples(iExample)%MPIthreadsStr(1))//']'
 END IF
 SWRITE(UNIT_stdOut,'(A)')      ' Reference:                      ['//TRIM(Examples(iExample)%ReferenceFile)//']'
+SWRITE(UNIT_stdOut,'(A)')      ' Reference Norm:                 ['//TRIM(Examples(iExample)%ReferenceNormFile)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' State:                          ['//TRIM(Examples(iExample)%ReferenceStateFile)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' HDF5 dataset:                   ['//TRIM(Examples(iExample)%ReferenceDataSetName)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' Restart:                        ['//TRIM(Examples(iExample)%RestartFileName)//']'
@@ -747,7 +748,7 @@ IF(iSTATUS.EQ.0)THEN ! Computation successful
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='no')  ' successful computation ...'
   CALL AddError('successful computation',iExample,iSubExample,ErrorStatus=0,ErrorCode=0)
 
-CALL str2int(Examples(iExample)%MPIthreadsStr(iScaling),MPIthreads,iSTATUS)
+  CALL str2int(Examples(iExample)%MPIthreadsStr(iScaling),MPIthreads,iSTATUS)
 ! copy the std.out file
 IF(Examples(iExample)%SubExample.EQ.'N')THEN!when polynomial degree "N" is the SubExample
   CALL str2int(Examples(iExample)%SubExampleOption(iSubExample),PolynomialDegree,iSTATUS)
