@@ -373,7 +373,7 @@ END SUBROUTINE CompareDataSet
 !==================================================================================================================================
 !> Read column number data from a file and integrates the values numerically
 !==================================================================================================================================
-SUBROUTINE IntegrateLine(RowCompare,iExample)
+SUBROUTINE IntegrateLine(IntegralCompare,iExample)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -383,7 +383,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)             :: iExample
-INTEGER,INTENT(OUT)            :: RowCompare
+INTEGER,INTENT(OUT)            :: IntegralCompare
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=1)               :: Delimiter
@@ -496,7 +496,7 @@ IntegralValuesAreEqual=AlmostEqualToTolerance( Q                                
                                                Examples(iExample)%IntegrateLineValue ,&
                                                5.e-2                                 )
 IF(.NOT.IntegralValuesAreEqual)THEN
-  RowCompare=1
+  IntegralCompare=1
   SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLines do not match! Error in computation!'
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' IntegrateLineValue                    = ',Q
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
@@ -504,7 +504,7 @@ IF(.NOT.IntegralValuesAreEqual)THEN
   !SWRITE(UNIT_stdOut,'(A,E21.14)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5
 ELSE
-  RowCompare=0
+  IntegralCompare=0
 END IF
 
 END SUBROUTINE IntegrateLine
