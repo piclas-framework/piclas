@@ -500,7 +500,7 @@ DO iProc=0,SurfCOMM%nProcs-1
 END DO ! iProc
 
 ! finish communication
-DO iProc=1,SurfCOMM%nProcs-1
+DO iProc=0,SurfCOMM%nProcs-1
   IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
   CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
@@ -653,9 +653,13 @@ END DO ! iProc
 ALLOCATE(SurfSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
-  ALLOCATE(SurfSendBuf(iProc)%content(2*SurfExchange%nSidesSend(iProc)),STAT=ALLOCSTAT)
-  SurfSendBuf(iProc)%Content=-1
-  ALLOCATE(SurfRecvBuf(iProc)%content(2*SurfExchange%nSidesRecv(iProc)),STAT=ALLOCSTAT)
+  IF(SurfExchange%nSidesSend(iProc).GT.0)THEN
+    ALLOCATE(SurfSendBuf(iProc)%content(2*SurfExchange%nSidesSend(iProc)),STAT=ALLOCSTAT)
+    SurfSendBuf(iProc)%Content=-1
+  END IF
+  IF(SurfExchange%nSidesRecv(iProc).GT.0)THEN
+    ALLOCATE(SurfRecvBuf(iProc)%content(2*SurfExchange%nSidesRecv(iProc)),STAT=ALLOCSTAT)
+  END IF
 END DO ! iProc=1,PartMPI%nMPINeighbors
  
 ! open receive buffer
@@ -675,6 +679,7 @@ END DO ! iProc
 ! after this message, the receiving process knows to which of his sides the sending process will send the 
   ! surface data
 DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   iSendSide=0
   iPos=1
   DO iSide=nSides+1,nTotalSides
@@ -739,6 +744,7 @@ END DO ! iProc
 ! fill list with received side ids
 ! store the receiving data
 DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
   ALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList(SurfExchange%nSidesRecv(iProc)))
   iPos=1
   DO iRecvSide=1,SurfExchange%nSidesRecv(iProc)
@@ -761,12 +767,16 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 DO iProc=1,SurfCOMM%nMPINeighbors
-  DEALLOCATE(SurfSendBuf(iProc)%content)
-  DEALLOCATE(SurfRecvBuf(iProc)%content)
-  ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
-  ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
-  SurfSendBuf(iProc)%content=0.
-  SurfRecvBuf(iProc)%content=0.
+  SDEALLOCATE(SurfSendBuf(iProc)%content)
+  SDEALLOCATE(SurfRecvBuf(iProc)%content)
+  IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
+    ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
+    SurfSendBuf(iProc)%content=0.
+  END IF
+  IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
+    ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
+    SurfRecvBuf(iProc)%content=0.
+  END IF
 END DO ! iProc
 DEALLOCATE(recv_status_list)
 
@@ -819,6 +829,7 @@ END DO ! iProc
 
 ! build message
 DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
@@ -864,6 +875,7 @@ END DO ! iProc
 
 ! add data do my list
 DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
   MessageSize=SurfExchange%nSidesSend(iProc)*nValues
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
