@@ -52,12 +52,18 @@ run_gnu:
   script:
     - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck
 
-run_gnu_build_mpi:
+build_gnu_mpi:
   stage: test
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build 2; fi
+
+build_gnu_HDF5_single_mpi:
+  stage: test
+  tags:
+    - withmodules
+  script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build build_HDF5_single_MPI 2; fi
 
 run_intel:
@@ -73,6 +79,12 @@ run_intel_build_mpi:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build 2; fi
+
+build_intel_HDF5_single_mpi:
+  stage: test
+  tags:
+    - withmodules
+  script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI 2; fi
 
 
