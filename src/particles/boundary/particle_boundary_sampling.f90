@@ -707,6 +707,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 __STAMP__&
           ,' Message too short!',iProc)
   IF(ANY(SurfSendBuf(iProc)%content.LE.0))THEN  
+    IPWRITE(UNIT_stdOut,*) ' nSendSides', SurfExchange%nSidesSend(iProc), ' to Proc ', iProc
     CALL abort(&
 __STAMP__&
           ,' Sent NATIVE_ELEM_ID or LOCSIDEID is zero!')
