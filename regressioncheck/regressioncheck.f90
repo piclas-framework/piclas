@@ -23,7 +23,7 @@ PROGRAM RegressionCheck
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_RegressionCheck_tools, ONLY: InitExample,CleanExample,GetExampleList,CheckForExecutable,GetCommandLineOption
+USE MOD_RegressionCheck_tools, ONLY: InitExample,GetExampleList,CheckForExecutable,GetCommandLineOption
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors
 USE MOD_RegressionCheck_Run,   ONLY: PerformRegressionCheck
 USE MOD_RegressionCheck_Vars,  ONLY: ExampleNames,Examples,firstError,aError,BuildSolver,nErrors
@@ -88,7 +88,7 @@ DEALLOCATE(Examples)
 ! Measure processing duration
 EndTime=REGGIETIME()
 
-#ifdef MPI
+#if MPI
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) CALL abort(&
   __STAMP__&
