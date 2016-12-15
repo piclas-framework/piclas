@@ -83,13 +83,10 @@ CALL abort(__STAMP__,&
   CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
   CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
   IF(CalcTemp.OR.CalcEint) DoAnalyze = .TRUE.
-  IF(CalcEkin) THEN
-    DoAnalyze = .TRUE.
-    IF (nSpecies .GT. 1) THEN
-      nEkin = nSpecies + 1
-    ELSE
-     nEkin = 1
-    END IF
+  IF(nSpecies.EQ.1) THEN
+    nSpeciesAnalyze=1
+  ELSE
+    nSpeciesAnalyze=nSpecies+1
   END IF
   CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
   IF (CalcPartBalance) THEN
@@ -210,10 +207,10 @@ SUBROUTINE AnalyzeParticles(Time)
   LOGICAL             :: isOpen, FileExists
   CHARACTER(LEN=350)  :: outfile
   INTEGER             :: unit_index, iSpec, OutputCounter
-  INTEGER(KIND=8)     :: SimNumSpec(nSpecies+1)
-  REAL                :: WEl, WMag, NumSpec(nSpecies+1)
-  REAL                :: Ekin(nSpecies + 1), Temp(nSpecies+1)
-  REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecies+1), Xi_Vib(nSpecies)
+  INTEGER(KIND=8)     :: SimNumSpec(nSpeciesAnalyze)
+  REAL                :: WEl, WMag, NumSpec(nSpeciesAnalyze)
+  REAL                :: Ekin(nSpeciesAnalyze), Temp(nSpeciesAnalyze)
+  REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpeciesAnalyze), Xi_Vib(nSpecies)
   REAL                :: MaxCollProb, MeanCollProb
 #ifdef MPI
   REAL                :: sumMeanCollProb
@@ -227,7 +224,7 @@ SUBROUTINE AnalyzeParticles(Time)
   INTEGER             :: ii, iunit, iCase, iTvib,jSpec, WallNumSpec(nSpecies)
   CHARACTER(LEN=64)   :: DebugElectronicStateFilename
   CHARACTER(LEN=350)  :: hilf
-  REAL                :: NumSpecTmp(nSpecies+1)
+  REAL                :: NumSpecTmp(nSpeciesAnalyze)
   REAL                :: WallCoverage(nSpecies), Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
 #endif
   REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
@@ -295,7 +292,7 @@ SUBROUTINE AnalyzeParticles(Time)
         !--- insert header
         WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
         IF (CalcNumSpec) THEN
-          DO iSpec = 1, nSpecies + 1
+          DO iSpec = 1, nSpeciesAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Spec-', iSpec,' '
             OutputCounter = OutputCounter + 1
@@ -333,14 +330,14 @@ SUBROUTINE AnalyzeParticles(Time)
           OutputCounter = OutputCounter + 1
         END IF
         IF (CalcEkin) THEN
-          DO iSpec=1, nEkin
+          DO iSpec=1, nSpeciesAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Ekin-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
         END IF
         IF (CalcTemp) THEN
-          DO iSpec=1, nSpecies + 1
+          DO iSpec=1, nSpeciesAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' -TempTra-',iSpec,' '
             OutputCounter = OutputCounter + 1
@@ -461,7 +458,7 @@ SUBROUTINE AnalyzeParticles(Time)
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempRot',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
-            DO iSpec=1, nSpecies+1
+            DO iSpec=1, nSpeciesAnalyze
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempTotal',iSpec,' '
               OutputCounter = OutputCounter + 1
@@ -640,7 +637,9 @@ tLBStart = LOCALTIME() ! LB Time Start
       NumSpecTmp = NumSpec
       IF(BGGas%BGGasSpecies.NE.0) THEN
         NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
-        NumSpecTmp(nSpecies+1) = NumSpecTmp(nSpecies+1)+NumSpecTmp(BGGas%BGGasSpecies)
+        IF(nSpeciesAnalyze.GT.1)THEN
+          NumSpecTmp(nSpeciesAnalyze) = NumSpecTmp(nSpeciesAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
+        END IF
       END IF
       CALL ReacRates(RRate, NumSpecTmp)
     END IF
@@ -660,7 +659,7 @@ IF (PartMPI%MPIROOT) THEN
 #endif    /* MPI */
   WRITE(unit_index,104,ADVANCE='NO') Time
     IF (CalcNumSpec) THEN
-      DO iSpec=1, nSpecies + 1
+      DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') REAL(SimNumSpec(iSpec))
       END DO
@@ -690,13 +689,13 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,104,ADVANCE='NO') WMag
     END IF
     IF (CalcEkin) THEN 
-      DO iSpec=1, nEkin
+      DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') Ekin(iSpec)
       END DO
     END IF
     IF (CalcTemp) THEN
-      DO iSpec=1, nSpecies + 1
+      DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') Temp(iSpec)
       END DO
@@ -783,7 +782,7 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
         END DO
-        DO iSpec=1, nSpecies+1
+        DO iSpec=1, nSpeciesAnalyze
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,104,ADVANCE='NO') TempTotal(iSpec)
         END DO
@@ -1202,8 +1201,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Equation_Vars,          ONLY : c2, c2_inv
 USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, Species, PDM
-USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PartMPF, usevMPF
-USE MOD_Particle_Analyze_Vars,  ONLY : nEkin
+USE MOD_PARTICLE_Vars,          ONLY : PartMPF, usevMPF
+USE MOD_Particle_Analyze_Vars,  ONLY : nSpeciesAnalyze
 #ifndef PP_HDG
 USE MOD_PML_Vars,               ONLY : DoPML,xyzPhysicalMinMax
 #endif /*PP_HDG*/ 
@@ -1216,18 +1215,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: Ekin(nEkin) 
+REAL,INTENT(OUT)                :: Ekin(nSpeciesAnalyze) 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
 REAL(KIND=8)              :: partV2, Gamma
 #ifdef MPI
-REAL                      :: RD(nEKIN)
+REAL                      :: RD(nSpeciesAnalyze)
 #endif /*MPI*/
 !===================================================================================================================================
 
 Ekin = 0.!d0
-IF (nEkin .GT. 1 ) THEN
+IF (nSpeciesAnalyze .GT. 1 ) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
 #ifndef PP_HDG
@@ -1245,10 +1244,10 @@ IF (nEkin .GT. 1 ) THEN
       IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000
   !       Ekin = Ekin + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 * PartMPF(i)            
         IF(usevMPF) THEN
-          Ekin(nSpecies+1)     = Ekin(nSpecies+1)     + 0.5 * Species(PartSpecies(i))%MassIC * partV2 * PartMPF(i)
+          Ekin(nSpeciesAnalyze)     = Ekin(nSpeciesAnalyze)     + 0.5 * Species(PartSpecies(i))%MassIC * partV2 * PartMPF(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + 0.5 * Species(PartSpecies(i))%MassIC * partV2 * PartMPF(i)
         ELSE
-          Ekin(nSpecies+1) = Ekin(nSpecies+1) + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
+          Ekin(nSpeciesAnalyze) = Ekin(nSpeciesAnalyze) + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
                                             *  Species(PartSpecies(i))%MacroParticleFactor
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
                                             *  Species(PartSpecies(i))%MacroParticleFactor
@@ -1258,10 +1257,10 @@ IF (nEkin .GT. 1 ) THEN
         Gamma = partV2*c2_inv
         Gamma = 1./SQRT(1.-Gamma)
         IF(usevMPF) THEN
-          Ekin(nSpecies+1)     = Ekin(nSpecies+1)     + PartMPF(i) * (Gamma-1.) * Species(PartSpecies(i))%MassIC * c2
+          Ekin(nSpeciesAnalyze)     = Ekin(nSpeciesAnalyze)     + PartMPF(i) * (Gamma-1.) * Species(PartSpecies(i))%MassIC * c2
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + PartMPF(i) * (Gamma-1.) * Species(PartSpecies(i))%MassIC * c2
         ELSE
-          Ekin(nSpecies+1)     = Ekin(nSpecies+1)     + (Gamma-1.) * Species(PartSpecies(i))%MassIC &
+          Ekin(nSpeciesAnalyze)     = Ekin(nSpeciesAnalyze)     + (Gamma-1.) * Species(PartSpecies(i))%MassIC &
                                                                    * Species(PartSpecies(i))%MacroParticleFactor * c2
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + (Gamma-1.) * Species(PartSpecies(i))%MassIC &
                                                                    * Species(PartSpecies(i))%MacroParticleFactor * c2
@@ -1269,7 +1268,7 @@ IF (nEkin .GT. 1 ) THEN
       END IF ! partV2
     END IF ! (PDM%ParticleInside(i))
   END DO ! i=1,PDM%ParticleVecLength
-ELSE ! nEkin = 1 : only 1 species
+ELSE ! nSpeciesAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
 #ifndef PP_HDG
@@ -1311,9 +1310,9 @@ END IF
 
 #ifdef MPI
 IF(PartMPI%MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,Ekin,nEkin,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Ekin,nSpeciesAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 ELSE
-  CALL MPI_REDUCE(Ekin  ,RD        ,nEkin,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(Ekin  ,RD        ,nSpeciesAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 END IF
 #endif /*MPI*/
 
@@ -1329,10 +1328,11 @@ SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY: PartMPF, usevMPF, PDM,Species,nSpecies,PartSpecies
-USE MOD_Particle_Analyze_Vars,  ONLY: CalcNumSpec
+USE MOD_Particle_Vars,          ONLY: PartMPF, usevMPF, PDM,Species,PartSpecies
+USE MOD_Particle_Analyze_Vars,  ONLY: CalcNumSpec,nSpeciesAnalyze
 USE MOD_DSMC_Vars,              ONLY: BGGas
 USE MOD_Particle_Mesh_Vars,     ONLY: Geo
+USE MOD_Particle_Vars,          ONLY: nSpecies
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
 #endif /*MPI*/
@@ -1342,14 +1342,14 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                   :: NumSpec(nSpecies+1)
-INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecies+1)
+REAL,INTENT(OUT)                   :: NumSpec(nSpeciesAnalyze)
+INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpeciesAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iPart
 #ifdef MPI
-REAL                               :: RD(nSpecies+1)
-INTEGER(KIND=8)                    :: ID(nSpecies+1)
+REAL                               :: RD(nSpeciesAnalyze)
+INTEGER(KIND=8)                    :: ID(nSpeciesAnalyze)
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -1366,8 +1366,10 @@ IF(usevMPF)THEN ! for MPF differentiate between real particle number and simulat
     NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
     SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
   END IF
-  NumSpec(nSpecies + 1)    = SUM(NumSpec(1:nSpecies))
-  SimNumSpec(nSpecies + 1) = SUM(SimNumSpec(1:nSpecies))
+  IF(nSpeciesAnalyze.GT.1)THEN
+    NumSpec(nSpeciesAnalyze)    = SUM(NumSpec(1:nSpecies))
+    SimNumSpec(nSpeciesAnalyze) = SUM(SimNumSpec(1:nSpecies))
+  END IF
 ELSE ! no mpf-simulated particle number = real particle number
   SimNumSpec = 0
   DO iPart=1,PDM%ParticleVecLength
@@ -1382,19 +1384,21 @@ ELSE ! no mpf-simulated particle number = real particle number
     NumSpec(BGGas%BGGasSpecies) = 0.
     SimNumSpec(BGGas%BGGasSpecies) = 0
   END IF
-  SimNumSpec(nSpecies + 1) = SUM(SimNumSpec(1:nSpecies))
-  NumSpec(nSpecies + 1) = SUM(NumSpec(1:nSpecies))
+  IF(nSpeciesAnalyze.GT.1)THEN
+    SimNumSpec(nSpeciesAnalyze) = SUM(SimNumSpec(1:nSpecies))
+    NumSpec(nSpeciesAnalyze) = SUM(NumSpec(1:nSpecies))
+  END IF
 END IF
 
 #ifdef MPI
 IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpeciesAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(CalcNumSpec) & 
-  CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecies+1,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpeciesAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
-  CALL MPI_REDUCE(NumSpec     ,RD         ,nSpecies+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(NumSpec     ,RD         ,nSpeciesAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(CalcNumSpec) & 
-  CALL MPI_REDUCE(SimNumSpec  ,ID         ,nSpecies+1,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(SimNumSpec  ,ID         ,nSpeciesAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*MPI*/
 
@@ -1409,19 +1413,20 @@ SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PARTICLE_Vars,         ONLY: nSpecies
+USE MOD_Particle_Analyze_Vars, ONLY: nSpeciesAnalyze
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_DSMC_Vars,             ONLY: SpecDSMC, PolyatomMolDSMC,CollisMode
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES 
-REAL, INTENT(IN)                   :: NumSpec(nSpecies+1)    ! number of real particles (already GLOBAL number)
+REAL, INTENT(IN)                   :: NumSpec(nSpeciesAnalyze)    ! number of real particles (already GLOBAL number)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)                  :: Temp(nSpecies+1)
+REAL, INTENT(OUT)                  :: Temp(nSpeciesAnalyze)
 REAL, INTENT(OUT)                  :: IntEn(nSpecies,3)
 REAL, INTENT(OUT)                  :: IntTemp(nSpecies,3)
-REAL, INTENT(OUT)                  :: TempTotal(nSpecies+1)
+REAL, INTENT(OUT)                  :: TempTotal(nSpeciesAnalyze)
 REAL, INTENT(OUT)                  :: Xi_Vib(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -1463,9 +1468,13 @@ IF (CollisMode.GT.1) THEN
       ELSE
         TempTotal(iSpec) = Temp(iSpec)
       END IF
-      TempTotal(nSpecies+1) = TempTotal(nSpecies+1) + TempTotal(iSpec)*NumSpec(iSpec)
+      IF(nSpeciesAnalyze.GT.1)THEN
+        TempTotal(nSpeciesAnalyze) = TempTotal(nSpeciesAnalyze) + TempTotal(iSpec)*NumSpec(iSpec)
+      END IF
     END DO
-    TempTotal(nSpecies+1) = TempTotal(nSpecies+1) / NumSpec(nSpecies+1)
+    IF(nSpeciesAnalyze.GT.1)THEN
+      TempTotal(nSpeciesAnalyze) = TempTotal(nSpeciesAnalyze) / NumSpec(nSpeciesAnalyze)
+    END IF
   END IF
 END IF
 
@@ -1480,6 +1489,7 @@ SUBROUTINE CalcTransTemp(Temp, NumSpec)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,         ONLY:PartState, PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_Particle_Analyze_Vars, ONLY:nSpeciesAnalyze
 #if (PP_TimeDiscMethod==1000)
 USE MOD_LD_Vars,               ONLY:BulkValues
 #endif
@@ -1548,9 +1558,13 @@ IF(PartMPI%MPIRoot)THEN
     TempDirec(iSpec,1:3) = Species(iSpec)%MassIC * (Mean_PartV2(iSpec,1:3) - MeanPartV_2(iSpec,1:3)) &
          / BoltzmannConst ! Temp calculation is limitedt to one species
     Temp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3))/3
-    Temp(nSpecies + 1) = Temp(nSpecies + 1) + Temp(iSpec)*NumSpec(iSpec)
+    IF(nSpeciesAnalyze.GT.1)THEN
+      Temp(nSpeciesAnalyze) = Temp(nSpeciesAnalyze) + Temp(iSpec)*NumSpec(iSpec)
+    END IF
   END DO
-  Temp(nSpecies+1) = Temp(nSpecies + 1) / NumSpec(nSpecies+1)
+  IF(nSpeciesAnalyze.GT.1)THEN
+    Temp(nSpeciesAnalyze)= Temp(nSpeciesAnalyze) / NumSpec(nSpeciesAnalyze)
+  END IF
 END IF
 #endif
 END SUBROUTINE CalcTransTemp
@@ -1702,15 +1716,16 @@ SUBROUTINE CalcIntTempsAndEn(IntTemp, IntEn,NumSpec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,      ONLY: PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
-USE MOD_DSMC_Vars,          ONLY: PartStateIntEn, SpecDSMC, DSMC
-USE MOD_DSMC_Analyze,       ONLY: CalcTVib, CalcTelec, CalcTVibPoly
-USE MOD_Particle_MPI_Vars,  ONLY: PartMPI
+USE MOD_Particle_Vars,         ONLY: PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_DSMC_Vars,             ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Analyze,          ONLY: CalcTVib, CalcTelec, CalcTVibPoly
+USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
+USE MOD_Particle_Analyze_Vars, ONLY: nSpeciesAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)               :: NumSpec(nSpecies+1)    ! number of real particles (already GLOBAL number)
+REAL, INTENT(IN)               :: NumSpec(nSpeciesAnalyze)    ! number of real particles (already GLOBAL number)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: IntTemp(nSpecies,3) , IntEn(nSpecies,3) 
