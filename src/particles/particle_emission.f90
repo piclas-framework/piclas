@@ -3093,7 +3093,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
-USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding
+USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas
@@ -3118,6 +3118,7 @@ INTEGER,ALLOCATABLE   :: TmpSideStart(:)                     ! Start of Linked L
 INTEGER,ALLOCATABLE   :: TmpSideNumber(:)                    ! Number of Particles in Sides in SurfacefluxBC
 INTEGER,ALLOCATABLE   :: TmpSideEnd(:)                       ! End of Linked List for Sides in SurfacefluxBC
 INTEGER,ALLOCATABLE   :: TmpSideNext(:)                      ! Next Side in same SurfacefluxBC (Linked List)
+REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 REAL                  :: totalArea
 REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN)     :: tmp_SubSideAreas, tmp_SubSideDmax
 REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN) :: tmp_Vec_nOut, tmp_Vec_t1, tmp_Vec_t2
@@ -3158,13 +3159,14 @@ IPWRITE(*,*)"totalArea/(pi) = ",totalArea/(ACOS(-1.))
 IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 #endif /*CODE_ANALYZE*/ 
 
-nDataBC=0
+nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
 DoSurfaceFlux=.FALSE.
 !-- 0.: allocate and initialize aux. data of BCs (SideLists for Surfacefluxes):
-ALLOCATE(BCdata_auxSF(1:nPartBound))
-DO iPartBound=1,nPartBound
-  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
-END DO
+!-----moved to end of InitializeVariables in particle_init!!!
+!ALLOCATE(BCdata_auxSF(1:nPartBound))
+!DO iPartBound=1,nPartBound
+!  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
+!END DO
 
 !-- 1.: read/prepare parameters and determine nec. BCs
 DO iSpec=1,nSpecies
@@ -3248,7 +3250,7 @@ TmpSideEnd = 0
 TmpSideNext = 0
 nDataBC=0
 DO iBC=1,nPartBound
-  IF (BCdata_auxSF(iBC)%SideNumber.EQ. -1) CYCLE !not set for SFs
+  IF (BCdata_auxSF(iBC)%SideNumber.EQ. -1) CYCLE !not set for SFs or CollectCharges
   nDataBC=nDataBC+1
   TmpMapToBC(nDataBC)=iBC
 END DO
@@ -3284,6 +3286,13 @@ DO iBC=1,nDataBC
   DO !follow BCSideID list seq. with iCount
     iCount=iCount+1
     BCdata_auxSF(TmpMapToBC(iBC))%SideList(iCount)=BCSideID
+
+    !-- BC-list specific data
+    DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+      BCdata_auxSF(TmpMapToBC(iBC))%LocalArea = BCdata_auxSF(TmpMapToBC(iBC))%LocalArea &
+        + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+    END DO; END DO
+
     !-- next Side
     IF (BCSideID .EQ. TmpSideEnd(iBC)) THEN
       IF (TmpSideNumber(iBC).NE.iCount) THEN
@@ -3299,6 +3308,22 @@ __STAMP__&
     BCSideID=TmpSideNext(BCSideID)
   END DO ! BCSideID (iCount)
 END DO !iBC
+!-- communicate areas
+#ifdef MPI
+   ALLOCATE( areasLoc(1:nPartBound) , areasGlob(1:nPartBound) )
+   areasLoc=0.
+   areasGlob=0.
+   DO iPartBound=1,nPartBound
+     areasLoc(iPartBound)=BCdata_auxSF(iPartBound)%LocalArea
+   END DO
+   CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+   DO iPartBound=1,nPartBound
+     BCdata_auxSF(iPartBound)%GlobalArea=areasGlob(iPartBound)
+     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-',iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
+   END DO
+   DEALLOCATE(areasLoc,areasGlob)
+#endif
+
 DEALLOCATE(TmpMapToBC &
           ,TmpSideStart &
           ,TmpSideNumber &

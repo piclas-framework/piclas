@@ -321,6 +321,15 @@ LOGICAL                                  :: FindNeighbourElems=.FALSE.
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart
 
+INTEGER :: nCollectChargesBCs
+INTEGER :: nDataBC_CollectCharges
+TYPE tCollectCharges
+  INTEGER                              :: BC
+  REAL                                 :: NumOfRealCharges
+  REAL                                 :: NumOfNewRealCharges
+  REAL                                 :: ChargeDist
+END TYPE
+TYPE(tCollectCharges), ALLOCATABLE     :: CollectCharges(:)
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

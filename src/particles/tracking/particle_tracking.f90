@@ -17,8 +17,13 @@ INTERFACE ParticleRefTracking
   MODULE PROCEDURE ParticleRefTracking
 END INTERFACE
 
+INTERFACE ParticleCollectCharges
+  MODULE PROCEDURE ParticleCollectCharges
+END INTERFACE
+
 PUBLIC::ParticleTracing
 PUBLIC::ParticleRefTracking
+PUBLIC::ParticleCollectCharges
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -1439,5 +1444,66 @@ DO ilocSide=1,6
 END DO
 
 END SUBROUTINE CheckPlanarInside
+
+
+
+SUBROUTINE ParticleCollectCharges()
+!===================================================================================================================================
+! Routine for communicating and evaluating collected charges on surfaces as floating potential
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF
+USE MOD_Equation_Vars,           ONLY : eps0
+USE MOD_TimeDisc_Vars,           ONLY : iter,IterDisplayStep,DoDisplayIter
+USE MOD_Particle_Vars,           ONLY : nCollectChargesBCs,CollectCharges,nDataBC_CollectCharges
+USE MOD_Particle_Boundary_Vars,  ONLY : PartBound
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,       ONLY : PartMPI
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iCC, currentBC
+#ifdef MPI
+REAL, ALLOCATABLE                :: NewRealChargesLoc(:),NewRealChargesGlob(:)
+#endif /*MPI*/
+!===================================================================================================================================
+#ifdef MPI
+ALLOCATE( NewRealChargesLoc(1:nCollectChargesBCs) , NewRealChargesGlob(1:nCollectChargesBCs) )
+NewRealChargesLoc=0.
+NewRealChargesGlob=0.
+DO iCC=1,nCollectChargesBCs
+  NewRealChargesLoc(iCC)=CollectCharges(iCC)%NumOfNewRealCharges
+END DO
+CALL MPI_ALLREDUCE(NewRealChargesLoc,NewRealChargesGlob,nCollectChargesBCs,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+DO iCC=1,nCollectChargesBCs
+  CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesGlob(iCC)
+END DO
+DEALLOCATE(NewRealChargesLoc,NewRealChargesGlob)
+#endif
+DO iCC=1,nCollectChargesBCs
+  CollectCharges(iCC)%NumOfRealCharges=CollectCharges(iCC)%NumOfRealCharges+CollectCharges(iCC)%NumOfNewRealCharges
+  CollectCharges(iCC)%NumOfNewRealCharges=0.
+  currentBC = CollectCharges(iCC)%BC
+  PartBound%Voltage_CollectCharges(currentBC) = ABS(CollectCharges(iCC)%ChargeDist)/eps0 &
+    *CollectCharges(iCC)%NumOfRealCharges/BCdata_auxSF(currentBC)%GlobalArea
+  IF(BCdata_auxSF(currentBC)%LocalArea.GT.0.) THEN
+    IF(DoDisplayIter)THEN
+      IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+        IPWRITE(*,'(I4,A,I2,2(x,E16.9))') 'Floating Potential and charges',iCC &
+          ,PartBound%Voltage_CollectCharges(CollectCharges(iCC)%BC),CollectCharges(iCC)%NumOfRealCharges
+      END IF
+    END IF
+  END IF
+END DO
+
+END SUBROUTINE ParticleCollectCharges
+
 
 END MODULE MOD_Particle_Tracking

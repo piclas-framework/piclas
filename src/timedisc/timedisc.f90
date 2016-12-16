@@ -3988,7 +3988,7 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif
 USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking,      ONLY: ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking,      ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges
 #endif /*PARTICLES*/
 USE MOD_HDG           ,ONLY: HDG
 ! IMPLICIT VARIABLE HANDLING
@@ -4114,6 +4114,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL MPIParticleSend()   ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()   ! finish communication
 #endif
+  CALL ParticleCollectCharges()
 END IF
 
 IF (t.GE.DelayTime) CALL ParticleInserting()
@@ -4218,6 +4219,7 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles
     CALL MPIParticleRecv()   ! finish communication
 #endif
+    CALL ParticleCollectCharges()
     CALL ParticleInserting()
   END IF
 #endif /*PARTICLES*/

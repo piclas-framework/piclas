@@ -94,6 +94,7 @@ TYPE(tSurfMeshSubSideData),ALLOCATABLE   :: SurfMeshSubSideData(:,:,:)  ! areas 
                                                                         ! (1:BezierSampleN,1:BezierSampleN,1:nBCSides)
 TYPE tBCdata_auxSF
   INTEGER                                :: SideNumber                  ! Number of Particles in Sides in SurfacefluxBC
+  REAL                                   :: GlobalArea, LocalArea       ! Sum of global and local tria-areas
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
 END TYPE tBCdata_auxSF
 TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:)             !aux. data of BCs for surfacefluxes, (1:nPartBound) (!!!)

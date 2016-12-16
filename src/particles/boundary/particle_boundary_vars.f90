@@ -90,7 +90,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: VibACC(:) 
   REAL    , ALLOCATABLE                  :: RotACC(:) 
   REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
-  REAL    , ALLOCATABLE                  :: Voltage(:)
+  REAL    , ALLOCATABLE                  :: Voltage(:), Voltage_CollectCharges(:)
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete

@@ -1143,7 +1143,7 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSw
 USE MOD_Globals,                ONLY:abort
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
-USE MOD_Particle_Vars,          ONLY:WriteMacroValues,nSpecies
+USE MOD_Particle_Vars,          ONLY:WriteMacroValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
@@ -1166,6 +1166,7 @@ INTEGER                           :: targetSpecies, iSwaps
 REAL                              :: RanNum
 REAL                              :: Xitild,EtaTild
 INTEGER                           :: p,q,SurfSideID
+INTEGER                           :: iCC
 !===================================================================================================================================
 
 CALL RANDOM_NUMBER(RanNum)
@@ -1217,6 +1218,14 @@ __STAMP__&
     END IF
   END IF
   IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
+    DO iCC=1,nCollectChargesBCs !-chargeCollect
+      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(GlobSideID))) THEN
+        CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
+          + Species(PartSpecies(PartID))%ChargeIC &
+          * Species(PartSpecies(PartID))%MacroParticleFactor
+        EXIT
+      END IF
+    END DO
     IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
       PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
@@ -1224,6 +1233,14 @@ __STAMP__&
     PDM%ParticleInside(PartID) = .FALSE.
     alpha=-1.
   ELSEIF (targetSpecies.gt.0) THEN !swap species
+    DO iCC=1,nCollectChargesBCs !-chargeCollect
+      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(GlobSideID))) THEN
+        CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
+          + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) &
+          * Species(PartSpecies(PartID))%MacroParticleFactor
+        EXIT
+      END IF
+    END DO
     PartSpecies(PartID)=targetSpecies
   END IF
 END IF
