@@ -325,18 +325,24 @@ IF (DoRestart) THEN
 
   SELECT CASE(BalanceMethod)
   CASE(0) ! old scheme
-    curiElem = 1
-    WeightSum=WeightSum/REAL(nProcessors)
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc)=curiElem - 1 
-      DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
-        CurWeight=CurWeight+ElemWeight(iElem)  
-        IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
-          curiElem = iElem + 1 
-          EXIT
-        END IF
-      END DO   
-    END DO
+    IF(nGlobalElems.EQ.nProcessors) THEN
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc) = iProc
+      END DO
+    ELSE
+      curiElem = 1
+      WeightSum=WeightSum/REAL(nProcessors)
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc)=curiElem - 1
+        DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
+          CurWeight=CurWeight+ElemWeight(iElem)
+          IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
+            curiElem = iElem + 1
+            EXIT
+          END IF
+        END DO
+      END DO
+    END IF
     offsetElemMPI(nProcessors)=nGlobalElems
   CASE(1)
     ! 1: last Proc receives the least load
