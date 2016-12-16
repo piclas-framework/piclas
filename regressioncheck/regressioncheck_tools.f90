@@ -130,12 +130,16 @@ ELSE
     IF(TRIM(RuntimeOptionType).EQ.'debug')THEN
       BuildDebug=.TRUE.
       RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays the complete 
-                                         ! compilation process for debugging
+                                    ! compilation process for debugging
     ELSEIF(TRIM(RuntimeOptionType).EQ.'no-debug')THEN
       BuildNoDebug=.TRUE.
-      RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays the complete 
+      RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays no putput 
     END IF
-    IF(TRIM(RuntimeOptionTypeII).EQ.'debug')BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
+    IF(TRIM(RuntimeOptionTypeII).EQ.'debug')THEN
+      BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
+    ELSEIF(TRIM(RuntimeOptionTypeII).EQ.'no-debug')THEN
+      BuildNoDebug=.TRUE. ! redirect std- and err-output channels to "/build_reggie/build_reggie.out"
+    END IF
     IF(TRIM(RuntimeOptionType).EQ.'run')RuntimeOptionType='run_basic'
   ELSE IF((TRIM(RuntimeOption).EQ.'--help').OR.(TRIM(RuntimeOption).EQ.'help').OR.(TRIM(RuntimeOption).EQ.'HELP')) THEN
     CALL Print_Help_Information()
