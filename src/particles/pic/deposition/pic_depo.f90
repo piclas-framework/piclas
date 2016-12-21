@@ -41,7 +41,7 @@ USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
 USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_PreProc,                ONLY:PP_N,PP_nElems
-USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY
+USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
@@ -63,7 +63,7 @@ REAL                      :: MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction, r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
-CHARACTER(32)             :: hilf
+CHARACTER(32)             :: hilf, hilf2
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -183,8 +183,10 @@ CASE('shape_function','shape_function_simple')
   !-- fixes for shape func depo at planar BCs
   NbrOfSFdepoFixes = GETINT('PIC-NbrOfSFdepoFixes','0')
   IF (NbrOfSFdepoFixes.GT.0) THEN
+    SFdepoFixesEps = GETREAL('PIC-SFdepoFixesEps','0.')
     SDEALLOCATE(SFdepoFixesGeo)
     SDEALLOCATE(SFdepoFixesChargeMult)
+    SDEALLOCATE(SFdepoFixesBounds)
     ALLOCATE(SFdepoFixesGeo(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(base,normal);1:3(x,y,z)
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(__STAMP__, &
@@ -194,6 +196,11 @@ CASE('shape_function','shape_function_simple')
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(__STAMP__, &
         'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesChargeMult!')
+    END IF
+    ALLOCATE(SFdepoFixesBounds(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(min,max);1:3(x,y,z)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesBounds!')
     END IF
     DO iSFfix=1,NbrOfSFdepoFixes
       WRITE(UNIT=hilf,FMT='(I2)') iSFfix
@@ -210,8 +217,37 @@ CASE('shape_function','shape_function_simple')
       END IF
       SFdepoFixesChargeMult(iSFfix) = &
         GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ChargeMult','1.')
+      WRITE(UNIT=hilf2,FMT='(E16.8)') -HUGE(1.0)
+      SFdepoFixesBounds(iSFfix,1,1)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-xmin',TRIM(hilf2))
+      SFdepoFixesBounds(iSFfix,1,2)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ymin',TRIM(hilf2))
+      SFdepoFixesBounds(iSFfix,1,3)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-zmin',TRIM(hilf2))
+      WRITE(UNIT=hilf2,FMT='(E16.8)') HUGE(1.0)
+      SFdepoFixesBounds(iSFfix,2,1)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-xmax',TRIM(hilf2))
+      SFdepoFixesBounds(iSFfix,2,2)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ymax',TRIM(hilf2))
+      SFdepoFixesBounds(iSFfix,2,3)   = GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-zmax',TRIM(hilf2))
     END DO
-  END IF
+    NbrOfSFdepoFixLinks = GETINT('PIC-NbrOfSFdepoFixLinks','0')
+    IF (NbrOfSFdepoFixLinks.GT.0) THEN
+      ALLOCATE(SFdepoFixLinks(1:NbrOfSFdepoFixLinks,1:2),STAT=ALLOCSTAT)
+      IF (ALLOCSTAT.NE.0) THEN
+        CALL abort(__STAMP__, &
+          'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesChargeMult!')
+      END IF
+      DO iSFfix=1,NbrOfSFdepoFixLinks
+        WRITE(UNIT=hilf,FMT='(I2)') iSFfix
+        SFdepoFixLinks(iSFfix,1:2) = &
+          GETINTARRAY('PIC-SFdepoFixLink'//TRIM(hilf),2,'1 , 2')
+        IF (   SFdepoFixLinks(iSFfix,1).GT.NbrOfSFdepoFixes &
+          .OR. SFdepoFixLinks(iSFfix,2).GT.NbrOfSFdepoFixes &
+          .OR. SFdepoFixLinks(iSFfix,1).LE.0 &
+          .OR. SFdepoFixLinks(iSFfix,2).LE.0) THEN
+          CALL abort(__STAMP__&
+            ,' SFdepoFixes not defined for Link ',iSFfix)
+        END IF
+      END DO
+    END IF !NbrOfSFdepoFixLinks>0
+  END IF !NbrOfSFdepoFixes>0
+
   VolumeShapeFunction=4./3.*PI*r_sf*r2_sf
   nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
   IF(MPIRoot)THEN
@@ -785,13 +821,14 @@ REAL                             :: radius2, S, S1, Fac(4), Fac2(4)
 REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
-REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
+REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3), caseShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
-INTEGER                          :: iSFfix
+INTEGER                          :: iSFfix, iSFfixLink
+LOGICAL                          :: DoCycle
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
 REAL                             :: DeltaIntCoeff,prefac, SFfixDistance
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
@@ -1089,23 +1126,59 @@ CASE('shape_function')
           ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
-        DO iSFfix = 0,NbrOfSFdepoFixes
+        caseShiftedPart=ShiftedPart
+        DO iSFfix = 0,NbrOfSFdepoFixes+NbrOfSFdepoFixLinks
+        DoCycle=.FALSE.
         chargedone(:) = .FALSE.
-        IF (iSFfix.GT.0) THEN !SFdepoFixes
+        IF (iSFfix.GT.0 .AND. iSFfix.LE.NbrOfSFdepoFixes) THEN !SFdepoFixes
+          ShiftedPart=caseShiftedPart
           SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
                         + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
                         + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
+          IF ( SFdepoFixesBounds(iSFfix,1,1).GT.ShiftedPart(1) .OR. ShiftedPart(1).GT.SFdepoFixesBounds(iSFfix,2,1) .OR. &
+               SFdepoFixesBounds(iSFfix,1,2).GT.ShiftedPart(2) .OR. ShiftedPart(2).GT.SFdepoFixesBounds(iSFfix,2,2) .OR. &
+               SFdepoFixesBounds(iSFfix,1,3).GT.ShiftedPart(3) .OR. ShiftedPart(3).GT.SFdepoFixesBounds(iSFfix,2,3) ) THEN
+            SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
+          END IF
           IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
             ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
-          ELSE IF (SFfixDistance .GT. 0.) THEN
+          ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
             CALL abort(&
 __STAMP__, &
-              'Particle is outside of SF-Fix-Plane!')
+              'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
           ELSE
             CYCLE !SF of mirrored particle would not reach any DOF
           END IF
           Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
-        ELSE
+        ELSE IF (iSFfix.GT.0 .AND. iSFfix.GT.NbrOfSFdepoFixes) THEN !SFdepoFixLinks
+          ShiftedPart=caseShiftedPart
+          DO iSFfixLink = SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) &
+            ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2) &
+            ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2)-SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) !fancy: 1.,then 2.
+            SFfixDistance = SFdepoFixesGeo(iSFfixLink,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfixLink,1,1)) &
+              + SFdepoFixesGeo(iSFfixLink,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfixLink,1,2)) &
+              + SFdepoFixesGeo(iSFfixLink,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfixLink,1,3))
+            IF (SFdepoFixesBounds(iSFfixLink,1,1).GT.ShiftedPart(1).OR.ShiftedPart(1).GT.SFdepoFixesBounds(iSFfixLink,2,1).OR. &
+                SFdepoFixesBounds(iSFfixLink,1,2).GT.ShiftedPart(2).OR.ShiftedPart(2).GT.SFdepoFixesBounds(iSFfixLink,2,2).OR. &
+                SFdepoFixesBounds(iSFfixLink,1,3).GT.ShiftedPart(3).OR.ShiftedPart(3).GT.SFdepoFixesBounds(iSFfixLink,2,3)) THEN
+              SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
+            END IF
+            IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
+              ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfixLink,2,1:3)
+            ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
+              IPWRITE(*,*)'Link:',SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1),SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2),iSFfixLink
+              CALL abort(__STAMP__, &
+                'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
+            ELSE
+              DoCycle=.TRUE. !CYCLE !SF of mirrored particle would not reach any DOF
+            END IF
+          END DO !iSFfixLink
+          IF (DoCycle) THEN
+            CYCLE
+          END IF
+          Fac = Fac2 * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1)) &
+            * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2))
+        ELSE IF (iSFfix.LE.0) THEN
           Fac = Fac2
         END IF
         kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -1201,22 +1274,58 @@ __STAMP__, &
           ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
-        DO iSFfix = 0,NbrOfSFdepoFixes
+        caseShiftedPart=ShiftedPart
+        DO iSFfix = 0,NbrOfSFdepoFixes+NbrOfSFdepoFixLinks
+        DoCycle=.FALSE.
         chargedone(:) = .FALSE.
-        IF (iSFfix.GT.0) THEN !SFdepoFixes
+        IF (iSFfix.GT.0 .AND. iSFfix.LE.NbrOfSFdepoFixes) THEN !SFdepoFixes
+          ShiftedPart=caseShiftedPart
           SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
                         + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
                         + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
+          IF ( SFdepoFixesBounds(iSFfix,1,1).GT.ShiftedPart(1) .OR. ShiftedPart(1).GT.SFdepoFixesBounds(iSFfix,2,1) .OR. &
+               SFdepoFixesBounds(iSFfix,1,2).GT.ShiftedPart(2) .OR. ShiftedPart(2).GT.SFdepoFixesBounds(iSFfix,2,2) .OR. &
+               SFdepoFixesBounds(iSFfix,1,3).GT.ShiftedPart(3) .OR. ShiftedPart(3).GT.SFdepoFixesBounds(iSFfix,2,3) ) THEN
+            SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
+          END IF
           IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
             ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
-          ELSE IF (SFfixDistance .GT. 0.) THEN
+          ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
             CALL abort(__STAMP__, &
-              'Particle is outside of SF-Fix-Plane!')
+              'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
           ELSE
             CYCLE !SF of mirrored particle would not reach any DOF
           END IF
           Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
-        ELSE
+        ELSE IF (iSFfix.GT.0 .AND. iSFfix.GT.NbrOfSFdepoFixes) THEN !SFdepoFixLinks
+          ShiftedPart=caseShiftedPart
+          DO iSFfixLink = SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) &
+                         ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2) &
+                         ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2)-SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) !fancy: 1.,then 2.
+            SFfixDistance = SFdepoFixesGeo(iSFfixLink,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfixLink,1,1)) &
+                          + SFdepoFixesGeo(iSFfixLink,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfixLink,1,2)) &
+                          + SFdepoFixesGeo(iSFfixLink,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfixLink,1,3))
+            IF (SFdepoFixesBounds(iSFfixLink,1,1).GT.ShiftedPart(1).OR.ShiftedPart(1).GT.SFdepoFixesBounds(iSFfixLink,2,1).OR. &
+                SFdepoFixesBounds(iSFfixLink,1,2).GT.ShiftedPart(2).OR.ShiftedPart(2).GT.SFdepoFixesBounds(iSFfixLink,2,2).OR. &
+                SFdepoFixesBounds(iSFfixLink,1,3).GT.ShiftedPart(3).OR.ShiftedPart(3).GT.SFdepoFixesBounds(iSFfixLink,2,3)) THEN
+              SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
+            END IF
+            IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
+              ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfixLink,2,1:3)
+            ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
+              IPWRITE(*,*)'Link:',SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1),SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2),iSFfixLink
+              CALL abort(__STAMP__, &
+                'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
+            ELSE
+              DoCycle=.TRUE. !CYCLE !SF of mirrored particle would not reach any DOF
+            END IF
+          END DO !iSFfixLink
+          IF (DoCycle) THEN
+            CYCLE
+          END IF
+          Fac = Fac2 * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1)) &
+                     * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2))
+        ELSE IF (iSFfix.LE.0) THEN
           Fac = Fac2
         END IF
         kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
