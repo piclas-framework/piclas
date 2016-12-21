@@ -1457,7 +1457,7 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF
 USE MOD_Equation_Vars,           ONLY : eps0
 USE MOD_TimeDisc_Vars,           ONLY : iter,IterDisplayStep,DoDisplayIter
-USE MOD_Particle_Vars,           ONLY : nCollectChargesBCs,CollectCharges,nDataBC_CollectCharges
+USE MOD_Particle_Vars,           ONLY : nCollectChargesBCs,CollectCharges
 USE MOD_Particle_Boundary_Vars,  ONLY : PartBound
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY : PartMPI
