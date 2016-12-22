@@ -56,6 +56,8 @@ USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep, CalcEpot
 USE MOD_Analyze_Vars,         ONLY:doAnalyze
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
+USE MOD_TimeAverage_Vars,     ONLY:doCalcTimeAverage
+USE MOD_TimeAverage,          ONLY:InitTimeAverage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -77,6 +79,9 @@ NAnalyze=GETINT('NAnalyze',DefStr)
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 Analyze_dt=GETREAL('Analyze_dt','0.')
 nSkipAnalyze=GETINT('nSkipAnalyze','1')
+doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
+IF(doCalcTimeAverage)  CALL InitTimeAverage()
+
 #ifndef PARTICLES
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
@@ -318,6 +323,8 @@ SUBROUTINE FinalizeAnalyze()
 ! MODULES
 USE MOD_Analyze_Vars
 USE MOD_AnalyzeField,     ONLY:FinalizePoyntingInt
+USE MOD_TimeAverage_Vars, ONLY:doCalcTimeAverage
+USE MOD_TimeAverage,      ONLY:FinalizeTimeAverage
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -328,6 +335,7 @@ IMPLICIT NONE
 SDEALLOCATE(Vdm_GaussN_NAnalyze)
 SDEALLOCATE(wAnalyze)
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
+IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 

@@ -554,6 +554,8 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg_vars.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation_vars.f90
+                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/timeavg.f90
+                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/timeavg_vars.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/getboundaryflux.f90)
 
 

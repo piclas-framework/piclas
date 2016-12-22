@@ -346,7 +346,6 @@ ERROR STOP 1
 END SUBROUTINE CollectiveStop
 
 
-
 SUBROUTINE CreateErrFile()
 !===================================================================================================================================
 ! Open file for error output
