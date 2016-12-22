@@ -276,7 +276,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
     IF(DG_SolutionLambdaExists)THEN
       CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
-      CALL RestartHDG(U) !
+      CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
     ELSE
       lambda=0.
     END IF
@@ -626,6 +626,7 @@ ELSE
   dt=1e-19
 END IF
 !print*,dt
+! use one push to correctly set the fields
 #if (PP_TimeDiscMethod==500)
     CALL RestartTimeStepPoisson(RestartTime) ! Euler Explicit, Poisson
 #else

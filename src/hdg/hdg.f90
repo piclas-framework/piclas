@@ -1527,22 +1527,6 @@ END DO
 END SUBROUTINE VectorDotProduct
 
 
-SUBROUTINE FinalizeHDG()
-!===================================================================================================================================
-! Finalizes variables necessary for hdg subroutines
-!===================================================================================================================================
-USE MOD_HDG_Vars
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-HDGInitIsDone = .FALSE.
-END SUBROUTINE FinalizeHDG
-
-
 
 SUBROUTINE ApplyPrecond(R, V)
 !===================================================================================================================================
@@ -1692,5 +1676,45 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
 END SUBROUTINE RestartHDG
 #endif /* PP_HDG*/
+
+
+
+SUBROUTINE FinalizeHDG()
+!===================================================================================================================================
+! Finalizes variables necessary for hdg subroutines
+!===================================================================================================================================
+USE MOD_HDG_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+HDGInitIsDone = .FALSE.
+SDEALLOCATE(NonlinVolumeFac)
+SDEALLOCATE(DirichletBC)
+SDEALLOCATE(NeumannBC)
+SDEALLOCATE(qn_face)
+SDEALLOCATE(qn_face_MagStat)
+SDEALLOCATE(delta)
+SDEALLOCATE(LL_minus)
+SDEALLOCATE(LL_plus)
+SDEALLOCATE(Lomega_m)
+SDEALLOCATE(Lomega_p)
+SDEALLOCATE(Domega)
+SDEALLOCATE(InvDhat)
+SDEALLOCATE(wGP_vol)
+SDEALLOCATE(JwGP_vol)
+SDEALLOCATE(Ehat)
+SDEALLOCATE(Smat)
+SDEALLOCATE(Tau)
+SDEALLOCATE(Fdiag)
+SDEALLOCATE(lambda)
+SDEALLOCATE(RHS_vol)
+SDEALLOCATE(Precond)
+SDEALLOCATE(InvPrecondDiag)
+END SUBROUTINE FinalizeHDG
+
 
 END MODULE MOD_HDG

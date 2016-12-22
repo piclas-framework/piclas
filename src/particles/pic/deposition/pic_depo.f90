@@ -159,7 +159,7 @@ CASE('nearest_gausspoint')
       ,'ERROR in pic_depo.f90: Cannot allocate Part Pos Gauss!')
     END IF
   END IF
-CASE('shape_function')
+CASE('shape_function','shape_function_simple')
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&
@@ -730,6 +730,7 @@ USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 ! only required for shape function??
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
@@ -757,6 +758,7 @@ INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp                                              
 INTEGER                          :: ElemID, iCase, ind
 REAL                             :: radius2, S, S1, Fac(4), Fac2(4)
+REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
@@ -1109,9 +1111,13 @@ __STAMP__, &
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
-                    radius2 = (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) &
-                            + (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) &
-                            + (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                    dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
+                    IF(dX.GT.r_sf) CYCLE
+                    dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID))
+                    IF(dY.GT.r_sf) CYCLE
+                    dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                    IF(dZ.GT.r_sf) CYCLE
+                    radius2 = dX*dX+dY*dY+dZ*dZ
                     !-- calculate charge and current density at ip point using a shape function
                     !-- currently only one shapefunction available, more to follow (including structure change)
                     IF (radius2 .LT. r2_sf) THEN
@@ -1216,9 +1222,13 @@ __STAMP__, &
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
-                      radius2 = (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) &
-                              + (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) &
-                              + (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                      dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
+                      IF(dX.GT.r_sf) CYCLE
+                      dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID))
+                      IF(dY.GT.r_sf) CYCLE
+                      dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                      IF(dZ.GT.r_sf) CYCLE
+                      radius2 = dX*dX+dY*dY+dZ*dZ
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius2 .LT. r2_sf) THEN
@@ -1443,6 +1453,203 @@ __STAMP__, &
       CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
     END DO ! iElem=1,PP_nElems
   END IF
+
+CASE('shape_function_simple')
+  IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+  Vec1(1:3) = 0.
+  Vec2(1:3) = 0.
+  Vec3(1:3) = 0.
+  IF (GEO%nPeriodicVectors.EQ.1) THEN
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+  END IF
+  IF (GEO%nPeriodicVectors.EQ.2) THEN
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+  END IF
+  IF (GEO%nPeriodicVectors.EQ.3) THEN
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+    Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
+  END IF
+  DO iPart=firstPart,LastPart
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
+      IF (usevMPF) THEN
+        Fac2(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
+      ELSE
+        Fac2(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf
+      END IF ! usevMPF
+      Fac2(1:3) = PartState(iPart,4:6)*Fac2(4)
+      !-- determine which background mesh cells (and interpolation points within) need to be considered
+      DO iCase = 1, NbrOfCases
+        DO ind = 1,3
+          ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+               casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+        END DO
+        DO iSFfix = 0,NbrOfSFdepoFixes
+          IF (iSFfix.GT.0) THEN !SFdepoFixes
+            SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
+                          + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
+                          + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
+            IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
+              ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
+            ELSE IF (SFfixDistance .GT. 0.) THEN
+              CALL abort(&
+  __STAMP__, &
+                'Particle is outside of SF-Fix-Plane!')
+            ELSE
+              CYCLE !SF of mirrored particle would not reach any DOF
+            END IF
+            Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
+          ELSE
+            Fac = Fac2
+          END IF
+          DO iElem=1,PP_nElems
+            dX = ABS(ShiftedPart(1) - ElemBaryNgeo(1,iElem))
+            IF(dX.GT.r_sf+ElemRadiusNGeo(iElem)) CYCLE
+            dY = ABS(ShiftedPart(2) - ElemBaryNgeo(2,iElem))
+            IF(dY.GT.r_sf+ElemRadiusNGeo(iElem)) CYCLE
+            dZ = ABS(ShiftedPart(3) - ElemBaryNgeo(3,iElem))
+            IF(dZ.GT.r_sf+ElemRadiusNGeo(iElem)) CYCLE
+            radius2 = dX*dX+dY*dY+dZ*dZ
+            IF(radius2.GT.r2_sf+ElemRadius2NGeo(iElem)) CYCLE
+#ifdef MPI
+            nDeposPerElem(iElem)=nDeposPerElem(iElem)+1
+#endif /*MPI*/
+            DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+              !-- calculate distance between gauss and particle
+              dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,iElem))
+              IF(dX.GT.r_sf) CYCLE
+              dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,iElem))
+              IF(dY.GT.r_sf) CYCLE
+              dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,iElem))
+              IF(dZ.GT.r_sf) CYCLE
+              radius2 = dX*dX+dY*dY+dZ*dZ
+              !-- calculate charge and current density at ip point using a shape function
+              !-- currently only one shapefunction available, more to follow (including structure change)
+              IF (radius2 .LT. r2_sf) THEN
+                S = 1 - r2_sf_inv * radius2
+              !radius2=GaussDistance(k,l,m)
+              !IF (radius2 .LT. 1.0) THEN
+              !  S = 1 -  radius2
+                S1 = S*S
+                DO expo = 3, alpha_sf
+                  S1 = S*S1
+                END DO
+                source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + Fac(1:3) * S1
+                source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + Fac(4) * S1
+              END IF
+            END DO; END DO; END DO
+          END DO ! iElem=1,PP_nElems
+        END DO !iSFfix
+      END DO ! iCase (periodicity)
+    END IF ! inside
+  END DO ! i
+#ifdef MPI           
+  IF(.NOT.DoInnerParts)THEN
+    Vec1(1:3) = 0.
+    Vec2(1:3) = 0.
+    Vec3(1:3) = 0.
+    IF (NbrOfextParticles .GT. 0) THEN
+      IF (GEO%nPeriodicVectors.EQ.1) THEN
+        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+      END IF
+      IF (GEO%nPeriodicVectors.EQ.2) THEN
+        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+      END IF
+      IF (GEO%nPeriodicVectors.EQ.3) THEN
+        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+        Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
+      END IF
+    END IF
+    DO iPart=1,NbrOfextParticles  !external Particles
+      IF (usevMPF) THEN
+        Fac2(4)= Species(ExtPartSpecies(iPart))%ChargeIC * ExtPartMPF(iPart)*w_sf
+      ELSE
+        Fac2(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
+      END IF ! usevMPF
+      Fac2(1:3) = ExtPartState(iPart,4:6)*Fac2(4)
+      !-- determine which background mesh cells (and interpolation points within) need to be considered
+      DO iCase = 1, NbrOfCases
+        DO ind = 1,3
+          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+               casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+        END DO
+        DO iSFfix = 0,NbrOfSFdepoFixes
+          IF (iSFfix.GT.0) THEN !SFdepoFixes
+            SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
+                          + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
+                          + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
+            IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
+              ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
+            ELSE IF (SFfixDistance .GT. 0.) THEN
+              CALL abort(__STAMP__, &
+                'Particle is outside of SF-Fix-Plane!')
+            ELSE
+              CYCLE !SF of mirrored particle would not reach any DOF
+            END IF
+            Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
+          ELSE
+            Fac = Fac2
+          END IF
+          DO iElem=1,PP_nElems
+            dX = ABS(ShiftedPart(1) - ElemBaryNgeo(1,iElem))
+            IF(dX.GT.r_sf+ElemRadiusNGeo(iElem)) CYCLE
+            dY = ABS(ShiftedPart(2) - ElemBaryNgeo(2,iElem))
+            IF(dY.GT.r_sf+ElemRadiusNGeo(iElem)) CYCLE
+            dZ = ABS(ShiftedPart(3) - ElemBaryNgeo(3,iElem))
+            IF(dZ.GT.r_sf+ElemRadiusNGeo(iElem)) CYCLE
+            radius2 = dX*dX+dY*dY+dZ*dZ
+            IF(radius2.GT.r2_sf+ElemRadius2NGeo(iElem)) CYCLE
+#ifdef MPI
+            nDeposPerElem(iElem)=nDeposPerElem(iElem)+1
+#endif /*MPI*/
+            DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+              !-- calculate distance between gauss and particle
+              dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,iElem))
+              IF(dX.GT.r_sf) CYCLE
+              dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,iElem))
+              IF(dY.GT.r_sf) CYCLE
+              dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,iElem))
+              IF(dZ.GT.r_sf) CYCLE
+              radius2 = dX*dX+dY*dY+dZ*dZ
+              !-- calculate charge and current density at ip point using a shape function
+              !-- currently only one shapefunction available, more to follow (including structure change)
+              IF (radius2 .LT. r2_sf) THEN
+                S = 1 - r2_sf_inv * radius2
+              !radius2=GaussDistance(k,l,m)
+              !IF (radius2 .LT. 1.0) THEN
+              !  S = 1 -  radius2
+                S1 = S*S
+                DO expo = 3, alpha_sf
+                  S1 = S*S1
+                END DO
+                source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + Fac(1:3) * S1
+                source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + Fac(4) * S1
+              END IF
+            END DO; END DO; END DO
+          END DO ! iElem=1,PP_nElems
+        END DO !iSFfix
+      END DO
+    END DO
+    ! deallocate external state
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+    NbrOfExtParticles=0
+  END IF
+#endif /*MPI*/
+
+  IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
+    ! map source from Equististant points on Gauss-Points
+    DO iElem=1,PP_nElems
+      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
+    END DO ! iElem=1,PP_nElems
+  END IF
+
 
 CASE('shape_function_1d')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
@@ -1920,9 +2127,13 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
-                    radius2 = (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) &
-                            + (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) &
-                            + (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                    dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
+                    IF(dX.GT.local_r_sf) CYCLE
+                    dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID))
+                    IF(dY.GT.local_r_sf) CYCLE
+                    dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                    IF(dZ.GT.local_r_sf) CYCLE
+                    radius2 = dX*dX+dY*dY+dZ*dZ
                     !-- calculate charge and current density at ip point using a shape function
                     !-- currently only one shapefunction available, more to follow (including structure change)
                     IF (radius2 .LT. local_r2_sf) THEN
@@ -2013,9 +2224,13 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
-                      radius2 = (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) &
-                              + (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) &
-                              + (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                      dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
+                      IF(dX.GT.local_r_sf) CYCLE
+                      dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID))
+                      IF(dY.GT.local_r_sf) CYCLE
+                      dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+                      IF(dZ.GT.local_r_sf) CYCLE
+                      radius2 = dX*dX+dY*dY+dZ*dZ
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius2 .LT. local_r2_sf) THEN

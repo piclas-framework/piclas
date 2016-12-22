@@ -462,6 +462,7 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
 ALLOCATE(offsetSideMPI(nProcessors))
 CALL MPI_ALLGATHER(nSides-nMPISides_YOUR,1,MPI_INTEGER,offsetSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+offsetSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   offsetSide = offsetSide + offsetSideMPI(iProc)
 END DO
