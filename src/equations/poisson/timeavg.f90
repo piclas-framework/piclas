@@ -235,9 +235,9 @@ USE MOD_PreProc
 USE MOD_DG_Vars          ,ONLY: U
 USE MOD_Mesh_Vars        ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output      ,ONLY: WriteTimeAverage
-USE MOD_Equation_Vars,   ONLY:E
-USE MOD_Timeaverage_Vars ,ONLY: UAvg,UFluc,CalcAvg,CalcFluc,iAvg,iFluc,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
-                           ,VarnamesAvgOut,VarNamesFlucOut
+USE MOD_Equation_Vars    ,ONLY: E
+USE MOD_Timeaverage_Vars ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
+                               ,VarnamesAvgOut,VarNamesFlucOut
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES

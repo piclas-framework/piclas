@@ -40,13 +40,15 @@ SUBROUTINE ImplicitNorm(t,coeff,Norm_R)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
 #ifndef PP_HDG
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
 USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,           ONLY:sdtCFLOne
+#else /* HDG */
+USE MOD_Equation,                ONLY:CalcSourceHDG
 #endif /*DG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -97,7 +99,13 @@ DO iElem=1,PP_nElems
   END DO ! k=0,PP_N
   Norm_R=Norm_R+Norm_e
 END DO ! iElem=1,PP_nElems
-#else 
+#else /*HDG*/
+DO iElem=1,PP_nElems
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
+    ImplicitSource(1:PP_nVar,i,j,k,iElem)= ImplicitSource(1:PP_nVar,i,j,k,iElem) + ExplicitSource(1:PP_nVar,i,j,k,iElem)
+  END DO; END DO; END DO !i,j,k    
+END DO !iElem 
 Norm_R=0.
 DO iElem=1,PP_nElems
   Norm_e=0.
@@ -105,7 +113,7 @@ DO iElem=1,PP_nElems
     DO j=0,PP_N
       DO i=0,PP_N
         DO iVar=1,PP_nVar
-          DeltaX=U(iVar,i,j,k,iElem)
+          DeltaX=U(iVar,i,j,k,iElem)+ImplicitSource(iVar,i,j,k,iElem)
           Norm_e = Norm_e + DeltaX*DeltaX
         END DO ! iVar=1,PP_nVar
       END DO ! i=0,PP_N
@@ -141,7 +149,8 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else
-USE MOD_HDG,                     ONLY: HDG
+USE MOD_HDG,                     ONLY:HDG
+USE MOD_DG_Vars,                 ONLY:U
 #endif /*PP_HDG*/
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
@@ -266,7 +275,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   END IF
   ! solve field to new stage 
   ImplicitSource=ExplicitSource
-#ifndef HDG
+#ifndef PP_HDG
   CALL LinearSolver(tStage,coeff,relTolerance)
 #else
   CALL HDG(tStage,U,iter)

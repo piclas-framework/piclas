@@ -2718,11 +2718,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs,RKdtFrac
-USE MOD_DG_Vars,                 ONLY:U
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,DoPrintConvInfo
 #ifdef PP_HDG
 USE MOD_Equation,                ONLY:CalcSourceHDG
 #else /*pure DG*/
+USE MOD_DG_Vars,                 ONLY:U
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor

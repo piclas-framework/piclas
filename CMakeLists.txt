@@ -559,7 +559,12 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/getboundaryflux.f90)
 
 
-FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/*.f90)
+FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
+                              ./src/linearsolver/linearsolver_vars.f90
+                              ./src/linearsolver/particlesolver.f90
+                              ./src/linearsolver/predictor.f90
+                              ./src/linearsolver/linearoperator/linearoperator.f90
+                              ./src/linearsolver/newton.f90)
 
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
