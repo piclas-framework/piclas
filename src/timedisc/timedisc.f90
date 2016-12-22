@@ -167,6 +167,8 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
                                      ,IterDisplayStep,DoDisplayIter
 USE MOD_TimeDisc_Vars,      ONLY: dt_Min
+USE MOD_TimeAverage_vars,   ONLY: doCalcTimeAverage
+USE MOD_TimeAverage,        ONLY: CalcTimeAverage
 #if (PP_TimeDiscMethod==201)                                                                                                         
 USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
 #endif
@@ -421,6 +423,8 @@ DO !iter_t=0,MaxIter
     ,'Error in tEndDiff or tAnalyzeDiff!')
   END IF
 
+  IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tFuture)
+
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
   CALL TimeStepByLSERK(time,iter,tEndDiff)
@@ -577,6 +581,7 @@ DO !iter_t=0,MaxIter
 #endif /*PP_HDG*/
       ! Write state to file
       IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+      IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tFuture)
 #ifndef PP_HDG
       ! Write state to file
       IF(DoPML) CALL TransformPMLVars()
