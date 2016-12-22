@@ -1317,6 +1317,7 @@ IF(DoRefMapping)THEN
           PartElemToSide(E2S_FLIP,iLocSide,NewElemID)=0
           ! and SideToElem
           PartSideToElem(S2E_ELEM_ID,newSideID)=newElemID
+          PartSideToElem(2:5,newSideID)=RecvMsg%SideToElem(2:5,SideID)
         END IF
       END DO 
       ! list from ElemToElemGlob mapped to process local element

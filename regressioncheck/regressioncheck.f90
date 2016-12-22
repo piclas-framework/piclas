@@ -7,8 +7,8 @@
 !> Each example consists of the mesh-file (h5), parameter file, regressiocheck.ini and a reference solution. In order to deal with
 !> different compiler, a relative high tolerance is set to 100*epsMach. Please note, that this scaling factor can be modified by
 !> the user.
-!> Usage: ./regressioncheck run   - uses the prev. built versions of boltzplatz and only runs the examples with the given executable
-!>        ./regressioncheck build - previous to the execution and comparison step, boltzplatz is built with all possible 
+!> Usage: ./regressioncheck run   - uses the prev. built binaries and only runs the examples with the given executable
+!>        ./regressioncheck build - previous to the execution and comparison step, binaries are built with all possible 
 !>                                - parameter combinations. each combination is tested with each example
 !> error codes are handled by a pointer list and summarized at the end of the program
 !> error codes: 0 - no error
@@ -16,19 +16,21 @@
 !>              2 - computation of example failed
 !>              3 - mismatch in norms
 !>              4 - mismatch in dataset
-!>             77 - no boltzplatz executable found for option run
+!>             77 - no executable found for option run
 !>             99 - fail of execute_system_command
 !==================================================================================================================================
 PROGRAM RegressionCheck
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_RegressionCheck_tools, ONLY: InitExample,CleanExample,GetExampleList,CheckForExecutable,GetCommandLineOption
+USE MOD_RegressionCheck_tools, ONLY: InitExample,GetExampleList,CheckForExecutable,GetCommandLineOption
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors
 USE MOD_RegressionCheck_Run,   ONLY: PerformRegressionCheck
 USE MOD_RegressionCheck_Vars,  ONLY: ExampleNames,Examples,firstError,aError,BuildSolver,nErrors
+USE MOD_RegressionCheck_Vars,  ONLY: CodeNameUppCase,CodeNameLowCase
 USE MOD_MPI,                   ONLY: InitMPI
 USE MOD_Mesh,                  ONLY: FinalizeMesh
+USE MOD_RegressionCheck_tools, ONLY: REGGIETIME
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -44,9 +46,22 @@ NULLIFY(aError)
 nReggieBuilds=0
 SYSCOMMAND=''
 FileName=''
-!ioUnit=GETFREEUNIT()
+CALL InitGlobals()
 CALL InitMPI()
-! Define parameters for Converter
+! Check Code Names
+IF(LEN(CodeNameUppCase).NE.LEN(ADJUSTL(TRIM(CodeNameUppCase))))       CALL abort(&
+  __STAMP__&
+  ,'CodeNameUppCase=['//CodeNameUppCase//']: the variable has an incorrect length!')
+IF((CodeNameUppCase.NE.'FLEXI').AND.(CodeNameUppCase.NE.'BOLTZPLATZ'))CALL abort(&
+  __STAMP__&
+  ,'CodeNameUppCase=['//CodeNameUppCase//']: the code name is unknown! Add here if it is correct.')
+IF(LEN(CodeNameLowCase).NE.LEN(ADJUSTL(TRIM(CodeNameLowCase))))       CALL abort(&
+  __STAMP__&
+  ,'CodeNameLowCase=['//CodeNameLowCase//']: the variable has an incorrect length!')
+IF((CodeNameLowCase.NE.'flexi').AND.(CodeNameLowCase.NE.'boltzplatz'))CALL abort(&
+  __STAMP__&
+  ,'CodeNameLowCase=['//CodeNameLowCase//']: the code name is unknown! Add here if it is correct.')
+
 
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')"  Little ReggressionCheck, add nice ASCII art here"
@@ -59,7 +74,7 @@ CALL GetCommandLineOption()
 IF(.NOT.BuildSolver) CALL CheckForExecutable(Mode=1)
 
 ! Measure regressioncheck runtime 
-StartTime=BOLTZPLATZTIME()
+StartTime=REGGIETIME()
 
 ! check if examples are checked out and get list
 CALL GetExampleList()
@@ -72,9 +87,9 @@ DEALLOCATE(ExampleNames)
 DEALLOCATE(Examples)
 
 ! Measure processing duration
-EndTime=BOLTZPLATZTIME()
+EndTime=REGGIETIME()
 
-#ifdef MPI
+#if MPI
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) CALL abort(&
   __STAMP__&

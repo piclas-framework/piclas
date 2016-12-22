@@ -473,7 +473,7 @@ __STAMP__&
     IF(CalcPartBalance) THEN
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
-      IF(PDM%CurrentNextFreePosition.GT.0)THEN
+      IF(NbrOfParticle.GT.0)THEN
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
         IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
           nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
@@ -3854,6 +3854,7 @@ __STAMP__&
     IF(CalcPartBalance) THEN
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
       IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
+        print*,'herre'
         nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
@@ -3861,6 +3862,7 @@ __STAMP__&
                                   PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
       ELSE
+        print*,'or here'
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)

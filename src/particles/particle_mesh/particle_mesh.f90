@@ -854,6 +854,7 @@ SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',hal
 IF ((DepositionType.EQ.'shape_function')             &
 .OR.(DepositionType.EQ.'shape_function_cylindrical') &
 .OR.(DepositionType.EQ.'shape_function_spherical')   &
+.OR.(DepositionType.EQ.'shape_function_simple')      &
 .OR.(DepositionType.EQ.'shape_function_1d')          )THEN
   BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
   BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
@@ -998,6 +999,7 @@ nShapePaddingY = 0
 nShapePaddingZ = 0
 IF ((DepositionType.EQ.'shape_function')             &
 .OR.(DepositionType.EQ.'shape_function_cylindrical') &
+.OR.(DepositionType.EQ.'shape_function_simple')      &
 .OR.(DepositionType.EQ.'shape_function_spherical')   &
 .OR.(DepositionType.EQ.'shape_function_1d')          )THEN
   nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
@@ -2631,7 +2633,7 @@ REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo
 INTEGER                                  :: NGeo3,NGeo2, nLoop
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
 REAL                                     :: Distance ,maxScaleJ
-REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
+REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
 LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh, isBilinear
 !===================================================================================================================================
 
@@ -3318,8 +3320,13 @@ IF(DoRefMapping)THEN
                 !all nodes of current side
                 DO s=firstBezierPoint,lastBezierPoint
                   DO r=firstBezierPoint,lastBezierPoint
-                    IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
-                                       ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                    dX=ABS(xNodes(1,r,s)-NodeX(1))
+                    IF(dX.GT.halo_eps) CYCLE
+                    dY=ABS(xNodes(2,r,s)-NodeX(2))
+                    IF(dY.GT.halo_eps) CYCLE
+                    dZ=ABS(xNodes(3,r,s)-NodeX(3))
+                    IF(dZ.GT.halo_eps) CYCLE
+                    IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.halo_eps)THEN
                       IF(SideIndex(iSide).EQ.0)THEN
                         BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
                         SideIndex(iSide)=BCElem(iElem)%lastSide

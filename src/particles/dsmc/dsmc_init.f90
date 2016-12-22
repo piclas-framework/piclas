@@ -1199,13 +1199,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(DSMC_RHS)
 SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(SpecDSMC)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags)
+SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
   SDEALLOCATE(DSMC%QualityFactors)
@@ -1214,6 +1214,7 @@ SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
+SDEALLOCATE(QKBackWard)
 SDEALLOCATE(ChemReac%QKProcedure)
 SDEALLOCATE(ChemReac%QKMethod)
 SDEALLOCATE(ChemReac%QKCoeff)
@@ -1235,6 +1236,8 @@ SDEALLOCATE(ChemReac%CEXb)
 SDEALLOCATE(ChemReac%MEXa)
 SDEALLOCATE(ChemReac%MEXb)
 SDEALLOCATE(ChemReac%ReactInfo)
+SDEALLOCATE(ChemReac%ReactNumRecomb)
+SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(CollInf%Coll_Case)
 SDEALLOCATE(CollInf%Coll_CaseNum)
 SDEALLOCATE(CollInf%Coll_SpecPartNum)
