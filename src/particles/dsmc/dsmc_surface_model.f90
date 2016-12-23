@@ -766,6 +766,7 @@ SUBROUTINE CalcBackgndPartDesorb()
   INTEGER                           :: iPolyatMole, iDOF
   INTEGER                           :: VibQuantWall
   INTEGER, ALLOCATABLE              :: VibQuantWallPoly(:)
+  REAL, ALLOCATABLE                 :: RanNumPoly(:)
   REAL                              :: EvibOld, EvibWall, EVibNew
 !===================================================================================================================================
 ALLOCATE (desorbnum(1:nSpecies),&
@@ -1155,7 +1156,7 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
                         - Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
-    ! Sample vibrational energies transformed due to reaction (emitted particles sampled in surfflux routine)
+    ! Sample vibrational energies transformed into bound chemical due to reaction (emitted particles sampled in surfflux routine)
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
         SampleParts = Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) &
@@ -1163,7 +1164,13 @@ DO subsurfxi = 1,nSurfSample
         IF (SampleParts.GT.0) THEN
           IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
             iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-            ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+            ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+            CALL RANDOM_NUMBER(RanNumPoly)
+            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+            DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+              CALL RANDOM_NUMBER(RanNumPoly)
+              VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+            END DO
           END IF
           EvibNew = 0.
           DO iPart = 1,SampleParts
@@ -1189,7 +1196,7 @@ DO subsurfxi = 1,nSurfSample
                                               + EvibNew * Species(iSpec)%MacroParticleFactor
           END DO
         END IF
-        
+        SDEALLOCATE(RanNumPoly)
         SDEALLOCATE(VibQuantWallPoly)
       END IF
     END IF
