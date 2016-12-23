@@ -94,6 +94,7 @@ INTEGER                                  :: PartCommSize0                    ! N
 TYPE tMPIMessage
   REAL,ALLOCATABLE                      :: content(:)                        ! message buffer real
   LOGICAL,ALLOCATABLE                   :: content_log(:)                    ! message buffer logical for BGM
+  INTEGER,ALLOCATABLE                   :: content_int(:)                    ! message buffer for integer for adsorption
 END TYPE
 
 TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)                             ! PartRecvBuf with all required types
@@ -101,6 +102,12 @@ TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! P
 
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! PartRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! PartSendBuf with all requried types
+
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistRecvBuf(:)                         ! SurfDistRecvBuf with all requried types
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistSendBuf(:)                         ! SurfDistSendBuf with all requried types
+
+TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbRecvBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbSendBuf(:)
 
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! only mpi neighbors

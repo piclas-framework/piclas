@@ -264,6 +264,7 @@ SUBROUTINE InitSurfCommunicator()
 ! origin face
 ! SurfCOMM%OutputCOMM is another subset. This communicator contains only the processes with origin surfaces. It is used to perform
 ! collective writes of the surf-sampled values.
+! Sets also used for communication of adsorption variables
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

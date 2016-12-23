@@ -35,12 +35,17 @@ SUBROUTINE InitDSMCSurfModel()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                ONLY : abort
-USE MOD_Mesh_Vars,              ONLY : nElems, nBCSides, BC
+USE MOD_Mesh_Vars,              ONLY : nElems!, BC
 USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC!, CollisMode
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
+USE MOD_Particle_Mesh_Vars,     ONLY : nTotalSides
 USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh!, PartBound
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
+USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -50,7 +55,10 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES                                                                      !
   CHARACTER(32)                    :: hilf
-  INTEGER                          :: iSpec, iSide, iSurf, IDcounter
+  INTEGER                          :: iSpec, iSide!, iSurf, IDcounter
+#ifdef MPI
+  INTEGER                          :: iProc
+#endif
 !===================================================================================================================================
 KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
 IF (KeepWallParticles) THEN
@@ -118,22 +126,26 @@ ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nS
           Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nSides),&
-          Adsorption%DensSurfAtoms(1:SurfMesh%nSides))
+          Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nTotalSides),&
+          Adsorption%DensSurfAtoms(1:SurfMesh%nTotalSides))
 IF (DSMC%WallModel.EQ.2) THEN
   ALLOCATE( Adsorption%ProbSigAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
             Adsorption%ProbSigDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
             Adsorption%Sigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
             Adsorption%ProbSigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies))
 END IF
-IDcounter = 0         
-DO iSide = 1,nBCSides 
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-    IDcounter = IDcounter + 1
-    Adsorption%SurfSideToGlobSideMap(IDcounter) = iSide
-  END IF
+! IDcounter = 0
+Adsorption%SurfSideToGlobSideMap(:) = -1
+DO iSide = 1,nTotalSides
+!   IF(BC(iSide).EQ.0) CYCLE
+!   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
+!     IDcounter = IDcounter + 1
+!     Adsorption%SurfSideToGlobSideMap(IDcounter) = iSide
+!   END IF
+  IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
+  Adsorption%SurfSideToGlobSideMap(SurfMesh%SideIDToSurfID(iSide)) = iSide
 END DO
 ! DO iSurf = 1,SurfMesh%nSides
 !   WRITE(UNIT=hilf,FMT='(I2)') iSurf
@@ -151,6 +163,18 @@ Adsorption%ProbDes(:,:,:,:) = 0.
 Adsorption%SumDesorbPart(:,:,:,:) = 0
 Adsorption%SumAdsorbPart(:,:,:,:) = 0
 Adsorption%SumReactPart(:,:,:,:) = 0
+
+#ifdef MPI
+! allocate send and receive buffer
+ALLOCATE(AdsorbSendBuf(SurfCOMM%nMPINeighbors))
+ALLOCATE(AdsorbRecvBuf(SurfCOMM%nMPINeighbors))
+DO iProc=1,SurfCOMM%nMPINeighbors
+  ALLOCATE(AdsorbSendBuf(iProc)%content_int(nSpecies*(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+  ALLOCATE(AdsorbRecvBuf(iProc)%content_int(nSpecies*(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+  AdsorbSendBuf(iProc)%content_int=0
+  AdsorbRecvBuf(iProc)%content_int=0
+END DO ! iProc
+#endif /*MPI*/
 
 IF (DSMC%WallModel.EQ.2) THEN
   Adsorption%ProbSigAds(:,:,:,:,:) = 0.
@@ -177,6 +201,11 @@ SUBROUTINE Init_SurfDist()
   USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
   USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
+#ifdef MPI
+  USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
+  USE MOD_Particle_MPI_Vars,      ONLY : SurfDistSendBuf,SurfDistRecvBuf,SurfExchange
+!   USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo
+#endif /*MPI*/
 !===================================================================================================================================
   IMPLICIT NONE
 !=================================================================================================================================== 
@@ -187,6 +216,9 @@ SUBROUTINE Init_SurfDist()
   REAL                             :: RanNum
   INTEGER                          :: xpos, ypos
   INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
+#ifdef MPI
+  INTEGER                          :: iProc, CommSize
+#endif
 !===================================================================================================================================
 ! position of binding sites in the surface lattice (rectangular lattice)
 !------------[        surfsquare       ]--------------
@@ -212,8 +244,8 @@ SUBROUTINE Init_SurfDist()
 ! Neighbours are all sites, that have the same binding surface atom. 
 ! Except for top sites(3) they also interact with the next top site.
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
-ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides))
-DO iSurfSide = 1,SurfMesh%nSides
+ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
+DO iSurfSide = 1,SurfMesh%nTotalSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1:3),&
@@ -229,7 +261,7 @@ IF (.NOT.KeepWallParticles) THEN
   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
 END IF
 
-DO iSurfSide = 1,SurfMesh%nSides
+DO iSurfSide = 1,SurfMesh%nTotalSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     IF (KeepWallParticles) THEN ! does not work with vMPF
@@ -285,7 +317,7 @@ DO iSurfSide = 1,SurfMesh%nSides
   END DO
 END DO
 
-DO iSurfSide = 1,SurfMesh%nSides
+DO iSurfSide = 1,SurfMesh%nTotalSides
 DO subsurfeta = 1,nSurfSample
 DO subsurfxi = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions
@@ -488,7 +520,14 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%BondAtomIndy(Surfpos,1) = Indy
     Indx = Indx + 1
   END DO
-    
+  
+END DO
+END DO
+END DO
+
+DO iSurfSide = 1,SurfMesh%nSides
+DO subsurfeta = 1,nSurfSample
+DO subsurfxi = 1,nSurfSample    
   DO iSpec = 1,nSpecies
     ! adjust coverage to actual discret value
     Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,iSurfSide,iSpec) &
@@ -500,7 +539,6 @@ DO subsurfxi = 1,nSurfSample
       __STAMP__&
       ,'Error in Init_SurfDist: Too many Adsorbates! - Choose lower Coverages for coordination:',Adsorption%Coordination(iSpec))
     END IF
-    
     ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
     dist = 1
     Coord = Adsorption%Coordination(iSpec)
@@ -526,7 +564,6 @@ DO subsurfxi = 1,nSurfSample
     END DO
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(Coord) = Surfnum
   END DO
-  
 END DO
 END DO
 END DO
@@ -537,6 +574,22 @@ END DO
     CALL CalcDiffusion()
   END DO
 #endif
+
+#ifdef MPI
+ CommSize = 1
+! allocate send and receive buffer
+ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
+ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
+DO iProc=1,SurfCOMM%nMPINeighbors
+  ALLOCATE(SurfDistSendBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+  ALLOCATE(SurfDistRecvBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+  SurfDistSendBuf(iProc)%content_int=0.
+  SurfDistRecvBuf(iProc)%content_int=0.
+END DO ! iProc
+
+! fill halo surface distribution through mpi communication
+! CALL ExchangeSurfDistInfo()
+#endif /*MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
     
