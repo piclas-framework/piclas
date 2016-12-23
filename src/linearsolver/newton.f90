@@ -329,13 +329,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
   IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
-#ifndef PP_HDG
+
   Norm_Diff=ABS(Norm_Rold-Norm_R)
   IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(Norm_Diff.LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
-#else /*else*/
-  Norm_Diff=ABS(Norm_Rold-Norm_R)
-  IF(Norm_Diff.LT.Norm_R0*eps2_FullNewton) IsConverged=.TRUE.
-#endif /*PP_HDG*/
 
 #ifdef PARTICLES
   IF((.NOT.IsConverged).AND.(MOD(nFullNewtonIter,UpdateInIter).EQ.0)) CALL UpdateNextFreePosition()
