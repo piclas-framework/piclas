@@ -14,6 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#ifndef PP_HDG
 INTERFACE LinearSolver
   MODULE PROCEDURE LinearSolver
 !  MODULE PROCEDURE LinearSolver_GMRES_P
@@ -24,8 +25,10 @@ INTERFACE LinearSolver
 !  MODULE PROCEDURE LinearSolver_BiCGSTAB
 END INTERFACE
 
+PUBLIC:: LinearSolver
+#endif /*NOT HDG*/
+
 PUBLIC:: InitLinearSolver, FinalizeLinearSolver
-PUBLIC:: LinearSolver!,LinearSolver_BiCGSTAB_PM,LinearSolver_GMRES_P
 !===================================================================================================================================
 
 CONTAINS
@@ -38,11 +41,14 @@ SUBROUTINE InitLinearSolver()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars
-USE MOD_Interpolation_Vars,   ONLY:wGP
-USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone,sJ
-USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
+USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone
+USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
+#ifndef PP_HDG
+USE MOD_Interpolation_Vars,   ONLY:wGP
+USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Precond,              ONLY:InitPrecond
+#endif /*NOT HDG*/
 USE MOD_Predictor,            ONLY:InitPredictor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -62,12 +68,14 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LINEAR SOLVER...'
 
+#ifndef PP_HDG
 nGP2D=(PP_N+1)**2
 nGP3D=nGP2D*(PP_N+1)
 nDOFLine=PP_nVar*(PP_N+1)
 nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
+#endif /*NOT HDG*/
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
@@ -93,10 +101,12 @@ EisenstatWalker=GETLOGICAL('EisenstatWalker','.FALSE.')
 gammaEW=GETREAL('gammaEW','0.9')
 #endif
 
+#ifndef PP_HDG
 nDofGlobalMPI=nDofGlobal
 #ifdef MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
+#endif /*NOT HDG*/
 
 nRestarts             = GETINT('nRestarts','1')
 eps_LinearSolver      = GETREAL('eps_LinearSolver','1e-3')
@@ -125,6 +135,7 @@ IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
 #endif
 
+#ifndef PP_HDG
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 DO iElem=1,PP_nElems
   DO k=0,PP_N
@@ -161,17 +172,21 @@ CASE DEFAULT
 __STAMP__ &
 ,'WRONG TYPE OF LINEAR SOLVER:',LinSolver,999.)
 END SELECT
+#endif /*NOT HDG*/
+! init predictor
+CALL InitPredictor()
+
+#ifndef PP_HDG
+! init preconditoner
+CALL InitPrecond()
+#endif /*NOT HDG*/
 
 LinearSolverInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT LINEAR SOLVER DONE!'
-! init predictor
-CALL InitPredictor()
-! init preconditoner
-CALL InitPrecond()
-
 
 END SUBROUTINE InitLinearSolver
 
+#ifndef PP_HDG
 SUBROUTINE LinearSolver(t,Coeff,relTolerance)
 !==================================================================================================================================
 ! Selection between different linear solvers
@@ -1843,6 +1858,7 @@ __STAMP__ &
 ,'BiCGSTAB(l) NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTABl
+#endif /*NOT HDG*/
 
 SUBROUTINE FinalizeLinearSolver()
 !===================================================================================================================================
@@ -1879,6 +1895,5 @@ CALL FinalizePartSolver()
 #endif
 !SDEALLOCATE(FieldSource)
 END SUBROUTINE FinalizeLinearSolver
-
 
 END MODULE MOD_LinearSolver

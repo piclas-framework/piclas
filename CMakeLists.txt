@@ -164,6 +164,7 @@ ENDIF(BOLTZPLATZ_CODE_ANALYZE)
 # =========================================================================
 # Timedisc method
 # =========================================================================
+SET(BOLTZPLATZ_IMPLICIT OFF)
 IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
    IF(BOLTZPLATZ_HDG)
       ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=500)
@@ -210,8 +211,16 @@ ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=112 -DIMPA)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
+   IF(BOLTZPLATZ_HDG)
+      SET(BOLTZPLATZ_IMPLICIT ON)
+      ADD_DEFINITIONS(-DPP_HDG)
+   ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
+   IF(BOLTZPLATZ_HDG)
+      ADD_DEFINITIONS(-DPP_HDG)
+      SET(BOLTZPLATZ_IMPLICIT ON)
+   ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
@@ -238,6 +247,10 @@ IF(BOLTZPLATZ_HDG)
       MESSAGE(STATUS "use HDG with RK4")
    ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK14")
       MESSAGE(STATUS "use HDG with RK14")
+   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
+     MESSAGE(STATUS "use HDG with ImplicitO3")
+   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
+     MESSAGE(STATUS "use HDG with ImplicitO4")
    ELSE()
       MESSAGE(ERROR ": Unknown timedisc method system for HDG.")
    ENDIF()
@@ -546,6 +559,13 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/getboundaryflux.f90)
 
 
+FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
+                              ./src/linearsolver/linearsolver_vars.f90
+                              ./src/linearsolver/particlesolver.f90
+                              ./src/linearsolver/predictor.f90
+                              ./src/linearsolver/linearoperator/linearoperator.f90
+                              ./src/linearsolver/newton.f90)
+
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
@@ -553,6 +573,9 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
 IF(BOLTZPLATZ_HDG)
   LIST(APPEND boltzplatzF90 ${hdgF90})
+  IF(BOLTZPLATZ_IMPLICIT)
+    LIST(APPEND boltzplatzF90 ${implicitF90})
+  ENDIF(BOLTZPLATZ_IMPLICIT)
 ELSE()
   LIST(APPEND boltzplatzF90 ${dgF90})
 ENDIF(BOLTZPLATZ_HDG)

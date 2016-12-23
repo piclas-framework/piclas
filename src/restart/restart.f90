@@ -627,14 +627,18 @@ ELSE
 END IF
 !print*,dt
 ! use one push to correctly set the fields
+! INSTEAD OF ALL THIS **** DO
+! 1) MPI-Communication for shape-function particles
+! 2) Deposition
+! 3) ONE HDG solve
 #if (PP_TimeDiscMethod==500)
     CALL RestartTimeStepPoisson(RestartTime) ! Euler Explicit, Poisson
-#else
+#elif (PP_TimeDiscMethod>500)
     CALL RestartTimeStepPoissonByLSERK(RestartTime,iter,0.)  !Runge Kutta Explicit, Poisson
+#else
+    STOP' implement correct stuff'
 #endif
 #endif /*PP_HDG*/
-
-
 
 
   ! Delete all files that will be rewritten

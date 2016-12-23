@@ -117,8 +117,6 @@ dt=HUGE(1.)
 #elif (PP_TimeDiscMethod==103)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK3-Particles and ESDIRK3-Field'
   SWRITE(UNIT_stdOut,'(A)') '                             Ascher - 2 - 3 -3               '
-#elif (PP_TimeDiscMethod==104)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Euler Implicit with Newton'
 #elif (PP_TimeDiscMethod==110)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Euler-Implicit-Particles and Euler-Explicit-Field'
 #elif (PP_TimeDiscMethod==111)
@@ -448,8 +446,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStepByIMEXRK(time) ! O4 ERK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==103)
   CALL TimeStepByIMEXRK(time) ! ) O3 ERK Particles + ESDIRK Field 
-#elif (PP_TimeDiscMethod==104)
-  CALL TimeStepByEulerNewton(time) ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==110)
   CALL TimeStepByEulerImplicitParticle(time) ! ) O3 ESDIRK Particles + ERK Field 
 #elif (PP_TimeDiscMethod==111)
@@ -552,11 +548,6 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(132("="))')
       SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
       TotalIterLinearSolver=0
-#if (PP_TimeDiscMethod==104)
-      SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Newton        ',nNewton
-      nNewTon=0
-      SWRITE(UNIT_stdOut,'(132("="))')
-#endif
 #endif /*IMEX*/
 #ifdef IMPA
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
@@ -1918,7 +1909,6 @@ coeff  = dt*1.
 
 #ifdef maxwell
 IF(PrecondType.GT.0)THEN
-!  IF (iter==0) CALL BuildJacDG()
   IF (iter==0) CALL BuildPrecond(t,t,0,1.,dt)
 END IF
 #endif /*maxwell*/
@@ -2291,129 +2281,6 @@ END IF
 END SUBROUTINE TimeStepByIMEXRK
 #endif /*PP_TimeDiscMethod==102 || PP_TimeDiscMethod==101 || PP_TimeDiscMethod==103 */
 
-#if (PP_TimeDiscMethod==104) 
-SUBROUTINE TimeStepByEulerNewton(t)
-!===================================================================================================================================
-! Euler Implicit method:
-! U^n+1 = U^n + dt*R(U^n+1)
-! (I -dt*R)*U^n+1 = U^n
-! Solve Linear System 
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_TimeDisc_Vars,    ONLY: dt,iter
-USE MOD_DG_Vars,          ONLY: U,Ut
-USE MOD_DG,               ONLY: DGTimeDerivative_weakForm
-USE MOD_LinearSolver,         ONLY: LinearSolver
-USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource,LinSolverRHS
-USE MOD_Equation,         ONLY: DivCleaningDamping
-#ifdef maxwell
-USE MOD_Precond,          ONLY: BuildPrecond
-USE MOD_Precond_Vars,     ONLY: PrecondType
-#endif /*maxwell*/
-!USE MOD_JacDG,            ONLY: BuildJacDG
-!USE MOD_Newton,           ONLY: Newton
-#ifdef PARTICLES
-USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
-USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
-USE MOD_PIC_Vars,         ONLY: PIC
-USE MOD_Particle_Vars,    ONLY: PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
-USE MOD_part_RHS,         ONLY: CalcPartRHS
-USE MOD_part_emission,    ONLY: ParticleInserting
-USE MOD_DSMC,             ONLY: DSMC_main
-USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
-USE MOD_part_tools,       ONLY: UpdateNextFreePosition
-#endif
-USE MOD_LinearSolver_Vars,    ONLY: nNewton,totalIterLinearSolver
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)    :: t
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: tstage,coeff
-!===================================================================================================================================
-
-Time = t
-! one Euler implicit step
-! time for source is t + dt 
-tstage = t + dt
-coeff  = dt*1.
-
-#ifdef maxwell
-IF(PrecondType.GT.0)THEN
-!  IF (iter==0) CALL BuildJacDG()
-  IF (iter==0) CALL BuildPrecond(t,t,0,1.,dt)
-END IF
-#endif /*maxwell*/
-
-CALL ParticleInserting()
-
-IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  IF (usevMPF) THEN 
-    CALL DepositionMPF()
-  ELSE 
-    CALL Deposition()
-  END IF
-  !CALL CalcDepositedCharge()
-END IF
-
-IF (t.GE.DelayTime) THEN
-  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-  CALL CalcPartRHS()
-END IF
-! particles
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles 
-  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4) 
-  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + dt * PartState(1:PDM%ParticleVecLength,5) 
-  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + dt * PartState(1:PDM%ParticleVecLength,6) 
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1:PDM%ParticleVecLength,1) 
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
-END IF
-CALL ParticleBoundary()
-#ifdef MPI
-CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
-#endif
-! EM field
-! U predict
-!U = U
-! b
-LinSolverRHS = U ! equals Q in FLEXI
-ImplicitSource=0.
-CALL Newton(t,1.,1.)
-
-!CALL LinearSolver(tstage,coeff)
-!CALL DivCleaningDamping()
-
-CALL UpdateNextFreePosition()
-IF (useDSMC) THEN
-  CALL DSMC_main()
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
-END IF
-
-!SWRITE(UNIT_stdOut,'(A36,ES16.7,ES16.7)')'Global Iterations of LS and Newton: ' &
-!                  ,REAL(totalIterLinearSolver),REAL(nNewton)
-
-
-
-END SUBROUTINE TimeStepByEulerNewton
-#endif /*PP_TimeDiscMethod==104*/
 
 #if (PP_TimeDiscMethod==110) 
 SUBROUTINE TimeStepByEulerImplicitParticle(t)
@@ -2848,22 +2715,25 @@ SUBROUTINE TimeStepByImplicitRK(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs,RKdtFrac
-USE MOD_DG_Vars,                 ONLY:U,Ut
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,DoPrintConvInfo
+#ifdef PP_HDG
+USE MOD_Equation,                ONLY:CalcSourceHDG
+#else /*pure DG*/
+USE MOD_DG_Vars,                 ONLY:U
+USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,DoPrintConvInfo
+USE MOD_LinearSolver_Vars,       ONLY:LinSolverRHS
 USE MOD_Equation,                ONLY:DivCleaningDamping
+USE MOD_Equation,                ONLY:CalcSource
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
 #endif /*maxwell*/
-USE MOD_JacDG,                   ONLY:BuildJacDG
+#endif /*PP_HDG*/
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
-USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
 USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
@@ -2910,9 +2780,13 @@ REAL               :: tstage
 ! implicit 
 REAL               :: alpha
 REAL               :: sgamma
+#ifndef PP_HDG
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
+#else 
+INTEGER            :: iElem,i,j,k
+#endif /*DG*/
 REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
 REAL               :: dtFrac,RandVal, LorentzFac
@@ -2923,13 +2797,14 @@ INTEGER            :: iPart,iSpec,iSF
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
+#ifndef PP_HDG
 #ifdef maxwell
 ! caution hard coded
 IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 #endif /*maxwell*/
-
 Un          = U
 FieldSource = 0.
+#endif /*DG*/
 
 tRatio = 1.
 
@@ -3003,7 +2878,15 @@ IF (t.GE.DelayTime) THEN
 END IF
 
 ImplicitSource=0.
+#ifndef PP_HDG
 CALL CalcSource(tStage,1.,ImplicitSource)
+#else
+DO iElem=1,PP_nElems
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
+  END DO; END DO; END DO !i,j,k    
+END DO !iElem 
+#endif
 IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 
 IF(t.GE.DelayTime)THEN
@@ -3046,7 +2929,9 @@ RKdtFracTotal=0.
 RKdtFrac     =0.
 #endif /*PARTICLES*/
 
+#ifndef PP_HDG
 IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+#endif /*DG*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 2 to 6
@@ -3062,6 +2947,7 @@ DO iStage=2,nRKStages
       WRITE(*,*) 'istage:',istage
     END IF
   END IF
+#ifndef PP_HDG
   ! store predictor
   CALL StorePredictor()
 
@@ -3070,6 +2956,7 @@ DO iStage=2,nRKStages
   ! DG-solver, Maxwell's equations
   FieldStage (:,:,:,:,:,iStage-1) = Ut
   FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
+#endif /*DG*/
 
   ! and particles
 #ifdef PARTICLES
@@ -3203,7 +3090,15 @@ DO iStage=2,nRKStages
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
     !PartMPIExchange%nMPIParticles=0
+#ifndef PP_HDG
     CALL CalcSource(tStage,1.,ExplicitSource)
+#else
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
+      END DO; END DO; END DO !i,j,k    
+    END DO !iElem 
+#endif
     ! map particle from v to gamma*v
     CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 
@@ -3232,8 +3127,8 @@ DO iStage=2,nRKStages
   ! implicit - particle pusher & Maxwell's field
   !--------------------------------------------------------------------------------------------------------------------------------
 
+#ifndef PP_HDG
   ! compute RHS for linear solver
-
   LinSolverRHS=ESDIRK_a(iStage,iStage-1)*(FieldStage(:,:,:,:,:,iStage-1)+FieldSource(:,:,:,:,:,iStage-1))
   DO iCounter=1,iStage-2
     LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
@@ -3242,6 +3137,7 @@ DO iStage=2,nRKStages
 
   ! get predictor of u^s+1
   CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
+#endif /*DG*/
 
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
@@ -3265,7 +3161,9 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
   ! full newton for particles and fields
   CALL FullNewton(t,tStage,alpha)
+#ifndef PP_HDG
   CALL DivCleaningDamping()
+#endif /*DG*/
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
     IF(DoUpdateInStage)THEN
