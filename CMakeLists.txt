@@ -13,7 +13,6 @@ SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
 INCLUDE(ExternalProject)
 INCLUDE(CMakeDependentOption)
 
-
 # =========================================================================
 # Check whether we are on Github or at IAG
 # =========================================================================
@@ -26,13 +25,16 @@ IF (HOMERUN GREATER -1)
   ELSE()
     SET(BOLTZPLATZ_DLPATH "https://gitlabext.iag.uni-stuttgart.de/piclas")
   ENDIF()
+  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}libs/hdf5.git )
 ELSE()
   IF(USESSH EQUAL 0)
     SET(BOLTZPLATZ_DLPATH "git@github.com:piclas-framework")
   ELSE()
     SET(BOLTZPLATZ_DLPATH "https://github.com/piclas-framework")
   ENDIF()
+  SET (HDF5DOWNLOAD https://bitbucket.hdfgroup.org/scm/hdffv/hdf5.git )
 ENDIF()
+SET (HDF5TAG "hdf5-1_10_0-patch1" CACHE STRING "HDF5 version tag")
 
 # =========================================================================
 # Detect machine environements
@@ -289,10 +291,9 @@ ENDFOREACH()
 # Build type
 # =========================================================================
 # make sure that the default is a RELEASE
-
 IF (NOT CMAKE_BUILD_TYPE)
    SET (CMAKE_BUILD_TYPE Release CACHE STRING
-      "Choose the type of build, options are: None Debug Release Profile."
+      "Choose the type of build, options are: Debug Release Profile."
       FORCE)
    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
      SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile SANI)
@@ -397,9 +398,6 @@ IF(NOT BOLTZPLATZ_BUILD_HDF5)
     ENDIF()
   ENDIF()
 ELSE()
-  # define here the path to download from
-  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}/HDF5.git )
-  SET (HDF5TAG "1.10.0-patch1" CACHE STRING "HDF5 version tag")
 
   SET(BOLTZPLATZ_HDF5_DLDIR ${BOLTZPLATZ_EXTERNAL_LIB_DIR}/HDF5)
   SET(BOLTZPLATZ_HDF5_DIR  ${BOLTZPLATZ_HDF5_DLDIR}/build)
@@ -454,7 +452,7 @@ IF(BOLTZPLATZ_HDF5_CMAKE)
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
   LIST(APPEND linkedlibs ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
 ELSE()
-  INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
+  INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR}/static)
   LIST(INSERT HDF5_LIBRARIES 0 ${HDF5_hdf5_fortran_LIBRARY_RELEASE})
   LIST(REMOVE_DUPLICATES HDF5_LIBRARIES)
   MESSAGE(STATUS "Found HDF5 Libs: " ${HDF5_LIBRARIES})
