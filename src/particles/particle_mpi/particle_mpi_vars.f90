@@ -100,11 +100,13 @@ END TYPE
 TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)                             ! PartRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! PartSendBuf with all requried types
 
-TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! PartRecvBuf with all required types
-TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! PartSendBuf with all requried types
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! SurfRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! SurfSendBuf with all requried types
 
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistRecvBuf(:)                         ! SurfDistRecvBuf with all requried types
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistSendBuf(:)                         ! SurfDistSendBuf with all requried types
+
+INTEGER                        :: NbrSurfPos
 
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbRecvBuf(:)
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbSendBuf(:)

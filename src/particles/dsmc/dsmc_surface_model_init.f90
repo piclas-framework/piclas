@@ -203,14 +203,14 @@ SUBROUTINE Init_SurfDist()
   USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
 #ifdef MPI
   USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-  USE MOD_Particle_MPI_Vars,      ONLY : SurfDistSendBuf,SurfDistRecvBuf,SurfExchange
-!   USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo
+  USE MOD_Particle_MPI_Vars,      ONLY : SurfDistSendBuf,SurfDistRecvBuf,SurfExchange, NbrSurfPos
+  USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo
 #endif /*MPI*/
 !===================================================================================================================================
   IMPLICIT NONE
 !=================================================================================================================================== 
 ! Local variable declaration
-  INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom, i
+  INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom
   INTEGER                          :: surfsquare, dist, Adsorbates
   INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
   REAL                             :: RanNum
@@ -273,6 +273,9 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1) = INT(surfsquare**2)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
+#ifdef MPI
+    NbrSurfPos = SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
+#endif /*MPI*/
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(:) = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp(1:nSpecies) = 0.
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp(1:nSpecies) = 0.
@@ -576,7 +579,7 @@ END DO
 #endif
 
 #ifdef MPI
- CommSize = 1
+ CommSize = 3 + 2*NbrSurfPos! nCoord*1(SitesRemain) + 2*Number_of_surface_positions(position_mapping+species_on_position)
 ! allocate send and receive buffer
 ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
@@ -588,7 +591,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 ! fill halo surface distribution through mpi communication
-! CALL ExchangeSurfDistInfo()
+CALL ExchangeSurfDistInfo()
 #endif /*MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'

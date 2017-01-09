@@ -22,6 +22,9 @@ PUBLIC                       :: CalcBackgndPartDesorb
 PUBLIC                       :: CalcAdsorbProb
 PUBLIC                       :: CalcDesorbProb
 PUBLIC                       :: CalcDiffusion
+#ifdef MPI
+PUBLIC                       :: ExchangeSurfDistInfo
+#endif /*MPI*/
 !===================================================================================================================================
 
 CONTAINS
@@ -44,6 +47,10 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 
   IF (DSMC%WallModel.GT.0) THEN    
     IF (.NOT.KeepWallParticles) THEN
+#ifdef MPI
+      ! communicate number of particles that were adsorbed on halo-sides of neighbour procs
+      CALL ExchangeAdsorbNum()
+#endif
       ! adjust coverages of all species on surfaces
       DO iSpec = 1,nSpecies
         DO iSurfSide = 1,SurfMesh%nSides
@@ -57,10 +64,6 @@ SUBROUTINE DSMC_Update_Wall_Vars()
                                                               + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
                                                               * maxPart/Species(iSpec)%MacroParticleFactor)
               END IF
-#endif
-#ifdef MPI
-              ! communicate number of particles that were adsorbed on halo-sides of neighbour procs
-              CALL ExchangeAdsorbNum()
 #endif
               IF (DSMC%WallModel.EQ.1) THEN
                 maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
@@ -104,6 +107,13 @@ SUBROUTINE DSMC_Update_Wall_Vars()
       Adsorption%SumAdsorbPart(:,:,:,:) = 0
       Adsorption%SumReactPart(:,:,:,:) = 0
     END IF
+    
+#ifdef MPI
+    IF (DSMC%WallModel.EQ.3) THEN
+      ! communicate distribution to halo-sides of neighbour procs
+      CALL ExchangeSurfDistInfo()
+    END IF
+#endif
 
     IF (DSMC%WallModel.EQ.2) THEN
       CALL CalcDistNumChange()
@@ -1346,7 +1356,7 @@ SUBROUTINE ExchangeAdsorbNum()
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_DSMC_Vars                   ,ONLY:Adsorption
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars           ,ONLY:AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1443,6 +1453,155 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 END SUBROUTINE ExchangeAdsorbNum
+
+
+SUBROUTINE ExchangeSurfDistInfo() 
+!===================================================================================================================================
+! exchange the surface distribution to halosides of neighbours
+! only processes with surface sides in their halo region and the original process participate on the communication
+! structure is similar to surface sampling/particle communication
+! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
+! the receiving process adds the new data to his own sides
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
+USE MOD_Particle_MPI_Vars           ,ONLY:SurfDistSendBuf,SurfDistRecvBuf,SurfExchange,NbrSurfPos
+USE MOD_DSMC_Vars                   ,ONLY:SurfDistInfo
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
+INTEGER                         :: iPos,p,q,iProc
+INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+INTEGER                         :: iCoord,nSites,nSitesRemain,iSite,iInteratom,UsedSiteMapPos,iSpec,xpos,ypos
+!===================================================================================================================================
+
+nValues=(3 + 2*NbrSurfPos) * (nSurfSample)**2
+
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesRecv(iProc)*nValues
+  CALL MPI_IRECV( SurfDistRecvBuf(iProc)%content_int           &
+                , MessageSize                                  &
+                , MPI_INT                                      &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
+                , 1009                                         &
+                , SurfCOMM%COMM                                &
+                , SurfExchange%RecvRequest(iProc)              & 
+                , IERROR )
+END DO ! iProc
+
+! build message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  iPos=0
+  DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        DO iCoord = 1,3
+          SurfDistSendBuf(iProc)%content_int(iPos+1) = SurfDistInfo(p,q,SurfSideID)%SitesRemain(iCoord)
+          iPos=iPos+1
+          SurfDistSendBuf(iProc)%content_int(iPos+1:iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)) = &
+              SurfDistInfo(p,q,SurfSideID)%AdsMap(iCoord)%Species(:)
+          iPos=iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)
+          SurfDistSendBuf(iProc)%content_int(iPos+1:iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)) = &
+              SurfDistInfo(p,q,SurfSideID)%AdsMap(iCoord)%UsedSiteMap(:)
+          iPos=iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)
+        END DO
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+END DO
+
+! send message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
+  CALL MPI_ISEND( SurfDistSendBuf(iProc)%content_int       &
+                , MessageSize                              & 
+                , MPI_INT                                  &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
+                , 1009                                     &
+                , SurfCOMM%COMM                            &   
+                , SurfExchange%SendRequest(iProc)          &
+                , IERROR )                                     
+END DO ! iProc                                                
+
+! 4) Finish Received number of particles
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+  IF(SurfExchange%nSidesRecv(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+END DO ! iProc
+
+! add data do my list
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
+  iPos=0
+  DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        DO iCoord = 1,3
+          SurfDistInfo(p,q,SurfSideID)%SitesRemain(iCoord) = SurfDistRecvBuf(iProc)%content_int(iPos+1)
+          iPos=iPos+1
+          SurfDistInfo(p,q,SurfSideID)%AdsMap(iCoord)%Species(:) = &
+              SurfDistRecvBuf(iProc)%content_int(iPos+1:iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord))
+          iPos=iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)
+          SurfDistInfo(p,q,SurfSideID)%AdsMap(iCoord)%UsedSiteMap(:) = &
+              SurfDistRecvBuf(iProc)%content_int(iPos+1:iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord))
+          iPos=iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)
+        END DO
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+    SurfDistRecvBuf(iProc)%content_int = 0.
+    SurfDistSendBuf(iProc)%content_int = 0.
+ END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+END DO ! iProc
+
+! assign bond order to surface atoms in the surfacelattice for halo sides
+DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
+  DO q=1,nSurfSample
+    DO p=1,nSurfSample
+      SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) = 0
+      DO iCoord = 1,3
+        nSitesRemain = SurfDistInfo(p,q,iSurfSide)%SitesRemain(iCoord)
+        nSites = SurfDistInfo(p,q,iSurfSide)%nSites(iCoord)
+        DO iSite = nSitesRemain+1,nSites
+          UsedSiteMapPos = SurfDistInfo(p,q,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(iSite)
+          iSpec = SurfDistInfo(p,q,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos)
+          DO iInterAtom = 1,SurfDistInfo(p,q,iSurfSide)%AdsMap(iCoord)%nInterAtom
+            xpos = SurfDistInfo(p,q,iSurfSide)%AdsMap(iCoord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
+            ypos = SurfDistInfo(p,q,iSurfSide)%AdsMap(iCoord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
+            SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
+              SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) + 1
+          END DO
+        END DO
+      END DO
+    END DO
+  END DO
+END DO
+
+END SUBROUTINE ExchangeSurfDistInfo
 #endif /*MPI*/
 
 
