@@ -10,7 +10,7 @@ The following libraries are installed locally within Boltzplatz and build automa
 
   Manual HDF5-Installation
 
-*  Download HDF5 from [www.hdfgroup.org](https://www.hdfgroup.org/)
+*  Download HDF5 from [www.support.hdfgroup.org](https://support.hdfgroup.org/downloads/index.html)
 
          tar xvf hdf5-version.tar.gz
 *  Create Build folder
