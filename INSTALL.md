@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-For tested combinations of prerequisities (HDF5, openMPI, cmake etc.) and known problems that may occur, see [BuildConfigurations.md](BuildConfigurations.md.
+For tested combinations of prerequisities (HDF5, openMPI, cmake etc.) and known problems that may occur, see [BuildConfigurations.md](BuildConfigurations.md).
 
 Boltzplatz has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS and 16.04 LTS, Chakra OS. In addition Paraview or Tecplot can be used for visualization.
 
