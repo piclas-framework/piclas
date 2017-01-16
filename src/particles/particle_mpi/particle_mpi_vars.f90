@@ -142,6 +142,10 @@ TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: nSidesRecv(:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: nSurfDistSidesSend(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nSurfDistSidesRecv(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: SurfDistSendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: SurfDistRecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
 END TYPE
 TYPE (tSurfMPIExchange)          :: SurfExchange
 

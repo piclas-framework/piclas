@@ -1381,7 +1381,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , MessageSize                                  &
                 , MPI_INT                                      &
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
-                , 1009                                         &
+                , 1010                                         &
                 , SurfCOMM%COMM                                &
                 , SurfExchange%RecvRequest(iProc)              & 
                 , IERROR )
@@ -1411,7 +1411,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , MessageSize                              & 
                 , MPI_INT                                  &
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
-                , 1009                                     &
+                , 1010                                     &
                 , SurfCOMM%COMM                            &   
                 , SurfExchange%SendRequest(iProc)          &
                 , IERROR )                                     
@@ -1487,24 +1487,24 @@ nValues=(3 + 2*NbrSurfPos) * (nSurfSample)**2
 
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSidesRecv(iProc)*nValues
+  IF(SurfExchange%nSurfDistSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSurfDistSidesRecv(iProc)*nValues
   CALL MPI_IRECV( SurfDistRecvBuf(iProc)%content_int           &
                 , MessageSize                                  &
                 , MPI_INT                                      &
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
-                , 1009                                         &
+                , 1011                                         &
                 , SurfCOMM%COMM                                &
-                , SurfExchange%RecvRequest(iProc)              & 
+                , SurfExchange%SurfDistRecvRequest(iProc)              & 
                 , IERROR )
 END DO ! iProc
 
 ! build message
 DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  IF(SurfExchange%nSurfDistSidesSend(iProc).EQ.0) CYCLE
   iPos=0
-  DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+  DO iSurfSide=1,SurfExchange%nSurfDistSidesSend(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendSurfDistList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         DO iCoord = 1,3
@@ -1519,46 +1519,45 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         END DO
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
-  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  END DO ! iSurfSide=1,nSurfExchange%nSurfDistSidesSend(iProc)
 END DO
 
 ! send message
 DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
+  IF(SurfExchange%nSurfDistSidesSend(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSurfDistSidesSend(iProc)*nValues
   CALL MPI_ISEND( SurfDistSendBuf(iProc)%content_int       &
                 , MessageSize                              & 
                 , MPI_INT                                  &
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
-                , 1009                                     &
+                , 1011                                     &
                 , SurfCOMM%COMM                            &   
-                , SurfExchange%SendRequest(iProc)          &
+                , SurfExchange%SurfDistSendRequest(iProc)          &
                 , IERROR )                                     
 END DO ! iProc                                                
 
 ! 4) Finish Received number of particles
 DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
+  IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SurfDistSendRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
-          ,' MPI Communication error', IERROR)
+          ,' MPI Communication error in surface distribution (send)', IERROR)
   END IF
-  IF(SurfExchange%nSidesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+  IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SurfDistRecvRequest(iProc),recv_status_list(:,iProc),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
-          ,' MPI Communication error', IERROR)
+          ,' MPI Communication error in Surface distribution (receive)', IERROR)
   END IF
 END DO ! iProc
 
 ! add data do my list
 DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
+  IF(SurfExchange%nSurfDistSidesRecv(iProc).EQ.0) CYCLE
   iPos=0
-  DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+  DO iSurfSide=1,SurfExchange%nSurfDistSidesRecv(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvSurfDistList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         DO iCoord = 1,3
@@ -1572,17 +1571,17 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           iPos=iPos+SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)
         END DO
       END DO ! p=0,nSurfSample
-    END DO ! q=0,nSurfSample
-    SurfDistRecvBuf(iProc)%content_int = 0.
-    SurfDistSendBuf(iProc)%content_int = 0.
+    END DO ! q=0,nSurfSample.
  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  SurfDistRecvBuf(iProc)%content_int = 0
+  SurfDistSendBuf(iProc)%content_int = 0
 END DO ! iProc
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
 DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
-      SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) = 0
+      SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(:,:,:) = 0
       DO iCoord = 1,3
         nSitesRemain = SurfDistInfo(p,q,iSurfSide)%SitesRemain(iCoord)
         nSites = SurfDistInfo(p,q,iSurfSide)%nSites(iCoord)

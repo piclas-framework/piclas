@@ -216,6 +216,9 @@ SUBROUTINE Init_SurfDist()
   REAL                             :: RanNum
   INTEGER                          :: xpos, ypos
   INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
+#if (PP_TimeDiscMethod==42)
+  INTEGER                          :: idiff
+#endif
 #ifdef MPI
   INTEGER                          :: iProc, CommSize
 #endif
@@ -571,21 +574,32 @@ END DO
 END DO
 END DO
 
-! initial distribution into equilibrium distribution
 #if (PP_TimeDiscMethod==42)
-  DO i=1,3
+! initial distribution into equilibrium distribution
+  DO idiff=1,3
     CALL CalcDiffusion()
   END DO
 #endif
 
 #ifdef MPI
+ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
+        ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &
+        ,SurfExchange%SurfDistSendRequest(1:SurfCOMM%nMPINeighbors)  &
+        ,SurfExchange%SurfDistRecvRequest(1:SurfCOMM%nMPINeighbors)  )
+        
  CommSize = 3 + 2*NbrSurfPos! nCoord*1(SitesRemain) + 2*Number_of_surface_positions(position_mapping+species_on_position)
 ! allocate send and receive buffer
 ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
-  ALLOCATE(SurfDistSendBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
-  ALLOCATE(SurfDistRecvBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+  SurfExchange%nSurfDistSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
+  SurfExchange%nSurfDistSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
+  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvSurfDistList(SurfExchange%nSurfDistSidesRecv(iProc)))
+  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendSurfDistList(SurfExchange%nSurfDistSidesSend(iProc)))
+  SurfCOMM%MPINeighbor(iProc)%RecvSurfDistList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
+  SurfCOMM%MPINeighbor(iProc)%SendSurfDistList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+  ALLOCATE(SurfDistSendBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSurfDistSidesSend(iProc)))
+  ALLOCATE(SurfDistRecvBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSurfDistSidesRecv(iProc)))
   SurfDistSendBuf(iProc)%content_int=0.
   SurfDistRecvBuf(iProc)%content_int=0.
 END DO ! iProc
@@ -742,6 +756,8 @@ END IF !MaxDissNum > 0
 ! save defined number of surface reactions
 Adsorption%DissNum = MaxDissNum
 Adsorption%ReactNum = MaxReactNum
+
+SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
 END SUBROUTINE Init_SurfChem
 

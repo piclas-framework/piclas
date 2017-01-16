@@ -318,7 +318,7 @@ ELSE
   CALL MPI_RECV(SurfCOMM%MyRank,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,MPIstatus,iError)
 END IF
 
-! create new SurfMesh communicator for SurfMesh communiction
+! create new SurfMesh communicator for SurfMesh communication
 CALL MPI_COMM_SPLIT(PartMPI%COMM, color, SurfCOMM%MyRank, SurfCOMM%COMM,iError)
 IF(SurfMesh%SurfOnPRoc) THEN
   CALL MPI_COMM_SIZE(SurfCOMM%COMM, SurfCOMM%nProcs,iError)
@@ -328,7 +328,7 @@ END IF
 SurfCOMM%MPIRoot=.FALSE.
 IF(SurfCOMM%MyRank.EQ.0 .AND. SurfMesh%SurfOnProc) THEN
   SurfCOMM%MPIRoot=.TRUE.
-  WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF COMM:        ',SurfCOMM%nProcs,' procs'
+!   WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF COMM:        ',SurfCOMM%nProcs,' procs'
 END IF
 
 ! now, create output communicator
@@ -373,7 +373,7 @@ END IF
 SurfCOMM%MPIOutputRoot=.FALSE.
 IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
   SurfCOMM%MPIOutputRoot=.TRUE.
-  WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF OUTPUT-COMM: ',SurfCOMM%nOutputProcs,' procs'
+!   WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF OUTPUT-COMM: ',SurfCOMM%nOutputProcs,' procs'
 END IF
 
 IF(SurfMesh%nSides.EQ.0) RETURN
@@ -693,14 +693,14 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       iSendSide=iSendSide+1
       ! get elemid
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
-      IF(ElemID.LE.PP_nElems)THEN
-        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
-      END IF
-      IF(ElemID.LE.1)THEN
-        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
-      END IF
+!       IF(ElemID.LE.PP_nElems)THEN
+!         IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
+!       END IF
+!       IF(ElemID.LE.1)THEN
+!         IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
+!       END IF
       SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=SurfSideID
-      IPWRITE(*,*) 'nagtive elem id',PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),PartSideToElem(S2E_LOC_SIDE_ID,iSide)
+!       IPWRITE(*,*) 'negative elem id',PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),PartSideToElem(S2E_LOC_SIDE_ID,iSide)
       SurfSendBuf(iProc)%content(iPos  )= REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID))
       SurfSendBuf(iProc)%content(iPos+1)= REAL(PartSideToElem(S2E_LOC_SIDE_ID,iSide))
       iPos=iPos+2
@@ -754,7 +754,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   DO iRecvSide=1,SurfExchange%nSidesRecv(iProc)
     NativeElemID   =INT(SurfRecvBuf(iProc)%content(iPos))
     NativeLocSideID=INT(SurfRecvBuf(iProc)%content(iPos+1))
-    IPWRITE(*,*) 'received- elemid, locsideid',NativeElemID,NativeLocSideID
+!     IPWRITE(*,*) 'received- elemid, locsideid',NativeElemID,NativeLocSideID
     IF(NativeElemID.GT.PP_nElems)THEN
      CALL abort(&
 __STAMP__&
