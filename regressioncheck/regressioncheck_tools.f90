@@ -103,12 +103,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                        :: nArgs                             ! Number of supplied command line arguments
 !===================================================================================================================================
-RuntimeOption='run'     ! default
-RuntimeOptionType='run' ! default
-RuntimeOptionTypeII=''  ! default
-RuntimeOptionTypeIII='' ! default
-BuildDebug=.FALSE.      ! default
-BuildNoDebug=.FALSE.    ! default
+RuntimeOption='run'           ! only run pre-built executable (no building of new cmake compiler flag combinations)
+RuntimeOptionType='run_basic' ! set to standard case folder 'run_basic'
+RuntimeOptionTypeII=''        ! default
+RuntimeOptionTypeIII=''       ! default
+BuildDebug=.FALSE.            ! default
+BuildNoDebug=.FALSE.          ! default
 ! Get number of command line arguments and read in runtime option of regressioncheck
 nArgs=COMMAND_ARGUMENT_COUNT()
 IF(nArgs.EQ.0)THEN
