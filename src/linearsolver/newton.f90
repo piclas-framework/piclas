@@ -146,6 +146,7 @@ SUBROUTINE FullNewton(t,tStage,coeff)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:EpsMach
+USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else
@@ -156,8 +157,12 @@ USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearS
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
+USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage
 USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
@@ -187,7 +192,8 @@ REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff
 REAL                       :: etaA,etaB,etaC,etaMax,taut
 INTEGER                    :: nFullNewtonIter
 #ifdef PARTICLES
-INTEGER                    :: iPart
+INTEGER                    :: iPart,iCounter
+REAL                       :: tmpFac
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,relTolerancePart,Criterion
 LOGICAL                    :: IsConverged
@@ -206,13 +212,45 @@ IF (t.GE.DelayTime) THEN
   ! now, we have an initial guess for the field  can compute the first particle movement
   CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
                      ,AbortTol_In=relTolerancePart)
-
+  PartRelaxationFac = PartRelaxationFac0
+  ! particle relaxation betweeen old and new position
+  IF(DoPartRelaxation)THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartIsImplicit(iPart))THEN  
+        tmpFac=(1.0-PartRelaxationFac)
+        PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
+        PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
+        PartState(iPart,3)=PartRelaxationFac*PartState(iPart,3)+tmpFac*PartStateN(iPart,3)
+        PartState(iPart,4)=PartRelaxationFac*PartState(iPart,4)+tmpFac*PartStateN(iPart,4)
+        PartState(iPart,5)=PartRelaxationFac*PartState(iPart,5)+tmpFac*PartStateN(iPart,5)
+        PartState(iPart,6)=PartRelaxationFac*PartState(iPart,6)+tmpFac*PartStateN(iPart,6)
+        DO iCounter=1,iStage-1
+          tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
+          PartState(iPart,1) = PartState(iPart,1) + tmpFac*PartStage(iPart,1,iCounter)
+          PartState(iPart,2) = PartState(iPart,2) + tmpFac*PartStage(iPart,2,iCounter)
+          PartState(iPart,3) = PartState(iPart,3) + tmpFac*PartStage(iPart,3,iCounter)
+          PartState(iPart,4) = PartState(iPart,4) + tmpFac*PartStage(iPart,4,iCounter)
+          PartState(iPart,5) = PartState(iPart,5) + tmpFac*PartStage(iPart,5,iCounter)
+          PartState(iPart,6) = PartState(iPart,6) + tmpFac*PartStage(iPart,6,iCounter)
+        END DO
+      END IF ! ParticleInside
+    END DO ! iPart
+  END IF ! PartRelaxationFac>0
   ! move particle, if not already done, here, a reduced list could be again used, but a different list...
   ! required to get the correct deposition
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! here: could use deposition as hiding, not done yet
+  IF(DoPartRelaxation)THEN
+    IF(DoRefMapping)THEN
+      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+      CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+    ELSE
+      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+      CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+    END IF
+  END IF
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! finish communication of number of particles and send particles
@@ -245,8 +283,6 @@ END IF
 nFullNewtonIter=0
 IsConverged=.FALSE.
 DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
-!DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_FullNewton))
-!DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps_LinearSolver))
   nFullNewtonIter = nFullNewtonIter+1
   IF(FullEisenstatWalker.GT.0)THEN
     IF(nFullNewtonIter.EQ.1)THEN
@@ -300,12 +336,44 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     END IF
     CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
                        ,AbortTol_In=relTolerancePart)
-
+    ! particle relaxation betweeen old and new position
+    IF(DoPartRelaxation)THEN
+      DO iPart=1,PDM%ParticleVecLength
+        IF(PartIsImplicit(iPart))THEN  
+          tmpFac=(1.0-PartRelaxationFac)
+          PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
+          PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
+          PartState(iPart,3)=PartRelaxationFac*PartState(iPart,3)+tmpFac*PartStateN(iPart,3)
+          PartState(iPart,4)=PartRelaxationFac*PartState(iPart,4)+tmpFac*PartStateN(iPart,4)
+          PartState(iPart,5)=PartRelaxationFac*PartState(iPart,5)+tmpFac*PartStateN(iPart,5)
+          PartState(iPart,6)=PartRelaxationFac*PartState(iPart,6)+tmpFac*PartStateN(iPart,6)
+          DO iCounter=1,iStage-1
+            tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
+            PartState(iPart,1) = PartState(iPart,1) + tmpFac*PartStage(iPart,1,iCounter)
+            PartState(iPart,2) = PartState(iPart,2) + tmpFac*PartStage(iPart,2,iCounter)
+            PartState(iPart,3) = PartState(iPart,3) + tmpFac*PartStage(iPart,3,iCounter)
+            PartState(iPart,4) = PartState(iPart,4) + tmpFac*PartStage(iPart,4,iCounter)
+            PartState(iPart,5) = PartState(iPart,5) + tmpFac*PartStage(iPart,5,iCounter)
+            PartState(iPart,6) = PartState(iPart,6) + tmpFac*PartStage(iPart,6,iCounter)
+          END DO
+        END IF ! ParticleInside
+      END DO ! iPart
+    END IF ! PartRelaxationFac>0
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
     ! open receive buffer for number of particles
     CALL IRecvNbofParticles()
     ! here: could use deposition as hiding, not done yet
+    IF(DoPartRelaxation)THEN
+      IF(DoRefMapping)THEN
+        ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+        CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+      ELSE
+        ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+        CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+      END IF
+      !PartRelaxationFac=MIN(PartRelaxationFac*1.2,1.6)
+    END IF
     ! send number of particles
     CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication of number of particles and send particles
