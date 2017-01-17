@@ -27,8 +27,8 @@ TYPE tSurfaceSendList
   INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
   
-  INTEGER,ALLOCATABLE                   :: SendSurfDistList(:)                   ! list containing surfsideid of sides to send to proc
-  INTEGER,ALLOCATABLE                   :: RecvSurfDistList(:)                   ! list containing surfsideid of sides to recv from proc
+  INTEGER,ALLOCATABLE                   :: SurfDistSendList(:)           ! list containing surfsideid of sides to send to proc
+  INTEGER,ALLOCATABLE                   :: SurfDistRecvList(:)           ! list containing surfsideid of sides to recv from proc
   
 END TYPE
 #endif /*MPI*/

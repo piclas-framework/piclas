@@ -795,7 +795,13 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! Initialize surface model (Adsorption/Desorption/Reactions) variables
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (DSMC%WallModel.GT.0 .AND. CollisMode.GT.1) THEN
-    IF (.NOT.DSMC%CalcSurfaceVal) CALL InitParticleBoundarySampling()
+    IF (.NOT.DSMC%CalcSurfaceVal) THEN
+      CALL InitParticleBoundarySampling()
+      SWRITE(UNIT_stdOut,'(A)')'WARNING: Particles-DSMC-CalcSurfaceVal == FALSE!'
+    END IF
+    IF (DSMC%WallModel.EQ.2) CALL abort(&
+      __STAMP__&
+      ,'Error: WallModel 2 not working!')
     CALL InitDSMCSurfModel()
   ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.LE.1) THEN
     CALL abort(&

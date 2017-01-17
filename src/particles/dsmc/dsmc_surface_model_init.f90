@@ -594,10 +594,10 @@ ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
   SurfExchange%nSurfDistSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
   SurfExchange%nSurfDistSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
-  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvSurfDistList(SurfExchange%nSurfDistSidesRecv(iProc)))
-  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendSurfDistList(SurfExchange%nSurfDistSidesSend(iProc)))
-  SurfCOMM%MPINeighbor(iProc)%RecvSurfDistList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
-  SurfCOMM%MPINeighbor(iProc)%SendSurfDistList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfExchange%nSurfDistSidesRecv(iProc)))
+  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(SurfExchange%nSurfDistSidesSend(iProc)))
+  SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
+  SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
   ALLOCATE(SurfDistSendBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSurfDistSidesSend(iProc)))
   ALLOCATE(SurfDistRecvBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSurfDistSidesRecv(iProc)))
   SurfDistSendBuf(iProc)%content_int=0.
@@ -705,6 +705,9 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
       WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
       Adsorption%EDissBond(iReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
     END DO
+  END DO
+  DO iSpec = 1,nSpecies            
+    WRITE(UNIT=hilf,FMT='(I2)') iSpec
     IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
       Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN

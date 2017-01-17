@@ -1171,8 +1171,9 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
-  USE MOD_Particle_Vars,          ONLY : WriteMacroValues, KeepWallParticles, PDM
-  USE MOD_Particle_Vars,          ONLY : PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
+  USE MOD_Particle_Vars,          ONLY : WriteMacroValues, KeepWallParticles
+  USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
+!   USE MOD_Particle_Vars,          ONLY : PDM, LastPartPos
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : CollisMode, Adsorption, PolyatomMolDSMC
   USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
@@ -1201,8 +1202,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   INTEGER                          :: p,q
   REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
   REAL                             :: Adsorption_prob
-  INTEGER                          :: adsorption_case     
-  REAL                             :: maxPart
+  INTEGER                          :: adsorption_case
   INTEGER                          :: SurfSideID, SpecID
   REAL, PARAMETER                  :: PI=3.14159265358979323846
   REAL                             :: Norm_velo, Norm_Ec
@@ -1211,16 +1211,20 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
 !   REAL                             :: IntersectionPos(1:3)
   REAL                             :: TransArray(1:6),IntArray(1:6), AdsorptionEnthalpie
   REAL                             :: VelXold, VelYold, VelZold
-  INTEGER                          :: locBCID, VibQuant, VibQuantNew, VibQuantWall
-  REAL                             :: VibQuantNewR
+  INTEGER                          :: locBCID, VibQuant, VibQuantWall
+!   INTEGER                          :: VibQuantNew
+!   REAL                             :: VibQuantNewR
   REAL                             :: VeloReal, EtraOld
   REAL                             :: EtraWall, EtraNew
-  REAL                             :: WallVelo(1:3), WallTemp !, TransACC, VibACC, RotACC
+  REAL                             :: WallVelo(1:3), WallTemp
+!   REAL                             :: TransACC, VibACC, RotACC
   REAL                             :: ErotNew, ErotWall, EVibNew
 ! Polyatomic Molecules
-  REAL, ALLOCATABLE                :: RanNumPoly(:), VibQuantNewRPoly(:)
+  REAL, ALLOCATABLE                :: RanNumPoly(:)
   INTEGER                          :: iPolyatMole, iDOF
-  INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
+  INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
+!   REAL, ALLOCATABLE                :: VibQuantNewRPoly(:)
+!   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
 !===================================================================================================================================
 
   ! additional states
