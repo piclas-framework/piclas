@@ -1147,7 +1147,7 @@ DO subsurfxi = 1,nSurfSample
                         + ((REAL(desorbnum(iSpec)) / REAL(numSites)) &
                         * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
                         * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor)
-    ! calculate number of desorbing simulation particles
+    ! calculate number of desorbing simulation particles (round to integer)
     Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = &
                         INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec))
     ! Adjust tracking desorbing simulation particles
@@ -1160,14 +1160,16 @@ DO subsurfxi = 1,nSurfSample
                         + ((REAL(reactdesorbnum(iSpec)) / REAL(numSites)) &
                         * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
                         * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor)
-    ! calculate number of reacting simulation particles on surface
+    ! calculate number of reacting simulation particles on surface (round to integer)
     Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = &
                         INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec))
     ! Adjust tracking reacting simulation particles
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
                         - Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
-    ! Sample vibrational energies transformed into bound chemical due to reaction (emitted particles sampled in surfflux routine)
+    ! Sample vibrational energies 
+    ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled 
+    ! the energies of the emitted particles are sampled in surfflux routine (particle_emission.f90) because calculated there
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
         SampleParts = Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) &
@@ -1183,7 +1185,7 @@ DO subsurfxi = 1,nSurfSample
               VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
             END DO
           END IF
-          EvibNew = 0.
+          EvibNew = 0. ! later added in particle emission when particle ist emitted
           DO iPart = 1,SampleParts
             EvibOld = 0.
             EvibWall = 0.
@@ -1195,6 +1197,11 @@ DO subsurfxi = 1,nSurfSample
                           * SpecDSMC(iSpec)%CharaTVib * Species(iSpec)%MacroParticleFactor
               END DO
             ELSE
+              VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
+              DO WHILE (VibQuantWall.GE.SpecDSMC(iSpec)%MaxVibQuant)
+                CALL RANDOM_NUMBER(RanNum)
+                VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
+              END DO
               EvibOld = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
               EvibWall = VibQuantWall * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
             END IF

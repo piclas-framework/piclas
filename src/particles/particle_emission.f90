@@ -3450,11 +3450,11 @@ USE MOD_Timedisc_Vars         , ONLY : iter
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC, PolyatomMolDSMC, PartStateIntEn
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC, PartStateIntEn
 USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, SampWall
+USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
@@ -3895,6 +3895,7 @@ __STAMP__&
     
     ! Sample Energies on Surfaces when particles are emitted from them
     IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
+      ! if desorption
       IF (useDSMC.AND.(CollisMode.GT.1).AND.(DSMC%WallModel.GT.0)) THEN
         IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
           DO iPart = 1,PartsEmitted
@@ -3927,8 +3928,8 @@ __STAMP__&
             IntArray(2) = ErotWall
             IntArray(3) = ErotNew
             
-            EvibWall = 0
-            EvibOld  = EvibWall
+            EvibWall = 0 ! calculated and added in particle desorption calculation
+            EvibOld  = EvibWall ! calculated and added in particle desorption calculation
             EvibNew  = PartStateIntEn(PartID,1)
             IntArray(4) = EvibOld
             IntArray(5) = EvibWall

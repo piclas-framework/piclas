@@ -212,6 +212,8 @@ SUBROUTINE Init_SurfDist()
 ! Local variable declaration
   INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom
   INTEGER                          :: surfsquare, dist, Adsorbates
+  INTEGER                          :: surface_mpf
+  CHARACTER(64)                    :: particle_mpf
   INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
   REAL                             :: RanNum
   INTEGER                          :: xpos, ypos
@@ -259,25 +261,37 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   END DO
   END DO
 END DO
-IF (.NOT.KeepWallParticles) THEN
-  surfsquare = GETINT('Particles-DSMC-AdsorptionSites','10000')
-  surfsquare = INT(SQRT(REAL(surfsquare))) - 1
-END IF
+! IF (.NOT.KeepWallParticles) THEN
+!   surfsquare = GETINT('Particles-DSMC-AdsorptionSites','10000')
+!   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
+! END IF
+WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
+surface_mpf = GETINT('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
+
+#ifdef MPI
+NbrSurfPos = 0
+#endif /*MPI*/
 
 DO iSurfSide = 1,SurfMesh%nTotalSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-    IF (KeepWallParticles) THEN ! does not work with vMPF
-      surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
-                    * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,iSurfSide) &
-                    / Species(1)%MacroParticleFactor)
-      surfsquare = INT(SQRT(REAL(surfsquare))) - 1
-    END IF
+!     IF (KeepWallParticles) THEN ! does not work with vMPF
+!       surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
+!                     * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,iSurfSide) &
+!                     / Species(1)%MacroParticleFactor)
+!       surfsquare = INT(SQRT(REAL(surfsquare))) - 1
+!     END IF
+    surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
+                  * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,iSurfSide) &
+                  / surface_mpf)
+    surfsquare = INT(SQRT(REAL(surfsquare))) - 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1) = INT(surfsquare**2)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
 #ifdef MPI
-    NbrSurfPos = SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
+    IF (NbrSurfPos.LT.SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)) ) THEN
+      NbrSurfPos = SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
+    END IF
 #endif /*MPI*/
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(:) = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp(1:nSpecies) = 0.
@@ -772,6 +786,11 @@ SUBROUTINE FinalizeDSMCSurfModel()
 USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
 USE MOD_PARTICLE_Vars,          ONLY : PDM, PEM
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
+USE MOD_Particle_MPI_Vars,      ONLY : SurfExchange
+USE MOD_Particle_MPI_Vars,      ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -781,6 +800,9 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: subsurfxi,subsurfeta,iSurfSide,iCoord
+#ifdef MPI
+INTEGER                      :: iProc
+#endif /*MPI*/
 !===================================================================================================================================
 SDEALLOCATE(PDM%ParticleAtWall)
 SDEALLOCATE(PDM%PartAdsorbSideIndx)
@@ -796,10 +818,6 @@ SDEALLOCATE(Adsorption%Nu_b)
 SDEALLOCATE(Adsorption%DesorbEnergy)
 SDEALLOCATE(Adsorption%Intensification)
 SDEALLOCATE(Adsorption%HeatOfAdsZero)
-SDEALLOCATE(Adsorption%DissocReact)
-SDEALLOCATE(Adsorption%AssocReact)
-SDEALLOCATE(Adsorption%EDissBond)
-SDEALLOCATE(Adsorption%EDissBondAdsorbPoly)
 SDEALLOCATE(Adsorption%Coordination)
 SDEALLOCATE(Adsorption%DiCoord)
 
@@ -808,6 +826,7 @@ SDEALLOCATE(Adsorption%Coverage)
 SDEALLOCATE(Adsorption%ProbAds)
 SDEALLOCATE(Adsorption%ProbDes)
 SDEALLOCATE(Adsorption%SumDesorbPart)
+SDEALLOCATE(Adsorption%SumReactPart)
 SDEALLOCATE(Adsorption%SumAdsorbPart)
 SDEALLOCATE(Adsorption%SurfSideToGlobSideMap)
 SDEALLOCATE(Adsorption%ProbSigAds)
@@ -816,24 +835,33 @@ SDEALLOCATE(Adsorption%Sigma)
 SDEALLOCATE(Adsorption%ProbSigma)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
 
+SDEALLOCATE(Adsorption%Ads_Powerfactor)
+SDEALLOCATE(Adsorption%Ads_Prefactor)
+SDEALLOCATE(Adsorption%Diss_Powerfactor)
+SDEALLOCATE(Adsorption%Diss_Prefactor)
+SDEALLOCATE(Adsorption%DissocReact)
+SDEALLOCATE(Adsorption%AssocReact)
+SDEALLOCATE(Adsorption%EDissBond)
+SDEALLOCATE(Adsorption%EDissBondAdsorbPoly)
+
 IF (ALLOCATED(SurfDistInfo)) THEN
 DO iSurfSide=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%reactnum_tmp)
+    SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder)
+    SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain)
+    SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites)
+    SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp)
+    SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp)
+    SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%reactnum_tmp)
     IF (ALLOCATED(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap)) THEN
       DO iCoord = 1,3
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%UsedSiteMap)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%Species)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%BondAtomIndx)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%BondAtomIndy)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%NeighPos)
-        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%NeighSite)
+        SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%UsedSiteMap)
+        SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%Species)
+        SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%BondAtomIndx)
+        SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%BondAtomIndy)
+        SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%NeighPos)
+        SDEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(iCoord)%NeighSite)
       END DO
     END IF
   END DO
@@ -841,6 +869,43 @@ DO iSurfSide=1,SurfMesh%nSides
 END DO
 DEALLOCATE(SurfDistInfo)
 END IF
+
+#ifdef MPI
+IF (ALLOCATED(AdsorbSendBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(AdsorbSendBuf(iProc)%content_int)
+  END DO
+  DEALLOCATE(AdsorbSendBuf)
+END IF
+IF (ALLOCATED(AdsorbRecvBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(AdsorbRecvBuf(iProc)%content_int)
+  END DO
+  DEALLOCATE(AdsorbRecvBuf)
+END IF
+IF (ALLOCATED(SurfCOMM%MPINeighbor)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList)
+  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList)
+  END DO
+END IF
+SDEALLOCATE(SurfExchange%nSurfDistSidesSend)
+SDEALLOCATE(SurfExchange%nSurfDistSidesRecv)
+SDEALLOCATE(SurfExchange%SurfDistSendRequest)
+SDEALLOCATE(SurfExchange%SurfDistRecvRequest)
+IF (ALLOCATED(SurfDistSendBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(SurfDistSendBuf(iProc)%content_int)
+  END DO
+  DEALLOCATE(SurfDistSendBuf)
+END IF
+IF (ALLOCATED(SurfDistRecvBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(SurfDistRecvBuf(iProc)%content_int)
+  END DO
+  DEALLOCATE(SurfDistRecvBuf)
+END IF
+#endif /*MPI*/
 
 END SUBROUTINE FinalizeDSMCSurfModel
 
