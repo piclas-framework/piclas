@@ -64,6 +64,9 @@ INTEGER              :: FullEisenstatWalker                                     
                                                                                     ! 0 - no Eisenstat-Walker
                                                                                     ! 1 - Field Solver
                                                                                     ! 2 - Particle Newton and Field Solver
+REAL                 :: PartRelaxationFac                                           ! relaxation factor for particles
+REAL                 :: PartRelaxationFac0                                          ! relaxation factor for particles
+LOGICAL              :: DoPartRelaxation                                            ! flag for particle relaxation
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
 #ifdef PARTICLES

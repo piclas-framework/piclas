@@ -131,6 +131,10 @@ DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
 ! UpdateNextFreePosition in each interation
 UpdateInIter         = GETINT('UpdateInIter','-1')
+PartRelaxationFac    = GETREAL('PartRelaxationFac','0.')
+PartRelaxationFac0   = PartRelaxationFac
+DoPartRelaxation=.TRUE.
+IF(ALMOSTZERO(PartRelaxationFac)) DoPartRelaxation=.FALSE.
 IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
 #endif

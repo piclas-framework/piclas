@@ -321,7 +321,7 @@ IF(DoPrintConvInfo)THEN
   SWRITE(*,*) 'init part',Counter
 END IF
 
-AbortCritLinSolver=0.99
+AbortCritLinSolver=0.999
 nInnerPartNewton=-1
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
@@ -334,11 +334,11 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       ELSE
         gammaA = PartgammaEW*(Norm2_F_PartXk(iPart))/(Norm2_F_PartXk_old(iPart))
         IF (PartgammaEW*AbortCritLinSolver*AbortCritLinSolver < 0.1) THEN
-          gammaB = min(0.999,gammaA)
+          gammaB = MIN(0.999,gammaA)
         ELSE
-          gammaB = min(0.999, max(gammaA,PartgammaEW*AbortCritLinSolver*AbortCritLinSolver))
+          gammaB = MIN(0.999, MAX(gammaA,PartgammaEW*AbortCritLinSolver*AbortCritLinSolver))
         ENDIF
-        AbortCritLinSolver = min(0.999,max(gammaB,0.5*SQRT(AbortTol)/SQRT(Norm2_F_PartXk(iPart))))
+        AbortCritLinSolver = MIN(0.999,MAX(gammaB,0.5*SQRT(AbortTol)/SQRT(Norm2_F_PartXk(iPart))))
       END IF 
       Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
