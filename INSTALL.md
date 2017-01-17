@@ -2,7 +2,9 @@
 
 ## Prerequisites
 
-Boltzplatz has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS and 16.04 LTS, Chakra OS. In addition Paraview or Tecplot can be used for visualization.
+For **tested combinations** of prerequisities (HDF5, openMPI, cmake etc.) and known problems that may occur, see [BuildConfigurations.md](BuildConfigurations.md).
+
+Boltzplatz has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS and 16.04 LTS, Chakra OS. In addition, Paraview or Tecplot can be used for visualization.
 
 The required packages for the Ubuntu Linux distributions are listed in table \ref{tab:installation_prereqs_ubuntu}. Under Ubuntu, they can be obtained using the apt environment:
 
@@ -19,7 +21,7 @@ The required packages for the Ubuntu Linux distributions are listed in table \re
 | gfortran         | x               |      x          |
 | g++              | x               |      x          |
 |  mpi-default-dev | x               |      x          |
-| zlib1g-dev       | -               |     x           |
+| zlib1g-dev       | -               |      x          |
 
 Table: Required debian packages under Ubuntu.
 
