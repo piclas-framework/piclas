@@ -337,10 +337,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PartStateIntEn
   USE MOD_Particle_Boundary_Vars, ONLY : PartBound
-  USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
 #if (PP_TimeDiscMethod==42)  
-  USE MOD_TimeDisc_Vars,          ONLY : iter
+  USE MOD_TimeDisc_Vars,          ONLY : iter, dt
 #endif
 !===================================================================================================================================
   IMPLICIT NONE
@@ -1397,7 +1396,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
-    Adsorption%SumAdsorbPart(:,:,SurfSideID,:)=0.
+!     Adsorption%SumAdsorbPart(:,:,SurfSideID,:)=0.
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
 
@@ -1445,9 +1444,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
-    AdsorbRecvBuf(iProc)%content_int = 0.
-    AdsorbSendBuf(iProc)%content_int = 0.
- END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  AdsorbRecvBuf(iProc)%content_int = 0.
+  AdsorbSendBuf(iProc)%content_int = 0.
 END DO ! iProc
 
 END SUBROUTINE ExchangeAdsorbNum
@@ -1570,7 +1569,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         END DO
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample.
- END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
   SurfDistRecvBuf(iProc)%content_int = 0
   SurfDistSendBuf(iProc)%content_int = 0
 END DO ! iProc

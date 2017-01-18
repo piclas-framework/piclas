@@ -195,9 +195,9 @@ SUBROUTINE Init_SurfDist()
 !===================================================================================================================================
 ! Initializing surface distibution Model for calculating of coverage effects on heat of adsorption
 !===================================================================================================================================
-  USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
+  USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut, myRank
   USE MOD_ReadInTools
-  USE MOD_Particle_Vars,          ONLY : nSpecies, Species, KeepWallParticles
+  USE MOD_Particle_Vars,          ONLY : nSpecies, Species!, KeepWallParticles
   USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
   USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
@@ -218,6 +218,9 @@ SUBROUTINE Init_SurfDist()
   REAL                             :: RanNum
   INTEGER                          :: xpos, ypos
   INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
+  INTEGER                          :: Max_Surfsites_num
+  INTEGER                          :: Max_Surfsites_own
+  INTEGER                          :: Max_Surfsites_halo
 #if (PP_TimeDiscMethod==42)
   INTEGER                          :: idiff
 #endif
@@ -267,6 +270,9 @@ END DO
 ! END IF
 WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
 surface_mpf = GETINT('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
+Max_Surfsites_num = 0
+Max_Surfsites_own = 0
+Max_Surfsites_halo = 0
 
 #ifdef MPI
 NbrSurfPos = 0
@@ -288,6 +294,13 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1) = INT(surfsquare**2)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
+    
+    Max_Surfsites_num = Max_Surfsites_num + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
+    IF (iSurfSide.LE.SurfMesh%nSides) THEN
+      Max_Surfsites_own = Max_Surfsites_own + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
+    ELSE
+      Max_Surfsites_halo = Max_Surfsites_halo + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
+    END IF
 #ifdef MPI
     IF (NbrSurfPos.LT.SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)) ) THEN
       NbrSurfPos = SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
@@ -587,6 +600,10 @@ DO subsurfxi = 1,nSurfSample
 END DO
 END DO
 END DO
+
+! write out the number of sites on all surface of the proc, that are considered for adsorption
+WRITE(UNIT_stdOut,'(A,I,I,A,I,A,I)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
+  ' | own: ',Max_Surfsites_own,' | halo: ',Max_Surfsites_halo
 
 #if (PP_TimeDiscMethod==42)
 ! initial distribution into equilibrium distribution
