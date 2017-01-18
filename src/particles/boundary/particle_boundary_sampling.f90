@@ -902,9 +902,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         iPos=iPos+SurfMesh%SampSize
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
-    SurfRecvBuf(iProc)%content = 0.
-    SurfSendBuf(iProc)%content = 0.
- END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  SurfRecvBuf(iProc)%content = 0.
+  SurfSendBuf(iProc)%content = 0.
 END DO ! iProc
 
 END SUBROUTINE ExchangeSurfData
