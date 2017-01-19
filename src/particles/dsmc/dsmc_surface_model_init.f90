@@ -159,6 +159,8 @@ END DO
 ! END DO
 ! extend later to different densities for each boundary
 Adsorption%DensSurfAtoms(:) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
+Adsorption%AreaIncrease = GETREAL('Particle-Surface-AreaIncrease','1')
+Adsorption%DensSurfAtoms(:) = Adsorption%DensSurfAtoms(:)*Adsorption%AreaIncrease
 
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec

@@ -262,6 +262,7 @@ TYPE tAdsorption
   INTEGER , ALLOCATABLE                  :: SumReactPart(:,:,:,:)   ! Number of Particles desorbed through reaction
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
+  REAL                                   :: AreaIncrease            ! Factor for increasing surface density
   INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption
   ! parameters for Kisliuk and Polanyi Wigner model
