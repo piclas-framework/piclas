@@ -60,7 +60,7 @@ SUBROUTINE CalcSurfaceValues
 ! MODULES
   USE MOD_Globals
   USE MOD_Timedisc_Vars,              ONLY:time,dt
-  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter,MacroSurfaceCoverage, DSMC !,SampWall
+  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter, DSMC !,MacroSurfaceCoverage
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI

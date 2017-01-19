@@ -210,17 +210,17 @@ SUBROUTINE Init_SurfDist()
   IMPLICIT NONE
 !=================================================================================================================================== 
 ! Local variable declaration
+  CHARACTER(64)                    :: particle_mpf
+  REAL                             :: surface_mpf
+  INTEGER                          :: Max_Surfsites_num
+  INTEGER                          :: Max_Surfsites_own
+  INTEGER                          :: Max_Surfsites_halo
   INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom
   INTEGER                          :: surfsquare, dist, Adsorbates
-  INTEGER                          :: surface_mpf
-  CHARACTER(64)                    :: particle_mpf
   INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
   REAL                             :: RanNum
   INTEGER                          :: xpos, ypos
   INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
-  INTEGER                          :: Max_Surfsites_num
-  INTEGER                          :: Max_Surfsites_own
-  INTEGER                          :: Max_Surfsites_halo
 #if (PP_TimeDiscMethod==42)
   INTEGER                          :: idiff
 #endif
@@ -269,7 +269,7 @@ END DO
 !   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
 ! END IF
 WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
-surface_mpf = GETINT('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
+surface_mpf = GETREAL('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
 Max_Surfsites_num = 0
 Max_Surfsites_own = 0
 Max_Surfsites_halo = 0
@@ -602,7 +602,7 @@ END DO
 END DO
 
 ! write out the number of sites on all surface of the proc, that are considered for adsorption
-WRITE(UNIT_stdOut,'(A,I,I,A,I,A,I)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
+WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
   ' | own: ',Max_Surfsites_own,' | halo: ',Max_Surfsites_halo
 
 #if (PP_TimeDiscMethod==42)
@@ -631,8 +631,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
   ALLOCATE(SurfDistSendBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSurfDistSidesSend(iProc)))
   ALLOCATE(SurfDistRecvBuf(iProc)%content_int(CommSize*(nSurfSample**2)*SurfExchange%nSurfDistSidesRecv(iProc)))
-  SurfDistSendBuf(iProc)%content_int=0.
-  SurfDistRecvBuf(iProc)%content_int=0.
+  SurfDistSendBuf(iProc)%content_int=0
+  SurfDistRecvBuf(iProc)%content_int=0
 END DO ! iProc
 
 ! fill halo surface distribution through mpi communication

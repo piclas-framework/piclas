@@ -1445,8 +1445,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
-  AdsorbRecvBuf(iProc)%content_int = 0.
-  AdsorbSendBuf(iProc)%content_int = 0.
+  AdsorbRecvBuf(iProc)%content_int = 0
+  AdsorbSendBuf(iProc)%content_int = 0
 END DO ! iProc
 
 END SUBROUTINE ExchangeAdsorbNum
@@ -2251,7 +2251,8 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
   INTEGER                        :: Coordination, i, j, Indx, Indy
   REAL , ALLOCATABLE             :: x(:)!, D_AL(:), delta(:) !, z(:)
   INTEGER , ALLOCATABLE          :: m(:)!, Neigh_bondorder(:)
-  REAL                           :: D_AB, D_AX, D_BX, bondorder
+  INTEGER                        :: bondorder
+  REAL                           :: D_AB, D_AX, D_BX
   REAL                           :: Heat_A, Heat_B
   REAL                           :: A, B, sigma
 !   REAL                           :: Heat_D_AL
@@ -2271,7 +2272,7 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
     DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
       Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%BondAtomIndx(Surfpos,j)
       Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%BondAtomIndy(Surfpos,j)
-      bondorder = 0.
+      bondorder = 0
       DO i = 1,nSpecies
         bondorder = bondorder + SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(i,Indx,Indy)
       END DO
