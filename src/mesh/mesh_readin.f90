@@ -283,7 +283,11 @@ PartDistri(:)=0
 CALL CloseDataFile()
 Dexist=.FALSE. 
 IF (DoRestart) THEN 
+#ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(RestartFile,create=.FALSE.)
+#endif /*MPI*/
 
 #ifdef MPI
   IF(MPIRoot)THEN
@@ -705,7 +709,11 @@ IF(DExist)THEN
   SDEALLOCATE(ElemWeight)
   ALLOCATE(ElemWeight(1:nElems))
   !CALL ReadArray('ElemWeight',1,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
+#ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(RestartFile,create=.FALSE.)
+#endif /*MPI*/
   CALL ReadArray('ElemWeight',1,(/nElems/),OffsetElem,1,RealArray=ElemWeight)
   CALL CloseDataFile() 
 END IF
