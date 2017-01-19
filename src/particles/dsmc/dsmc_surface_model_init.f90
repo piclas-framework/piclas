@@ -42,6 +42,9 @@ USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_Particle_Mesh_Vars,     ONLY : nTotalSides
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh!, PartBound
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
+#endif
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
@@ -56,6 +59,9 @@ USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
 ! LOCAL VARIABLES                                                                      !
   CHARACTER(32)                    :: hilf
   INTEGER                          :: iSpec, iSide!, iSurf, IDcounter
+#if (PP_TimeDiscMethod==42)
+  INTEGER                          :: idiff
+#endif
 #ifdef MPI
   INTEGER                          :: iProc
 #endif
@@ -187,6 +193,12 @@ IF (DSMC%WallModel.GT.1) THEN
   CALL Init_SurfDist()
 !   IF (CollisMode.EQ.3) 
   CALL Init_SurfChem()
+#if (PP_TimeDiscMethod==42)
+! initial distribution into equilibrium distribution
+  DO idiff=1,3
+    CALL CalcDiffusion()
+  END DO
+#endif
 END IF
 
 END SUBROUTINE InitDSMCSurfModel
@@ -200,7 +212,6 @@ SUBROUTINE Init_SurfDist()
   USE MOD_Particle_Vars,          ONLY : nSpecies, Species!, KeepWallParticles
   USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
-  USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
 #ifdef MPI
   USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
   USE MOD_Particle_MPI_Vars,      ONLY : SurfDistSendBuf,SurfDistRecvBuf,SurfExchange, NbrSurfPos
@@ -221,9 +232,6 @@ SUBROUTINE Init_SurfDist()
   REAL                             :: RanNum
   INTEGER                          :: xpos, ypos
   INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
-#if (PP_TimeDiscMethod==42)
-  INTEGER                          :: idiff
-#endif
 #ifdef MPI
   INTEGER                          :: iProc, CommSize
 #endif
@@ -604,13 +612,6 @@ END DO
 ! write out the number of sites on all surface of the proc, that are considered for adsorption
 WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
   ' | own: ',Max_Surfsites_own,' | halo: ',Max_Surfsites_halo
-
-#if (PP_TimeDiscMethod==42)
-! initial distribution into equilibrium distribution
-  DO idiff=1,3
-    CALL CalcDiffusion()
-  END DO
-#endif
 
 #ifdef MPI
 ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &

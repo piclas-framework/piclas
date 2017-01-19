@@ -24,6 +24,7 @@ LOGICAL                       :: CalcPartBalance                       ! Particl
 LOGICAL                       :: CalcSurfNumSpec                       ! Calculate the number of simulated particles per species 
                                                                        ! on surfaces
 LOGICAL                       :: CalcSurfCoverage                      ! Calculate the surface coverages for each species
+LOGICAL                       :: CalcAccomodation                      ! Calculate the surface accomodation coefficient
 LOGICAL                       :: CalcSurfReacRates                     ! Calculate the surface reaction rate per reaction
 LOGICAL                       :: CalcVelos                             ! Computes the drift and thermal velocity of each species
 LOGICAL                       :: VeloDirs(4)                           ! select the direction for velo computation

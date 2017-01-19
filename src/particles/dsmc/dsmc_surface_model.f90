@@ -80,7 +80,7 @@ SUBROUTINE DSMC_Update_Wall_Vars()
                 ! adjust number of background mapping adsorbates if SumAdsorbPart > 0
                 IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).GT.0) THEN
                   ! calculate number of adsorbed particles on background for each species
-                  numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3)
+                  numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
                   SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                         + (REAL(Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
                         / maxPart) * REAL(numSites)
