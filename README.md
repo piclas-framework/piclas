@@ -41,9 +41,9 @@ Boltzplatz uses several external libraries as well as auxilliary functions from 
 
 ## I need help or further informations:
 
-* [nrg](https://nrg.iag.uni-stuttgart.de/)
-*[irs](https://www.irs.uni-stuttgart.de/forschung/numerische_modellierung_und_simulation/index.html)
-* [hopr](https://hopr-project.org)
-* [wiki](https://wiki.iag.uni-stuttgart.de/halowiki/)
+* [Numerics Research Group](https://nrg.iag.uni-stuttgart.de/)
+* [IRS - Numerische Modellierung und Simulation](https://www.irs.uni-stuttgart.de/forschung/numerische_modellierung_und_simulation/index.html)
+* [HOPR (High Order Preprocessor)](https://hopr-project.org)
+* [Halowiki](https://wiki.iag.uni-stuttgart.de/halowiki/)
 
 

@@ -136,6 +136,7 @@ REAL              :: RECBR(2)
 #endif /*MPI*/
 !===================================================================================================================================
 
+
 ! compute local charge
 Charge=0.
 PartCharge=0.
@@ -145,7 +146,11 @@ DO iElem=1,PP_nElems
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#ifdef PP_HDG
+    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
+#else /* DG */
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+#endif
 #else
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * source(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif

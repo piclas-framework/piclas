@@ -13,7 +13,6 @@ SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
 INCLUDE(ExternalProject)
 INCLUDE(CMakeDependentOption)
 
-
 # =========================================================================
 # Check whether we are on Github or at IAG
 # =========================================================================
@@ -26,13 +25,16 @@ IF (HOMERUN GREATER -1)
   ELSE()
     SET(BOLTZPLATZ_DLPATH "https://gitlabext.iag.uni-stuttgart.de/piclas")
   ENDIF()
+  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}libs/hdf5.git )
 ELSE()
   IF(USESSH EQUAL 0)
     SET(BOLTZPLATZ_DLPATH "git@github.com:piclas-framework")
   ELSE()
     SET(BOLTZPLATZ_DLPATH "https://github.com/piclas-framework")
   ENDIF()
+  SET (HDF5DOWNLOAD https://bitbucket.hdfgroup.org/scm/hdffv/hdf5.git )
 ENDIF()
+SET (HDF5TAG "hdf5-1_10_0-patch1" CACHE STRING "HDF5 version tag")
 
 # =========================================================================
 # Detect machine environements
@@ -164,6 +166,7 @@ ENDIF(BOLTZPLATZ_CODE_ANALYZE)
 # =========================================================================
 # Timedisc method
 # =========================================================================
+SET(BOLTZPLATZ_IMPLICIT OFF)
 IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
    IF(BOLTZPLATZ_HDG)
       ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=500)
@@ -210,8 +213,16 @@ ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=112 -DIMPA)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
+   IF(BOLTZPLATZ_HDG)
+      SET(BOLTZPLATZ_IMPLICIT ON)
+      ADD_DEFINITIONS(-DPP_HDG)
+   ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
+   IF(BOLTZPLATZ_HDG)
+      ADD_DEFINITIONS(-DPP_HDG)
+      SET(BOLTZPLATZ_IMPLICIT ON)
+   ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
@@ -238,6 +249,10 @@ IF(BOLTZPLATZ_HDG)
       MESSAGE(STATUS "use HDG with RK4")
    ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK14")
       MESSAGE(STATUS "use HDG with RK14")
+   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
+     MESSAGE(STATUS "use HDG with ImplicitO3")
+   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
+     MESSAGE(STATUS "use HDG with ImplicitO4")
    ELSE()
       MESSAGE(ERROR ": Unknown timedisc method system for HDG.")
    ENDIF()
@@ -276,10 +291,9 @@ ENDFOREACH()
 # Build type
 # =========================================================================
 # make sure that the default is a RELEASE
-
 IF (NOT CMAKE_BUILD_TYPE)
    SET (CMAKE_BUILD_TYPE Release CACHE STRING
-      "Choose the type of build, options are: None Debug Release Profile."
+      "Choose the type of build, options are: Debug Release Profile."
       FORCE)
    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
      SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile SANI)
@@ -384,9 +398,6 @@ IF(NOT BOLTZPLATZ_BUILD_HDF5)
     ENDIF()
   ENDIF()
 ELSE()
-  # define here the path to download from
-  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}/HDF5.git )
-  SET (HDF5TAG "1.10.0-patch1" CACHE STRING "HDF5 version tag")
 
   SET(BOLTZPLATZ_HDF5_DLDIR ${BOLTZPLATZ_EXTERNAL_LIB_DIR}/HDF5)
   SET(BOLTZPLATZ_HDF5_DIR  ${BOLTZPLATZ_HDF5_DLDIR}/build)
@@ -441,6 +452,7 @@ IF(BOLTZPLATZ_HDF5_CMAKE)
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
   LIST(APPEND linkedlibs ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
 ELSE()
+  #INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR}/static)
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
   LIST(INSERT HDF5_LIBRARIES 0 ${HDF5_hdf5_fortran_LIBRARY_RELEASE})
   LIST(REMOVE_DUPLICATES HDF5_LIBRARIES)
@@ -541,8 +553,17 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg_vars.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation_vars.f90
+                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/timeavg.f90
+                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/timeavg_vars.f90
                          ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/getboundaryflux.f90)
 
+
+FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
+                              ./src/linearsolver/linearsolver_vars.f90
+                              ./src/linearsolver/particlesolver.f90
+                              ./src/linearsolver/predictor.f90
+                              ./src/linearsolver/linearoperator/linearoperator.f90
+                              ./src/linearsolver/newton.f90)
 
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
@@ -551,6 +572,9 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
 IF(BOLTZPLATZ_HDG)
   LIST(APPEND boltzplatzF90 ${hdgF90})
+  IF(BOLTZPLATZ_IMPLICIT)
+    LIST(APPEND boltzplatzF90 ${implicitF90})
+  ENDIF(BOLTZPLATZ_IMPLICIT)
 ELSE()
   LIST(APPEND boltzplatzF90 ${dgF90})
 ENDIF(BOLTZPLATZ_HDG)

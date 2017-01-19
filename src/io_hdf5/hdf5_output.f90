@@ -29,6 +29,10 @@ END INTERFACE
 !  MODULE PROCEDURE WriteArrayToHDF5
 !END INTERFACE
 
+INTERFACE WriteTimeAverage
+  MODULE PROCEDURE WriteTimeAverage
+END INTERFACE
+
 INTERFACE
   SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR
@@ -42,6 +46,7 @@ INTERFACE WriteAttributeToHDF5
 END INTERFACE
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header
+PUBLIC :: WriteTimeAverage
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5
 !===================================================================================================================================
 
@@ -96,9 +101,7 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER                        :: nVar
 #endif /*PARTICLES*/
-#ifdef MPI
 REAL                           :: StartT,EndT
-#endif /*MPI*/
 
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -118,9 +121,10 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
-  StartT=MPI_WTIME()
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
 #endif
-
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 RestartFile=Filename
@@ -307,14 +311,9 @@ CALL WritePMLDataToHDF5(FileName)
 IF(DoLoadBalance) CALL WriteElemWeightToHDF5(FileName)
 #endif /*MPI*/
 
-#ifdef MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+EndT=BOLTZPLATZTIME()
+SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+
 END SUBROUTINE WriteStateToHDF5
 
 
@@ -992,6 +991,98 @@ INTEGER                        :: minnParts
 END SUBROUTINE WriteParticleToHDF5
 #endif /*PARTICLES*/
 
+
+SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,FutureTime,VarNamesAvg,VarNamesFluc,UAvg,UFluc,dtAvg,nVar_Avg,nVar_Fluc)
+!==================================================================================================================================
+!> Subroutine to write time averaged data and fluctuations HDF5 format
+!==================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars,   ONLY:ProjectName
+USE MOD_Mesh_Vars,      ONLY:offsetElem,nGlobalElems,nElems
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName                                 !< Name of mesh file
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesAvg(nVar_Avg)                        !< Average variable names
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesFluc(nVar_Fluc)                      !< Fluctuations variable names
+REAL,INTENT(IN)                :: OutputTime                                   !< Time of output
+REAL,INTENT(IN),OPTIONAL       :: FutureTime                                   !< Time of next output
+REAL,INTENT(IN),TARGET         :: UAvg(nVar_Avg,0:PP_N,0:PP_N,0:PP_N,nElems)   !< Averaged Solution
+REAL,INTENT(IN),TARGET         :: UFluc(nVar_Fluc,0:PP_N,0:PP_N,0:PP_N,nElems) !< Fluctuations
+REAL,INTENT(IN)                :: dtAvg                                        !< Timestep of averaging
+INTEGER,INTENT(IN)             :: nVar_Avg                                     !< Number of averaged variables
+INTEGER,INTENT(IN)             :: nVar_Fluc                                    !< Number of fluctuations
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+REAL                           :: StartT,EndT
+!==================================================================================================================================
+IF((nVar_Avg.EQ.0).AND.(nVar_Fluc.EQ.0)) RETURN ! no time averaging
+StartT=BOLTZPLATZTIME()
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
+END IF
+
+! Write timeaverages ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Avg.GT.0)THEN
+  ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TimeAvg',OutputTime))//'.h5'
+  IF(MPIRoot)THEN
+    CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FutureTime)
+#ifdef MPI
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif /*MPI*/
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+
+  ! Reopen file and write DG solution
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution', rank=5,&
+                          nValGlobal=(/nVar_Avg,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal=      (/nVar_Avg,PP_N+1,PP_N+1,PP_N+1,nElems/),&
+                          offset=    (/0,       0,     0,     0,     offsetElem/),&
+                          collective=.TRUE., RealArray=UAvg)
+END IF
+
+! Write fluctuations ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Fluc.GT.0)THEN
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Fluc',OutputTime))//'.h5'
+  IF(MPIRoot)THEN
+    CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FutureTime)
+#ifdef MPI
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif /*MPI*/
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+
+  ! Reopen file and write DG solution
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution', rank=5,&
+                          nValGlobal=(/nVar_Fluc,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal=      (/nVar_Fluc,PP_N+1,PP_N+1,PP_N+1,nElems/),&
+                          offset=    (/0,        0,     0,     0,     offsetElem/),&
+                          collective=.TRUE., RealArray=UFluc)
+END IF
+
+endT=BOLTZPLATZTIME()
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+END SUBROUTINE WriteTimeAverage
 
 ! PO: old
 !SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)

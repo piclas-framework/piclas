@@ -139,7 +139,8 @@ END IF
 
 alphaNorm=alpha/lengthPartTrajectory
 
-IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
+!IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
+IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
   ishit=.FALSE.
   alpha=-1.0
   RETURN
@@ -442,7 +443,8 @@ IF (nRoot.EQ.1) THEN
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
     IF(ABS(xi(1)).LT.BezierClipHit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
-      IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
         alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
         etatild=eta(1)
@@ -471,7 +473,8 @@ ELSE
     IF(ABS(xi(1)).LT.BezierCliphit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
-      IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
         nInter=nInter+1
         isHit=.TRUE.
         t(1)=t(1)
@@ -491,7 +494,8 @@ ELSE
     IF(ABS(xi(2)).LT.BezierClipHit)THEN
       alphaNorm=t(2)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
-      IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
         t(2)=t(2)!/lengthPartTrajectory
         isHit=.TRUE.
         nInter=nInter+2
@@ -1811,7 +1815,8 @@ IF(DoCheck)THEN
   !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.MinusEps))THEN
   alphaNorm=alpha/lengthPartTrajectory
 
-  IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
+  !IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
+  IF((alphaNorm.LE.1.0).AND.(alphaNorm.GT.-epsilontol))THEN
     ! found additional intersection point
     IF(nInterSections.GE.BezierClipMaxIntersec)THEN
       !nInterSections=nInterSections-1
@@ -1944,7 +1949,8 @@ alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
 alphaNorm=alpha/lengthPartTrajectory
 
-IF((alphaNorm.LE.BezierNewtonHit).AND.(alphaNorm.GT.-epsilontol)) RETURN
+!IF((alphaNorm.LE.BezierNewtonHit).AND.(alphaNorm.GT.-epsilontol)) RETURN
+IF((alphaNorm.LE.1.0).AND.(alphaNorm.GT.-epsilontol)) RETURN
 alpha=-1.0
  
 END SUBROUTINE BezierNewton
@@ -2349,6 +2355,8 @@ dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
 !IF(ABS(dnk).LT.epsilontol)THEN
 IF(ABS(dnk).LT.100.*epsMach)THEN
   dnk=0. ! ÜBERPRÜFEN OB SIGN sinn macht
+  alpha(1,1) = -HUGE(1.0)
+  alpha(2,1) =  HUGE(1.0)
 ELSE
   IF(dnk.LT.0.)THEN
     alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
@@ -2367,6 +2375,8 @@ dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
 !IF(ABS(dnk).LT.epsilontol)THEN
 IF(ABS(dnk).LT.100.*epsMach)THEN
   dnk=0.
+  alpha(1,3) = -HUGE(1.0)
+  alpha(2,3) =  HUGE(1.0)
 ELSE
   IF(dnk.LT.0.)THEN
     alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
