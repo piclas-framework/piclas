@@ -215,6 +215,7 @@ ALLOCATE(Size(nDims),SizeMax(nDims))
 CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Size, SizeMax, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 CALL H5DCLOSE_F(DSet_ID, iError)
+DEALLOCATE(SizeMax)
 END SUBROUTINE GetHDF5DataSize
 
 
