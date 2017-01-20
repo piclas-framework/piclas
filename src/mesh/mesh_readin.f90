@@ -283,7 +283,11 @@ PartDistri(:)=0
 CALL CloseDataFile()
 Dexist=.FALSE. 
 IF (DoRestart) THEN 
+#ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(RestartFile,create=.FALSE.)
+#endif /*MPI*/
 
 #ifdef MPI
   IF(MPIRoot)THEN
@@ -325,18 +329,24 @@ IF (DoRestart) THEN
 
   SELECT CASE(BalanceMethod)
   CASE(0) ! old scheme
-    curiElem = 1
-    WeightSum=WeightSum/REAL(nProcessors)
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc)=curiElem - 1 
-      DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
-        CurWeight=CurWeight+ElemWeight(iElem)  
-        IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
-          curiElem = iElem + 1 
-          EXIT
-        END IF
-      END DO   
-    END DO
+    IF(nGlobalElems.EQ.nProcessors) THEN
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc) = iProc
+      END DO
+    ELSE
+      curiElem = 1
+      WeightSum=WeightSum/REAL(nProcessors)
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc)=curiElem - 1
+        DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
+          CurWeight=CurWeight+ElemWeight(iElem)
+          IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
+            curiElem = iElem + 1
+            EXIT
+          END IF
+        END DO
+      END DO
+    END IF
     offsetElemMPI(nProcessors)=nGlobalElems
   CASE(1)
     ! 1: last Proc receives the least load
@@ -699,7 +709,11 @@ IF(DExist)THEN
   SDEALLOCATE(ElemWeight)
   ALLOCATE(ElemWeight(1:nElems))
   !CALL ReadArray('ElemWeight',1,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
+#ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(RestartFile,create=.FALSE.)
+#endif /*MPI*/
   CALL ReadArray('ElemWeight',1,(/nElems/),OffsetElem,1,RealArray=ElemWeight)
   CALL CloseDataFile() 
 END IF
