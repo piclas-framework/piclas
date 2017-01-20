@@ -1244,7 +1244,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
 #if (PP_TimeDiscMethod==42)  
   ! Update wallcollision counter
   Adsorption%AdsorpInfo(SpecID)%WallCollCount = Adsorption%AdsorpInfo(SpecID)%WallCollCount + 1
-#endif  
+#endif
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!
   Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -1524,7 +1524,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
           END IF
         END IF
         ! then do second product
-        IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
+        IF (SpecDSMC(outSpec(2))%InterID.EQ.2) THEN
           IF(SpecDSMC(outSpec(2))%PolyatomicMol) THEN
             iPolyatMole = SpecDSMC(outSpec(2))%SpecToPolyArray
   !           ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))

@@ -53,6 +53,9 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 #endif
       ! adjust coverages of all species on surfaces
       DO iSpec = 1,nSpecies
+#if (PP_TimeDiscMethod==42)
+        IF (DSMC%ReservoirRateStatistic) Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = 0
+#endif
         DO iSurfSide = 1,SurfMesh%nSides
           DO q = 1,nSurfSample
             DO p = 1,nSurfSample
@@ -2147,10 +2150,11 @@ REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
 REAL                          :: Qtra, Qrot, Qvib
 !===================================================================================================================================
-  Qtra = 1
+  Qtra = 1.
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      Qvib = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
                 / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))

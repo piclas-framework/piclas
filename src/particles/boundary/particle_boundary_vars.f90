@@ -70,7 +70,8 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 13-12+nSpecies Wall-Collision counter
   REAL,ALLOCATABLE                      :: Adsorption(:,:,:)           ! Sampling of Adsorption relevant values
                                                                        ! 1:Enthalpie released/annihilated upon adsorption/desorption
-                                                                       ! 2-nSpecies: Coverages for certain species
+                                                                       ! 2: Accomodation
+                                                                       ! 3-nSpecies: Coverages for certain species
                                                                        ! (1+nSpecies,p,q)
   !REAL, ALLOCATABLE                    :: Energy(:,:,:)               ! 1-3 E_tra (pre, wall, re),
   !                                                                    ! 4-6 E_rot (pre, wall, re),

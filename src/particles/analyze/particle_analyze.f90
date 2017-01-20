@@ -244,7 +244,7 @@ SUBROUTINE AnalyzeParticles(Time)
   REAL                :: Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
 #endif
 #if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4)
-  INTEGER(KIND=8)     :: WallNumSpec(nSpecies)
+  INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
   INTEGER             :: iCov
   REAL                :: WallCoverage(nSpecies), Accomodation(nSpecies)
 #endif
@@ -510,7 +510,12 @@ SUBROUTINE AnalyzeParticles(Time)
           IF (CalcSurfNumSpec) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Wall-Spec-', iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nSimPart-Wall-Spec-', iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nSurfPart-Wall-Spec-', iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
           END IF
@@ -521,6 +526,7 @@ SUBROUTINE AnalyzeParticles(Time)
               OutputCounter = OutputCounter + 1
             END DO
           END IF
+#if (PP_TimeDiscMethod==42)
           IF (CalcAccomodation) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -528,7 +534,6 @@ SUBROUTINE AnalyzeParticles(Time)
               OutputCounter = OutputCounter + 1
             END DO
           END IF
-#if (PP_TimeDiscMethod==42)
           IF (CalcSurfReacRates) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -686,15 +691,15 @@ tLBStart = LOCALTIME() ! LB Time Start
     END IF
   END IF
 IF (DSMC%WallModel.GE.1) THEN
-  IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage)
-  IF (CalcSurfReacRates) CALL GetSurfRates(Accomodation,Adsorptionrate,Desorptionrate)
+  IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
+  IF (CalcSurfReacRates.OR.CalcAccomodation) CALL GetSurfRates(Accomodation,Adsorptionrate,Desorptionrate)
 END IF
 #endif /*PP_TimeDiscMethod==42*/
 #if (PP_TimeDiscMethod==4)
 IF (DSMC%WallModel.GE.1) THEN
-  IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage)
+  IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 END IF
-#endif
+#endif /*PP_TimeDiscMethod==4*/
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
 !===================================================================================================================================
@@ -855,6 +860,10 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I18.1)',ADVANCE='NO') WallNumSpec(iSpec)
         END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I18.1)',ADVANCE='NO') WallNumSpec_SurfDist(iSpec)
+        END DO
       END IF
       IF (CalcSurfCoverage) THEN
         DO iSpec=1, nSpecies
@@ -920,12 +929,6 @@ IF (PartMPI%MPIROOT) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
-        END DO
-      END IF
-      IF (CalcAccomodation) THEN
-        DO iSpec = 1, nSpecies
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Accomodation(iSpec)
         END DO
       END IF
     END IF
@@ -1137,7 +1140,7 @@ END SUBROUTINE CalcShapeEfficiencyR
 
 
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
-SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage)
+SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 !===================================================================================================================================
 ! Calculate number of wallparticles for all species
 !===================================================================================================================================
@@ -1146,7 +1149,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PDM, nSpecies, KeepWallParticles
 USE MOD_Particle_Analyze_Vars
-USE MOD_DSMC_Vars,              ONLY : Adsorption!, DSMC
+USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo!, DSMC
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
@@ -1158,32 +1161,58 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER(KIND=8), INTENT(OUT)    :: WallNumSpec(nSpecies)
+INTEGER(KIND=8), INTENT(OUT)    :: WallNumSpec(nSpecies),WallNumSpec_SurfDist(nSpecies)
 REAL           , INTENT(OUT)    :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i, iSurfSide, p, q
+INTEGER                         :: i, iSpec, iSurfSide, p, q
 REAL                            :: SurfPart
 REAL                            :: Coverage(nSpecies)
 #ifdef MPI
 REAL                            :: RD(nSpecies)
-INTEGER(KIND=8)                 :: ID(nSpecies)
+INTEGER(KIND=8)                 :: IDR(nSpecies), ID1(nSpecies), ID2(nSpecies), ID3(nSpecies*2)
 #endif /*MPI*/
+INTEGER                         :: Coord, AdsorbID, Surfpos, SpecID
+INTEGER                         :: adsorbates(nSpecies)
+REAL                            :: SubWallNumSpec(nSpecies), WallNumSpec_tmp(2*nSpecies)
 !===================================================================================================================================
   WallNumSpec = 0
+  WallNumSpec_SurfDist = 0 
   SurfPart = 0.
   Coverage(:) = 0.
-  DO i=1,nSpecies
+  WallNumSpec_tmp = 0.
+  SubWallNumSpec = 0.
+  
+  DO iSpec=1,nSpecies
   DO iSurfSide=1,SurfMesh%nSides
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
-        Coverage(i) = Coverage(i) + Adsorption%Coverage(p,q,iSurfSide,i)
+        Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)
         IF ((.NOT.KeepWallParticles) .AND. CalcSurfNumSpec) THEN
-          SurfPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
-!           SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-!         IF ( (Adsorption%Coordination(i).EQ.2) .AND. (DSMC%WallModel.EQ.3) ) SurfPart = SurfPart * 2
-          WallNumSpec(i) = WallNumSpec(i) + INT( Adsorption%Coverage(p,q,iSurfSide,i) &
-              * SurfPart/Species(i)%MacroParticleFactor)
+!           SurfPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
+          SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+!           WallNumSpec(iSpec) = WallNumSpec(iSpec) + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+!               * SurfPart/Species(iSpec)%MacroParticleFactor)
+          ! calculate number of adsorbates for each species
+          adsorbates = 0
+          DO Coord = 1,3
+          DO AdsorbID = 1,SurfDistInfo(p,q,iSurfSide)%nSites(Coord)-SurfDistInfo(p,q,iSurfSide)%SitesRemain(Coord)
+            Surfpos = SurfDistInfo(p,q,iSurfSide)%AdsMap(Coord)%UsedSiteMap(SurfDistInfo(p,q,iSurfSide)%SitesRemain(Coord)+AdsorbID)
+            SpecID = SurfDistInfo(p,q,iSurfSide)%AdsMap(Coord)%Species(Surfpos)
+            adsorbates(SpecID) = adsorbates(SpecID) + 1
+          END DO
+          END DO
+          ! discret simulated particles on surface distribution
+          WallNumSpec_SurfDist(iSpec) = WallNumSpec_SurfDist(iSpec) + adsorbates(iSpec)
+          ! simulated (gas) particles from discret surface distribution
+          SubWallNumSpec(iSpec) = SubWallNumSpec(iSpec) + REAL(adsorbates(iSpec)) / REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))&
+              * SurfPart/Species(iSpec)%MacroParticleFactor
+          ! simulated gas particles safed in temporary arrays            
+          WallNumSpec_tmp(iSpec) = WallNumSpec_tmp(iSpec) + &
+              ( SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) / SurfDistInfo(p,q,iSurfSide)%nSites(3) &
+              * SurfPart / Species(iSpec)%MacroParticleFactor )
+          WallNumSpec_tmp(iSpec+nSpecies) = WallNumSpec_tmp(iSpec+nSpecies) + SurfDistInfo(p,q,iSurfSide)%desorbnum_tmp(iSpec)&
+              - SurfDistInfo(p,q,iSurfSide)%reactnum_tmp(iSpec)
         END IF
       END DO
     END DO
@@ -1193,26 +1222,43 @@ INTEGER(KIND=8)                 :: ID(nSpecies)
   WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
   END IF
   
+#ifdef MPI
+  IF (PartMPI%MPIRoot) THEN
+    IF (CalcSurfNumSpec)  THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,SubWallNumSpec      ,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_SurfDist,nSpecies  ,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_tmp     ,nSpecies*2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
+    IF (CalcSurfCoverage) THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,WallCoverage,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      WallCoverage = WallCoverage / SurfCOMM%nProcs
+    END IF
+  ELSE
+    IF (CalcSurfNumSpec) THEN
+      CALL MPI_REDUCE(SubWallNumSpec      ,ID1,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(WallNumSpec_SurfDist,ID2,nSpecies  ,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(WallNumSpec_tmp     ,ID3,nSpecies*2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
+    IF (CalcSurfCoverage) CALL MPI_REDUCE(WallCoverage,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  END IF
+#endif /*MPI*/
+
   IF (KeepWallParticles.AND.CalcSurfNumSpec) THEN
     DO i=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(i) .AND. PDM%ParticleAtWall(i)) THEN
         WallNumSpec(PartSpecies(i)) = WallNumSpec(PartSpecies(i)) + 1
       END IF
     END DO
-  END IF
-  
 #ifdef MPI
-IF (PartMPI%MPIRoot) THEN
-  IF (CalcSurfNumSpec)  CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec ,nSpecies,MPI_LONG ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF (CalcSurfCoverage) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,WallCoverage,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    WallCoverage = WallCoverage / SurfCOMM%nProcs
+  IF (PartMPI%MPIRoot) THEN
+    IF (CalcSurfNumSpec) CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec,nSpecies,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
+  ELSE
+    IF (CalcSurfNumSpec) CALL MPI_REDUCE(WallNumSpec ,IDR        ,nSpecies,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
-ELSE
-  IF (CalcSurfNumSpec)  CALL MPI_REDUCE(WallNumSpec ,ID          ,nSpecies,MPI_LONG ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF (CalcSurfCoverage) CALL MPI_REDUCE(WallCoverage,RD          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-END IF
 #endif /*MPI*/
+  ELSE
+    WallNumSpec = INT(SubWallNumSpec)+INT(WallNumSpec_tmp(1:nSpecies))+INT(WallNumSpec_tmp(nSpecies+1:nSpecies*2))
+  END IF
     
 END SUBROUTINE GetWallNumSpec
 
@@ -1281,18 +1327,6 @@ ELSE
   END DO
 END IF
 
-DO iSpec = 1,nSpecies
-  Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
-  Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = 0
-  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
-  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
-  IF (KeepWallParticles) THEN
-    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
-!     Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
-    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-  END IF
-END DO
-
 #ifdef MPI
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,Accomodation,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1302,9 +1336,19 @@ ELSE
 END IF
 #endif /*MPI*/
 
+DO iSpec = 1,nSpecies
+  Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
+  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+  IF (KeepWallParticles) THEN
+    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+  END IF
+END DO
+
 END SUBROUTINE GetSurfRates
 #endif /*(PP_TimeDiscMethod==42)*/
-#endif
+#endif /*(PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)*/
 
 SUBROUTINE CalcParticleBalance()
 !===================================================================================================================================

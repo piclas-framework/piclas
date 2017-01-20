@@ -74,9 +74,7 @@ IF (KeepWallParticles) THEN
   ALLOCATE(PEM%wNumber(1:nElems))
 END IF
 ! allocate info and constants
-#if (PP_TimeDiscMethod==42)
 ALLOCATE( Adsorption%AdsorpInfo(1:nSpecies))
-#endif
 IF (DSMC%WallModel.EQ.1) THEN 
   ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),& 
             Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),& 
@@ -159,7 +157,7 @@ END DO
 ! END DO
 ! extend later to different densities for each boundary
 Adsorption%DensSurfAtoms(:) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
-Adsorption%AreaIncrease = GETREAL('Particle-Surface-AreaIncrease','1')
+Adsorption%AreaIncrease = GETREAL('Particles-Surface-AreaIncrease','1')
 Adsorption%DensSurfAtoms(:) = Adsorption%DensSurfAtoms(:)*Adsorption%AreaIncrease
 
 DO iSpec = 1,nSpecies
@@ -196,7 +194,7 @@ IF (DSMC%WallModel.GT.1) THEN
 !   IF (CollisMode.EQ.3) 
   CALL Init_SurfChem()
 #if (PP_TimeDiscMethod==42)
-! initial distribution into equilibrium distribution
+! initial distribution into equilibrium distribution (needed for better TPD results)
   DO idiff=1,3
     CALL CalcDiffusion()
   END DO
@@ -827,9 +825,7 @@ INTEGER                      :: iProc
 SDEALLOCATE(PDM%ParticleAtWall)
 SDEALLOCATE(PDM%PartAdsorbSideIndx)
 SDEALLOCATE(PEM%wNumber)
-#if (PP_TimeDiscMethod==42)
-SDEALLOCATE( Adsorption%AdsorpInfo)
-#endif
+SDEALLOCATE(Adsorption%AdsorpInfo)
 SDEALLOCATE(Adsorption%InitStick)
 SDEALLOCATE(Adsorption%PrefactorStick)
 SDEALLOCATE(Adsorption%Adsorbexp)

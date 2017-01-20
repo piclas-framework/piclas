@@ -235,12 +235,12 @@ TYPE tAdsorptionInfo
   REAL                                   :: MeanProbAds             ! mean adsorption probability
   REAL                                   :: MeanProbDes             ! mean adsorption probability
   REAL                                   :: MeanEAds                ! mean heat of adsorption
-  INTEGER                                :: WallCollCount           ! counter of wallcollisions
   INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
   INTEGER                                :: NumOfDes                ! Number of Desorptions on Surfaces
-  REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
 #endif
+  REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
+  INTEGER                                :: WallCollCount           ! counter of wallcollisions
 END TYPE
 
 TYPE tAdsorption
