@@ -485,10 +485,13 @@ END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 
-REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)          ! variables,p,q,sides
-REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)   ! variables,p,q,sides
-REAL,ALLOCATABLE                  :: MacroSurfaceCoverage(:,:,:,:)  ! Macrovalue for Coverage of certain surface
-                                                                    ! (nSpecies,p,q,nSurfSides)
+REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
+REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)  ! variables,p,q,sides
+REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
+                                                                   ! (3,p,q,nSurfSides,nSpecies)
+                                                                   ! 1: Surface Collision Counter
+                                                                   ! 2: Accomodation
+                                                                   ! 3: Coverage
 
 ! some variables redefined
 !TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    

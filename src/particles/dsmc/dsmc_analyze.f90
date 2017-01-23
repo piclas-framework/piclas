@@ -60,7 +60,7 @@ SUBROUTINE CalcSurfaceValues
 ! MODULES
   USE MOD_Globals
   USE MOD_Timedisc_Vars,              ONLY:time,dt
-  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter, DSMC !,MacroSurfaceCoverage
+  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal !MacroSurfaceCounter
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI
@@ -90,9 +90,11 @@ SUBROUTINE CalcSurfaceValues
 #endif
 
   ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  ALLOCATE(MacroSurfaceCounter(1:nSpecies,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceSpecVal(3,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+!   ALLOCATE(MacroSurfaceCounter(1:nSpecies,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
-  MacroSurfaceCounter=0
+  MacroSurfaceSpecVal=0.
+!   MacroSurfaceCounter=0
   IF (DSMC%CalcSurfCollis_Output) THEN
     ALLOCATE(CounterTotal(1:nSpecies+1))
     ALLOCATE(SumCounterTotal(1:nSpecies+1))
@@ -123,15 +125,15 @@ SUBROUTINE CalcSurfaceValues
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-!         DO iSpec=1,nSpecies
-!           MacroSurfaceCoverage(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) / TimeSample
-!         END DO ! iSpec=1,nSpecies
         DO iSpec=1,nSpecies
-          MacroSurfaceCounter(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
+!           MacroSurfaceCounter(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
           IF (DSMC%CalcSurfCollis_Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
           IF (DSMC%CalcSurfCollis_SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
-            MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + MacroSurfaceCounter(iSpec,p,q,iSurfSide)
+            MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + SampWall(iSurfSide)%State(12+iSpec,p,q)/TimeSample
           END IF
+          MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
+          MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Accomodation(iSpec,p,q) * dt / TimeSample
+          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
         END DO ! iSpec=1,nSpecies
       END DO ! q=1,nSurfSample
     END DO ! p=1,nSurfSample 
@@ -159,7 +161,7 @@ SUBROUTINE CalcSurfaceValues
 
   CALL WriteSurfSampleToHDF5(TRIM(MeshFile),time+dt)
 
-  DEALLOCATE(MacroSurfaceVal,MacroSurfaceCounter)
+  DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)!,MacroSurfaceCounter)
 
 END SUBROUTINE CalcSurfaceValues
 

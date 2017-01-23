@@ -197,6 +197,8 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   SampWall(iSide)%State=0.
   ALLOCATE(SampWall(iSide)%Adsorption(1:(nSpecies+1),1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Adsorption=0.
+  ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
+  SampWall(iSide)%Accomodation=0.
   !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
   !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
   !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
@@ -415,6 +417,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
+USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
 USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -785,11 +788,11 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
+    ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize)*nDOF*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
+    ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize)*nDOF*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
@@ -811,6 +814,7 @@ SUBROUTINE ExchangeSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -826,7 +830,7 @@ INTEGER                         :: iPos,p,q,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
-nValues=SurfMesh%SampSize*(nSurfSample)**2
+nValues=(SurfMesh%SampSize+(nSpecies+1)+nSpecies)*(nSurfSample)**2
 !
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -852,9 +856,15 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       DO p=1,nSurfSample
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
         iPos=iPos+SurfMesh%SampSize
+        SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies+1)= SampWall(SurfSideID)%Adsorption(:,p,q)
+        iPos=iPos+nSpecies+1
+        SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
+        iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
+    SampWall(SurfSideID)%Adsorption(:,:,:)=0.
+    SampWall(SurfSideID)%Accomodation(:,:,:)=0.
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
 
@@ -891,7 +901,6 @@ END DO ! iProc
 ! add data do my list
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
@@ -900,6 +909,12 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         SampWall(SurfSideID)%State(:,p,q)=SampWall(SurfSideID)%State(:,p,q) &
                                          +SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)
         iPos=iPos+SurfMesh%SampSize
+        SampWall(SurfSideID)%Adsorption(:,p,q)=SampWall(SurfSideID)%Adsorption(:,p,q) &
+                                              +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies+1)
+        iPos=iPos+nSpecies+1
+        SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
+                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+        iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
@@ -921,7 +936,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars,               ONLY:ProjectName
 USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide
-USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal , CollisMode
+USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode!, DSMC
 USE MOD_Particle_Vars,              ONLY:nSpecies
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName
@@ -936,8 +951,10 @@ REAL,INTENT(IN)                      :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
-CHARACTER(LEN=255),ALLOCATABLE      :: StrVarNames(:)
-INTEGER                             :: nVar
+CHARACTER(LEN=255)                  :: H5_Name
+CHARACTER(LEN=255)                  :: NodeTypeTemp
+CHARACTER(LEN=255),ALLOCATABLE      :: StrVarNames(:), StrOutNames(:)
+INTEGER                             :: nVar, nOut_Species, iSpec
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
@@ -972,21 +989,38 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
   CALL WriteAttributeToHDF5(File_ID,'BC_Surf',nSurfBC,StrArray=SurfBCName)
+  NodeTypeTemp='VISU'
+  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
 
   ! Create dataset attribute "VarNames" and write to file
   nVar=5
   ALLOCATE(StrVarNames(1:nVar))
-  StrVarnames(1)='ForceX'
-  StrVarnames(2)='ForceY'
-  StrVarnames(3)='ForceZ'
-  StrVarnames(4)='HeatFlux'
-  StrVarnames(5)='Counter'
-!   StrVarnames(6)='Coverage'
-
-  CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarnames)
+  StrVarNames(1)='ForceX'
+  StrVarNames(2)='ForceY'
+  StrVarNames(3)='ForceZ'
+  StrVarNames(4)='HeatFlux'
+  StrVarNames(5)='Counter'
+  
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
+  
+!   ! Create dataset attribute "Species_Varnames" and write to file
+!   IF (DSMC%WallModel.GT.0) THEN
+    nOut_Species=3
+    ALLOCATE(StrOutNames(1:nOut_Species))
+    StrOutNames(1)='Counter'
+    StrOutNames(2)='Accomodation'
+    StrOutNames(3)='Coverage'
+!   ELSE
+!     nOut_Species=1
+!     ALLOCATE(StrOutNames(1:nOut_Species))
+!     StrOutNames(1)='Counter'
+!   END IF
+  
+  CALL WriteAttributeToHDF5(File_ID,'Species_Varnames',nOut_Species,StrArray=StrOutNames)
 
   CALL CloseDataFile()
   DEALLOCATE(StrVarNames)
+  DEALLOCATE(StrOutNames)
 #ifdef MPI
 END IF
 
@@ -1008,6 +1042,14 @@ CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
                     nVal=      (/5,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/0,          0,          0,offsetSurfSide/),&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
+DO iSpec = 1,nSpecies
+    WRITE(H5_Name,'(A,I3.3,A)') 'DSMC_Spec',iSpec,'_SurfaceSampling'
+    CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
+                    nValGlobal=(/3,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
+                    nVal=      (/3,nSurfSample,nSurfSample,SurfMesh%nSides/),&
+                    offset=    (/0,          0,          0,offsetSurfSide/),&
+                    collective=.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
+END DO
 CALL CloseDataFile()
 
 IF(SurfCOMM%MPIOutputROOT)THEN
