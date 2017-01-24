@@ -241,12 +241,12 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variab
 REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
-REAL                            :: E_0(1:3), omegaW                ! electric field and omega for plane wave
+REAL                            :: E_0(1:3), omegaW, spatialWindow ! electric field and omega for plane wave
 REAL                            :: WaveNumber                      ! wavenumber
-REAL                            :: scaleR0,local_a0,scaleR,timeFac,timeFac2
+REAL                            :: timeFac,temporalWindow
 INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 INTEGER                         :: idir1,idir2,idir3
-REAL                            :: eta
+REAL                            :: eta, kx,ky,kz
 !===================================================================================================================================
 Cent=x
 SELECT CASE (ExactFunction)
@@ -455,6 +455,10 @@ CASE(12) ! planar wave test case
 CASE(14) ! planar wave test case
   ! spatial gauss beam, still planar wave
   ! scaled by intensity
+  ! spatial and temporal filer are defined according to Thiele 2016 
+  ! Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes
+  ! beam insert is done by a paraxial assumption
+  ! focus is at basepoint
   eta=2.*SQRT(mu0/eps0)
   IF(ALMOSTEQUAL(ABS(WaveVector(1)),1.))THEN
     idir1=2
@@ -481,27 +485,29 @@ CASE(14) ! planar wave test case
   E_0=E_0/SQRT(DOT_PRODUCT(E_0,E_0))  
   ! get wave number and period time
   WaveNumber= 2*pi/WaveLength
-  omegaW=WaveNumber*c  
+  omegaW    = WaveNumber*c  
   ! intensity * Gaussian filter in transversal and longitudinal direction
-  ! ATTENTION: the filter is applied to the intensity!!
-  scaleR = SQRT(eta*I_0*EXP(-((x(idir1)-WaveBasePoint(idir1))**2+(x(idir2)-WaveBasePoint(idir2))**2)*omega_0_2inv)) &
-           *SQRT(EXP(-(x(idir3)-WaveBasePoint(idir3))**2/(tFWHM*c)**2))
+  spatialWindow = EXP(-((x(idir1)-WaveBasePoint(idir1))**2+(x(idir2)-WaveBasePoint(idir2))**2)*omega_0_2inv) &
+                 *EXP(-(x(idir3)-WaveBasePoint(idir3))**2/(tFWHM*c)**2)
   ! decide if pulse maxima is scaled by intensity or a_0 parameter
   IF(ALMOSTZERO(Beam_a0))THEN
-    scaleR0=1.0
-    local_a0=1.
+    spatialWindow = spatialWindow*SQRT(eta*I_0)
   ELSE
-    scaleR0=1./SQRT(eta*I_0)
-    local_a0=Beam_a0*2.*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
+    spatialWindow = spatialWindow*Beam_a0*2.*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
   END IF
   ! build final coefficients
-  scaleR=scaleR*scaleR0*local_a0
   timeFac=COS(WaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-omegaW*t)
-  resu(1:3)=scaleR*E_0*timeFac
+  resu(1:3)=spatialWindow*E_0*timeFac
   resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
   resu(7:8)=0.
 
 CASE(15) !Gauß-shape with perfektem Fokus
+  ! spatial gauss beam, still planar wave
+  ! scaled by intensity
+  ! spatial and temporal filer are defined according to Thiele 2016 
+  ! Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes
+  ! beam insert is done by a paraxial assumption
+  ! focus is at basepoint and should be on bc
   resu(1:8)=0.
   IF (t.LE.8*sigma_t) THEN
     eta=2.*SQRT(mu0/eps0)
@@ -531,26 +537,25 @@ CASE(15) !Gauß-shape with perfektem Fokus
     ! get wave number and period time
     WaveNumber= 2*pi/WaveLength
     omegaW=WaveNumber*c  
-    ! intensity * Gaussian filter in transversal direction
-    ! ATTENTION: the filter is applied to the intensity!!
-    scaleR = SQRT(eta*I_0*EXP(-((x(idir1)-WaveBasePoint(idir1))**2+(x(idir2)-WaveBasePoint(idir2))**2)*omega_0_2inv))
+    ! intensity * Gaussian filter in transversal and longitudinal direction
+    spatialWindow = EXP(-((x(idir1)-WaveBasePoint(idir1))**2+(x(idir2)-WaveBasePoint(idir2))**2)*omega_0_2inv)
     ! decide if pulse maxima is scaled by intensity or a_0 parameter
     IF(ALMOSTZERO(Beam_a0))THEN
-      scaleR0=1.0
-      local_a0=1.
+      spatialWindow=spatialWindow*SQRT(eta*I_0)
     ELSE
-      scaleR0=1./SQRT(eta*I_0)
-      local_a0=Beam_a0*2*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
+      spatialWindow=spatialWindow*Beam_a0*2*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
     END IF
     ! build final coefficients
     WaveBasePoint(idir3)=0.
-    scaleR=scaleR*scaleR0*local_a0
-    timeFac=COS(WaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-omegaW*(t-4*sigma_t))
-    timeFac2=SQRT(EXP(-0.5*((t-4*sigma_t)/sigma_t)**2))
-    resu(1:3)=scaleR*E_0*timeFac*timeFac2
+    ! pulse displacement is arbitrarily set to 4 (no beam initially in domain)
+    timeFac =COS(WaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-omegaW*(t-4.*sigma_t))
+    ! temporal window
+    temporalWindow=EXP(-0.5*((t-4.*sigma_t)/sigma_t)**2)
+    resu(1:3)=spatialWindow*E_0*timeFac*temporalWindow
     resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
     resu(7:8)=0.
   END IF
+
 
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
@@ -727,7 +732,6 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
 CASE(12) ! plane wave
 CASE(14) ! gauss pulse, spatial
 CASE(15) ! gauss pulse, temporal
-
 
 CASE(41) ! Dipole via temporal Gausspuls
 !t0=TEnd/5, w=t0/4 ! for pulsed Dipole (t0=offset and w=width of pulse)

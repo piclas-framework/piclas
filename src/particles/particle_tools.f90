@@ -93,6 +93,7 @@ SUBROUTINE UpdateNextFreePosition()
    counter1 = counter1 + 1
   END DO 
   PDM%nextFreePosition(counter1:PDM%MaxParticleNumber)=0 ! exists if MaxParticleNumber is reached!!!
+  IF (counter1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber)=0
 
   RETURN
 END SUBROUTINE UpdateNextFreePosition

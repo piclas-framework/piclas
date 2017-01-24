@@ -120,8 +120,11 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*PP_POIS*/
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
+#ifdef MPI
 StartT=MPI_WTIME()
-
+#else
+CALL CPU_TIME(StartT)
+#endif
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 RestartFile=Filename
@@ -1028,7 +1031,11 @@ IF(nVar_Avg.GT.0)THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TimeAvg',OutputTime))//'.h5'
   IF(MPIRoot)THEN
     CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FutureTime)
+#ifdef MPI
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif /*MPI*/
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
   END IF
@@ -1050,7 +1057,11 @@ IF(nVar_Fluc.GT.0)THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Fluc',OutputTime))//'.h5'
   IF(MPIRoot)THEN
     CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FutureTime)
+#ifdef MPI
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif /*MPI*/
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
   END IF
