@@ -1491,6 +1491,7 @@ END SUBROUTINE FinalizeParticleMPI
 SUBROUTINE ExchangeBezierControlPoints3D() 
 !===================================================================================================================================
 ! exchange all beziercontrolpoints at MPI interfaces
+! maybe extended to periodic sides, to be tested
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1501,6 +1502,7 @@ USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_Y
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
+
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1602,7 +1604,7 @@ USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
-USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides,nPartSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1623,7 +1625,7 @@ INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 ! dirty hack
 !nTotalBCSides=nSides
 
-ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
+ALLOCATE(SideIndex(1:nPartSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'  Cannot allocate SideIndex!')

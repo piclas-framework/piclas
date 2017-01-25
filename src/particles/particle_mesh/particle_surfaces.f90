@@ -45,6 +45,10 @@ INTERFACE GetBezierSampledAreas
   MODULE PROCEDURE GetBezierSampledAreas
 END INTERFACE
 
+INTERFACE RotateMasterToSlave
+  MODULE PROCEDURE RotateMasterToSlave
+END INTERFACE
+
 INTERFACE EvaluateBezierPolynomialAndGradient
   MODULE PROCEDURE EvaluateBezierPolynomialAndGradient
 END INTERFACE
@@ -54,6 +58,7 @@ PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D
         GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
 
 PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier
+PUBLIC::RotateMasterToSlave
 
 !===================================================================================================================================
 
@@ -1264,6 +1269,160 @@ DO i=1,NGeo+BezierElevation-1
   END DO
 END DO
 END FUNCTION ElevateBezierPolynomial
+
+
+SUBROUTINE RotateMasterToSlave(flip,locSideID,BezierControlPoints3D)
+!===================================================================================================================================
+! Rotate BezierControlPoints3D from Master to Slave
+! The resulting controlpoints are orientated as a "new master" for the slave element
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc
+USE MOD_Mesh_Vars,      ONLY: nGeo
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)            :: flip, locSideID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)            :: BezierControlPoints3D(1:3,0:NGeo,0:NGeo)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
+INTEGER                       :: p,q
+!===================================================================================================================================
+
+BezierControlPoints3D_tmp=BezierControlPoints3D
+
+SELECT CASE(locSideID)
+CASE(XI_MINUS)
+  SELECT CASE(flip)
+  CASE(1)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,p,q)
+    END DO; END DO ! p,q
+  CASE(2)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-q,p)
+    END DO; END DO ! p,q
+  CASE(3)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-p,NGeo-q)
+    END DO; END DO ! p,q
+  CASE(4)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,q,NGeo-p)
+    END DO; END DO ! p,q
+  END SELECT
+
+! switch to right hand system for ETA_PLUS direction
+CASE(ETA_MINUS)
+  SELECT CASE(flip)
+  CASE(1)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,q,p)
+    END DO; END DO ! p,q
+  CASE(2)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-p,q)
+    END DO; END DO ! p,q
+  CASE(3)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-q,NGeo-p)
+    END DO; END DO ! p,q
+  CASE(4)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,p,NGeo-q)
+    END DO; END DO ! p,q
+  END SELECT
+
+! switch to right hand system for ZETA_MINUS direction
+CASE(ZETA_MINUS)
+  SELECT CASE(flip)
+  CASE(1)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,p,q)
+    END DO; END DO ! p,q
+  CASE(2)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-q,p)
+    END DO; END DO ! p,q
+  CASE(3)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-p,NGeo-q)
+    END DO; END DO ! p,q
+  CASE(4)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,q,NGeo-p)
+    END DO; END DO ! p,q
+  END SELECT
+
+CASE(XI_PLUS)
+  SELECT CASE(flip)
+  CASE(1)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,q,p)
+    END DO; END DO ! p,q
+  CASE(2)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-p,q)
+    END DO; END DO ! p,q
+  CASE(3)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-q,NGeo-p)
+    END DO; END DO ! p,q
+  CASE(4)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,p,NGeo-q)
+    END DO; END DO ! p,q
+  END SELECT
+
+! switch to right hand system for ETA_PLUS direction
+CASE(ETA_PLUS)
+  SELECT CASE(flip)
+  CASE(1)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,q,NGeo-p)
+    END DO; END DO ! p,q
+  CASE(2)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,p,q)
+    END DO; END DO ! p,q
+  CASE(3)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-q,p)
+    END DO; END DO ! p,q
+  CASE(4)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-p,NGeo-q)
+    END DO; END DO ! p,q
+  END SELECT
+
+! switch to right hand system for ZETA_MINUS direction
+CASE(ZETA_PLUS)
+  SELECT CASE(flip)
+  CASE(1)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,q,p)
+    END DO; END DO ! p,q
+  CASE(2)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-p,q)
+    END DO; END DO ! p,q
+  CASE(3)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,NGeo-q,NGeo-p)
+    END DO; END DO ! p,q
+  CASE(4)
+    DO q=0,NGeo; DO p=0,NGeo
+      BezierControlPoints3D(:,p,q)=BezierControlPoints3d_tmp(:,p,NGeo-q)
+    END DO; END DO ! p,q
+  END SELECT
+END SELECT !locSideID
+
+END SUBROUTINE RotateMasterToSlave
 
 
 END MODULE MOD_Particle_Surfaces

@@ -382,7 +382,7 @@ USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance
+USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
@@ -462,7 +462,7 @@ DO iPart=1,PDM%ParticleVecLength
         CYCLE
       END IF
     ELSE ! no bc elem, therefore, no bc interaction possible
-      IF(GEO%nPeriodicVectors.GT.0)THEN
+      IF(GEO%nPeriodicVectors.GT.0.AND.CartesianPeriodic)THEN
         ! call here function for mapping of partpos and lastpartpos
         LastPos=PartState(iPart,1:3)
         CALL PeriodicMovement(iPart)
@@ -695,6 +695,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
+USE MOD_Particle_Tracking_Vars,      ONLY:CartesianPeriodic
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -735,7 +736,7 @@ DoTracing=.TRUE.
 iloop=0
 DO WHILE(DoTracing)
   iloop=iloop+1
-  IF(GEO%nPeriodicVectors.GT.0)THEN
+  IF(GEO%nPeriodicVectors.GT.0.AND.CartesianPeriodic)THEN
     ! call here function for mapping of partpos and lastpartpos
     CALL PeriodicMovement(PartID,PeriMoved)
   ELSE
