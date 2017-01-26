@@ -954,7 +954,7 @@ CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
 CHARACTER(LEN=255),ALLOCATABLE      :: StrVarNames(:), StrOutNames(:)
-INTEGER                             :: nVar, nOut_Species, iSpec
+INTEGER                             :: nVar, Species_nOut, iSpec
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
@@ -999,24 +999,24 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   StrVarNames(2)='ForceY'
   StrVarNames(3)='ForceZ'
   StrVarNames(4)='HeatFlux'
-  StrVarNames(5)='Counter'
+  StrVarNames(5)='Counter_Total'
   
   CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
   
 !   ! Create dataset attribute "Species_Varnames" and write to file
 !   IF (DSMC%WallModel.GT.0) THEN
-    nOut_Species=3
-    ALLOCATE(StrOutNames(1:nOut_Species))
-    StrOutNames(1)='Counter'
+    Species_nOut=3
+    ALLOCATE(StrOutNames(1:Species_nOut))
+    StrOutNames(1)='Spec_Counter'
     StrOutNames(2)='Accomodation'
     StrOutNames(3)='Coverage'
 !   ELSE
-!     nOut_Species=1
-!     ALLOCATE(StrOutNames(1:nOut_Species))
+!     Species_nOut=1
+!     ALLOCATE(StrOutNames(1:Species_nOut))
 !     StrOutNames(1)='Counter'
 !   END IF
   
-  CALL WriteAttributeToHDF5(File_ID,'Species_Varnames',nOut_Species,StrArray=StrOutNames)
+  CALL WriteAttributeToHDF5(File_ID,'Species_Varnames',Species_nOut,StrArray=StrOutNames)
 
   CALL CloseDataFile()
   DEALLOCATE(StrVarNames)
