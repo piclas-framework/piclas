@@ -3792,6 +3792,7 @@ DO iSide=1,nSides
     ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
     IF(ElemID.EQ.-1) THEN
       ! master side is NOT on proc, hence, the side must NOT BE DUPLICATED
+      MapPeriodicSides=.TRUE.
       CYCLE
     END IF
     NBElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
@@ -3800,6 +3801,7 @@ DO iSide=1,nSides
     IF(NBElemID.GT.nElems) CYCLE
     ! if master and slave side are on proc, duplicate
     nPartPeriodicSides=nPartPeriodicSides+1
+    MapPeriodicSides=.TRUE.
   END IF
 END DO
 CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
@@ -3807,7 +3809,8 @@ print*,Myrank,'nPartperiodicsides',nPartPeriodicSides,nSides,nTotalSides
 print*,Myrank,'partbcsidelist',partbcsidelist
 CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
 
-IF(nPartPeriodicSides.GT.0)THEN
+!IF(nPartPeriodicSides.GT.0)THEN
+IF(MapPeriodicSides)THEN
 
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
   ALLOCATE(DummyBezierControlPoints3dElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
@@ -3907,20 +3910,20 @@ IF(nPartPeriodicSides.GT.0)THEN
       print*,'BC',BC(iSide)
       SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
       ! periodic displacement 
-      print*,'old side'
-      print*,'position-x',SUM(BezierControlPoints3d(1,:,:,iSide))/(NGeo+1)/(NGeo+1)
-      print*,'position-y',SUM(BezierControlPoints3d(2,:,:,iSide))/(NGeo+1)/(NGeo+1)
-      print*,'position-z',SUM(BezierControlPoints3d(3,:,:,iSide))/(NGeo+1)/(NGeo+1)
+        print*,MyRank,'old side'
+        print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,iSide))/(NGeo+1)/(NGeo+1)
+        print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,iSide))/(NGeo+1)/(NGeo+1)
+        print*,MyRank,'position-z',SUM(BezierControlPoints3d(3,:,:,iSide))/(NGeo+1)/(NGeo+1)
       DO q=0,NGeo
         DO p=0,NGeo
           BezierControlPoints3d(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
                                                     - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         END DO ! p=0,NGeo
       END DO ! q=0,NGeo
-      print*,'new side'
-      print*,'position-x',SUM(BezierControlPoints3d(1,:,:,newSideID))/(NGeo+1)/(NGeo+1)
-      print*,'position-y',SUM(BezierControlPoints3d(2,:,:,newSideID))/(NGeo+1)/(NGeo+1)
-      print*,'position-z',SUM(BezierControlPoints3d(3,:,:,newSideID))/(NGeo+1)/(NGeo+1)
+        print*,MyRank,'new side'
+        print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,newSideID))/(NGeo+1)/(NGeo+1)
+        print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,newSideID))/(NGeo+1)/(NGeo+1)
+        print*,MyRank,'position-z',SUM(BezierControlPoints3d(3,:,:,newSideID))/(NGeo+1)/(NGeo+1)
       ! recompute quark
       CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
 

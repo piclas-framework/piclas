@@ -73,8 +73,8 @@ TYPE tMPISideMessage
 END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
-INTEGER                     :: ALLOCSTAT
-REAL                        :: MinMax,CompareXYZ
+INTEGER                     :: ALLOCSTAT,PVID,nTest,iTest
+REAL                        :: MinMax,CompareXYZ,Vec1(1:3)
 LOGICAL                     :: SideisDone(1:nPartSides)
 !=================================================================================================================================
 
@@ -118,6 +118,9 @@ DO iElem=1,PP_nElems
     IF(SideIsDone(SideID)) CYCLE
     IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
     IF(SideIndex(SideID).EQ.0)THEN
+      PVID=SidePeriodicType(SideID)
+      Vec1=0.
+      IF(PVID.NE.0) Vec1=- SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
       ! overlap in X
       MinMax=MINVAL(BezierControlPoints3D(1,0:NGeo,0:NGeo,SideID))
       IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
@@ -132,6 +135,21 @@ DO iElem=1,PP_nElems
         SideisDone(SideID)=.TRUE.
         CYCLE
       END IF
+      IF(Vec1(1).NE.0)THEN
+        MinMax=MinMax+Vec1(1)
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(4))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+      END IF
       MinMax=MAXVAL(BezierControlPoints3D(1,0:NGeo,0:NGeo,SideID))
       IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
         SendMsg%nMPISides=SendMsg%nMPISides+1
@@ -144,6 +162,21 @@ DO iElem=1,PP_nElems
         SideIndex(SideID)=SendMsg%nMPISides
         SideisDone(SideID)=.TRUE.
         CYCLE
+      END IF
+      IF(Vec1(1).NE.0)THEN
+        MinMax=MinMax+Vec1(1)
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(4))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
       END IF
       ! overlap in y
       MinMax=MINVAL(BezierControlPoints3D(2,0:NGeo,0:NGeo,SideID))
@@ -159,6 +192,21 @@ DO iElem=1,PP_nElems
         SideisDone(SideID)=.TRUE.
         CYCLE
       END IF
+      IF(Vec1(2).NE.0)THEN
+        MinMax=MinMax+Vec1(2)
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(2))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(5))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+      END IF
       MinMax=MAXVAL(BezierControlPoints3D(2,0:NGeo,0:NGeo,SideID))
       IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(2))).LT.halo_eps)THEN
         SendMsg%nMPISides=SendMsg%nMPISides+1
@@ -171,6 +219,21 @@ DO iElem=1,PP_nElems
         SideIndex(SideID)=SendMsg%nMPISides
         SideisDone(SideID)=.TRUE.
         CYCLE
+      END IF
+      IF(Vec1(2).NE.0)THEN
+        MinMax=MinMax+Vec1(2)
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(2))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(5))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
       END IF
       ! overlap in z
       MinMax=MINVAL(BezierControlPoints3D(3,0:NGeo,0:NGeo,SideID))
@@ -186,6 +249,21 @@ DO iElem=1,PP_nElems
         SideisDone(SideID)=.TRUE.
         CYCLE
       END IF
+      IF(Vec1(3).NE.0)THEN
+        MinMax=MinMax+Vec1(3)
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(3))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(6))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+      END IF
       MinMax=MAXVAL(BezierControlPoints3D(3,0:NGeo,0:NGeo,SideID))
       IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(3))).LT.halo_eps)THEN
         SendMsg%nMPISides=SendMsg%nMPISides+1
@@ -198,6 +276,21 @@ DO iElem=1,PP_nElems
         SideIndex(SideID)=SendMsg%nMPISides
         SideisDone(SideID)=.TRUE.
         CYCLE
+      END IF
+      IF(Vec1(3).NE.0)THEN
+        MinMax=MinMax+Vec1(3)
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(3))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
+        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(6))).LT.halo_eps)THEN
+          SendMsg%nMPISides=SendMsg%nMPISides+1
+          SideIndex(SideID)=SendMsg%nMPISides
+          SideisDone(SideID)=.TRUE.
+          CYCLE
+        END IF
       END IF
     END IF
     SideIsDone(SideID)=.TRUE.
@@ -251,6 +344,10 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   CALL MPI_RECV(RecvMsg%nMPISides,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
   CALL MPI_SEND(SendMsg%nMPISides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
+END IF
+
+IF(MyRank.EQ.0)THEN
+  print*,'Send,Recv',SendMsg%nMPISides,RecvMsg%nMPISides
 END IF
 
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Receive:', RecvMsg%nMPISides

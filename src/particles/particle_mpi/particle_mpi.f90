@@ -1703,6 +1703,7 @@ DO iProc=0,PartMPI%nProcs-1
   END IF
 END DO
 
+print*,MyRank,nTotalElems,PP_nElems
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&
   , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
