@@ -414,7 +414,7 @@ REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3)
 #ifdef MPI
 INTEGER                           :: InElem
 #endif
-INTEGER                           :: TestElem
+INTEGER                           :: TestElem,LastElemID
 !LOGICAL                           :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
 LOGICAL                           :: PartisDone,PartIsMoved
 !LOGICAL                           :: HitBC(1:PDM%ParticleVecLength)
@@ -430,9 +430,11 @@ ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
 END IF
 
+print*,'tracing...'
 DO iPart=1,PDM%ParticleVecLength
   IF(DoParticle(iPart))THEN
-    ElemID = PEM%lastElement(iPart)
+    LastElemID = PEM%lastElement(iPart)
+    ElemID=LastElemID
 #ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -454,10 +456,14 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
 !      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
-        PEM%lastElement(iPart)=ElemID
+         PEM%Element(iPart)=ElemID
 #ifdef MPI
          tLBEnd = LOCALTIME() ! LB Time End
-         ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+         IF(ElemID.GT.PP_nElems)THEN
+           ElemTime(LastElemID)=ElemTime(LastElemID)+tLBEnd-tLBStart
+         ELSE
+           ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+         END IF
 #endif /*MPI*/
         CYCLE
       END IF
@@ -495,7 +501,11 @@ DO iPart=1,PDM%ParticleVecLength
     END IF ! initial check
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
-    ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+    IF(ElemID.GT.PP_nElems)THEN
+      ElemTime(LastElemID)=ElemTime(LastElemID)+tLBEnd-tLBStart
+    ELSE
+      ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+    END IF
 #endif /*MPI*/
   ! still not located
 #ifdef MPI
@@ -677,7 +687,7 @@ END DO ! iPart
 END SUBROUTINE ParticleRefTracking
 
 
-SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
+RECURSIVE SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
 !===================================================================================================================================
 ! Calculate intersection with boundary and choose boundary interaction type for reference tracking routine
 !===================================================================================================================================
@@ -701,17 +711,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
+INTEGER,INTENT(IN)            :: PartID,firstSide,LastSide,nlocSides
 LOGICAL,INTENT(INOUT)         :: PartisDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES!
+INTEGER,INTENT(INOUT)         :: ElemID
 LOGICAL,INTENT(INOUT)         :: PartisMoved
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
 LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
-INTEGER                       :: nInter,flip,BCSideID
+INTEGER                       :: nInter,flip,BCSideID,OldElemID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                       :: DoTracing,PeriMoved,Reflected
 integer :: iloop
@@ -723,6 +734,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 
+print*,'elemid',elemid
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   PEM%Element(PartID)=ElemID
   PartIsDone=.TRUE.
@@ -745,6 +757,7 @@ DO WHILE(DoTracing)
   locAlpha=-1.0
   nInter=0
   !nlocSides=lastSide-firstSide+1
+  print*,'first,last',firstSide,LastSide
   DO iLocSide=firstSide,LastSide
     ! track particle vector until the final particle position is achieved
     SideID=BCElem(ElemID)%BCSideID(ilocSide)
@@ -788,10 +801,20 @@ DO WHILE(DoTracing)
         hitlocSide=locSideList(ilocSide)
         SideID=BCElem(ElemID)%BCSideID(hitlocSide)
         BCSideID=PartBCSideList(SideID)
+        OldElemID=ElemID
         CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                           ,xi(hitlocSide)     &
                                                                           ,eta(hitlocSide)    &
                                                                           ,PartId,SideID,reflected)
+        IF(PEM%Element(PartID).NE.OldElemID)THEN
+          print*,'ElemID',Elemid
+          ElemID=PEM%Element(PartID)
+          print*,'ElemID',Elemid
+          print*,'moved in new element', PEM%Element(PartID)
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved)
+          PartisMoved=.TRUE.
+          RETURN 
+        END IF
         IF(reflected) EXIT
       END IF
     END DO

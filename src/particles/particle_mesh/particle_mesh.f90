@@ -2650,8 +2650,8 @@ LOGICAL                                  :: isLinear,leave
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
 LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
 REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
-REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER                                  :: NGeo3,NGeo2, nLoop,test
+REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo),Vec1(1:3)
+INTEGER                                  :: NGeo3,NGeo2, nLoop,test,PVID,iTest,nTest
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
 REAL                                     :: Distance ,maxScaleJ
 REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
@@ -3340,34 +3340,48 @@ IF(DoRefMapping)THEN
           IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
           IF(SideIndex(iSide).EQ.0)THEN
             leave=.FALSE.
-            ! all points of bc side
-            DO q=firstBezierPoint,lastBezierPoint
-              DO p=firstBezierPoint,lastBezierPoint
-                NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-                !all nodes of current side
-                DO s=firstBezierPoint,lastBezierPoint
-                  DO r=firstBezierPoint,lastBezierPoint
-                    dX=ABS(xNodes(1,r,s)-NodeX(1))
-                    IF(dX.GT.halo_eps) CYCLE
-                    dY=ABS(xNodes(2,r,s)-NodeX(2))
-                    IF(dY.GT.halo_eps) CYCLE
-                    dZ=ABS(xNodes(3,r,s)-NodeX(3))
-                    IF(dZ.GT.halo_eps) CYCLE
-                    IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.halo_eps)THEN
-                      IF(SideIndex(iSide).EQ.0)THEN
-                        BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-                        SideIndex(iSide)=BCElem(iElem)%lastSide
-                        leave=.TRUE.
-                        EXIT
+            nTest=1
+            !PVID=SidePeriodicType(iSide)
+            !IF(PVID.NE.0)THEN
+            !  nTest=2
+            !END IF
+            DO iTest=1,nTest
+              Vec1=0.
+              !IF(iTest.EQ.1)THEN
+              !  Vec1=0.
+              !ELSE
+              !  Vec1=-SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+              !END IF
+              ! all points of bc side
+              DO q=firstBezierPoint,lastBezierPoint
+                DO p=firstBezierPoint,lastBezierPoint
+                  NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)+Vec1
+                  !all nodes of current side
+                  DO s=firstBezierPoint,lastBezierPoint
+                    DO r=firstBezierPoint,lastBezierPoint
+                      dX=ABS(xNodes(1,r,s)-NodeX(1))
+                      IF(dX.GT.halo_eps) CYCLE
+                      dY=ABS(xNodes(2,r,s)-NodeX(2))
+                      IF(dY.GT.halo_eps) CYCLE
+                      dZ=ABS(xNodes(3,r,s)-NodeX(3))
+                      IF(dZ.GT.halo_eps) CYCLE
+                      IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.halo_eps)THEN
+                        IF(SideIndex(iSide).EQ.0)THEN
+                          BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                          SideIndex(iSide)=BCElem(iElem)%lastSide
+                          leave=.TRUE.
+                          EXIT
+                        END IF
                       END IF
-                    END IF
-                  END DO ! r
+                    END DO ! r
+                    IF(leave) EXIT
+                  END DO ! s
                   IF(leave) EXIT
-                END DO ! s
+                END DO ! p
                 IF(leave) EXIT
-              END DO ! p
+              END DO ! q
               IF(leave) EXIT
-            END DO ! q
+            END DO ! iTest=1,nTest
           END IF ! SideIndex(iSide).EQ.0
         END DO ! iSide=1,nTotalSides
       END DO ! ilocSide=1,6

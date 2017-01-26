@@ -1189,7 +1189,7 @@ USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezi
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,PEM
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemAndSide,PartSideToElem
-USE MOD_Mesh_Vars,              ONLY:MortarType
+USE MOD_Mesh_Vars,              ONLY:MortarType,nElems
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
@@ -1198,6 +1198,11 @@ USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
 USE MOD_LinearSolver_Vars,      ONLY:PartXk
 #endif /*IMPA*/
+
+USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
+USE MOD_LoadBalance_Vars,            ONLY:ElemTime
+USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
+USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1311,6 +1316,17 @@ END IF
 ! move particle from old element to new element
 locSideID=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 ElemID   =PEM%Element(PartID)
+
+
+IF(ElemID.LE.nElems)THEN
+  print*, ' oldelemid       ', ElemID+offSetElem
+ELSE
+  print*, ' oldelemid       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
+                                         + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
+END IF
+
+print*,'newposition', PartState(PartID,1:3)  
+
 SELECT CASE(MortarType(1,SideID))
 CASE(1)
   IF(Xi.GT.0.)THEN
@@ -1341,6 +1357,15 @@ CASE(3)
 CASE DEFAULT ! normal side OR small mortar side
   ElemID=PartElemToElemAndSide(1  ,locSideID,ElemID)
 END SELECT
+
+IF(ElemID.LE.nElems)THEN
+  print*, ' elemid       ', ElemID+offSetElem
+ELSE
+  print*, ' elemid       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
+                                         + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
+END IF
+
+
 PEM%Element(PartID)=ElemID
 
 END SUBROUTINE PeriodicBC
