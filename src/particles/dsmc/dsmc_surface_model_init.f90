@@ -207,14 +207,14 @@ SUBROUTINE Init_SurfDist()
 !===================================================================================================================================
 ! Initializing surface distibution Model for calculating of coverage effects on heat of adsorption
 !===================================================================================================================================
-  USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut, myRank
+  USE MOD_Globals
   USE MOD_ReadInTools
   USE MOD_Particle_Vars,          ONLY : nSpecies, Species!, KeepWallParticles
   USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 #ifdef MPI
   USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-  USE MOD_Particle_MPI_Vars,      ONLY : SurfDistSendBuf,SurfDistRecvBuf,SurfExchange, NbrSurfPos
+  USE MOD_Particle_MPI_Vars,      ONLY : SurfDistSendBuf,SurfDistRecvBuf,SurfExchange, Comm_NbrSurfPos
   USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo
 #endif /*MPI*/
 !===================================================================================================================================
@@ -234,6 +234,7 @@ SUBROUTINE Init_SurfDist()
   INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
 #ifdef MPI
   INTEGER                          :: iProc, CommSize
+  INTEGER, ALLOCATABLE             :: Count_NbrSurfPos(:)
 #endif
 !===================================================================================================================================
 ! position of binding sites in the surface lattice (rectangular lattice)
@@ -283,7 +284,7 @@ Max_Surfsites_own = 0
 Max_Surfsites_halo = 0
 
 #ifdef MPI
-NbrSurfPos = 0
+Comm_NbrSurfPos = 0
 #endif /*MPI*/
 
 DO iSurfSide = 1,SurfMesh%nTotalSides
@@ -310,8 +311,8 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
       Max_Surfsites_halo = Max_Surfsites_halo + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
     END IF
 #ifdef MPI
-    IF (NbrSurfPos.LT.SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)) ) THEN
-      NbrSurfPos = SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
+    IF (Comm_NbrSurfPos.LT.SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)) ) THEN
+      Comm_NbrSurfPos = SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
     END IF
 #endif /*MPI*/
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(:) = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:)
@@ -614,12 +615,19 @@ WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites o
   ' | own: ',Max_Surfsites_own,' | halo: ',Max_Surfsites_halo
 
 #ifdef MPI
+IF(.NOT.SurfMesh%SurfOnProc) RETURN
+
+ALLOCATE(Count_NbrSurfPos(0:SurfCOMM%nProcs-1))
+Count_NbrSurfPos=0
+CALL MPI_ALLGATHER(Comm_NbrSurfPos,1,MPI_INTEGER,Count_NbrSurfPos,1,MPI_INTEGER,SurfCOMM%COMM,iError)
+
 ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
         ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &
         ,SurfExchange%SurfDistSendRequest(1:SurfCOMM%nMPINeighbors)  &
         ,SurfExchange%SurfDistRecvRequest(1:SurfCOMM%nMPINeighbors)  )
-        
- CommSize = 3 + 2*NbrSurfPos! nCoord*1(SitesRemain) + 2*Number_of_surface_positions(position_mapping+species_on_position)
+  Comm_NbrSurfPos = MAXVAL(Count_NbrSurfPos)
+SDEALLOCATE(Count_NbrSurfPos)
+  CommSize = 3 + 2*Comm_NbrSurfPos! nCoord*1(SitesRemain) + 2*Number_of_surface_positions(position_mapping+species_on_position)
 ! allocate send and receive buffer
 ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))

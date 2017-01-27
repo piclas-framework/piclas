@@ -106,7 +106,7 @@ TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! S
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistRecvBuf(:)                         ! SurfDistRecvBuf with all requried types
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistSendBuf(:)                         ! SurfDistSendBuf with all requried types
 
-INTEGER                        :: NbrSurfPos
+INTEGER                        :: Comm_NbrSurfPos
 
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbRecvBuf(:)
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbSendBuf(:)

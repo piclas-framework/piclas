@@ -1467,7 +1467,7 @@ SUBROUTINE ExchangeSurfDistInfo()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
-USE MOD_Particle_MPI_Vars           ,ONLY:SurfDistSendBuf,SurfDistRecvBuf,SurfExchange,NbrSurfPos
+USE MOD_Particle_MPI_Vars           ,ONLY:SurfDistSendBuf,SurfDistRecvBuf,SurfExchange,Comm_NbrSurfPos
 USE MOD_DSMC_Vars                   ,ONLY:SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1483,7 +1483,7 @@ INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM
 INTEGER                         :: iCoord,nSites,nSitesRemain,iSite,iInteratom,UsedSiteMapPos,iSpec,xpos,ypos
 !===================================================================================================================================
 
-nValues=(3 + 2*NbrSurfPos) * (nSurfSample)**2
+nValues=(3 + 2*Comm_NbrSurfPos) * (nSurfSample)**2
 
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -1495,7 +1495,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
                 , 1011                                         &
                 , SurfCOMM%COMM                                &
-                , SurfExchange%SurfDistRecvRequest(iProc)              & 
+                , SurfExchange%SurfDistRecvRequest(iProc)      & 
                 , IERROR )
 END DO ! iProc
 
@@ -1532,9 +1532,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
                 , 1011                                     &
                 , SurfCOMM%COMM                            &   
-                , SurfExchange%SurfDistSendRequest(iProc)          &
-                , IERROR )                                     
-END DO ! iProc                                                
+                , SurfExchange%SurfDistSendRequest(iProc)  &
+                , IERROR )
+END DO ! iProc
 
 ! 4) Finish Received number of particles
 DO iProc=1,SurfCOMM%nMPINeighbors
