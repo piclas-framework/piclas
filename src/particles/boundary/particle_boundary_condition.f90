@@ -170,11 +170,9 @@ __STAMP__,&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! new implementation, nothing to due :)
-  ! however, never checked
-CALL abort(&
-__STAMP__&
-,' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
+  CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID &
+                        ,ElemID,opt_perimoved=crossedBC) ! opt_reflected is peri-moved
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -213,7 +211,7 @@ END IF
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,crossedBC)
+SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -253,6 +251,7 @@ REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
+INTEGER,INTENT(INOUT)                :: ElemID
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -366,7 +365,7 @@ __STAMP__&
 ,' No periodic BCs for CartesianPeriodic!')
   ! move particle periodic distance
   BCSideID=PartBCSideList(SideID)
-  CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID &
+  CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID &
                         ,BCSideID=BCSideID,opt_perimoved=crossedBC) ! opt_reflected is peri-moved
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1175,7 +1174,7 @@ END IF
 END SUBROUTINE SpeciesSwap
 
 
-SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,BCSideID,opt_perimoved)
+SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,BCSideID,opt_perimoved)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1214,6 +1213,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_perimoved
+INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3)
@@ -1222,7 +1222,7 @@ REAL                                 :: absVec
 REAL                                 :: PartDiff(3)
 #endif /*IMPA*/
 REAL                                 :: epsLength
-INTEGER                              :: PVID,locSideID,ElemID
+INTEGER                              :: PVID,locSideID
 !===================================================================================================================================
 
 !OneMinus=1.0-MAX(epsInCell,epsilontol)
@@ -1315,7 +1315,7 @@ END IF
 ! refmapping and tracing
 ! move particle from old element to new element
 locSideID=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-ElemID   =PEM%Element(PartID)
+!ElemID   =PEM%Element(PartID)
 
 
 IF(ElemID.LE.nElems)THEN
@@ -1366,7 +1366,7 @@ ELSE
 END IF
 
 
-PEM%Element(PartID)=ElemID
+!PEM%Element(PartID)=ElemID
 
 END SUBROUTINE PeriodicBC
 
