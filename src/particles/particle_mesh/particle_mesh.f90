@@ -3457,6 +3457,8 @@ ELSE ! .NOT.DoRefMapping
   END DO ! iElem
 END IF
 
+! debug
+IF(DoRefMapping)THEN
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 DO iSide=1,nPartSides
   TrueSideID=PartBCSideList(iSide)
@@ -3464,6 +3466,7 @@ DO iSide=1,nPartSides
 END DO 
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 !stop'end  of test'
+END IF
 
 #ifdef MPI
 IF(MPIRoot) THEN
@@ -3759,6 +3762,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals,RotateMasterToSlave
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3954,20 +3958,22 @@ IF(MapPeriodicSides)THEN
     END IF
   END DO ! iSide=1,tmpnSides
   ! PartBCSideList is increased, due to the periodic sides
-  DEALLOCATE(PartBCSideList)
-  ALLOCATE(PartBCSideList(1:nTotalSides))
-  ! BC Sides NON-periodic
-  PartBCSideList=-1
-  DO iSide=1,nBCSides
-    PartBCSideList(iSide)=iSide
-  END DO
-  ! periodic BC sides 
-  nlocBCSides=nBCSides
-  DO iSide=nBCSides+1,nTotalSides
-    IF(SidePeriodicType(iSide).EQ.0) CYCLE
-    nlocBCSides=nlocBCSides+1
-    PartBCSideList(iSide)=nlocBCSides
-  END DO
+  IF(DoRefMapping)THEN
+    DEALLOCATE(PartBCSideList)
+    ALLOCATE(PartBCSideList(1:nTotalSides))
+    ! BC Sides NON-periodic
+    PartBCSideList=-1
+    DO iSide=1,nBCSides
+      PartBCSideList(iSide)=iSide
+    END DO
+    ! periodic BC sides 
+    nlocBCSides=nBCSides
+    DO iSide=nBCSides+1,nTotalSides
+      IF(SidePeriodicType(iSide).EQ.0) CYCLE
+      nlocBCSides=nlocBCSides+1
+      PartBCSideList(iSide)=nlocBCSides
+    END DO
+  END IF
 
   ! deallocate dummy  
   DEALLOCATE(DummyBezierControlPoints3D)
