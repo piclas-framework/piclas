@@ -336,11 +336,12 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 ! Particle Adsorption probability calculation for wallmodel 3
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, Species, BoltzmannConst
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, Species, BoltzmannConst, WriteMacroValues
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PartStateIntEn
-  USE MOD_Particle_Boundary_Vars, ONLY : PartBound
+  USE MOD_Particle_Boundary_Vars, ONLY : PartBound, SampWall
   USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
+  USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
 #if (PP_TimeDiscMethod==42)  
   USE MOD_TimeDisc_Vars,          ONLY : iter, dt
 #endif
@@ -427,6 +428,10 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%Accomodation = Adsorption%AdsorpInfo(iSpec)%Accomodation + trapping_prob
 #endif
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+    SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) &
+                                                                  + trapping_prob
+  END IF
   ! if no trapping return and perform elastic reflection
   CALL RANDOM_NUMBER(RanNum)
   IF (RanNum.GT.trapping_prob) THEN

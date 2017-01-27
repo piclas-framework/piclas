@@ -610,11 +610,14 @@ END DO
 END DO
 END DO
 
+
+#ifdef MPI
+#ifdef CODE_ANALYZE
 ! write out the number of sites on all surface of the proc, that are considered for adsorption
 WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
   ' | own: ',Max_Surfsites_own,' | halo: ',Max_Surfsites_halo
-
-#ifdef MPI
+#endif /*CODE_ANALYZE*/
+  
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 ALLOCATE(Count_NbrSurfPos(0:SurfCOMM%nProcs-1))
