@@ -366,7 +366,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   INTEGER                          :: jSpec, kSpec, jCoord, kCoord
   REAL                             :: sum_probabilities
   INTEGER , ALLOCATABLE            :: NeighbourID(:,:)
-  INTEGER                          :: SiteSpec, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k
+  INTEGER                          :: SiteSpec, NeighSpec, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k
   INTEGER                          :: n_empty_Neigh(3), n_Neigh(3), adsorbates(nSpecies)
   REAL                             :: E_a, c_f, EZeroPoint_Educt, phi_1, phi_2, Xi_Total, Xi_vib
   REAL                             :: Heat_A, Heat_B, Heat_AB, D_AB, D_A, D_B
@@ -413,11 +413,33 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !---------------------------------------------------------------------------------------------------------------------------------
   ! calculate trapping probability (using hard cube collision with surface atom or adsorbate)
   !---------------------------------------------------------------------------------------------------------------------------------
+  ! if site is empty neighbour site can be occupied and this influences trapping
+  NeighSpec = 0
+  IF (SiteSpec.EQ.0) THEN
+    DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
+    DO Coord2 = 1,3
+      IF (Coord2.EQ.SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,i)) THEN
+        IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( & 
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) & 
+              .NE.0) ) THEN
+              NeighSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( & 
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i))
+              EXIT
+        END IF
+      END IF
+    END DO
+    IF (NeighSpec.NE.0) EXIT
+    END DO
+  END IF
   potential_pot = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.TRUE.)*BoltzmannConst
   vel_norm = - ( 2*(Norm_Ec+potential_pot)/Species(iSpec)%MassIC)**(0.5)
   a_const = (Species(iSpec)%MassIC/(2*BoltzmannConst*WallTemp))**(0.5)
   IF (SiteSpec.EQ.0) THEN
-    surfmass = Adsorption%SurfMassIC
+    IF (NeighSpec.EQ.0) THEN
+      surfmass = Adsorption%SurfMassIC
+    ELSE
+      surfmass = Species(NeighSpec)%MassIC
+    END IF
     mu = Species(iSpec)%MassIC / surfmass
   ELSE
     mu = Species(iSpec)%MassIC / (Species(SiteSpec)%MassIC)
