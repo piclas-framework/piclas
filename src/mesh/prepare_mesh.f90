@@ -142,6 +142,11 @@ DO iElem=FirstElemInd,LastElemInd
       IF(iMortar.GT.0) aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp
 
       aSide%sideID=-1
+      ! periodics have two bcs: set to (positive) master bc (e.g. from -1 to 1)
+      IF(aSide%BCIndex.GE.1)THEN
+        IF(PeriodicBCMap(aSide%BCIndex).NE.-1)&
+          aSide%BCIndex=PeriodicBCMap(aSide%BCIndex)
+      END IF
 #ifdef PARTICLES
       ! get the correct  alpha and BCIndex for the side for the later use with particles
       aSide%BC_Alpha=0
@@ -151,18 +156,13 @@ DO iElem=FirstElemInd,LastElemInd
           ! the alpha value is only correct for slave sides, for master sides, the 
           ! value has to be turned
           IF(aSide%flip.EQ.0)THEN
-            aSide%BC_Alpha=-BoundaryType(aSide%BCIndex,BC_ALPHA)
+            aSide%BC_Alpha=BoundaryType(aSide%BCIndex,BC_ALPHA) ! -1
           ELSE
             aSide%BC_Alpha=BoundaryType(aSide%BCIndex,BC_ALPHA)
           END IF
         END IF
       END IF
 #endif
-      ! periodics have two bcs: set to (positive) master bc (e.g. from -1 to 1)
-      IF(aSide%BCIndex.GE.1)THEN
-        IF(PeriodicBCMap(aSide%BCIndex).NE.-1)&
-          aSide%BCIndex=PeriodicBCMap(aSide%BCIndex)
-      END IF
     END DO !iMortar
   END DO
 END DO
@@ -318,13 +318,13 @@ DO iNbProc=1,nNbProcs
           IF(aSide%SideID.LE.nMPISides_MINE_Proc(iNbProc))THEN !MINE
             aSide%SideID=aSide%SideID +offsetMPISides_MINE(iNbProc-1)
 #ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+            SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha
             print*,MyRank,'mine-1'
 #endif /*PARTICLES*/
           ELSE !YOUR
             aSide%SideID=(aSide%SideID-nMPISides_MINE_Proc(iNbProc))+offsetMPISides_YOUR(iNbProc-1)
 #ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha ! -1
+            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
             print*,MyRank,'your-1'
 #endif /*PARTICLES*/
           END IF
@@ -332,13 +332,13 @@ DO iNbProc=1,nNbProcs
           IF(aSide%SideID.LE.nMPISides_YOUR_Proc(iNbProc))THEN !MINE
             aSide%SideID=aSide%SideID +offsetMPISides_YOUR(iNbProc-1)
 #ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+            SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha
             print*,MyRank,'mine-2'
 #endif /*PARTICLES*/
           ELSE !YOUR
             aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
 #ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha ! -1
+            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
             print*,MyRank,'your-2'
 #endif /*PARTICLES*/
           END IF

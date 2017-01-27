@@ -1257,8 +1257,10 @@ END IF
 
 PVID = SidePeriodicType(SideID)
 
+print*,'oldposition', PartState(PartID,1:3)  
 PartState(PartID,1:3)   = PartState(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+print*,'newposition', PartState(PartID,1:3)  
 
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
@@ -1325,7 +1327,6 @@ ELSE
                                          + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
 END IF
 
-print*,'newposition', PartState(PartID,1:3)  
 
 SELECT CASE(MortarType(1,SideID))
 CASE(1)
@@ -1359,9 +1360,9 @@ CASE DEFAULT ! normal side OR small mortar side
 END SELECT
 
 IF(ElemID.LE.nElems)THEN
-  print*, ' elemid       ', ElemID+offSetElem
+  print*, ' newelemid       ', ElemID+offSetElem
 ELSE
-  print*, ' elemid       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
+  print*, ' newelemid       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
                                          + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
 END IF
 

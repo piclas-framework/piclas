@@ -3888,42 +3888,52 @@ IF(MapPeriodicSides)THEN
       IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN
         ! MPI side
         newSideID=iSide
+        PVID=SidePeriodicType(iSide)
+        SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
+        IF(MyRank.EQ.1)THEN
+          print*,'MPI Sides'
+        END IF
       ELSE
         nPartPeriodicSides=nPartPeriodicSides+1
         newSideID=tmpnSides+nPartPeriodicSides
+        ! bc
+        BCID = BC(iSide)
+        PVID = BoundaryType(BCID,BC_ALPHA) 
+        ! loop over bc to get the NEW BC type
+        DO iBC = 1,nBCs
+          IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEn
+            BC(newSideID)=iBC 
+            EXIT
+          END IF
+        END DO
+        PVID=SidePeriodicType(iSide)
+        SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
       END IF
       ! the flip has to be set to -1, artificial master side
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
       PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = newSideID
-      BCID = BC(iSide)
-      PVID = BoundaryType(BCID,BC_ALPHA) 
-      ! loop over bc to get the NEW BC type
-      DO iBC = 1,nBCs
-        IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEn
-          BC(newSideID)=iBC 
-          EXIT
-        END IF
-      END DO
       ! remains equal because of MOVEMENT and MIRRORING of periodic side
-      PVID=SidePeriodicType(iSide)
       print*,'old periodic type', PVID
       print*,'BC',BC(iSide)
-      SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
       ! periodic displacement 
+      IF(MyRank.EQ.1)THEN
         print*,MyRank,'old side'
         print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,iSide))/(NGeo+1)/(NGeo+1)
         print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,iSide))/(NGeo+1)/(NGeo+1)
         print*,MyRank,'position-z',SUM(BezierControlPoints3d(3,:,:,iSide))/(NGeo+1)/(NGeo+1)
+      END IF
       DO q=0,NGeo
         DO p=0,NGeo
           BezierControlPoints3d(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
                                                     - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         END DO ! p=0,NGeo
       END DO ! q=0,NGeo
+      IF(MyRank.EQ.1)THEN
         print*,MyRank,'new side'
         print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,newSideID))/(NGeo+1)/(NGeo+1)
         print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,newSideID))/(NGeo+1)/(NGeo+1)
         print*,MyRank,'position-z',SUM(BezierControlPoints3d(3,:,:,newSideID))/(NGeo+1)/(NGeo+1)
+      END IF
       ! recompute quark
       CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
 

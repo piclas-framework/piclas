@@ -733,7 +733,6 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 
-print*,'elemid',elemid
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   PEM%Element(PartID)=ElemID
   PartIsDone=.TRUE.
@@ -807,10 +806,12 @@ DO WHILE(DoTracing)
                                                                           ,PartId,SideID,ElemID,reflected)
         !IF(PEM%Element(PartID).NE.OldElemID)THEN
         IF(ElemID.NE.OldElemID)THEN
-          print*,'ElemID',Elemid
-          ElemID=PEM%Element(PartID)
-          print*,'ElemID',Elemid
-          print*,'moved in new element', PEM%Element(PartID)
+          !print*,'oldelem,newelem',oldElemId,ElemID
+          !print*,'ElemID',Elemid
+          !ElemID=PEM%Element(PartID)
+          !PEM%Element(PartID)=ElemID
+          !print*,'ElemID',Elemid
+          !print*,'moved in new element', PEM%Element(PartID)
           CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved)
           PartisMoved=.TRUE.
           RETURN 
