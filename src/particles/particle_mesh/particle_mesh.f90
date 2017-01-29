@@ -2688,7 +2688,7 @@ END IF
 SideIsDone=.FALSE.
 SideType=-1
 
-SideDistance=0.
+SideDistance=-0.
 SideNormVec=0.
 
 eps=1e-8
@@ -3459,13 +3459,31 @@ END IF
 
 ! debug
 IF(DoRefMapping)THEN
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-DO iSide=1,nPartSides
-  TrueSideID=PartBCSideList(iSide)
-  print*,MyRank,'SideNormVec(', iSide, SideNormVec(1:3,TrueSideID), ' Ptype', SidePeriodicType(iSide)
-END DO 
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-!stop'end  of test'
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+  DO iSide=1,nPartSides
+    TrueSideID=PartBCSideList(iSide)
+    IF(TrueSideID.EQ.-1) CYCLE
+    print*,MyRank,'SideNormVec(', iSide, SideNormVec(1:3,TrueSideID), ' SideDistance ', SideDistance(TrueSideID) , ' Ptype', SidePeriodicType(iSide)
+  END DO 
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+  !stop'end  of test'
+ELSE
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+  print*, ' nSides ', nSides, ' nPartSides ', nPartSides, nTotalSides
+  DO iSide=1,nSides
+    print*,MyRank,'SideNormVec ', iSide, SUM(SideNormVec(1:3,iSide)), ' SideDistance ', SideDistance(iSide), ' SideType ', SideType(iSide) ,' Ptype', SidePeriodicType(iSide)
+  END DO 
+  print*,' periodic sides'
+  DO iSide=nSides+1,nPartSides
+    print*,MyRank,'SideNormVec ', iSide, SUM(SideNormVec(1:3,iSide)), ' SideDistance ', SideDistance(iSide), ' SideType ', SideType(iSide) ,' Ptype', SidePeriodicType(iSide)
+  END DO 
+  print*,' halo sides'
+  DO iSide=nPartSides+1,nTotalSides
+    print*,MyRank,'SideNormVec ', iSide, SUM(SideNormVec(1:3,iSide)), ' SideDistance ', SideDistance(iSide), ' SideType ', SideType(iSide) ,' Ptype', SidePeriodicType(iSide)
+  END DO 
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+  !stop'end  of test'
 END IF
 
 #ifdef MPI
@@ -3754,7 +3772,7 @@ SUBROUTINE ExtendToPeriodicSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
-USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,nBCSides
+USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,nBCSides,MortarSlave2MasterInfo
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,nPartPeriodicSides,GEO &
                                      ,PartBCSideList,nTotalBCSides,nPartSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
@@ -3782,6 +3800,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:)      :: DummySideSlabIntervals               ! i
 !REAL,ALLOCATABLE,DIMENSION(:,:)      :: DummySidePeriodicDisplacement        ! intervalls beta1, beta2, beta3
 LOGICAL,ALLOCATABLE,DIMENSION(:)     :: DummyBoundingBoxIsEmpty
 INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummyBC
+INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummyMortarSlave2MasterInfo
 INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyMortarType
 INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyPartSideToElem
 INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummySidePeriodicType
@@ -3826,6 +3845,7 @@ IF(MapPeriodicSides)THEN
   ALLOCATE(DummyMortarType(1:2,1:nTotalSides))
   ALLOCATE(DummyPartSideToElem(1:5,1:nTotalSides))
   ALLOCATE(DummySidePeriodicType(1:nTotalSides))
+  ALLOCATE(DummyMortarSlave2MasterInfo(1:nTotalSides))
   
   ! copy data to backup
   DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides) = BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides)
@@ -3836,6 +3856,7 @@ IF(MapPeriodicSides)THEN
   !DummySidePeriodicDisplacement(1:3,1:nTotalSides)            = SidePeriodicDisplacement(1:3,1:nTotalSides)
   DummyBoundingBoxIsEmpty(1:nTotalSides)                      = BoundingBoxIsEmpty(1:nTotalSides)
   DummyBC(1:nTotalSides)                                      = BC(1:nTotalSides)
+  DummyMortarSlave2MasterInfo(1:nTotalSides)                  = MortarSlave2MasterInfo(1:nTotalSides)
   DummyMortarType(1:2,1:nTotalSides)                          = MortarType(1:2,1:nTotalSides)
   DummyPartSideTOElem(1:5,1:nTotalSides)                      = PartSideTOElem(1:5,1:nTotalSides)
   DummySidePeriodicType(1:nTotalSides)                        = SidePeriodicType(1:nTotalSides)
@@ -3846,20 +3867,23 @@ IF(MapPeriodicSides)THEN
   DEALLOCATE(SideSlabNormals)
   DEALLOCATE(SideSlabIntervals)
   DEALLOCATE(BoundingBoxIsEmpty)
-  !DEALLOCATE(SidePeriodicDisplacement)
+  DEALLOCATE(MortarSlave2MasterInfo)
   DEALLOCATE(BC)
   DEALLOCATE(MortarType)
   DEALLOCATE(PartSideToElem)
   DEALLOCATE(SidePeriodicType)
 
+  print*,'nTotalSides',nTotalSides
   tmpnSides  =nTotalSides 
   nTotalSides=nTotalSides+nPartPeriodicSides
+  print*,'nTotalSides',nTotalSides
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
   ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides))
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides))
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides))
   ALLOCATE(BC(1:nTotalSides))
+  ALLOCATE(MortarSlave2MasterInfo(1:nTotalSides))
   ALLOCATE(MortarType(1:2,1:nTotalSides))
   ALLOCATE(PartSideToElem(1:5,1:nTotalSides))
   ALLOCATE(SidePeriodicType(1:nTotalSides))
@@ -3873,6 +3897,7 @@ IF(MapPeriodicSides)THEN
   BoundingBoxIsEmpty(1:tmpnSides)                      = DummyBoundingBoxIsEmpty(1:tmpnSides)
   !SidePeriodicDisplacement(1:3,1:nTotalSides)          = DummySidePeriodicDisplacement(1:3,1:nTotalSides)
   BC(1:tmpnSides)                                      = DummyBC(1:tmpnSides)
+  MortarSlave2MasterInfo(1:tmpnSides)                  = DummyMortarSlave2MasterInfo(1:tmpnSides)
   MortarType(1:2,1:tmpnSides)                          = DummyMortarType(1:2,1:tmpnSides)
   PartSideToElem(1:5,1:tmpnSides)                      = DummyPartSideTOElem(1:5,1:tmpnSides)
   SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
@@ -3910,6 +3935,7 @@ IF(MapPeriodicSides)THEN
             EXIT
           END IF
         END DO
+        MortarSlave2MasterInfo(newSideID) = DummyMortarSlave2MasterInfo(iSide)
         PVID=SidePeriodicType(iSide)
         SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
       END IF
@@ -3917,10 +3943,11 @@ IF(MapPeriodicSides)THEN
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
       PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = newSideID
       ! remains equal because of MOVEMENT and MIRRORING of periodic side
+      print*,'ElemID',ElemID,NBElemID
       print*,'old periodic type', PVID
       print*,'BC',BC(iSide)
       ! periodic displacement 
-      IF(MyRank.EQ.1)THEN
+      IF(MyRank.EQ.0)THEN
         print*,MyRank,'old side'
         print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,iSide))/(NGeo+1)/(NGeo+1)
         print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,iSide))/(NGeo+1)/(NGeo+1)
@@ -3932,7 +3959,7 @@ IF(MapPeriodicSides)THEN
                                                     - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         END DO ! p=0,NGeo
       END DO ! q=0,NGeo
-      IF(MyRank.EQ.1)THEN
+      IF(MyRank.EQ.0)THEN
         print*,MyRank,'new side'
         print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,newSideID))/(NGeo+1)/(NGeo+1)
         print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,newSideID))/(NGeo+1)/(NGeo+1)
@@ -3987,11 +4014,9 @@ IF(MapPeriodicSides)THEN
 
 END IF ! nPartPeriodicSides .GT.0
 nTotalBCSides=nPartPeriodicSides+nSides
-nPartSides   =nPartSides+nSides
-
-CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
-print*,'partbcsidelist',partbcsidelist
-CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
+nPartSides   =nPartPeriodicSides+nSides
+print*,'nPartPeriodicSides',nPartPeriodicSides
+print*,'nPartSides',nPartSides,nTotalSides
 
 END SUBROUTINE ExtendToPeriodicSides
 
