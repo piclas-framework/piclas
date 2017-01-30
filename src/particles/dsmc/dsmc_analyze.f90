@@ -133,10 +133,10 @@ SUBROUTINE CalcSurfaceValues
           END IF
           MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
           IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
-            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Accomodation(iSpec,p,q) * dt / TimeSample
+            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Accomodation(iSpec,p,q)
           ELSE
             MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
-                                                      / SampWall(iSurfSide)%State(12+iSpec,p,q)) * dt / TimeSample
+                                                      / SampWall(iSurfSide)%State(12+iSpec,p,q))
           END IF
           MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
         END DO ! iSpec=1,nSpecies

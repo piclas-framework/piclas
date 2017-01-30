@@ -314,6 +314,7 @@ TYPE tAdsorbateMapping
   INTEGER , ALLOCATABLE                  :: NeighSite(:,:)          ! site of adjacent Neigbhour (1:nSites,1:nNeigbhours)
   INTEGER                                :: nNeighbours             ! number of adjacent Neigbours sites 
                                                                     ! (all possible Coordinations incl.)
+  LOGICAL , ALLOCATABLE                  :: IsNearestNeigh(:,:)     ! Flag for defining nearest neighbour of binding site
 END TYPE
 
 TYPE tSurfaceDistributionInfo

@@ -287,6 +287,7 @@ Max_Surfsites_halo = 0
 Comm_NbrSurfPos = 0
 #endif /*MPI*/
 
+! Allocate and initializes number of surface sites and neighbours 
 DO iSurfSide = 1,SurfMesh%nTotalSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
@@ -345,7 +346,8 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
       ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndx(1:nSites,nInterAtom),&
                 SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndy(1:nSites,nInterAtom),&
                 SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighPos(1:nSites,1:nNeighbours),&
-                SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighSite(1:nSites,1:nNeighbours))
+                SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighSite(1:nSites,1:nNeighbours),&
+                SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%IsNearestNeigh(1:nSites,1:nNeighbours))
       ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(1:nSites),&
                 SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%Species(1:nSites))
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(:) = 0
@@ -354,6 +356,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndy(:,:) = 0
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighPos(:,:) = 0
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighSite(:,:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%IsNearestNeigh(:,:) = .FALSE.
     END DO
   END DO
   END DO
@@ -390,12 +393,14 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,11) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1) +1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,12) = Surfpos +surfsquare +(surfsquare+1)*(Indy)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,9:12) = 2
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,9:12) = .TRUE.
     ! top
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,13) = Surfpos + (Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,14) = Surfpos + 1 + (Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,15) = Surfpos + (surfsquare+1) + (Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,16) = Surfpos + (surfsquare+1) + 1 + (Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:16) = 3
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,13:16) = .TRUE.
     ! account for empty edges
     IF (Indy .EQ. 1) SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:3) = 0
     IF (Indy .EQ. surfsquare) SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6:8) = 0
@@ -438,6 +443,8 @@ DO subsurfxi = 1,nSurfSample
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1) +1
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,2) = .TRUE.
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,5) = .TRUE.
       ! bridge
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - (surfsquare+1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - (surfsquare+1) + 1
@@ -446,10 +453,13 @@ DO subsurfxi = 1,nSurfSample
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + surfsquare
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + 1
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,8) = .TRUE.
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,11) = .TRUE.
       ! top
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -(surfsquare)*(Indy-1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos +1 -(surfsquare)*(Indy-1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,13:14) = .TRUE.
       ! account for empty edges
       IF (Indy .EQ. 1) THEN
         SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:3) = 0
@@ -487,6 +497,7 @@ DO subsurfxi = 1,nSurfSample
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1) -1
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,3:4) = .TRUE.
       ! bridge
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - surfsquare - (surfsquare+1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - surfsquare - 1
@@ -495,10 +506,12 @@ DO subsurfxi = 1,nSurfSample
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + (surfsquare+1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + (surfsquare+1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,8:11) = .TRUE.
       ! top
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -surfsquare*(Indy)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos -surfsquare*(Indy) +(surfsquare+1)
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,13:14) = .TRUE.
       ! account for empty edges
       IF (Indy .EQ. 1) THEN
         SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
@@ -545,12 +558,14 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,3) = Surfpos - surfsquare + 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,4) = Surfpos - 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:4) = 1
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,1:4) = .TRUE.
     ! bridge
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,5) = Surfpos + 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,6) = Surfpos + surfsquare - 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,7) = Surfpos + surfsquare
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,8) = Surfpos + surfsquare + 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,5:8) = 2
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,5:8) = .TRUE.
     ! top
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,9) = Surfpos - surfsquare - 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,10) = Surfpos - surfsquare
@@ -620,6 +635,7 @@ WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites o
   
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
+! communicate the number of surface sites for surfdist communication
 ALLOCATE(Count_NbrSurfPos(0:SurfCOMM%nProcs-1))
 Count_NbrSurfPos=0
 CALL MPI_ALLGATHER(Comm_NbrSurfPos,1,MPI_INTEGER,Count_NbrSurfPos,1,MPI_INTEGER,SurfCOMM%COMM,iError)

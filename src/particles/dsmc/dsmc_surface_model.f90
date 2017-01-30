@@ -365,8 +365,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   REAL, PARAMETER                  :: Pi=3.14159265358979323846_8
   INTEGER                          :: jSpec, kSpec, jCoord, kCoord
   REAL                             :: sum_probabilities
-  INTEGER , ALLOCATABLE            :: NeighbourID(:,:)
-  INTEGER                          :: SiteSpec, NeighSpec, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k
+  INTEGER , ALLOCATABLE            :: NeighbourID(:,:), NeighSpec(:)
+  INTEGER                          :: SiteSpec, nNeigh_trap, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k
   INTEGER                          :: n_empty_Neigh(3), n_Neigh(3), adsorbates(nSpecies)
   REAL                             :: E_a, c_f, EZeroPoint_Educt, phi_1, phi_2, Xi_Total, Xi_vib
   REAL                             :: Heat_A, Heat_B, Heat_AB, D_AB, D_A, D_B
@@ -413,33 +413,40 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !---------------------------------------------------------------------------------------------------------------------------------
   ! calculate trapping probability (using hard cube collision with surface atom or adsorbate)
   !---------------------------------------------------------------------------------------------------------------------------------
-  ! if site is empty neighbour site can be occupied and this influences trapping
-  NeighSpec = 0
+  ! if site is empty nearest neighbour site can be occupied and this influences the collision cube mass
   IF (SiteSpec.EQ.0) THEN
+    ALLOCATE(NeighSpec(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
+    NeighSpec = 0
+    nNeigh_trap = 0
     DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
+      IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%IsNearestNeigh(Surfpos,i)) CYCLE
     DO Coord2 = 1,3
       IF (Coord2.EQ.SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,i)) THEN
         IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( & 
               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) & 
               .NE.0) ) THEN
-              NeighSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( & 
+              nNeigh_trap = nNeigh_trap + 1
+              NeighSpec(nNeigh_trap) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( & 
               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i))
-              EXIT
         END IF
       END IF
     END DO
-    IF (NeighSpec.NE.0) EXIT
     END DO
   END IF
   potential_pot = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.TRUE.)*BoltzmannConst
   vel_norm = - ( 2*(Norm_Ec+potential_pot)/Species(iSpec)%MassIC)**(0.5)
   a_const = (Species(iSpec)%MassIC/(2*BoltzmannConst*WallTemp))**(0.5)
   IF (SiteSpec.EQ.0) THEN
-    IF (NeighSpec.EQ.0) THEN
+    IF (nNeigh_trap.EQ.0) THEN
       surfmass = Adsorption%SurfMassIC
     ELSE
-      surfmass = Species(NeighSpec)%MassIC
+      surfmass = 0.
+      DO i = 1,nNeigh_trap
+        surfmass = surfmass + Species(NeighSpec(i))%MassIC
+      END DO
+      surfmass = surfmass / nNeigh_trap
     END IF
+    SDEALLOCATE(NeighSpec)
     mu = Species(iSpec)%MassIC / surfmass
   ELSE
     mu = Species(iSpec)%MassIC / (Species(SiteSpec)%MassIC)
@@ -925,7 +932,7 @@ DO subsurfxi = 1,nSurfSample
         D_AB = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
         ! calculate LH reaction probability
         E_d = Calc_E_act(Heat_A,Heat_B,Heat_AB,D_AB,0.,0.,.FALSE.)
-        CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
+        CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1)
         CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2)
         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct &
@@ -993,7 +1000,7 @@ DO subsurfxi = 1,nSurfSample
     END IF
     
     ! calculate molecular desorption probability
-    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
+    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
     CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
     nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
     E_d = Calc_E_Act(Heat_A,0.,0.,0.,0.,0.,.FALSE.)
@@ -1234,7 +1241,7 @@ DO subsurfxi = 1,nSurfSample
               EvibOld = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
               EvibWall = VibQuantWall * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
             END IF
-            !----  Sampling for internal (vibrational) energy accommodation at walls
+            !----  Sampling for internal (vibrational) energy accommodation at walls for desorbed simulation gas particles
             SampWall(SurfSideID)%State(7,subsurfxi,subsurfeta) = SampWall(SurfSideID)%State(7,subsurfxi,subsurfeta) &
                                               + EvibOld * Species(iSpec)%MacroParticleFactor
             SampWall(SurfSideID)%State(8,subsurfxi,subsurfeta) = SampWall(SurfSideID)%State(8,subsurfxi,subsurfeta) &
@@ -2007,7 +2014,7 @@ DO SurfSide=1,SurfMesh%nSides
 !         rate = rate + Adsorption%ProbSigma(p,q,SurfSide,iSpec,iProbSigma) * exp(-E_des/WallTemp)
 !       END DO
       
-        CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSide))
+        CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSide)/Adsorption%AreaIncrease)
         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
         nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
         rate = nu_des * exp(-E_des/WallTemp)
