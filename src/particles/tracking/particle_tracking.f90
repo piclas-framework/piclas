@@ -886,7 +886,7 @@ IF(BC(SideID).GT.0)THEN
 
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
-  dolocSide(hitlocSide)=.FALSE.
+  !dolocSide(hitlocSide)=.FALSE.
 ELSE
   ! DO NOT move particle on edge
   ! issues with periodic grids
