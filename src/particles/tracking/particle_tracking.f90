@@ -394,7 +394,7 @@ USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -591,7 +591,7 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,*) ' LastPartPos            ', LastPartPos(iPart,1:3)
           Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
           IPWRITE(UNIT_stdOut,*) ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
           IPWRITE(UNIT_stdOut,*) ' Implicit                ', PartIsImplicit(iPart)
 #endif
 #ifdef MPI
@@ -632,7 +632,7 @@ __STAMP__ &
               IPWRITE(UNIT_stdOut,*) ' LastPartPos            ', LastPartPos(iPart,1:3)
               Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
               IPWRITE(UNIT_stdOut,*) ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
               IPWRITE(UNIT_stdOut,*) ' Implicit               ', PartIsImplicit(iPart)
 #endif
 #ifdef MPI
@@ -1124,11 +1124,11 @@ USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
 #ifdef IMPA
 USE MOD_Particle_Vars,               ONLY: PartQ
 USE MOD_TimeDisc_Vars,               ONLY: dt,iStage
-USE MOD_TimeDisc_Vars,               ONLY: ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_TimeDisc_Vars,               ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
 USE MOD_LinearSolver_Vars,           ONLY: PartXK
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_Particle_Vars,              ONLY: PartIsImplicit
 #endif 
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1420,7 +1420,7 @@ IF(isMoved)THEN
 #ifdef IMPA 
   ! recompute PartStateN to kill jump in integration through periodic BC
   IF(iStage.GT.0)THEN
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
     IF(PartIsImplicit(PartID))THEN
 #endif
       ! partshift-vector is pointing from parallel-pos to old pos
@@ -1454,7 +1454,7 @@ IF(isMoved)THEN
       !IF(.NOT.ALMOSTEQUAL(Norm,Norm2_F_PartXK(PartID)))THEN
       !  print*,'norm diff',PartID
       !END IF
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
    ELSE
      PartStateN(PartID,1:6) = PartState(PartID,1:6)
      ! explicit particle

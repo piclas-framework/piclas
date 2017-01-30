@@ -159,6 +159,18 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif 
 
+#if (PP_TimeDiscMethod==120) 
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! IMEX Heun/Crank-Nicolson1-2-2, implicit 1 stage, explicit 2 stages, common order 2  (A-stable, but not L-stable)
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+INTEGER,PARAMETER :: nRKStages = 2
+REAL,PARAMETER    :: ERK_a(2:nRKStages,1:nRKStages-1)= 1.0 ! RESHAPE( (/ 1.0, 0.0 /) , (/nRKStages-1,nRKStages/), ORDER=(/2,1/)) 
+REAL,PARAMETER    :: RK_b(1:nRKStages) = (/ 0.5, 0.5 /)
+REAL,PARAMETER    :: RK_c(2:nRKStages) = 1.0
+REAL,PARAMETER    :: ESDIRK_a(2:nRKStages,1:nRKStages)= RESHAPE( (/ 0.5, 0.5 /) , (/nRKStages-1,nRKStages/), ORDER=(/2,1/)) 
+! embedded scheme is euler
+#endif
+
 #if (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==111) || (PP_TimeDiscMethod==121)
 ! for stage counter
 INTEGER,PARAMETER :: nRKStages = 4
