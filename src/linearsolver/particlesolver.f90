@@ -27,7 +27,7 @@ INTERFACE FinalizePartSolver
   MODULE PROCEDURE FinalizePartSolver
 END INTERFACE
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 INTERFACE SelectImplicitParticles
   MODULE PROCEDURE SelectImplicitParticles
 END INTERFACE
@@ -35,7 +35,7 @@ END INTERFACE
 
 PUBLIC:: InitPartSolver,FinalizePartSolver
 PUBLIC:: ParticleNewton
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PUBLIC:: SelectImplicitParticles
 #endif
 #endif /*PARTICLES*/
@@ -94,14 +94,14 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Cannot allocate R_PartXK')
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PartImplicitMethod =GETINT('Part-ImplicitMethod','0')
 #endif
 
 END SUBROUTINE InitPartSolver
 
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 SUBROUTINE SelectImplicitParticles() 
 !===================================================================================================================================
 ! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted

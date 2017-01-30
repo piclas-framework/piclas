@@ -3474,7 +3474,7 @@ USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
-#if (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
@@ -3851,7 +3851,7 @@ __STAMP__&
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
       END IF
-#elif (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+#elif (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
       IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
