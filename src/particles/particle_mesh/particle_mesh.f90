@@ -584,7 +584,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
 !USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
@@ -642,7 +642,8 @@ IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
 END IF
 
-IF(.NOT.CartesianPeriodic) CALL ExtendToPeriodicSides()
+CALL DuplicateSlavePeriodicSides()
+CALL MarkAllBCSides()
 StartT=BOLTZPLATZTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
@@ -3764,7 +3765,7 @@ END DO
 END SUBROUTINE ElemConnectivity
 
 
-SUBROUTINE ExtendToPeriodicSides() 
+SUBROUTINE DuplicateSlavePeriodicSides() 
 !===================================================================================================================================
 ! increases to side list to periodic sides
 ! duplicate only MY slave sides
@@ -3780,7 +3781,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals,RotateMasterToSlave
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping,CartesianPeriodic
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3792,7 +3793,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iSide,NBElemID,tmpnSides,NBlocSideID,p,q,ElemID,newSideID,locSideID,PVID
-INTEGER                              :: BCID,iBC,flip,nlocBCSides
+INTEGER                              :: BCID,iBC,flip
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3D(:,:,:,:)                                
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3DElevated(:,:,:,:)                                
 REAL,ALLOCATABLE,DIMENSION(:,:,:)    :: DummySideSlabNormals                  ! normal vectors of bounding slab box
@@ -3809,24 +3810,26 @@ LOGICAL                              :: MapPeriodicSides
 
 nPartPeriodicSides=0
 MapPeriodicSides=.FALSE.
-DO iSide=1,nSides
-  IF(SidePeriodicType(iSide).NE.0)THEN
-    ! ignore MPI sides, these have NOT to be mirrored
-    ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
-    IF(ElemID.EQ.-1) THEN
-      ! master side is NOT on proc, hence, the side must NOT BE DUPLICATED
+IF(.NOT.CartesianPeriodic)THEN
+  DO iSide=1,nSides
+    IF(SidePeriodicType(iSide).NE.0)THEN
+      ! ignore MPI sides, these have NOT to be mirrored
+      ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
+      IF(ElemID.EQ.-1) THEN
+        ! master side is NOT on proc, hence, the side must NOT BE DUPLICATED
+        MapPeriodicSides=.TRUE.
+        CYCLE
+      END IF
+      NBElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
+      ! only master side is on proc, nothing to do
+      IF(NBElemID.LT.1) CYCLE
+      IF(NBElemID.GT.nElems) CYCLE
+      ! if master and slave side are on proc, duplicate
+      nPartPeriodicSides=nPartPeriodicSides+1
       MapPeriodicSides=.TRUE.
-      CYCLE
     END IF
-    NBElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
-    ! only master side is on proc, nothing to do
-    IF(NBElemID.LT.1) CYCLE
-    IF(NBElemID.GT.nElems) CYCLE
-    ! if master and slave side are on proc, duplicate
-    nPartPeriodicSides=nPartPeriodicSides+1
-    MapPeriodicSides=.TRUE.
-  END IF
-END DO
+  END DO
+END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
 print*,Myrank,'nPartperiodicsides',nPartPeriodicSides,nSides,nTotalSides
 print*,Myrank,'partbcsidelist',partbcsidelist
@@ -3984,24 +3987,6 @@ IF(MapPeriodicSides)THEN
                                          ,BoundingBoxIsEmpty(newSideID)                                              )
     END IF
   END DO ! iSide=1,tmpnSides
-  ! PartBCSideList is increased, due to the periodic sides
-  IF(DoRefMapping)THEN
-    DEALLOCATE(PartBCSideList)
-    ALLOCATE(PartBCSideList(1:nTotalSides))
-    ! BC Sides NON-periodic
-    PartBCSideList=-1
-    DO iSide=1,nBCSides
-      PartBCSideList(iSide)=iSide
-    END DO
-    ! periodic BC sides 
-    nlocBCSides=nBCSides
-    DO iSide=nBCSides+1,nTotalSides
-      IF(SidePeriodicType(iSide).EQ.0) CYCLE
-      nlocBCSides=nlocBCSides+1
-      PartBCSideList(iSide)=nlocBCSides
-    END DO
-  END IF
-
   ! deallocate dummy  
   DEALLOCATE(DummyBezierControlPoints3D)
   DEALLOCATE(DummySideSlabNormals)
@@ -4018,7 +4003,57 @@ nPartSides   =nPartPeriodicSides+nSides
 print*,'nPartPeriodicSides',nPartPeriodicSides
 print*,'nPartSides',nPartSides,nTotalSides
 
-END SUBROUTINE ExtendToPeriodicSides
+END SUBROUTINE DuplicateSlavePeriodicSides
+
+
+SUBROUTINE MarkAllBCSides() 
+!===================================================================================================================================
+! mark all bc-sides for ref-mapping
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides
+USE MOD_Mesh_Vars,               ONLY:BC,nBCSides,BoundaryType
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iSide, nBCSidesAdd,BCID
+!===================================================================================================================================
+
+! PartBCSideList is increased, due to the periodic sides
+IF(.NOT.DoRefMapping) RETURN
+
+DEALLOCATE(PartBCSideList)
+ALLOCATE(PartBCSideList(1:nTotalSides))
+! NON-BC Sides 
+PartBCSideList=-1
+DO iSide=1,nBCSides
+  PartBCSideList(iSide)=iSide
+END DO
+
+! add periodic and analyze/inner-bcs
+nBCSidesAdd=0
+DO iSide=nBCSides+1,nTotalSides
+  BCID=BC(iSide)
+  IF(BCID.GT.0)THEN
+    IF(BoundaryType(BCID,BC_TYPE).EQ.1)THEN ! periodic sides
+      nBCSidesAdd=nBCSidesAdd+1
+      PartBCSideList(iSide)=nBCSidesAdd
+    ELSE ! analyze or inner sides
+      nBCSidesAdd=nBCSidesAdd+1
+      PartBCSideList(iSide)=nBCSidesAdd
+    END IF
+  END IF
+END DO
+
+END SUBROUTINE MarkAllBCSides
 
 
 SUBROUTINE BGMIndexOfElement(ElemID,ElemToBGM) 

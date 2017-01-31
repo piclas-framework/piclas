@@ -761,6 +761,12 @@ DO iElem=1,nElems
       IF(aSide%BCindex.NE.0)THEN !side is BC or periodic side
         IF(BoundaryType(aSide%BCindex,BC_TYPE).EQ.1) BC(aSide%SideID)=aSide%BCindex
       END IF
+#ifdef PARTICLES
+      ! mark analyze-sides or inner-BCs for particles
+      IF(aSide%BCindex.NE.0)THEN ! side is inner-BC or analyze side
+        IF(BoundaryType(aSide%BCindex,BC_TYPE).NE.1) BC(aSide%SideID)=aSide%BCindex
+      END IF
+#endif /*PARTICLES*/
     END IF
   END DO ! LocSideID
 END DO ! iElem

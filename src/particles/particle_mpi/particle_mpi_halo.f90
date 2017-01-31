@@ -916,7 +916,8 @@ DO iElem=1,nElems
       IF(SideID.GT.nPartSides) CYCLE
       IF(DoRefMapping)THEN
         IF(.NOT.isSide(SideID))THEN
-          IF((SideID.LE.nBCSides).OR.(SidePeriodicType(SideID).NE.0))THEN
+          !IF((SideID.LE.nBCSides).OR.(SidePeriodicType(SideID).NE.0))THEN
+          IF((SideID.LE.nBCSides).OR.(BC(SideID).NE.0))THEN
             ! missing: what do do with BC sides??"
             SendMsg%nSides=SendMsg%nSides+1
             SideIndex(SideID) = SendMsg%nSides
