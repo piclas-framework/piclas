@@ -319,13 +319,11 @@ DO iNbProc=1,nNbProcs
             aSide%SideID=aSide%SideID +offsetMPISides_MINE(iNbProc-1)
 #ifdef PARTICLES
             SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha
-            print*,MyRank,'mine-1'
 #endif /*PARTICLES*/
           ELSE !YOUR
             aSide%SideID=(aSide%SideID-nMPISides_MINE_Proc(iNbProc))+offsetMPISides_YOUR(iNbProc-1)
 #ifdef PARTICLES
             SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
-            print*,MyRank,'your-1'
 #endif /*PARTICLES*/
           END IF
         ELSE
@@ -333,13 +331,11 @@ DO iNbProc=1,nNbProcs
             aSide%SideID=aSide%SideID +offsetMPISides_YOUR(iNbProc-1)
 #ifdef PARTICLES
             SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha
-            print*,MyRank,'mine-2'
 #endif /*PARTICLES*/
           ELSE !YOUR
             aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
 #ifdef PARTICLES
             SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
-            print*,MyRank,'your-2'
 #endif /*PARTICLES*/
           END IF
         END IF !myrank<NbProc
@@ -429,14 +425,12 @@ IF(nMortarSides.GT.0)THEN
           aSide%SideID=iMortarMPISide
 #ifdef PARTICLES
           SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-          print*,'mortar..'
 #endif /*PARTICLES*/
         ELSEIF(aSide%tmp.EQ.-1)THEN !innermortars mortars, renumber SideIDs
           iMortarInnerSide=iMortarInnerSide+1
           aSide%SideID=iMortarInnerSide
 #ifdef PARTICLES
           SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-          print*,'mortar..'
 #endif /*PARTICLES*/
         END IF !aSide%tmp==-1
       END DO !iLocSide
@@ -449,9 +443,6 @@ IF(nMortarSides.GT.0)THEN
   LOGWRITE(*,'(A22,I8)')'new nMortarMPISides:',nMortarMPISides
   LOGWRITE(*,*)'-------------------------------------------------------'
 END IF !nMortarSides>0
-
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-!stop 'blubb'
 
 nSmallMortarSides=0
 nSmallMortarMPIsides_MINE=0

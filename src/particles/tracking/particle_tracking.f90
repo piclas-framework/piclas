@@ -177,11 +177,6 @@ DO iPart=1,PDM%ParticleVecLength
           !IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
         END IF
       END DO ! ilocSide
-      ! debug and testing
-      !IF((ipart.eq.40).AND.(iter.GE.68)) print*,' nIntersections',nIntersections
-      print*,'nInterSections',nInterSections
-      print*,'PartPos',PartState(iPart,1:3)
-      print*,'LastPos',LastPartPos(iPart,1:3)
       SELECT CASE(nInterSections)
       CASE(0) ! no intersection
         PEM%Element(iPart)=ElemID
@@ -230,7 +225,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
               EXIT
             END IF
-            print*,'crossedBC',crossedBC
             IF(crossedBC) THEN
               firstElem=ElemID
               EXIT
@@ -243,23 +237,6 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       CASE DEFAULT ! two or more hits
         ! more careful witEh bc elems
-!        IF(isBCElem(ElemID))THEN
-!          CALL InsertionSort(locAlpha,locSideList,6)
-!          DO ilocSide=1,6
-!            SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-!            IF(BC(SideID).NE.0)THEN
-!              IF(locAlpha(ilocSide).GT.-1.0)THEN
-!                ! perform boundary interaction
-!                CALL SelectInterSectionType(PartIsDone,doLocSide,ilocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-!                                                 ,xi(ilocSide),eta(ilocSide),localpha(ilocSide),iPart,SideID,ElemID)
-!                EXIT
-!              END IF
-!            END IF
-!          END DO
-!          markTol=.TRUE.
-!        ELSE
-          ! take last possible intersection, furthest
-          print*,'locAlpha',locAlpha
           CALL InsertionSort(locAlpha,locSideList,6)
           SwitchedElement=.FALSE.
           crossedBC=.FALSE.
@@ -302,7 +279,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
                 !EXIT
               END IF
-              print*,'crossedBC', crossedBC
               IF(SwitchedElement) EXIT
               IF(crossedBC) THEN
                 firstElem=ElemID
@@ -565,7 +541,6 @@ DO iPart=1,PDM%ParticleVecLength
     newXi=HUGE(1.0)
     newElemID=-1
     ! loop through sorted list and start by closest element  
-    print*,'oldelemid',oldelemid
     DO iBGMElem=1,nBGMElems
       IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
       ElemID=ListDistance(iBGMElem)
@@ -576,7 +551,6 @@ DO iPart=1,PDM%ParticleVecLength
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
         PEM%Element(iPart) = ElemID
-        print*,'newElemID',ElemID
         PartIsDone=.TRUE.
         EXIT
       END IF
@@ -764,8 +738,6 @@ DO WHILE(DoTracing)
   END IF
   locAlpha=-1.0
   nInter=0
-  !nlocSides=lastSide-firstSide+1
-  print*,'first,last',firstSide,LastSide
   DO iLocSide=firstSide,LastSide
     ! track particle vector until the final particle position is achieved
     SideID=BCElem(ElemID)%BCSideID(ilocSide)
@@ -816,12 +788,6 @@ DO WHILE(DoTracing)
                                                                           ,PartId,SideID,ElemID,reflected)
         !IF(PEM%Element(PartID).NE.OldElemID)THEN
         IF(ElemID.NE.OldElemID)THEN
-          !print*,'oldelem,newelem',oldElemId,ElemID
-          !print*,'ElemID',Elemid
-          !ElemID=PEM%Element(PartID)
-          !PEM%Element(PartID)=ElemID
-          !print*,'ElemID',Elemid
-          !print*,'moved in new element', PEM%Element(PartID)
           CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved)
           PartisMoved=.TRUE.
           RETURN 
@@ -850,7 +816,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType,SideNormVec
 USE MOD_Mesh_Vars,                   ONLY:nBCSides,MortarType
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElemAndSide
 USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement
@@ -875,10 +841,9 @@ REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory
 REAL,INTENT(INOUT)                :: lengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: flip
+INTEGER                           :: Moved(2)
 !===================================================================================================================================
 
-print*,'BC(SideID)',BC(SideID)
 IF(BC(SideID).GT.0)THEN
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                  ,xi    &
@@ -893,332 +858,17 @@ ELSE
   !! move particle ON cell-edge
   !LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+alpha*PartTrajectory(1:3)
   !! recompute remaining particle trajectory
-  !!print*,'length-old',lengthPartTrajectory
   !lengthPartTrajectory=lengthPartTrajectory-alpha
 
-  !print*,'length',lengthPartTrajectory
-  !print*,'PartTrajectory',PartTrajectory
-  !print*,'length1',lengthPartTrajectory-alpha
-  !PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-  !lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-  !                         +PartTrajectory(2)*PartTrajectory(2) &
-  !                         +PartTrajectory(3)*PartTrajectory(3) )
-  !PartTrajectory=PartTrajectory/lengthPartTrajectory
-  !print*,'PartTrajectory',PartTrajectory
-  !print*,'length',lengthPartTrajectory
   ! update particle element
   dolocSide=.TRUE.
-  ! move particle to new element
-  !     Type 1               Type 2              Type3
-  !      eta                  eta                 eta
-  !       ^                    ^                   ^
-  !       |                    |                   |
-  !   +---+---+            +---+---+           +---+---+
-  !   | 3 | 4 |            |   2   |           |   |   |
-  !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-  !   | 1 | 2 |            |   1   |           |   |   |
-  !   +---+---+            +---+---+           +---+---+
-  print*,'LastPos', LastPartPos(PartID,1:3)
-  print*,'OldElemID',ElemID
-  SELECT CASE(MortarType(1,SideID))
-  CASE(1)
-    IF(Xi.GT.0.)THEN
-      IF(Eta.GT.0.)THEN
-        dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
-        ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
-      ELSE
-        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-      END IF
-    ELSE
-      IF(Eta.GT.0.)THEN
-        dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
-        ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
-      ELSE
-        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-      END IF
-    END IF
-  CASE(2)
-    IF(Eta.GT.0.)THEN
-      dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-      ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-    ELSE
-      dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-      ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-    END IF
-  CASE(3)
-    IF(Xi.LE.0.)THEN
-      dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-      ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-    ELSE
-      dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-      ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-    END IF
-  CASE DEFAULT ! normal side OR small mortar side
-    dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-    ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-  END SELECT
-  print*,'NewElemID',ElemID
+  Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
+  ElemID=Moved(1)
+  dolocSide(Moved(2))=.FALSE.
 END IF
 
-!!IF(SideID.LE.nBCSides)THEN
-!!  ! check if interesction is possible and take first intersection
-!!  CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
-!!                                                                 ,xi    &
-!!                                                                 ,eta   ,PartID,SideID,ElemID,reflected)
-!!
-!!  IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
-!!  dolocSide=.TRUE.
-!!  dolocSide(hitlocSide)=.FALSE.
-!ELSE ! no BC Side
-!  ! check for periodic sides
-!  IF(SidePeriodicType(SideID).GT.0)THEN
-!    flip   = PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
-!    ! update particle position of intersection
-!    IF(flip.EQ.0)THEN
-!      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-!      PartState(PartID,1:3)  =PartState(PartID,1:3)  +SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-!    ELSE
-!      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-!      PartState(PartID,1:3)  =PartState(PartID,1:3)  -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-!    END IF
-!    ! recompute particle trajectory
-!    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-!    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-!                             +PartTrajectory(2)*PartTrajectory(2) &
-!                             +PartTrajectory(3)*PartTrajectory(3) )
-!    PartTrajectory=PartTrajectory/lengthPartTrajectory
-!    lengthPartTrajectory=lengthPartTrajectory
-!    ! update particle element
-!    dolocSide=.TRUE.
-!    ! move particle to new element
-!    !     Type 1               Type 2              Type3
-!    !      eta                  eta                 eta
-!    !       ^                    ^                   ^
-!    !       |                    |                   |
-!    !   +---+---+            +---+---+           +---+---+
-!    !   | 3 | 4 |            |   2   |           |   |   |
-!    !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!    !   | 1 | 2 |            |   1   |           |   |   |
-!    !   +---+---+            +---+---+           +---+---+
-!    SELECT CASE(MortarType(1,SideID))
-!    CASE(1)
-!      IF(Xi.GT.0.)THEN
-!        IF(Eta.GT.0.)THEN
-!          dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
-!        ELSE
-!          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!        END IF
-!      ELSE
-!        IF(Eta.GT.0.)THEN
-!          dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
-!        ELSE
-!          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!        END IF
-!      END IF
-!    CASE(2)
-!      IF(Eta.GT.0.)THEN
-!        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!      ELSE
-!        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!      END IF
-!    CASE(3)
-!      IF(Xi.LE.0.)THEN
-!        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!      ELSE
-!        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!      END IF
-!    CASE DEFAULT ! normal side OR small mortar side
-!      dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!      ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!    END SELECT
-!  ELSE ! no periodic side
-!#ifdef MPI
-!    IF(SideID.GT.nSides)THEN
-!      IF(BC(SideID).NE.0)THEN
-!        ! encountered a bc side
-!        CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,Alpha &
-!                                                                       ,xi    &
-!                                                                       ,eta   ,PartID,SideID,ElemID,reflected)
-!        dolocSide=.TRUE.
-!        IF(SideType(SideID).EQ.PLANAR_RECT) THEN !also for PLANAR_NONRECT?
-!          dolocSide(hitlocSide)=.FALSE.
-!        END IF
-!      ELSE
-!        ! inner side
-!        dolocSide=.TRUE.
-!        ! move particle to new element
-!        !     Type 1               Type 2              Type3
-!        !      eta                  eta                 eta
-!        !       ^                    ^                   ^
-!        !       |                    |                   |
-!        !   +---+---+            +---+---+           +---+---+
-!        !   | 3 | 4 |            |   2   |           |   |   |
-!        !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!        !   | 1 | 2 |            |   1   |           |   |   |
-!        !   +---+---+            +---+---+           +---+---+
-!        SELECT CASE(MortarType(1,SideID))
-!        CASE(1)
-!          IF(Xi.GT.0.)THEN
-!            IF(Eta.GT.0.)THEN
-!              dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
-!              ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
-!            ELSE
-!              dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!              ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!            END IF
-!          ELSE
-!            IF(Eta.GT.0.)THEN
-!              dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
-!              ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
-!            ELSE
-!              dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!              ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!            END IF
-!          END IF
-!        CASE(2)
-!          IF(Eta.GT.0.)THEN
-!            dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!          ELSE
-!            dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!          END IF
-!        CASE(3)
-!          IF(Xi.LE.0.)THEN
-!            dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!          ELSE
-!            dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!          END IF
-!        CASE DEFAULT ! normal side OR small mortar side
-!          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!        END SELECT
-!        IF(ElemID.LE.0) CALL abort(&
-!__STAMP__&
-!,' HaloRegion too small or critical error during halo region reconstruction!')
-!      END IF ! BC?
-!    ELSE
-!      dolocSide=.TRUE.
-!      ! move particle to new element
-!      !     Type 1               Type 2              Type3
-!      !      eta                  eta                 eta
-!      !       ^                    ^                   ^
-!      !       |                    |                   |
-!      !   +---+---+            +---+---+           +---+---+
-!      !   | 3 | 4 |            |   2   |           |   |   |
-!      !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!      !   | 1 | 2 |            |   1   |           |   |   |
-!      !   +---+---+            +---+---+           +---+---+
-!      SELECT CASE(MortarType(1,SideID))
-!      CASE(1)
-!        IF(Xi.GT.0.)THEN
-!          IF(Eta.GT.0.)THEN
-!            dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
-!          ELSE
-!            dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!          END IF
-!        ELSE
-!          IF(Eta.GT.0.)THEN
-!            dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
-!          ELSE
-!            dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!            ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!          END IF
-!        END IF
-!      CASE(2)
-!        IF(Eta.GT.0.)THEN
-!          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!        ELSE
-!          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!        END IF
-!      CASE(3)
-!        IF(Xi.LE.0.)THEN
-!          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!        ELSE
-!          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!        END IF
-!      CASE DEFAULT ! normal side OR small mortar side
-!        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!      END SELECT
-!    END IF ! SideID.GT.nSides
-!#else
-!    ! update particle element
-!    dolocSide=.TRUE.
-!    ! move particle to new element
-!    !     Type 1               Type 2              Type3
-!    !      eta                  eta                 eta
-!    !       ^                    ^                   ^
-!    !       |                    |                   |
-!    !   +---+---+            +---+---+           +---+---+
-!    !   | 3 | 4 |            |   2   |           |   |   |
-!    !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!    !   | 1 | 2 |            |   1   |           |   |   |
-!    !   +---+---+            +---+---+           +---+---+
-!    SELECT CASE(MortarType(1,SideID))
-!    CASE(1)
-!      IF(Xi.GT.0.)THEN
-!        IF(Eta.GT.0.)THEN
-!          dolocSide(PartElemToElemAndSide(4+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(4  ,hitlocSide,ElemID)
-!        ELSE
-!          dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!        END IF
-!      ELSE
-!        IF(Eta.GT.0.)THEN
-!          dolocSide(PartElemToElemAndSide(3+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(3  ,hitlocSide,ElemID)
-!        ELSE
-!          dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!          ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!        END IF
-!      END IF
-!    CASE(2)
-!      IF(Eta.GT.0.)THEN
-!        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!      ELSE
-!        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!      END IF
-!    CASE(3)
-!      IF(Xi.LE.0.)THEN
-!        dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!      ELSE
-!        dolocSide(PartElemToElemAndSide(2+4,hitlocSide,ElemID))=.FALSE.
-!        ElemID=PartElemToElemAndSide(2  ,hitlocSide,ElemID)
-!      END IF
-!    CASE DEFAULT ! normal side OR small mortar side
-!      dolocSide(PartElemToElemAndSide(1+4,hitlocSide,ElemID))=.FALSE.
-!      ElemID=PartElemToElemAndSide(1  ,hitlocSide,ElemID)
-!    END SELECT
-!#endif /* MP!!I */
-!    END IF ! SidePeriodicType
-!END IF ! SideID>nCBSides
-
 IF(1.EQ.2)THEN
-  flip=ilocSide
+  moved(1)=ilocSide
 END IF
 
 END SUBROUTINE SelectInterSectionType
@@ -1559,22 +1209,6 @@ IF(isMoved)THEN
       ! brainfuck, does F_PartXK(:,PartID) is changed?
       ! init: F_PartXK=F_PartXK0 
       ! sanity check for parallel...
-      !! old norm
-      !DeltaP(1)=PartState(PartID,4)
-      !DeltaP(2)=PartState(PartID,5)
-      !DeltaP(3)=PartState(PartID,6)
-      !DeltaP(4)=Pt(PartID,1)
-      !DeltaP(5)=Pt(PartID,2)
-      !DeltaP(6)=Pt(PartID,3)
-      !IF(iStage.GT.0)THEN
-      !DeltaP=PartState(PartID,:) - PartQ(:,PartID)-ESDIRK_A(iStage,iStage)*dt*DeltaP
-      !CALL PartVectorDotProduct(DeltaP,DeltaP,Norm)
-      !ELSE
-      !Norm=Norm2_F_PartXK(PartID)
-      !END IF
-      !IF(.NOT.ALMOSTEQUAL(Norm,Norm2_F_PartXK(PartID)))THEN
-      !  print*,'norm diff',PartID
-      !END IF
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
    ELSE
      PartStateN(PartID,1:6) = PartState(PartID,1:6)

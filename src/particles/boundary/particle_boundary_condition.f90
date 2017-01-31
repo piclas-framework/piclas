@@ -22,7 +22,11 @@ INTERFACE GetBoundaryInteractionRef
   MODULE PROCEDURE GetBoundaryInteractionRef
 END INTERFACE
 
-PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef
+INTERFACE PartSwitchElement
+  MODULE PROCEDURE PartSwitchElement
+END INTERFACE
+
+PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
 !===================================================================================================================================
 
 CONTAINS
@@ -1187,8 +1191,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,GEO,SidePeriodicType
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,PEM
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemAndSide,PartSideToElem
-USE MOD_Mesh_Vars,              ONLY:MortarType,nElems
+USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
+USE MOD_Mesh_Vars,              ONLY:nElems
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
@@ -1197,7 +1201,10 @@ USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
 USE MOD_LinearSolver_Vars,      ONLY:PartXk
 #endif /*IMPA*/
-
+#if defined(IMPA) || defined(IMEX)
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
+#endif
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
@@ -1218,11 +1225,12 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3)
 #if IMPA
-REAL                                 :: absVec
+REAL                                 :: absVec, DeltaP(1:6)
 REAL                                 :: PartDiff(3)
+INTEGER                              :: iCounter
 #endif /*IMPA*/
 REAL                                 :: epsLength
-INTEGER                              :: PVID,locSideID
+INTEGER                              :: PVID,moved(2),locSideID
 !===================================================================================================================================
 
 !OneMinus=1.0-MAX(epsInCell,epsilontol)
@@ -1257,10 +1265,8 @@ END IF
 
 PVID = SidePeriodicType(SideID)
 
-print*,'oldposition', PartState(PartID,1:3)  
 PartState(PartID,1:3)   = PartState(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-print*,'newposition', PartState(PartID,1:3)  
 
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
@@ -1316,60 +1322,85 @@ END IF
 
 ! refmapping and tracing
 ! move particle from old element to new element
-locSideID=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+ElemID    = Moved(1)
 !ElemID   =PEM%Element(PartID)
 
+END SUBROUTINE PeriodicBC
 
-IF(ElemID.LE.nElems)THEN
-  print*, ' oldelemid       ', ElemID+offSetElem
-ELSE
-  print*, ' oldelemid       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
-                                         + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-END IF
 
+FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+!===================================================================================================================================
+! particle moves through face and switches element
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemAndSide
+USE MOD_Mesh_Vars,              ONLY:MortarType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: locSideID, SideID,ElemID
+REAL,INTENT(IN)     :: xi,eta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,DIMENSION(2) :: PARTSWITCHELEMENT
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+! move particle to new element
+!     Type 1               Type 2              Type3
+!      eta                  eta                 eta
+!       ^                    ^                   ^
+!       |                    |                   |
+!   +---+---+            +---+---+           +---+---+
+!   | 3 | 4 |            |   2   |           |   |   |
+!   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
+!   | 1 | 2 |            |   1   |           |   |   |
+!   +---+---+            +---+---+           +---+---+
 
 SELECT CASE(MortarType(1,SideID))
 CASE(1)
   IF(Xi.GT.0.)THEN
     IF(Eta.GT.0.)THEN
-      ElemID=PartElemToElemAndSide(4  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(4  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(4+4,locSideID,ElemID)
     ELSE
-      ElemID=PartElemToElemAndSide(2  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
     END IF
   ELSE
     IF(Eta.GT.0.)THEN
-      ElemID=PartElemToElemAndSide(3  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(3  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(3+4,locSideID,ElemID)
     ELSE
-      ElemID=PartElemToElemAndSide(1  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
     END IF
   END IF
 CASE(2)
   IF(Eta.GT.0.)THEN
-    ElemID=PartElemToElemAndSide(2  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
   ELSE
-    ElemID=PartElemToElemAndSide(1  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
   END IF
 CASE(3)
   IF(Xi.LE.0.)THEN
-    ElemID=PartElemToElemAndSide(1  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
   ELSE
-    ElemID=PartElemToElemAndSide(2  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
   END IF
 CASE DEFAULT ! normal side OR small mortar side
-  ElemID=PartElemToElemAndSide(1  ,locSideID,ElemID)
+  PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+  PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
 END SELECT
 
-IF(ElemID.LE.nElems)THEN
-  print*, ' newelemid       ', ElemID+offSetElem
-ELSE
-  print*, ' newelemid       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
-                                         + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-END IF
-
-
-!PEM%Element(PartID)=ElemID
-
-END SUBROUTINE PeriodicBC
-
+END FUNCTION PARTSWITCHELEMENT
 
 END MODULE MOD_Particle_Boundary_Condition

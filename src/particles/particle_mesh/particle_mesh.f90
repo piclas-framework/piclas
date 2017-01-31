@@ -350,7 +350,7 @@ DO iBGMElem=1,nBGMElems
   ELSE ! particle at face,edge or node, check most possible point
     InElementCheck=.FALSE.
   END IF
-  IF (InElementCheck) THEN !  !     print*,Element
+  IF (InElementCheck) THEN 
     PEM%Element(iPart) = ElemID
     IF(DoRefMapping) PartPosRef(1:3,iPart) = Xi
     ParticleFound = .TRUE.
@@ -1746,9 +1746,6 @@ GEO%MeshVolume=GEO%LocalVolume
 
 SWRITE(UNIT_StdOut,'(A,E18.8)') ' |           Total Volume of Mesh |                ', GEO%MeshVolume
 
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-
-
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
@@ -1792,17 +1789,8 @@ DO iSide=1,nSides+nPartPeriodicSides
 END DO
 
 ! now, shrink partbcsidelist
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,Myrank,' nTotalbcsides',nTotalbcsides,nTotalSides
 nOldBCSides  =nTotalBCSides
 nTotalBCSides=nTotalSides-nPartPeriodicSides-nSides+nBCSides+nPeriodicSidesTmp
-!nTotalBCSides=nTotalBCSides-nSides+nBCSides+nPartPeriodicSides
-!nTotalSides  =nTotalBCSides-nBCSides-nPartPeriodicSides+nSides ! which is zero change
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,Myrank,' nTotalbcsides-new',nTotalbcsides,nTotalSides
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,Myrank,' nBCSides,nPeriodic,nHalo',nBCSides,nPartperiodicsides,nTotalSides-nPartperiodicsides-nSides
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 IF(nTotalBCSides.EQ.0) RETURN
 
@@ -1866,9 +1854,6 @@ DO iSide=1,nBCSides
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 END DO ! iSide
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,Myrank,'newBCSides - boundary', newBCSideID
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   IF(SidePeriodicType(iSide).EQ.0) CYCLE
@@ -1878,9 +1863,6 @@ DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 END DO ! iSide
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,Myrank,'newBCSides - periodic', newBCSideID
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 DO iSide=nSides+nPartPeriodicSides+1,nTotalSides
   newBCSideID=newBCSideID+1
@@ -1889,10 +1871,6 @@ DO iSide=nSides+nPartPeriodicSides+1,nTotalSides
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 END DO ! iSide
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,Myrank,'newBCSides - periodic', newBCSideID
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-
 
 ! create new mapping
 SDEALLOCATE(PartBCSideList)
@@ -1921,8 +1899,6 @@ DEALLOCATE(DummyBezierControlPoints3D)
 DEALLOCATE(DummySideSlabNormals)
 DEALLOCATE(DummySideSlabIntervals)
 DEALLOCATE(DummyBoundingBoxIsEmpty)
-
-print*,'partbcsidelist-reshaped',partbcsidelist
 
 END SUBROUTINE ReShapeBezierSides
 
@@ -2038,7 +2014,6 @@ DO iBGMElem = 1, nBGMElems
 END DO ! nBGMElems
 
 IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
-!print*,'after',Distance,ListDistance
 
 ! loop through sorted list and start by closest element  
 Element=-1
@@ -2531,18 +2506,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-print*,'exhanging  bezier control points'
-
 #ifdef PARTICLES
 #ifdef MPI
 ! first communicate the bezierControlPoints (slave information is missing)
 CALL ExchangeBezierControlPoints3D()
 #endif /*MPI*/
-! feature is not used, hence commented out!
-! CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
-!END DO !iElem=1,nElems
 #endif /*PARTICLES*/
-
 
 END SUBROUTINE InitElemBoundingBox
 
@@ -2720,7 +2689,6 @@ NGeo3=NGeo2*(NGeo+1)
 nLoop=nTotalElems
 IF(.NOT.DoRefMapping) nLoop=PP_nElems
 
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 ! decide if element is (bi-)linear or curbed
 ! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved 
 test=0
@@ -2770,7 +2738,6 @@ DO iElem=1,nLoop
     IF (SideIsDone(SideID)) CYCLE
     IF(DoRefMapping)THEN
       TrueSideID=PartBCSideList(SideID)
-      print*,Myrank,'SideID,BCSideID',SideID,TrueSideID,SidePeriodicType(SideID)
       IF(TrueSideID.EQ.-1)CYCLE
     ELSE
       TrueSideID=SideID
@@ -2951,8 +2918,6 @@ DO iElem=1,nLoop
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 
-
-print*,'test',test
 ! build the side type for halo sides for tracing, DoRefMapping=F
 ! a) check if face sides are straight
 ! b) check if all edges are perpendicular to each other
@@ -3458,35 +3423,6 @@ ELSE ! .NOT.DoRefMapping
   END DO ! iElem
 END IF
 
-! debug
-IF(DoRefMapping)THEN
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-  DO iSide=1,nPartSides
-    TrueSideID=PartBCSideList(iSide)
-    IF(TrueSideID.EQ.-1) CYCLE
-    print*,MyRank,'SideNormVec(', iSide, SideNormVec(1:3,TrueSideID), ' SideDistance ', SideDistance(TrueSideID) , ' Ptype', SidePeriodicType(iSide)
-  END DO 
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-  !stop'end  of test'
-ELSE
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-  print*, ' nSides ', nSides, ' nPartSides ', nPartSides, nTotalSides
-  DO iSide=1,nSides
-    print*,MyRank,'SideNormVec ', iSide, SUM(SideNormVec(1:3,iSide)), ' SideDistance ', SideDistance(iSide), ' SideType ', SideType(iSide) ,' Ptype', SidePeriodicType(iSide)
-  END DO 
-  print*,' periodic sides'
-  DO iSide=nSides+1,nPartSides
-    print*,MyRank,'SideNormVec ', iSide, SUM(SideNormVec(1:3,iSide)), ' SideDistance ', SideDistance(iSide), ' SideType ', SideType(iSide) ,' Ptype', SidePeriodicType(iSide)
-  END DO 
-  print*,' halo sides'
-  DO iSide=nPartSides+1,nTotalSides
-    print*,MyRank,'SideNormVec ', iSide, SUM(SideNormVec(1:3,iSide)), ' SideDistance ', SideDistance(iSide), ' SideType ', SideType(iSide) ,' Ptype', SidePeriodicType(iSide)
-  END DO 
-
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-  !stop'end  of test'
-END IF
-
 #ifdef MPI
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -3830,10 +3766,6 @@ IF(.NOT.CartesianPeriodic)THEN
     END IF
   END DO
 END IF
-CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
-print*,Myrank,'nPartperiodicsides',nPartPeriodicSides,nSides,nTotalSides
-print*,Myrank,'partbcsidelist',partbcsidelist
-CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
 
 !IF(nPartPeriodicSides.GT.0)THEN
 IF(MapPeriodicSides)THEN
@@ -3876,10 +3808,8 @@ IF(MapPeriodicSides)THEN
   DEALLOCATE(PartSideToElem)
   DEALLOCATE(SidePeriodicType)
 
-  print*,'nTotalSides',nTotalSides
   tmpnSides  =nTotalSides 
   nTotalSides=nTotalSides+nPartPeriodicSides
-  print*,'nTotalSides',nTotalSides
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
   ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides))
@@ -3905,8 +3835,6 @@ IF(MapPeriodicSides)THEN
   PartSideToElem(1:5,1:tmpnSides)                      = DummyPartSideTOElem(1:5,1:tmpnSides)
   SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
 
-  print*,'BoundaryType',BoundaryType(:,BC_TYPE)
-  print*,'Boundaryalpha',BoundaryType(:,BC_ALPHA)
   nPartPeriodicSides=0
   DO iSide=1,tmpnSides
     IF(SidePeriodicType(iSide).NE.0)THEN
@@ -3922,9 +3850,6 @@ IF(MapPeriodicSides)THEN
         newSideID=iSide
         PVID=SidePeriodicType(iSide)
         SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
-        IF(MyRank.EQ.1)THEN
-          print*,'MPI Sides'
-        END IF
       ELSE
         nPartPeriodicSides=nPartPeriodicSides+1
         newSideID=tmpnSides+nPartPeriodicSides
@@ -3946,28 +3871,13 @@ IF(MapPeriodicSides)THEN
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
       PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = newSideID
       ! remains equal because of MOVEMENT and MIRRORING of periodic side
-      print*,'ElemID',ElemID,NBElemID
-      print*,'old periodic type', PVID
-      print*,'BC',BC(iSide)
       ! periodic displacement 
-      IF(MyRank.EQ.0)THEN
-        print*,MyRank,'old side'
-        print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,iSide))/(NGeo+1)/(NGeo+1)
-        print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,iSide))/(NGeo+1)/(NGeo+1)
-        print*,MyRank,'position-z',SUM(BezierControlPoints3d(3,:,:,iSide))/(NGeo+1)/(NGeo+1)
-      END IF
       DO q=0,NGeo
         DO p=0,NGeo
           BezierControlPoints3d(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
                                                     - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         END DO ! p=0,NGeo
       END DO ! q=0,NGeo
-      IF(MyRank.EQ.0)THEN
-        print*,MyRank,'new side'
-        print*,MyRank,'position-x',SUM(BezierControlPoints3d(1,:,:,newSideID))/(NGeo+1)/(NGeo+1)
-        print*,MyRank,'position-y',SUM(BezierControlPoints3d(2,:,:,newSideID))/(NGeo+1)/(NGeo+1)
-        print*,MyRank,'position-z',SUM(BezierControlPoints3d(3,:,:,newSideID))/(NGeo+1)/(NGeo+1)
-      END IF
       ! recompute quark
       CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
 
@@ -4000,8 +3910,6 @@ IF(MapPeriodicSides)THEN
 END IF ! nPartPeriodicSides .GT.0
 nTotalBCSides=nPartPeriodicSides+nSides
 nPartSides   =nPartPeriodicSides+nSides
-print*,'nPartPeriodicSides',nPartPeriodicSides
-print*,'nPartSides',nPartSides,nTotalSides
 
 END SUBROUTINE DuplicateSlavePeriodicSides
 
