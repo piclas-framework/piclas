@@ -1298,7 +1298,7 @@ INTEGER                       :: p,q,pq(2)
 BezierControlPoints3D_tmp=BezierControlPoints3D
 
 DO q=0,NGeo; DO p=0,NGeo
-  pq = Flip_M2S(p,q,flip) 
+  pq = Flip_M2S(NGeo,p,q,flip) 
   BezierControlPoints3D(:,pq(1),pq(2))=BezierControlPoints3d_tmp(:,p,q)
 END DO; END DO ! p,q
 
