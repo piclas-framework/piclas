@@ -27,6 +27,7 @@ USE MOD_Globals
 USE MOD_ReadInTools,            ONLY:GETINT,GETREALARRAY
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,NbrOfCases,casematrix
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
+USE MOD_Mesh_Vars,              ONLY:BC,BoundaryType,nBCs
 #ifdef MPI
 USE MOD_Particle_Vars,          ONLY:PDM
 USE MOD_Particle_MPI_Vars,      ONLY: PartShiftVector
@@ -42,12 +43,28 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                :: iVec, ind, ind2
+INTEGER                :: iVec, ind, ind2,iBC
 CHARACTER(32)          :: hilf
+LOGICAL                :: hasPeriodic
 !===================================================================================================================================
 
-
 GEO%nPeriodicVectors       = GETINT('Part-nPeriodicVectors','0')
+! sanity check with DG
+hasPeriodic=.FALSE.
+DO iBC=1,nBCs
+  IF(BoundaryType(iBC,BC_TYPE).EQ.1) hasPeriodic=.TRUE.  
+END DO ! iBC=1,nBCs
+IF(hasPeriodic .AND. GEO%nPeriodicVectors.EQ.0)THEN
+  CALL abort(&
+__STAMP__&
+  ,' Periodic-field-BCs require to set the periodic-vectors for the particles!')
+END IF
+IF(.NOT.hasPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
+  CALL abort(&
+__STAMP__&
+  ,' Periodic particle-BCs and non-periodic-field-BCs: not tested!')
+END IF
+
 DO iVec = 1, SIZE(PartBound%TargetBoundCond)
   IF((PartBound%TargetBoundCond(iVec).EQ.PartBound%PeriodicBC).AND.(GEO%nPeriodicVectors.EQ.0))THEN
 CALL abort(&
@@ -56,6 +73,7 @@ __STAMP__&
   END IF
 END DO
 
+! read-in periodic-vectors for particles
 ALLOCATE(GEO%PeriodicVectors(1:3,1:GEO%nPeriodicVectors))
 DO iVec = 1, GEO%nPeriodicVectors
   WRITE(UNIT=hilf,FMT='(I2)') iVec
@@ -63,9 +81,8 @@ DO iVec = 1, GEO%nPeriodicVectors
 END DO
 
 CALL GetPeriodicVectors()
-CALL MapPeriodicVectorsToSides()
 
-! build periodic case matrix
+! build periodic case matrix for shape-function-deposition
 IF (GEO%nPeriodicVectors.GT.0) THEN
   ! build case matrix
   NbrOfCases = 3**GEO%nPeriodicVectors
@@ -112,274 +129,17 @@ END IF
 
 END SUBROUTINE InitPeriodicBC
 
-
-SUBROUTINE MapPeriodicVectorsToSides()
-!===================================================================================================================================
-! Per direction, two different periodic displacements are possible: +- periodic_vector
-! each side gets an periodictype:
-! 0 - non-periodic
-! 1 - +pv(1)
-! 2 - -pv(1)
-! ...
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual,CROSSNORM
-!USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE,nSides
-USE MOD_Mesh_Vars,               ONLY:nBCSides,XCL_NGeo,NGeo,BC,SideToElem,BoundaryType
-USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
-USE MOD_Particle_Tracking_Vars,  ONLY:CartesianPeriodic
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-INTEGER             :: iElem,flip,iSide,ElemID,locSideID,BCID
-INTEGER             :: iPV,iDisplace,nDisplacement
-INTEGER             :: nLocalSides
-REAL                :: v1(3),v2(3),nVec(3)
-REAL,ALLOCATABLE    :: normDisplaceVec(:,:)
-!===================================================================================================================================
-
-
-!IF(.NOT.ALLOCATED(SidePeriodicType)) ALLOCATE(SidePeriodicType(1:nSides))
-!SidePeriodicType=0
-IF(CartesianPeriodic) RETURN
-
-! nDisplacement=2*GEO%nPeriodicVectors
-! IF(.NOT.ALLOCATED(SidePeriodicType)) ALLOCATE(SidePeriodicType(1:nSides))
-! SidePeriodicType=0
-! !ALLOCATE(SidePeriodicType(1:nSides)                 &
-! !        ,normDisplaceVec(1:3,nDisplacement)         &
-! !        ,SidePeriodicDisplacement(1:3,nDisplacement))
-! !    k
-! 
-! ALLOCATE(normDisplaceVec(1:3,nDisplacement)         &
-!         ,SidePeriodicDisplacement(1:3,nDisplacement))
-! 
-! !SidePeriodicType=0
-! 
-! iDisplace=1
-! DO iPV=1,GEO%nPeriodicVectors
-!   SidePeriodicDisplacement(:,iDisplace)  = GEO%PeriodicVectors(:,iPV)
-!   normDisplaceVec(:,iDisplace  ) = SidePeriodicDisplacement(:,iDisplace) &
-!                                  / SQRT(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),SidePeriodicDisplacement(:,iDisplace)))
-!   SidePeriodicDisplacement(:,iDisplace+1)=-GEO%PeriodicVectors(:,iPV)
-!   !normDisplaceVec(:,iDisplace+1) =-normDisplaceVec(:,iDisplace+1)
-!   normDisplaceVec(:,iDisplace+1) =-normDisplaceVec(:,iDisplace)
-!   iDisplace=iDisplace+2
-! END DO ! iPV
-! 
-! nLocalSides = nBCSides+nInnerSides+nMPISides_MINE
-! !--- Initialize Periodic Side Info
-! 
-! DO iSide=nBCSides+1,nSides
-!   IF(BC(iSide).NE.1)CYCLE
-!   iElem=SideToElem(S2E_ELEM_ID,iSide)
-!   IF(iElem.GE.1 .AND. iElem .LE. PP_nElems)THEN
-!     flip=0
-!     ElemID=iElem
-!     locSideID=SideToElem(S2E_LOC_SIDE_ID,iSide)
-!   ELSE
-!     flip=1
-!     ElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
-!     locSideID=SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-!   END IF
-!   !print*,'flip',flip
-!   SELECT CASE(locSideID)
-!   CASE(XI_MINUS)
-!   !  print*,'ximinus'
-!     v1=XCL_NGeo(1:3,0   ,NGeo,0   ,ElemID) - XCL_NGeo(1:3,0   ,0,0,ElemID)
-!     v2=XCL_NGeo(1:3,0   ,0,NGeo   ,ElemID) - XCL_NGeo(1:3,0   ,0,0,ElemID)
-!     IF(flip.EQ.0) THEN
-!       nVec=-CROSSNORM(v1,v2)
-!     ELSE
-!       nVec=CROSSNORM(v1,v2)
-!     END IF
-!   CASE(XI_PLUS)
-!   !  print*,'xiplus'
-!     v1=XCL_NGeo(1:3,NGeo,NGeo,0   ,ElemID) - XCL_NGeo(1:3,NGeo,0,0,ElemID)
-!     v2=XCL_NGeo(1:3,NGeo,0,NGeo   ,ElemID) - XCL_NGeo(1:3,NGeo,0,0,ElemID)
-!     nVec=CROSSNORM(v1,v2)
-!   CASE(ETA_MINUS)
-!   !  print*,'eta_minus'
-!     v1=XCL_NGeo(1:3,NGeo,0,0      ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
-!     v2=XCL_NGeo(1:3,0   ,0,Ngeo   ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
-!     nVec=CROSSNORM(v1,v2)
-!   CASE(ETA_PLUS)
-!   !  print*,'eta_plus'
-!     v2=XCL_NGeo(1:3,NGeo,NGeo,0   ,ElemID)-XCL_NGeo(1:3,0,NGeo,0  ,ElemID)
-!     v1=XCL_NGeo(1:3,0   ,NGeo,NGeo,ElemID)-XCL_NGeo(1:3,0,NGeo,0  ,ElemID)
-!     nVec=CROSSNORM(v1,v2)
-!   CASE(ZETA_MINUS)
-!   !  print*,'zeta_minus'
-!     v1=XCL_NGeo(1:3,NGeo,0,0      ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
-!     v2=XCL_NGeo(1:3,0,NGeo,0      ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
-!     nVec=CROSSNORM(v1,v2)
-!   CASE(ZETA_PLUS)
-!   !  print*,'zeta_plus'
-!     v1=XCL_NGeo(1:3,NGeo,0,NGeo   ,ElemID)-XCL_NGeo(1:3,0,0,NGeo  ,ElemID)
-!     v2=XCL_NGeo(1:3,0,NGeo,NGeo   ,ElemID)-XCL_NGeo(1:3,0,0,NGeo  ,ElemID)
-!     nVec=CROSSNORM(v1,v2)
-!   END SELECT
-!   !print*,'nVec',nVec
-!   IF(flip.EQ.0)THEN ! master side
-!     DO iDisplace=1,nDisplacement
-!       IF(ALMOSTEQUAL(DOT_PRODUCT(nVec,normDisplaceVec(:,iDisplace)),-1.0)) &
-!         SidePeriodicType(iSide)=iDisplace
-!     END DO
-!   ELSE ! mpi Side & no master flip
-!     DO iDisplace=1,nDisplacement
-!       IF(ALMOSTEQUAL(DOT_PRODUCT(nVec,normDisplaceVec(:,iDisplace)),1.0)) &
-!           SidePeriodicType(iSide)=iDisplace
-!     END DO ! iDisplace
-!   END IF ! SideID.GT.nLocalSides
-! END DO ! iSide=nBCSides+1,nSides
-! 
-! !DO iElem=1,PP_nElems
-! !  DO ilocSide=1,6
-! !    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-! !    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
-! !    IF(BC(SideID).EQ.1)THEN
-! !      SELECT CASE(iLocSide)
-! !      CASE(XI_MINUS)
-! !        v1=XCL_NGeo(1:3,0   ,NGeo,0,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
-! !        v2=XCL_NGeo(1:3,0   ,0,NGeo,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
-! !      CASE(XI_PLUS)
-! !        v1=XCL_NGeo(1:3,NGeo,NGeo,0,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
-! !        v2=XCL_NGeo(1:3,NGeo,0,NGeo,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
-! !      CASE(ETA_MINUS)
-! !        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
-! !        v2=XCL_NGeo(1:3,0   ,0,Ngeo,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
-! !      CASE(ETA_PLUS)
-! !        v1=XCL_NGeo(1:3,NGeo,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
-! !        v2=XCL_NGeo(1:3,0   ,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
-! !      CASE(ZETA_MINUS)
-! !        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
-! !        v2=XCL_NGeo(1:3,0,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
-! !      CASE(ZETA_PLUS)
-! !        v1=XCL_NGeo(1:3,NGeo,0,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
-! !        v2=XCL_NGeo(1:3,0,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
-! !      END SELECT
-! !      nVec=CROSSNORM(v1,v2)
-! !      IF(SideID.LE.nLocalSides)THEN
-! !        IF(flip.EQ.0)THEN ! master side
-! !          DO iDisplace=1,nDisplacement
-! !            IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
-! !                SidePeriodicType(SideID)=iDisplace
-! !          END DO ! iDisplace
-! !        END IF ! flip
-! !      ELSE ! mpi Side & no master flip
-! !        DO iDisplace=1,nDisplacement
-! !          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),1.0)) &
-! !              SidePeriodicType(SideID)=iDisplace
-! !        END DO ! iDisplace
-! !      END IF ! SideID.GT.nLocalSides
-! !    END IF ! is periodic side
-! !  END DO ! ilocSide
-! !END DO  ! iElem
-! !
-! !print*,'SidePeriodicType',SidePeriodicType
-! 
-! !DO iElem=1,PP_nElems
-! !  DO ilocSide=1,6
-! !    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-! !    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
-! !    ! check if periodic side
-! !!    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
-! !!      .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
-! !    IF(SideperiodicType(SideID).EQ.-1)THEN
-! !      ! method with flip
-! !      IF(flip.EQ.0)THEN ! master side
-! !        DO iDisplace=1,nDisplacement
-! !          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
-! !              SidePeriodicType(SideID)=iDisplace
-! !        END DO ! iDisplace
-! !      ELSE ! slave side
-! !        DO iDisplace=1,nDisplacement
-! !          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),1.0)) &
-! !              SidePeriodicType(SideID)=iDisplace
-! !        END DO ! iDisplace
-! !      END IF ! flip
-! !    END IF
-! !  END DO
-! !END DO
-! 
-! 
-! !!--- Initialize Periodic Side Info
-! !DO iElem=1,PP_nElems
-! !  DO ilocSide=1,6
-! !    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-! !    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
-! !    ! check if periodic side
-! !    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
-! !      .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
-! ! method with geometry data
-! !      ! find which periodic side, remember, this is a cartesian grid
-! !      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/1.0,0.0,0.0/))),1.0))THEN
-! !        IF(ALMOSTEQUAL(BezierControlPoints3D(1,0,0,SideID),GEO%xminglob))THEN
-! !          ! requires positive mapping
-! !          DO iDisplace=1,nDisplacement
-! !            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/1.0,0.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-! !          END DO ! iDisplace
-! !        ELSE ! has to be xmax side
-! !          DO iDisplace=1,nDisplacement
-! !            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/-1.0,0.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-! !          END DO ! iDisplace
-! !        END IF ! AlmostEqual in x
-! !      END IF
-! !      !  y-direction
-! !      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/0.0,1.0,0.0/))),1.0))THEN
-! !        IF(ALMOSTEQUAL(BezierControlPoints3D(2,0,0,SideID),GEO%yminglob))THEN
-! !          ! requires positive mapping
-! !          DO iDisplace=1,nDisplacement
-! !            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,1.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-! !          END DO ! iDisplace
-! !        ELSE ! has to be ymax side
-! !          DO iDisplace=1,nDisplacement
-! !            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,-1.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-! !          END DO ! iDisplace
-! !        END IF ! AlmostEqual in y
-! !      END IF
-! !      !  z-direction
-! !      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/0.0,0.0,1.0/))),1.0))THEN
-! !        IF(ALMOSTEQUAL(BezierControlPoints3D(3,0,0,SideID),GEO%zminglob))THEN
-! !          ! requires positive mapping
-! !          DO iDisplace=1,nDisplacement
-! !            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,0.0,1.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-! !          END DO ! iDisplace
-! !        ELSE ! has to be ymax side
-! !          DO iDisplace=1,nDisplacement
-! !            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,0.0,-1.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-! !          END DO ! iDisplace
-! !        END IF ! AlmostEqual in x
-! !      END IF
-! !      IF(SidePeriodicType(SideID).EQ.0)THEN
-! !         CALL abort(__STAMP__&
-! !           ' Error with periodic sides for particles. Found no displacement vector for side:', SideID)
-! !      END IF
-! !    END IF
-! !  END DO
-! !END DO
-! 
-! SDEALLOCATE(normDisplaceVec)
-
-END SUBROUTINE MapPeriodicVectorsToSides
-
-
 SUBROUTINE GetPeriodicVectors()
 !===================================================================================================================================
 ! Check the periodic vectors for consistency
-! For particles, each periodic vector has to stastisfy following conditions
-! 1) only a cartesian displacement/ periodicity is supported, e.g. periodicity in x,y,z
-! 2) Mesh has to fit into the FIBGM, therefore, the discplacement is a multiple of the FIBGM-delta
+! For particles, each periodic vector has to satisfy following conditions
+! 1) only a Cartesian displacement/ periodicity is supported, e.g. periodicity in x,y,z
+! 2) Mesh has to fit into the FIBGM, therefore, the displacement is a multiple of the FIBGM-delta
 ! 3) Additionally for PIC with Volume or BSpline weighting/deposition
 !    Periodic displacement has to be multiple of BGMdeltas of deposition method
+! 
+! NEW: Cartesian mesh is required for shape-function deposition
+!      All other cases: non-Cartesian periodic vectors are possible but not allowed!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,            ONLY: Logging,UNIT_errOut,UNIT_logOut,abort
