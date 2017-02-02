@@ -203,7 +203,7 @@ PartCommSize   = PartCommSize + 1
 #if defined(IMEX) || defined(IMPA)
 ! communication of partstate at t^n
 PartCommSize   = PartCommSize + 6
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 ! communication if particle is implicit or explicit
 PartCommSize   = PartCommSize+1
 ! IsNewPart for Surface-Flux: particle are always killed after suface-flux-emission
@@ -565,7 +565,7 @@ USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -755,7 +755,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
       jPos=jPos+6
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       IF(PartIsImplicit(iPart))THEN
         PartSendBuf(iProc)%content(jPos+8) = 1.0
       ELSE
@@ -834,7 +834,7 @@ DO iProc=1, PartMPI%nMPINeighbors
 #ifdef IMPA
       DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       PartIsImplicit(iPart)     = .FALSE.
 #endif
     END IF ! Particle is particle with target proc-id equals local proc id
@@ -1121,7 +1121,7 @@ USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1255,7 +1255,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     IF(PartRecvBuf(iProc)%content(jPos+8).EQ.1.0)THEN
         PartIsImplicit(PartID) = .TRUE.
     ELSE
@@ -1330,7 +1330,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! Set Flag for received parts in order to localize them later
     PEM%lastElement(PartID) = -888 
     PDM%ParticleInside(PartID) = .TRUE.
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! only for fully implicit
     PEM%lastElement(PartID) = PEM%Element(PartID)
 #endif

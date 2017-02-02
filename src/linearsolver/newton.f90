@@ -14,7 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 INTERFACE ImplicitNorm
   MODULE PROCEDURE ImplicitNorm
 END INTERFACE
@@ -29,7 +29,7 @@ PUBLIC::ImplicitNorm,FullNewton
 
 CONTAINS
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 SUBROUTINE ImplicitNorm(t,coeff,Norm_R) 
 !===================================================================================================================================
 ! The error-norm of the fully implicit scheme is computed
@@ -251,6 +251,12 @@ IF (t.GE.DelayTime) THEN
       CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     END IF
   END IF
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PartIsImplicit(iPart))THEN
+      IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
+    END IF
+  END DO
+
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! finish communication of number of particles and send particles
@@ -319,14 +325,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
-    DO iPart=1,PDM%ParticleVecLength
-      IF(PartIsImplicit(iPart))THEN
-        LastPartPos(iPart,1)=PartState(iPart,1)
-        LastPartPos(iPart,2)=PartState(iPart,2)
-        LastPartPos(iPart,3)=PartState(iPart,3)
-        PEM%lastElement(iPart)=PEM%Element(iPart)
-      END IF ! PartIsImplicit
-    END DO ! iPart
+    !DO iPart=1,PDM%ParticleVecLength
+    !  IF(PartIsImplicit(iPart))THEN
+    !    LastPartPos(iPart,1)=PartState(iPart,1)
+    !    LastPartPos(iPart,2)=PartState(iPart,2)
+    !    LastPartPos(iPart,3)=PartState(iPart,3)
+    !    PEM%lastElement(iPart)=PEM%Element(iPart)
+    !  END IF ! PartIsImplicit
+    !END DO ! iPart
 
     ! now, we have an initial guess for the field  can compute the first particle movement
     IF(FullEisenstatWalker.GT.1)THEN
@@ -374,6 +380,11 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       END IF
       !PartRelaxationFac=MIN(PartRelaxationFac*1.2,1.6)
     END IF
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartIsImplicit(iPart))THEN
+        IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
+      END IF
+    END DO
     ! send number of particles
     CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication of number of particles and send particles

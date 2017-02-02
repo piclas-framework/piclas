@@ -60,7 +60,7 @@ USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 ! IMPLICIT VARIABLE HANDLING
@@ -114,7 +114,7 @@ CASE(1) !PartBound%OpenBC)
   END IF ! CalcPartBalance
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   PartIsImplicit(iPart) = .FALSE.
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 
@@ -239,7 +239,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,GEO,SidePeriodicType
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #if defined(IMPA)
@@ -299,7 +299,7 @@ CASE(1) !PartBound%OpenBC)
 #ifdef IMPA
   DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   PartIsImplicit(iPart) = .FALSE.
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 !-----------------------------------------------------------------------------------------------------------------------------------
