@@ -123,6 +123,8 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ESDIRK3-Particles and ERK3-Field'
 #elif (PP_TimeDiscMethod==112)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ESDIRK4-Particles and ERK4-Field'
+#elif (PP_TimeDiscMethod==120)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Heun/Crank-Nicolson1-2-2' 
 #elif (PP_TimeDiscMethod==121)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK3/ESDIRK3-Particles and ESDIRK3-Field'
 #elif (PP_TimeDiscMethod==122)
@@ -221,14 +223,14 @@ USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeig
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 !USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
-#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
 #endif /*IMEX*/
 #ifdef IMPA
 USE MOD_LinearSolver_vars, ONLY:nPartNewton
 USE MOD_LinearSolver_Vars, ONLY:TotalPartIterLinearSolver
 #endif /*IMPA*/
-#if (PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120)||(PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,       ONLY: totalFullNewtonIter
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -452,6 +454,8 @@ DO !iter_t=0,MaxIter
   CALL TimeStepByIMPA(time) ! ) O3 ESDIRK Particles + ERK Field 
 #elif (PP_TimeDiscMethod==112)
   CALL TimeStepByIMPA(time) ! O4 ESDIRK Particles + ERK Field 
+#elif (PP_TimeDiscMethod==120)
+  CALL TimeStepByImplicitRK(time) !  O3 ERK/ESDIRK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==121)
   CALL TimeStepByImplicitRK(time) !  O3 ERK/ESDIRK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==122)
@@ -544,7 +548,7 @@ DO !iter_t=0,MaxIter
         END IF
 #endif /*PARICLES*/
       END IF !MPIroot
-#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       SWRITE(UNIT_stdOut,'(132("="))')
       SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
       TotalIterLinearSolver=0
@@ -557,7 +561,7 @@ DO !iter_t=0,MaxIter
         SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
                                                                               /REAL(nPartNewton)
       END IF
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
       totalFullNewtonIter=0
 #endif 
@@ -2006,7 +2010,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY: dt,iter,iStage, nRKStages,time
-USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY: LinearSolver
@@ -2450,7 +2454,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY: dt,iter,iStage, nRKStages,time
-USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY: LinearSolver
@@ -2506,8 +2510,6 @@ INTEGER            :: iCounter !, iStage
 !===================================================================================================================================
 
 tRatio = 1.0
-
-
 Un          = U
 !FieldSource = 0.
 
@@ -2701,7 +2703,7 @@ END SUBROUTINE TimeStepByIMPA
 #endif /*PP_TimeDiscMethod==111 || PP_TimeDiscMethod==112  */
 
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 SUBROUTINE TimeStepByImplicitRK(t)
 !===================================================================================================================================
 ! IMEX time integrator
@@ -2717,7 +2719,7 @@ SUBROUTINE TimeStepByImplicitRK(t)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
-USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs,RKdtFrac
+USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,DoPrintConvInfo
 #ifdef PP_HDG
 USE MOD_Equation,                ONLY:CalcSourceHDG
@@ -2805,7 +2807,6 @@ IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 Un          = U
 FieldSource = 0.
 #endif /*DG*/
-
 tRatio = 1.
 
 #ifdef PARTICLES
@@ -3353,7 +3354,7 @@ END IF
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByImplicitRK
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*PP_TimeDiscMethod==120 || PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 
 
 #if (PP_TimeDiscMethod==200)

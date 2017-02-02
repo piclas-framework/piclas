@@ -590,7 +590,7 @@ USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,       ONLY:ExplicitSource
 #endif
 #ifdef MPI
@@ -705,7 +705,7 @@ DO iVar = 1, PP_nVar
 END DO
 
 !volume source (volume RHS of u system)
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1

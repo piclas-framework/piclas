@@ -53,7 +53,7 @@ REAL                 :: Eps2Newton
 LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
 #endif
-#if (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
 LOGICAL              :: DoPrintConvInfo                                             ! flag to print current norm in outer iteration
                                                                                     ! and number of parts in Newton
 INTEGER              :: maxFullNewtonIter                                           ! limit of fullnewton iterations
