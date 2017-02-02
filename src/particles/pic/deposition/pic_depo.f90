@@ -20,9 +20,6 @@ INTERFACE FinalizeDeposition
 END INTERFACE
 
 PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition
-!INTERFACE DepositionMPF
-!  MODULE PROCEDURE DepositionMPF
-!END INTERFACE
 !===================================================================================================================================
 
 CONTAINS                                                                                           
@@ -38,7 +35,7 @@ USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP, sJ,nGlobalElems
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
+USE MOD_Interpolation_Vars,     ONLY:xGP,wBary,wGP
 USE MOD_Basis,                  ONLY:ComputeBernsteinCoeff
 USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
 USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
@@ -411,8 +408,9 @@ CASE('delta_distri')
     __STAMP__&
     ,' Cannot allocate partposref!')
   END IF
-  DeltaType = GETINT('PIC-DeltaType','3')
-  NDepo     = GETINT('PIC-DeltaType-N','1')
+  DeltaType = GETINT('PIC-DeltaType','1')
+  WRITE(hilf,'(I2)') PP_N
+  NDepo     = GETINT('PIC-DeltaType-N',hilf)
   SELECT CASE(DeltaType)
   CASE(1)
     SWRITE(UNIT_stdOut,'(A)') ' Lagrange-Polynomial'
@@ -438,41 +436,60 @@ CASE('delta_distri')
   IF(NDepo.GT.PP_N) CALL abort(&
     __STAMP__&
     ,' NDepo must be smaller than N!')
-  DoChangeBasis=.FALSE.
-  IF(NDepo.NE.PP_N) DoChangeBasis=.TRUE.
-  ALLOCATE( Vdm_NDepo_GaussN(0:PP_N,0:NDepo)             &
-          , Vdm_GaussN_NDepo(0:NDepo,0:PP_N)             &
-          , dummy(1,0:PP_N,0:PP_N,0:PP_N)                &
-          , dummy2(1,0:NDepo,0:NDepo,0:NDepo)            &
-          , XiNDepo(0:NDepo)                             &
-          , swGPNDepo(0:NDepo)                           &
-          , sjNDepo(0:NDepo,0:NDepo,0:NDepo,0:PP_nElems) &
-          , wBaryNDepo(0:NDepo)                          )
+  DeltaDistriChangeBasis=.FALSE.
+  IF(NDepo.NE.PP_N) DeltaDistriChangeBasis=.TRUE.
+  ALLOCATE(DDMassInv(0:NDepo,0:NDepo,0:NDepo,1:PP_nElems) &
+          , XiNDepo(0:NDepo)                              &
+          , swGPNDepo(0:NDepo)                            &
+          , wBaryNDepo(0:NDepo)                           )
+  DDMassInv=0.
 #if (PP_NodeType==1)
-    CALL LegendreGaussNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
+  CALL LegendreGaussNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
 #elif (PP_NodeType==2)
-    CALL LegGaussLobNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
+  CALL LegGaussLobNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
 #endif
   CALL BarycentricWeights(NDepo,XiNDepo,wBaryNDepo)
-  IF(DoChangeBasis)THEN
+
+  IF(DeltaDistriChangeBasis)THEN
+    ALLOCATE( Vdm_NDepo_GaussN(0:PP_N,0:NDepo)             &
+            , Vdm_GaussN_NDepo(0:NDepo,0:PP_N)             &
+            , dummy(1,0:PP_N,0:PP_N,0:PP_N)                &
+            , dummy2(1,0:NDepo,0:NDepo,0:NDepo)            )
     CALL InitializeVandermonde(NDepo,PP_N,wBaryNDepo,XiNDepo,xGP,Vdm_NDepo_GaussN)
-    !CALL InitializeVandermonde(N_Restart_in,N_in,wBary_Restart,xGP_Restart,xGP,Vdm_GaussNRestart_GaussN)
+    ! and inverse of mass matrix
+    DO i=0,NDepo
+      swGPNDepo(i)=1.0/swGPNDepo(i)
+    END DO ! i=0,PP_N
+    CALL InitializeVandermonde(PP_N,NDepo,wBary,xGP,xiNDepo,Vdm_GaussN_NDepo)
+    DO iElem=1,PP_nElems
+      dummy(1,:,:,:)=sJ(:,:,:,iElem)
+      CALL ChangeBasis3D(1,PP_N,NDepo,Vdm_GaussN_NDepo,dummy,dummy2)
+      DO k=0,NDepo
+        DO j=0,NDepo
+          DO i=0,NDepo
+            DDMassInv(i,j,k,iElem)=dummy2(1,i,j,k)*swGPNDepo(i)*swGPNDepo(j)*swGPNDepo(k)
+          END DO ! i
+        END DO ! j
+      END DO ! k
+    END DO ! iElem=1,PP_nElems
+    !DEALLOCATE(Vdm_NDepo_GaussN)
+    DEALLOCATE(Vdm_GaussN_NDepo)
+    DEALLOCATE(dummy,dummy2)
   ELSE
-    DEALLOCATE(Vdm_NDepo_GaussN)
+    DO i=0,NDepo
+      swGPNDepo(i)=1.0/wGP(i)
+    END DO ! i=0,PP_N
+    DO iElem=1,PP_nElems
+      DO k=0,NDepo
+        DO j=0,NDepo
+          DO i=0,NDepo
+            DDMassInv(i,j,k,iElem)=sJ(i,j,k,iElem)*swGPNDepo(i)*swGPNDepo(j)*swGPNDepo(k)
+          END DO ! i
+        END DO ! j
+      END DO ! k
+    END DO ! iElem=1,PP_nElems
   END IF
-  ! and inverse
-  DO i=0,NDepo
-    swGPNDepo(i)=1.0/swGPNDepo(i)
-  END DO ! i=0,PP_N
-  CALL InitializeVandermonde(PP_N,NDepo,wBary,xGP,xiNDepo,Vdm_GaussN_NDepo)
-  DO iElem=1,PP_nElems
-    !CALL ChangeBasis3D(1,PP_N,NDepo,Vdm_GaussN_NDepo,sJ(:,:,:,iElem),sjNDepo(:,:,:,iElem))
-    dummy(1,:,:,:)=sJ(:,:,:,iElem)
-    CALL ChangeBasis3D(1,PP_N,NDepo,Vdm_GaussN_NDepo,dummy,dummy2)
-    sJNDepo(:,:,:,iElem) = dummy2(1,:,:,:)
-  END DO ! iElem=1,PP_nElems
-  DEALLOCATE(Vdm_GaussN_NDepo)
-  DEALLOCATE(dummy,dummy2)
+  DEALLOCATE(swGPNDepo)
 
 CASE('cartmesh_volumeweighting')
 
@@ -2341,25 +2358,14 @@ CASE('delta_distri')
       DO k=0,NDepo
         DO j=0,NDepo
           DO i=0,NDepo
-            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJNDepo(i,j,k,iElem)*swGPNDepo(i)*swGPNDepo(j)*swGPNDepo(k)
+            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) * DDMassInv(i,j,k,iElem)
           END DO ! i
         END DO ! j
       END DO ! k
-      IF(DoChangeBasis)THEN
+      IF(DeltaDistriChangeBasis)THEN
         CALL ChangeBasis3D(4,NDepo,PP_N,Vdm_NDepo_GaussN,source(1:4,0:NDepo,0:NDepo,0:NDepo,iElem)&
                                                         ,source(1:4,0:PP_N ,0:PP_N ,0:PP_N, iElem))
       END IF
-!      IF(DoChangeBasis)THEN
-!        CALL ChangeBasis3D(4,NDepo,PP_N,Vdm_NDepo_GaussN,source(:,0:NDepo,0:NDepo,0:NDepo,iElem)&
-!                                                        ,source(:,0:PP_N ,0:PP_N ,0:PP_N, iElem))
-!      END IF
-!      DO k=0,PP_N
-!        DO j=0,PP_N
-!          DO i=0,PP_N
-!            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
-!          END DO ! i
-!        END DO ! j
-!      END DO ! k
 #ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
       ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
@@ -3494,7 +3500,7 @@ SDEALLOCATE(BGMSource)
 SDEALLOCATE(GPWeight)
 SDEALLOCATE(ElemRadius2_sf)
 SDEALLOCATE(Vdm_NDepo_GaussN)
-SDEALLOCATE(sJNDepo)
+SDEALLOCATE(DDMassInv)
 SDEALLOCATE(XiNDepo)
 SDEALLOCATE(swGPNDepo)
 SDEALLOCATE(wBaryNDepo)
