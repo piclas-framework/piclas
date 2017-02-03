@@ -22,12 +22,16 @@ INTERFACE GetBoundaryInteractionRef
   MODULE PROCEDURE GetBoundaryInteractionRef
 END INTERFACE
 
-PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef
+INTERFACE PartSwitchElement
+  MODULE PROCEDURE PartSwitchElement
+END INTERFACE
+
+PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,reflected)
+SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -69,7 +73,7 @@ REAL,INTENT(IN)                      :: xi,eta
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                :: ElemID
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
-LOGICAL,INTENT(OUT)                  :: Reflected
+LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
@@ -85,7 +89,7 @@ __STAMP__&
 ,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
-Reflected    =.FALSE.
+crossedBC    =.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -132,9 +136,9 @@ CASE(2) !PartBound%ReflectiveBC)
       CALL RANDOM_NUMBER(RanNum)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=crossedBC)
       ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=crossedBC)
       END IF
     ELSE IF (WallModeltype.EQ.1) THEN
                adsorbindex = 0
@@ -153,7 +157,7 @@ CASE(2) !PartBound%ReflectiveBC)
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection (not diffuse)               
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=crossedBC)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -170,11 +174,9 @@ __STAMP__,&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! new implementation, nothing to due :)
-  ! however, never checked
-CALL abort(&
-__STAMP__&
-,' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
+  CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID &
+                        ,ElemID,opt_perimoved=crossedBC) ! opt_reflected is peri-moved
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -197,7 +199,7 @@ __STAMP__&
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
-                                       ,opt_Symmetry=.TRUE.,opt_Reflected=reflected)
+                                       ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC)
 
 CASE DEFAULT
 CALL abort(&
@@ -213,7 +215,7 @@ END IF
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,reflected)
+SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -233,7 +235,8 @@ USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
+USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
+USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,GEO,SidePeriodicType
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -252,11 +255,13 @@ REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
-LOGICAL,INTENT(OUT)                  :: reflected
+INTEGER,INTENT(INOUT)                :: ElemID
+LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
-INTEGER                              :: BCSideID, WallModeltype, adsorbindex
+INTEGER                              :: BCSideID, WallModeltype, adsorbindex,PVID
+INTEGER                              :: iPV,PVsign
 LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
@@ -266,7 +271,7 @@ __STAMP__&
 ,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
-Reflected    =.FALSE.
+crossedBC    =.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -317,10 +322,10 @@ CASE(2) !PartBound%ReflectiveBC)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
         CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
-                              ,BCSideID=BCSideID,opt_reflected=reflected)
+                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
       ELSE
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap&
-                              ,BCSideID=BCSideID,opt_reflected=reflected)
+                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
       END IF
     ELSE IF (WallModeltype.EQ.1) THEN
                adsorbindex = 0
@@ -341,7 +346,7 @@ CASE(2) !PartBound%ReflectiveBC)
 !--- Inelastic Reflection (not diffuse)  
         BCSideID=PartBCSideList(SideID)
         CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
-                              ,BCSideID=BCSideID,opt_reflected=reflected)
+                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -358,12 +363,15 @@ __STAMP__,&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! new implementation, nothing to due :)
-  ! however, never checked
-CALL abort(&
+  ! sanity check
+  IF(CartesianPeriodic) CALL abort(&
 __STAMP__&
-,' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
-  !compute new bc
+,' No periodic BCs for CartesianPeriodic!')
+  ! move particle periodic distance
+  BCSideID=PartBCSideList(SideID)
+  CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID &
+                        ,BCSideID=BCSideID,opt_perimoved=crossedBC) ! opt_reflected is peri-moved
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -387,7 +395,7 @@ CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
   CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
-                        ,BCSideID=BCSideID,opt_Symmetry=.TRUE.,opt_reflected=reflected)
+                        ,BCSideID=BCSideID,opt_Symmetry=.TRUE.,opt_reflected=crossedBC)
 
 CASE DEFAULT
 CALL abort(&
@@ -1168,5 +1176,231 @@ __STAMP__&
   END IF
 END IF
 END SUBROUTINE SpeciesSwap
+
+
+SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,BCSideID,opt_perimoved)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Computes the perfect reflection in 3D
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
+USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,GEO,SidePeriodicType
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,PEM
+USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
+USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
+USE MOD_Mesh_Vars,              ONLY:nElems
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if defined(LSERK)
+USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
+#endif
+#ifdef IMPA
+USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
+USE MOD_LinearSolver_Vars,      ONLY:PartXk
+#endif /*IMPA*/
+#if defined(IMPA) || defined(IMEX)
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
+#endif
+USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
+USE MOD_LoadBalance_Vars,            ONLY:ElemTime
+USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
+USE MOD_Mesh_Vars,                   ONLY:OffSetElem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES 
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(IN)                   :: xi, eta
+INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
+INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT),OPTIONAL      :: opt_perimoved
+INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: n_loc(1:3)
+#if IMPA
+REAL                                 :: absVec, DeltaP(1:6)
+REAL                                 :: PartDiff(3)
+INTEGER                              :: iCounter
+#endif /*IMPA*/
+REAL                                 :: epsLength
+INTEGER                              :: PVID,moved(2),locSideID
+!===================================================================================================================================
+
+!OneMinus=1.0-MAX(epsInCell,epsilontol)
+epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
+
+IF(PRESENT(BCSideID))THEN
+  SELECT CASE(SideType(BCSideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,BCSideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+  END SELECT 
+ELSE
+  SELECT CASE(SideType(SideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,SideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  END SELECT 
+END IF
+
+IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
+  IF(PRESENT(opt_perimoved)) opt_perimoved=.FALSE.
+  RETURN
+ELSE
+  IF(PRESENT(opt_perimoved)) opt_perimoved=.TRUE.
+END IF
+
+PVID = SidePeriodicType(SideID)
+
+PartState(PartID,1:3)   = PartState(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+PartTrajectory=PartTrajectory/lengthPartTrajectory
+  
+#ifdef IMEX 
+! recompute PartStateN to kill jump in integration through periodic BC
+IF(iStage.GT.0)THEN
+  PartStateN(PartID,1:6) = PartState(PartID,1:6)
+  DO iCounter=1,iStage-1
+    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+  END DO
+END IF
+#endif /*IMEX*/
+
+
+!PartShiftVector = OldPartPos - NewPartPos = -SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+#ifdef IMPA 
+! recompute PartStateN to kill jump in integration through periodic BC
+IF(iStage.GT.0)THEN
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  IF(PartIsImplicit(PartID))THEN
+#endif
+    ! partshift-vector is pointing from parallel-pos to old pos
+    PartStateN(PartID,1:6) = PartState(PartID,1:6)
+    ! explicit particle
+    DeltaP=0.
+    DO iCounter=1,iStage-1
+      DeltaP=DeltaP - ESDIRK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+    END DO
+    PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
+    !PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
+    PartQ(1:3,PartID) = PartQ(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+    ! and move all the functions
+    ! F_PartX0 is not changing, because of difference
+    !PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
+    PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+ ELSE
+   PartStateN(PartID,1:6) = PartState(PartID,1:6)
+   ! explicit particle
+   DO iCounter=1,iStage-1
+     PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+                            - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+   END DO
+ END IF
+#endif
+END IF
+#endif /*IMPA*/
+
+! refmapping and tracing
+! move particle from old element to new element
+locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+ElemID    = Moved(1)
+!ElemID   =PEM%Element(PartID)
+
+END SUBROUTINE PeriodicBC
+
+
+FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+!===================================================================================================================================
+! particle moves through face and switches element
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemAndSide
+USE MOD_Mesh_Vars,              ONLY:MortarType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: locSideID, SideID,ElemID
+REAL,INTENT(IN)     :: xi,eta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,DIMENSION(2) :: PARTSWITCHELEMENT
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+! move particle to new element
+!     Type 1               Type 2              Type3
+!      eta                  eta                 eta
+!       ^                    ^                   ^
+!       |                    |                   |
+!   +---+---+            +---+---+           +---+---+
+!   | 3 | 4 |            |   2   |           |   |   |
+!   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
+!   | 1 | 2 |            |   1   |           |   |   |
+!   +---+---+            +---+---+           +---+---+
+
+SELECT CASE(MortarType(1,SideID))
+CASE(1)
+  IF(Xi.GT.0.)THEN
+    IF(Eta.GT.0.)THEN
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(4  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(4+4,locSideID,ElemID)
+    ELSE
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
+    END IF
+  ELSE
+    IF(Eta.GT.0.)THEN
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(3  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(3+4,locSideID,ElemID)
+    ELSE
+      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+    END IF
+  END IF
+CASE(2)
+  IF(Eta.GT.0.)THEN
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
+  ELSE
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+  END IF
+CASE(3)
+  IF(Xi.LE.0.)THEN
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+  ELSE
+    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
+  END IF
+CASE DEFAULT ! normal side OR small mortar side
+  PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+  PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+END SELECT
+
+END FUNCTION PARTSWITCHELEMENT
 
 END MODULE MOD_Particle_Boundary_Condition

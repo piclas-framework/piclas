@@ -157,7 +157,7 @@ USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearS
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
-USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation
+USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
@@ -216,7 +216,7 @@ IF (t.GE.DelayTime) THEN
   PartRelaxationFac = PartRelaxationFac0
   ! particle relaxation betweeen old and new position
   IF(DoPartRelaxation)THEN
-    AdaptIterRelaxation=4
+    AdaptIterRelaxation=AdaptIterRelaxation0
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN  
         tmpFac=(1.0-PartRelaxationFac)
@@ -253,6 +253,12 @@ IF (t.GE.DelayTime) THEN
       CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     END IF
   END IF
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PartIsImplicit(iPart))THEN
+      IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
+    END IF
+  END DO
+
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! finish communication of number of particles and send particles
@@ -321,14 +327,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
-    DO iPart=1,PDM%ParticleVecLength
-      IF(PartIsImplicit(iPart))THEN
-        LastPartPos(iPart,1)=PartState(iPart,1)
-        LastPartPos(iPart,2)=PartState(iPart,2)
-        LastPartPos(iPart,3)=PartState(iPart,3)
-        PEM%lastElement(iPart)=PEM%Element(iPart)
-      END IF ! PartIsImplicit
-    END DO ! iPart
+    !DO iPart=1,PDM%ParticleVecLength
+    !  IF(PartIsImplicit(iPart))THEN
+    !    LastPartPos(iPart,1)=PartState(iPart,1)
+    !    LastPartPos(iPart,2)=PartState(iPart,2)
+    !    LastPartPos(iPart,3)=PartState(iPart,3)
+    !    PEM%lastElement(iPart)=PEM%Element(iPart)
+    !  END IF ! PartIsImplicit
+    !END DO ! iPart
 
     ! now, we have an initial guess for the field  can compute the first particle movement
     IF(FullEisenstatWalker.GT.1)THEN
@@ -375,6 +381,11 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
         CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
       END IF
     END IF
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartIsImplicit(iPart))THEN
+        IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
+      END IF
+    END DO
     ! send number of particles
     CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication of number of particles and send particles
@@ -404,12 +415,13 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   IF(DoPartRelaxation)THEN
     IF(MOD(nFullNewtonIter,AdaptIterRelaxation).EQ.0)THEN
       IF(Norm_Rold.GT.Norm_R)THEN
-        PartRelaxationFac=MAX(PartRelaxationFac*2,1.0)
+        PartRelaxationFac=MAX(PartRelaxationFac*1.55,1.0)
+        !PartRelaxationFac=PartRelaxationFac*2
         !IF(PartRelaxationFac.GE.1.0) DoPartRelaxation=.FALSE.
       ELSE
-         PartRelaxationFac=MAX(PartRelaxationFac/2,0.1)
+         PartRelaxationFac=MAX(PartRelaxationFac/2,0.001)
       END IF
-      AdaptIterRelaxation=MAX(INT(AdaptIterRelaxation*PartRelaxationFac0/PartRelaxationFac),3)
+      AdaptIterRelaxation=MAX(INT(AdaptIterRelaxation*PartRelaxationFac0/PartRelaxationFac),AdaptIterRelaxation0)
     END IF
   END IF ! DoPartRelaxation
 
