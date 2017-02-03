@@ -589,7 +589,7 @@ LOGICAL                       :: PartInBGM
 INTEGER                       :: iCounter
 #endif /*IMEX*/
 ! Polyatomic Molecules
-INTEGER                       :: iPolyatMole
+INTEGER                       :: iPolyatMole, MsgRecvLengthPoly
 INTEGER                       :: MsgLengthPoly(1:PartMPI%nMPINeighbors), pos_poly(1:PartMPI%nMPINeighbors)
 !===================================================================================================================================
 
@@ -971,7 +971,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       END DO ! jProc=1,nDepoProcs
     END DO ! iPart=1,PDM%ParticleVecLength 
   END IF ! DoExternalParts
-  IF(iPos.NE.MessageSize) IPWRITE(*,*) ' error message size', iPos,MessageSize
+  IF(iPos.NE.(MessageSize-MsgLengthPoly(iProc))) IPWRITE(*,*) ' error message size', iPos,(MessageSize-MsgLengthPoly(iProc))
 END DO ! iProc
 
 ! 4) Finish Received number of particles
@@ -1041,6 +1041,11 @@ DO iProc=1,PartMPI%nMPINeighbors
     MessageSize=MessageSize   &
                +nRecvExtParticles*ExtPartCommSize
   END IF
+  ! determine the maximal possible polyatomic addition to the regular recv message
+  IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+    MsgRecvLengthPoly = MAXVAL(PolyatomMolDSMC(:)%VibDOF)*nRecvParticles
+    MessageSize = MessageSize + MsgRecvLengthPoly
+  END IF
   ALLOCATE(PartRecvBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     IPWRITE(*,*) 'sum of total received particles            ', SUM(PartMPIExchange%nPartsRecv(1,:))
@@ -1080,6 +1085,9 @@ DO iProc=1,PartMPI%nMPINeighbors
     nSendExtParticles=PartMPIExchange%nPartsSend(2,iProc)
     MessageSize=MessageSize &
                +nSendExtParticles*ExtPartCommSize
+  END IF
+  IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+    MessageSize = MessageSize + MsgLengthPoly(iProc)
   END IF
   !IF(nSendParticles.EQ.0) CYCLE
   !MessageSize=nSendParticles*PartCommSize
@@ -1229,7 +1237,7 @@ DO iProc=1,PartMPI%nMPINeighbors
   ! DO iPart=1,nRecvParticles
   ! nParts 1 Pos=1..17 
   ! nPart2 2 Pos=1..17,18..34
-  DO iPos=0,MessageSize-1,PartCommSize
+  DO iPos=0,MessageSize-1-MsgLengthpoly,PartCommSize
     IF(nRecvParticles.EQ.0) EXIT
     nRecv=nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
@@ -1372,7 +1380,7 @@ DO iProc=1,PartMPI%nMPINeighbors
         IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
         ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
         VibQuantsPar(PartID)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-                            = PartRecvBuf(iProc)%content(pos_poly+1:pos_poly+PolyatomMolDSMC(iPolyatMole)%VibDOF)
+                            = NINT(PartRecvBuf(iProc)%content(pos_poly+1:pos_poly+PolyatomMolDSMC(iPolyatMole)%VibDOF))
         pos_poly = pos_poly + PolyatomMolDSMC(iPolyatMole)%VibDOF
       END IF
     END IF
