@@ -196,7 +196,7 @@ END IF
 ! Pt_tmp for pushing: Runge-Kutta derivative of position and velocity
 PartCommSize   = PartCommSize + 6
 ! IsNewPart for RK-Reconstruction
-PartCommSize   = PartCommSize + 1 
+PartCommSize   = PartCommSize + 1
 #endif
 
 ! additional stuff for full RK schemes, e.g. implicit and imex RK
@@ -207,7 +207,7 @@ PartCommSize   = PartCommSize + 6
 ! communication if particle is implicit or explicit
 PartCommSize   = PartCommSize+1
 ! IsNewPart for Surface-Flux: particle are always killed after suface-flux-emission
-PartCommSize   = PartCommSize + 1 
+PartCommSize   = PartCommSize + 1
 #endif
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
@@ -549,7 +549,7 @@ USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM
 #if defined(LSERK)
 USE MOD_Particle_Vars,            ONLY:Pt_temp
 #endif
-USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
@@ -588,6 +588,9 @@ LOGICAL                       :: PartInBGM
 #if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*IMEX*/
+! Polyatomic Molecules
+INTEGER                       :: iPolyatMole
+INTEGER                       :: MsgLengthPoly(1:PartMPI%nMPINeighbors), pos_poly(1:PartMPI%nMPINeighbors)
 !===================================================================================================================================
 
 #if defined(IMEX)
@@ -668,6 +671,19 @@ PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK ! and communicate 
 !                        , 'target proc', PartMPI%MPINeighbor(iProc)
 !END DO
 
+!--- Determining the number of additional variables due to VibQuantsPar of polyatomic particles
+!--- (size varies depending on the species of particle)
+MsgLengthPoly(:) = 0
+IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PartTargetProc(iPart).EQ.-1) CYCLE
+    IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+      MsgLengthPoly(PartTargetProc(iPart)) = MsgLengthPoly(PartTargetProc(iPart)) + PolyatomMolDSMC(iPolyatMole)%VibDOF
+    END IF
+  END DO
+END IF
+
 ! 3) Build Message
 DO iProc=1, PartMPI%nMPINeighbors
   ! allocate SendBuf
@@ -682,6 +698,11 @@ DO iProc=1, PartMPI%nMPINeighbors
     IF(nSendParticles.EQ.0) CYCLE
     MessageSize=nSendParticles*PartCommSize
   END IF
+  IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+    pos_poly(iProc) = MessageSize 
+    MessageSize = MessageSize + MsgLengthPoly(iProc)
+  END IF
+  
   ALLOCATE(PartSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
@@ -824,6 +845,15 @@ DO iProc=1, PartMPI%nMPINeighbors
           ELSE
             PartSendBuf(iProc)%content( 9+jPos:13+jPos) = PartStateBulkValues(iPart,1:5)
           END IF
+        END IF
+      END IF
+      !--- put the polyatomic vibquants per particle at the end of the message
+      IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+        IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+          PartSendBuf(iProc)%content(pos_poly(iProc)+1:pos_poly(iProc)+PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+                                                          = VibQuantsPar(iPart)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+          pos_poly(iProc) = pos_poly(iProc) + PolyatomMolDSMC(iPolyatMole)%VibDOF
         END IF
       END IF
       ! endif timedisc
@@ -1106,7 +1136,7 @@ USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM
 #if defined(LSERK)
 USE MOD_Particle_Vars,            ONLY:Pt_temp
 #endif
-USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
@@ -1143,6 +1173,9 @@ INTEGER                       :: iExtPart
 #if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*IMEX*/
+! Polyatomic Molecules
+INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly
+! INTEGER , ALLOCATABLE         :: MsgLengthPoly(:)
 !===================================================================================================================================
 
 !IPWRITE(UNIT_stdOut,*) 'exchange',PartMPIExchange%nMPIParticles
@@ -1162,7 +1195,7 @@ PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK
 #endif
 #endif /*IMEX*/
-
+! IF (DSMC%NumPolyatomMolecs.GT.0) ALLOCATE(MsgLengthPoly(1:PartMPI%nMPINeighbors))
 
 DO iProc=1,PartMPI%nMPINeighbors
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
@@ -1182,8 +1215,14 @@ DO iProc=1,PartMPI%nMPINeighbors
   IF(DoExternalParts) THEN
     nRecvExtParticles=PartMPIExchange%nPartsRecv(2,iProc)
   END IF
+  ! determine the maximal possible polyatomic addition to the regular message
+  IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+    MsgLengthPoly = MAXVAL(PolyatomMolDSMC(:)%VibDOF)*nRecvParticles
+  END IF
   !IF(nRecvParticles.EQ.0) CYCLE
   MessageSize=nRecvParticles*PartCommSize
+  pos_poly = MessageSize
+  IF (DSMC%NumPolyatomMolecs.GT.0) MessageSize = MessageSize + MsgLengthPoly
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
   ! correct loop shape
@@ -1325,6 +1364,16 @@ DO iProc=1,PartMPI%nMPINeighbors
         ELSE
           PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(9+jPos:13+jPos)
         END IF
+      END IF
+    END IF
+    IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+      IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+        IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
+        ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+        VibQuantsPar(PartID)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+                            = PartRecvBuf(iProc)%content(pos_poly+1:pos_poly+PolyatomMolDSMC(iPolyatMole)%VibDOF)
+        pos_poly = pos_poly + PolyatomMolDSMC(iPolyatMole)%VibDOF
       END IF
     END IF
     ! Set Flag for received parts in order to localize them later

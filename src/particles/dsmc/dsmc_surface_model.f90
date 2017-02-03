@@ -553,7 +553,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
             chosen_Neigh_k = 1 + INT(REAL(n_Neigh(kCoord))*RanNum)
             Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
                                                                                               NeighbourID(kCoord,chosen_Neigh_k))
-            IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
+            IDRearrange = NeighbourID(jCoord,chosen_Neigh_k)
             NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_Neigh(kCoord))
             NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
           END IF
