@@ -341,25 +341,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
+            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #else
-            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
 #endif
 #else
 #ifdef PP_POIS
-            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif defined PP_HDG
 #if PP_nVar==1
-            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif PP_nVar==3
-            CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+            CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
 #else
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
+            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #endif
 #else
-            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #endif         
 #endif
             FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
@@ -639,25 +639,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
+      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
 #else
-      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
 #endif
 #else
 #ifdef PP_POIS
-      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif defined PP_HDG
 #if PP_nVar==1
-      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif PP_nVar==3
-      CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+      CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
 #else
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
+      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
 #endif
 #else
-      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #endif
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)

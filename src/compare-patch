@@ -1,0 +1,324 @@
+diff --git a/src/interpolation/eval_xyz.f90 b/src/interpolation/eval_xyz.f90
+index ae11c2d..02b3f57 100644
+--- a/src/interpolation/eval_xyz.f90
++++ b/src/interpolation/eval_xyz.f90
+@@ -42,7 +42,7 @@ PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
+ CONTAINS
+ 
+ !#ifdef PARTICLES
+-SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID)!,PartID)
++SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
+ !===================================================================================================================================
+ ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
+ ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
+@@ -69,7 +69,7 @@ INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
+ INTEGER,INTENT(IN)  :: ElemID                                 ! elem index
+ REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
+ REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
+-!INTEGER,INTENT(IN),OPTIONAL :: PartID
++INTEGER,INTENT(IN),OPTIONAL :: PartID
+ !-----------------------------------------------------------------------------------------------------------------------------------
+ ! OUTPUT VARIABLES
+ REAL,INTENT(OUT)    :: U_Out(1:NVar)  ! Interpolated state
+@@ -146,7 +146,7 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
+ !END IF
+ 
+ IF(CurvedElem(ElemID))THEN
+-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=1)
++  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=1,PartID=PartID)
+ ELSE
+   ! fill dummy XCL_NGeo1
+   XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
+@@ -166,7 +166,7 @@ ELSE
+   dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
+   dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
+   dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
+-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=1)
++  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=1,PartID=PartID)
+ END IF
+ 
+ ! IF(ANY(ABS(Xi).GT.1.1)) THEN
+@@ -541,7 +541,7 @@ END IF ! useBGField
+ END SUBROUTINE eval_xyz_part2
+ 
+ 
+-SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode)
++SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID)
+ !=================================================================================================================================
+ ! Netwon for finding the position inside the reference element [-1,1] for an arbitrary physical point
+ !=================================================================================================================================
+@@ -551,11 +551,15 @@ USE MOD_Globals_Vars
+ USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+ USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps!,ElemRadiusNGeo
+ USE MOD_Mesh_Vars,               ONLY:offsetElem
++#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
++USE MOD_Particle_Vars,           ONLY:PartIsImplicit,LastPartPos
++#endif
+ !----------------------------------------------------------------------------------------------------------------------------------!
+ IMPLICIT NONE
+ ! INPUT VARIABLES 
+ INTEGER,INTENT(IN)               :: N_In,ElemID
+ INTEGER,INTENT(IN)               :: Mode
++INTEGER,INTENT(IN),OPTIONAL      :: PartID
+ REAL,INTENT(IN)                  :: X_in(3) ! position in physical space 
+ REAL,INTENT(IN)                  :: XiCL_N_in(0:N_In)               ! position of CL points in reference space
+ REAL,INTENT(IN)                  ::  XCL_N_in(3,0:N_In,0:N_in,0:N_In) ! position of CL points in physical space
+@@ -648,6 +652,11 @@ __STAMP__&
+       IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1:3)
+       IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
+       IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
++      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
++#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
++      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
++      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
++#endif
+       !IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
+       CALL abort(&
+ __STAMP__&
+diff --git a/src/linearsolver/newton.f90 b/src/linearsolver/newton.f90
+index 1f5ff7b..ee48caf 100644
+--- a/src/linearsolver/newton.f90
++++ b/src/linearsolver/newton.f90
+@@ -253,6 +253,12 @@ IF (t.GE.DelayTime) THEN
+       CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+     END IF
+   END IF
++  DO iPart=1,PDM%ParticleVecLength
++    IF(PartIsImplicit(iPart))THEN
++      IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
++    END IF
++  END DO
++
+   ! send number of particles
+   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+   ! finish communication of number of particles and send particles
+@@ -321,14 +327,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
+ 
+ #ifdef PARTICLES
+   IF (t.GE.DelayTime) THEN
+-    DO iPart=1,PDM%ParticleVecLength
+-      IF(PartIsImplicit(iPart))THEN
+-        LastPartPos(iPart,1)=PartState(iPart,1)
+-        LastPartPos(iPart,2)=PartState(iPart,2)
+-        LastPartPos(iPart,3)=PartState(iPart,3)
+-        PEM%lastElement(iPart)=PEM%Element(iPart)
+-      END IF ! PartIsImplicit
+-    END DO ! iPart
++    !DO iPart=1,PDM%ParticleVecLength
++    !  IF(PartIsImplicit(iPart))THEN
++    !    LastPartPos(iPart,1)=PartState(iPart,1)
++    !    LastPartPos(iPart,2)=PartState(iPart,2)
++    !    LastPartPos(iPart,3)=PartState(iPart,3)
++    !    PEM%lastElement(iPart)=PEM%Element(iPart)
++    !  END IF ! PartIsImplicit
++    !END DO ! iPart
+ 
+     ! now, we have an initial guess for the field  can compute the first particle movement
+     IF(FullEisenstatWalker.GT.1)THEN
+@@ -375,6 +381,12 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
+         CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+       END IF
+     END IF
++    DO iPart=1,PDM%ParticleVecLength
++      IF(PartIsImplicit(iPart))THEN
++        IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
++      END IF
++    END DO
++
+     ! send number of particles
+     CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+     ! finish communication of number of particles and send particles
+diff --git a/src/linearsolver/particlesolver.f90 b/src/linearsolver/particlesolver.f90
+index 5281029..08409a0 100644
+--- a/src/linearsolver/particlesolver.f90
++++ b/src/linearsolver/particlesolver.f90
+@@ -207,7 +207,7 @@ IMPLICIT NONE
+ !-----------------------------------------------------------------------------------------------------------------------------------
+ ! INPUT VARIABLES
+ REAL,INTENT(IN)               :: t,coeff
+-LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%maxParticleNumber)
++LOGICAL,INTENT(INOUT),OPTIONAL:: doParticle_In(1:PDM%maxParticleNumber)
+ LOGICAL,INTENT(IN),OPTIONAL   :: opt_In
+ REAL,INTENT(IN),OPTIONAL      :: AbortTol_In
+ !-----------------------------------------------------------------------------------------------------------------------------------
+@@ -262,6 +262,11 @@ IF(opt)THEN ! compute zero state
+   ! whole pt array
+   DO iPart=1,PDM%ParticleVecLength
+     IF(DoPartInNewton(iPart))THEN
++      ! update the last part pos and element for particle movement
++      LastPartPos(iPart,1)=PartState(iPart,1)
++      LastPartPos(iPart,2)=PartState(iPart,2)
++      LastPartPos(iPart,3)=PartState(iPart,3)
++      PEM%lastElement(iPart)=PEM%Element(iPart)
+       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+       SELECT CASE(PartLorentzType)
+       CASE(0)
+@@ -299,6 +304,16 @@ IF(opt)THEN ! compute zero state
+       END IF
+     END IF ! ParticleInside
+   END DO ! iPart
++ELSE
++  DO iPart=1,PDM%ParticleVecLength
++    IF(DoPartInNewton(iPart))THEN
++      ! update the last part pos and element for particle movement
++      LastPartPos(iPart,1)=PartState(iPart,1)
++      LastPartPos(iPart,2)=PartState(iPart,2)
++      LastPartPos(iPart,3)=PartState(iPart,3)
++      PEM%lastElement(iPart)=PEM%Element(iPart)
++    END IF ! ParticleInside
++  END DO ! iPart
+ END IF
+ 
+ #ifdef MPI
+@@ -346,9 +361,10 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
+       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
+       PartState(iPart,:)=PartXK(:,iPart)
+       DeltaX_Norm=DOT_PRODUCT(DeltaX,DeltaX)
+-      IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
+-        DoPartInNewton(iPart)=.FALSE.
+-      END IF
++      ! forbidden, because particle is NOT moved
++      !IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
++      !  DoPartInNewton(iPart)=.FALSE.
++      !END IF
+     END IF ! ParticleInside
+   END DO ! iPart
+   ! closed form: now move particles
+@@ -365,6 +381,13 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
+       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+       CALL ParticleTracing(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
+     END IF
++    DO iPart=1,PDM%ParticleVecLength
++      IF(DoPartInNewton(iPart))THEN
++        IF(.NOT.PDM%ParticleInside(iPart))THEN
++          DoPartInNewton(iPart)=.FALSE.
++        END IF
++      END IF
++    END DO
+ #ifdef MPI
+     ! send number of particles
+     CALL SendNbOfParticles(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
+diff --git a/src/particles/particle_mpi/particle_mpi_halo.f90 b/src/particles/particle_mpi/particle_mpi_halo.f90
+index 2133af3..3ae1250 100644
+--- a/src/particles/particle_mpi/particle_mpi_halo.f90
++++ b/src/particles/particle_mpi/particle_mpi_halo.f90
+@@ -346,12 +346,6 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
+   CALL MPI_SEND(SendMsg%nMPISides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
+ END IF
+ 
+-IF(MyRank.EQ.0)THEN
+-  print*,'Send,Recv',SendMsg%nMPISides,RecvMsg%nMPISides
+-END IF
+-
+-!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Receive:', RecvMsg%nMPISides
+-
+ !--- Allocate Message
+ IF (SendMsg%nMPISides.GT.0) THEN
+   ALLOCATE(SendMsg%BezierSides3D(1:3,0:NGeo,0:nGEO,1:SendMsg%nMPISides), STAT=ALLOCSTAT)
+diff --git a/src/particles/pic/interpolation/pic_interpolation.f90 b/src/particles/pic/interpolation/pic_interpolation.f90
+index fc954b7..35d4fd6 100644
+--- a/src/particles/pic/interpolation/pic_interpolation.f90
++++ b/src/particles/pic/interpolation/pic_interpolation.f90
+@@ -341,25 +341,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
+ #ifdef PP_POIS
+             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+-            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
++            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+ #else
+-            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
++            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
+ #endif
+ #else
+ #ifdef PP_POIS
+-            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
++            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+ #elif defined PP_HDG
+ #if PP_nVar==1
+-            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
++            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+ #elif PP_nVar==3
+-            CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
++            CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
+ #else
+             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+             HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
+-            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
++            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart,iPart)
+ #endif
+ #else
+-            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
++            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+ #endif         
+ #endif
+             FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+@@ -639,25 +639,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
+ #ifdef PP_POIS
+       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
+-      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
++      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+ #else
+-      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
++      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
+ #endif
+ #else
+ #ifdef PP_POIS
+-      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
++      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+ #elif defined PP_HDG
+ #if PP_nVar==1
+-      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
++      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+ #elif PP_nVar==3
+-      CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
++      CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
+ #else
+       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+       HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
+-      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
++      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+ #endif
+ #else
+-      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
++      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+ #endif
+ #endif
+       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
+diff --git a/src/particles/tracking/particle_tracking.f90 b/src/particles/tracking/particle_tracking.f90
+index 5179f48..c9a5b32 100644
+--- a/src/particles/tracking/particle_tracking.f90
++++ b/src/particles/tracking/particle_tracking.f90
+@@ -36,7 +36,7 @@ USE MOD_Globals
+ USE MOD_Particle_Vars,               ONLY:PEM,PDM
+ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+ USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
+-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType
++USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,GEO
+ USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+ USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
+ USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
+@@ -52,6 +52,7 @@ USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
+ USE MOD_LoadBalance_Vars,            ONLY:ElemTime
+ USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
+ #endif /*MPI*/
++USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+ ! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+ ! INPUT VARIABLES
+diff --git a/src/timedisc/timedisc.f90 b/src/timedisc/timedisc.f90
+index 7eaf015..8bce0ac 100644
+--- a/src/timedisc/timedisc.f90
++++ b/src/timedisc/timedisc.f90
+@@ -3043,6 +3043,11 @@ DO iStage=2,nRKStages
+       !SF, new in current RKStage (no forces assumed in this stage)
+       DO iPart=1,PDM%ParticleVecLength
+         IF (PDM%IsNewPart(iPart)) THEN
++          ! necessary ??
++          !LastPartPos(iPart,1)=PartState(iPart,1)
++          !LastPartPos(iPart,2)=PartState(iPart,2)
++          !LastPartPos(iPart,3)=PartState(iPart,3)
++          !PEM%lastElement(iPart)=PEM%Element(iPart)
+           CALL RANDOM_NUMBER(RandVal)
+           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac*RandVal
+           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
