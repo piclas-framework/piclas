@@ -106,8 +106,6 @@ TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! S
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistRecvBuf(:)                         ! SurfDistRecvBuf with all requried types
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistSendBuf(:)                         ! SurfDistSendBuf with all requried types
 
-INTEGER                        :: Comm_NbrSurfPos
-
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbRecvBuf(:)
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbSendBuf(:)
 
@@ -137,15 +135,21 @@ TYPE tParticleMPIExchange2
 END TYPE
 TYPE (tParticleMPIExchange2)     :: PartMPIInsert 
 
+TYPE tDistNbrComm
+  INTEGER,ALLOCATABLE            :: nPosSend(:)   ! number of distribution site to send for surface (nSidesSend,nCoordination)
+  INTEGER,ALLOCATABLE            :: nPosRecv(:)   ! number of distribution sites to receive for surface (nSidesRecv,nCoordination)
+END TYPE
+
 TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: nSidesSend(:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: nSidesRecv(:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
-  INTEGER,ALLOCATABLE            :: nSurfDistSidesSend(:)     ! only mpi neighbors
-  INTEGER,ALLOCATABLE            :: nSurfDistSidesRecv(:)     ! only mpi neighbors
-  INTEGER,ALLOCATABLE            :: SurfDistSendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE            :: SurfDistRecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: nSurfDistSidesSend(:)        ! number of mpi sides to send (nProcs)
+  INTEGER,ALLOCATABLE            :: nSurfDistSidesRecv(:)        ! number of sides received from mpi (nProcs)
+  TYPE(tDistNbrComm),ALLOCATABLE :: NbrOfPos(:)          ! array for number of distribution sites sending per proc 
+  INTEGER,ALLOCATABLE            :: SurfDistSendRequest(:,:)     ! send request message handle,  1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: SurfDistRecvRequest(:,:)     ! recv request message handle,  1 - Number, 2-Message
 END TYPE
 TYPE (tSurfMPIExchange)          :: SurfExchange
 

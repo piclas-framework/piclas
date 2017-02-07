@@ -24,6 +24,7 @@ PUBLIC                       :: CalcDesorbProb
 PUBLIC                       :: CalcDiffusion
 #ifdef MPI
 PUBLIC                       :: ExchangeSurfDistInfo
+PUBLIC                       :: ExchangeSurfDistSize
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -1488,6 +1489,96 @@ END DO ! iProc
 
 END SUBROUTINE ExchangeAdsorbNum
 
+SUBROUTINE ExchangeSurfDistSize()
+!===================================================================================================================================
+! exchange the number of surface distribution sites to communicate to halosides with neighbours
+! only processes with surface sides in their halo region and the original process participate on the communication
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars      ,ONLY:nSurfSample,SurfComm
+USE MOD_Particle_MPI_Vars           ,ONLY:SurfDistSendBuf,SurfDistRecvBuf,SurfExchange
+USE MOD_DSMC_Vars                   ,ONLY:SurfDistInfo
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: MessageSize,iSurfSide,SurfSideID
+INTEGER                         :: p,q,iProc
+INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+INTEGER                         :: iCoord
+!===================================================================================================================================
+
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSurfDistSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSurfDistSidesRecv(iProc)
+  CALL MPI_IRECV( SurfExchange%NbrOfPos(iProc)%nPosRecv(:)     &
+                , MessageSize                                  &
+                , MPI_INT                                      &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
+                , 1011                                         &
+                , SurfCOMM%COMM                                &
+                , SurfExchange%SurfDistRecvRequest(1,iProc)    & 
+                , IERROR )
+END DO ! iProc
+
+DO iProc=1,SurfCOMM%nMPINeighbors
+DO iSurfSide=1,SurfExchange%nSurfDistSidesSend(iProc)
+SurfSideID=SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(iSurfSide)
+DO q=1,nSurfSample
+DO p=1,nSurfSample
+DO iCoord = 1,3
+    SurfExchange%NbrOfPos(iProc)%nPosSend(iSurfSide) = SurfExchange%NbrOfPos(iProc)%nPosSend(iSurfSide) &
+                                                     + 3 + 2*SurfDistInfo(p,q,SurfSideID)%nSites(iCoord)
+END DO
+END DO
+END DO
+END DO
+END DO
+
+! send message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSurfDistSidesSend(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSurfDistSidesSend(iProc)
+  CALL MPI_ISEND( SurfExchange%NbrOfPos(iProc)%nPosSend(:)     &
+                , MessageSize                                  & 
+                , MPI_INT                                      &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     & 
+                , 1011                                         &
+                , SurfCOMM%COMM                                &   
+                , SurfExchange%SurfDistSendRequest(1,iProc)    &
+                , IERROR )
+END DO ! iProc
+
+! 4) Finish receiving commsizes
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SurfDistSendRequest(1,iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error in number of surface distribution sites (send)', IERROR)
+  END IF
+  IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SurfDistRecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error in number of surface distribution sites (receive)', IERROR)
+  END IF
+END DO ! iProc
+
+DO iProc=1,SurfCOMM%nMPINeighbors
+ALLOCATE(SurfDistSendBuf(iProc)%content_int(1:SUM(SurfExchange%NbrOfPos(iProc)%nPosSend(:))))
+ALLOCATE(SurfDistRecvBuf(iProc)%content_int(1:SUM(SurfExchange%NbrOfPos(iProc)%nPosRecv(:))))
+END DO
+
+END SUBROUTINE ExchangeSurfDistSize
+
 
 SUBROUTINE ExchangeSurfDistInfo() 
 !===================================================================================================================================
@@ -1501,7 +1592,7 @@ SUBROUTINE ExchangeSurfDistInfo()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
-USE MOD_Particle_MPI_Vars           ,ONLY:SurfDistSendBuf,SurfDistRecvBuf,SurfExchange,Comm_NbrSurfPos
+USE MOD_Particle_MPI_Vars           ,ONLY:SurfDistSendBuf,SurfDistRecvBuf,SurfExchange
 USE MOD_DSMC_Vars                   ,ONLY:SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1511,25 +1602,26 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
+INTEGER                         :: MessageSize, iSurfSide, SurfSideID, iSurf
 INTEGER                         :: iPos,p,q,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 INTEGER                         :: iCoord,nSites,nSitesRemain,iSite,iInteratom,UsedSiteMapPos,iSpec,xpos,ypos
 !===================================================================================================================================
 
-nValues=(3 + 2*Comm_NbrSurfPos) * (nSurfSample)**2
-
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSurfDistSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSurfDistSidesRecv(iProc)*nValues
+  Messagesize = 0
+  DO iSurf = 1,SurfExchange%nSurfDistSidesRecv(iProc)
+    MessageSize = MessageSize + SurfExchange%NbrOfPos(iProc)%nPosRecv(iSurf)
+  END DO
   CALL MPI_IRECV( SurfDistRecvBuf(iProc)%content_int           &
                 , MessageSize                                  &
                 , MPI_INT                                      &
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
-                , 1011                                         &
+                , 1012                                         &
                 , SurfCOMM%COMM                                &
-                , SurfExchange%SurfDistRecvRequest(iProc)      & 
+                , SurfExchange%SurfDistRecvRequest(2,iProc)      & 
                 , IERROR )
 END DO ! iProc
 
@@ -1559,27 +1651,30 @@ END DO
 ! send message
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSurfDistSidesSend(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSurfDistSidesSend(iProc)*nValues
+  Messagesize = 0
+  DO iSurf = 1,SurfExchange%nSurfDistSidesSend(iProc)
+    MessageSize = MessageSize + SurfExchange%NbrOfPos(iProc)%nPosSend(iSurf)
+  END DO
   CALL MPI_ISEND( SurfDistSendBuf(iProc)%content_int       &
                 , MessageSize                              & 
                 , MPI_INT                                  &
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
-                , 1011                                     &
+                , 1012                                     &
                 , SurfCOMM%COMM                            &   
-                , SurfExchange%SurfDistSendRequest(iProc)  &
+                , SurfExchange%SurfDistSendRequest(2,iProc)  &
                 , IERROR )
 END DO ! iProc
 
-! 4) Finish Received number of particles
+! 4) Finish received surface distribution
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfExchange%SurfDistSendRequest(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SurfExchange%SurfDistSendRequest(2,iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
           ,' MPI Communication error in surface distribution (send)', IERROR)
   END IF
   IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfExchange%SurfDistRecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+    CALL MPI_WAIT(SurfExchange%SurfDistRecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
           ,' MPI Communication error in Surface distribution (receive)', IERROR)
