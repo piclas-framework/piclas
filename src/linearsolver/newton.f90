@@ -131,6 +131,99 @@ CALL MPI_ALLREDUCE(DeltaX,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,i
 END SUBROUTINE ImplicitNorm
 
 
+SUBROUTINE ReIterationRHS(t,coeff) 
+!===================================================================================================================================
+! The error-norm of the fully implicit scheme is computed
+! use same norm as in maxtrix-vector source; initial norm of linearsolver 
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_DG_Vars,                 ONLY:U
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
+#if PARTICLES
+USE MOD_PICDepo_Vars,            ONLY:source
+#endif /*PARTICLES*/
+#ifndef PP_HDG
+USE MOD_DG_Vars,                 ONLY:Ut
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_Equation,                ONLY:CalcSource
+USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars,           ONLY:sdtCFLOne
+#else /* HDG */
+USE MOD_HDG,                     ONLY:HDG
+USE MOD_Equation,                ONLY:CalcSourceHDG
+#endif /*DG*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)        :: t
+REAL,INTENT(IN)        :: coeff
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                :: iElem, i,j,k,iVar, iter
+REAL                   :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!===================================================================================================================================
+
+#ifndef PP_HDG
+! compute error-norm-version1, non-optimized
+STOP 'haha'
+!CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+!ImplicitSource=ExplicitSource
+!CALL CalcSource(t,1.,ImplicitSource)
+!
+!IF(DoParabolicDamping)THEN
+!  rTmp(1:6)=1.0
+!  rTmp( 7 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+!  rTmp( 8 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+!ELSE
+!  rTmp(1:8)=1.0
+!END IF
+!
+!Norm_R=0.
+!DO iElem=1,PP_nElems
+!  Norm_e=0.
+!  DO k=0,PP_N
+!    DO j=0,PP_N
+!      DO i=0,PP_N
+!        locMass=mass(1,i,j,k,iElem)
+!        DO iVar=1,8
+!          DeltaX=locMass*( LinSolverRHS(iVar,i,j,k,iElem)           &
+!                         - rTmp(iVar)*U(iVar,i,j,k,iElem)           &
+!                         +     coeff*Ut(iVar,i,j,k,iElem)           &
+!                         + coeff*ImplicitSource(iVar,i,j,k,iElem)   )
+!          Norm_e = Norm_e + DeltaX*DeltaX
+!        END DO ! iVar=1,PP_nVar
+!      END DO ! i=0,PP_N
+!    END DO ! j=0,PP_N
+!  END DO ! k=0,PP_N
+!  Norm_R=Norm_R+Norm_e
+!END DO ! iElem=1,PP_nElems
+#else /*HDG*/
+DO iter=1,3
+  Uold=U
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      !CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
+      DO iVar=1,PP_nVar
+        Source(iVar,i,j,k,iElem) = Source(iVar,i,j,k,iElem) + ExplicitSource(iVar,i,j,k,iElem) &
+                                 + U(iVar,i,j,k,iElem) 
+      END DO ! iVar=1,PP_nVar
+    END DO; END DO; END DO !i,j,k    
+    !CALL HDG(t,U,iter)
+  END DO !iElem 
+  U=Uold+U
+END DO
+#endif /*DG*/
+
+
+END SUBROUTINE ReIterationRHS
+
+
 SUBROUTINE FullNewton(t,tStage,coeff)
 !===================================================================================================================================
 ! Full Newton with particles and field 
@@ -145,6 +238,7 @@ SUBROUTINE FullNewton(t,tStage,coeff)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 #ifndef PP_HDG
@@ -163,7 +257,7 @@ USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage
-USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM,StagePartPos
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
@@ -188,7 +282,7 @@ REAL,INTENT(INOUT)         :: coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff
+REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff,Norm_Diff_old
 REAL                       :: etaA,etaB,etaC,etaMax,taut
 INTEGER                    :: nFullNewtonIter
 #ifdef PARTICLES
@@ -201,6 +295,9 @@ LOGICAL                    :: IsConverged
 #ifdef PP_HDG
 INTEGER(KIND=8)            :: iter=0
 #endif /*PP_HDG*/
+LOGICAL                    :: StopConv
+LOGICAL                    :: IsLost
+REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !===================================================================================================================================
 
 #ifdef PARTICLES
@@ -219,6 +316,11 @@ IF (t.GE.DelayTime) THEN
     AdaptIterRelaxation=AdaptIterRelaxation0
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN  
+        ! update the last part pos and element for particle movement
+        LastPartPos(iPart,1)=StagePartPos(iPart,1)
+        LastPartPos(iPart,2)=StagePartPos(iPart,2)
+        LastPartPos(iPart,3)=StagePartPos(iPart,3)
+        PEM%lastElement(iPart)=PEM%StageElement(iPart)
         tmpFac=(1.0-PartRelaxationFac)
         PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
         PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
@@ -281,6 +383,7 @@ END IF
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
 Norm_R=Norm_R0
 Norm_Diff=HUGE(1.0)
+Norm_Diff_old=HUGE(1.0)
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'Norm_R0',Norm_R0
 IF(FullEisenstatWalker.GT.0)THEN
   etaMax=0.9999
@@ -290,6 +393,9 @@ END IF
 
 nFullNewtonIter=0
 IsConverged=.FALSE.
+!IsLost=.FALSE.
+!StopConv=.FALSE.
+!Uold=0.
 DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   nFullNewtonIter = nFullNewtonIter+1
   IF(FullEisenstatWalker.GT.0)THEN
@@ -342,12 +448,22 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     ELSE
       relTolerancePart=eps2PartNewton
     END IF
+    !IF(StopConv) U=(0.3*Uold+1.1*U)
+    !IF(StopConv.AND..NOT.IsLost)THEN
+    !  IsLost=.TRUE.
+    !  StopConv=.FALSE.
+    !END IF
     CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
                        ,AbortTol_In=relTolerancePart)
     ! particle relaxation betweeen old and new position
     IF(DoPartRelaxation)THEN
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN  
+          ! update the last part pos and element for particle movement
+          LastPartPos(iPart,1)=StagePartPos(iPart,1)
+          LastPartPos(iPart,2)=StagePartPos(iPart,2)
+          LastPartPos(iPart,3)=StagePartPos(iPart,3)
+          PEM%lastElement(iPart)=PEM%StageElement(iPart)
           tmpFac=(1.0-PartRelaxationFac)
           PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
           PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
@@ -410,8 +526,46 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   CALL ImplicitNorm(tStage,coeff,Norm_R)
   IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
 
-  Norm_Diff=ABS(Norm_Rold-Norm_R)
-  IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(Norm_Diff.LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
+  Norm_Diff_old=Norm_Diff
+  Norm_Diff=Norm_Rold-Norm_R
+  IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
+
+
+  IF(nFullNewtonIter.GT.5)THEN
+    IF(ALMOSTZERO(Norm_Diff_old+Norm_Diff))THEN
+      SWRITE(UNIT_StdOut,'(A)') ' Convergence problem '
+      SWRITE(UNIT_StdOut,'(A,I10)')    ' Iteration          ', nFullNewtonIter
+      SWRITE(UNIT_StdOut,'(A,E24.15)') ' Old     Norm-Diff: ', Norm_Diff_old
+      SWRITE(UNIT_StdOut,'(A,E24.15)') ' Current Norm_Diff: ', Norm_Diff
+      !U=U+2.5*(U-Uold)
+      !U=U+2.5*(U-Uold)
+      !Uold=U
+      !Norm_Rold=Norm_R
+      !SWRITE(UNIT_StdOut,'(A,E24.15)') ' Old Norm:           ', Norm_Rold
+      !CALL ImplicitNorm(tStage,coeff,Norm_R)
+      !SWRITE(UNIT_StdOut,'(A,E24.15)') ' New Norm:           ', Norm_R
+      !Norm_Diff=Norm_Rold-Norm_R
+      !SWRITE(UNIT_StdOut,'(A,E24.15)') ' New Norm_Diff:      ', Norm_Diff
+      !IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
+      !IF((Norm_R.LT.Norm_R0*Eps2_FullNewton)) IsConverged=.TRUE.
+
+    !  IsConverged=.TRUE.
+    !  IF(IsLost.AND.StopConv)THEN
+    !    STOP 'fuck'
+    !  END IF
+    !  IF(.NOT.StopConv)THEN
+    !    Uold=U
+    !    StopConv=.TRUE.
+    !  END IF
+    ! ! SWRITE(UNIT_StdOut,'(A)') ' apply second iteration step'
+    !  !CALL ReIterationRHS(tStage,coeff) 
+    !ELSE
+    !  StopConv=.FALSE.
+    ELSE
+      Uold=U
+    END IF
+  END IF
+
   IF(DoPartRelaxation)THEN
     IF(MOD(nFullNewtonIter,AdaptIterRelaxation).EQ.0)THEN
       IF(Norm_Rold.GT.Norm_R)THEN
@@ -433,14 +587,14 @@ END DO ! funny pseudo Newton for all implicit
 !IF(PartRelaxationFac0.NE.0) DoPartRelaxation=.TRUE.
 
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
-IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
-  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
-  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' NormDiff and NormDiff/Norm_R0: ',Norm_Diff, Norm_Diff/Norm_R0
-  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
-  IF(MPIRoot) CALL abort(&
- __STAMP__&
-   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
-END IF
+!IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
+!  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
+!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' NormDiff and NormDiff/Norm_R0: ',Norm_Diff, Norm_Diff/Norm_R0
+!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
+!  IF(MPIRoot) CALL abort(&
+! __STAMP__&
+!   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
+!END IF
 
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
 

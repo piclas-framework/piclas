@@ -258,8 +258,16 @@ __STAMP__&
   ,' Cannot allocate PartIsImplicit arrays!')
 END IF
 PartIsImplicit=.FALSE.
+ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
+        ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate the stage position and element arrays!')
+END IF
+StagePartPos=0
+PEM%StageElement=0
 #endif
-
 
 IF(DoRefMapping)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
@@ -269,9 +277,7 @@ IF(DoRefMapping)THEN
   PartPosRef=-888.
 END IF
 
-
 ! predefine random vectors
-
 NumRanVec = GETINT('Particles-NumberOfRandomVectors','100000')
 IF ((usevMPF).OR.(useDSMC)) THEN
   ALLOCATE(RandomVec(NumRanVec, 3))

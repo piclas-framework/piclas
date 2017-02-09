@@ -112,7 +112,7 @@ SUBROUTINE SelectImplicitParticles()
 USE MOD_Globals
 USE MOD_Particle_Vars,     ONLY:Species,PartSpecies,PartIsImplicit,PDM,Pt,PartState
 USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
-USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter
+USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter,time
 USE MOD_Equation_Vars,     ONLY:c2_inv
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -127,6 +127,9 @@ REAL        :: NewVelo(3),Vabs,PartGamma
 !===================================================================================================================================
 
 PartIsImplicit=.FALSE.
+!IF(time.LT.3e-8)THEN
+!  RETURN
+!END IF
 SELECT CASE(PartImplicitMethod)
 CASE(0) ! depending on species
   DO iPart=1,PDM%ParticleVecLength
@@ -184,7 +187,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, StagePartPos,PEM, PDM, PartLorentzType
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
@@ -263,10 +266,15 @@ IF(opt)THEN ! compute zero state
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
-      PEM%lastElement(iPart)=PEM%Element(iPart)
+      LastPartPos(iPart,1)=StagePartPos(iPart,1)
+      LastPartPos(iPart,2)=StagePartPos(iPart,2)
+      LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      !! update the last part pos and element for particle movement
+      !LastPartPos(iPart,1)=PartState(iPart,1)
+      !LastPartPos(iPart,2)=PartState(iPart,2)
+      !LastPartPos(iPart,3)=PartState(iPart,3)
+      !PEM%lastElement(iPart)=PEM%Element(iPart)
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
       CASE(0)
@@ -308,10 +316,14 @@ ELSE
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
-      PEM%lastElement(iPart)=PEM%Element(iPart)
+      LastPartPos(iPart,1)=StagePartPos(iPart,1)
+      LastPartPos(iPart,2)=StagePartPos(iPart,2)
+      LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      !LastPartPos(iPart,1)=PartState(iPart,1)
+      !LastPartPos(iPart,2)=PartState(iPart,2)
+      !LastPartPos(iPart,3)=PartState(iPart,3)
+      !PEM%lastElement(iPart)=PEM%Element(iPart)
     END IF ! ParticleInside
   END DO ! iPart
 END IF
@@ -333,7 +345,7 @@ IF(DoPrintConvInfo)THEN
   !set T if at least 1 proc has to do newton
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
-  SWRITE(*,*) 'init part',Counter
+  SWRITE(*,*) ' Initial particle number in newton: ',Counter
 END IF
 
 AbortCritLinSolver=0.999
@@ -361,10 +373,10 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
       ! forbidden, because particle is NOT moved but has to be traced...
-      !DeltaX_Norm=DOT_PRODUCT(DeltaX,DeltaX)
-      !IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
-      !  DoPartInNewton(iPart)=.FALSE.
-      !END IF
+      DeltaX_Norm=DOT_PRODUCT(DeltaX,DeltaX)
+      IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
+        DoPartInNewton(iPart)=.FALSE.
+      END IF
     END IF ! ParticleInside
   END DO ! iPart
   ! closed form: now move particles
@@ -412,10 +424,14 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
-      PEM%lastElement(iPart)=PEM%Element(iPart)
+      LastPartPos(iPart,1)=StagePartPos(iPart,1)
+      LastPartPos(iPart,2)=StagePartPos(iPart,2)
+      LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      !LastPartPos(iPart,1)=PartState(iPart,1)
+      !LastPartPos(iPart,2)=PartState(iPart,2)
+      !LastPartPos(iPart,3)=PartState(iPart,3)
+      !PEM%lastElement(iPart)=PEM%Element(iPart)
       IF(MOD(nInnerPartNewton,FreezePartInNewton).EQ.0) CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
       CASE(0)
@@ -447,6 +463,7 @@ __STAMP__&
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
       IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
           DoPartInNewton(iPart)=.FALSE.
+      ELSE
       !IF(nInnerPartNewton.GT.20)THEN
       !  IPWRITE(*,*) 'blubb',iPart, Norm2_F_PartXK(iPart),Norm2_F_PartX0(iPart)
       !END IF
@@ -469,11 +486,27 @@ __STAMP__&
     !set T if at least 1 proc has to do newton
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
+    !IF(DoPrintConvInfo)THEN
+    !  SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
+    !END IF
   END IF
 END DO
 
 IF(DoPrintConvInfo)THEN
-  SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
+  IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
+    SWRITE(*,*) 'PartNewton-not done!',nInnerPartNewton,Counter
+    DO iPart=1,PDM%ParticleVecLength
+      IF(DoPartInNewton(iPart))THEN
+        SWRITE(*,*) ' Failed Particle: ',iPart
+        SWRITE(*,*) ' Failed Position: ',PartState(iPart,1:6)
+        SWRITE(*,*) ' relative Norm:   ',Norm2_F_PartXK(iPart)/Norm2_F_PartX0(iPart)
+        SWRITE(*,*) ' removing particle !   '
+        PDM%ParticleInside(iPart)=.FALSE.
+      END IF ! ParticleInside
+    END DO ! iPart
+  ELSE
+    SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
+  END IF
 END IF
 nPartNewton=nPartNewton+nInnerPartNewton
 !IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
@@ -534,13 +567,13 @@ tPMV=0.
 Restart=0
 nPartInnerIter=0
 !Un(:)=PartState(PartID,:)
-IF(iter.EQ.0) THEN
+!IF(iter.EQ.0) THEN
+!  AbortCrit=epsPartlinSolver
+!ELSE
+IF (.NOT.EisenstatWalker) THEN
   AbortCrit=epsPartlinSolver
-ELSE
-  IF (EisenstatWalker .eqv. .FALSE.) THEN
-    AbortCrit=epsPartlinSolver
-  END IF
 END IF
+!END IF
 AbortCrit=Norm_B*AbortCrit
 R0=B
 Norm_R0=Norm_B
@@ -593,6 +626,9 @@ DO WHILE (Restart<nRestarts)
       END DO !nn
       IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
+        IF(nPartInnerIter.GT.1)THEN
+        print*,'nPartInnerIter',nPartInnerIter
+        END IF
         ! already back transformed,...more storage...but its ok
 #ifdef DLINANALYZE
         CALL CPU_TIME(tE)

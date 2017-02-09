@@ -182,7 +182,7 @@ SUBROUTINE PartPredictor(iStage,dt,PartID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Vars,    ONLY: PartState
-USE MOD_Particle_Vars,    ONLY: PartStage, PartQ,PartStateN
+USE MOD_Particle_Vars,    ONLY: PartStage, PartQ,PartStateN,LastPartPos,PEM
 #if (PP_TimeDiscMethod==122)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
 #endif

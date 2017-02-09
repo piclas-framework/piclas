@@ -213,7 +213,6 @@ PartCommSize   = PartCommSize + 1
 PartCommSize0  = PartCommSize
 #endif /*IMEX or IMPA*/
 
-
 ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  & 
         , PartMPIExchange%nPartsRecv(2,PartMPI%nMPINeighbors)  &
         , PartRecvBuf(1:PartMPI%nMPINeighbors)                 &
@@ -1122,7 +1121,7 @@ USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Nor
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,StagePartPos
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1333,6 +1332,10 @@ DO iProc=1,PartMPI%nMPINeighbors
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! only for fully implicit
     PEM%lastElement(PartID) = PEM%Element(PartID)
+    PEM%StageElement(PartID)= PEM%Element(PartID)
+    StagePartPos(PartID,1)  = PartState(PartID,1)
+    StagePartPos(PartID,2)  = PartState(PartID,2)
+    StagePartPos(PartID,3)  = PartState(PartID,3)
 #endif
   END DO
   IF(DoExternalParts)THEN

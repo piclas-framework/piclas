@@ -413,6 +413,13 @@ DO !iter_t=0,MaxIter
 
   tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
   tEndDiff=tEnd-time            ! dito for end time
+
+  !IF(time.LT.3e-8)THEN
+  !    !RETURN
+  !ELSE
+  !  IF(time.GT.4e-8) dt_Min=MIN(dt_Min*1.2,2e-8)
+  !END IF
+
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
@@ -2731,6 +2738,7 @@ USE MOD_Predictor,               ONLY:Predictor,StorePredictor
 USE MOD_LinearSolver_Vars,       ONLY:LinSolverRHS
 USE MOD_Equation,                ONLY:DivCleaningDamping
 USE MOD_Equation,                ONLY:CalcSource
+USE MOD_TimeDisc_Vars,      ONLY: dt_Min
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
 #endif /*maxwell*/
@@ -2740,14 +2748,14 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
 USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
-USE MOD_Predictor,               ONLY:PartPredictor
+USE MOD_Predictor,               ONLY:PartPredictor,PredictorType
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType, doParticleMerge,PartPressureCell
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species,nSpecies
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux, StagePartPos
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
@@ -3144,6 +3152,11 @@ DO iStage=2,nRKStages
   IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN
+        ! old position of stage
+        StagePartPos(iPart,1)=PartState(iPart,1)
+        StagePartPos(iPart,2)=PartState(iPart,2)
+        StagePartPos(iPart,3)=PartState(iPart,3)
+        PEM%StageElement(iPart)=PEM%Element(iPart)
         LastPartPos(iPart,1)=PartState(iPart,1)
         LastPartPos(iPart,2)=PartState(iPart,2)
         LastPartPos(iPart,3)=PartState(iPart,3)
@@ -3158,6 +3171,43 @@ DO iStage=2,nRKStages
         CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
       END IF ! PartIsImplicit
     END DO ! iPart
+    IF(PredictorType.GT.0)THEN
+#ifdef MPI
+      ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
+      ! open receive buffer for number of particles
+      CALL IRecvNbofParticles()
+#endif /*MPI*/
+      IF(DoRefMapping)THEN
+        ! tracking routines has to be extended for optional flag, like deposition
+        !CALL ParticleRefTracking()
+        CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      ELSE
+        !CALL ParticleTracing()
+        CALL ParticleTracing(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      END IF
+#ifdef MPI
+      ! send number of particles
+      CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      !CALL SendNbOfParticles() ! all particles to get initial deposition right \\ without emmission
+      ! finish communication of number of particles and send particles
+      CALL MPIParticleSend()
+      ! finish communication
+      CALL MPIParticleRecv()
+      PartMPIExchange%nMPIParticles=0
+      IF(DoExternalParts)THEN
+        ! as we do not have the shape function here, we have to deallocate something
+        SDEALLOCATE(ExtPartState)
+        SDEALLOCATE(ExtPartSpecies)
+        SDEALLOCATE(ExtPartToFIBGM)
+        SDEALLOCATE(ExtPartMPF)
+      END IF
+#endif
+      DO iPart=1,PDM%ParticleVecLength
+        IF(PartIsImplicit(iPart))THEN
+          IF(.NOT.PDM%ParticleInside(iPart)) PartIsImplicit(iPart)=.FALSE.
+        END IF ! PartIsImplicit
+      END DO ! iPart
+    END IF
   END IF
 #endif /*PARTICLES*/
   ! full newton for particles and fields
