@@ -637,7 +637,7 @@ DO WHILE (Restart<nRestarts)
       IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
         IF(nPartInnerIter.GT.1)THEN
-        print*,'nPartInnerIter',nPartInnerIter
+        print*,'nPartInnerIter - in GMRES',nPartInnerIter
         END IF
         ! already back transformed,...more storage...but its ok
 #ifdef DLINANALYZE
@@ -733,17 +733,25 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(iPart,2)=StagePartPos(iPart,2)
     LastPartPos(iPart,3)=StagePartPos(iPart,3)
     PEM%lastElement(iPart)=PEM%StageElement(iPart)
-    ! check convergence
-    CALL PartMatrixVector(t,Coeff,iPart,PartDeltaX(:,iPart),Xtilde) ! coeff*Ut+Source^n+1 ! only output
-    XTilde=XTilde+F_PartXK(:,iPart)
-    CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
-    print*,'testing',Norm2_PartX/Norm2_F_PartXK(iPart),Aborttol
-    IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart)) CALL abort(&
+    ! check if particle has moved
+    CALL PartVectorDotProduct(PartDeltaX(:,iPart),PartDeltaX(:,iPart),Norm2_PartX)
+    IF(Norm2_PartX.LT.AbortTol*AbortTol)THEN
+      PartLambdaAccept(iPart)=.TRUE.
+    ELSE
+      ! check convergence
+      CALL PartMatrixVector(t,Coeff,iPart,PartDeltaX(:,iPart),Xtilde) ! coeff*Ut+Source^n+1 ! only output
+      XTilde=XTilde+F_PartXK(:,iPart)
+      CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
+      IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
+        print*,Norm2_PartX/Norm2_F_PartXk(iPart)
+        CALL abort(&
 __STAMP__&
-,' wrong search direction!')
-    PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
-    PartLambdaAccept(iPart)=.FALSE.
-    iCounter=iCounter+1
+,' wrong search direction! ') 
+      END IF
+      PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
+      PartLambdaAccept(iPart)=.FALSE.
+      iCounter=iCounter+1
+    END IF
   END IF ! ParticleInside
 END DO ! iPart
 print*,'iCounters',iCounter
@@ -842,10 +850,11 @@ print*,'DoSetLambda',DoSetLambda
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
 #endif /*MPI*/
 
-nLambdaReduce=1
+RETURN
+  nLambdaReduce=1
 DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   nLambdaReduce=nLambdaReduce+1
-  lambda=0.5*lambda
+  lambda=0.2*lambda
   print*,'lambda', lambda
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
@@ -944,10 +953,17 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     IF(.NOT.PartLambdaAccept(iPart))THEN
       PartLambdaAccept(iPart)=.FALSE.
       iCounter=iCounter+1
+      IF(nLambdaReduce.GT.1)THEN
+        CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
+        print*,'Norm2_PartX',Norm2_PartX
+        print*,'norm-fcurrent',Norm2_F_PartXK(iPart)
+        print*,'norm-fold',Norm2_F_PartX0(iPart)
+        print*,Norm2_PartX/(1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart)
+      END IF
     END IF ! ParticleInside
   END DO ! iPart
   print*,'iCounters',iCounter
-
+  read*
 END DO
 
 END SUBROUTINE Particle_Armijo
