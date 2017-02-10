@@ -42,6 +42,8 @@ REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
 #endif
 #ifdef IMPA
+REAL    , ALLOCATABLE :: PartDeltaX(:,:)                                     ! Change of particle during Newton step
+LOGICAL , ALLOCATABLE :: PartLambdaAccept(:)                                 ! Accept particle search direction
 REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
 ! Newton iteration
 REAL    , ALLOCATABLE :: F_PartX0(:,:)                                       ! Particle function evaluated at t^0

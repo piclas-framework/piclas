@@ -242,6 +242,18 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,'Cannot allocate Norm2_F_PartXk_old arrays!')
 END IF
+ALLOCATE(PartDeltaX(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartDeltaX arrays!')
+END IF
+ALLOCATE(PartLambdaAccept(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartLambdaAccept arrays!')
+END IF
 ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
