@@ -349,14 +349,14 @@ IF(DoPrintConvInfo)THEN
 END IF
 
 AbortCritLinSolver=0.999
-nInnerPartNewton=-1
+nInnerPartNewton=0
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
   !SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! set abort crit      
-      IF (nInnerPartNewton.EQ.0) THEN
+      IF (nInnerPartNewton.EQ.1) THEN
         AbortCritLinSolver=0.999
       ELSE
         gammaA = PartgammaEW*(Norm2_F_PartXk(iPart))/(Norm2_F_PartXk_old(iPart))
@@ -382,7 +382,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
   END DO ! iPart
 
   ! DeltaX is going to be global
-  CALL Particle_Armijo(t,coeff,AbortTol) 
+  CALL Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton) 
 
   ! already done in particle armijo
 
@@ -675,7 +675,8 @@ __STAMP__&
 
 END SUBROUTINE Particle_GMRES
 
-SUBROUTINE Particle_Armijo(t,coeff,AbortTol) 
+
+SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton) 
 !===================================================================================================================================
 ! an intermediate Armijo step to ensure global convergence
 ! search direction is d = - F'(U)^-1 F(U), e.g. result of Newton-Step
@@ -710,19 +711,20 @@ IMPLICIT NONE
 REAL,INTENT(IN)              :: t
 REAL,INTENT(IN)              :: coeff
 REAL,INTENT(IN)              :: AbortTol
+INTEGER,INTENT(IN)           :: nInnerPartNewton
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: iPart,iCounter,iCounter2
-REAL                         :: lambda, Norm2_PartX
+REAL                         :: lambda, Norm2_PartX,DeltaX_Norm
 REAL                         :: LorentzFacInv,Xtilde(1:6)
 LOGICAL                      :: DoSetLambda
 INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=50
 !===================================================================================================================================
 
 lambda=1.
-print*,'lambda', lambda
+print*,'lambda and netwon iter', lambda, nInnerPartNewton
 DoSetLambda=.TRUE.
 iCounter=0
 PartLambdaAccept=.TRUE.
@@ -733,28 +735,39 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(iPart,2)=StagePartPos(iPart,2)
     LastPartPos(iPart,3)=StagePartPos(iPart,3)
     PEM%lastElement(iPart)=PEM%StageElement(iPart)
-    ! check if particle has moved
-    CALL PartVectorDotProduct(PartDeltaX(:,iPart),PartDeltaX(:,iPart),Norm2_PartX)
-    IF(Norm2_PartX.LT.AbortTol*AbortTol)THEN
-      PartLambdaAccept(iPart)=.TRUE.
-    ELSE
-      ! check convergence
-      CALL PartMatrixVector(t,Coeff,iPart,PartDeltaX(:,iPart),Xtilde) ! coeff*Ut+Source^n+1 ! only output
-      XTilde=XTilde+F_PartXK(:,iPart)
-      CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
-      IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
-        print*,Norm2_PartX/Norm2_F_PartXk(iPart)
-        CALL abort(&
+    ! update particle position
+    !PartXK(1:6,iPart)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+    !PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+    ! to not check amout of particle movement
+    ! this cannot be done here, because the particle has to be 
+    ! moved and communicated, if required, hence, it is commented out
+!    ! not YET !!!
+!    DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
+!    IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
+!      DoPartInNewton(iPart)=.FALSE.
+!    ELSE
+!      PartLambdaAccept(iPart)=.FALSE.
+!      iCounter=iCounter+1
+!    END IF
+    ! new part: of Armijo algorithm: check convergence
+    ! compute new function value
+    CALL PartMatrixVector(t,Coeff,iPart,PartDeltaX(:,iPart),Xtilde) ! coeff*Ut+Source^n+1 ! only output
+    XTilde=XTilde+F_PartXK(1:6,iPart)
+    CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
+    IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
+      Norm2_PartX = Norm2_PartX/Norm2_F_PartXk(iPart)
+      CALL abort(&
 __STAMP__&
-,' wrong search direction! ') 
-      END IF
-      PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
-      PartLambdaAccept(iPart)=.FALSE.
-      iCounter=iCounter+1
+,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
     END IF
+    ! update position
+    PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+    PartLambdaAccept(iPart)=.FALSE.
+    iCounter=iCounter+1
   END IF ! ParticleInside
 END DO ! iPart
 print*,'iCounters',iCounter
+print*,'part-alpah',Part_alpha
 
 ! move particle
 #ifdef MPI
@@ -817,15 +830,39 @@ __STAMP__&
     R_PartXK(4,iPart)=Pt(iPart,1)
     R_PartXK(5,iPart)=Pt(iPart,2)
     R_PartXK(6,iPart)=Pt(iPart,3)
-    F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
-    ! vector dot product 
-    CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
-    IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
-      PartLambdaAccept(iPart)=.TRUE.
-      Norm2_F_PartXK(iPart)=Norm2_PartX
-      PartXK(:,iPart)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
-      IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
-          DoPartInNewton(iPart)=.FALSE.
+    F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - coeff*R_PartXK(1:6,iPart)
+    ! if check, then here!
+    DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
+    IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
+       DoPartInNewton(iPart)=.FALSE.
+       PartLambdaAccept(iPart)=.TRUE.
+       PartXK(1:6,iPart)=PartState(iPart,1:6)
+    ELSE
+!      IF(nInnerPartNewton.EQ.1)THEN
+!        ! accept lambda
+!        PartLambdaAccept(iPart)=.TRUE.
+!        ! set  new position
+!        PartXK(1:6,iPart)=PartState(iPart,1:6)
+!        ! update norm
+!        CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
+!        Norm2_F_PartXK(iPart)=Norm2_PartX
+!        IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+!            DoPartInNewton(iPart)=.FALSE.
+!      ELSE
+        ! check if residual is reduced
+        CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
+        IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
+          ! accept lambda
+          PartLambdaAccept(iPart)=.TRUE.
+          ! set  new position
+          PartXK(1:6,iPart)=PartState(iPart,1:6)
+          Norm2_F_PartXK(iPart)=Norm2_PartX
+          IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+              DoPartInNewton(iPart)=.FALSE.
+        ELSE
+
+        END IF
+!     END IF ! nInnerPartNewton>1
     END IF
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
@@ -850,11 +887,10 @@ print*,'DoSetLambda',DoSetLambda
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
 #endif /*MPI*/
 
-RETURN
-  nLambdaReduce=1
+nLambdaReduce=1
 DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   nLambdaReduce=nLambdaReduce+1
-  lambda=0.2*lambda
+  lambda=0.1*lambda
   print*,'lambda', lambda
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
@@ -933,9 +969,11 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
       IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
+        ! accept lambda
         PartLambdaAccept(iPart)=.TRUE.
+        ! set  new position
+        PartXK(1:6,iPart)=PartState(iPart,1:6)
         Norm2_F_PartXK(iPart)=Norm2_PartX
-        PartXK(:,iPart)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
         IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
           DoPartInNewton(iPart)=.FALSE.
       END IF
@@ -953,17 +991,16 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     IF(.NOT.PartLambdaAccept(iPart))THEN
       PartLambdaAccept(iPart)=.FALSE.
       iCounter=iCounter+1
-      IF(nLambdaReduce.GT.1)THEN
-        CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
-        print*,'Norm2_PartX',Norm2_PartX
-        print*,'norm-fcurrent',Norm2_F_PartXK(iPart)
-        print*,'norm-fold',Norm2_F_PartX0(iPart)
-        print*,Norm2_PartX/(1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart)
-      END IF
+!      IF(nLambdaReduce.GT.1)THEN
+!        CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
+!        print*,'Norm2_PartX',Norm2_PartX
+!        print*,'norm-fcurrent',Norm2_F_PartXK(iPart)
+!        print*,'norm-fold',Norm2_F_PartX0(iPart)
+!        print*,Norm2_PartX/(1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart)
+!      END IF
     END IF ! ParticleInside
   END DO ! iPart
-  print*,'iCounters',iCounter
-  read*
+  print*,'iCounters-in setting',iCounter
 END DO
 
 END SUBROUTINE Particle_Armijo

@@ -209,6 +209,8 @@ PartCommSize   = PartCommSize+1
 ! IsNewPart for Surface-Flux: particle are always killed after suface-flux-emission
 PartCommSize   = PartCommSize + 1 
 #endif
+! communicate deltaX
+PartCommSize   = PartCommSize + 6
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
 #endif /*IMEX or IMPA*/
@@ -562,7 +564,8 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #if defined(IMPA)
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
+                                     ,PartDeltaX
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
@@ -731,6 +734,8 @@ DO iProc=1, PartMPI%nMPINeighbors
 #endif /*no IMEX */
 #if defined(IMPA)
       ! required for particle newton && closed particle description
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartDeltaX(1:6,iPart)
+      jPos=jPos+6
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartXK(1:6,iPart)
       jPos=jPos+6
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = R_PartXK(1:6,iPart)
@@ -1117,7 +1122,8 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
+                                     ,PartDeltaX
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -1231,6 +1237,8 @@ DO iProc=1,PartMPI%nMPINeighbors
 #endif /*PP_TimeDiscMethod!=110*/
 #endif /*IMEX*/ 
 #if defined(IMPA)
+    PartDeltaX(1:6,PartID)     = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
     PartXK(1:6,PartID)         = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6
     R_PartXK(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
