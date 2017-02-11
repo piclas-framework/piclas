@@ -211,6 +211,8 @@ PartCommSize   = PartCommSize + 1
 #endif
 ! communicate deltaX
 PartCommSize   = PartCommSize + 6
+! and PartAcceptLambda
+PartCommSize   = PartCommSize + 1
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
 #endif /*IMEX or IMPA*/
@@ -565,7 +567,7 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
-                                     ,PartDeltaX
+                                     ,PartDeltaX,PartLambdaAccept
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
@@ -735,7 +737,12 @@ DO iProc=1, PartMPI%nMPINeighbors
 #if defined(IMPA)
       ! required for particle newton && closed particle description
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartDeltaX(1:6,iPart)
-      jPos=jPos+6
+      IF (PartLambdaAccept(iPart)) THEN
+        PartSendBuf(iProc)%content(14+jPos) = 1.
+      ELSE
+        PartSendBuf(iProc)%content(14+jPos) = 0.
+      END IF
+      jPos=jPos+7
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartXK(1:6,iPart)
       jPos=jPos+6
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = R_PartXK(1:6,iPart)
@@ -1123,11 +1130,11 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
-                                     ,PartDeltaX
+                                     ,PartDeltaX,PartLambdaAccept
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit !,StagePartPos
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1238,7 +1245,12 @@ DO iProc=1,PartMPI%nMPINeighbors
 #endif /*IMEX*/ 
 #if defined(IMPA)
     PartDeltaX(1:6,PartID)     = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
-    jPos=jPos+6
+    IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 1) THEN
+      PartLambdaAccept(PartID)=.TRUE.
+    ELSE IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 0) THEN
+      PartLambdaAccept(PartID)=.FALSE.
+    END IF
+    jPos=jPos+7
     PartXK(1:6,PartID)         = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6
     R_PartXK(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
@@ -1340,10 +1352,10 @@ DO iProc=1,PartMPI%nMPINeighbors
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! only for fully implicit
     PEM%lastElement(PartID) = PEM%Element(PartID)
-    PEM%StageElement(PartID)= PEM%Element(PartID)
-    StagePartPos(PartID,1)  = PartState(PartID,1)
-    StagePartPos(PartID,2)  = PartState(PartID,2)
-    StagePartPos(PartID,3)  = PartState(PartID,3)
+!    PEM%StageElement(PartID)= PEM%Element(PartID)
+!    StagePartPos(PartID,1)  = PartState(PartID,1)
+!    StagePartPos(PartID,2)  = PartState(PartID,2)
+!    StagePartPos(PartID,3)  = PartState(PartID,3)
 #endif
   END DO
   IF(DoExternalParts)THEN

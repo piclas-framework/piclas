@@ -270,15 +270,15 @@ __STAMP__&
   ,' Cannot allocate PartIsImplicit arrays!')
 END IF
 PartIsImplicit=.FALSE.
-ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
-        ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate the stage position and element arrays!')
-END IF
-StagePartPos=0
-PEM%StageElement=0
+! ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
+!         ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
+! IF (ALLOCSTAT.NE.0) THEN
+!   CALL abort(&
+! __STAMP__&
+!   ,' Cannot allocate the stage position and element arrays!')
+! END IF
+! StagePartPos=0
+! PEM%StageElement=0
 #endif
 
 IF(DoRefMapping)THEN

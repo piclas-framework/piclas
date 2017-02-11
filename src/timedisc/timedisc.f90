@@ -2755,7 +2755,7 @@ USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species,nSpecies
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux, StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux!, StagePartPos
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
@@ -3153,10 +3153,10 @@ DO iStage=2,nRKStages
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN
         ! old position of stage
-        StagePartPos(iPart,1)=PartState(iPart,1)
-        StagePartPos(iPart,2)=PartState(iPart,2)
-        StagePartPos(iPart,3)=PartState(iPart,3)
-        PEM%StageElement(iPart)=PEM%Element(iPart)
+        ! StagePartPos(iPart,1)=PartState(iPart,1)
+        ! StagePartPos(iPart,2)=PartState(iPart,2)
+        ! StagePartPos(iPart,3)=PartState(iPart,3)
+        ! PEM%StageElement(iPart)=PEM%Element(iPart)
         LastPartPos(iPart,1)=PartState(iPart,1)
         LastPartPos(iPart,2)=PartState(iPart,2)
         LastPartPos(iPart,3)=PartState(iPart,3)

@@ -257,7 +257,7 @@ USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage
-USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM,StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM !,StagePartPos
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
@@ -317,10 +317,14 @@ IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN  
         ! update the last part pos and element for particle movement
-        LastPartPos(iPart,1)=StagePartPos(iPart,1)
-        LastPartPos(iPart,2)=StagePartPos(iPart,2)
-        LastPartPos(iPart,3)=StagePartPos(iPart,3)
-        PEM%lastElement(iPart)=PEM%StageElement(iPart)
+        !LastPartPos(iPart,1)=StagePartPos(iPart,1)
+        !LastPartPos(iPart,2)=StagePartPos(iPart,2)
+        !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+        !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        PEM%lastElement(iPart)=PEM%Element(iPart)
         tmpFac=(1.0-PartRelaxationFac)
         PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
         PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
@@ -460,10 +464,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN  
           ! update the last part pos and element for particle movement
-          LastPartPos(iPart,1)=StagePartPos(iPart,1)
-          LastPartPos(iPart,2)=StagePartPos(iPart,2)
-          LastPartPos(iPart,3)=StagePartPos(iPart,3)
-          PEM%lastElement(iPart)=PEM%StageElement(iPart)
+          !LastPartPos(iPart,1)=StagePartPos(iPart,1)
+          !LastPartPos(iPart,2)=StagePartPos(iPart,2)
+          !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+          !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+          LastPartPos(iPart,1)=PartState(iPart,1)
+          LastPartPos(iPart,2)=PartState(iPart,2)
+          LastPartPos(iPart,3)=PartState(iPart,3)
+          PEM%lastElement(iPart)=PEM%Element(iPart)
           tmpFac=(1.0-PartRelaxationFac)
           PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
           PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)

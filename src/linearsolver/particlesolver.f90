@@ -187,7 +187,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, StagePartPos,PEM, PDM, PartLorentzType,PartDeltaX
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX ! ,StagePartPos
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
@@ -266,15 +266,15 @@ IF(opt)THEN ! compute zero state
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=StagePartPos(iPart,1)
-      LastPartPos(iPart,2)=StagePartPos(iPart,2)
-      LastPartPos(iPart,3)=StagePartPos(iPart,3)
-      PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      !LastPartPos(iPart,1)=StagePartPos(iPart,1)
+      !LastPartPos(iPart,2)=StagePartPos(iPart,2)
+      !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      !PEM%lastElement(iPart)=PEM%StageElement(iPart)
       !! update the last part pos and element for particle movement
-      !LastPartPos(iPart,1)=PartState(iPart,1)
-      !LastPartPos(iPart,2)=PartState(iPart,2)
-      !LastPartPos(iPart,3)=PartState(iPart,3)
-      !PEM%lastElement(iPart)=PEM%Element(iPart)
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
       CASE(0)
@@ -316,14 +316,14 @@ ELSE
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=StagePartPos(iPart,1)
-      LastPartPos(iPart,2)=StagePartPos(iPart,2)
-      LastPartPos(iPart,3)=StagePartPos(iPart,3)
-      PEM%lastElement(iPart)=PEM%StageElement(iPart)
-      !LastPartPos(iPart,1)=PartState(iPart,1)
-      !LastPartPos(iPart,2)=PartState(iPart,2)
-      !LastPartPos(iPart,3)=PartState(iPart,3)
-      !PEM%lastElement(iPart)=PEM%Element(iPart)
+      !LastPartPos(iPart,1)=StagePartPos(iPart,1)
+      !LastPartPos(iPart,2)=StagePartPos(iPart,2)
+      !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
     END IF ! ParticleInside
   END DO ! iPart
 END IF
@@ -688,7 +688,7 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 USE MOD_Globals
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm2_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
-                                     ,PartDeltaX,PEM,PDM,LastPartPos,StagePartPos,Pt,Norm2_F_PartX0
+                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm2_F_PartX0 !,StagePartPos
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
 USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -731,10 +731,14 @@ PartLambdaAccept=.TRUE.
 DO iPart=1,PDM%ParticleVecLength
   IF(DoPartInNewton(iPart))THEN
     ! update the last part pos and element for particle movement
-    LastPartPos(iPart,1)=StagePartPos(iPart,1)
-    LastPartPos(iPart,2)=StagePartPos(iPart,2)
-    LastPartPos(iPart,3)=StagePartPos(iPart,3)
-    PEM%lastElement(iPart)=PEM%StageElement(iPart)
+    !LastPartPos(iPart,1)=StagePartPos(iPart,1)
+    !LastPartPos(iPart,2)=StagePartPos(iPart,2)
+    !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+    !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+    LastPartPos(iPart,1)=PartState(iPart,1)
+    LastPartPos(iPart,2)=PartState(iPart,2)
+    LastPartPos(iPart,3)=PartState(iPart,3)
+    PEM%lastElement(iPart)=PEM%Element(iPart)
     ! update particle position
     !PartXK(1:6,iPart)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
     !PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
@@ -838,17 +842,17 @@ __STAMP__&
        PartLambdaAccept(iPart)=.TRUE.
        PartXK(1:6,iPart)=PartState(iPart,1:6)
     ELSE
-!      IF(nInnerPartNewton.EQ.1)THEN
-!        ! accept lambda
-!        PartLambdaAccept(iPart)=.TRUE.
-!        ! set  new position
-!        PartXK(1:6,iPart)=PartState(iPart,1:6)
-!        ! update norm
-!        CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
-!        Norm2_F_PartXK(iPart)=Norm2_PartX
-!        IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
-!            DoPartInNewton(iPart)=.FALSE.
-!      ELSE
+      IF(nInnerPartNewton.EQ.1)THEN
+        ! accept lambda
+        PartLambdaAccept(iPart)=.TRUE.
+        ! set  new position
+        PartXK(1:6,iPart)=PartState(iPart,1:6)
+        ! update norm
+        CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
+        Norm2_F_PartXK(iPart)=Norm2_PartX
+        IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+            DoPartInNewton(iPart)=.FALSE.
+      ELSE
         ! check if residual is reduced
         CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
         IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
@@ -862,7 +866,7 @@ __STAMP__&
         ELSE
 
         END IF
-!     END IF ! nInnerPartNewton>1
+      END IF ! nInnerPartNewton>1
     END IF
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
@@ -895,10 +899,14 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=StagePartPos(iPart,1)
-      LastPartPos(iPart,2)=StagePartPos(iPart,2)
-      LastPartPos(iPart,3)=StagePartPos(iPart,3)
-      PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      !LastPartPos(iPart,1)=StagePartPos(iPart,1)
+      !LastPartPos(iPart,2)=StagePartPos(iPart,2)
+      !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
       PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
       PartLambdaAccept(iPart)=.FALSE.
     END IF ! ParticleInside
