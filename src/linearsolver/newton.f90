@@ -54,16 +54,17 @@ USE MOD_Equation,                ONLY:CalcSourceHDG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES 
-REAL,INTENT(IN)        :: t
-REAL,INTENT(IN)        :: coeff
+REAL,INTENT(IN)            :: t
+REAL,INTENT(IN)            :: coeff
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)       :: Norm_R
+REAL,INTENT(OUT)           :: Norm_R
+!REAL,INTENT(OUT),OPTIONAL  :: F_old(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                   :: DeltaX ! difference between electric field and div-correction
-INTEGER                :: iElem, i,j,k,iVar
-REAL                   :: Norm_e, rTmp(1:8), locMass
+REAL                       :: DeltaX ! difference between electric field and div-correction
+INTEGER                    :: iElem, i,j,k,iVar
+REAL                       :: Norm_e, rTmp(1:8), locMass
 !===================================================================================================================================
 
 #ifndef PP_HDG
@@ -92,6 +93,7 @@ DO iElem=1,PP_nElems
                          - rTmp(iVar)*U(iVar,i,j,k,iElem)           &
                          +     coeff*Ut(iVar,i,j,k,iElem)           &
                          + coeff*ImplicitSource(iVar,i,j,k,iElem)   )
+          !IF(PRESENT(F_old)) F_old(iVar,i,j,k,iElem)=DeltaX
           Norm_e = Norm_e + DeltaX*DeltaX
         END DO ! iVar=1,PP_nVar
       END DO ! i=0,PP_N
@@ -114,6 +116,7 @@ DO iElem=1,PP_nElems
       DO i=0,PP_N
         DO iVar=1,PP_nVar
           DeltaX=U(iVar,i,j,k,iElem)+ImplicitSource(iVar,i,j,k,iElem)
+          !IF(PRESENT(F_old)) F_old(iVar,i,j,k,iElem)=DeltaX
           Norm_e = Norm_e + DeltaX*DeltaX
         END DO ! iVar=1,PP_nVar
       END DO ! i=0,PP_N
@@ -241,6 +244,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
+USE MOD_Equation_Vars,           ONLY:c_inv
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else
@@ -298,6 +302,10 @@ INTEGER(KIND=8)            :: iter=0
 LOGICAL                    :: StopConv
 LOGICAL                    :: IsLost
 REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                       :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                       :: Lambda ! Armijo rule
+INTEGER                    :: nArmijo, nMaxArmijo=10
+!REAL                       :: F_Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !===================================================================================================================================
 
 #ifdef PARTICLES
@@ -307,45 +315,46 @@ IF (t.GE.DelayTime) THEN
   ELSE
     relTolerancePart=eps2PartNewton
   END IF
-  ! now, we have an initial guess for the field  can compute the first particle movement
-  CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
-                     ,AbortTol_In=relTolerancePart)
-  PartRelaxationFac = PartRelaxationFac0
-  ! particle relaxation betweeen old and new position
-  IF(DoPartRelaxation)THEN
-    AdaptIterRelaxation=AdaptIterRelaxation0
-    DO iPart=1,PDM%ParticleVecLength
-      IF(PartIsImplicit(iPart))THEN  
-        ! update the last part pos and element for particle movement
-        !LastPartPos(iPart,1)=StagePartPos(iPart,1)
-        !LastPartPos(iPart,2)=StagePartPos(iPart,2)
-        !LastPartPos(iPart,3)=StagePartPos(iPart,3)
-        !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-        LastPartPos(iPart,1)=PartState(iPart,1)
-        LastPartPos(iPart,2)=PartState(iPart,2)
-        LastPartPos(iPart,3)=PartState(iPart,3)
-        PEM%lastElement(iPart)=PEM%Element(iPart)
-        tmpFac=(1.0-PartRelaxationFac)
-        PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
-        PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
-        PartState(iPart,3)=PartRelaxationFac*PartState(iPart,3)+tmpFac*PartStateN(iPart,3)
-        PartState(iPart,4)=PartRelaxationFac*PartState(iPart,4)+tmpFac*PartStateN(iPart,4)
-        PartState(iPart,5)=PartRelaxationFac*PartState(iPart,5)+tmpFac*PartStateN(iPart,5)
-        PartState(iPart,6)=PartRelaxationFac*PartState(iPart,6)+tmpFac*PartStateN(iPart,6)
-        DO iCounter=1,iStage-1
-          tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
-          PartState(iPart,1) = PartState(iPart,1) + tmpFac*PartStage(iPart,1,iCounter)
-          PartState(iPart,2) = PartState(iPart,2) + tmpFac*PartStage(iPart,2,iCounter)
-          PartState(iPart,3) = PartState(iPart,3) + tmpFac*PartStage(iPart,3,iCounter)
-          PartState(iPart,4) = PartState(iPart,4) + tmpFac*PartStage(iPart,4,iCounter)
-          PartState(iPart,5) = PartState(iPart,5) + tmpFac*PartStage(iPart,5,iCounter)
-          PartState(iPart,6) = PartState(iPart,6) + tmpFac*PartStage(iPart,6,iCounter)
-        END DO
-      END IF ! ParticleInside
-    END DO ! iPart
-  END IF ! PartRelaxationFac>0
-  ! move particle, if not already done, here, a reduced list could be again used, but a different list...
-  ! required to get the correct deposition
+END IF
+!  ! now, we have an initial guess for the field  can compute the first particle movement
+!  CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+!                     ,AbortTol_In=relTolerancePart)
+!  PartRelaxationFac = PartRelaxationFac0
+!  ! particle relaxation betweeen old and new position
+!  IF(DoPartRelaxation)THEN
+!    AdaptIterRelaxation=AdaptIterRelaxation0
+!    DO iPart=1,PDM%ParticleVecLength
+!      IF(PartIsImplicit(iPart))THEN  
+!        ! update the last part pos and element for particle movement
+!        !LastPartPos(iPart,1)=StagePartPos(iPart,1)
+!        !LastPartPos(iPart,2)=StagePartPos(iPart,2)
+!        !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+!        !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+!        LastPartPos(iPart,1)=PartState(iPart,1)
+!        LastPartPos(iPart,2)=PartState(iPart,2)
+!        LastPartPos(iPart,3)=PartState(iPart,3)
+!        PEM%lastElement(iPart)=PEM%Element(iPart)
+!        tmpFac=(1.0-PartRelaxationFac)
+!        PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
+!        PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
+!        PartState(iPart,3)=PartRelaxationFac*PartState(iPart,3)+tmpFac*PartStateN(iPart,3)
+!        PartState(iPart,4)=PartRelaxationFac*PartState(iPart,4)+tmpFac*PartStateN(iPart,4)
+!        PartState(iPart,5)=PartRelaxationFac*PartState(iPart,5)+tmpFac*PartStateN(iPart,5)
+!        PartState(iPart,6)=PartRelaxationFac*PartState(iPart,6)+tmpFac*PartStateN(iPart,6)
+!        DO iCounter=1,iStage-1
+!          tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
+!          PartState(iPart,1) = PartState(iPart,1) + tmpFac*PartStage(iPart,1,iCounter)
+!          PartState(iPart,2) = PartState(iPart,2) + tmpFac*PartStage(iPart,2,iCounter)
+!          PartState(iPart,3) = PartState(iPart,3) + tmpFac*PartStage(iPart,3,iCounter)
+!          PartState(iPart,4) = PartState(iPart,4) + tmpFac*PartStage(iPart,4,iCounter)
+!          PartState(iPart,5) = PartState(iPart,5) + tmpFac*PartStage(iPart,5,iCounter)
+!          PartState(iPart,6) = PartState(iPart,6) + tmpFac*PartStage(iPart,6,iCounter)
+!        END DO
+!      END IF ! ParticleInside
+!    END DO ! iPart
+!  END IF ! PartRelaxationFac>0
+!  ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+!  ! required to get the correct deposition
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
@@ -381,7 +390,7 @@ IF (t.GE.DelayTime) THEN
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-END IF
+!END IF
 #endif /*PARTICLES*/
 
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
@@ -402,6 +411,8 @@ IsConverged=.FALSE.
 !Uold=0.
 DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   nFullNewtonIter = nFullNewtonIter+1
+  SWRITE(*,*) '---------------------------'
+  SWRITE(*,*) 'iteration', nFullNewtonIter
   IF(FullEisenstatWalker.GT.0)THEN
     IF(nFullNewtonIter.EQ.1)THEN
       !etaA=etaMax
@@ -427,36 +438,15 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ELSE
     relTolerance=eps_LinearSolver
   END IF
-  ! solve field to new stage 
-  ImplicitSource=ExplicitSource
-#ifndef PP_HDG
-  CALL LinearSolver(tStage,coeff,relTolerance)
-#else
-  CALL HDG(tStage,U,iter)
-#endif /*HDG*/
 
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
-    !DO iPart=1,PDM%ParticleVecLength
-    !  IF(PartIsImplicit(iPart))THEN
-    !    LastPartPos(iPart,1)=PartState(iPart,1)
-    !    LastPartPos(iPart,2)=PartState(iPart,2)
-    !    LastPartPos(iPart,3)=PartState(iPart,3)
-    !    PEM%lastElement(iPart)=PEM%Element(iPart)
-    !  END IF ! PartIsImplicit
-    !END DO ! iPart
-
     ! now, we have an initial guess for the field  can compute the first particle movement
     IF(FullEisenstatWalker.GT.1)THEN
       relTolerancePart=relTolerance*relTolerance
     ELSE
       relTolerancePart=eps2PartNewton
     END IF
-    !IF(StopConv) U=(0.3*Uold+1.1*U)
-    !IF(StopConv.AND..NOT.IsLost)THEN
-    !  IsLost=.TRUE.
-    !  StopConv=.FALSE.
-    !END IF
     CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
                        ,AbortTol_In=relTolerancePart)
     ! particle relaxation betweeen old and new position
@@ -530,13 +520,76 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   END IF
 #endif /*PARTICLES*/
 
+  ! solve field to new stage 
+  ImplicitSource=ExplicitSource
+  ! store old value of U
+  Uold=U
+#ifndef PP_HDG
+  CALL LinearSolver(tStage,coeff,relTolerance)
+#else
+  CALL HDG(tStage,U,iter)
+#endif /*HDG*/
+
   Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
+  IF(nFullNewtonIter.GT.5)THEN
+    IF(Norm_R/Norm_Rold.GT.1.0000000)THEN
+      ! not changing U -> is equal to post-iteration to decrease norm of paritcle scheme
+      U=Uold
+      print*,'reject'
+      !print*,'norm--',Norm_R,Norm_Rold,Norm_R/Norm_Rold
+      !STOP'dooep'
+    ELSE
+      IF(Norm_R.GT.0.9999*Norm_Rold)THEN
+        ! apply Armijo rule
+        ! U=Uold+DeltaU
+        DeltaU=U-Uold
+        lambda=2.
+        nArmijo=1
+        print*,'NormR',Norm_R,Norm_Rold,c_inv
+        IF(Norm_R/Norm_Rold.GT.1.)THEN
+          DO WHILE ((Norm_R/Norm_Rold.GT.(1.0)).AND.(nArmijo.LE.nMaxArmijo))
+            ! update counter
+            nArmijo=nArmijo+1
+            ! update lambda of Armijo iteration
+            lambda=0.1*lambda
+            ! recompute new value of U
+            U=Uold-lambda*DeltaU
+            ! compute new norm
+            CALL ImplicitNorm(tStage,coeff,Norm_R)
+            print*,'NormR+',Norm_R,Norm_Rold, Norm_R/Norm_Rold, (1.0-1e-4*lambda)
+          END DO
+        ELSE
+          !DO WHILE ((Norm_R/Norm_Rold.GT.(1.0-c_inv*lambda)).AND.(nArmijo.LE.nMaxArmijo))
+          DO WHILE ((Norm_R/Norm_Rold.GT.1.0).AND.(nArmijo.LE.nMaxArmijo))
+            ! update counter
+            nArmijo=nArmijo+1
+            ! update lambda of Armijo iteration
+            lambda=0.1*lambda
+            ! recompute new value of U
+            U=Uold+lambda*DeltaU
+            ! compute new norm
+            CALL ImplicitNorm(tStage,coeff,Norm_R)
+            print*,'NormR-',Norm_R,Norm_Rold, Norm_R/Norm_Rold, (1.0-1e-4*lambda)
+          END DO
+        END IF
+        print*,'nArmijo steps',nArmijo
+      END IF
+    END IF
+  END IF
   IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
 
   Norm_Diff_old=Norm_Diff
   Norm_Diff=Norm_Rold-Norm_R
   IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
+
+!  Norm_Rold=Norm_R
+!  CALL ImplicitNorm(tStage,coeff,Norm_R)
+!  IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
+!
+!  Norm_Diff_old=Norm_Diff
+!  Norm_Diff=Norm_Rold-Norm_R
+!  IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
 
 
   IF(nFullNewtonIter.GT.5)THEN
@@ -545,32 +598,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       SWRITE(UNIT_StdOut,'(A,I10)')    ' Iteration          ', nFullNewtonIter
       SWRITE(UNIT_StdOut,'(A,E24.15)') ' Old     Norm-Diff: ', Norm_Diff_old
       SWRITE(UNIT_StdOut,'(A,E24.15)') ' Current Norm_Diff: ', Norm_Diff
-      !U=U+2.5*(U-Uold)
-      !U=U+2.5*(U-Uold)
-      !Uold=U
-      !Norm_Rold=Norm_R
-      !SWRITE(UNIT_StdOut,'(A,E24.15)') ' Old Norm:           ', Norm_Rold
-      !CALL ImplicitNorm(tStage,coeff,Norm_R)
-      !SWRITE(UNIT_StdOut,'(A,E24.15)') ' New Norm:           ', Norm_R
-      !Norm_Diff=Norm_Rold-Norm_R
-      !SWRITE(UNIT_StdOut,'(A,E24.15)') ' New Norm_Diff:      ', Norm_Diff
-      !IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
-      !IF((Norm_R.LT.Norm_R0*Eps2_FullNewton)) IsConverged=.TRUE.
-
-    !  IsConverged=.TRUE.
-    !  IF(IsLost.AND.StopConv)THEN
-    !    STOP 'fuck'
-    !  END IF
-    !  IF(.NOT.StopConv)THEN
-    !    Uold=U
-    !    StopConv=.TRUE.
-    !  END IF
-    ! ! SWRITE(UNIT_StdOut,'(A)') ' apply second iteration step'
-    !  !CALL ReIterationRHS(tStage,coeff) 
-    !ELSE
-    !  StopConv=.FALSE.
-    ELSE
-      Uold=U
     END IF
   END IF
 

@@ -507,11 +507,11 @@ IF(DoPrintConvInfo)THEN
         SWRITE(*,*) ' Failed Particle: ',iPart
         SWRITE(*,*) ' Failed Position: ',PartState(iPart,1:6)
         SWRITE(*,*) ' relative Norm:   ',Norm2_F_PartXK(iPart)/Norm2_F_PartX0(iPart)
-        SWRITE(*,*) ' removing particle !   '
-        PDM%ParticleInside(iPart)=.FALSE.
-  CALL abort(&
-__STAMP__&
-,' abagsdagfha')
+!        SWRITE(*,*) ' removing particle !   '
+!        PDM%ParticleInside(iPart)=.FALSE.
+!  CALL abort(&
+!__STAMP__&
+!,' abagsdagfha')
       END IF ! ParticleInside
     END DO ! iPart
   ELSE
@@ -698,6 +698,7 @@ USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
@@ -718,9 +719,9 @@ INTEGER,INTENT(IN)           :: nInnerPartNewton
 ! LOCAL VARIABLES
 INTEGER                      :: iPart,iCounter,iCounter2
 REAL                         :: lambda, Norm2_PartX,DeltaX_Norm
-REAL                         :: LorentzFacInv,Xtilde(1:6)
+REAL                         :: LorentzFacInv,Xtilde(1:6), DeltaX(1:6)
 LOGICAL                      :: DoSetLambda
-INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=50
+INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=10
 !===================================================================================================================================
 
 lambda=1.
@@ -759,10 +760,18 @@ DO iPart=1,PDM%ParticleVecLength
     XTilde=XTilde+F_PartXK(1:6,iPart)
     CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
     IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
-      Norm2_PartX = Norm2_PartX/Norm2_F_PartXk(iPart)
-      CALL abort(&
-__STAMP__&
-,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
+      ! bad search direction!
+      ! new search direction
+      DeltaX=0.
+      CALL PartMatrixVector(t,Coeff,iPart,DeltaX(:),Xtilde) ! coeff*Ut+Source^n+1 ! only output
+      XTilde=XTilde+F_PartXK(1:6,iPart)
+      CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
+      IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
+        Norm2_PartX = Norm2_PartX/Norm2_F_PartXk(iPart)
+        CALL abort(&
+  __STAMP__&
+  ,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
+      END IF
     END IF
     ! update position
     PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
@@ -842,7 +851,7 @@ __STAMP__&
        PartLambdaAccept(iPart)=.TRUE.
        PartXK(1:6,iPart)=PartState(iPart,1:6)
     ELSE
-      IF(nInnerPartNewton.EQ.1)THEN
+      IF(nInnerPartNewton.LT.5)THEN
         ! accept lambda
         PartLambdaAccept(iPart)=.TRUE.
         ! set  new position
@@ -976,7 +985,8 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
-      IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
+      !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
+      IF(Norm2_PartX .LE. Norm2_F_PartXK(iPart))THEN
         ! accept lambda
         PartLambdaAccept(iPart)=.TRUE.
         ! set  new position
@@ -984,6 +994,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         Norm2_F_PartXK(iPart)=Norm2_PartX
         IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
           DoPartInNewton(iPart)=.FALSE.
+      ELSE
+        ! scip particle in current iteration and reiterate
+        PartDeltaX(1:3,iPart)=0.
+        DoPartInNewton(iPart)=.FALSE.
       END IF
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
