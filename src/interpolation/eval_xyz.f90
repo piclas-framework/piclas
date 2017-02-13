@@ -146,8 +146,8 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !END IF
 
 IF(CurvedElem(ElemID))THEN
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo &
-                    ,ElemID,Mode=1,PartID=PartID)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID) &
+                    ,NGeo,ElemID,Mode=1,PartID=PartID)
 ELSE
   ! fill dummy XCL_NGeo1
   XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)

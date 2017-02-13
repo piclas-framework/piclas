@@ -1281,7 +1281,7 @@ END IF
 #ifdef IMPA 
 ! recompute PartStateN to kill jump in integration through periodic BC
 IF(iStage.GT.0)THEN
-#if (PP_TimeDiscMethod=120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   IF(PartIsImplicit(PartID))THEN
 #endif
     ! partshift-vector is pointing from parallel-pos to old pos
@@ -1298,7 +1298,7 @@ IF(iStage.GT.0)THEN
     ! F_PartX0 is not changing, because of difference
     !PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
     PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-#if (PP_TimeDiscMethod=120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
  ELSE
    PartStateN(PartID,1:6) = PartState(PartID,1:6)
    ! explicit particle
