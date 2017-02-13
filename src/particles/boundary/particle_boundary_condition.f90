@@ -428,8 +428,10 @@ USE MOD_LD_Vars,                ONLY: useLD
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #endif
 #ifdef IMPA
-USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
-USE MOD_LinearSolver_Vars,      ONLY:PartXk
+USE MOD_Particle_Vars,          ONLY:PartQ
+USE MOD_LinearSolver_Vars,      ONLY:PartXk,R_PartXK
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
@@ -463,6 +465,10 @@ REAL                                  :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID
 LOGICAL                              :: Symmetry
+#ifdef IMPA
+INTEGER                              :: iCounter
+REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
+#endif /*IMPA*/
 !===================================================================================================================================
 
 !OneMinus=1.0-MAX(epsInCell,epsilontol)
@@ -591,32 +597,71 @@ __STAMP__&
 !  Pt_temp(PartID,4:6)=0.
 !  ! what happens with force term || acceleration?
 !-------------------------
-   IF (.NOT.AlmostZero(DOT_PRODUCT(WallVelo,WallVelo))) THEN
-     PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
-   ELSE
-     Pt_temp(PartID,1:3)=Pt_temp(PartID,1:3)-2.*DOT_PRODUCT(Pt_temp(PartID,1:3),n_loc)*n_loc
-     IF (Symmetry) THEN !reflect also force history for symmetry
-       Pt_temp(PartID,4:6)=Pt_temp(PartID,4:6)-2.*DOT_PRODUCT(Pt_temp(PartID,4:6),n_loc)*n_loc
-     ELSE
-       Pt_temp(PartID,4:6)=0. !produces best result compared to analytical solution in plate capacitor...
-     END IF
-   END IF
+IF (.NOT.AlmostZero(DOT_PRODUCT(WallVelo,WallVelo))) THEN
+  PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
+ELSE
+  Pt_temp(PartID,1:3)=Pt_temp(PartID,1:3)-2.*DOT_PRODUCT(Pt_temp(PartID,1:3),n_loc)*n_loc
+  IF (Symmetry) THEN !reflect also force history for symmetry
+    Pt_temp(PartID,4:6)=Pt_temp(PartID,4:6)-2.*DOT_PRODUCT(Pt_temp(PartID,4:6),n_loc)*n_loc
+  ELSE
+    Pt_temp(PartID,4:6)=0. !produces best result compared to analytical solution in plate capacitor...
+  END IF
+END IF
 #endif  /*LSERK*/
+
 #ifdef IMPA
-  ! at least EulerImplicit
-  ! F_PartX0
-  absVec = SQRT(DOT_PRODUCT(F_PartX0(1:3,PartID),F_PartX0(1:3,PartID)))
-  F_PartX0(1:3,PartID)=absVec*PartTrajectory(1:3)
-  absVec = SQRT(DOT_PRODUCT(F_PartX0(4:6,PartID),F_PartX0(4:6,PartID)))
-  F_PartX0(4:6,PartID)=absVec*PartTrajectory
-  ! PartXK
-  PartXK(:,PartID) = PartState(PartID,:) 
-  ! rewrite history
-  PartDiff=PartState(PartID,1:3) - PartQ(1:3,PartID)
-  absVec = SQRT(DOT_PRODUCT(PartDiff(1:3),PartDiff(1:3)))
-  PartQ(1:3,PartID)=PartState(PartID,1:3) +absVec*PartTrajectory(1:3)
-  !absVec = SQRT(DOT_PRODUCT(PartDiff(4:6),PartDiff(4:6)))
-  PartQ(4:6,PartID)=PartState(PartID,4:6) !+absVec*PartTrajectory(1:3)
+! rotate the Runge-Kutta coefficients into the new system 
+! this rotation is a housholder rotation
+RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
+RotationMat(1,2) = -2*n_loc(1)*n_loc(2)
+RotationMat(1,3) = -2*n_loc(1)*n_loc(3)
+RotationMat(2,1) = RotationMat(1,2)
+RotationMat(3,1) = RotationMat(1,3)
+RotationMat(2,2) = 1.-2*n_loc(2)*n_loc(2)
+RotationMat(2,3) = -2*n_loc(2)*n_loc(3)
+RotationMat(3,2) = RotationMat(2,3)
+RotationMat(3,3) = 1.-2*n_loc(3)*n_loc(3)
+
+IF(iStage.GT.0)THEN
+  ! rotate the velocity vectors and acceleration change
+  DO iCounter=1,iStage-1
+    PartStage(PartID,1:3,iCounter)=MATMUL(RotationMat,PartStage(PartID,1:3,iCounter))
+    PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
+  END DO ! iCoutner=1,iStage-1
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  IF(PartIsImplicit(PartID))THEN
+#endif
+    ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
+    ! new value, which is not yet computed, hence, convergence issues...
+    ! we are using the value of the last iteration under the assumption, that this 
+    ! value may be close enough
+    ! if still trouble in convergence, the exact position should be used :(
+    R_PartXK(1:3,PartID)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
+    R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
+    DeltaP=0.
+    DO iCounter=1,iStage-1
+      DeltaP=DeltaP + ESDIRK_A(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+    END DO
+    DeltaP=DeltaP*dt + ESDIRK_A(iStage,iStage)*dt*R_PartXK(1:6,PartID)
+    ! recompute the old position at t^n
+    PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
+    ! next, recompute PartQ instead of shifting...
+    DeltaP = ESDIRK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
+    DO iCounter=1,iStage-2
+      DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+    END DO ! iCounter=1,iStage-2
+    PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
+#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ELSE
+    ! explicit particle
+    DeltaP=0.
+    DO iCounter=1,iStage-1
+      DeltaP = DeltaP + ERK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+    END DO
+    PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
+  END IF
+#endif
+END IF
 #endif /*IMPA*/
 !END IF
 
