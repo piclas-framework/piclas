@@ -27,6 +27,7 @@ USE MOD_Globals
 USE MOD_ReadInTools,            ONLY:GETINT,GETREALARRAY
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,NbrOfCases,casematrix
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
+USE MOD_Mesh_Vars,              ONLY:BC,BoundaryType,nBCs
 #ifdef MPI
 USE MOD_Particle_Vars,          ONLY:PDM
 USE MOD_Particle_MPI_Vars,      ONLY: PartShiftVector
@@ -42,12 +43,28 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                :: iVec, ind, ind2
+INTEGER                :: iVec, ind, ind2,iBC
 CHARACTER(32)          :: hilf
+LOGICAL                :: hasPeriodic
 !===================================================================================================================================
 
-
 GEO%nPeriodicVectors       = GETINT('Part-nPeriodicVectors','0')
+! sanity check with DG
+hasPeriodic=.FALSE.
+DO iBC=1,nBCs
+  IF(BoundaryType(iBC,BC_TYPE).EQ.1) hasPeriodic=.TRUE.  
+END DO ! iBC=1,nBCs
+IF(hasPeriodic .AND. GEO%nPeriodicVectors.EQ.0)THEN
+  CALL abort(&
+__STAMP__&
+  ,' Periodic-field-BCs require to set the periodic-vectors for the particles!')
+END IF
+IF(.NOT.hasPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
+  CALL abort(&
+__STAMP__&
+  ,' Periodic particle-BCs and non-periodic-field-BCs: not tested!')
+END IF
+
 DO iVec = 1, SIZE(PartBound%TargetBoundCond)
   IF((PartBound%TargetBoundCond(iVec).EQ.PartBound%PeriodicBC).AND.(GEO%nPeriodicVectors.EQ.0))THEN
 CALL abort(&
@@ -56,6 +73,7 @@ __STAMP__&
   END IF
 END DO
 
+! read-in periodic-vectors for particles
 ALLOCATE(GEO%PeriodicVectors(1:3,1:GEO%nPeriodicVectors))
 DO iVec = 1, GEO%nPeriodicVectors
   WRITE(UNIT=hilf,FMT='(I2)') iVec
@@ -64,7 +82,7 @@ END DO
 
 CALL GetPeriodicVectors()
 
-! build periodic case matrix
+! build periodic case matrix for shape-function-deposition
 IF (GEO%nPeriodicVectors.GT.0) THEN
   ! build case matrix
   NbrOfCases = 3**GEO%nPeriodicVectors
@@ -111,15 +129,17 @@ END IF
 
 END SUBROUTINE InitPeriodicBC
 
-
 SUBROUTINE GetPeriodicVectors()
 !===================================================================================================================================
 ! Check the periodic vectors for consistency
-! For particles, each periodic vector has to stastisfy following conditions
-! 1) only a cartesian displacement/ periodicity is supported, e.g. periodicity in x,y,z
-! 2) Mesh has to fit into the FIBGM, therefore, the discplacement is a multiple of the FIBGM-delta
+! For particles, each periodic vector has to satisfy following conditions
+! 1) only a Cartesian displacement/ periodicity is supported, e.g. periodicity in x,y,z
+! 2) Mesh has to fit into the FIBGM, therefore, the displacement is a multiple of the FIBGM-delta
 ! 3) Additionally for PIC with Volume or BSpline weighting/deposition
 !    Periodic displacement has to be multiple of BGMdeltas of deposition method
+! 
+! NEW: Cartesian mesh is required for shape-function deposition
+!      All other cases: non-Cartesian periodic vectors are possible but not allowed!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,            ONLY: Logging,UNIT_errOut,UNIT_logOut,abort
