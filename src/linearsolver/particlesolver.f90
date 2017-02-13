@@ -738,7 +738,7 @@ __STAMP__&
         ELSE
           ! nothing to do, do not accept lambda
         END IF
-      END IF ! nInnerPartNewton>1
+  !    END IF ! nInnerPartNewton>1
     END IF
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength

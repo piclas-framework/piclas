@@ -1194,8 +1194,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #endif
 #ifdef IMPA
-USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
-USE MOD_LinearSolver_Vars,      ONLY:PartXk
+USE MOD_Particle_Vars,          ONLY:PartQ
+USE MOD_LinearSolver_Vars,      ONLY:R_PartXk
 #endif /*IMPA*/
 #if defined(IMPA) || defined(IMEX)
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
@@ -1284,28 +1284,41 @@ IF(iStage.GT.0)THEN
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   IF(PartIsImplicit(PartID))THEN
 #endif
-    ! partshift-vector is pointing from parallel-pos to old pos
-    PartStateN(PartID,1:6) = PartState(PartID,1:6)
-    ! explicit particle
+    ! implicit particle
+    ! caution because of implicit particle
+    ! PartState^(n+1) = PartState^n - sum_i=1^istage-1 a_istage,i F(u,partstate^i) - a_istage,istage dt F(U,PartState^(n+1))
+    ! old RK Stages
     DeltaP=0.
     DO iCounter=1,iStage-1
-      DeltaP=DeltaP - ESDIRK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+      DeltaP=DeltaP + ESDIRK_A(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
     END DO
-    PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
-    !PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
-    PartQ(1:3,PartID) = PartQ(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+    ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
+    ! new value, which is not yet computed, hence, convergence issues...
+    ! we are using the value of the last iteration under the assumption, that this 
+    ! value may be close enough
+    ! if still trouble in convergence, the exact position should be used :(
+    DeltaP=DeltaP*dt + ESDIRK_A(iStage,iStage)*dt*R_PartXK(1:6,PartID)
+    ! recompute the old position at t^n
+    PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
+    ! next, recompute PartQ instead of shifting...
+    DeltaP = ESDIRK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
+    DO iCounter=1,iStage-2
+      DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+    END DO ! iCounter=1,iStage-2
+    PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
+    !PartQ(1:3,PartID) = PartQ(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
     ! and move all the functions
-    ! F_PartX0 is not changing, because of difference
-    !PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
-    PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+    ! PartXK  is not YET updated, it is updated, if the Newton step will be accepted 
+    ! F_PartX0 is not changing, because of difference should middle out?!?
+    !PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 #if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
  ELSE
-   PartStateN(PartID,1:6) = PartState(PartID,1:6)
    ! explicit particle
+   DeltaP=0.
    DO iCounter=1,iStage-1
-     PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-                            - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+     DeltaP = DeltaP + ERK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
    END DO
+   PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
  END IF
 #endif
 END IF
