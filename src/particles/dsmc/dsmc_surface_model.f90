@@ -630,7 +630,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
           D_A = 0.
           D_B = 0.
 !         END IF
-        E_a = Calc_E_act(Heat_A,Heat_B,Heat_AB,D_AB,D_A,D_B,.TRUE.) * BoltzmannConst
+        E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.,IsAdsorption=.TRUE.) * BoltzmannConst
         ! calculation of dissociative adsorption probability with TCE
         EZeroPoint_Educt = 0.
         c_f = Adsorption%DensSurfAtoms(SurfSideID) / ( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
@@ -932,7 +932,7 @@ DO subsurfxi = 1,nSurfSample
         Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,react_Neigh_pos(ReactNum),.FALSE.)
         D_AB = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
         ! calculate LH reaction probability
-        E_d = Calc_E_act(Heat_A,Heat_B,Heat_AB,D_AB,0.,0.,.FALSE.)
+        E_d = Calc_E_act(Heat_A,Heat_B,Heat_AB,0.,0.,0.,D_AB,0.,.FALSE.)
         CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1)
         CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2)
@@ -1004,7 +1004,7 @@ DO subsurfxi = 1,nSurfSample
     CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
     CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
     nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
-    E_d = Calc_E_Act(Heat_A,0.,0.,0.,0.,0.,.FALSE.)
+    E_d = Calc_E_Act(Heat_A, 0.,0.,0.,0.,0.,0.,0., .FALSE.)
     rate = nu_des * exp(-E_d/WallTemp)
     P_actual_des = rate * dt
     IF (rate*dt.GT.1) THEN
@@ -2567,25 +2567,48 @@ __STAMP__,&
 
 END FUNCTION Calc_Adsorb_Heat
 
-REAL FUNCTION Calc_E_Act(Heat_A,Heat_B,Heat_AB,D_AB,D_A,D_B,IsAdsorption)
+REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reactant_B,&
+                         D_Product_A,D_Product_B,D_Reactant_A,D_Reactant_B,IsAdsorption)
 !===================================================================================================================================
-! Calculates the Activation energy for given species
+! Calculates the Activation energy for a given reaction
+! A_Reactant_ads + B_Reactant_ads --> A_Product_ads + B_Product_ads
+! Adsorption --> forward reaction
+! if IsGasPhase = TRUE then automatically heat A_Reactant = 0. because reactant was/is not adsorbed
+! Examples:
+! (1)
+! O2 desorbed directly to gasphase from reaction of two O (O_ads + O_ads -> O2_g): 
+! ==> forward reaction: O2_g + (-)_ads -> O_ads + O_ads
+! ==> IsAdsorption = .FALSE.
+! ==> Heat_Reactant_A = Heat_O2_g = 0. | Heat_Product_A_ads = Heat_Product_B_ads = Heat_O_ads
+! (2)
+! adsorbed CH radical reacts with adsorbed O-atom to adsorbed C-atom and OH-radical (CH_ads + O_ads -> C_ads + OH_ads): 
+! ==> forward reaction: CH_ads + O_ads -> C_ads + OH_ads
+! ==> IsAdsorption = .TRUE.
+! ==> Heat_Reactant_A = Heat_CH_ads | Heat_Reactant_B = Heat_O_ads | Heat_Product_A = Heat_C_ads | Heat_Product_B = Heat_OH_ads
+! (3)
+! adsorbed OH radical reacts with adsorbed C-atom to adsorbed O-atom and gasphase CH-radical (OH_ads + C_ads -> O_ads + CH_g): 
+! ==> forward reaction: CH_g + O_ads -> C_ads + OH_ads
+! ==> IsAdsorption = .FALSE.
+! ==> Heat_Reactant_A = Heat_CH_g = 0. | Heat_Reactant_B = Heat_O_ads | Heat_Product_A = Heat_C_ads | Heat_Product_B = Heat_OH_ads
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)               :: Heat_A, Heat_B, Heat_AB, D_AB, D_A, D_B
-  LOGICAL, INTENT(IN)            :: IsAdsorption!, IsMolecular
+  REAL, INTENT(IN)               :: Heat_Product_A, Heat_Product_B, Heat_Reactant_A, Heat_Reactant_B
+  REAL, INTENT(IN)               :: D_Product_A, D_Product_B, D_Reactant_A, D_Reactant_B
+  LOGICAL, INTENT(IN)            :: IsAdsorption
+!   LOGICAL, INTENT(IN),OPTIONAL   :: IsGasphase
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                           :: Delta_H
 !===================================================================================================================================
-  Delta_H = ( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )
-  Calc_E_Act = 0.5 * ( Delta_H + (Heat_A*Heat_B / (Heat_A+Heat_B)) )
+  Delta_H = ( Heat_Reactant_A +Heat_Reactant_B -Heat_Product_A -Heat_Product_B ) &
+          + ( D_Reactant_A +D_Reactant_B -D_Reactant_A -D_Reactant_B )
+  Calc_E_Act = 0.5 * ( Delta_H + (Heat_Product_A*Heat_Product_B / (Heat_Product_A+Heat_Product_B)) )
   IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
   IF (.NOT.IsAdsorption) THEN
     Calc_E_Act = Calc_E_Act - Delta_H

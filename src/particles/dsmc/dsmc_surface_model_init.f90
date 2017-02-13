@@ -674,10 +674,11 @@ USE MOD_ReadInTools
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)                    :: hilf, hilf2
-  INTEGER                          :: iSpec, iSpec2, iReactNum, iReactNum2
+  INTEGER                          :: iSpec, iSpec2, iReactNum, iReactNum2, iReactant
   INTEGER                          :: ReactNum
   INTEGER                          :: MaxDissNum, MaxReactNum, MaxAssocNum
   INTEGER , ALLOCATABLE            :: nAssocReact(:)
+  INTEGER                          :: nDissoc, nDisProp
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
 
@@ -757,6 +758,16 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
         Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
+        IF (( Adsorption%DiCoord(iSpec).NE.0) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
+        END IF
+      END IF
+      IF ((.NOT.SpecDSMC(iSpec)%PolyatomicMol).AND.(Adsorption%DiCoord(iSpec).EQ.0).AND.(Adsorption%EDissBond(0,iSpec).EQ.0.))THEN
+        CALL abort(&
+        __STAMP__&
+        ,'Error in Init_SurfChem: Adsorption dissociation bond energy for species '//TRIM(hilf)//' not defined!')
       END IF
     END IF
   END DO
@@ -783,7 +794,176 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
       Adsorption%AssocReact(:,ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0
     END IF
   END DO
+  
+  nDissoc = GETINT('Part-SurfChem-Nbr-DissocReactions','0')
+  IF ((nDissoc.GT.0) .AND. (nDissoc.NE.nSpecies)) THEN
+    CALL abort(&
+    __STAMP__&
+    ,'Error in Init_SurfChem: given number of dissociation reactions in INI-File differs of number from given parameters!')
+  END IF  
+  ReactNum = 0
+  DO iSpec=1,nSpecies
+    DO iReactNum=1,MaxDissNum
+      IF (Adsorption%DissocReact(1,iReactNum,iSpec).NE.0)THEN
+        ReactNum = ReactNum + 1
+      END IF
+    END DO
+  END DO
+  nDissoc = ReactNum
+  nDisProp = GETINT('Part-SurfChem-Nbr-ExchangeReactions','0')
+  ! Allocate and fill one array for all types of reactions (dissociation, association, disproportionation/exchange reaction)
+  ALLOCATE( Adsorption%ChemReactant(1:2,1:nDissoc+nDisProp),&
+            Adsorption%ChemProduct(1:2,1:nDissoc+nDisProp),&
+            Adsorption%Reactant_DissBond_K(1:2,1:nDissoc+nDisProp),&
+            Adsorption%Product_DissBond_K(1:2,1:nDissoc+nDisProp))
+  ! Initialize allocated variables
+  Adsorption%ChemReactant(1:2,1:nDissoc+nDisProp)=0
+  Adsorption%ChemProduct(1:2,1:nDissoc+nDisProp)=0
+  Adsorption%Reactant_DissBond_K(1:2,1:nDissoc+nDisProp)=0.
+  Adsorption%Product_DissBond_K(1:2,1:nDissoc+nDisProp)=0.
+  ! fill dissociation reactions (can also be used for association)
+  ReactNum = 0
+  DO iSpec=1,nSpecies
+    DO iReactNum=1,MaxDissNum
+      IF (Adsorption%DissocReact(1,iReactNum,iSpec).NE.0)THEN
+        ReactNum = ReactNum + 1
+        Adsorption%ChemReactant(1,ReactNum) = iSpec
+        Adsorption%Reactant_DissBond_K(1,ReactNum) = Adsorption%EDissBond(iReactNum,iSpec)
+        Adsorption%ChemProduct(1,ReactNum) = Adsorption%DissocReact(1,iReactNum,iSpec)
+        Adsorption%ChemProduct(2,ReactNum) = Adsorption%DissocReact(2,iReactNum,iSpec)
+!         DO iReactant=1,2
+!           IF (SpecDSMC(Adsorption%ChemProduct(iReactant,ReactNum))%InterID.EQ.2) THEN
+!             IF(SpecDSMC(Adsorption%ChemProduct(iReactant,ReactNum))%PolyatomicMol) THEN
+!               !---------------------------------------------------------------------------------------------------------------------
+!               SELECT CASE(MaxDissNum)
+!               !---------------------------------------------------------------------------------------------------------------------
+!               CASE(1) !only one possible dissociation per species
+!               !---------------------------------------------------------------------------------------------------------------------
+!                 Adsorption%Product_DissBond_K(iReactant,ReactNum) = &
+!                         Adsorption%EDissBond(1,Adsorption%ChemProduct(iReactant,ReactNum))
+!               !---------------------------------------------------------------------------------------------------------------------
+!               CASE DEFAULT !more than one dissociation possible per species (special case for some polyatomic)
+!               !---------------------------------------------------------------------------------------------------------------------
+!                 DO iReactNum2=1,MaxDissNum
+!                   IF (Adsorption%EDissBond(iReactNum2,Adsorption%ChemProduct(iReactant,ReactNum)).LE.0.) CYCLE
+!                   IF ( (Adsorption%Product_DissBond_K(iReactant,ReactNum).GT.&
+!                         Adsorption%EDissBond(iReactNum2,Adsorption%ChemProduct(iReactant,ReactNum))) .AND. &
+!                        (Adsorption%Product_DissBond_K(iReactant,ReactNum).GT.0.) ) THEN
+!                     Adsorption%Product_DissBond_K(iReactant,ReactNum) = &
+!                             Adsorption%EDissBond(iReactNum2,Adsorption%ChemProduct(iReactant,ReactNum))
+!                   END IF
+!                 END DO
+!               END SELECT
+!             ELSE
+!               Adsorption%Product_DissBond_K(iReactant,ReactNum) = Adsorption%EDissBond(1,Adsorption%ChemProduct(iReactant,ReactNum))
+!             END IF
+!           END IF
+!         END DO
+      END IF
+    END DO
+  END DO
+  ! fill disproportionation reactions (fancy stuff)
+  DO iReactNum = 1,nDisProp
+    WRITE(UNIT=hilf,FMT='(I2)') iReactNum
+    Adsorption%ChemReactant(:,iReactNum+nDissoc) = &
+                                      GETINTARRAY('Part-SurfChem-Disprop'//TRIM(hilf)//'-Reactants',2,'0,0')
+    Adsorption%ChemProduct(:,iReactNum+nDissoc) = &
+                                      GETINTARRAY('Part-SurfChem-Disprop'//TRIM(hilf)//'-Products',2,'0,0')
+    ! Error output if species in reaction not defined
+    IF ((Adsorption%ChemReactant(1,iReactNum+nDissoc).GT.nSpecies).OR.&
+        (Adsorption%ChemReactant(2,iReactNum+nDissoc).GT.nSpecies).OR.&
+        (Adsorption%ChemProduct(1,iReactNum+nDissoc).GT.nSpecies).OR.&
+        (Adsorption%ChemProduct(2,iReactNum+nDissoc).GT.nSpecies) ) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Error in Init_SurfChem: one reaction species for disproportionation reaction '//TRIM(hilf)//' not defined!')
+    END IF
+    IF ((Adsorption%ChemProduct(1,iReactNum+nDissoc).EQ.0).OR.&
+        (Adsorption%ChemProduct(2,iReactNum+nDissoc).EQ.0) ) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Error in Init_SurfChem: Incorrect definition of disproportionation reaction '//TRIM(hilf)//'!')
+    END IF
+    ! Check if diatomic / polyatomic species in reactants and products have dissociation defined
+    ! if not exit with error
+    DO iReactant=1,2
+      IF ( (SpecDSMC(Adsorption%ChemReactant(iReactant,iReactNum+nDissoc))%InterID.EQ.2) .AND. &
+            (Adsorption%DissocReact(1,1,Adsorption%ChemReactant(iReactant,iReactNum+nDissoc)).EQ.0) ) THEN
+      WRITE(UNIT=hilf2,FMT='(I2)') Adsorption%ChemReactant(iReactant,iReactNum+nDissoc)
+        CALL abort(&
+        __STAMP__&
+        ,'Error in Init_SurfChem Disproportionation: Dissociation for reactant species ' &
+         //TRIM(hilf2)//' not defined!')
+      END IF
+      IF (SpecDSMC(Adsorption%ChemProduct(iReactant,iReactNum+nDissoc))%InterID.EQ.2 .AND. &
+            (Adsorption%DissocReact(1,1,Adsorption%ChemProduct(iReactant,iReactNum+nDissoc)).EQ.0) ) THEN
+      WRITE(UNIT=hilf2,FMT='(I2)') Adsorption%ChemProduct(iReactant,iReactNum+nDissoc)
+        CALL abort(&
+        __STAMP__&
+        ,'Error in Init_SurfChem Disproportionation: Dissociation for product species ' &
+         //TRIM(hilf2)//' not defined!')
+      END IF
+    END DO
+    ! Read dissociation bond energies of reactants and products
+    Adsorption%Reactant_DissBond_K(:,iReactNum+nDissoc) = &
+            GETREALARRAY('Part-SurfChem-Disprop'//TRIM(hilf)//'-DissBond_K-Reactants',2,'0.,0.')
+    Adsorption%Product_DissBond_K(:,iReactNum+nDissoc) = &
+            GETREALARRAY('Part-SurfChem-Disprop'//TRIM(hilf)//'-DissBond_K-Products',2,'0.,0.')
+    ! Check if dissociation bond energies of reactants and products are all defined if they are at least diatomic
+    ! If they are not defined take them from the appropriate dissociation reactions
+    DO iReactant=1,2
+      IF ( (SpecDSMC(Adsorption%ChemReactant(iReactant,iReactNum+nDissoc))%InterID.EQ.2) .AND. &
+            (Adsorption%Reactant_DissBond_K(iReactant,iReactNum+nDissoc).EQ.0.) ) THEN
+        IF(SpecDSMC(Adsorption%ChemReactant(iReactant,iReactNum+nDissoc))%PolyatomicMol) THEN
+          !-------------------------------------------------------------------------------------------------------------------------
+          SELECT CASE(MaxDissNum)
+          !-------------------------------------------------------------------------------------------------------------------------
+          CASE(1) !only one possible dissociation per species
+          !-------------------------------------------------------------------------------------------------------------------------
+            Adsorption%Reactant_DissBond_K(iReactant,iReactNum+nDissoc) = &
+                    Adsorption%EDissBond(1,Adsorption%ChemReactant(iReactant,iReactNum+nDissoc))
+          !-------------------------------------------------------------------------------------------------------------------------
+          CASE DEFAULT !more than one dissociation possible per species (special case for some polyatomic)
+          !-------------------------------------------------------------------------------------------------------------------------
+          WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
+            CALL abort(&
+            __STAMP__&
+            ,'Error in Init_SurfChem: Dissocation bond energy in Disproportionation reaction'//TRIM(hilf2)//' not defined!')
+          END SELECT
+        ELSE
+          Adsorption%Reactant_DissBond_K(iReactant,iReactNum+nDissoc) = &
+                  Adsorption%EDissBond(1,Adsorption%ChemReactant(iReactant,iReactNum+nDissoc))
+        END IF
+      END IF
+      IF (SpecDSMC(Adsorption%ChemProduct(iReactant,iReactNum+nDissoc))%InterID.EQ.2 .AND. &
+            (Adsorption%Product_DissBond_K(iReactant,iReactNum+nDissoc).EQ.0.) ) THEN
+        IF(SpecDSMC(Adsorption%ChemProduct(iReactant,iReactNum+nDissoc))%PolyatomicMol) THEN
+          !-------------------------------------------------------------------------------------------------------------------------
+          SELECT CASE(MaxDissNum)
+          !-------------------------------------------------------------------------------------------------------------------------
+          CASE(1) !only one possible dissociation per species
+          !-------------------------------------------------------------------------------------------------------------------------
+            Adsorption%Product_DissBond_K(iReactant,iReactNum+nDissoc) = &
+                    Adsorption%EDissBond(1,Adsorption%ChemProduct(iReactant,iReactNum+nDissoc))
+          !-------------------------------------------------------------------------------------------------------------------------
+          CASE DEFAULT !more than one dissociation possible per species (special case for some polyatomic)
+          !-------------------------------------------------------------------------------------------------------------------------
+          WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
+            CALL abort(&
+            __STAMP__&
+            ,'Error in Init_SurfChem: Dissocation bond energy in Disproportionation reaction'//TRIM(hilf2)//' not defined!')
+          END SELECT
+        ELSE
+          Adsorption%Product_DissBond_K(iReactant,iReactNum+nDissoc) = &
+                  Adsorption%EDissBond(1,Adsorption%ChemProduct(iReactant,iReactNum+nDissoc))
+        END IF
+      END IF
+    END DO
+  END DO
+  
 ELSE !MaxDissNum = 0
+  nDissoc = 0
+  nDisProp = 0
   MaxReactNum = 0
   ALLOCATE(Adsorption%EDissBond(0:1,1:nSpecies))
   ALLOCATE(Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
@@ -796,6 +976,16 @@ ELSE !MaxDissNum = 0
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
         Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
+        IF (( Adsorption%DiCoord(iSpec).NE.0) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
+        END IF
+      END IF
+      IF ((.NOT.SpecDSMC(iSpec)%PolyatomicMol).AND.(Adsorption%DiCoord(iSpec).EQ.0).AND.(Adsorption%EDissBond(0,iSpec).EQ.0.))THEN
+        CALL abort(&
+        __STAMP__&
+        ,'Error in Init_SurfChem: Adsorption dissociation bond energy for species '//TRIM(hilf)//' not defined!')
       END IF
     END IF
   END DO
@@ -803,6 +993,8 @@ END IF !MaxDissNum > 0
 ! save defined number of surface reactions
 Adsorption%DissNum = MaxDissNum
 Adsorption%ReactNum = MaxReactNum
+Adsorption%nDissocReactions = nDissoc
+Adsorption%nDisPropReactions = nDisProp
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
@@ -871,6 +1063,10 @@ SDEALLOCATE(Adsorption%DissocReact)
 SDEALLOCATE(Adsorption%AssocReact)
 SDEALLOCATE(Adsorption%EDissBond)
 SDEALLOCATE(Adsorption%EDissBondAdsorbPoly)
+SDEALLOCATE(Adsorption%ChemReactant)
+SDEALLOCATE(Adsorption%ChemProduct)
+SDEALLOCATE(Adsorption%Reactant_DissBond_K)
+SDEALLOCATE(Adsorption%Product_DissBond_K)
 
 IF (ALLOCATED(SurfDistInfo)) THEN
 DO iSurfSide=1,SurfMesh%nSides

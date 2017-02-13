@@ -1481,7 +1481,7 @@ REAL    :: RandVal, dtFrac
   END IF
 #ifdef MPI
   ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
+  CALL IRecvNbOfParticles()
 #endif /*MPI*/
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking

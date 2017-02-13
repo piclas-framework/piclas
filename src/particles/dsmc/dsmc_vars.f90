@@ -286,6 +286,12 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: EDissBondAdsorbPoly(:,:)! Bond dissociation energy (K) for diss into resulting species
                                                                     ! (ReactNum,nspecies)
   INTEGER , ALLOCATABLE                  :: AssocReact(:,:,:)       ! Partner species for associative reaction (2,ReactNum,nSpecies)
+  INTEGER , ALLOCATABLE                  :: ChemReactant(:,:)
+  INTEGER , ALLOCATABLE                  :: ChemProduct(:,:)
+  INTEGER , ALLOCATABLE                  :: Reactant_DissBond_K(:,:)
+  INTEGER , ALLOCATABLE                  :: Product_DissBond_K(:,:)
+  INTEGER                                :: nDissocReactions
+  INTEGER                                :: nDisPropReactions
   INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   INTEGER , ALLOCATABLE                  :: DiCoord(:)              ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
   REAL    , ALLOCATABLE                  :: Sigma(:,:,:,:,:)        ! Coverage effect on Adsorption energies
@@ -315,6 +321,9 @@ TYPE tAdsorbateMapping
   INTEGER                                :: nNeighbours             ! number of adjacent Neigbours sites 
                                                                     ! (all possible Coordinations incl.)
   LOGICAL , ALLOCATABLE                  :: IsNearestNeigh(:,:)     ! Flag for defining nearest neighbour of binding site
+#ifdef MPI
+  LOGICAL , ALLOCATABLE                  :: Changed(:)              ! Flag if position changed during iteartion
+#endif /*MPI*/
 END TYPE
 
 TYPE tSurfaceDistributionInfo
@@ -322,6 +331,9 @@ TYPE tSurfaceDistributionInfo
 !   LOGICAL , ALLOCATABLE                  :: HollowSite(:,:,:)
 !   LOGICAL , ALLOCATABLE                  :: BridgeSite(:,:,:)
 !   LOGICAL , ALLOCATABLE                  :: TopSite(:,:,:)
+#ifdef MPI
+  INTEGER , ALLOCATABLE                  :: Nbr_changed(:)
+#endif /*MPI*/
   INTEGER , ALLOCATABLE                  :: nSites(:)               ! max number of sites for site coordination (1:nCoordination=3)
   INTEGER , ALLOCATABLE                  :: SitesRemain(:)          ! number of empty sites for site coordination(1:nCoordination=3)
   INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)! bond order of surface atoms ((1:nSpecies,1:nXPos,1:nYPos)
