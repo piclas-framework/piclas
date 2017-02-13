@@ -714,17 +714,17 @@ __STAMP__&
        PartLambdaAccept(iPart)=.TRUE.
        PartXK(1:6,iPart)=PartState(iPart,1:6)
     ELSE
-      IF(nInnerPartNewton.LT.5)THEN
-        ! accept lambda
-        PartLambdaAccept(iPart)=.TRUE.
-        ! set  new position
-        PartXK(1:6,iPart)=PartState(iPart,1:6)
-        ! update norm
-        CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
-        Norm2_F_PartXK(iPart)=Norm2_PartX
-        IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
-            DoPartInNewton(iPart)=.FALSE.
-      ELSE
+      !IF(nInnerPartNewton.LT.5)THEN
+      !  ! accept lambda
+      !  PartLambdaAccept(iPart)=.TRUE.
+      !  ! set  new position
+      !  PartXK(1:6,iPart)=PartState(iPart,1:6)
+      !  ! update norm
+      !  CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
+      !  Norm2_F_PartXK(iPart)=Norm2_PartX
+      !  IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+      !      DoPartInNewton(iPart)=.FALSE.
+      !ELSE
         ! check if residual is reduced
         CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
         IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
@@ -736,7 +736,7 @@ __STAMP__&
           IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
               DoPartInNewton(iPart)=.FALSE.
         ELSE
-
+          ! nothing to do, do not accept lambda
         END IF
       END IF ! nInnerPartNewton>1
     END IF
