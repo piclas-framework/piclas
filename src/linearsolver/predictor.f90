@@ -262,6 +262,10 @@ __STAMP__&
 
 END SELECT
 
+IF(1.EQ.2)THEN
+  iCounter=iStage
+END IF
+
 END SUBROUTINE PartPredictor
 #endif /*PARTICLES + IMPA*/
 

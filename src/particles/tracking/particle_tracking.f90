@@ -814,17 +814,10 @@ SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,hitlocSide,iloc
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType,SideNormVec
-USE MOD_Mesh_Vars,                   ONLY:nBCSides,MortarType
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElemAndSide
-USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos,PDM
+USE MOD_Particle_Vars,               ONLY:PDM
 USE MOD_Mesh_Vars,                   ONLY:BC
-#ifdef MPI
-USE MOD_Mesh_Vars,                   ONLY:BC,nSides
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

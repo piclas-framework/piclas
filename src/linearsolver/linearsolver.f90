@@ -58,8 +58,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+#ifndef PP_HDG
 INTEGER    :: i,j,k,iElem
+#endif
 !===================================================================================================================================
+
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.LinearSolverInitIsDone)THEN
    CALL abort(&
 __STAMP__&

@@ -236,7 +236,7 @@ USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,GEO,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -260,8 +260,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
-INTEGER                              :: BCSideID, WallModeltype, adsorbindex,PVID
-INTEGER                              :: iPV,PVsign
+INTEGER                              :: BCSideID, WallModeltype, adsorbindex
 LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
@@ -1185,14 +1184,11 @@ SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,Si
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
-USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,GEO,SidePeriodicType
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,PEM
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
-USE MOD_Mesh_Vars,              ONLY:nElems
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
@@ -1205,10 +1201,6 @@ USE MOD_LinearSolver_Vars,      ONLY:PartXk
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif
-USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
-USE MOD_LoadBalance_Vars,            ONLY:ElemTime
-USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
-USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1225,8 +1217,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3)
 #if IMPA
-REAL                                 :: absVec, DeltaP(1:6)
-REAL                                 :: PartDiff(3)
+REAL                                 :: DeltaP(1:6)
 INTEGER                              :: iCounter
 #endif /*IMPA*/
 REAL                                 :: epsLength
@@ -1290,7 +1281,7 @@ END IF
 #ifdef IMPA 
 ! recompute PartStateN to kill jump in integration through periodic BC
 IF(iStage.GT.0)THEN
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod=120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   IF(PartIsImplicit(PartID))THEN
 #endif
     ! partshift-vector is pointing from parallel-pos to old pos
@@ -1307,7 +1298,7 @@ IF(iStage.GT.0)THEN
     ! F_PartX0 is not changing, because of difference
     !PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
     PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod=120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
  ELSE
    PartStateN(PartID,1:6) = PartState(PartID,1:6)
    ! explicit particle
@@ -1326,6 +1317,10 @@ locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
 !ElemID   =PEM%Element(PartID)
+
+IF(1.EQ.2)THEN
+  alpha=0.2
+END IF
 
 END SUBROUTINE PeriodicBC
 

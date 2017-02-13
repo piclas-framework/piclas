@@ -1271,7 +1271,7 @@ END DO
 END FUNCTION ElevateBezierPolynomial
 
 
-SUBROUTINE RotateMasterToSlave(flip,locSideID,BezierControlPoints3D)
+SUBROUTINE RotateMasterToSlave(flip,BezierControlPoints3D)
 !===================================================================================================================================
 ! Rotate BezierControlPoints3D from Master to Slave
 ! The resulting controlpoints are orientated as a "new master" for the slave element
@@ -1285,7 +1285,7 @@ USE MOD_Mappings,       ONLY:Flip_M2S
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES 
-INTEGER,INTENT(IN)            :: flip, locSideID
+INTEGER,INTENT(IN)            :: flip 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)            :: BezierControlPoints3D(1:3,0:NGeo,0:NGeo)
@@ -1301,8 +1301,6 @@ DO q=0,NGeo; DO p=0,NGeo
   pq = Flip_M2S(NGeo,p,q,flip) 
   BezierControlPoints3D(:,pq(1),pq(2))=BezierControlPoints3d_tmp(:,p,q)
 END DO; END DO ! p,q
-
-
 
 !SELECT CASE(locSideID)
 !CASE(XI_MINUS)
