@@ -209,10 +209,12 @@ PartCommSize   = PartCommSize+1
 ! IsNewPart for Surface-Flux: particle are always killed after suface-flux-emission
 PartCommSize   = PartCommSize + 1 
 #endif
+#if defined(IMPA)
 ! communicate deltaX
 PartCommSize   = PartCommSize + 6
 ! and PartAcceptLambda
 PartCommSize   = PartCommSize + 1
+#endif
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
 #endif /*IMEX or IMPA*/
@@ -843,7 +845,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
 #ifdef IMPA
-      DoPartInNewton(iPart) = .FALSE.
+      DoPartInNewton(iPart)   = .FALSE.
+      PartLambdaAccept(iPart) = .TRUE.
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       PartIsImplicit(iPart)     = .FALSE.
@@ -1247,7 +1250,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     PartDeltaX(1:6,PartID)     = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 1) THEN
       PartLambdaAccept(PartID)=.TRUE.
-    ELSE IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 0) THEN
+    ELSE ! IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 0) THEN
       PartLambdaAccept(PartID)=.FALSE.
     END IF
     jPos=jPos+7
@@ -1623,7 +1626,7 @@ SUBROUTINE InitHaloMesh()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
-USE MOD_Mesh_Vars,                  ONLY:nSides
+!USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
