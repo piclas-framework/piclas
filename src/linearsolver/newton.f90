@@ -543,10 +543,10 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 
   IF(nFullNewtonIter.GT.5)THEN
     IF(ALMOSTZERO(Norm_Diff_old+Norm_Diff))THEN
-      WRITE(UNIT_StdOut,'(A)') ' Convergence problem '
-      WRITE(UNIT_StdOut,'(A,I10)')    ' Iteration          ', nFullNewtonIter
-      WRITE(UNIT_StdOut,'(A,E24.15)') ' Old     Norm-Diff: ', Norm_Diff_old
-      WRITE(UNIT_StdOut,'(A,E24.15)') ' Current Norm_Diff: ', Norm_Diff
+      SWRITE(UNIT_StdOut,'(A)') ' Convergence problem '
+      SWRITE(UNIT_StdOut,'(A,I10)')    ' Iteration          ', nFullNewtonIter
+      SWRITE(UNIT_StdOut,'(A,E24.15)') ' Old     Norm-Diff: ', Norm_Diff_old
+      SWRITE(UNIT_StdOut,'(A,E24.15)') ' Current Norm_Diff: ', Norm_Diff
     END IF
   END IF
 
