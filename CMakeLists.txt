@@ -21,11 +21,11 @@ STRING(FIND "${GIT_ORIGIN}" ".iag.uni-stuttgart.de" HOMERUN)
 STRING(FIND "${GIT_ORIGIN}" "git@" USESSH)
 IF (HOMERUN GREATER -1)
   IF(USESSH EQUAL 0)
-    SET(BOLTZPLATZ_DLPATH "git@gitlab.iag.uni-stuttgart.de:piclas")
+    SET(BOLTZPLATZ_DLPATH "git@gitlab.iag.uni-stuttgart.de:")
   ELSE()
-    SET(BOLTZPLATZ_DLPATH "https://gitlabext.iag.uni-stuttgart.de/piclas")
+    SET(BOLTZPLATZ_DLPATH "https://gitlabext.iag.uni-stuttgart.de/")
   ENDIF()
-  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}/HDF5.git )
+  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}libs/hdf5.git )
 ELSE()
   IF(USESSH EQUAL 0)
     SET(BOLTZPLATZ_DLPATH "git@github.com:piclas-framework")
@@ -422,7 +422,7 @@ ELSE()
     #NOTE: old 1.8.X versions of HDF5 require additional flag --enable-fortran2003
     ExternalProject_Add(HDF5
       GIT_REPOSITORY ${HDF5DOWNLOAD}
-      #GIT_TAG ${HDF5TAG}
+      GIT_TAG ${HDF5TAG}
       PREFIX ${BOLTZPLATZ_HDF5_DIR}
       UPDATE_COMMAND ""
       CONFIGURE_COMMAND FC=${BOLTZPLATZ_HDF5FC} CC=${BOLTZPLATZ_HDF5CC} ${BOLTZPLATZ_HDF5_DIR}/src/HDF5/configure --prefix=${BOLTZPLATZ_HDF5_DIR} --enable-fortran ${BOLTZPLATZ_HDF5PARALLEL} --disable-shared --libdir=${BOLTZPLATZ_HDF5_DIR}/lib
