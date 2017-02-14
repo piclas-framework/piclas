@@ -3319,7 +3319,8 @@ END DO !iBC
    CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
    DO iPartBound=1,nPartBound
      BCdata_auxSF(iPartBound)%GlobalArea=areasGlob(iPartBound)
-     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-',iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
+     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
+       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
    END DO
    DEALLOCATE(areasLoc,areasGlob)
 #endif
