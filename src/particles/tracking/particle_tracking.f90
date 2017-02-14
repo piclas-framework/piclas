@@ -1454,9 +1454,12 @@ SUBROUTINE ParticleCollectCharges()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF
+USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF,BezierSampleN,SurfMeshSubSideData
 USE MOD_Equation_Vars,           ONLY : eps0
-USE MOD_TimeDisc_Vars,           ONLY : iter,IterDisplayStep,DoDisplayIter
+USE MOD_TimeDisc_Vars,           ONLY : iter,IterDisplayStep,DoDisplayIter, dt,RKdtFrac
+USE MOD_Particle_Mesh_Vars,      ONLY : GEO,NbrOfRegions
+USE MOD_Particle_Vars,           ONLY : RegionElectronRef
+USE MOD_Mesh_Vars,               ONLY : SideToElem
 USE MOD_Particle_Vars,           ONLY : nCollectChargesBCs,CollectCharges
 USE MOD_Particle_Boundary_Vars,  ONLY : PartBound
 #ifdef MPI
@@ -1471,37 +1474,85 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                          :: iCC, currentBC
 #ifdef MPI
-REAL, ALLOCATABLE                :: NewRealChargesLoc(:),NewRealChargesGlob(:)
+REAL, ALLOCATABLE                :: NewRealChargesGlob(:)
 #endif /*MPI*/
+REAL, ALLOCATABLE                :: NewRealChargesLoc(:)
+INTEGER                          :: iSide, SideID, RegionID, iSample,jSample
+REAL                             :: source_e, area
 !===================================================================================================================================
+IF (iter.GE.0) THEN !not for shape_function-init
+  ALLOCATE( NewRealChargesLoc(1:nCollectChargesBCs) )
+  NewRealChargesLoc=0.
 #ifdef MPI
-ALLOCATE( NewRealChargesLoc(1:nCollectChargesBCs) , NewRealChargesGlob(1:nCollectChargesBCs) )
-NewRealChargesLoc=0.
-NewRealChargesGlob=0.
-DO iCC=1,nCollectChargesBCs
-  NewRealChargesLoc(iCC)=CollectCharges(iCC)%NumOfNewRealCharges
-END DO
-CALL MPI_ALLREDUCE(NewRealChargesLoc,NewRealChargesGlob,nCollectChargesBCs,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
-DO iCC=1,nCollectChargesBCs
-  CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesGlob(iCC)
-END DO
-DEALLOCATE(NewRealChargesLoc,NewRealChargesGlob)
-#endif
-DO iCC=1,nCollectChargesBCs
-  CollectCharges(iCC)%NumOfRealCharges=CollectCharges(iCC)%NumOfRealCharges+CollectCharges(iCC)%NumOfNewRealCharges
-  CollectCharges(iCC)%NumOfNewRealCharges=0.
-  currentBC = CollectCharges(iCC)%BC
-  PartBound%Voltage_CollectCharges(currentBC) = ABS(CollectCharges(iCC)%ChargeDist)/eps0 &
-    *CollectCharges(iCC)%NumOfRealCharges/BCdata_auxSF(currentBC)%GlobalArea
-  IF(BCdata_auxSF(currentBC)%LocalArea.GT.0.) THEN
-    IF(DoDisplayIter)THEN
-      IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-        IPWRITE(*,'(I4,A,I2,2(x,E16.9))') 'Floating Potential and charges',iCC &
-          ,PartBound%Voltage_CollectCharges(CollectCharges(iCC)%BC),CollectCharges(iCC)%NumOfRealCharges
+  ALLOCATE( NewRealChargesGlob(1:nCollectChargesBCs) )
+  NewRealChargesGlob=0.
+#endif /* MPI */
+  DO iCC=1,nCollectChargesBCs
+    NewRealChargesLoc(iCC)=CollectCharges(iCC)%NumOfNewRealCharges
+    !--adding BR-electrons if corresponding regions exist: go through sides/trias if present in proc
+    IF (NbrOfRegions .GT. 0) THEN
+      currentBC = CollectCharges(iCC)%BC
+      IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
+        CYCLE
+      ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
+        CALL abort(__STAMP__,&
+          'ERROR in ParticleBoundary: Something is wrong with SideNumber of BC ',currentBC)
+      END IF
+      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+        SideID=BCdata_auxSF(currentBC)%SideList(iSide)
+        IF (SideToElem(1,SideID).LT.1) CALL abort(&
+  __STAMP__,&
+          'ERROR in ParticleBoundary: Something is wrong with SideToElem') !would need SideToElem(2,SideID) as in SurfFlux
+        RegionID=GEO%ElemToRegion(SideToElem(1,SideID))
+        IF (RegionID .NE. 0) THEN
+          source_e = PartBound%Voltage(currentBC)+PartBound%Voltage_CollectCharges(currentBC)-RegionElectronRef(2,RegionID) !dU
+          IF (source_e .LT. 0.) THEN
+            source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+            * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+          ELSE
+            source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+            * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+          END IF
+          source_e = source_e*SQRT(RegionElectronRef(3,RegionID))*1.67309567E+05 !rho*v_flux, const.=sqrt(q/(2*pi*m_el))
+          area=0.
+          DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+            area = area &
+              + SurfMeshSubSideData(iSample,jSample,SideID)%area
+          END DO; END DO
+          NewRealChargesLoc(iCC) = NewRealChargesLoc(iCC) - dt*RKdtFrac*source_e*area !dQ=dt*rho*v_flux*dA
+        END IF !RegionID .NE. 0
+      END DO ! iSide
+    END IF ! NbrOfRegions .GT. 0
+    !--
+  END DO
+#ifdef MPI
+  CALL MPI_ALLREDUCE(NewRealChargesLoc,NewRealChargesGlob,nCollectChargesBCs,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+  DO iCC=1,nCollectChargesBCs
+    CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesGlob(iCC)
+  END DO
+  DEALLOCATE(NewRealChargesGlob)
+#else
+  DO iCC=1,nCollectChargesBCs
+    CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesLoc(iCC)
+  END DO
+#endif /* MPI */
+  DEALLOCATE(NewRealChargesLoc)
+  DO iCC=1,nCollectChargesBCs
+    CollectCharges(iCC)%NumOfRealCharges=CollectCharges(iCC)%NumOfRealCharges+CollectCharges(iCC)%NumOfNewRealCharges
+    CollectCharges(iCC)%NumOfNewRealCharges=0.
+    currentBC = CollectCharges(iCC)%BC
+    PartBound%Voltage_CollectCharges(currentBC) = ABS(CollectCharges(iCC)%ChargeDist)/eps0 &
+      *CollectCharges(iCC)%NumOfRealCharges/BCdata_auxSF(currentBC)%GlobalArea
+    IF(BCdata_auxSF(currentBC)%LocalArea.GT.0.) THEN
+      IF(DoDisplayIter)THEN
+        IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+          IPWRITE(*,'(I4,A,I2,2(x,E16.9))') 'Floating Potential and charges',iCC &
+            ,PartBound%Voltage_CollectCharges(CollectCharges(iCC)%BC),CollectCharges(iCC)%NumOfRealCharges
+        END IF
       END IF
     END IF
-  END IF
-END DO
+  END DO !iCC=1,nCollectChargesBCs
+END IF !ChargeCollecting
 
 END SUBROUTINE ParticleCollectCharges
 

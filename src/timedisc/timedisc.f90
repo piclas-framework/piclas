@@ -3819,7 +3819,7 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3912,6 +3912,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()  ! finish communication
 #endif
+  CALL ParticleCollectCharges()
 END IF
 
 IF (t.GE.DelayTime) CALL ParticleInserting()
