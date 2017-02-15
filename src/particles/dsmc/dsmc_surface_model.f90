@@ -932,7 +932,7 @@ DO subsurfxi = 1,nSurfSample
         Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,react_Neigh_pos(ReactNum),.FALSE.)
         D_AB = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
         ! calculate LH reaction probability
-        E_d = Calc_E_act(Heat_A,Heat_B,Heat_AB,0.,0.,0.,D_AB,0.,.FALSE.)
+        E_d = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,0.,0.,.FALSE.)
         CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1)
         CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2)
@@ -2573,7 +2573,7 @@ REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reac
 ! Calculates the Activation energy for a given reaction
 ! A_Reactant_ads + B_Reactant_ads --> A_Product_ads + B_Product_ads
 ! Adsorption --> forward reaction
-! if IsGasPhase = TRUE then automatically heat A_Reactant = 0. because reactant was/is not adsorbed
+! Forward reaction is defined by D_Educt > D_Products
 ! Examples:
 ! (1)
 ! O2 desorbed directly to gasphase from reaction of two O (O_ads + O_ads -> O2_g): 
@@ -2599,21 +2599,25 @@ REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reac
   REAL, INTENT(IN)               :: Heat_Product_A, Heat_Product_B, Heat_Reactant_A, Heat_Reactant_B
   REAL, INTENT(IN)               :: D_Product_A, D_Product_B, D_Reactant_A, D_Reactant_B
   LOGICAL, INTENT(IN)            :: IsAdsorption
-!   LOGICAL, INTENT(IN),OPTIONAL   :: IsGasphase
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                           :: Delta_H
+  LOGICAL                        :: Forward
 !===================================================================================================================================
+  ! decide if forward or reverse reaction
+  Forward = .FALSE.
+  IF ( (D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B).GE.0. ) Forward = .TRUE.
+  
   Delta_H = ( Heat_Reactant_A +Heat_Reactant_B -Heat_Product_A -Heat_Product_B ) &
-          + ( D_Reactant_A +D_Reactant_B -D_Reactant_A -D_Reactant_B )
-  Calc_E_Act = 0.5 * ( Delta_H + (Heat_Product_A*Heat_Product_B / (Heat_Product_A+Heat_Product_B)) )
-  IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
-  IF (.NOT.IsAdsorption) THEN
-    Calc_E_Act = Calc_E_Act - Delta_H
-    IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
+          + ( D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B )
+  IF (.NOT.Forward) THEN
+    Calc_E_Act = 0.5 * ( Delta_H + (Heat_Product_A*Heat_Product_B / (Heat_Product_A+Heat_Product_B)) )
+  ELSE
+    Calc_E_Act = 0.5 * ( Delta_H + (Heat_Reactant_A*Heat_Reactant_B / (Heat_Reactant_A+Heat_Reactant_B)) )
   END IF
+  IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
 
 END FUNCTION Calc_E_Act
 
