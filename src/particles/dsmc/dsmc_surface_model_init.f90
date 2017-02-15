@@ -960,7 +960,6 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
       END IF
     END DO
   END DO
-  
 ELSE !MaxDissNum = 0
   nDissoc = 0
   nDisProp = 0

@@ -539,7 +539,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   DO ReactNum = 1,(Adsorption%DissNum)
     jSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
     kSpec = Adsorption%DissocReact(2,ReactNum,iSpec)
-    IF ((iSpec.NE.0) .AND. (kSpec.NE.0)) THEN !if 2 resulting species, dissociation possible
+    IF ((jSpec.NE.0) .AND. (kSpec.NE.0)) THEN !if 2 resulting species, dissociation possible
       jCoord = Adsorption%Coordination(jSpec)
       kCoord = Adsorption%Coordination(kSpec)
       Neighpos_j = 0
