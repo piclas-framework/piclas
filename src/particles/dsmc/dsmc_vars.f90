@@ -288,8 +288,8 @@ TYPE tAdsorption
   INTEGER , ALLOCATABLE                  :: AssocReact(:,:,:)       ! Partner species for associative reaction (2,ReactNum,nSpecies)
   INTEGER , ALLOCATABLE                  :: ChemReactant(:,:)
   INTEGER , ALLOCATABLE                  :: ChemProduct(:,:)
-  INTEGER , ALLOCATABLE                  :: Reactant_DissBond_K(:,:)
-  INTEGER , ALLOCATABLE                  :: Product_DissBond_K(:,:)
+  REAL    , ALLOCATABLE                  :: Reactant_DissBond_K(:,:)
+  REAL    , ALLOCATABLE                  :: Product_DissBond_K(:,:)
   INTEGER                                :: nDissocReactions
   INTEGER                                :: nDisPropReactions
   INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
