@@ -630,7 +630,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
           D_A = 0.
           D_B = 0.
 !         END IF
-        E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.,IsAdsorption=.TRUE.) * BoltzmannConst
+        E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.) * BoltzmannConst
         ! calculation of dissociative adsorption probability with TCE
         EZeroPoint_Educt = 0.
         c_f = Adsorption%DensSurfAtoms(SurfSideID) / ( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
@@ -932,7 +932,7 @@ DO subsurfxi = 1,nSurfSample
         Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,react_Neigh_pos(ReactNum),.FALSE.)
         D_AB = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),iSpec)
         ! calculate LH reaction probability
-        E_d = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,0.,0.,.FALSE.)
+        E_d = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,0.,0.)
         CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1)
         CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2)
@@ -1004,7 +1004,7 @@ DO subsurfxi = 1,nSurfSample
     CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
     CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
     nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
-    E_d = Calc_E_Act(Heat_A, 0.,0.,0.,0.,0.,0.,0., .FALSE.)
+    E_d = Calc_E_Act(Heat_A, 0.,0.,0.,0.,0.,0.,0.)
     rate = nu_des * exp(-E_d/WallTemp)
     P_actual_des = rate * dt
     IF (rate*dt.GT.1) THEN
@@ -2568,7 +2568,7 @@ __STAMP__,&
 END FUNCTION Calc_Adsorb_Heat
 
 REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reactant_B,&
-                         D_Product_A,D_Product_B,D_Reactant_A,D_Reactant_B,IsAdsorption)
+                         D_Product_A,D_Product_B,D_Reactant_A,D_Reactant_B)
 !===================================================================================================================================
 ! Calculates the Activation energy for a given reaction
 ! A_Reactant_ads + B_Reactant_ads --> A_Product_ads + B_Product_ads
