@@ -3587,9 +3587,10 @@ SUBROUTINE ElemConnectivity()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems
+USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,           ONLY:OffSetElem
+USE MOD_Mesh_Vars,           ONLY:OffSetElem,BC,BoundaryType,MortarType
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_MPI_Vars,            ONLY:OffSetElemMPI
 #endif /*MPI*/
@@ -3603,7 +3604,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID
+INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID,BCID,SideID
 INTEGER(KIND=8)               :: GlobalElemID
 LOGICAL                       :: found
 #ifdef MPI
@@ -3698,6 +3699,35 @@ __STAMP__&
   END DO ! ilocSide=1,6
 END DO
 
+! check is working on CONFORM mesh!!!
+DO iElem=1,nTotalElems
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)    
+    IF(DoRefMapping)THEN
+      IF(SideID.LT.1) CYCLE
+    ELSE
+      IF(SideID.LE.0) CALL abort(&
+__STAMP__&
+       , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
+    END IF
+    IF(MortarType(1,SideID).NE.0) CYCLE
+    BCID=BC(SideID)
+    IF(BCID.NE.0)THEN
+      IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
+    END IF
+    IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
+       CALL abort(&
+__STAMP__&
+      , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+      END IF
+  END DO ! ilocSide=1,6
+END DO
+
+#ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif
+SWRITE(UNIT_StdOut,'(A)') ' Build of mesh-connectivity is successful!'
+
 END SUBROUTINE ElemConnectivity
 
 
@@ -3709,7 +3739,7 @@ SUBROUTINE DuplicateSlavePeriodicSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
-USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,nBCSides,MortarSlave2MasterInfo
+USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,nBCSides,MortarSlave2MasterInfo,nElems
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,nPartPeriodicSides,GEO &
                                      ,PartBCSideList,nTotalBCSides,nPartSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
@@ -3729,7 +3759,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iSide,NBElemID,tmpnSides,NBlocSideID,p,q,ElemID,newSideID,locSideID,PVID
-INTEGER                              :: BCID,iBC,flip
+INTEGER                              :: BCID,iBC,flip,ilocSide,iElem,SideID
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3D(:,:,:,:)                                
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3DElevated(:,:,:,:)                                
 REAL,ALLOCATABLE,DIMENSION(:,:,:)    :: DummySideSlabNormals                  ! normal vectors of bounding slab box
@@ -3910,6 +3940,25 @@ IF(MapPeriodicSides)THEN
 END IF ! nPartPeriodicSides .GT.0
 nTotalBCSides=nPartPeriodicSides+nSides
 nPartSides   =nPartPeriodicSides+nSides
+
+! sanity check for PartElemToSide
+DO iElem=1,nElems
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(MortarType(1,SideID).EQ.0)THEN
+      IF(SideID.LE.0)THEN
+        CALL abort(&
+__STAMP__&
+      , ' No Side ID set. critical error!',iElem,REAL(ilocSide))
+      END IF
+    END IF
+  END DO
+END DO ! iElem=1,PP_nElems
+
+#ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif
+SWRITE(UNIT_StdOut,'(A)') ' Sanity check of duplication successful!'
 
 END SUBROUTINE DuplicateSlavePeriodicSides
 

@@ -346,10 +346,6 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   CALL MPI_SEND(SendMsg%nMPISides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
 END IF
 
-IF(MyRank.EQ.0)THEN
-  print*,'Send,Recv',SendMsg%nMPISides,RecvMsg%nMPISides
-END IF
-
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Receive:', RecvMsg%nMPISides
 
 !--- Allocate Message
@@ -1241,8 +1237,8 @@ DO iElem = 1,nElems
       IF(SideID.LT.1) CYCLE
       IF(SideID.GT.nPartSides) CYCLE
       IF(SideIndex(SideID).GT.0)THEN
-        SendMsg%ElemToSide(1,iLocSide,ElemIndex(iElem)) = &
-                 SideIndex(PartElemToSide(E2S_SIDE_ID,iLocSide,iElem))
+        SendMsg%ElemToSide(1,iLocSide,ElemIndex(iElem)) = SideIndex(SideID)
+                 !SideIndex(PartElemToSide(E2S_SIDE_ID,iLocSide,iElem))
              ! CAUTION DEBUG correct sideid????
         SendMsg%ElemToSide(2,iLocSide,ElemIndex(iElem)) = &
                 PartElemToSide(2,iLocSide,iElem)
