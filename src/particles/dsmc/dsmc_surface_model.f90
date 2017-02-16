@@ -834,9 +834,9 @@ ALLOCATE (desorbnum(1:nSpecies),&
           P_react(1:Adsorption%ReactNum+Adsorption%nDisPropReactions),&
           P_actual_react(1:Adsorption%ReactNum+1+Adsorption%nDisPropReactions),&
           Coord_ReactP(1:Adsorption%ReactNum+Adsorption%nDisPropReactions),&
-          Coord_Product(1:2,1:Adsorption%DissNum+Adsorption%nDisPropReactions),&
+          Coord_Product(1:2,1:Adsorption%ReactNum+Adsorption%nDisPropReactions),&
           Pos_ReactP(1:Adsorption%ReactNum+1+Adsorption%nDisPropReactions),&
-          Pos_Product(1:2,1:Adsorption%DissNum+Adsorption%nDisPropReactions))
+          Pos_Product(1:2,1:Adsorption%ReactNum+Adsorption%nDisPropReactions))
 #if (PP_TimeDiscMethod==42)
 IF (Adsorption%TPD) THEN
   ALLOCATE(Energy(1:nSpecies))
@@ -934,7 +934,7 @@ DO subsurfxi = 1,nSurfSample
       IF (Adsorption%AssocReact(1,iReact,iSpec).LT.1) CYCLE ! no partner for this associative reaction
       Coord_ReactP(iReact) = Adsorption%Coordination(Adsorption%AssocReact(1,iReact,iSpec))
       CALL RANDOM_NUMBER(RanNum)
-      NeighID = 1 + INT(nSites(Coord_ReactP(iReact))*RanNum)
+      NeighID = 1 + INT((nSites(Coord_ReactP(iReact))-remainNum(Coord_ReactP(iReact)))*RanNum)
       Pos_ReactP(iReact) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap(NeighID)
       jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord_ReactP(iReact))%Species(Pos_ReactP(iReact))
       
@@ -1199,7 +1199,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT(nSites(Coord_ReactP(iReact+ReactNum_run))*RanNum)
+        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1265,7 +1265,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT(nSites(Coord_ReactP(iReact+ReactNum_run))*RanNum)
+        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1331,7 +1331,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT(nSites(Coord_ReactP(iReact+ReactNum_run))*RanNum)
+        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1397,7 +1397,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT(nSites(Coord_ReactP(iReact+ReactNum_run))*RanNum)
+        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1638,7 +1638,7 @@ DO subsurfxi = 1,nSurfSample
         nSitesRemain(4) = nSitesRemain(4) + 1
         ! add resulting adsorbates from dissociation and update map
         ! first product
-        jCoord = jCoord
+        jCoord = Coord_Product(1,iReact)
         DO i = 1,nSites(jCoord)
         IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_Product(1,iReact)) THEN
           jSpec = Adsorption%DissocReact(1,DissocNum,iSpec)
@@ -1665,7 +1665,7 @@ DO subsurfxi = 1,nSurfSample
         END IF
         END DO !i
         ! second product
-        jCoord = jCoord
+        jCoord = Coord_Product(2,iReact)
         DO i = 1,nSites(jCoord)
         IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_Product(2,iReact)) THEN
           jSpec = Adsorption%DissocReact(2,DissocNum,iSpec)
@@ -1713,8 +1713,8 @@ DO subsurfxi = 1,nSurfSample
           ! calculate Enthalpie of reaction and sample
           Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemReactant(1,ExchNum),-1,.FALSE.)
           Heat_ReactP = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemReactant(2,ExchNum),-1,.FALSE.)
-          Heat_Product1 = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemProduct(1,ExchNum),-1,.TRUE.)
-          Heat_Product2 = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemProduct(2,ExchNum),-1,.TRUE.)
+          Heat_Product1 = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemProduct(1,ExchNum),-1,.FALSE.)
+          Heat_Product2 = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemProduct(2,ExchNum),-1,.FALSE.)
           D_A = Adsorption%Reactant_DissBond_K(1,ExchNum)
           D_ReactP = Adsorption%Reactant_DissBond_K(2,ExchNum)
           D_Product1 = Adsorption%Product_DissBond_K(1,ExchNum)
@@ -1790,8 +1790,7 @@ DO subsurfxi = 1,nSurfSample
                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(jSpec,Indx,Indy) + 1
           END DO
           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap(i) = &
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap( &
-              nSitesRemain(jCoord))
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord))
 !           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = Pos_Product(1,iReact)
           ! move Surfpos to MapID in remainNum segment
           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = &
