@@ -818,7 +818,7 @@ USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,CartesianPeriodic
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
+!USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------

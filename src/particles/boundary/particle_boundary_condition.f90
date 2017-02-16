@@ -1325,6 +1325,13 @@ END IF
 locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
+#ifdef MPI
+IF(ElemID.EQ.-1)THEN
+  CALL abort(&
+__STAMP__&
+,' Halo region to small. Neighbor element is missing!')
+END IF
+#endif /*MPI*/
 !ElemID   =PEM%Element(PartID)
 
 END SUBROUTINE PeriodicBC
