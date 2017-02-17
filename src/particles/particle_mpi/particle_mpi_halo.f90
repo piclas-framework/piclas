@@ -463,17 +463,10 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
         IF(SideID.GT.nPartSides) CYCLE
         PVID=SidePeriodicType(SideID)
         IF(PVID.EQ.0) CYCLE
-        ! reduce the number of sides which are compared to the received sides
-        ! for xi-minus,xi_plus check all 8 nodes to the element and the interior BezierControlPoints
-        ! for all other sides: only check the side-interior BezierControlPoints 
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS,XI_PLUS)
-          firstBezierPoint=0
-          lastBezierPoint=NGeo
-        CASE DEFAULT
-          firstBezierPoint=1
-          lastBezierPoint=NGeo-1
-        END SELECT
+        ! do not (!) reduce the number of side-BezierControlPoints which are compared to the received sides
+        ! since the (moved) sides are checked individually
+        firstBezierPoint=0
+        lastBezierPoint=NGeo
         Vec1(1:3)=-SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         ! loop over all send sides, you do not have to check the halo mesh like in the svn-trunk
         ! the distance-x,y,z check is cheaper than a modified check here and similar fast
