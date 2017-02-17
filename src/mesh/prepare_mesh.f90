@@ -214,7 +214,9 @@ DO iElem=FirstElemInd,LastElemInd
     END DO !iMortar
   END DO ! iLocSide=1,6
 END DO !iElem
-IF(iSide.NE.nInnerSides+nBCSides+nMortarInnerSides) STOP'not all SideIDs are set!'
+IF(iSide.NE.nInnerSides+nBCSides+nMortarInnerSides) CALL abort(&
+  __STAMP__&
+  ,'not all SideIDs are set!')
 LOGWRITE(*,*)'-------------------------------------------------------'
 LOGWRITE(*,'(A22,I8)')'nMortarSides:',nMortarSides
 LOGWRITE(*,'(A22,I8)')'nMortarInnerSides:',nMortarInnerSides
@@ -912,7 +914,9 @@ DO iElem=1,nElems
       IF(aSide%NbProc.EQ.-1) CYCLE !no MPISide
       IF(aSide%SideID.GT.offsetMPISides_YOUR(0))THEN
         IF(aSide%flip.EQ.0)THEN
-          IF(Flip_YOUR(aSide%SideID).EQ.0) STOP 'problem in exchangeflip'
+          IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(&
+  __STAMP__&
+  ,'problem in exchangeflip') 
           aSide%flip=Flip_YOUR(aSide%sideID)
         END IF
       ELSE
