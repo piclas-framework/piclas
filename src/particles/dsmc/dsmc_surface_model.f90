@@ -918,6 +918,11 @@ DO subsurfxi = 1,nSurfSample
     Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
     iSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos)
     
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord))
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord)) = Surfpos
+    AdsorbID = nSites(Coord)-remainNum(Coord)
+    
     ! calculate heat of adsorption for actual site
     Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.FALSE.)
 
@@ -934,7 +939,11 @@ DO subsurfxi = 1,nSurfSample
       IF (Adsorption%AssocReact(1,iReact,iSpec).LT.1) CYCLE ! no partner for this associative reaction
       Coord_ReactP(iReact) = Adsorption%Coordination(Adsorption%AssocReact(1,iReact,iSpec))
       CALL RANDOM_NUMBER(RanNum)
-      NeighID = 1 + INT((nSites(Coord_ReactP(iReact))-remainNum(Coord_ReactP(iReact)))*RanNum)
+      IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+        NeighID = 1 + INT((nSites(Coord_ReactP(iReact))-remainNum(Coord_ReactP(iReact))-1)*RanNum)
+      ELSE
+        NeighID = 1 + INT((nSites(Coord_ReactP(iReact))-remainNum(Coord_ReactP(iReact)))*RanNum)
+      END IF
       Pos_ReactP(iReact) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap(NeighID)
       jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord_ReactP(iReact))%Species(Pos_ReactP(iReact))
       
@@ -963,7 +972,7 @@ DO subsurfxi = 1,nSurfSample
         END IF
       END IF
     END DO
-    ReactNum_run = ReactNum_run + iReact - 1
+    ReactNum_run = ReactNum_run + Adsorption%ReactNum-Adsorption%DissNum
     ! Then do dissociative reactions (both products stay adsorbed)
     
     
@@ -1068,10 +1077,8 @@ DO subsurfxi = 1,nSurfSample
         END IF
       END IF
     END DO
-    ReactNum_run = ReactNum_run + iReact - 1
-    ELSE
-    ReactNum_run = ReactNum_run + Adsorption%DissNum
     END IF
+    ReactNum_run = ReactNum_run + Adsorption%DissNum
 
 ! This routine looks if neirest neighbours are empty and then calculates dissociation probability
 !     IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
@@ -1199,7 +1206,11 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
+        ELSE
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        END IF
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1265,7 +1276,11 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
+        ELSE
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        END IF
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1331,7 +1346,11 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
+        ELSE
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        END IF
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1397,13 +1416,17 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
+        ELSE
+          NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
+        END IF
         Pos_ReactP(iReact+ReactNum_run) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                                           Coord_ReactP(iReact+ReactNum_run))%UsedSiteMap(NeighID)
         jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
                 Coord_ReactP(iReact+ReactNum_run))%Species(Pos_ReactP(iReact+ReactNum_run))
         ! continue only if species on chosen site is appropriate partner
-        IF ((jSpec.EQ.Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
+        IF ((jSpec.EQ.Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
           Prod_Spec1 = Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions)
           Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions)
@@ -1460,7 +1483,7 @@ DO subsurfxi = 1,nSurfSample
         END IF
       END IF
     END DO
-    ReactNum_run = ReactNum_run + iReact - 1
+    ReactNum_run = ReactNum_run + Adsorption%nDisPropReactions
     
     ! if empty neighbour sites are available choose one and calculate diffusion probability
     IF (n_empty_Neigh(Coord).GT.0) THEN
@@ -1902,15 +1925,15 @@ DO subsurfxi = 1,nSurfSample
       END SELECT
       !-----------------------------------------------------------------------------------------------------------------------------
     ELSE ! adsorbate remains on surface on same site
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord))
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord)) = Surfpos
+!       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
+!           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord))
+!       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord)) = Surfpos
       remainNum(Coord) = remainNum(Coord) + 1
       remainNum(4) = remainNum(4) + 1
     END IF
     ! update number of adsorbates
     adsorbnum(:) = nSites(:) - nSitesRemain(:)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nSitesRemain(Coord)
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(:) = nSitesRemain(:)
     ! increment number of considered surface particles
     trace = trace + 1
   END DO
