@@ -1613,9 +1613,9 @@ IF(gatheredWrite)THEN
 ELSE
 #endif
 #ifdef MPI
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(FileName,create=create,single=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=create)
 #endif
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)
