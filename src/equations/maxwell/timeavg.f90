@@ -351,8 +351,8 @@ DO iElem=1,nElems
 #ifdef PARTICLES
   iCounter=PP_nVar+2
   iSpec2=0
-  iVar=iCounter
   DO iSpec=1,nSpecies
+    iVar=iCounter
     IF(DoPowerDensity(iSpec))THEN
       iSpec2=iSpec2+1
       IF(CalcAvg(iCounter+1)) tmpVars(iAvg(iVar+1),:,:,:) = PowerDensity(1,:,:,:,iElem,iSpec2)

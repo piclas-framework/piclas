@@ -46,6 +46,9 @@ USE MOD_ReadInTools,    ONLY: CNTSTR,GETSTR,GETLOGICAL,GETINT
 USE MOD_Mesh_Vars,      ONLY: nElems
 USE MOD_Timeaverage_Vars 
 USE MOD_Equation_Vars,  ONLY: StrVarNames
+#ifdef PARTICLES
+USE MOD_Particle_Vars,  ONLY: nSpecies
+#endif /*PARTICLES*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -55,10 +58,15 @@ INTEGER                        :: iVar,iVar2
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesAvgIni(:), VarNamesAvgList(:), VarNamesFlucList(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesFlucIni(:)
 LOGICAL,ALLOCATABLE            :: hasAvgVars(:)
+#ifdef PARTICLES
+INTEGER                        :: iSpec,iCounter
+CHARACTER(LEN=255)             :: VarName
+CHARACTER(LEN=2)               :: strhelp
+#endif /*PARTICLES*/
 !==================================================================================================================================
 
-nVarAvg  = CNTSTR('VarNameAvg')
-nVarFluc = CNTSTR('VarNameFluc')
+nVarAvg  = CNTSTR('VarNameAvg','0')
+nVarFluc = CNTSTR('VarNameFluc','0')
 IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
   CALL CollectiveStop(__STAMP__, &
     'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')
@@ -71,6 +79,9 @@ END IF
 
 ! Define variables to be averaged
 nMaxVarAvg=5
+#ifdef PARTICLES
+nMaxVarAvg=nMaxVarAvg+5*nSpecies
+#endif /*PARTICLES*/
 ALLOCATE(VarNamesAvgList(nMaxVarAvg))
 
 DO iVar=1,4
@@ -78,7 +89,23 @@ DO iVar=1,4
 END DO ! iVar=1,PP_nVar
 VarNamesAvgList(5)='ElectricFieldMagnitude'
 
+#ifdef PARTICLES
+iCounter=5
+DO iSpec=1,nSpecies
+  WRITE(strhelp,'(I2.2)') iSpec
+  VarnamesAvgList(iCounter+1)=TRIM('PowerDensityX-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+2)=TRIM('PowerDensityY-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+3)=TRIM('PowerDensityZ-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+4)=TRIM('PowerDensity-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+5)=TRIM('ChargeDensity-Spec')//TRIM(strhelp)
+  iCounter=iCounter+5
+END DO
+#endif /*PARTICLES*/
+
 nMaxVarFluc=5
+#ifdef PARTICLES
+nMaxVarFluc=nMaxVarFluc+5*nSpecies
+#endif /*PARTICLES*/
 ALLOCATE(VarNamesFlucList(nMaxVarFluc),hasAvgVars(nMaxVarFluc))
 hasAvgVars=.TRUE.
 !define fluctuation variables
@@ -86,6 +113,19 @@ DO iVar=1,4
   VarNamesFlucList(iVar)=StrVarNames(iVar)
 END DO ! iVar=1,PP_nVar
 VarNamesFlucList(5)='ElectricFieldMagnitude'
+
+#ifdef PARTICLES
+iCounter=5
+DO iSpec=1,nSpecies
+  WRITE(strhelp,'(I2.2)') iSpec
+  VarnamesFlucList(iCounter+1)=TRIM('PowerDensityX-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+2)=TRIM('PowerDensityY-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+3)=TRIM('PowerDensityZ-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+4)=TRIM('PowerDensity-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+5)=TRIM('ChargeDensity-Spec')//TRIM(strhelp)
+  iCounter=iCounter+5
+END DO
+#endif /*PARTICLES*/
 
 ! Read VarNames from ini file
 ALLOCATE(VarNamesAvgIni(nVarAvg),VarNamesFlucIni(nVarFluc))
@@ -129,6 +169,23 @@ DO iVar=1,nVarFluc
   iVar2 = GETMAPBYNAME(VarNamesFlucIni(iVar),VarNamesAvgList,nMaxVarAvg)
   IF(iVar2.NE.-1) CalcAvg(iVar2) = .TRUE.
 END DO
+
+! particles, additional marking for samling
+#ifdef PARTICLES
+iCounter=5
+ALLOCATE(DoPowerDensity(1:nSpecies))
+DoPowerDensity=.FALSE.
+nSpecPowerDensity=0
+DO iSpec=1,nSpecies
+  IF(ANY(CalcAvg(iCounter+1:iCounter+5))) THEN
+    DoPowerDensity(iSpec)=.TRUE.
+    nSpecPowerDensity=nSpecPowerDensity+1
+  END IF
+  iCounter=iCounter+5
+END DO
+IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
+#endif /*PARTICELS*/
+
 
 ! For fluctuations with mixed base vars
 ! nothing to do
@@ -238,6 +295,11 @@ USE MOD_HDF5_Output      ,ONLY: WriteTimeAverage
 USE MOD_Equation_Vars    ,ONLY: E
 USE MOD_Timeaverage_Vars ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
                                ,VarnamesAvgOut,VarNamesFlucOut
+#ifdef PARTICLES
+USE MOD_Timeaverage_Vars ,ONLY: PowerDensity,DoPowerDensity
+USE MOD_Particle_Vars,    ONLY: nSpecies
+USE MOD_Particle_Analyze, ONLY: CalcPowerDensity
+#endif /*Particles*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -250,11 +312,20 @@ REAL,INTENT(IN)                 :: tFuture                !< future simulation t
 INTEGER                         :: i,j,k,iElem,iVar
 REAL                            :: dtStep
 REAL                            :: tmpVars(nVarAvg,0:PP_N,0:PP_N,0:PP_N)
+#ifdef PARTICLES
+INTEGER                         :: iSpec,iSpec2,iCounter
+#endif /*Particles*/
 !----------------------------------------------------------------------------------------------------------------------------------
 dtStep = (dtOld+dt)*0.5
 IF(Finalize) dtStep = dt*0.5
 dtAvg  = dtAvg+dtStep
 dtOld  = dt
+
+#ifdef PARTICLES
+IF(ANY(DoPowerDensity))THEN
+  CALL CalcPowerDensity()
+END IF
+#endif /*Particles*/
 
 DO iElem=1,nElems
 
@@ -273,6 +344,27 @@ DO iElem=1,nElems
       tmpVars(iAvg(5),i,j,k)=SQRT(SUM(E(1:3,i,j,k,iElem)**2))
     END DO; END DO; END DO
   END IF
+
+#ifdef PARTICLES
+  iCounter=5
+  iSpec2=0
+  DO iSpec=1,nSpecies
+    iVar=iCounter
+    IF(DoPowerDensity(iSpec))THEN
+      iSpec2=iSpec2+1
+      IF(CalcAvg(iCounter+1)) tmpVars(iAvg(iVar+1),:,:,:) = PowerDensity(1,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+2)) tmpVars(iAvg(iVar+2),:,:,:) = PowerDensity(2,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+3)) tmpVars(iAvg(iVar+3),:,:,:) = PowerDensity(3,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+4))THEN
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+          tmpVars(iAvg(iVar+4),i,j,k) = SUM(PowerDensity(1:3,i,j,k,iElem,iSpec2))
+        END DO; END DO; END DO
+      END IF
+      IF(CalcAvg(iCounter+5)) tmpVars(iAvg(iVar+5),:,:,:) = PowerDensity(4,:,:,:,iElem,iSpec2)
+    END IF
+    iCounter=iCounter+5
+  END DO ! iSpec=1,nSpecies
+#endif /*Particles*/
 
   ! compute average
   UAvg(:,:,:,:,iElem)= UAvg (:,:,:,:,iElem) + tmpVars(1:nVarAvg,:,:,:)*dtStep
