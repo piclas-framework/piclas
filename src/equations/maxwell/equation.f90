@@ -150,7 +150,11 @@ DO iRefState=1,nTmp
     IF(ABS(WaveVector(3)).LT.epsilontol)THEN
       E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
     ELSE
-      E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
+      IF(ALMOSTEQUAL(ABS(WaveVector(3)),1.))THEN ! wave vector in z-dir -> E_0 in x-dir!
+        E_0=(/1.0, 0.0, 0.0 /) ! test fixed direction
+      ELSE
+        E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
+      END IF
     END IF
     ! normalize E-field
     E_0=UNITVECTOR(E_0)
