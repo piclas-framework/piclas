@@ -852,7 +852,7 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,104,ADVANCE='NO') MaxCollProb
     END IF
-#if (PP_TimeDiscMethod==42)
+#if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
 ! output for adsorption
     IF (DSMC%WallModel.GE.1) THEN
       IF (CalcSurfNumSpec) THEN
@@ -871,6 +871,7 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
         END DO
       END IF
+#if (PP_TimeDiscMethod==42)
       IF (CalcAccomodation) THEN
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -915,24 +916,9 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') RRate(iCase)
       END DO
-    END IF
 #endif /*(PP_TimeDiscMethod==42)*/
-#if (PP_TimeDiscMethod==4)
-    IF (DSMC%WallModel.GE.1) THEN
-      IF (CalcSurfNumSpec) THEN
-        DO iSpec=1, nSpecies
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I18.1)',ADVANCE='NO') WallNumSpec(iSpec)
-        END DO
-      END IF
-      IF (CalcSurfCoverage) THEN
-        DO iSpec=1, nSpecies
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
-        END DO
-      END IF
     END IF
-#endif /*(PP_TimeDiscMethod==4)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)*/
     WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
   END IF
