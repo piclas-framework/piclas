@@ -320,7 +320,7 @@ DO iNbProc=1,nNbProcs
           IF(aSide%SideID.LE.nMPISides_MINE_Proc(iNbProc))THEN !MINE
             aSide%SideID=aSide%SideID +offsetMPISides_MINE(iNbProc-1)
 #ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha
+            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
 #endif /*PARTICLES*/
           ELSE !YOUR
             aSide%SideID=(aSide%SideID-nMPISides_MINE_Proc(iNbProc))+offsetMPISides_YOUR(iNbProc-1)
@@ -332,7 +332,7 @@ DO iNbProc=1,nNbProcs
           IF(aSide%SideID.LE.nMPISides_YOUR_Proc(iNbProc))THEN !MINE
             aSide%SideID=aSide%SideID +offsetMPISides_YOUR(iNbProc-1)
 #ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=-aSide%BC_Alpha
+            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
 #endif /*PARTICLES*/
           ELSE !YOUR
             aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
@@ -900,6 +900,9 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,ONLY:nElems,offsetElem
 USE MOD_Mesh_Vars,ONLY:tElem,tSide,Elems
 USE MOD_MPI_vars
+#ifdef PARTICLES
+USE MOD_Particle_Mesh_Vars, ONLY: SidePeriodicType
+#endif /*PARTICLES*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -973,9 +976,16 @@ DO iElem=1,nElems
           IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(&
   __STAMP__&
   ,'problem in exchangeflip') 
+#ifdef PARTICLES
+          ! switch side-alpha if flip is changed. The other side now constructs the side, thus it has to be changed
+          IF(aSide%flip.NE.Flip_YOUR(aSide%SideID))  SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
+#endif /*PARTICLES*/
           aSide%flip=Flip_YOUR(aSide%sideID)
         END IF
       ELSE
+!#ifdef PARTICLES
+!        !IF(aSide%flip.EQ.0) SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
+!#endif /*PARTICLES*/
         aSide%flip=0 !MINE MPISides flip=0
       END IF
     END DO ! iMortar
