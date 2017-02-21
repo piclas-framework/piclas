@@ -253,9 +253,9 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! Open data file
 #ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-CALL OpenDataFile(FileString,create=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
 #endif
 
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
@@ -284,9 +284,9 @@ CALL CloseDataFile()
 Dexist=.FALSE. 
 IF (DoRestart) THEN 
 #ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-  CALL OpenDataFile(RestartFile,create=.FALSE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
 #endif /*MPI*/
 
 #ifdef MPI
@@ -306,10 +306,10 @@ IF (DoRestart) THEN
   END IF
   ALLOCATE(PartInt(1:nGlobalElems,2))
   PartInt(:,:)=0
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
   CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
   CALL CloseDataFile() 
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
   
   WeightSum = 0.0
   CurWeight = 0.0
@@ -710,17 +710,17 @@ IF(DExist)THEN
   ALLOCATE(ElemWeight(1:nElems))
   !CALL ReadArray('ElemWeight',1,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
 #ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-  CALL OpenDataFile(RestartFile,create=.FALSE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
 #endif /*MPI*/
   CALL ReadArray('ElemWeight',1,(/nElems/),OffsetElem,1,RealArray=ElemWeight)
   CALL CloseDataFile() 
 END IF
 #ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-CALL OpenDataFile(FileString,create=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
 #endif 
 SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))

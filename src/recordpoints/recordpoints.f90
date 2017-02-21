@@ -194,9 +194,9 @@ END IF
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Read recordpoint definitions from data file "'//TRIM(FileString)//'" ...'
 ! Open data file
 #ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #else
-CALL OpenDataFile(FileString,create=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.FALSE.)
 #endif
 
 ! compare mesh file names
@@ -400,9 +400,9 @@ startT=MPI_WTIME()
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 #ifdef MPI
-CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.FALSE.,communicatorOpt=RP_COMM)
+CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=RP_COMM)
 #else
-CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists)
+CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,readOnly=.FALSE.)
 #endif
 
 IF(iSample.GT.0)THEN

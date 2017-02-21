@@ -278,9 +278,9 @@ IF(OutPutSource) THEN
   LocalStrVarNames(4)='ChargeDensity'
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif /*MPI*/
     CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',nVar,StrArray=LocalStrVarnames)
     CALL CloseDataFile()
@@ -351,9 +351,9 @@ StrVarNames(1)='ElemWeight'
 
 IF(MPIRoot)THEN
 #ifdef MPI
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesLB',nVar,StrArray=StrVarNames)
   CALL CloseDataFile()
@@ -479,9 +479,9 @@ END IF
 ! output of rank 
 IF(MPIRoot)THEN
 #ifdef MPI
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarnames)
   CALL CloseDataFile()
@@ -543,9 +543,9 @@ IF(DoPML)THEN
 
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',nVar,StrArray=StrVarNames)
     CALL CloseDataFile()
@@ -818,9 +818,9 @@ INTEGER                        :: minnParts
 
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',nVar,StrArray=StrVarNames)
     CALL CloseDataFile()
@@ -936,9 +936,9 @@ INTEGER                        :: minnParts
 
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
     CALL CloseDataFile()
@@ -953,7 +953,7 @@ INTEGER                        :: minnParts
                             collective=.FALSE.,offSetDim=1         ,&
                             communicator=PartMPI%COMM,RealArray=PartData)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
                         nValGlobal=(/nPart_glob,PartDataSize/),&
                         nVal=      (/locnPart,PartDataSize  /),&
@@ -1032,9 +1032,9 @@ IF(nVar_Avg.GT.0)THEN
   IF(MPIRoot)THEN
     CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FutureTime)
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif /*MPI*/
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -1058,9 +1058,9 @@ IF(nVar_Fluc.GT.0)THEN
   IF(MPIRoot)THEN
     CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FutureTime)
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif /*MPI*/
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -1125,9 +1125,9 @@ CHARACTER(LEN=255)             :: FileName,MeshFile255
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 #ifdef MPI
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,userblockSize=userblock_total_len)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 #else
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,userblockSize=userblock_total_len)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 #endif
 
 ! Write file header
@@ -1597,7 +1597,7 @@ IF(gatheredWrite)THEN
   
   IF(MPILocalRoot)THEN
     ! Reopen file and write DG solution (only IO nodes)
-    CALL OpenDataFile(FileName,create=create,single=.FALSE.,communicatorOpt=MPI_COMM_LEADERS)
+    CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS)
     IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nValGather,&
                                                  offset,collective=collective,RealArray=UReal)
     IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nValGather,&
@@ -1613,9 +1613,9 @@ IF(gatheredWrite)THEN
 ELSE
 #endif
 #ifdef MPI
-  CALL OpenDataFile(FileName,create=create,single=.FALSE.)
+  CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=create)
+  CALL OpenDataFile(FileName,create=create,readOnly=.FALSE.)
 #endif
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)
@@ -1674,7 +1674,7 @@ IF(.NOT.DoNotSplit)THEN
   IF(DataOnProc) THEN
     CALL MPI_COMM_SIZE(OutputCOMM, nOutPutProcs,iError)
     IF(nOutPutProcs.EQ.1)THEN
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,communicatorOpt=OutputCOMM)
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective=.FALSE.,RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1683,7 +1683,7 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective=.FALSE.,StrArray =StrArray)
       CALL CloseDataFile()
     ELSE 
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,communicatorOpt=OutputCOMM)
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective,RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1699,9 +1699,9 @@ IF(.NOT.DoNotSplit)THEN
   CALL MPI_BARRIER(COMMUNICATOR,IERROR)
   OutputCOMM=MPI_UNDEFINED
 ELSE
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL penDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)

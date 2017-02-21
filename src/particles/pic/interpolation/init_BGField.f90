@@ -78,9 +78,9 @@ IF(TRIM(InterpolationType).NE.'particle_position')  CALL abort(&
 SWRITE(UNIT_stdOut,'(A)')' Reading BackGround-Field from file... '
 
 #ifdef MPI
-  CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-  CALL OpenDataFile(BGFileName,create=.FALSE.)
+  CALL OpenDataFile(BGFileName,create=.FALSE.,readOnly=.TRUE.)
 #endif
 
 ! get attributes
