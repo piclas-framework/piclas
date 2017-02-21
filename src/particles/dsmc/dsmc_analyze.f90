@@ -1309,9 +1309,9 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
 #ifdef MPI
-CALL OpenDataFile(FileName,create=.false.,single=.FALSE.)
+CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.)
 #else
-CALL OpenDataFile(FileName,create=.false.)
+CALL OpenDataFile(FileName,create=.false.,readOnly=.FALSE.)
 #endif
 
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
@@ -1518,9 +1518,9 @@ CHARACTER(LEN=255)             :: NodeTypeTemp
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 #ifdef MPI
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,readOnly=.FALSE.)
 #endif
 
 SELECT CASE(TRIM(HODSMC%NodeType))
@@ -2410,9 +2410,9 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
   FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime)
   FileString=TRIM(FileName)//'.h5'
 #ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.)
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileString,create=.TRUE.)
+  CALL OpenDataFile(FileString,create=.TRUE.,readOnly=.FALSE.)
 #endif
   Statedummy = 'DSMCState'
   CALL WriteHDF5Header(Statedummy,File_ID)

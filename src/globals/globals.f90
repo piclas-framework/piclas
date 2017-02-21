@@ -208,7 +208,17 @@ END FUNCTION AlmostEqualToTolerance
 
 FUNCTION AlmostZero(Num)
 !===================================================================================================================================
-! Performe an almost zero check
+! Performe an almost zero check. But ...
+! Bruce Dawson quote:
+! "There is no silver bullet. You have to choose wisely."
+!    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
+!      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+!      to your calculation. Maybe."
+!    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
+!      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+!      An absolute epsilon could be used if you knew exactly what number you were comparing against."
+!    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+!      Good luck and God speed."
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,    ONLY:EpsMach
@@ -416,7 +426,7 @@ INTEGER            :: i         ! loop variable
 !IF (Analyze_dt.LT.1E-10) THEN
 !  WRITE(TimeStamp,'(F15.14)')Time
 !ELSE
-WRITE(TimeStamp,'(F19.15)')Time
+WRITE(TimeStamp,'(F20.16)')Time
 !END IF
 ! Replace spaces with 0's
 DO i=1,LEN(TRIM(TimeStamp))

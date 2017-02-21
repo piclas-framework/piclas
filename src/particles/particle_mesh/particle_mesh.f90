@@ -2377,9 +2377,10 @@ END SUBROUTINE MapElemToFIBGM
 
 SUBROUTINE CountPartsPerElem()
 !===================================================================================================================================
-! Deallocate arrays
+! count number of particles in element
 !===================================================================================================================================
 ! MODULES
+USE MOD_Preproc
 USE MOD_LoadBalance_Vars,        ONLY: nPartsPerElem
 USE MOD_Particle_Vars,           ONLY: PDM,PEM
 ! IMPLICIT VARIABLE HANDLING
@@ -2396,7 +2397,9 @@ INTEGER           :: iPart, ElemID
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     ElemID = PEM%Element(iPart)
-    nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
+    IF(ElemID.LE.PP_nElems)THEN
+      nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
+    END IF
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
 

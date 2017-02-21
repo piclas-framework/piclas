@@ -34,8 +34,13 @@ INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
 
+INTERFACE CalcPowerDensity
+  MODULE PROCEDURE CalcPowerDensity
+END INTERFACE
+
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
 PUBLIC:: CalcKineticEnergy, CalcEkinPart, AnalyzeParticles
+PUBLIC:: CalcPowerDensity
 #if (PP_TimeDiscMethod == 42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -2296,7 +2301,120 @@ ELSE
 END IF
 CalcEkinPart=Ekin
 END FUNCTION CalcEkinPart
+
+
+SUBROUTINE CalcPowerDensity() 
+!===================================================================================================================================
+! compute the power density of the species
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Timeaverage_Vars,    ONLY:DoPowerDensity,PowerDensity
+USE MOD_Particle_Vars,       ONLY:nSpecies,PartSpecies,PDM
+USE MOD_PICDepo_Vars,        ONLY:Source
+USE MOD_Part_RHS,            ONLY:PartVeloToImp
+USE MOD_Preproc
+USE MOD_PICDepo,             ONLY:Deposition
+#ifndef PP_HDG
+USE MOD_DG_Vars,             ONLY:U
+#else
+USE MOD_Equation_Vars,       ONLY:E
+#endif
+#ifdef MPI
+USE MOD_Particle_MPI,        ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,   ONLY:PartMPIExchange
+USE MOD_Particle_MPI_Vars,   ONLY:DoExternalParts
+USE MOD_Particle_MPI_Vars,   ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+#endif /*MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iSpec,iSpec2
+INTEGER              :: iElem,i,j,k,iPart
+LOGICAL              :: doParticle(1:PDM%MaxParticleNumber)
+!===================================================================================================================================
+
+iSpec2=0
+PowerDensity=0.
+DO iSpec=1,nSpecies
+  IF(.NOT.DoPowerDensity(iSpec)) CYCLE
+  iSpec2=iSpec2+1
+  ! mark particle
+  DoParticle(:)=.FALSE.
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(iPart))THEN
+      IF(PartSpecies(iPart).EQ.iSpec)THEN
+        DoParticle(iPart)=.TRUE.
+      END IF
+    END IF ! ParticleInside
+  END DO ! iPart
+    
+  ! communicate shape function particles
+#ifdef MPI
+  PartMPIExchange%nMPIParticles=0
+  IF(DoExternalParts)THEN
+    ! as we do not have the shape function here, we have to deallocate something
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+    ! send number of particles
+    CALL SendNbOfParticles(doParticle_In=DoParticle)
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+    ! set exchanged number of particles to zero
+    PartMPIExchange%nMPIParticles=0
+  END IF
+#endif /*MPI*/
+
+  ! compute source terms
+  ! map particle from gamma v to v
+  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  ! compute particle source terms on field solver of implicit particles :)
+  CALL Deposition(doInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition(doInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  ! map particle from v to gamma v
+  CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+
+  ! compute power density
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+#ifndef PP_HDG
+          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*U(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*U(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+#else
+#if PP_nVar==1
+          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*E(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*E(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+#else
+          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
+#endif
+          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+#endif
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+  END DO ! iElem=1,PP_nElems
+END DO
+
+END SUBROUTINE CalcPowerDensity
  
+
 SUBROUTINE FinalizeParticleAnalyze()
 !===================================================================================================================================
 ! Finalizes variables necessary for analyse subroutines
