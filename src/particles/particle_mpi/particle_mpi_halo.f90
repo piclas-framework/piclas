@@ -50,7 +50,7 @@ USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
 !1USE MOD_Particle_Tracking_Vars,     ONLY:CartesianPeriodic             ! old periodic for refmapping and ALL bcs periocic
 USE MOD_Particle_MPI_Vars,          ONLY:halo_eps
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo
+USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,nSides,BC,BoundaryType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -70,13 +70,14 @@ INTEGER                     :: DataSize
 TYPE tMPISideMessage
   REAL(KIND=8), ALLOCATABLE :: BezierSides3D(:,:,:,:) ! BezierSides of boundary faces
   INTEGER(KIND=4)           :: nMPISides              ! number of Sides to send
-  REAL                      :: MinMax(1:6)
+  REAL                      :: MinMaxXYZ(1:6)
 END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
-INTEGER                     :: ALLOCSTAT,PVID
-REAL                        :: MinMax,Vec1(1:3)
+INTEGER                     :: ALLOCSTAT,PVID,iDir
+REAL                        :: MinMax(2),CompareXYZ,Vec1(1:3)
 LOGICAL                     :: SideisDone(1:nPartSides)
+LOGICAL                     :: SideInside
 !=================================================================================================================================
 
 ! 1) Exchange Sides:
@@ -94,19 +95,21 @@ LOGICAL                     :: SideisDone(1:nPartSides)
 SideIndex(:)=0
 SendMsg%nMPISides=0
 
-SendMsg%MinMax(1)=GEO%xmin
-SendMsg%MinMax(2)=GEO%ymin
-SendMsg%MinMax(3)=GEO%zmin
-SendMsg%MinMax(4)=GEO%xmax
-SendMsg%MinMax(5)=GEO%ymax
-SendMsg%MinMax(6)=GEO%zmax
+! exchange of bounding box of process-local (MY)-region
+! take the halo_eps into account
+SendMsg%MinMaxXYZ(1)=GEO%xmin-halo_eps
+SendMsg%MinMaxXYZ(2)=GEO%ymin-halo_eps
+SendMsg%MinMaxXYZ(3)=GEO%zmin-halo_eps
+SendMsg%MinMaxXYZ(4)=GEO%xmax+halo_eps
+SendMsg%MinMaxXYZ(5)=GEO%ymax+halo_eps
+SendMsg%MinMaxXYZ(6)=GEO%zmax+halo_eps
 
 IF (PartMPI%MyRank.LT.iProc) THEN
-  CALL MPI_SEND(SendMsg%MinMax,1,MPI_INTEGER,iProc,1001,PartMPI%COMM,IERROR)
-  CALL MPI_RECV(RecvMsg%MinMax,1,MPI_INTEGER,iProc,1002,PartMPI%COMM,MPISTATUS,IERROR)
+  CALL MPI_SEND(SendMsg%MinMaxXYZ,6,MPI_DOUBLE_PRECISION,iProc,1001,PartMPI%COMM,IERROR)
+  CALL MPI_RECV(RecvMsg%MinMaxXYZ,6,MPI_DOUBLE_PRECISION,iProc,1002,PartMPI%COMM,MPISTATUS,IERROR)
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
-  CALL MPI_RECV(RecvMsg%MinMax,1,MPI_INTEGER,iProc,1001,PartMPI%COMM,MPISTATUS,IERROR)
-  CALL MPI_SEND(SendMsg%MinMax,1,MPI_INTEGER,iProc,1002,PartMPI%COMM,IERROR)
+  CALL MPI_RECV(RecvMsg%MinMaxXYZ,6,MPI_DOUBLE_PRECISION,iProc,1001,PartMPI%COMM,MPISTATUS,IERROR)
+  CALL MPI_SEND(SendMsg%MinMaxXYZ,6,MPI_DOUBLE_PRECISION,iProc,1002,PartMPI%COMM,IERROR)
 END IF
 
 SideisDone=.FALSE.
@@ -114,187 +117,47 @@ SideisDone(1:firstMPISide_MINE-1)=.TRUE.
 DO iElem=1,PP_nElems
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    ! if not SideID exists, ignore
     IF(SideID.LT.1) CYCLE
-    IF(SideID.GT.nPartSides) CYCLE
+    IF(SideID.GT.nPartSides) CYCLE ! only MY sides are checked, no HALO sides of other processes
+    IF(SideID.LT.firstMPISide_MINE)THEN ! for my-inner-sides, we have to check the periodic sides
+      IF(BC(SideID).LE.0) CYCLE ! no boundary side, cycle
+      IF(BoundaryType(BC(SideID),BC_TYPE).NE.1) CYCLE  ! not a periodic BC, cycle
+    END IF
+    ! side is already checked
     IF(SideIsDone(SideID)) CYCLE
+    ! mortar side
     IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
     IF(SideIndex(SideID).EQ.0)THEN
       PVID=SidePeriodicType(SideID)
       Vec1=0.
       IF(PVID.NE.0) Vec1=- SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-      ! overlap in X
-      MinMax=MINVAL(BezierControlPoints3D(1,0:NGeo,0:NGeo,SideID))
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
+      ! check if an overlap is possible
+      DO iDir=1,3 ! x,y,z
+        ! check for SideInSide at the beginning of the loop
+        SideInside=.FALSE.
+        MinMax(1)=MINVAL(BezierControlPoints3D(iDir,0:NGeo,0:NGeo,SideID))
+        MinMax(2)=MAXVAL(BezierControlPoints3D(iDir,0:NGeo,0:NGeo,SideID))
+        IF(MinMax(1).LE.RecvMsg%MinMaxXYZ(iDir+3).AND.MinMax(2).GE.RecvMsg%MinMaxXYZ(iDir))THEN
+          SideInside=.TRUE.
+        END IF
+        ! periodic sides
+        IF(Vec1(iDir).NE.0)THEN
+          MinMax(1)=MinMax(1)+Vec1(iDir)
+          MinMax(2)=MinMax(2)+Vec1(iDir)
+          IF(MinMax(1).LE.RecvMsg%MinMaxXYZ(iDir+3).AND.MinMax(2).GE.RecvMsg%MinMaxXYZ(iDir))THEN
+            SideInside=.TRUE.
+          END IF
+        END IF
+        IF(.NOT.SideInside) EXIT ! Side outside of required range, can be skipped
+      END DO ! directions
+      ! if Side is marked, it has to be communicated
+      IF(SideInside)THEN
         SendMsg%nMPISides=SendMsg%nMPISides+1
         SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
       END IF
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(4))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(Vec1(1).NE.0)THEN
-        MinMax=MinMax+Vec1(1)
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(4))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-      END IF
-      MinMax=MAXVAL(BezierControlPoints3D(1,0:NGeo,0:NGeo,SideID))
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(4))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(Vec1(1).NE.0)THEN
-        MinMax=MinMax+Vec1(1)
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(1))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(4))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-      END IF
-      ! overlap in y
-      MinMax=MINVAL(BezierControlPoints3D(2,0:NGeo,0:NGeo,SideID))
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(2))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(5))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(Vec1(2).NE.0)THEN
-        MinMax=MinMax+Vec1(2)
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(2))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(5))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-      END IF
-      MinMax=MAXVAL(BezierControlPoints3D(2,0:NGeo,0:NGeo,SideID))
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(2))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(5))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(Vec1(2).NE.0)THEN
-        MinMax=MinMax+Vec1(2)
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(2))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(5))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-      END IF
-      ! overlap in z
-      MinMax=MINVAL(BezierControlPoints3D(3,0:NGeo,0:NGeo,SideID))
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(3))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(6))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(Vec1(3).NE.0)THEN
-        MinMax=MinMax+Vec1(3)
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(3))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(6))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-      END IF
-      MinMax=MAXVAL(BezierControlPoints3D(3,0:NGeo,0:NGeo,SideID))
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(3))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(6))).LT.halo_eps)THEN
-        SendMsg%nMPISides=SendMsg%nMPISides+1
-        SideIndex(SideID)=SendMsg%nMPISides
-        SideisDone(SideID)=.TRUE.
-        CYCLE
-      END IF
-      IF(Vec1(3).NE.0)THEN
-        MinMax=MinMax+Vec1(3)
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(3))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-        IF(ABS(ABS(MinMax)-ABS(RecvMsg%MinMax(6))).LT.halo_eps)THEN
-          SendMsg%nMPISides=SendMsg%nMPISides+1
-          SideIndex(SideID)=SendMsg%nMPISides
-          SideisDone(SideID)=.TRUE.
-          CYCLE
-        END IF
-      END IF
+      SideisDone(SideID)=.TRUE.
     END IF
-    SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide
 END DO ! iElem=1,PP_nElems
 
@@ -345,10 +208,6 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   CALL MPI_RECV(RecvMsg%nMPISides,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
   CALL MPI_SEND(SendMsg%nMPISides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
-END IF
-
-IF(MyRank.EQ.0)THEN
-  print*,'Send,Recv',SendMsg%nMPISides,RecvMsg%nMPISides
 END IF
 
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Receive:', RecvMsg%nMPISides
@@ -822,8 +681,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToEle
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,CartesianPeriodic
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1242,8 +1101,8 @@ DO iElem = 1,nElems
       IF(SideID.LT.1) CYCLE
       IF(SideID.GT.nPartSides) CYCLE
       IF(SideIndex(SideID).GT.0)THEN
-        SendMsg%ElemToSide(1,iLocSide,ElemIndex(iElem)) = &
-                 SideIndex(PartElemToSide(E2S_SIDE_ID,iLocSide,iElem))
+        SendMsg%ElemToSide(1,iLocSide,ElemIndex(iElem)) = SideIndex(SideID)
+                 !SideIndex(PartElemToSide(E2S_SIDE_ID,iLocSide,iElem))
              ! CAUTION DEBUG correct sideid????
         SendMsg%ElemToSide(2,iLocSide,ElemIndex(iElem)) = &
                 PartElemToSide(2,iLocSide,iElem)

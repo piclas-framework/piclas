@@ -411,9 +411,9 @@ REAL,ALLOCATABLE   :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(A,A)')'  Read BC state from file "',FileName
 #ifdef MPI
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.,single=.FALSE.)
 #else
-CALL OpenDataFile(FileName,create=.FALSE.)
+CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.)
 #endif
 
 CALL GetDataProps(nVar_HDF5,N_HDF5,nELems_HDF5,NodeType_HDF5)

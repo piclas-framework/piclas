@@ -2377,9 +2377,10 @@ END SUBROUTINE MapElemToFIBGM
 
 SUBROUTINE CountPartsPerElem()
 !===================================================================================================================================
-! Deallocate arrays
+! count number of particles in element
 !===================================================================================================================================
 ! MODULES
+USE MOD_Preproc
 USE MOD_LoadBalance_Vars,        ONLY: nPartsPerElem
 USE MOD_Particle_Vars,           ONLY: PDM,PEM
 ! IMPLICIT VARIABLE HANDLING
@@ -2396,7 +2397,9 @@ INTEGER           :: iPart, ElemID
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     ElemID = PEM%Element(iPart)
-    nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
+    IF(ElemID.LE.PP_nElems)THEN
+      nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
+    END IF
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
 
@@ -3586,9 +3589,10 @@ SUBROUTINE ElemConnectivity()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems
+USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,           ONLY:OffSetElem
+USE MOD_Mesh_Vars,           ONLY:OffSetElem,BC,BoundaryType,MortarType
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_MPI_Vars,            ONLY:OffSetElemMPI
 #endif /*MPI*/
@@ -3602,7 +3606,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID
+INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID,BCID,SideID
 INTEGER(KIND=8)               :: GlobalElemID
 LOGICAL                       :: found
 #ifdef MPI
@@ -3697,6 +3701,35 @@ __STAMP__&
   END DO ! ilocSide=1,6
 END DO
 
+! check is working on CONFORM mesh!!!
+DO iElem=1,nTotalElems
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)    
+    IF(DoRefMapping)THEN
+      IF(SideID.LT.1) CYCLE
+    ELSE
+      IF(SideID.LE.0) CALL abort(&
+__STAMP__&
+       , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
+    END IF
+    IF(MortarType(1,SideID).NE.0) CYCLE
+    BCID=BC(SideID)
+    IF(BCID.NE.0)THEN
+      IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
+    END IF
+    IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
+       CALL abort(&
+__STAMP__&
+      , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+      END IF
+  END DO ! ilocSide=1,6
+END DO
+
+#ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif
+SWRITE(UNIT_StdOut,'(A)') ' Build of mesh-connectivity is successful!'
+
 END SUBROUTINE ElemConnectivity
 
 
@@ -3728,7 +3761,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iSide,NBElemID,tmpnSides,NBlocSideID,p,q,ElemID,newSideID,locSideID,PVID
-INTEGER                              :: BCID,iBC,flip
+INTEGER                              :: BCID,iBC,flip,ilocSide,iElem,SideID,idir
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3D(:,:,:,:)                                
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3DElevated(:,:,:,:)                                
 REAL,ALLOCATABLE,DIMENSION(:,:,:)    :: DummySideSlabNormals                  ! normal vectors of bounding slab box
@@ -3741,6 +3774,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyMortarType
 INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyPartSideToElem
 INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummySidePeriodicType
 LOGICAL                              :: MapPeriodicSides
+REAL                                 :: MinMax(1:2),MinMaxGlob(1:6)
 !===================================================================================================================================
 
 nPartPeriodicSides=0
@@ -3768,6 +3802,13 @@ END IF
 
 !IF(nPartPeriodicSides.GT.0)THEN
 IF(MapPeriodicSides)THEN
+  ! map min-max glob to local array
+  MinMaxGlob(1)=GEO%xminglob
+  MinMaxGlob(2)=GEO%yminglob
+  MinMaxGlob(3)=GEO%zminglob
+  MinMaxGlob(4)=GEO%xmaxglob
+  MinMaxGlob(5)=GEO%ymaxglob
+  MinMaxGlob(6)=GEO%zmaxglob
 
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
   ALLOCATE(DummyBezierControlPoints3dElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
@@ -3879,6 +3920,23 @@ IF(MapPeriodicSides)THEN
       END DO ! q=0,NGeo
       ! recompute quark
       CALL RotateMasterToSlave(flip,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
+      DO idir=1,3
+        MinMax(1)=MINVAL(BezierControlPoints3d(iDir,:,:,newSideID))
+        MinMax(2)=MAXVAL(BezierControlPoints3d(iDir,:,:,newSideID))
+        ! this may be required a tolerance due to periodic displacement
+        IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
+          IPWRITE(UNIT_stdOut,*) ' Min-comparison ', MinMax(1),MinMaxGlob(iDir)
+          CALL abort(&
+__STAMP__&
+      , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+        END IF
+        IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
+          IPWRITE(UNIT_stdOut,*) ' Max-comparison ', MinMax(2),MinMaxGlob(iDir+3)
+          CALL abort(&
+__STAMP__&
+      , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+        END IF
+      END DO
 
       ! fill partsidetoelem
       PartSideToElem(S2E_ELEM_ID,newSideID)=NBElemID
@@ -3909,6 +3967,25 @@ IF(MapPeriodicSides)THEN
 END IF ! nPartPeriodicSides .GT.0
 nTotalBCSides=nPartPeriodicSides+nSides
 nPartSides   =nPartPeriodicSides+nSides
+
+! sanity check for PartElemToSide
+DO iElem=1,nElems
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(MortarType(1,SideID).EQ.0)THEN
+      IF(SideID.LE.0)THEN
+        CALL abort(&
+__STAMP__&
+      , ' No Side ID set. critical error!',iElem,REAL(ilocSide))
+      END IF
+    END IF
+  END DO
+END DO ! iElem=1,PP_nElems
+
+#ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif
+SWRITE(UNIT_StdOut,'(A)') ' Sanity check of duplication successful!'
 
 END SUBROUTINE DuplicateSlavePeriodicSides
 
@@ -4143,7 +4220,6 @@ GEO%zmax=zmax
   GEO%ymaxglob=GEO%ymax
   GEO%zmaxglob=GEO%zmax
 #endif   
-
 
 END SUBROUTINE GetFIBGMMinMax
 

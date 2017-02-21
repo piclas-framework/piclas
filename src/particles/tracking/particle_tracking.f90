@@ -475,7 +475,11 @@ DO iPart=1,PDM%ParticleVecLength
         PEM%Element(iPart)  = ElemID
 #ifdef MPI
          tLBEnd = LOCALTIME() ! LB Time End
-         ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+         IF(ElemID.LE.PP_nElems)THEN
+           ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+         ELSE IF(PEM%LastElement(iPart).LE.PP_nElems)THEN
+           ElemTime(PEM%LastElement(iPart))=ElemTime(PEM%LastElement(iPart))+tLBEnd-tLBStart
+         END IF
 #endif /*MPI*/
         CYCLE
       !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
@@ -484,10 +488,10 @@ DO iPart=1,PDM%ParticleVecLength
     END IF ! initial check
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
-    IF(ElemID.GT.PP_nElems)THEN
-      ElemTime(LastElemID)=ElemTime(LastElemID)+tLBEnd-tLBStart
-    ELSE
+    IF(ElemID.LE.PP_nElems)THEN
       ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+    ELSE IF(PEM%LastElement(iPart).LE.PP_nElems)THEN
+      ElemTime(PEM%LastElement(iPart))=ElemTime(PEM%LastElement(iPart))+tLBEnd-tLBStart
     END IF
 #endif /*MPI*/
   ! still not located

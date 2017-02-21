@@ -123,9 +123,9 @@ IF(.NOT.validMesh) &
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
 #ifdef MPI
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-CALL OpenDataFile(MeshFile,create=.FALSE.)
+CALL OpenDataFile(MeshFile,create=.FALSE.,readOnly=.TRUE.)
 #endif
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
