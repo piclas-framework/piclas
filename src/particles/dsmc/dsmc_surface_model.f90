@@ -1635,7 +1635,7 @@ DO subsurfxi = 1,nSurfSample
           Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
           Heat_Product1 = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%DissocReact(1,DissocNum,iSpec),-1,.FALSE.)
           Heat_Product2 = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%DissocReact(2,DissocNum,iSpec),-1,.FALSE.)
-          D_A = Adsorption%EDissBond(Adsorption%DissNum+iReact,iSpec)
+          D_A = Adsorption%EDissBond(DissocNum,iSpec)
           AdsorptionEnthalpie = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
                           / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
                           * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
