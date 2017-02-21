@@ -1522,7 +1522,7 @@ DO subsurfxi = 1,nSurfSample
     CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
     CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
     nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
-    E_d = Calc_E_Act(Heat_A, 0.,0.,0.,0.,0.,0.,0.)
+    E_d = Calc_E_Act(0.,0.,Heat_A,0.,0.,0.,0.,0.)
     rate = nu_des * exp(-E_d/WallTemp)
     P_actual_des = rate * dt
     IF (rate*dt.GT.1) THEN
@@ -3369,7 +3369,7 @@ REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reac
 !===================================================================================================================================
   ! decide if forward or reverse reaction
   Forward = .FALSE.
-  IF ( (D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B).GE.0. ) Forward = .TRUE.
+  IF ( (D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B).GT.0. ) Forward = .TRUE.
   
   Delta_H = ( Heat_Reactant_A +Heat_Reactant_B -Heat_Product_A -Heat_Product_B ) &
           + ( D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B )
