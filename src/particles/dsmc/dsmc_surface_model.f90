@@ -674,30 +674,31 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !---------------------------------------------------------------------------------------------------------------------------------
   ! calculate probability for Eley-Rideal reaction (not ready yet)
   !---------------------------------------------------------------------------------------------------------------------------------
-  DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-    ! reaction partner
-    jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
-    Neighpos_j = 0
-    IF (jSpec.EQ.0) CYCLE
-    ! reaction results
-    kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
-    jCoord = Adsorption%Coordination(jSpec)
-    IF (jCoord.EQ.Coord) THEN
-      Neighpos_j = Surfpos
-    ELSE
-      IF ( n_Neigh(jCoord)-n_empty_Neigh(jCoord).GT.0 ) THEN
-        CALL RANDOM_NUMBER(RanNum)
-        chosen_Neigh_j = 1 + INT(n_Neigh(jCoord)*RanNum)
-        Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,NeighbourID(jCoord,chosen_Neigh_j))
-      END IF
-    END IF
-    IF ( (Neighpos_j.GT.0) ) THEN
-    IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%Species(Neighpos_j).EQ.jSpec) ) THEN
-      ! calculation of activation energy
-      ! calculation of reaction probability with TCE
-    END IF
-    END IF
-  END DO
+!   DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
+!     ! reaction partner
+!     jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
+!     Neighpos_j = 0
+!     IF (jSpec.EQ.0) CYCLE
+!     ! reaction results
+!     kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
+!     jCoord = Adsorption%Coordination(jSpec)
+!     IF (jCoord.EQ.Coord) THEN
+!       Neighpos_j = Surfpos
+!     ELSE
+!       IF ( n_Neigh(jCoord)-n_empty_Neigh(jCoord).GT.0 ) THEN
+!         CALL RANDOM_NUMBER(RanNum)
+!         chosen_Neigh_j = 1 + INT(n_Neigh(jCoord)*RanNum)
+!         Neighpos_j = &
+!                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%NeighPos(Surfpos,NeighbourID(jCoord,chosen_Neigh_j))
+!       END IF
+!     END IF
+!     IF ( (Neighpos_j.GT.0) ) THEN
+!     IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%Species(Neighpos_j).EQ.jSpec) ) THEN
+!       ! calculation of activation energy
+!       ! calculation of reaction probability with TCE
+!     END IF
+!     END IF
+!   END DO
   !---------------------------------------------------------------------------------------------------------------------------------
   
   sum_probabilities = Prob_ads
