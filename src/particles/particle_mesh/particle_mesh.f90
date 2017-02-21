@@ -3762,7 +3762,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iSide,NBElemID,tmpnSides,NBlocSideID,p,q,ElemID,newSideID,locSideID,PVID
-INTEGER                              :: BCID,iBC,flip,ilocSide,iElem,SideID
+INTEGER                              :: BCID,iBC,flip,ilocSide,iElem,SideID,idir
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3D(:,:,:,:)                                
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3DElevated(:,:,:,:)                                
 REAL,ALLOCATABLE,DIMENSION(:,:,:)    :: DummySideSlabNormals                  ! normal vectors of bounding slab box
@@ -3775,6 +3775,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyMortarType
 INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyPartSideToElem
 INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummySidePeriodicType
 LOGICAL                              :: MapPeriodicSides
+REAL                                 :: MinMax(1:2),MinMaxGlob(1:6)
 !===================================================================================================================================
 
 nPartPeriodicSides=0
@@ -3802,6 +3803,13 @@ END IF
 
 !IF(nPartPeriodicSides.GT.0)THEN
 IF(MapPeriodicSides)THEN
+  ! map min-max glob to local array
+  MinMaxGlob(1)=GEO%xminglob
+  MinMaxGlob(2)=GEO%yminglob
+  MinMaxGlob(3)=GEO%zminglob
+  MinMaxGlob(4)=GEO%xmaxglob
+  MinMaxGlob(5)=GEO%ymaxglob
+  MinMaxGlob(6)=GEO%zmaxglob
 
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
   ALLOCATE(DummyBezierControlPoints3dElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
@@ -3913,6 +3921,23 @@ IF(MapPeriodicSides)THEN
       END DO ! q=0,NGeo
       ! recompute quark
       CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
+      DO idir=1,3
+        MinMax(1)=MINVAL(BezierControlPoints3d(iDir,:,:,newSideID))
+        MinMax(2)=MAXVAL(BezierControlPoints3d(iDir,:,:,newSideID))
+        ! this may be required a tolerance due to periodic displacement
+        IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
+          IPWRITE(UNIT_stdOut,*) ' Min-comparison ', MinMax(1),MinMaxGlob(iDir)
+          CALL abort(&
+__STAMP__&
+      , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+        END IF
+        IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
+          IPWRITE(UNIT_stdOut,*) ' Max-comparison ', MinMax(2),MinMaxGlob(iDir+3)
+          CALL abort(&
+__STAMP__&
+      , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+        END IF
+      END DO
 
       ! fill partsidetoelem
       PartSideToElem(S2E_ELEM_ID,newSideID)=NBElemID
@@ -4196,7 +4221,6 @@ GEO%zmax=zmax
   GEO%ymaxglob=GEO%ymax
   GEO%zmaxglob=GEO%zmax
 #endif   
-
 
 END SUBROUTINE GetFIBGMMinMax
 
