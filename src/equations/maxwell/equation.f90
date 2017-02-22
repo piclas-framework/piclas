@@ -276,12 +276,14 @@ REAL,PARAMETER                  :: Q=1, dD=1, omegaD=6.28318E8     ! aux. Consta
 REAL                            :: c1,s1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron
 REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variables for Gyrotron
-REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
-REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
-REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
+!REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
+!REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
+!REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
+REAL                            :: omegaG,g,h,k,B0G
+INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift            !> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
-INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
+!INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 REAL                            :: eta, kx,ky,kz
 !===================================================================================================================================
 Cent=x
@@ -402,7 +404,7 @@ CASE(4) ! Dipole
   
 CASE(5) ! Initialization and BC Gyrotron Mode Converter
   eps=1e-10
-  IF (x(3).GT.eps) RETURN
+  !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   IF (x(1).GT.eps)      THEN
     phi = ATAN(x(2)/x(1))
@@ -416,6 +418,13 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
     phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
   END IF
   z = x(3)
+  omegaG=2*pi*35e9
+  mG=1
+  nG=1
+  g=1.8412/0.004
+  k=omegaG*c_inv
+  h=SQRT(k**2-g**2)
+  B0G=1.
   Er  =-B0G*mG*omegaG/(r*g**2)*BESSEL_JN(mG,REAL(g*r))                             * &
                                                                  ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
   Ephi= B0G*omegaG/h      *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
