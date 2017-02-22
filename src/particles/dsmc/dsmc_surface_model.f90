@@ -957,10 +957,11 @@ DO subsurfxi = 1,nSurfSample
         D_AB = Adsorption%EDissBond((Adsorption%DissNum+iReact),iSpec)
         ! calculate LH reaction probability
         E_d = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,0.,0.)
-        CALL PartitionFuncAct(Prod_Spec1, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
+        CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct1, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
+        CALL PartitionFuncAct(jSpec, WallTemp, VarPartitionFuncAct2, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1)
         CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2)
-        nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct &
+        nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * ((VarPartitionFuncAct1 * VarPartitionFuncAct2) &
                     / (VarPartitionFuncWall1 * VarPartitionFuncWall2))
         rate = nu_react * exp(-E_d/(WallTemp))
         P_actual_react(iReact) = rate * dt
