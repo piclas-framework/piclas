@@ -432,7 +432,7 @@ DO iPart=1,PDM%ParticleVecLength
     ! sanity check
     PartIsDone=.FALSE.
     IF(IsBCElem(ElemID))THEN
-      CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved)
+      CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved,1)
       IF(PartIsDone) CYCLE ! particle has left domain by a boundary condition
       IF(PartIsMoved)THEN ! particle is reflected at a wall
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
@@ -632,7 +632,7 @@ __STAMP__ &
           ! no fall back algorithm
           CALL FallBackFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
           LastPos=PartState(iPart,1:3)
-          CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved)
+          CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved,1)
           IF(PartIsDone) CYCLE
           CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
           ! false, reallocate particle
@@ -694,7 +694,7 @@ END DO ! iPart
 END SUBROUTINE ParticleRefTracking
 
 
-RECURSIVE SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
+RECURSIVE SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved,iCount)
 !===================================================================================================================================
 ! Calculate intersection with boundary and choose boundary interaction type for reference tracking routine
 !===================================================================================================================================
@@ -719,6 +719,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)            :: PartID,firstSide,LastSide,nlocSides
+INTEGER,INTENT(IN)            :: iCount
 LOGICAL,INTENT(INOUT)         :: PartisDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES!
@@ -814,7 +815,10 @@ DO WHILE(DoTracing)
                                                                           ,PartId,SideID,flip,ElemID,reflected)
         !IF(PEM%Element(PartID).NE.OldElemID)THEN
         IF(ElemID.NE.OldElemID)THEN
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved)
+          IF (iCount.GE.1000 .AND. MOD(iCount,1000).EQ.0) THEN !threshold might be changed...
+            IPWRITE(*,'(I4,A,I0,A,3(x,I0))') ' WARNING: proc has called BCTracking ',iCount,'x recursively! Part, Side, Elem:',PartId,SideID,ElemID
+          END IF
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved,iCount+1)
           PartisMoved=.TRUE.
           RETURN 
         END IF
