@@ -554,9 +554,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
             chosen_Neigh_k = 1 + INT(REAL(n_Neigh(kCoord))*RanNum)
             Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
                                                                                               NeighbourID(kCoord,chosen_Neigh_k))
-            IDRearrange = NeighbourID(jCoord,chosen_Neigh_k)
-            NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_Neigh(kCoord))
-            NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
+            IDRearrange = NeighbourID(kCoord,chosen_Neigh_k)
+            NeighbourID(kCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_Neigh(kCoord))
+            NeighbourID(kCoord,n_Neigh(kCoord)) = IDRearrange
           END IF
         ELSE
           Neighpos_k = Surfpos
@@ -586,9 +586,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
           chosen_Neigh_k = 1 + INT(REAL(n_Neigh(kCoord)-1)*RanNum)
           Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
                                                                                             NeighbourID(kCoord,chosen_Neigh_k))
-          IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
-          NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_Neigh(kCoord)-1)
-          NeighbourID(jCoord,n_Neigh(jCoord)-1) = IDRearrange
+          IDRearrange = NeighbourID(kCoord,chosen_Neigh_k)
+          NeighbourID(kCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_Neigh(kCoord)-1)
+          NeighbourID(kCoord,n_Neigh(kCoord)-1) = IDRearrange
         ELSE IF ( (jCoord.NE.kCoord) .AND. (n_empty_Neigh(jCoord).GT.0) .AND. (n_empty_Neigh(kCoord).GT.0) ) THEN
           ! assign availiable neighbour positions
           CALL RANDOM_NUMBER(RanNum)
@@ -603,8 +603,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
           Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
                                                                                             NeighbourID(kCoord,chosen_Neigh_k))
           IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
-          NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_Neigh(kCoord))
-          NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
+          NeighbourID(kCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_Neigh(kCoord))
+          NeighbourID(kCoord,n_Neigh(kCoord)) = IDRearrange
         END IF
       END IF
       IF ( (Neighpos_j.GT.0) .AND. (Neighpos_k.GT.0) ) THEN !both neighbour positions assigned
@@ -1207,7 +1207,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+        IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
         ELSE
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
@@ -1277,7 +1277,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+        IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
         ELSE
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
@@ -1347,7 +1347,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+        IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
         ELSE
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
@@ -1417,7 +1417,7 @@ DO subsurfxi = 1,nSurfSample
       ! ----------------------------------------------------------------------------------------------------------------------------
         Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
-        IF (Coord.EQ.Coord_ReactP(iReact)) THEN
+        IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
         ELSE
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run)))*RanNum)
