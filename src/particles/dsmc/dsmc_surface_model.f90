@@ -3373,12 +3373,16 @@ REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reac
   Forward = .FALSE.
   IF ( (D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B).GT.0. ) Forward = .TRUE.
   
-  Delta_H = ( Heat_Reactant_A +Heat_Reactant_B -Heat_Product_A -Heat_Product_B ) &
-          + ( D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B )
   IF (Forward) THEN
+    Delta_H = ( Heat_Reactant_A +Heat_Reactant_B -Heat_Product_A -Heat_Product_B ) &
+            + ( D_Reactant_A +D_Reactant_B -D_Product_A -D_Product_B )
     Calc_E_Act = 0.5 * ( Delta_H + (Heat_Product_A*Heat_Product_B / (Heat_Product_A+Heat_Product_B)) )
   ELSE
+    Delta_H = ( Heat_Product_A +Heat_Product_B -Heat_Reactant_A -Heat_Reactant_B ) &
+            + ( +D_Product_A +D_Product_B -D_Reactant_A -D_Reactant_B )
     Calc_E_Act = 0.5 * ( Delta_H + (Heat_Reactant_A*Heat_Reactant_B / (Heat_Reactant_A+Heat_Reactant_B)) )
+    IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
+    Calc_E_Act = Calc_E_Act - Delta_H
   END IF
   IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
 
