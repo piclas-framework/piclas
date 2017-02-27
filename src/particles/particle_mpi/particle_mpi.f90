@@ -1621,10 +1621,6 @@ LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
 
-
-! dirty hack
-!nTotalBCSides=nSides
-
 ALLOCATE(SideIndex(1:nPartSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
@@ -1688,10 +1684,6 @@ ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors) &
         , PartMPI%GlobalToLocal(0:PartMPI%nProcs-1)  )
 iMPINeighbor=0
 PartMPI%GlobalToLocal=-1
-!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-!IPWRITE(UNIT_stdOut,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
-!IPWRITE(UNIT_stdOut,*) 'blabla',PartMPI%isMPINeighbor
-!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 DO iProc=0,PartMPI%nProcs-1
   IF(PartMPI%isMPINeighbor(iProc))THEN
     iMPINeighbor=iMPINeighbor+1
@@ -1703,7 +1695,6 @@ DO iProc=0,PartMPI%nProcs-1
   END IF
 END DO
 
-print*,MyRank,nTotalElems,PP_nElems
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&
   , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
@@ -1715,16 +1706,6 @@ IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(MINVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
   IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
 END IF
-!IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
-
-
-!IF(DepositionType.EQ.'shape_function') THEN
-!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
-!ELSE
-!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
-!END IF
-
-!CALL  WriteParticlePartitionInformation()
 
 END SUBROUTINE InitHaloMesh
 
