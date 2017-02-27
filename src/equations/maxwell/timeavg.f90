@@ -410,10 +410,10 @@ SDEALLOCATE(UAvg)
 SDEALLOCATE(UFluc)
 SDEALLOCATE(VarNamesAvgOut)
 SDEALLOCATE(VarNamesFlucOut)
-#ifdef  PARTICLES
+#ifdef PARTICLES
 SDEALLOCATE(DoPowerDensity)
 SDEALLOCATE(PowerDensity)
-#endif /*PARTICLES
+#endif /*PARTICLES*/
 END SUBROUTINE FinalizeTimeAverage
 
 END MODULE MOD_TimeAverage
