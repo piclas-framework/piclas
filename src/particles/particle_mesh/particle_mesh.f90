@@ -3916,7 +3916,7 @@ IF(MapPeriodicSides)THEN
       DO q=0,NGeo
         DO p=0,NGeo
           BezierControlPoints3d(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
-                                                    - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+                                                    + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         END DO ! p=0,NGeo
       END DO ! q=0,NGeo
       ! recompute quark
@@ -3926,13 +3926,13 @@ IF(MapPeriodicSides)THEN
         MinMax(2)=MAXVAL(BezierControlPoints3d(iDir,:,:,newSideID))
         ! this may be required a tolerance due to periodic displacement
         IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
-          IPWRITE(UNIT_stdOut,*) ' Min-comparison ', MinMax(1),MinMaxGlob(iDir)
+          IPWRITE(UNIT_stdOut,*) ' Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
           CALL abort(&
 __STAMP__&
       , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
         END IF
         IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
-          IPWRITE(UNIT_stdOut,*) ' Max-comparison ', MinMax(2),MinMaxGlob(iDir+3)
+          IPWRITE(UNIT_stdOut,*) ' Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
           CALL abort(&
 __STAMP__&
       , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)

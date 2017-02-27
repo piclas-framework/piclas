@@ -144,19 +144,20 @@ DO iElem=FirstElemInd,LastElemInd
       aSide%sideID=-1
       ! periodics have two bcs: set to (positive) master bc (e.g. from -1 to 1)
 #ifdef PARTICLES
-      ! get the correct  alpha and BCIndex for the side for the later use with particles
-      aSide%BC_Alpha=0
       IF(aSide%BCIndex.GE.1)THEN
         IF(BoundaryType(aSide%BCIndex,BC_TYPE).EQ.1)THEN
           ! additionally, the flip of the side has to be taken into account
           ! the alpha value is only correct for slave sides, for master sides, the 
           ! value has to be turned
-          IF(aSide%flip.EQ.0)THEN
-            aSide%BC_Alpha=-BoundaryType(aSide%BCIndex,BC_ALPHA) ! -1
-          ELSE
+          IF(aSide%BC_Alpha.GT.0)THEN
             aSide%BC_Alpha=BoundaryType(aSide%BCIndex,BC_ALPHA)
+          ELSE
+            aSide%BC_Alpha=-BoundaryType(aSide%BCIndex,BC_ALPHA)
           END IF
         END IF
+      ELSE
+        ! get the correct  alpha and BCIndex for the side for the later use with particles
+        aSide%BC_Alpha=0
       END IF
 #endif
       IF(aSide%BCIndex.GE.1)THEN

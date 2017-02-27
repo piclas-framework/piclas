@@ -807,9 +807,15 @@ DO iElem=FirstElemInd,LastElemInd
       aSide%Ind=ABS(SideInfo(SIDE_ID,iSide))
       IF(oriented)THEN !oriented side
         aSide%flip=0
+#ifdef PARTICLES
+        aSide%BC_Alpha=99
+#endif /*PARTICLES*/
       ELSE !not oriented
         aSide%flip=MOD(Sideinfo(SIDE_Flip,iSide),10)
         IF((aSide%flip.LT.0).OR.(aSide%flip.GT.4)) STOP 'NodeID doesnt belong to side'
+#ifdef PARTICLES
+        aSide%BC_Alpha=-99
+#endif /*PARTICLES*/
       END IF
     ELSE !mortartype>0
       DO iMortar=1,aSide%nMortars
@@ -818,11 +824,13 @@ DO iElem=FirstElemInd,LastElemInd
         IF(SideInfo(SIDE_ID,iSide).LT.0) STOP 'Problem in Mortar readin,should be flip=0'
         aSide%mortarSide(iMortar)%sp%flip=0
         aSide%mortarSide(iMortar)%sp%Ind=ABS(SideInfo(SIDE_ID,iSide))
+#ifdef PARTICLES
+        aSide%BC_Alpha=99
+#endif /*PARTICLES*/
       END DO !iMortar
     END IF
   END DO !i=1,locnSides
 END DO !iElem
-
 
 ! build up side connection
 DO iElem=FirstElemInd,LastElemInd
@@ -848,6 +856,9 @@ DO iElem=FirstElemInd,LastElemInd
            (BoundaryType(aSide%BCindex,BC_TYPE).NE.100))THEN ! Reassignement from periodic to non-periodic
           doConnection=.FALSE.
           aSide%flip  =0
+#ifdef PARTICLES
+          aSide%BC_Alpha=0
+#endif /*PARTICLES*/
           IF(iMortar.EQ.0) aSide%mortarType  = 0
           IF(iMortar.EQ.0) aSide%nMortars    = 0
           elemID            = 0

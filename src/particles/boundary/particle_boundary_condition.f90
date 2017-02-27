@@ -1265,8 +1265,8 @@ END IF
 
 PVID = SidePeriodicType(SideID)
 
-PartState(PartID,1:3)   = PartState(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+PartState(PartID,1:3)   = PartState(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
@@ -1302,11 +1302,11 @@ IF(iStage.GT.0)THEN
     END DO
     PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
     !PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
-    PartQ(1:3,PartID) = PartQ(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+    PartQ(1:3,PartID) = PartQ(1:3,PartID) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
     ! and move all the functions
     ! F_PartX0 is not changing, because of difference
     !PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
-    PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+    PartXK(1:3,PartID) = PartXK(1:3,PartID) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
  ELSE
    PartStateN(PartID,1:6) = PartState(PartID,1:6)
