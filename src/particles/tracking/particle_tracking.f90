@@ -233,6 +233,7 @@ DO iPart=1,PDM%ParticleVecLength
         END DO ! ilocSide
         IF((.NOT.CrossedBC).AND.(.NOT.SwitchedElement)) THEN
           PartIsDone=.TRUE.
+          PEM%Element(iPart)=ElemID !periodic BC always exits with one hit from outside
           EXIT 
         END IF
       CASE DEFAULT ! two or more hits
