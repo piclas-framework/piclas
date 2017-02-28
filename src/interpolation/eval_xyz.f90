@@ -42,7 +42,7 @@ PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
 CONTAINS
 
 !#ifdef PARTICLES
-SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID)!,PartID)
+SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -69,7 +69,7 @@ INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
 INTEGER,INTENT(IN)  :: ElemID                                 ! elem index
 REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
-!INTEGER,INTENT(IN),OPTIONAL :: PartID
+INTEGER,INTENT(IN),OPTIONAL :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)    :: U_Out(1:NVar)  ! Interpolated state
@@ -146,7 +146,8 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !END IF
 
 IF(CurvedElem(ElemID))THEN
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=1)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID) &
+                    ,NGeo,ElemID,Mode=1,PartID=PartID)
 ELSE
   ! fill dummy XCL_NGeo1
   XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
@@ -166,7 +167,7 @@ ELSE
   dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
   dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
   dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=1)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=1,PartID=PartID)
 END IF
 
 ! IF(ANY(ABS(Xi).GT.1.1)) THEN
@@ -541,7 +542,7 @@ END IF ! useBGField
 END SUBROUTINE eval_xyz_part2
 
 
-SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode)
+SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID)
 !=================================================================================================================================
 ! Netwon for finding the position inside the reference element [-1,1] for an arbitrary physical point
 !=================================================================================================================================
@@ -551,11 +552,15 @@ USE MOD_Globals_Vars
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps!,ElemRadiusNGeo
 USE MOD_Mesh_Vars,               ONLY:offsetElem
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,LastPartPos
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
 INTEGER,INTENT(IN)               :: N_In,ElemID
 INTEGER,INTENT(IN)               :: Mode
+INTEGER,INTENT(IN),OPTIONAL      :: PartID
 REAL,INTENT(IN)                  :: X_in(3) ! position in physical space 
 REAL,INTENT(IN)                  :: XiCL_N_in(0:N_In)               ! position of CL points in reference space
 REAL,INTENT(IN)                  ::  XCL_N_in(3,0:N_In,0:N_in,0:N_In) ! position of CL points in physical space
@@ -648,7 +653,11 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1:3)
       IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
       IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
-      !IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
+#endif
       CALL abort(&
 __STAMP__&
 ,'Particle Not inSide of Element, ElemID,',ElemID)

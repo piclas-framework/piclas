@@ -53,7 +53,7 @@ REAL                 :: Eps2Newton
 LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
 #endif
-#if (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
 LOGICAL              :: DoPrintConvInfo                                             ! flag to print current norm in outer iteration
                                                                                     ! and number of parts in Newton
 INTEGER              :: maxFullNewtonIter                                           ! limit of fullnewton iterations
@@ -64,6 +64,9 @@ INTEGER              :: FullEisenstatWalker                                     
                                                                                     ! 0 - no Eisenstat-Walker
                                                                                     ! 1 - Field Solver
                                                                                     ! 2 - Particle Newton and Field Solver
+REAL                 :: PartRelaxationFac                                           ! relaxation factor for particles
+REAL                 :: PartRelaxationFac0                                          ! relaxation factor for particles
+LOGICAL              :: DoPartRelaxation                                            ! flag for particle relaxation
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
 #ifdef PARTICLES

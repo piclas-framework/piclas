@@ -27,7 +27,7 @@ INTERFACE FinalizePartSolver
   MODULE PROCEDURE FinalizePartSolver
 END INTERFACE
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 INTERFACE SelectImplicitParticles
   MODULE PROCEDURE SelectImplicitParticles
 END INTERFACE
@@ -35,7 +35,7 @@ END INTERFACE
 
 PUBLIC:: InitPartSolver,FinalizePartSolver
 PUBLIC:: ParticleNewton
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PUBLIC:: SelectImplicitParticles
 #endif
 #endif /*PARTICLES*/
@@ -94,14 +94,14 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Cannot allocate R_PartXK')
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PartImplicitMethod =GETINT('Part-ImplicitMethod','0')
 #endif
 
 END SUBROUTINE InitPartSolver
 
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 SUBROUTINE SelectImplicitParticles() 
 !===================================================================================================================================
 ! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted
@@ -207,7 +207,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)               :: t,coeff
-LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%maxParticleNumber)
+LOGICAL,INTENT(INOUT),OPTIONAL:: doParticle_In(1:PDM%maxParticleNumber)
 LOGICAL,INTENT(IN),OPTIONAL   :: opt_In
 REAL,INTENT(IN),OPTIONAL      :: AbortTol_In
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -262,6 +262,11 @@ IF(opt)THEN ! compute zero state
   ! whole pt array
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
+      ! update the last part pos and element for particle movement
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
       CASE(0)
@@ -299,6 +304,16 @@ IF(opt)THEN ! compute zero state
       END IF
     END IF ! ParticleInside
   END DO ! iPart
+ELSE
+  DO iPart=1,PDM%ParticleVecLength
+    IF(DoPartInNewton(iPart))THEN
+      ! update the last part pos and element for particle movement
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
+    END IF ! ParticleInside
+  END DO ! iPart
 END IF
 
 #ifdef MPI
@@ -321,7 +336,7 @@ IF(DoPrintConvInfo)THEN
   SWRITE(*,*) 'init part',Counter
 END IF
 
-AbortCritLinSolver=0.99
+AbortCritLinSolver=0.999
 nInnerPartNewton=-1
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
@@ -334,21 +349,22 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       ELSE
         gammaA = PartgammaEW*(Norm2_F_PartXk(iPart))/(Norm2_F_PartXk_old(iPart))
         IF (PartgammaEW*AbortCritLinSolver*AbortCritLinSolver < 0.1) THEN
-          gammaB = min(0.999,gammaA)
+          gammaB = MIN(0.999,gammaA)
         ELSE
-          gammaB = min(0.999, max(gammaA,PartgammaEW*AbortCritLinSolver*AbortCritLinSolver))
+          gammaB = MIN(0.999, MAX(gammaA,PartgammaEW*AbortCritLinSolver*AbortCritLinSolver))
         ENDIF
-        AbortCritLinSolver = min(0.999,max(gammaB,0.5*SQRT(AbortTol)/SQRT(Norm2_F_PartXk(iPart))))
+        AbortCritLinSolver = MIN(0.999,MAX(gammaB,0.5*SQRT(AbortTol)/SQRT(Norm2_F_PartXk(iPart))))
       END IF 
       Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
       ! update to new partstate during Newton iteration
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
-      DeltaX_Norm=DOT_PRODUCT(DeltaX,DeltaX)
-      IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
-        DoPartInNewton(iPart)=.FALSE.
-      END IF
+      ! forbidden, because particle is NOT moved but has to be traced...
+      !DeltaX_Norm=DOT_PRODUCT(DeltaX,DeltaX)
+      !IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
+      !  DoPartInNewton(iPart)=.FALSE.
+      !END IF
     END IF ! ParticleInside
   END DO ! iPart
   ! closed form: now move particles
@@ -365,6 +381,13 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleTracing(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     END IF
+    DO iPart=1,PDM%ParticleVecLength
+      IF(DoPartInNewton(iPart))THEN
+        IF(.NOT.PDM%ParticleInside(iPart))THEN
+          DoPartInNewton(iPart)=.FALSE.
+        END IF
+      END IF
+    END DO
 #ifdef MPI
     ! send number of particles
     CALL SendNbOfParticles(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 

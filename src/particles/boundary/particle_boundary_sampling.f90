@@ -954,9 +954,9 @@ FileString=TRIM(FileName)//'.h5'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #ifdef MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.)
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileString,create=.TRUE.)
+  CALL OpenDataFile(FileString,create=.TRUE.,readOnly=.FALSE.)
 #endif
   Statedummy = 'DSMCSurfState'  
   
@@ -991,12 +991,12 @@ CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 
 #ifdef MPI
 !   IF(SurfCOMM%nProcs.GT.1)THEN
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
 !   ELSE
 !     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
 !   END IF
 #else
-  CALL OpenDataFile(FileString,create=.FALSE.)
+  CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.FALSE.)
 #endif
 
 CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&

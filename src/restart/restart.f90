@@ -88,9 +88,9 @@ IF (nArgs .EQ. maxNArgs) THEN
   SWRITE(UNIT_StdOut,'(A,A,A)')' | Restarting from file "',TRIM(RestartFile),'":'
   DoRestart = .TRUE.
 #ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-  CALL OpenDataFile(RestartFile,create=.FALSE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
 #endif
   CALL GetDataProps(nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
   ! Read in time from restart file
@@ -249,9 +249,9 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   StartT=MPI_WTIME()
 #endif
 #ifdef MPI
-   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-   CALL OpenDataFile(RestartFile,create=.FALSE.)
+   CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
 #endif
   ! Read in time from restart file
   !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)

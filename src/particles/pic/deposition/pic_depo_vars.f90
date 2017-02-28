@@ -32,10 +32,10 @@ REAL,ALLOCATABLE                      :: tempcharge(:)      ! temp-charge for ep
 REAL,ALLOCATABLE                      :: NDepoChooseK(:,:)               ! array n over n
 REAL,ALLOCATABLE                      :: wBaryNDepo(:)      ! barycentric weights for deposition
 REAL,ALLOCATABLE                      :: swGPNDepo(:)       ! integration weights for deposition
-REAL,ALLOCATABLE                      :: sJNDepo(:,:,:,:)   ! sj on ndepo
 REAL,ALLOCATABLE                      :: XiNDepo(:)         ! gauss position of barycenters
 REAL,ALLOCATABLE                      :: Vdm_NDepo_GaussN(:,:) ! VdM between different polynomial degrees
-LOGICAL                               :: DoChangeBasis      ! Change polynomial degree
+REAL,ALLOCATABLE                      :: DDMassinv(:,:,:,:) ! inverse mass-matrix for deposition
+LOGICAL                               :: DeltaDistriChangeBasis   ! Change polynomial degree
 LOGICAL                               :: DoSFEqui           ! use equidistant points for SF
 INTEGER                               :: SfRadiusInt        ! radius integer for cylindrical and spherical shape function
 REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition 
