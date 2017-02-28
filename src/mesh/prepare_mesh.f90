@@ -984,9 +984,11 @@ DO iElem=1,nElems
           aSide%flip=Flip_YOUR(aSide%sideID)
         END IF
       ELSE
-!#ifdef PARTICLES
-!        !IF(aSide%flip.EQ.0) SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
-!#endif /*PARTICLES*/
+#ifdef PARTICLES
+        ! if side has not been a master side, i.e. a slave side, it is now used as a master side, hence, the
+        ! periodic displacement vector has to be rotated
+        IF(aSide%flip.NE.0) SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
+#endif /*PARTICLES*/
         aSide%flip=0 !MINE MPISides flip=0
       END IF
     END DO ! iMortar
