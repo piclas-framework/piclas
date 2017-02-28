@@ -161,44 +161,11 @@ DO iElem=1,PP_nElems
   END DO ! ilocSide
 END DO ! iElem=1,PP_nElems
 
-!DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
-!  DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
-!    DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
-!      IF (.NOT.ALLOCATED(GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs)) CYCLE
-!      IF (GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs(1).LE.0) CYCLE       ! -1 if ???
-!      DO iNBProc = 2,GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs(1)+1
-!        IF (GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs(iNBProc).EQ.iProc) THEN
-!          DO iElem = 1, GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
-!            ElemID = GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem)
-!            DO iLocSide=1,6
-!              SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-!              IF(SideID.LE.0) CYCLE
-!              IF(SideID.GT.nSides) CYCLE
-!              IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
-!              IF(SideID.GE.firstMPISide_MINE)THEN
-!                !IF(SideID.GT.(nInnerSides+nBCSides).AND.(SideIndex(SideID).EQ.0))THEN
-!                ! because of implicit, but here I send for checking, other process sends the required halo region
-!                IF(SideIndex(SideID).EQ.0)THEN
-!                  SendMsg%nMPISides=SendMsg%nMPISides+1
-!                  SideIndex(SideID)=SendMsg%nMPISides
-!                END IF
-!              END IF
-!            END DO ! ilocSide
-!          END DO ! iElem
-!        END IF ! shapeProcs(i).EQ.iProc
-!      END DO ! iNBProc
-!    END DO ! iBGM
-!  END DO ! jBGM
-!END DO ! kBGM
-
-!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPISides
-
 !--- NOTE: IF SENDMSG%NNODES IS 0 AT THIS POINT, THEN I SHOULD BE ABLE TO RETURN HERE!!!
 !          This is not done yet because I'm not sure whether there are still inconsistencies in the code...
 
 !--- Debugging information
 LOGWRITE(*,*)' nMPISides for iProc=',iProc,':',SendMsg%nMPISides
-!IPWRITE(UNIT_stdOut,*)' nMPISides for iProc=',iProc,':',SendMsg%nMPISides
 
 !--- Send number of MPI sides to MPI neighbor iProc and receive number of MPI
 !    sides from MPI neighbor iProc (immediate neighbor or not)
@@ -313,7 +280,6 @@ IF (RecvMsg%nMPISides.GT.0) THEN
 END IF
 
 END SUBROUTINE IdentifyHaloMPINeighborhood
-
 
 
 SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,ElemIndex)
@@ -657,8 +623,6 @@ DO iSide=1,nPartSides
   END IF
 END DO ! iSide=1,nSides
 
-!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of marked sides:   ', NbOfSides
-
 END SUBROUTINE CheckMPINeighborhoodByFIBGM
 
 
@@ -795,13 +759,7 @@ DO iElem=1,nElems
   END IF ! Element is marked to send
 END DO ! iElem
 
-!IPWRITE(*,*) 'iproc,sideindex,nsides',SideIndex(:),SendMsg%nSides
-!IPWRITE(*,*) 'iproc,nsides',iProc,SendMsg%nSides,nTotalSides,nTotalBCSides
-
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!WRITE(*,*) "Nodes:", SendMsg%nNodes,"Sides:",SendMsg%nSides,"elems:",SendMsg%nElems,"iProc",PMPIVAR%iProc
 !--- Communicate number of sides (trias,quads), elems (tets,hexas) and nodes to each MPI proc
-  
 IF (PartMPI%MyRank.LT.iProc) THEN
   CALL MPI_SEND(SendMsg%nElems,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,IERROR)
   CALL MPI_SEND(SendMsg%nSides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
@@ -894,38 +852,6 @@ IF(DoRefMapping)THEN
       ,'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems)
     RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
   END IF
-
-!  ! ElemSlabNormals for exchange
-!  IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
-!    ALLOCATE(SendMsg%ElemSlabNormals(1:3,0:3,1:SendMsg%nElems),STAT=ALLOCSTAT) 
-!    IF (ALLOCSTAT.NE.0) CALL abort(&
-!     __STAMP__&
-!      ,'Could not allocate SendMsg%ElemSlabNormals',SendMsg%nElems)
-!    SendMsg%ElemSlabNormals(:,:,:)=0
-!  END IF
-!  IF (RecvMsg%nElems.GT.0) THEN
-!    ALLOCATE(RecvMsg%ElemSlabNormals(1:3,0:3,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
-!    IF (ALLOCSTAT.NE.0) CALL abort(&
-!      __STAMP__&
-!      ,'Could not allocate RecvMsg%ElemSlabNormals',RecvMsg%nElems)
-!    RecvMsg%ElemSlabNormals(:,:,:)=0
-!  END IF
-  
-!  ! ElemSlabIntervals for exchange
-!  IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
-!    ALLOCATE(SendMsg%ElemSlabIntervals(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT) 
-!    IF (ALLOCSTAT.NE.0) CALL abort(&
-!      __STAMP__&
-!      ,'Could not allocate SendMsg%ElemSlabIntervals',SendMsg%nElems)
-!    SendMsg%DXCL_NGeo(:,:,:,:,:,:)=0
-!  END IF
-!  IF (RecvMsg%nElems.GT.0) THEN
-!    ALLOCATE(RecvMsg%ElemSlabIntervals(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT) 
-!    IF (ALLOCSTAT.NE.0) CALL abort(&
-!      __STAMP__&
-!      ,'Could not allocate RecvMsg%ElemSlabIntervals',RecvMsg%nElems)
-!    RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
-!  END IF
 END IF
 
 ! ElemBaryNGeo
@@ -1070,20 +996,6 @@ IF (RecvMsg%nSides.GT.0) THEN
     ,'Could not allocate RecvMsg%BoundingBoxIsEmpty',RecvMsg%nSides)
   RecvMsg%BoundingBoxIsEmpty(:)=.FALSE.
 END IF
-!! PeriodicElemSide Mapping 
-!IF (SendMsg%nElems.GT.0) THEN       ! PeriodicElemSide(1:iLocSide,1:nElems)
-!  ALLOCATE(SendMsg%PeriodicElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)
-!  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-!   ,'Could not allocate SendMsg%PeriodicElemSide',SendMsg%nElems,999.)
-!  SendMsg%PeriodicElemSide(:,:)=0
-!END IF
-!IF (RecvMsg%nElems.GT.0) THEN
-!  ALLOCATE(RecvMsg%PeriodicElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)
-!  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-!   ,'Could not allocate RecvMsg%PeriodicElemSide',RecvMsg%nElems,999.)
-!  RecvMsg%PeriodicElemSide(:,:)=0
-!END IF
-
 
 ! fill send buffers with node, side and element data (including connectivity!)
 ! ElemtoSide 
@@ -1153,67 +1065,12 @@ DO iSide = 1,nPartSides  ! no need to go through all side since BC(1:nBCSides)
   END IF
 END DO
 
-!DO iSide=1,SendMsg%nSides
-!  IF(SUM(ABS(SendMsg%SideSlabIntervals(:,iSide))).EQ.0)THEN
-!    IPWRITE(*,*) 'error sending slabnormal',iSide
-!  END IF
-!END DO
-
-
-!! CAUTION & DEBUG Do we need this????
-!! do we have to do this???
-!DO iSide = nBCSides+nInnerSides+1,nSides ! only go through MPI-Sides 
-!  IF(SideIndex(iSide).NE.0) THEN
-!    DO iNbProc =1,nNbProcs  ! ??? iNbProc=1 start at nBCSides+nInnerSides ???
-!      ! first check "mine"-sides:
-!      SendMsg%BC(1,SideIndex(iSide)) = -1 
-!      IF ((iSide.GE.offsetMPISides_MINE(iNbProc-1)+1).AND. &
-!          (iSide.LE.offsetMPISides_MINE(iNbProc))) THEN
-!          SendMsg%BC(2,SideIndex(iSide)) = NbProc(iNbProc)  ! global NbProcID
-!          SendMsg%BC(3,SideIndex(iSide)) = 1                ! 1=Mine/2=Yours  
-!          SendMsg%BC(4,SideIndex(iSide)) = iSide-offsetMPISides_MINE(iNbProc-1) ! MPITag 
-!      ! then check "your"-sides:
-!      ELSE IF ((iSide.GE.offsetMPISides_YOUR(iNbProc-1)+1).AND. &
-!          (iSide.LE.offsetMPISides_YOUR(iNbProc))) THEN
-!          SendMsg%BC(2,SideIndex(iSide)) = NbProc(iNbProc)  ! global NbProcID
-!          SendMsg%BC(3,SideIndex(iSide)) = 2                ! 1=Mine/2=Yours  
-!          SendMsg%BC(4,SideIndex(iSide)) = iSide-offsetMPISides_YOUR(iNbProc-1) ! MPITag 
-!      END IF
-!    END DO
-!  END IF
-!END DO
-!! proceed MPI sides
-!DO iSide = nBCSides+1,nBCSides+nInnerSides
-!  IF(SideIndex(iSide).NE.0) THEN
-!    IF ((SendMsg%SideToElem(1,SideIndex(iSide)).EQ.0).OR. &
-!        (SendMsg%SideToElem(2,SideIndex(iSide)).EQ.0)) THEN
-!      SendMsg%BC(1,SideIndex(iSide)) = 424242        ! EPS-Region-Bound in innersides
-!    END IF
-!  END IF
-!END DO
 ! NativeElemID 
 DO iElem = 1,nElems
   IF (ElemIndex(iElem).NE.0) THEN
     SendMsg%NativeElemID(ElemIndex(iElem)) = iElem
   END IF
 END DO 
-!! PeriodicElemSide 
-!! DEBUG CAUTION should be altered to this
-! IF(GEO%nPeriodicVectors.GT.0)THEN
-!   DO iElem = 1,nElems
-!     IF (ElemIndex(iElem).NE.0) THEN
-!       DO iLocSide = 1,6
-!         SendMsg%PeriodicElemSide(iLocSide,ElemIndex(iElem)) = &
-!              NeighborElemID(ilocSide,iElem)
-!              !GEO%PeriodicElemSide(iLocSide,iElem)
-!       END DO
-!     END IF
-!   END DO
-! END IF
-
-
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!IPWRITE(UNIT_stdOut,*) " Now MPI exchange"
 
 dataSize=3*(NGeo+1)*(NGeo+1)
 dataSize2=3*(NGeo+1)*(NGeo+1)*(NGeo+1)
@@ -1292,7 +1149,6 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_RECV(RecvMsg%ElemToElemGlob,RecvMsg%nElems*24,MPI_LONG,iProc,1119,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nSides.GT.0) &
         CALL MPI_RECV(RecvMsg%MortarType,RecvMsg%nSides*2,MPI_INTEGER,iProc,1120,PartMPI%COMM,MPISTATUS,IERROR)
-
 
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   ! Receive:
@@ -1379,14 +1235,6 @@ END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 
-!DO iSide=1,RecvMsg%nSides
-!  IF(SUM(ABS(RecvMsg%SideSlabIntervals(:,iSide))).EQ.0)THEN
-!    IPWRITE(*,*) 'error recv slabnormal',iSide
-!  END IF
-!END DO
-
-
-!IPWRITE(UNIT_stdOut,*) " Recive stuff"
 IF(DoRefMapping)THEN
   IF (RecvMsg%nElems.GT.0) THEN
     ! now, the famous reconstruction of geometry
@@ -1525,13 +1373,11 @@ ELSE ! DoRefMappping=F
   
     !DO iElem=tmpnElems+1,nTotalElems
     DO iElem=1,RecvMsg%nElems
-      !print*,'iElem',iElem
       ! first, new SideID=entry of RecvMsg+tmpnSides
       newElemID=tmpnElems+iElem
       DO ilocSide=1,6
         haloSideID=RecvMsg%ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
         ! first, set new sideid
-      !  print*,'haloSideId',haloSideID
         IF(isSide(haloSideID)) THEN
           IF(HaloInc(haloSideID).EQ.0) IPWRITE(UNIT_stdOut,*) ' Warning: wrong halo inc'
           newSideID=tmpnSides+haloinc(haloSideID)
@@ -1647,8 +1493,6 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !IPWRITE(*,*) 'oldSides,oldElems,totalSides,TotalElems,oldBCSides,bcsides',nOldSides,nOldElems,nTotalSides &
 !                                                                          ,ntotalElems,noldBCSides,nTotalBCSides
-!print*,'rank, in reshape',myrank
-!print*,'rank, in reshape',myrank, nOldSides,nOldElems,nTotalSides,nTotalElems
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! PartElemToSide
 ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
@@ -1727,50 +1571,16 @@ IF(DoRefMapping)THEN
   PartBCSideList=-1 !HUGE(1)
   PartBCSideList(1:nOldSides) =DummyPartBCSideList(1:nOldSides)
   DEALLOCATE(DummyPartBCSideList)
-!  ! ElemSlabNormals
-!  ALLOCATE(DummyElemSlabNormals(1:3,0:3,1:nOldElems))
-!  IF (.NOT.ALLOCATED(DummyElemSlabNormals)) CALL abort(&
-!    __STAMP__&
-!    ,'Could not allocate ElemIndex')
-!  DummyElemSlabNormals=ElemSlabNormals
-!  DEALLOCATE(ElemSlabNormals)
-!  ALLOCATE(ElemSlabNormals(1:3,0:3,1:nTotalElems),STAT=ALLOCSTAT)
-!  IF (ALLOCSTAT.NE.0) CALL abort(&
-!    __STAMP__&
-!    ,'Could not allocate ElemIndex')
-!  ElemSlabNormals=0
-!  ElemSlabNormals(1:3,0:3,1:nOldElems) =DummyElemSlabNormals(1:3,0:3,1:nOldElems)
-!  DEALLOCATE(DummyElemSlabNormals)
-!  ! ElemSlabIntervals
-!  ALLOCATE(DummyElemSlabIntervals(1:6,1:nOldElems))
-!  IF (.NOT.ALLOCATED(DummyElemSlabIntervals)) CALL abort(&
-!    __STAMP__&
-!    ,'Could not allocate ElemIndex')
-!  DummyElemSlabIntervals=ElemSlabIntervals
-!  DEALLOCATE(ElemSlabIntervals)
-!  ALLOCATE(ElemSlabIntervals(1:6,1:nTotalElems),STAT=ALLOCSTAT)
-!  IF (ALLOCSTAT.NE.0) CALL abort(&
-!    __STAMP__&
-!    ,'Could not allocate ElemIndex')
-!  ElemSlabIntervals=0
-!  ElemSlabIntervals(1:6,1:nOldElems) =DummyElemSlabIntervals(1:6,1:nOldElems)
-!  DEALLOCATE(DummyElemSlabIntervals)
 END IF
 
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!print*,' done elem to side',myrank
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! HaloToProc
 IF(.NOT.ALLOCATED(PartHaloElemToProc))THEN
-  !print*,'both here',myrank,nElems,nElems+1,nTotalElems
-  !print*,'myrank',myrank,allocstat
   nLower=nElems+1
   ALLOCATE(PartHaloElemToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate PartHaloElemToProc')
   PartHaloElemToProc=-1
-  !print*,'lower,upper',PP_nElems+1,nTotalElems
 ELSE
   nLower=nElems+1
   ALLOCATE(DummyHaloToProc(1:3,nLower:nOldElems))                                 
@@ -1788,10 +1598,6 @@ ELSE
   PartHaloElemToProc(1:3,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:3,PP_nElems+1:nOldElems)
   DEALLOCATE(DummyHaloToProc)
 END IF
-!print*,' done halotoproc',myrank
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!print*,' done halotoproc',myrank
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! PartSideToElem
 ALLOCATE(DummySideToElem(1:5,1:nOldSides))
 IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(&
@@ -1806,7 +1612,6 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 PartSideToElem=-1
 PartSideToElem(1:5,1:nOldSides  )              =DummySideToElem(1:5,1:nOldSides)
 DEALLOCATE(DummySideToElem)
-!print*,' done side to elem',myrank
 ! PartElemToElemGlob
 ALLOCATE(DummyElemToElem(1:4,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToElem)) CALL abort(&
@@ -1968,9 +1773,6 @@ IF (.NOT.ALLOCATED(DummyBC)) CALL abort(&
     __STAMP__&
  ,'Could not allocate ElemIndex')
 ! check
-!IF(ALLOCATED(BC)) print*,'yes it is'
-!print*,'size',size(BC)
-!print*, BC
 DummyBC(1:nOldSides)=BC(1:nOldSides)
 DEALLOCATE(BC)
 ALLOCATE(BC(1:nTotalSides),STAT=ALLOCSTAT)

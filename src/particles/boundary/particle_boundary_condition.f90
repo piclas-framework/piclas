@@ -1301,8 +1301,8 @@ END IF
 
 PVID = SidePeriodicType(SideID)
 
-PartState(PartID,1:3)   = PartState(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+PartState(PartID,1:3)   = PartState(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &

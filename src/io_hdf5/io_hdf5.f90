@@ -94,9 +94,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)   :: FileString
 LOGICAL,INTENT(IN)            :: create
+LOGICAL,INTENT(IN)            :: readOnly
 #ifdef MPI
 LOGICAL,INTENT(IN)            :: single
-LOGICAL,INTENT(IN)            :: readOnly
 INTEGER,INTENT(IN),OPTIONAL   :: communicatorOpt
 #endif
 INTEGER,INTENT(IN),OPTIONAL   :: userblockSize  !< size of the file to be prepended to HDF5 file
