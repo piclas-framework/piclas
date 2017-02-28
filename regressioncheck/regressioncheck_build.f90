@@ -351,7 +351,7 @@ INTEGER,INTENT(IN)                        :: iExample,iReggieBuild,N_compile_fla
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                   :: ioUnit,iSTATUS,J,K
+INTEGER                                   :: ioUnit,iSTATUS,iSTATUS2,J,K
 CHARACTER(LEN=255)                        :: FileName
 LOGICAL                                   :: ExistFile
 CHARACTER(LEN=500)                        :: SYSCOMMAND
@@ -443,7 +443,7 @@ IF(BuildValid(iReggieBuild))THEN
       SWRITE(UNIT_stdOut, '(A)')"Error output from: "//TRIM(FileName)
       SWRITE(UNIT_stdOut, '(A)')' '
       SYSCOMMAND='grep -rin error '//TRIM(FileName)
-      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
       SWRITE(UNIT_stdOut,'(132("="))')
       SWRITE(UNIT_stdOut, '(A)')' '
     !ELSE
