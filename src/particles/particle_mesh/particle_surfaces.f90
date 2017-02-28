@@ -491,7 +491,7 @@ SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo
+USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo,MortarSlave2MasterInfo,MortarType
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Mesh_Vars,                ONLY:nSides
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
@@ -516,7 +516,7 @@ REAL                              :: tmp2(3,0:NGeo,0:NGeo)
 DO ilocSide=1,6
   SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
   flip=ElemToSide(E2S_FLIP,ilocSide,ElemID)
-  IF(flip.EQ.0) THEN !if flip=0, master side!!
+  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1)THEN !if flip=0, master side or Mortar side
     SELECT CASE(iLocSide)
     CASE(XI_MINUS)
       tmp=XCL_NGeo(1:3,0   ,:   ,:   )
