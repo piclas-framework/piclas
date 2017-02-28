@@ -59,14 +59,14 @@ run_gnu_convtest:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_convtest 2; fi
 
-build_gnu_mpi:
+run_build_gnu_mpi:
   stage: test
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build 2; fi
 
-build_gnu_HDF5_single_mpi:
+run_build_gnu_HDF5_single_mpi:
   stage: test
   tags:
     - withmodules
@@ -94,7 +94,7 @@ run_intel_build_mpi:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build 2; fi
 
-build_intel_HDF5_single_mpi:
+run_build_intel_HDF5_single_mpi:
   stage: test
   tags:
     - withmodules
