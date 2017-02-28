@@ -437,12 +437,13 @@ lowerLimit=nSides ! all incl. my mortar sides
 lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
 #endif /*MPI*/
 
+! noop
 ! copy BezierControlPoints from master sides to slave sides for MINE mortar sides
-DO iSide=1,lowerLimit
-  SideID=MortarSlave2MasterInfo(iSide)
-  IF(SideID.EQ.-1)CYCLE
-  BezierControlPoints3D(:,:,:,iSide)= BezierControlPoints3D(:,:,:,SideID)
-END DO ! iSide=firstMPISide_YOUR,nSides
+!DO iSide=1,lowerLimit
+!  SideID=MortarSlave2MasterInfo(iSide)
+!  IF(SideID.EQ.-1)CYCLE
+!  BezierControlPoints3D(:,:,:,iSide)= BezierControlPoints3D(:,:,:,SideID)
+!END DO ! iSide=firstMPISide_YOUR,nSides
 
 ! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for 
 ! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
@@ -550,7 +551,7 @@ DO iLocSide=1,6
   CALL ChangeBasis2D(3,Nloc,Nloc,Vdm_CLN_N,tmp,tmp2)
   ! turn into right hand system of side
   DO q=0,Nloc; DO p=0,Nloc
-    pq=CGNS_SideToVol2(p,q,iLocSide)
+    pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
     ! Compute Face_xGP for sides
     Face_xGP(1:3,p,q,sideID)=tmp2(:,pq(1),pq(2))
   END DO; END DO ! p,q
@@ -574,7 +575,7 @@ DO iLocSide=1,6
     CALL ChangeBasis2D(3,Nloc,Nloc,Vdm_CLN_N,tmp,tmp2)
     ! turn into right hand system of side
     DO q=0,Nloc; DO p=0,Nloc
-      pq=CGNS_SideToVol2(p,q,iLocSide)
+      pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
       Ja_Face_l(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))
 	  ! DEBUG old version
       !Ja_Face(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))
