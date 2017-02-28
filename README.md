@@ -39,7 +39,7 @@ Boltzplatz uses several external libraries as well as auxilliary functions from 
 * [LAPACK](http://www.netlib.org/lapack/)
 * [cmake](https://www.cmake.org)
 
-## I need help or further informations:
+## I need help or further information:
 
 * [Numerics Research Group](https://nrg.iag.uni-stuttgart.de/)
 * [IRS - Numerische Modellierung und Simulation](https://www.irs.uni-stuttgart.de/forschung/numerische_modellierung_und_simulation/index.html)
