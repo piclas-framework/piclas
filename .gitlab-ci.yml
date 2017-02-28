@@ -2,6 +2,7 @@ stages:
   - build
   - error_clean
   - reggie_short
+  - reggie_tracking
   - reggie_long
 
 cache:
@@ -59,6 +60,20 @@ intel:
     - withmodules
   script:
     - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck
+
+gnu_tracking:
+  stage: reggie_tracking
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC_mortar 2; fi
+
+intel_tracking:
+  stage: reggie_tracking
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC_mortar 2; fi
 
 gnu_convtest:
   stage: reggie_long
