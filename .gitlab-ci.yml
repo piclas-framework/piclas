@@ -67,7 +67,7 @@ gnu_tracking:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC_mortar 2; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC_periodic 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  ./regressioncheck build feature_tracking_DSMC_periodic 2; fi
 
 intel_tracking:
   stage: reggie_tracking
@@ -75,7 +75,7 @@ intel_tracking:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC_mortar 2; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC_periodic 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  ./regressioncheck build feature_tracking_DSMC_periodic 2; fi
 
 gnu_convtest:
   stage: reggie_long
