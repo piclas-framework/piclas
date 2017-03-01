@@ -656,7 +656,7 @@ __STAMP__&
   Norm_F=Norm_F*2.
   lambda=1.0
   iArmijo=1
-  DO WHILE(Norm_F.GT.Norm_F_old*(1.-0.0001*lambda) .AND.iArmijo.LE.10)
+  DO WHILE(Norm_F.GT.Norm_F_old*(1.-0.0001*lambda) .AND.iArmijo.LE.4)
 
     Xi = Xi_Old - lambda*deltaXI!MATMUL(sJac,F)
   
@@ -678,13 +678,10 @@ __STAMP__&
     lambda=0.2*lambda
     iArmijo=iArmijo+1
     Norm_F=DOT_PRODUCT(F,F)
-    IF(iArmijo.EQ.11)THEN
-      IPWRITE(UNIT_stdOut,*) ' Error in Armijo of Eval-xyz.'
-    END IF
   END DO ! Armijo iteration
 
   ! check xi value for plausibility
-  IF(ANY(ABS(Xi).GT.1.1)) THEN
+  IF(ANY(ABS(Xi).GT.1.3)) THEN
     IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
