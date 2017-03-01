@@ -681,7 +681,7 @@ __STAMP__&
   END DO ! Armijo iteration
 
   ! check xi value for plausibility
-  IF(ANY(ABS(Xi).GT.1.3)) THEN
+  IF(ANY(ABS(Xi).GT.1.5)) THEN
     IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
