@@ -249,8 +249,8 @@ USE MOD_Equation_Vars,           ONLY:c_inv
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else
 USE MOD_HDG,                     ONLY:HDG
-USE MOD_DG_Vars,                 ONLY:U
 #endif /*PP_HDG*/
+USE MOD_DG_Vars,                 ONLY:U
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo

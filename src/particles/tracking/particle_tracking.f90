@@ -189,9 +189,10 @@ DO iPart=1,PDM%ParticleVecLength
           IF(locAlpha(ilocSide).GT.-1.0) THEN
             hitlocSide=ilocSide
             SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+            flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
             OldElemID=ElemID
-            CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                             ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+            CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+                                             ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
             IF(ElemID.NE.OldElemID)THEN
               ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
               ! remark: maybe a storage value has to be set to drow?
@@ -244,11 +245,11 @@ DO iPart=1,PDM%ParticleVecLength
           DO ilocSide=1,6
             IF(locAlpha(ilocSide).GT.-1.0)THEN
               hitlocSide=locSideList(ilocSide)
-
               SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+              flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
               OldElemID=ElemID
-              CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                               ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+              CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+                                             ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
               IF(ElemID.NE.OldElemID)THEN
                 IF((firstElem.EQ.ElemID).AND.(.NOT.CrossedBC))THEN
                   IPWRITE(UNIT_stdOut,*) ' Warning: Particle located at undefined location. '
@@ -811,23 +812,24 @@ END DO
 END SUBROUTINE ParticleBCTracking
 
 
-SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                 ,xi,eta,alpha,PartID,SideID,ElemID)
+SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+                                 ,xi,eta,alpha,PartID,SideID,SideType,ElemID)
 !===================================================================================================================================
 ! Checks which type of interaction (BC,Periodic,innerSide) has to be applied for the face on the traced particle path
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
 USE MOD_Particle_Vars,               ONLY:PDM
+USE MOD_Particle_Surfaces,           ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Mesh_Vars,                   ONLY:BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)                :: PartID,SideID,hitlocSide,ilocSide
+INTEGER,INTENT(IN)                :: PartID,SideID,hitlocSide,ilocSide,SideType,flip
 REAL,INTENT(INOUT)                :: Xi,Eta,Alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -840,6 +842,7 @@ REAL,INTENT(INOUT)                :: lengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: Moved(2)
+REAL                              :: n_loc(3)
 !===================================================================================================================================
 
 IF(BC(SideID).GT.0)THEN
@@ -857,7 +860,17 @@ ELSE
   !LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+alpha*PartTrajectory(1:3)
   !! recompute remaining particle trajectory
   !lengthPartTrajectory=lengthPartTrajectory-alpha
-
+  ! check if particle leaves element
+  SELECT CASE(SideType)
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,SideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  END SELECT 
+  IF(flip.NE.0) n_loc=-n_loc
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN 
   ! update particle element
   dolocSide=.TRUE.
   Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
