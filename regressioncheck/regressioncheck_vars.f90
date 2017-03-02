@@ -91,6 +91,12 @@ TYPE tExample                                                       !> examples 
   INTEGER                          :: CompareDatafileRowHeaderLines !> number of header lines to be ignored from data file
   LOGICAL                          :: CompareDatafileRow            !> read a single row from a file and compare each entry to
                                                                     !> a reference file (each failed comparison will be dispayed)
+  REAL                             :: CompareHDF5ArrayBoundsValue(2)!> value ranges for comparison
+  INTEGER                          :: CompareHDF5ArrayBoundsRange(2)!> HDF5 array dim ranges
+  CHARACTER(LEN=255)               :: CompareHDF5ArrayBoundsName    !> array name in HDF5 file
+  CHARACTER(LEN=255)               :: CompareHDF5ArrayBoundsFile    !> name of HDF5 file
+  LOGICAL                          :: CompareHDF5ArrayBounds        !> read an array from a HDF5 file and compare certain entry 
+                                                                    !> bounds that must be limited to a supplied value range
 
 
   CHARACTER(LEN=255)               :: ConvergenceTestType           !> h- or p-convergence test
@@ -106,7 +112,7 @@ TYPE tExample                                                       !> examples 
   LOGICAL                          :: ConvergenceTest               !> run convergence test in combination with "SubExample" for
                                                                     !> either "N" (p-convergence) or "MeshFile" (h-convergence)
   INTEGER                          :: SubExampleNumber              !> Numbers of sub examples, currently fixed to 1
-  CHARACTER(LEN=255)               :: SubExampleOption(100)          !> for each sub example class, currently 10 options are allowed
+  CHARACTER(LEN=255)               :: SubExampleOption(100)         !> for each sub example class, currently 10 options are allowed
   CHARACTER(LEN=255)               :: SubExample                    !> sub example class, e.g., TimeDiscMethod can be chosen for 
                                                                     !> testing multiple time integration schemes
 END TYPE
