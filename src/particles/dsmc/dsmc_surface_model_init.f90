@@ -158,6 +158,7 @@ END DO
 ! extend later to different densities for each boundary
 Adsorption%DensSurfAtoms(:) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
 Adsorption%AreaIncrease = GETREAL('Particles-Surface-AreaIncrease','1')
+Adsorption%CrystalIndx = GETINT('Particles-Surface-CrystalIndex','4')
 Adsorption%DensSurfAtoms(:) = Adsorption%DensSurfAtoms(:)*Adsorption%AreaIncrease
 
 DO iSpec = 1,nSpecies
