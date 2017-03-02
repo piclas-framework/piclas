@@ -206,9 +206,6 @@ TYPE tSide
   INTEGER                      :: NbProc 
   INTEGER                      :: BCindex         !< index in BoundaryType array! 
   INTEGER                      :: flip 
-#ifdef PARTICLES
-  INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range
-#endif /*PARTICLES*/
   INTEGER                      :: nMortars        !< number of slave mortar sides associated with master mortar
   INTEGER                      :: MortarType      !< type of mortar: Type1 : 1-4 , Type 2: 1-2 in eta, Type 2: 1-2 in xi
   TYPE(tSidePtr),POINTER       :: MortarSide(:)   !< array of side pointers to slave mortar sides
