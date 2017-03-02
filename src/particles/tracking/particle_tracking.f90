@@ -606,6 +606,19 @@ DO iPart=1,PDM%ParticleVecLength
 #else
           IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
 #endif
+#ifdef MPI
+          InElem=PEM%LastElement(iPart)
+          IF(InElem.LE.PP_nElems)THEN
+            IPWRITE(UNIT_stdout,*) ' halo-elem = F'
+            IPWRITE(UNIT_stdOut,*) ' Last-ElemID         ', InElem+offSetElem
+          ELSE
+            IPWRITE(UNIT_stdout,*) ' halo-elem = T'
+            IPWRITE(UNIT_stdOut,*) ' Last-ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+          END IF
+#else
+          IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', PEM%LastElement(iPart)+offSetElem
+#endif
 CALL abort(&
 __STAMP__ &
 ,'Particle Not inSide of Element, iPart',iPart)
@@ -624,7 +637,7 @@ __STAMP__ &
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,*) ' xi                     ', partposref(1:3,ipart)
-              IPWRITE(UNIT_stdOut,*) ' epsonecell             ', epsonecell
+              IPWRITE(UNIT_stdOut,*) ' epsonecell             ', epsonecell(TestElem)
               IPWRITE(UNIT_stdOut,*) ' oldxi                  ', oldxi
               IPWRITE(UNIT_stdOut,*) ' newxi                  ', newxi
               IPWRITE(UNIT_stdOut,*) ' particlepos            ', partstate(ipart,1:3)
