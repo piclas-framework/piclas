@@ -210,10 +210,11 @@ SUBROUTINE ComputePlanarCurvedIntersection(isHit                       &
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero
+USE MOD_Globals_Vars,            ONLY:PI
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
+USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,SideSlabNormals
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonTol
@@ -253,6 +254,7 @@ REAL                                     :: coeffA,locSideDistance
 ! fallback algorithm
 LOGICAL                                  :: firstClip,failed
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
+REAL                                     :: PartFaceAngle
 !===================================================================================================================================
 !PartTrajectory = PartTrajectory
 ! set alpha to minus 1, asume no intersection
@@ -334,6 +336,8 @@ END DO
 XiNewton=0.
 CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID,failed)
 IF(failed)THEN
+  PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+  IPWRITE(UNIT_stdout,*) ' Intersection-angle-of-BezierNetwon: ',PartFaceAngle*180./PI
   firstClip=.FALSE.
   iClipIter=1
   nXiClip=0
