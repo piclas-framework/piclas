@@ -749,9 +749,9 @@ DO WHILE(DoTracing)
     SideID=BCElem(ElemID)%BCSideID(ilocSide)
     BCSideID=PartBCSideList(SideID)
     locSideList(ilocSide)=ilocSide
-    ! get correct flip
-    !flip  = 0 
-    flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+    ! get correct flip, wrong for inner sides!!!
+    flip  = 0 
+    !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
     SELECT CASE(SideType(BCSideID))
     CASE(PLANAR_RECT)
       CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -787,7 +787,7 @@ DO WHILE(DoTracing)
       IF(locAlpha(ilocSide).GT.-1)THEN
         hitlocSide=locSideList(ilocSide)
         SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-        flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
+        flip  =0 !PartElemToSide(E2S_FLIP,hitlocSide,ElemID) !wrong for inner sides!!!
         BCSideID=PartBCSideList(SideID)
         OldElemID=ElemID
         CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -1313,9 +1313,9 @@ DO iLocSide=firstSide,LastSide
   SideID=BCElem(ElemID)%BCSideID(ilocSide)
   BCSideID=PartBCSideList(SideID)
   locSideList(ilocSide)=ilocSide
-  ! get correct flip
-  !flip  = 0 
-  flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+  ! get correct flip, wrong for inner sides!!!
+  flip  = 0 
+  !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT)
     CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
