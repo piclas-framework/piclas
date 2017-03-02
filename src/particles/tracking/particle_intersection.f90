@@ -250,6 +250,9 @@ LOGICAL                                  :: CriticalParallelInSide
 REAL                                     :: XiNewton(2)
 REAL                                     :: coeffA,locSideDistance
 !REAL                                     :: Interval1D,dInterVal1D
+! fallback algorithm
+LOGICAL                                  :: firstClip,failed
+INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 !===================================================================================================================================
 !PartTrajectory = PartTrajectory
 ! set alpha to minus 1, asume no intersection
@@ -329,7 +332,21 @@ DO q=0,NGeo
 END DO
 
 XiNewton=0.
-CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID,failed)
+IF(failed)THEN
+  firstClip=.FALSE.
+  iClipIter=1
+  nXiClip=0
+  nEtaClip=0
+  nInterSections=0
+  firstClip=.TRUE.
+  CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
+                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+  IF(nInterSections.GT.1)THEN
+    nInterSections=1
+  END IF
+END IF
+
 nInterSections=0
 IF(locAlpha(1).GT.-1) nInterSections=1
 locXi (1)=XiNewton(1)
@@ -668,7 +685,7 @@ LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
-LOGICAL                                  :: CriticalParallelInSide
+LOGICAL                                  :: CriticalParallelInSide,failed
 !REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
 ! set alpha to minus 1, asume no intersection
@@ -779,9 +796,12 @@ END IF
   !XiNewton(2) =MIN(-1.0+ABS(dInterVal1D)/InterVal1D,1.0)
   XiNewton=0.
   !CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
-  CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+  CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID,failed)
   nInterSections=0
   IF(locAlpha(1).GT.-1) nInterSections=1
+  IF(failed) CALL abort(&
+    __STAMP__&
+    ,' Bezier-Newton does not yield root! ')
 #ifdef CODE_ANALYZE
   IF(nInterSections.EQ.1)THEN
     dXi =ABS(locXi(1)-XiNewton(1)) !/(400.*BezierClipTolerance)
@@ -1844,7 +1864,7 @@ END IF ! docheck
 END SUBROUTINE BezierClip
 
 
-SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID,failed)
 !===================================================================================================================================
 ! Newton to find root in projected plane for curved tracking
 ! whole Newton operates in [-1,1]
@@ -1872,6 +1892,7 @@ INTEGER,INTENT(IN) :: SideID
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT) :: Xi(2)
 REAL,INTENT(OUT)   :: alpha
+LOGICAL,INTENT(OUT):: failed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: dXi(2),sdet,dXi2,alphaNorm
@@ -1888,6 +1909,7 @@ LOGICAL            :: hasInter
 REAL               :: MinMax(1:2,1:2)
 !===================================================================================================================================
 
+failed=.FALSE.
 ! check if intersection is possible
 hasInter=.TRUE.
 DO l=1,2
@@ -2030,9 +2052,12 @@ IF(nIter.GT.BezierClipMaxIter) THEN
   IPWRITE(UNIT_stdout,*) ' PartState   : ', PartState(iPart,1:3)
   IPWRITE(UNIT_stdout,*) ' lastPos     : ', LastPartPos(iPart,1:3)
   IPWRITE(UNIT_stdout,*) ' Trajectory  : ', PartTrajectory
-  CALL abort(&
-    __STAMP__&
-    ,' Bezier-Newton does not yield root! ')
+  IPWRITE(UNIT_stdout,*) ' Calling-Bezier-Clipping  '
+  failed=.TRUE.
+  RETURN
+!  CALL abort(&
+!    __STAMP__&
+!    ,' Bezier-Newton does not yield root! ')
 END IF
 
 ! check if found Xi,Eta are in parameter range
