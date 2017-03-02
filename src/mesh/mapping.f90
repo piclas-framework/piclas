@@ -152,21 +152,21 @@ END DO; END DO; END DO
 DO j=0,N_in; DO i=0,N_in
   DO f=0,4
     DO s=1,6
-      S2V2(:,i,j,f,s) = SideToVol2(N_in,i,j,f,s)
+      S2V2(:,i,j,f,s) = SideToVol2(i,j,f,s)
     END DO
   END DO
 END DO; END DO
  
 DO j=0,N_in; DO i=0,N_in
   DO s=1,6
-    CS2V(:,i,j,s) = CGNS_SideToVol2(N_in,i,j,s)
+    CS2V(:,i,j,s) = CGNS_SideToVol2(i,j,s)
   END DO
 END DO; END DO
 
 ! Flip_S2M
 DO j=0,N_in; DO i=0,N_in
   DO f=0,4
-    FS2M(:,i,j,f) = Flip_S2M(N_in,i,j,f)
+    FS2M(:,i,j,f) = Flip_S2M(i,j,f)
   END DO
 END DO; END DO
 
@@ -187,7 +187,7 @@ END DO ! f = 0, 4
 END SUBROUTINE InitMappings
 
 
-FUNCTION Flip_S2M(N_in,p, q, flip)
+FUNCTION Flip_S2M(p, q, flip)
 !===================================================================================================================================
 ! Transforms Coordinates from RHS of Slave to RHS of Master 
 !    input: p,q in Slave-RHS, flip;  
@@ -198,7 +198,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: N_in,p,q,flip
+INTEGER,INTENT(IN) :: p,q,flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -213,16 +213,16 @@ SELECT CASE(flip)
   CASE(1) 
     Flip_S2M = (/     q,     p/)
   CASE(2) 
-    Flip_S2M = (/N_in-p,     q/)
+    Flip_S2M = (/PP_N-p,     q/)
   CASE(3) 
-    Flip_S2M = (/N_in-q,N_in-p/)
+    Flip_S2M = (/PP_N-q,PP_N-p/)
   CASE(4) 
-    Flip_S2M = (/     p,N_in-q/)
+    Flip_S2M = (/     p,PP_N-q/)
 END SELECT
 END FUNCTION Flip_S2M
 
 
-FUNCTION Flip_M2S(N_in,p, q, flip)
+FUNCTION Flip_M2S(p, q, flip)
 !===================================================================================================================================
 ! Transforms Coordinates from RHS of Master to RHS of Slave
 !   actualy this is the same function as Flip_S2M
@@ -232,7 +232,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: N_in,p,q,flip
+INTEGER,INTENT(IN) :: p,q,flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,7 +241,7 @@ INTEGER,DIMENSION(2) :: Flip_M2S
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-Flip_M2S=Flip_S2M(N_in,p,q,flip)
+Flip_M2S=Flip_S2M(p,q,flip)
 END FUNCTION Flip_M2S
 
 
@@ -322,7 +322,7 @@ END SELECT
 END FUNCTION CGNS_SideToVol
 
 
-FUNCTION CGNS_SideToVol2(N_in,p, q, locSideID)
+FUNCTION CGNS_SideToVol2(p, q, locSideID)
 !===================================================================================================================================
 ! Transforms RHS-Coordinates of Side (CGNS-Notation) into Volume-Coordinates 
 ! input: l, p,q, locSideID
@@ -335,7 +335,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: p,q,locSideID,N_in
+INTEGER,INTENT(IN) :: p,q,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -352,7 +352,7 @@ SELECT CASE(locSideID)
   CASE(ETA_MINUS)  
     CGNS_SideToVol2 = (/p,q/)
   CASE(ETA_PLUS)   
-    CGNS_SideToVol2 = (/N_in-p,q/)
+    CGNS_SideToVol2 = (/PP_N-p,q/)
   CASE(ZETA_MINUS) 
     CGNS_SideToVol2 = (/q,p/)
   CASE(ZETA_PLUS)  
@@ -384,7 +384,7 @@ INTEGER,DIMENSION(3) :: VolToSide
 INTEGER,DIMENSION(3) :: pq
 !===================================================================================================================================
 pq = CGNS_VolToSide(i,j,k,locSideID)
-VolToSide(1:2) = Flip_S2M(PP_N,pq(1),pq(2),flip)
+VolToSide(1:2) = Flip_S2M(pq(1),pq(2),flip)
 VolToSide(3) = pq(3)
 END FUNCTION VolToSide
 
@@ -449,7 +449,7 @@ CASE(ETA_MINUS,ETA_PLUS)
 CASE(ZETA_MINUS,ZETA_PLUS)
   pq = CGNS_VolToSide(ijk1,ijk2,0,locSideID)
 END SELECT
-VolToSide2(1:2) = Flip_S2M(PP_N,pq(1),pq(2),flip)
+VolToSide2(1:2) = Flip_S2M(pq(1),pq(2),flip)
 END FUNCTION VolToSide2
 
 FUNCTION SideToVol(l, p, q, flip, locSideID)
@@ -475,7 +475,7 @@ INTEGER,DIMENSION(3) :: SideToVol
 ! LOCAL VARIABLES
 INTEGER,DIMENSION(2) :: pq
 !===================================================================================================================================
-pq = Flip_M2S(PP_N,p,q,flip)
+pq = Flip_M2S(p,q,flip)
 SideToVol = CGNS_SideToVol(l,pq(1),pq(2),locSideID)
 END FUNCTION SideToVol
 
@@ -505,7 +505,7 @@ INTEGER,DIMENSION(2) :: SideToAdjointLocSide
 INTEGER,DIMENSION(2) :: pq
 !===================================================================================================================================
 
-pq = SideToVol2(PP_N,p, q, flip, locSideID)
+pq = SideToVol2(p, q, flip, locSideID)
 SELECT CASE(locSideID)
 CASE(XI_MINUS)
   IF(pq(1).EQ.0)THEN
@@ -538,7 +538,7 @@ END SELECT
 END FUNCTION SideToAdjointLocSide
 
 
-FUNCTION SideToVol2(N_in,p, q, flip, locSideID)
+FUNCTION SideToVol2(p, q, flip, locSideID)
 !===================================================================================================================================
 ! Transform RHS-Coordinates of Master to Volume-Coordinates. This is: SideToVol = CGNS_SideToVol(Flip_M2S(...))
 ! input: l, p,q, flip, locSideID
@@ -551,7 +551,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: N_in,p,q,flip,locSideID
+INTEGER,INTENT(IN) :: p,q,flip,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -561,8 +561,8 @@ INTEGER,DIMENSION(2) :: SideToVol2
 ! LOCAL VARIABLES
 INTEGER,DIMENSION(2) :: pq
 !===================================================================================================================================
-pq = Flip_M2S(N_in,p,q,flip)
-SideToVol2 = CGNS_SideToVol2(N_in,pq(1),pq(2),locSideID)
+pq = Flip_M2S(p,q,flip)
+SideToVol2 = CGNS_SideToVol2(pq(1),pq(2),locSideID)
 END FUNCTION SideToVol2
 
 
