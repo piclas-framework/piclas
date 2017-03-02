@@ -215,8 +215,8 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
-!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonTol
+USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha,SideDistance
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonTol
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
@@ -248,7 +248,7 @@ REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0
 #endif /*CODE_ANALYZE*/
 LOGICAL                                  :: CriticalParallelInSide
 REAL                                     :: XiNewton(2)
-REAL                                     :: coeffA
+REAL                                     :: coeffA,locSideDistance
 !REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
 !PartTrajectory = PartTrajectory
@@ -265,14 +265,24 @@ rBoundingBoxChecks=rBoundingBoxChecks+1.
 CriticalParallelInSide=.FALSE.
 
 IF(DoRefMapping)THEN
-  IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
+  coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
+  IF(coeffA.LT.0.)RETURN
+  locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
+  locSideDistance=locSideDistance/(coeffA*lengthPartTrajectory)-epsilonTol
+  IF(locSideDistance.GT.1.0) RETURN
 ELSE
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
   IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
   IF(flip.EQ.0)THEN
     IF(coeffA.LT.0.)RETURN
+    locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
+    locSideDistance=locSideDistance/coeffA
+    IF(locSideDistance.GT.lengthPartTrajectory) RETURN
   ELSE
     IF(coeffA.GT.0.)RETURN
+    locSideDistance=-SideDistance(SideID)+DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
+    locSideDistance=locSideDistance/coeffA
+    IF(locSideDistance.GT.lengthPartTrajectory) RETURN
   END IF
 END IF
 IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
@@ -1844,10 +1854,12 @@ SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonHit,BezierClipMaxIter,BezierControlPoints3D,epsilontol
-USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonHit,BezierClipMaxIter,BezierControlPoints3D,epsilontol &
+                                     ,BezierNewtonGuess
+USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars,  ONLY:D_Bezier
+USE MOD_Particle_Mesh_Vars,      ONLY:PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1869,7 +1881,61 @@ REAL               :: IntersectionVector(3)
 INTEGER            :: nIter
 INTEGER            :: dd,nn,l,i,j
 INTEGER            :: CycIJ(2),Cyc(2)
+INTEGER            :: iArmijo
+REAL               :: lambda,Xi_old(2)
+REAL               :: Norm_P, Norm_P_old
+LOGICAL            :: hasInter
+REAL               :: MinMax(1:2,1:2)
 !===================================================================================================================================
+
+! check if intersection is possible
+hasInter=.TRUE.
+DO l=1,2
+  MinMax(1,l)=MINVAL(BezierControlPoints2D(l,:,:))
+  MinMax(2,l)=MAXVAL(BezierControlPoints2D(l,:,:))
+  IF(MinMax(1,l)*MinMax(2,l).GT.0.) hasInter=.FALSE.
+END DO ! l=1,2
+IF(.NOT.hasInter) THEN
+  alpha=-1.
+  RETURN
+END IF
+
+! inital guess
+SELECT CASE(BezierNewtonGuess)
+CASE(1)
+  ! assume:_minvalue at -1, maxvalue at 1
+  DO l=1,2
+    Xi(l) = -1.0 - 2*MinMax(1,l) / ( MinMax(2,l)-MinMax(1,l) )
+  END DO ! l=1,2
+CASE(2)
+  ! take the absolute value of control points to get init-value
+  Norm_P=SQRT(DOT_PRODUCT(BezierControlPoints2D(:,0,0),BezierControlPoints2D(:,0,0)))
+  Norm_P_old=Norm_P
+  DO j=0,NGeo
+    DO i=0,NGeo
+      dXi(1) = ABS(BezierControlPoints2D(1,i,j))
+      IF(dXi(1).GT.Norm_P_old) CYCLE
+      dXi(2) = ABS(BezierControlPoints2D(2,i,j))
+      IF(dXi(2).GT.Norm_P_old) CYCLE
+      Norm_P=SQRT(dXi(1)*dXi(1)+dXi(2)*dXi(2))
+      IF(Norm_P.LT.Norm_P_Old)THEN
+        Norm_P_old=Norm_P
+        Xi(:) = (/REAL(i),REAL(j)/)
+      END IF
+    END DO ! i=0,NGeo
+  END DO ! j=0,NGeo
+  ! compute actual position
+  DO l=1,2
+    Xi(l) = 2./REAL(NGeo) * Xi(l) -1.
+  END DO ! l=1,2
+CASE(4)
+  ! trival guess
+  Xi(:)=(/0.,0./)
+CASE DEFAULT
+  CALL abort(&
+__STAMP__ &
+    ,' BezierNewtonGuess is not implemented! ', BezierNewtonGuess)
+END SELECT
 
 nIter=1
 alpha=-1.0
@@ -1894,10 +1960,15 @@ DO nn=1,2
   END DO ! dd=1,2
 END DO ! nn=1,2
 
+
+! compute f(xi) and df(xi)/dxi
+CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
+                                                  ,dBezierControlPoints2D(1:2,1:2,0:NGeo,0:NGeo),Point=P,Gradient=gradXi)
+! and norm
+Norm_P=P(1)*P(1)+P(2)*P(2)
+
 DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierClipMaxIter))
-  ! compute f(xi) and df(xi)/dxi
-  CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
-                                                    ,dBezierControlPoints2D(1:2,1:2,0:NGeo,0:NGeo),Point=P,Gradient=gradXi)
+
   ! caution with index
   sdet=gradXi(1,1)*gradXi(2,2)-gradXi(1,2)*gradXi(2,1)
   !CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
@@ -1920,11 +1991,25 @@ DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierClipMaxIter))
 
   dXi    = sdet*dXi
   dXi2   = dXi(1)*dXi(1)+dXi(2)*dXi(2)  
+  Xi_old = Xi
 
-  ! update to new position
-  Xi = Xi - dXi
-  ! if a particle hit the edge, then the solution process can produce an overshoot
-  ! currently, the overshoot is only accounted in the first iteration
+  ! Armijo method to enforce global convergence
+  lambda=1.0
+  iArmijo=1
+  Norm_P_old=Norm_P
+  Norm_P=Norm_P*2.
+  DO WHILE(Norm_P.GT.Norm_P_old*(1.0-0.0001*lambda) .AND.iArmijo.LE.6)
+    ! update to new position
+    Xi = Xi_old - lambda*dXi
+    ! if a particle hit the edge, then the solution process can produce an overshoot
+    ! currently, the overshoot is only accounted in the first iteration
+    CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
+                                                      , Point=P,Gradient=gradXi)
+    ! compute Norm_P
+    Norm_P=P(1)*P(1)+P(2)*P(2)
+    lambda=0.3*lambda
+    iArmijo=iArmijo+1
+  END DO
   IF((nIter.GE.2).AND.(ANY(ABS(Xi).GT.1.5))) THEN
     ! no intersection of ray and bezier patch
     Xi=1.5
@@ -1933,9 +2018,22 @@ DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierClipMaxIter))
   nIter=nIter+1
 END DO
 
-IF(nIter.GT.BezierClipMaxIter) CALL abort(&
+IF(nIter.GT.BezierClipMaxIter) THEN
+  IPWRITE(UNIT_stdout,*) ' Bezier-Newton not converget!'
+  IPWRITE(UNIT_stdout,*) ' SideId      : ', SideID
+  IPWRITE(UNIT_stdout,*) ' ElemID      : ', PartSideToElem(S2E_ELEM_ID,SideID)
+  IPWRITE(UNIT_stdout,*) ' Norm_P      : ', Norm_P
+  IPWRITE(UNIT_stdout,*) ' minmax-1    : ', MinMax(:,1)
+  IPWRITE(UNIT_stdout,*) ' minmax-2    : ', MinMax(:,2)
+  IPWRITE(UNIT_stdout,*) ' xi, eta     : ', xi
+  IPWRITE(UNIT_stdout,*) ' dxi, dxi2   : ', dXi, dXi2
+  IPWRITE(UNIT_stdout,*) ' PartState   : ', PartState(iPart,1:3)
+  IPWRITE(UNIT_stdout,*) ' lastPos     : ', LastPartPos(iPart,1:3)
+  IPWRITE(UNIT_stdout,*) ' Trajectory  : ', PartTrajectory
+  CALL abort(&
     __STAMP__&
     ,' Bezier-Newton does not yield root! ')
+END IF
 
 ! check if found Xi,Eta are in parameter range
 IF(ABS(xi(1)).GT.BezierNewtonHit) RETURN
