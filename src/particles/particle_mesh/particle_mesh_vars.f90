@@ -50,9 +50,7 @@ INTEGER(KIND=4),ALLOCATABLE :: PartElemToElemAndSide(:,:,:)                     
                                                                                           ! [2]1:6 - locSideID
                                                                                           ! [3]    - nTotalElems 
                                                                                           ! now in global-elem-ids !!!
-INTEGER             :: nPartSides                                                         ! nPartSides - nSides+nPartPeriodicSides
 INTEGER             :: nTotalSides                                                        ! total nb. of sides (my+halo)
-INTEGER             :: nPartPeriodicSides                                                 ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
 
 LOGICAL,ALLOCATABLE :: IsBCElem(:)                                                        ! is a BC elem 
