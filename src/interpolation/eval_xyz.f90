@@ -518,7 +518,7 @@ __STAMP__&
   Norm_F=Norm_F*2.
   lambda=1.0
   iArmijo=1
-  DO WHILE(Norm_F.GT.Norm_F_old*(1.-0.0001*lambda) .AND.iArmijo.LE.6)
+  DO WHILE(Norm_F.GT.Norm_F_old*(1.-0.0001*lambda) .AND.iArmijo.LE.8)
 
     Xi = Xi_Old - lambda*deltaXI!MATMUL(sJac,F)
   
