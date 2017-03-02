@@ -1759,7 +1759,7 @@ SUBROUTINE ReShapeBezierSides()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,SidePeriodicType,nPartPeriodicSides,PartSideToElem
-USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,nElems
+USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,nElems,BC
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
@@ -1781,8 +1781,8 @@ REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)
 
 
 nPeriodicSidesTmp=0
-DO iSide=1,nSides+nPartPeriodicSides
-  IF(SidePeriodicType(iSide).NE.0)THEN
+DO iSide=nBCSides+1,nSides+nPartPeriodicSides
+  IF(BC(iSide).NE.0)THEN
     ! different list, contains ALL periodic sides (inner and duplicated)
     nPeriodicSidesTmp=nPeriodicSidesTmp+1
   END IF
@@ -1856,7 +1856,7 @@ DO iSide=1,nBCSides
 END DO ! iSide
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
-  IF(SidePeriodicType(iSide).EQ.0) CYCLE
+  IF(BC(iSide).EQ.0) CYCLE
   newBCSideID=newBCSideID+1
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
@@ -1884,7 +1884,7 @@ DO iSide=1,nBCSides
 END DO
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
-  IF(SidePeriodicType(iSide).EQ.0) CYCLE
+  IF(BC(iSide).EQ.0) CYCLE
   newBCSideID=newBCSideID+1
   PartBCSideList(iSide)=newBCSideID
 END DO ! iSide
