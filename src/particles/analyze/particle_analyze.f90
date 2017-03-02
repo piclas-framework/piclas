@@ -1281,8 +1281,8 @@ REAL                            :: RD(nSpecies)
 IF (DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
     IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-      Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds / Adsorption%AdsorpInfo(iSpec)%WallCollCount
-      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / Adsorption%AdsorpInfo(iSpec)%WallCollCount
+      Adsorbrate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfAds) / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
     ELSE
       Adsorbrate(iSpec) = 0.
       Accomodation(iSpec) = 0.
