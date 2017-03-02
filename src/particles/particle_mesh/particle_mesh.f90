@@ -157,11 +157,11 @@ IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
 __STAMP__ &
 ,'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
 END IF
-IF(DoRefMapping .AND. RefMappingGuess.EQ.2) THEN
-   CALL abort(&
-__STAMP__ &
-,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
-END IF
+!IF(DoRefMapping .AND. RefMappingGuess.EQ.2) THEN
+!   CALL abort(&
+!__STAMP__ &
+!,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
+!END IF
 
 BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
 
