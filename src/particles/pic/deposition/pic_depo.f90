@@ -893,7 +893,7 @@ CASE('cell_volweight')
       IF(DoRefMapping)THEN
         TempPartPos(1:3)=PartPosRef(1:3,iPart)
       ELSE
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem)
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem,ForceMode=.TRUE.)
       END IF
       TSource(:) = 0.0
 !#if (PP_nVar==8)
