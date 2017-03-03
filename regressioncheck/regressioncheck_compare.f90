@@ -602,7 +602,13 @@ SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceNormFi
           //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)
 !print*,'SYSCMD',SYSCOMMAND
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-IF(iSTATUS.EQ.127)THEN
+!print*,iSTATUS
+!read*
+IF(iSTATUS.EQ.2)THEN
+  SWRITE(UNIT_stdOut,'(A)')  ' h5diff: file to compare not found.'
+  Examples(iExample)%ErrorStatus=5
+  RETURN
+ELSEIF(iSTATUS.EQ.127)THEN
   SWRITE(UNIT_stdOut,'(A)')  ' h5diff executable could not be found.'
   Examples(iExample)%ErrorStatus=5
   RETURN
