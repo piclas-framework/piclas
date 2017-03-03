@@ -107,6 +107,7 @@ BezierNewtonAngle     = GETREAL('BezierNewtonAngle','1.570796326')! 1°=0.01754 
 !BezierHitEpsBi=1.000800
 BezierClipTolerance   = GETREAL('BezierClipTolerance','1e-8')
 BezierNewtonTolerance2= GETREAL('BezierNewtonTolerance','1e-4')
+BezierNewtonGuess     = GETINT('BezierNewtonGuess','1')
 BezierSplitLimit      = GETREAL('BezierSplitLimit','0.6')
 BezierSplitLimit      = 2.*BezierSplitLimit
 BezierClipMaxIter     = GETINT('BezierClipMaxIter','100')

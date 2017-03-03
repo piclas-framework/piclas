@@ -129,6 +129,14 @@ IF(Examples(iExample)%CompareDatafileRow)THEN
   END IF
 END IF
 
+! read an array from a HDF5 file and compare certain entry bounds that must be limited to a supplied value range
+IF(Examples(iExample)%CompareHDF5ArrayBounds)THEN
+  CALL CompareHDF5ArrayBounds(ErrorStatus,iExample)
+  IF(Examples(iExample)%ErrorStatus.EQ.5)THEN
+    CALL AddError(MPIthreadsStr,'Mismatch in CompareHDF5ArrayBounds',iExample,iSubExample,ErrorStatus=5,ErrorCode=5)
+  END IF
+END IF
+
 ! successful execution and comparison
 IF(Examples(iExample)%ErrorStatus.EQ.0)THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Example successful! '
@@ -155,11 +163,8 @@ INTEGER,INTENT(IN)             :: iExample
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE               :: ReferenceNorm(:,:)                !> L2 and Linf norm of the executed example from a reference
-                                                                    !> solution
-INTEGER                        :: ErrorStatus                       !> Error-code of regressioncheck
 INTEGER                        :: iSTATUS
-INTEGER                        :: I,J,K
+INTEGER                        :: I,J
 INTEGER                        :: NumberOfCellsInteger
 INTEGER                        :: iSubExample,p
 REAL,ALLOCATABLE               :: Order(:,:),OrderAveraged(:)
@@ -168,7 +173,7 @@ LOGICAL,ALLOCATABLE            :: OrderReached(:)
 REAL                           :: DummyReal
 LOGICAL                        :: DoDebugOutput
 !==================================================================================================================================
-DoDebugOutput=.TRUE. ! change to ".TRUE." if problems with this routine occur for info printed to screen
+DoDebugOutput=.TRUE. ! change to ".TRUE." if problems with this routine occur for info written to screen
 SWRITE(UNIT_stdOut,'(A)')''
 SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' ConvergenceTest: '
@@ -569,7 +574,7 @@ INTEGER,INTENT(IN)             :: iExample
 CHARACTER(LEN=255)             :: DataSet
 CHARACTER(LEN=255)             :: CheckedFileName
 CHARACTER(LEN=255)             :: ReferenceNormFileName
-CHARACTER(LEN=500)             :: SYSCOMMAND
+CHARACTER(LEN=550)             :: SYSCOMMAND
 CHARACTER(LEN=21)              :: tmpTol
 INTEGER                        :: iSTATUS
 LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile
@@ -592,8 +597,9 @@ END IF
 DataSet=TRIM(Examples(iExample)%ReferenceDataSetName)
 
 WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
-SYSCOMMAND=H5DIFF//' --delta='//TRIM(tmpTol)//' '//TRIM(ReferenceNormFileName)//' ' &
+SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceNormFileName)//' ' &
           //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)
+!print*,'SYSCMD',SYSCOMMAND
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' HDF5 Datasets do not match! Error in computation!'
@@ -763,9 +769,9 @@ CHARACTER(LEN=1)               :: Delimiter
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: ColumnHeaders(:)
 CHARACTER(LEN=10000)           :: temp1,temp2
-INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,CurrentColumn,IndNum,MaxColumn!,K
-INTEGER                        :: IndFirstA,IndLastA,IndFirstB,IndLastB,EOL,MaxRow,K,ColumnNumber
-LOGICAL                        :: ExistFile,IndexNotFound,ReadHeaderLine,RowFound
+INTEGER                        :: iSTATUS,ioUnit,LineNumbers,HeaderLines,j
+INTEGER                        :: K,ColumnNumber
+LOGICAL                        :: ExistFile,ReadHeaderLine,RowFound
 LOGICAL,ALLOCATABLE            :: ValuesAreEqual(:)
 REAL,ALLOCATABLE               :: Values(:),ValuesRef(:)
 INTEGER                        :: DimValues,DimValuesRef,DimColumnHeaders
@@ -781,10 +787,6 @@ DO K=1,2 ! open the data and reference file
     Filename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CompareDatafileRowFile)
     ReadHeaderLine=.FALSE.
   END SELECT
-!print*,""
-!print*,""
-!print*,"Filename=",Filename
-!read*
   INQUIRE(File=Filename,EXIST=ExistFile)
   IF(.NOT.ExistFile) THEN
     SWRITE(UNIT_stdOut,'(A,A)')  ' CompareDatafileRow: reference state file does not exist! need ',TRIM(Filename)
@@ -810,8 +812,6 @@ DO K=1,2 ! open the data and reference file
     LineNumbers=LineNumbers+1
     IF((LineNumbers.EQ.1).AND.(ReadHeaderLine))THEN
       ColumnNumber=0
-!print*,"K=",K,"ColumnNumber=",ColumnNumber
-!read*
       CALL GetColumns(temp2,Delimiter,ColumnString=ColumnHeaders,Column=ColumnNumber)
     ELSEIF(LineNumbers.EQ.Examples(iExample)%CompareDatafileRowNumber)THEN ! remove header lines
       RowFound=.TRUE.
@@ -822,12 +822,8 @@ DO K=1,2 ! open the data and reference file
   IF(ADJUSTL(TRIM(temp2)).NE.'')THEN ! if string is not empty
     SELECT CASE(K)
     CASE(1) ! reference data file
-!print*,"K=",K,"ColumnNumber=",ColumnNumber
-!read*
       CALL GetColumns(temp2,Delimiter,ColumnReal=ValuesRef,Column=ColumnNumber)
     CASE(2) ! newly created data file
-!print*,"K=",K,"ColumnNumber=",ColumnNumber
-!read*
       CALL GetColumns(temp2,Delimiter,ColumnReal=Values   ,Column=ColumnNumber)
     END SELECT
   END IF
@@ -855,10 +851,7 @@ ELSE
   ALLOCATE(ColumnHeaders(1:DimValues))
   ColumnHeaders='no header found'
 END IF
-!print*,"done"
-!print*,"ColumnNumber=",ColumnNumber
-!read*
-print*,""
+SWRITE(UNIT_stdOut,'(A)') ""
 IF(ColumnNumber.GT.0)THEN
   ALLOCATE(ValuesAreEqual(1:ColumnNumber))
   ValuesAreEqual=.FALSE.
@@ -881,20 +874,16 @@ IF(ANY(.NOT.ValuesAreEqual))THEN
 ELSE
   DataCompare=0
 END IF
-
-!print*,"DataCompare=",DataCompare
-!stop "STOPPPP"
-
 END SUBROUTINE CompareDatafileRow
 
+
 !==================================================================================================================================
-!> Read column data from a supplied string InputString
+!> Read column data from the supplied string variable "InputString"
 !==================================================================================================================================
 SUBROUTINE GetColumns(InputString,Delimiter,ColumnString,ColumnReal,Column)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_RegressionCheck_Vars,  ONLY: Examples
 USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -907,16 +896,10 @@ REAL,ALLOCATABLE,INTENT(INOUT),OPTIONAL             :: ColumnReal(:)
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: ColumnStringLocal(:)
 CHARACTER(LEN=1)               :: Delimiter
-CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=10000)           :: temp1
 INTEGER                        :: IndNumOld,ColumnNumber
-INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,CurrentColumn,IndNum,MaxColumn!,K
-LOGICAL                        :: ExistFile,IndexNotFound,IntegralValuesAreEqual,RowFound,InquireColumns
-REAL,ALLOCATABLE               :: Values(:,:),Q
+INTEGER                        :: iSTATUS,j,IndNum
+LOGICAL                        :: InquireColumns
 !==================================================================================================================================
-!print*,"InputString=",TRIM(InputString)
-!print*,"Continue?"
-!read*
 IndNumOld=0
 IF(PRESENT(Column))THEN
   IF(Column.GT.0)THEN
@@ -941,10 +924,7 @@ IF(InquireColumns)THEN
     ColumnNumber=ColumnNumber+1
   END DO ! while
 END IF
-!print*,"ColumnNumber=",ColumnNumber
 IF(PRESENT(Column))Column=ColumnNumber
-!print*,"Continue?"
-!read*
 IF(ADJUSTL(TRIM(InputString)).EQ.'')ColumnNumber=0 ! if InputString is empty, no ColumnNumber information can be extracted
 IF(ColumnNumber.GT.0)THEN
   ALLOCATE(ColumnStringLocal(ColumnNumber))
@@ -955,23 +935,17 @@ IF(ColumnNumber.GT.0)THEN
     IF(J.EQ.ColumnNumber)IndNum=LEN(InputString)-1          ! for the last ColumnNumber
     IF(IndNum.GT.0)THEN
       ColumnStringLocal(J)=ADJUSTL(TRIM(InputString(1:IndNum-1)))
-      !print*,"ColumnStringLocal(",J,")=[",TRIM(ColumnStringLocal(J)),"]"
       InputString=InputString(IndNum+1:LEN(InputString))
     END IF
   END DO
 END IF
-!print*,"Continue?"
-!read*
 
 IF(PRESENT(ColumnString))THEN
   ALLOCATE(ColumnString(ColumnNumber))
   ColumnString='' ! default
   DO J=1,ColumnNumber
     ColumnString(J)=ADJUSTL(TRIM(ColumnStringLocal(J)))
-    !print*,"ColumnString(",J,")=",ColumnString(J)
   END DO
-!print*,"GetColumns DONE"
-!read*
   RETURN
 END IF
 IF(PRESENT(ColumnReal))THEN
@@ -979,14 +953,142 @@ IF(PRESENT(ColumnReal))THEN
   ColumnReal=0 ! default
   DO J=1,ColumnNumber
     CALL str2real(ColumnStringLocal(J),ColumnReal(J),iSTATUS) 
-    !print*,"ColumnReal(",J,")=",ColumnReal(J)
   END DO
-!print*,"GetColumns DONE"
-!read*
   RETURN
 END IF
-!print*,"GetColumns DONE"
-!read*
 END SUBROUTINE GetColumns
+
+
+!==================================================================================================================================
+!> Read data from a HDF5 array and compare the array entries with pre-defined boundaries
+!==================================================================================================================================
+SUBROUTINE CompareHDF5ArrayBounds(ArrayCompare,iExample)
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_RegressionCheck_Vars,  ONLY: Examples
+USE MOD_HDF5_input,            ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute
+USE MOD_HDF5_Input,            ONLY: DatasetExists,File_ID,GetHDF5DataSize
+USE MOD_IO_HDF5,               ONLY: HSize
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)             :: iExample
+INTEGER,INTENT(OUT)            :: ArrayCompare
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+INTEGER                        :: iSTATUS,ioUnit,ArrayRank,nVal,nSize,I,J
+!INTEGER(HSIZE_T)               :: IntSize
+LOGICAL                        :: ExistFile,HDF5DatasetExists,FirstFound
+!REAL                           :: HDF5DataArray(10000,6)
+REAL,ALLOCATABLE               :: HDF5DataArray(:,:)
+!==================================================================================================================================
+ArrayCompare=0     ! 0 means success
+FirstFound=.FALSE. ! first problematic array entry found
+
+!print*,"test"
+!SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+!'Example%CompareHDF5ArrayBoundsValue(1) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(1),' (lower)'
+!SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+!'Example%CompareHDF5ArrayBoundsValue(2) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(2),' (upper)'
+!SWRITE(UNIT_stdOut,'(A,I6,A)')     &
+!'Example%CompareHDF5ArrayBoundsRange(1) : ',Examples(iExample)%CompareHDF5ArrayBoundsRange(1),' (lower)'
+!SWRITE(UNIT_stdOut,'(A,I6,A)')     &
+!'Example%CompareHDF5ArrayBoundsRange(2) : ',Examples(iExample)%CompareHDF5ArrayBoundsRange(2),' (upper)'
+!SWRITE(UNIT_stdOut,'(A,A)')        'Example%CompareHDF5ArrayBoundsName     :      ',Examples(iExample)%CompareHDF5ArrayBoundsName
+!SWRITE(UNIT_stdOut,'(A,A)')        'Example%CompareHDF5ArrayBoundsFile     :      ',Examples(iExample)%CompareHDF5ArrayBoundsFile
+
+
+
+Filename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CompareHDF5ArrayBoundsFile)
+INQUIRE(File=Filename,EXIST=ExistFile)
+IF(.NOT.ExistFile) THEN
+  SWRITE(UNIT_stdOut,'(A,A)')  ' CompareHDF5ArrayBoundsFile: reference state file does not exist! need ',TRIM(Filename)
+  Examples(iExample)%ErrorStatus=5
+  RETURN
+ELSE
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+END IF
+
+!!SWRITE(UNIT_stdOut,*)'Reading [',TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),'] from File:',TRIM(FileName)
+#ifdef MPI
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.)
+#endif
+
+CALL DatasetExists(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),HDF5DatasetExists)
+IF(.NOT.HDF5DatasetExists) THEN
+  SWRITE(UNIT_stdOut,'(A,A,A1)')  ' CompareHDF5ArrayBoundsFile: Dataset in file does not exist! [',&
+                               TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),"]"
+  Examples(iExample)%ErrorStatus=5
+  CALL CloseDataFile() 
+  RETURN
+END IF
+
+! get array dimensions
+CALL GetHDF5DataSize(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),ArrayRank,HSize)
+!print*,"ArrayRank=",ArrayRank
+!print*,"HSize   =",HSize
+nVal   = INT(HSize(1))
+nSize  = INT(HSize(2))
+!print*,"nVal =",nVal
+!print*,"nSize=",nSize
+IF(ArrayRank.GT.2)THEN
+  SWRITE(UNIT_stdOut,'(A,A,A1)')  &
+    ' CompareHDF5ArrayBoundsFile: Dataset too large dimension (more than 2 dimensions not implemeted)! [',&
+    TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),"]"
+  Examples(iExample)%ErrorStatus=5
+  CALL CloseDataFile() 
+  RETURN
+END IF
+
+! allocate array and read hdf5 file into the array
+ALLOCATE(HDF5DataArray(nVal,nSize))
+!print*,shape(HDF5DataArray)
+!print*,""
+!print*,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName)
+!CALL DatasetExists(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),HDF5DatasetExists)
+!print*,"HDF5DatasetExists)=",HDF5DatasetExists
+!CALL ReadArray('PartData',2,(/nVal,nSize/),0,1,RealArray=HDF5DataArray)
+CALL ReadArray(TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),2,(/nVal,nSize/),0,1,RealArray=HDF5DataArray)
+
+!read*
+!print*,HDF5DataArray
+DO I=1,nVal
+  DO J=Examples(iExample)%CompareHDF5ArrayBoundsRange(1),Examples(iExample)%CompareHDF5ArrayBoundsRange(2)
+    IF( (HDF5DataArray(I,J).LT.Examples(iExample)%CompareHDF5ArrayBoundsValue(1)).OR.&
+        (HDF5DataArray(I,J).GT.Examples(iExample)%CompareHDF5ArrayBoundsValue(2))     )THEN
+      ArrayCompare=ArrayCompare+1
+      IF(FirstFound.EQV..FALSE.)THEN
+        SWRITE(UNIT_stdOut,'(A,I10,A1)')' First value outsite range found for [#',ArrayCompare,']'
+        SWRITE(UNIT_stdOut,'(A,E25.14)')'     HDF5DataArray(I,J)                     : ',HDF5DataArray(I,J)
+        SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+          '     Example%CompareHDF5ArrayBoundsValue(1) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(1),' (lower)'
+        SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+          '     Example%CompareHDF5ArrayBoundsValue(2) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(2),' (upper)'
+        FirstFound=.TRUE.
+      END IF
+      !print*,HDF5DataArray(I,1:nSize)
+      !read*
+    END IF
+  END DO
+END DO
+
+CALL CloseDataFile() 
+SDEALLOCATE(HDF5DataArray)
+!print*,"stop"
+!stop
+
+IF(ArrayCompare.GT.0)THEN
+  SWRITE(UNIT_stdOut,'(A)')         ' CompareHDF5ArrayBounds do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A,I10,A1)')  ' Number of failed comparisons: [',ArrayCompare,']'
+  Examples(iExample)%ErrorStatus=5
+END IF
+
+END SUBROUTINE CompareHDF5ArrayBounds
+
 
 END MODULE MOD_RegressionCheck_Compare

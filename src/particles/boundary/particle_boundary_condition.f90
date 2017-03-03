@@ -31,7 +31,7 @@ PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
 
 CONTAINS
 
-SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,crossedBC)
+SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -67,7 +67,7 @@ USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                   :: iPart,SideID
+INTEGER,INTENT(IN)                   :: iPart,SideID,flip
 REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -105,6 +105,7 @@ CASE(1) !PartBound%OpenBC)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     END SELECT 
+    IF(flip.NE.0) n_loc=-n_loc
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
 
@@ -136,9 +137,11 @@ CASE(2) !PartBound%ReflectiveBC)
       CALL RANDOM_NUMBER(RanNum)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=crossedBC)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
+          IsSpeciesSwap,opt_Reflected=crossedBC)
       ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=crossedBC)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
+          IsSpeciesSwap,opt_Reflected=crossedBC)
       END IF
     ELSE IF (WallModeltype.EQ.1) THEN
                adsorbindex = 0
@@ -157,7 +160,8 @@ CASE(2) !PartBound%ReflectiveBC)
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection (not diffuse)               
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=crossedBC)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
+          IsSpeciesSwap,opt_Reflected=crossedBC)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -198,7 +202,7 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+  CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
                                        ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC)
 
 CASE DEFAULT
@@ -215,7 +219,7 @@ END IF
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,crossedBC)
+SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -250,7 +254,7 @@ USE MOD_Particle_Vars,          ONLY:DoPartInNewton
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                   :: iPart,SideID
+INTEGER,INTENT(IN)                   :: iPart,SideID,flip
 REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -286,6 +290,7 @@ CASE(1) !PartBound%OpenBC)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
     END SELECT 
+    IF(flip.NE.0) n_loc=-n_loc
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
 
@@ -320,10 +325,10 @@ CASE(2) !PartBound%ReflectiveBC)
       BCSideID=PartBCSideList(SideID)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
                               ,BCSideID=BCSideID,opt_reflected=crossedBC)
       ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap&
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                               ,BCSideID=BCSideID,opt_reflected=crossedBC)
       END IF
     ELSE IF (WallModeltype.EQ.1) THEN
@@ -344,7 +349,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection (not diffuse)  
         BCSideID=PartBCSideList(SideID)
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
                               ,BCSideID=BCSideID,opt_reflected=crossedBC)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
@@ -393,7 +398,7 @@ __STAMP__&
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
-  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
                         ,BCSideID=BCSideID,opt_Symmetry=.TRUE.,opt_reflected=crossedBC)
 
 CASE DEFAULT
@@ -405,8 +410,8 @@ END SELECT !PartBound%MapToPartBC(BC(SideID)
 END SUBROUTINE GetBoundaryInteractionRef
 
 
-SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID,opt_Symmetry&
-                                           ,opt_Reflected)
+SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID, &
+  opt_Symmetry,opt_Reflected)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -441,7 +446,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
-INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
+INTEGER,INTENT(IN)                :: PartID, SideID, flip!,ElemID
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
@@ -494,6 +499,7 @@ ELSE
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT 
 END IF
+IF(flip.NE.0) n_loc=-n_loc
 IF(PRESENT(opt_Symmetry)) THEN
   Symmetry = opt_Symmetry
 ELSE
@@ -668,7 +674,8 @@ END IF
 END SUBROUTINE PerfectReflection
 
 
-SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID,opt_Reflected)
+SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID &
+  ,opt_Reflected)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the diffuse reflection in 3D
 ! only implemented for DoRefMapping tracking
@@ -698,7 +705,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
-INTEGER,INTENT(IN)                :: PartID, SideID
+INTEGER,INTENT(IN)                :: PartID, SideID, flip
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -765,6 +772,7 @@ ELSE
   !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
   END SELECT 
 END IF
+IF(flip.NE.0) n_loc=-n_loc
 
 IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.

@@ -146,7 +146,7 @@ CartesianPeriodic = GETLOGICAL('CartesianPeriodic','.FALSE.')
 IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
-RefMappingGuess = GETINT('RefMappingGuess','1')
+RefMappingGuess = GETINT('RefMappingGuess','3')
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 
 epsInCell       = SQRT(3.0*RefMappingEps)
@@ -157,11 +157,11 @@ IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
 __STAMP__ &
 ,'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
 END IF
-IF(DoRefMapping .AND. RefMappingGuess.EQ.2) THEN
-   CALL abort(&
-__STAMP__ &
-,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
-END IF
+!IF(DoRefMapping .AND. RefMappingGuess.EQ.2) THEN
+!   CALL abort(&
+!__STAMP__ &
+!,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
+!END IF
 
 BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
 
@@ -1758,8 +1758,8 @@ SUBROUTINE ReShapeBezierSides()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,SidePeriodicType,nPartPeriodicSides
-USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,SidePeriodicType,nPartPeriodicSides,PartSideToElem
+USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,nElems,BC
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
@@ -1781,8 +1781,8 @@ REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)
 
 
 nPeriodicSidesTmp=0
-DO iSide=1,nSides+nPartPeriodicSides
-  IF(SidePeriodicType(iSide).NE.0)THEN
+DO iSide=nBCSides+1,nSides+nPartPeriodicSides
+  IF(BC(iSide).NE.0)THEN
     ! different list, contains ALL periodic sides (inner and duplicated)
     nPeriodicSidesTmp=nPeriodicSidesTmp+1
   END IF
@@ -1856,7 +1856,7 @@ DO iSide=1,nBCSides
 END DO ! iSide
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
-  IF(SidePeriodicType(iSide).EQ.0) CYCLE
+  IF(BC(iSide).EQ.0) CYCLE
   newBCSideID=newBCSideID+1
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
@@ -1884,7 +1884,7 @@ DO iSide=1,nBCSides
 END DO
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
-  IF(SidePeriodicType(iSide).EQ.0) CYCLE
+  IF(BC(iSide).EQ.0) CYCLE
   newBCSideID=newBCSideID+1
   PartBCSideList(iSide)=newBCSideID
 END DO ! iSide

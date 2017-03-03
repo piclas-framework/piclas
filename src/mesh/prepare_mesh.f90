@@ -154,6 +154,8 @@ DO iElem=FirstElemInd,LastElemInd
           ELSE
             aSide%BC_Alpha=-BoundaryType(aSide%BCIndex,BC_ALPHA)
           END IF
+        ELSE
+          aSide%BC_Alpha=0
         END IF
       ELSE
         ! get the correct  alpha and BCIndex for the side for the later use with particles

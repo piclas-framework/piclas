@@ -191,8 +191,8 @@ DO iPart=1,PDM%ParticleVecLength
             SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
             flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
             OldElemID=ElemID
-            CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                             ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
+            CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
+              ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
             IF(ElemID.NE.OldElemID)THEN
               ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
               ! remark: maybe a storage value has to be set to drow?
@@ -248,8 +248,8 @@ DO iPart=1,PDM%ParticleVecLength
               SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
               flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
               OldElemID=ElemID
-              CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                             ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
+              CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
+                ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
               IF(ElemID.NE.OldElemID)THEN
                 IF((firstElem.EQ.ElemID).AND.(.NOT.CrossedBC))THEN
                   IPWRITE(UNIT_stdOut,*) ' Warning: Particle located at undefined location. '
@@ -606,6 +606,19 @@ DO iPart=1,PDM%ParticleVecLength
 #else
           IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
 #endif
+#ifdef MPI
+          InElem=PEM%LastElement(iPart)
+          IF(InElem.LE.PP_nElems)THEN
+            IPWRITE(UNIT_stdout,*) ' halo-elem = F'
+            IPWRITE(UNIT_stdOut,*) ' Last-ElemID         ', InElem+offSetElem
+          ELSE
+            IPWRITE(UNIT_stdout,*) ' halo-elem = T'
+            IPWRITE(UNIT_stdOut,*) ' Last-ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+          END IF
+#else
+          IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', PEM%LastElement(iPart)+offSetElem
+#endif
 CALL abort(&
 __STAMP__ &
 ,'Particle Not inSide of Element, iPart',iPart)
@@ -624,7 +637,7 @@ __STAMP__ &
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,*) ' xi                     ', partposref(1:3,ipart)
-              IPWRITE(UNIT_stdOut,*) ' epsonecell             ', epsonecell
+              IPWRITE(UNIT_stdOut,*) ' epsonecell             ', epsonecell(TestElem)
               IPWRITE(UNIT_stdOut,*) ' oldxi                  ', oldxi
               IPWRITE(UNIT_stdOut,*) ' newxi                  ', newxi
               IPWRITE(UNIT_stdOut,*) ' particlepos            ', partstate(ipart,1:3)
@@ -688,7 +701,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO,PartElemToSide
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -749,8 +762,9 @@ DO WHILE(DoTracing)
     SideID=BCElem(ElemID)%BCSideID(ilocSide)
     BCSideID=PartBCSideList(SideID)
     locSideList(ilocSide)=ilocSide
-    ! get correct flip
+    ! get correct flip, wrong for inner sides!!!
     flip  = 0 
+    !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
     SELECT CASE(SideType(BCSideID))
     CASE(PLANAR_RECT)
       CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -786,12 +800,13 @@ DO WHILE(DoTracing)
       IF(locAlpha(ilocSide).GT.-1)THEN
         hitlocSide=locSideList(ilocSide)
         SideID=BCElem(ElemID)%BCSideID(hitlocSide)
+        flip  =0 !PartElemToSide(E2S_FLIP,hitlocSide,ElemID) !wrong for inner sides!!!
         BCSideID=PartBCSideList(SideID)
         OldElemID=ElemID
         CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                           ,xi(hitlocSide)     &
                                                                           ,eta(hitlocSide)    &
-                                                                          ,PartId,SideID,ElemID,reflected)
+                                                                          ,PartId,SideID,flip,ElemID,reflected)
         !IF(PEM%Element(PartID).NE.OldElemID)THEN
         IF(ElemID.NE.OldElemID)THEN
           CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved)
@@ -848,7 +863,7 @@ REAL                              :: n_loc(3)
 IF(BC(SideID).GT.0)THEN
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                  ,xi    &
-                                                                 ,eta   ,PartID,SideID,ElemID,crossedBC)
+                                                                 ,eta   ,PartID,SideID,flip,ElemID,crossedBC)
 
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
@@ -1252,7 +1267,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,PartElemToSide
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
@@ -1304,8 +1319,9 @@ DO iLocSide=firstSide,LastSide
   SideID=BCElem(ElemID)%BCSideID(ilocSide)
   BCSideID=PartBCSideList(SideID)
   locSideList(ilocSide)=ilocSide
-  ! get correct flip
+  ! get correct flip, wrong for inner sides!!!
   flip  = 0 
+  !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT)
     CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
