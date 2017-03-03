@@ -68,6 +68,14 @@ REAL    , ALLOCATABLE                 :: SFdepoFixesChargeMult(:)          !mult
 REAL                                  :: SFdepoFixesEps                    !epsilon for defined planes
 INTEGER                               :: NbrOfSFdepoFixLinks               !Number of linked SFdepoFixes
 INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:2 (2 Fixes are linked with each other!)
+INTEGER                               :: NbrOfSFdepoLayers                 !Number of const. source layer for sf-depo at planar BCs
+REAL    , ALLOCATABLE                 :: SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
+REAL    , ALLOCATABLE                 :: SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
+CHARACTER(LEN=256),ALLOCATABLE        :: SFdepoLayersSpace(:)              !name of space (cuboid or cylinder)
+REAL    , ALLOCATABLE                 :: SFdepoLayersBaseVector(:,:,:)     !1:nFixes;1:2;1:3(x,y,z)
+INTEGER , ALLOCATABLE                 :: SFdepoLayersSpec(:)               !species of particles for respective layer
+REAL    , ALLOCATABLE                 :: SFdepoLayersPartNum(:)            !number of particles in volume
+REAL    , ALLOCATABLE                 :: SFdepoLayersRadius(:)             !radius for cylinder-space
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================
