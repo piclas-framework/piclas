@@ -574,23 +574,23 @@ INTEGER,INTENT(IN)             :: iExample
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: DataSet
 CHARACTER(LEN=255)             :: CheckedFileName
-CHARACTER(LEN=255)             :: ReferenceNormFileName
+CHARACTER(LEN=255)             :: ReferenceStateFile
 CHARACTER(LEN=550)             :: SYSCOMMAND
 CHARACTER(LEN=21)              :: tmpTol
 INTEGER                        :: iSTATUS
 LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile
 !==================================================================================================================================
 CheckedFilename  =TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CheckedStateFile)
-ReferenceNormFilename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceStateFile)
+ReferenceStateFile=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceStateFile)
 INQUIRE(File=CheckedFilename,EXIST=ExistCheckedFile)
 IF(.NOT.ExistCheckedFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: generated state file does not exist! need ',CheckedFilename
   Examples(iExample)%ErrorStatus=5
   RETURN
 END IF
-INQUIRE(File=ReferenceNormFilename,EXIST=ExistReferenceNormFile)
+INQUIRE(File=ReferenceStateFile,EXIST=ExistReferenceNormFile)
 IF(.NOT.ExistReferenceNormFile) THEN
-  SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: reference state file does not exist! need ',ReferenceNormFilename
+  SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: reference state file does not exist! need ',ReferenceStateFile
   Examples(iExample)%ErrorStatus=5
   RETURN
 END IF
@@ -598,23 +598,26 @@ END IF
 DataSet=TRIM(Examples(iExample)%ReferenceDataSetName)
 
 WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
-SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceNormFileName)//' ' &
+SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
           //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)
 !print*,'SYSCMD',SYSCOMMAND
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 !print*,iSTATUS
 !read*
-IF(iSTATUS.EQ.2)THEN
+IF(iSTATUS.EQ.0)THEN
+  RETURN ! all is safe
+ELSEIF(iSTATUS.EQ.2)THEN
   SWRITE(UNIT_stdOut,'(A)')  ' h5diff: file to compare not found.'
   Examples(iExample)%ErrorStatus=5
-  RETURN
 ELSEIF(iSTATUS.EQ.127)THEN
   SWRITE(UNIT_stdOut,'(A)')  ' h5diff executable could not be found.'
   Examples(iExample)%ErrorStatus=5
-  RETURN
-END IF
-IF(iSTATUS.NE.0) THEN
+ELSE!IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' HDF5 Datasets do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A)')  '    tmpTol             : '//ADJUSTL(TRIM(tmpTol))
+  SWRITE(UNIT_stdOut,'(A)')  '    H5DIFF             : '//ADJUSTL(TRIM(H5DIFF))
+  SWRITE(UNIT_stdOut,'(A)')  '    ReferenceStateFile : '//TRIM(Examples(iExample)%ReferenceStateFile)
+  SWRITE(UNIT_stdOut,'(A)')  '    CheckedFileName    : '//TRIM(Examples(iExample)%CheckedStateFile)
   Examples(iExample)%ErrorStatus=3
 END IF
 
