@@ -446,8 +446,7 @@ DO iSide=1,lowerLimit
   NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
   SideID=MortarSlave2MasterInfo(iSide)
   IF(ElemID.EQ.NBElemID)THEN
-    IF(ElemID.NE.-1) STOP 'UPS'
-    BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
+    IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
   END IF
   ! elevation occurs within this routine
   IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
