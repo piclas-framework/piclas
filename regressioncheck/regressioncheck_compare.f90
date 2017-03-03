@@ -107,9 +107,10 @@ END IF
 ! diff h5 file
 IF(Examples(iExample)%ReferenceStateFile.NE.'')THEN
   CALL CompareDataSet(iExample)
-  IF(Examples(iExample)%ErrorStatus.EQ.3)THEN
+  IF(Examples(iExample)%ErrorStatus.EQ.5)THEN
+    CALL AddError(MPIthreadsStr,'h5diff: Comparison not possible',iExample,iSubExample,ErrorStatus=3,ErrorCode=4)
+  ELSEIF(Examples(iExample)%ErrorStatus.EQ.3)THEN
     CALL AddError(MPIthreadsStr,'Mismatch in HDF5-files. Datasets are unequal',iExample,iSubExample,ErrorStatus=3,ErrorCode=4)
-    !SWRITE(UNIT_stdOut,'(A)')  ' Mismatch in HDF5-files'
   END IF
 END IF
 
@@ -584,13 +585,13 @@ ReferenceNormFilename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%Ref
 INQUIRE(File=CheckedFilename,EXIST=ExistCheckedFile)
 IF(.NOT.ExistCheckedFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: generated state file does not exist! need ',CheckedFilename
-  Examples(iExample)%ErrorStatus=3
+  Examples(iExample)%ErrorStatus=5
   RETURN
 END IF
 INQUIRE(File=ReferenceNormFilename,EXIST=ExistReferenceNormFile)
 IF(.NOT.ExistReferenceNormFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: reference state file does not exist! need ',ReferenceNormFilename
-  Examples(iExample)%ErrorStatus=3
+  Examples(iExample)%ErrorStatus=5
   RETURN
 END IF
 
@@ -601,6 +602,11 @@ SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceNormFi
           //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)
 !print*,'SYSCMD',SYSCOMMAND
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+IF(iSTATUS.EQ.127)THEN
+  SWRITE(UNIT_stdOut,'(A)')  ' h5diff executable could not be found.'
+  Examples(iExample)%ErrorStatus=5
+  RETURN
+END IF
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' HDF5 Datasets do not match! Error in computation!'
   Examples(iExample)%ErrorStatus=3
