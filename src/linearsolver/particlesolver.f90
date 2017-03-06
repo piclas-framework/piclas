@@ -519,11 +519,11 @@ DO WHILE (Restart<nRestarts)
       END DO !nn
       IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
-        IF(nPartInnerIter.GT.1)THEN
-        print*,'nPartInnerIter - in GMRES',nPartInnerIter
-        END IF
         ! already back transformed,...more storage...but its ok
 #ifdef DLINANALYZE
+        IF(nPartInnerIter.GT.1)THEN
+          IPWRITE(UNIT_stdOut,*) 'nPartInnerIter - in GMRES',nPartInnerIter
+        END IF
         CALL CPU_TIME(tE)
         SWRITE(UNIT_stdOut,'(A22,I5)')      ' Part Iter LinSolver: ',nPartInnerIter
         SWRITE(UNIT_stdOut,'(A22,I5)')      ' nRestarts          : ',Restart
