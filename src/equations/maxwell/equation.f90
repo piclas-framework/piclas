@@ -475,6 +475,7 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
 CASE(12) ! planar wave test case
   resu(1:3)=E_0*cos(BeamWaveNumber*DOT_PRODUCT(WaveVector,x)-BeamOmegaW*t)
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
+  resu(7:8)=0.
 
 CASE(14) ! Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
   ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
