@@ -482,7 +482,7 @@ END IF
 END SUBROUTINE EvaluateBezierPolynomialAndGradient
 
 
-SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID)
+SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID,ilocSide_In,SideID_In)
 !===================================================================================================================================
 ! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
 ! the control points (coeffs for bezier basis) are calculated using the change basis subroutine that interpolates the points 
@@ -502,8 +502,10 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID
-REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER,INTENT(IN)          :: ElemID
+REAL,INTENT(IN)             :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER,INTENT(IN),OPTIONAL :: ilocSide_In
+INTEGER,INTENT(IN),OPTIONAL :: SideID_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -512,12 +514,23 @@ INTEGER                           :: SideID,ilocSide,flip
 INTEGER                           :: p,q,pq(2)
 REAL                              :: tmp(3,0:NGeo,0:NGeo)  
 REAL                              :: tmp2(3,0:NGeo,0:NGeo)  
+LOGICAL                           :: DoSide
 !===================================================================================================================================
 
 DO ilocSide=1,6
+  DoSide=.FALSE.
   SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
   flip=ElemToSide(E2S_FLIP,ilocSide,ElemID)
-  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1)THEN !if flip=0, master side or Mortar side
+  IF(PRESENT(ilocSide_In))THEN
+    DoSide=.TRUE.
+    IF(ilocSide_In.NE.ilocSide) CYCLE
+    IF(.NOT.PRESENT(SideID_In)) CALL abort(&
+__STAMP__&
+,' Error in Input! SideID_In required! ')
+  END IF
+  !if flip=0, master side or Mortar side
+  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1.OR.DoSide)THEN 
+    IF(PRESENT(SideID_In)) SideID=SideID_In
     SELECT CASE(iLocSide)
     CASE(XI_MINUS)
       tmp=XCL_NGeo(1:3,0   ,:   ,:   )
