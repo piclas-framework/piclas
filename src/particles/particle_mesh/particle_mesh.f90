@@ -3121,6 +3121,20 @@ IF (.NOT.DoRefMapping)THEN
   END DO ! iElem=1,nTotalElems
 END IF
 
+! sanity check for side periodic type
+DO iSide=1,nPartSides
+  IF(DoRefmapping)THEN
+    BCSideID  =PartBCSideList(iSide)
+    IF(BCSideID.LE.0) CYCLE
+  ELSE
+    BCSideID  =iSide
+  END IF
+  PVID=SidePeriodicType(iSide)
+  IF(PVID.EQ.0) CYCLE
+  Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+  IF(DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1).GT.0) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+END DO ! iSide=1,nPartSides
+
 ! fill Element type checking sides
 IF (.NOT.DoRefMapping) THEN
   DO iElem=1,nTotalElems
@@ -3742,12 +3756,13 @@ SUBROUTINE DuplicateSlavePeriodicSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
-USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,nBCSides,MortarSlave2MasterInfo,nElems
+USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,nBCSides,MortarSlave2MasterInfo,nElems &
+                                      ,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,nPartPeriodicSides,GEO &
                                      ,PartBCSideList,nTotalBCSides,nPartSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,               ONLY:NGeoElevated
-USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals,RotateMasterToSlave
+USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals,RotateMasterToSlave,GetBezierControlPoints3D
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping,CartesianPeriodic
@@ -3889,8 +3904,8 @@ IF(MapPeriodicSides)THEN
       NBlocSideID=PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
       flip=PartSideToElem(S2E_FLIP,iSide)
       locSideID=PartSideToElem(S2E_LOC_SIDE_ID,iSide)
-      ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN
+      ElemID   =PartSideToElem(S2E_ELEM_ID,iSide)
+      IF(ElemID.EQ.-1) THEN
         ! MPI side
         newSideID=iSide
         PVID=SidePeriodicType(iSide)
@@ -3915,16 +3930,18 @@ IF(MapPeriodicSides)THEN
       ! the flip has to be set to -1, artificial master side
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
       PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = newSideID
+      ! rebuild BezierControlPoints3D
+      CALL GetBezierControlPoints3D(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,NBElemID),NBElemID,ilocSide_In=NBlocSideID,SideID_In=NewSideID)
       ! remains equal because of MOVEMENT and MIRRORING of periodic side
       ! periodic displacement 
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3d(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
-                                                    + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-        END DO ! p=0,NGeo
-      END DO ! q=0,NGeo
-      ! recompute quark
-      CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
+      !DO q=0,NGeo
+      !  DO p=0,NGeo
+      !    BezierControlPoints3d(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
+      !                                              + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+      !  END DO ! p=0,NGeo
+      !END DO ! q=0,NGeo
+      !! recompute quark
+      !CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
       DO idir=1,3
         MinMax(1)=MINVAL(BezierControlPoints3d(iDir,:,:,newSideID))
         MinMax(2)=MAXVAL(BezierControlPoints3d(iDir,:,:,newSideID))
