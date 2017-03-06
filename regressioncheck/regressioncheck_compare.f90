@@ -573,12 +573,13 @@ INTEGER,INTENT(IN)             :: iExample
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: DataSet
-CHARACTER(LEN=255)             :: CheckedFileName
+CHARACTER(LEN=255)             :: CheckedFileName,OutputFileName
 CHARACTER(LEN=255)             :: ReferenceStateFile
 CHARACTER(LEN=550)             :: SYSCOMMAND
 CHARACTER(LEN=21)              :: tmpTol
-INTEGER                        :: iSTATUS
-LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile
+CHARACTER(LEN=255)             :: tmp
+INTEGER                        :: iSTATUS,iSTATUS2,ioUnit
+LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile,ExistFile
 !==================================================================================================================================
 CheckedFilename  =TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CheckedStateFile)
 ReferenceStateFile=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceStateFile)
@@ -596,16 +597,47 @@ IF(.NOT.ExistReferenceNormFile) THEN
 END IF
 
 DataSet=TRIM(Examples(iExample)%ReferenceDataSetName)
+OutputFileName=TRIM(Examples(iExample)%PATH)//'H5DIFF_info.out'
 
 WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
 SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
-          //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)
+          //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
 !print*,'SYSCMD',SYSCOMMAND
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-!print*,iSTATUS
+
+! check h5diff output (even if iSTATUS==0 it may sitll ahve failed to compare the datasets)
+INQUIRE(File=OutputFileName,EXIST=ExistFile)
+IF(ExistFile) THEN
+  SWRITE(UNIT_stdOut,'(A)')''
+  ! read H5DIFF_info.out | list of info
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT = ioUnit, FILE = OutputFileName, STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+  SWRITE(UNIT_stdOut,'(A)')' Reading '//TRIM(OutputFileName)
+  DO 
+    READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS2) tmp
+    IF (iSTATUS2.NE.0) EXIT
+    SWRITE(UNIT_stdOut,'(A)')'      ['//TRIM(tmp)//']'
+    IF(TRIM(tmp).EQ.'Some objects are not comparable')THEN
+      iSTATUS=-5
+    END IF
+  END DO
+  CLOSE(ioUnit)
+END IF
+SYSCOMMAND='rm '//TRIM(OutputFileName)//' > /dev/null 2>&1'
+CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
+
+
+!SWRITE(UNIT_stdOut,'(A)')''
+!print*,"iSTATUS=",iSTATUS
+!SWRITE(UNIT_stdOut,'(A)')'Continue?'
 !read*
+
+
 IF(iSTATUS.EQ.0)THEN
   RETURN ! all is safe
+ELSEIF(iSTATUS.EQ.-5)THEN
+  SWRITE(UNIT_stdOut,'(A)')  ' h5diff: arrays in h5-files have different ranks.'
+  Examples(iExample)%ErrorStatus=5
 ELSEIF(iSTATUS.EQ.2)THEN
   SWRITE(UNIT_stdOut,'(A)')  ' h5diff: file to compare not found.'
   Examples(iExample)%ErrorStatus=5

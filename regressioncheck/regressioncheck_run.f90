@@ -946,7 +946,7 @@ SELECT CASE(MODE)
     SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm *.out > /dev/null 2>&1'
     CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
     IF(iSTATUS.NE.0)THEN
-      SWRITE(UNIT_stdOut,'(A)')' CleanFolder(',TRIM(Examples(iExample)%PATH),'): Could not remove *.out files!'
+      SWRITE(UNIT_stdOut,'(A)')' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove *.out files!'
     END IF
     ! delete all *State* files except *reference* state files
     IF((Examples(iExample)%ReferenceStateFile.EQ.'').AND. &
@@ -954,14 +954,14 @@ SELECT CASE(MODE)
       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm *State* > /dev/null 2>&1'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       IF(iSTATUS.NE.0)THEN
-        SWRITE(UNIT_stdOut,'(A)')' CleanFolder(',Examples(iExample)%PATH,'): Could not remove *State* files!'
+        SWRITE(UNIT_stdOut,'(A)')' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove *State* files!'
       END IF
     ELSE
       ! create list of all *State* files and loop them: don't delete *reference* files
       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && ls *State* > tmp.txt'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       IF(iSTATUS.NE.0)THEN
-        SWRITE(UNIT_stdOut,'(A)')' CleanFolder(',Examples(iExample)%PATH,'): Could not remove tmp.txt!'
+        SWRITE(UNIT_stdOut,'(A)')' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not create tmp.txt!'
       END IF
       ! read tmp.txt | list of directories if regressioncheck/examples
       FileName=TRIM(Examples(iExample)%PATH)//'tmp.txt'
@@ -975,7 +975,7 @@ SELECT CASE(MODE)
            SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm '//TRIM(tmp)
            CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
            IF(iSTATUS.NE.0) THEN
-             SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder(',Examples(iExample)%PATH,'): Could not remove state file ',TRIM(tmp)
+             SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove state file ',TRIM(tmp)
            END IF
         END IF
       END DO
@@ -984,7 +984,7 @@ SELECT CASE(MODE)
       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm tmp.txt'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       IF(iSTATUS.NE.0) THEN
-        SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder(',Examples(iExample)%PATH,'): Could not remove tmp.txt'
+        SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove tmp.txt'
       END IF
     END IF
     ! delete "userblock.tmp"
