@@ -254,6 +254,8 @@ DO iExample=1,nExamples
   Examples(iExample)%CheckedStateFile=''
   Examples(iExample)%ReferenceStateFile=''
   Examples(iExample)%ReferenceDataSetName=''
+  Examples(iExample)%H5diffToleranceType='absolute'
+  Examples(iExample)%H5diffTolerance=-1.
   Examples(iExample)%RestartFileName=''
   Examples(iExample)%ErrorStatus=0
 END DO
@@ -351,6 +353,8 @@ DO ! extract reggie information
     IF(TRIM(readRHS(1)).EQ.'ReferenceStateFile')     Example%ReferenceStateFile    =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'CheckedStateFile')       Example%CheckedStateFile      =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'ReferenceDataSetName')   Example%ReferenceDataSetName  =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5diffToleranceType')    Example%H5diffToleranceType   =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5diffTolerance')   CALL str2real(readRHS(2),Example%H5diffTolerance,iSTATUS)
     IF(TRIM(readRHS(1)).EQ.'RestartFileName')        Example%RestartFileName       =TRIM(ADJUSTL(readRHS(2)))
     ! SubExamples - currently one subexample class is allowed with multiple options
     IF(TRIM(readRHS(1)).EQ.'SubExample') CALL GetParameterList(ParameterName   = Example%SubExample,       &

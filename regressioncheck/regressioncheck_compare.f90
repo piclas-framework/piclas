@@ -599,9 +599,22 @@ END IF
 DataSet=TRIM(Examples(iExample)%ReferenceDataSetName)
 OutputFileName=TRIM(Examples(iExample)%PATH)//'H5DIFF_info.out'
 
-WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
-SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
-          //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
+IF(Examples(iExample)%H5diffTolerance.GT.0.0)THEN
+  WRITE(tmpTol,'(E21.14)') Examples(iExample)%H5diffTolerance
+ELSE
+  WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
+END IF
+IF(Examples(iExample)%H5diffToleranceType.EQ.'absolute')THEN
+  SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+            //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
+ELSEIF(Examples(iExample)%H5diffToleranceType.EQ.'relative')THEN
+  SYSCOMMAND=H5DIFF//' --relative='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+            //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
+ELSE ! wrong tolerance type
+  CALL abort(&
+  __STAMP__&
+  ,'H5Diff: wrong tolerance type (need "absolute" or "relative")')
+END IF
 !print*,'SYSCMD',SYSCOMMAND
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 

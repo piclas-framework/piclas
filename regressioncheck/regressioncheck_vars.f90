@@ -69,6 +69,8 @@ TYPE tExample                                                       !> examples 
   CHARACTER(LEN=255)               :: ReferenceStateFile            !> Name of reference state file
   CHARACTER(LEN=255)               :: CheckedStateFile              !> Name of checked state file
   CHARACTER(LEN=255)               :: ReferenceDataSetName          !> Name of Dataset in hdf5 file for comparision
+  CHARACTER(LEN=255)               :: H5diffToleranceType           !> type of tolerance for h5diff: relative or absolute
+  REAL                             :: H5diffTolerance               !> value used for the tolerance check in h5diff
   CHARACTER(LEN=255)               :: RestartFileName               !> Name of RestartFile
   INTEGER                          :: ErrorStatus                   !> ErrorStatus
                                                                     !> 0 - success
