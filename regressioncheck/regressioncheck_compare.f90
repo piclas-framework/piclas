@@ -105,7 +105,7 @@ IF(Examples(iExample)%ConvergenceTest)THEN
 END IF
 
 ! diff h5 file
-IF(Examples(iExample)%ReferenceStateFile.NE.'')THEN
+IF(Examples(iExample)%H5DIFFReferenceStateFile.NE.'')THEN
   CALL CompareDataSet(iExample)
   IF(Examples(iExample)%ErrorStatus.EQ.5)THEN
     CALL AddError(MPIthreadsStr,'h5diff: Comparison not possible',iExample,iSubExample,ErrorStatus=3,ErrorCode=4)
@@ -572,16 +572,16 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)             :: iExample
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: DataSet
-CHARACTER(LEN=255)             :: CheckedFileName
-CHARACTER(LEN=255)             :: ReferenceStateFile
-CHARACTER(LEN=550)             :: SYSCOMMAND
-CHARACTER(LEN=21)              :: tmpTol
-INTEGER                        :: iSTATUS
-LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile
+CHARACTER(LEN=255)             :: DataSet,tmp
+CHARACTER(LEN=999)             :: CheckedFileName,OutputFileName,OutputFileName2,ReferenceStateFile,SYSCOMMAND
+CHARACTER(LEN=21)              :: tmpTol,tmpInt
+INTEGER                        :: iSTATUS,iSTATUS2,ioUnit,I
+LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile,ExistFile
 !==================================================================================================================================
-CheckedFilename  =TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CheckedStateFile)
-ReferenceStateFile=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceStateFile)
+OutputFileName     = ''
+OutputFileName2    = ''
+CheckedFilename    = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
+ReferenceStateFile = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%H5DIFFReferenceStateFile)
 INQUIRE(File=CheckedFilename,EXIST=ExistCheckedFile)
 IF(.NOT.ExistCheckedFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: generated state file does not exist! need ',CheckedFilename
@@ -595,17 +595,81 @@ IF(.NOT.ExistReferenceNormFile) THEN
   RETURN
 END IF
 
-DataSet=TRIM(Examples(iExample)%ReferenceDataSetName)
+DataSet=TRIM(Examples(iExample)%H5DIFFReferenceDataSetName)
+OutputFileName=TRIM(Examples(iExample)%PATH)//'H5DIFF_info.out'
 
-WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
-SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
-          //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)
-!print*,'SYSCMD',SYSCOMMAND
+IF(Examples(iExample)%H5diffTolerance.GT.0.0)THEN
+  WRITE(tmpTol,'(E21.14)') Examples(iExample)%H5diffTolerance
+ELSE
+  WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
+END IF
+IF(Examples(iExample)%H5diffToleranceType.EQ.'absolute')THEN
+  SYSCOMMAND=H5DIFF//' -r --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+            //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
+ELSEIF(Examples(iExample)%H5diffToleranceType.EQ.'relative')THEN
+  SYSCOMMAND=H5DIFF//' -r --relative='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+            //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
+ELSE ! wrong tolerance type
+  CALL abort(&
+  __STAMP__&
+  ,'H5Diff: wrong tolerance type (need "absolute" or "relative")')
+END IF
+!SWRITE(UNIT_stdOut,'(A)')' SYSCOMMAND: ['//TRIM(SYSCOMMAND)//']'
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-!print*,iSTATUS
-!read*
+
+! check h5diff output (even if iSTATUS==0 it may sitll ahve failed to compare the datasets)
+INQUIRE(File=OutputFileName,EXIST=ExistFile)
+IF(ExistFile) THEN
+  SWRITE(UNIT_stdOut,'(A)')''
+  ! read H5DIFF_info.out | list of info
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT = ioUnit, FILE = OutputFileName, STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+  SWRITE(UNIT_stdOut,'(A)')' Reading '//TRIM(OutputFileName)
+  I=0
+  DO 
+    READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS2) tmp
+    IF (iSTATUS2.NE.0) EXIT
+    I=I+1
+    IF(I.LE.20)THEN
+      SWRITE(UNIT_stdOut,'(A)')'      ['//TRIM(tmp)//']'
+    END IF
+    IF(TRIM(tmp).EQ.'Some objects are not comparable')THEN
+      iSTATUS=-5
+    END IF
+  END DO
+  CLOSE(ioUnit)
+  IF(I.GT.20)THEN
+    I=MIN(I-20,20)
+    WRITE(tmpInt,'(I6)') I
+    SWRITE(UNIT_stdOut,'(A)')'      ... leaving out intermediate data ...'
+    OutputFileName2=TRIM(OutputFileName)//'2'
+    SYSCOMMAND='tail -n '//ADJUSTL(TRIM(tmpInt))//' '//TRIM(OutputFileName)//' > '//TRIM(OutputFileName2)
+    CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
+    INQUIRE(File=TRIM(OutputFileName2),EXIST=ExistFile)
+    IF(ExistFile) THEN
+      ! read H5DIFF_info.out | list of info
+      ioUnit=GETFREEUNIT()
+      OPEN(UNIT = ioUnit, FILE = TRIM(OutputFileName2), STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+      DO
+        READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS2) tmp
+        IF (iSTATUS2.NE.0) EXIT
+        SWRITE(UNIT_stdOut,'(A)')'      ['//TRIM(tmp)//']'
+      END DO
+      CLOSE(ioUnit)
+    END IF
+  END IF
+  SYSCOMMAND='rm '//TRIM(OutputFileName)//' '//TRIM(OutputFileName2)//' > /dev/null 2>&1'
+  CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
+ELSE
+  SWRITE(UNIT_stdOut,'(A)')' H5DIFF_info.out was not created!'
+END IF
+
+! set ErrorStatus
 IF(iSTATUS.EQ.0)THEN
   RETURN ! all is safe
+ELSEIF(iSTATUS.EQ.-5)THEN
+  SWRITE(UNIT_stdOut,'(A)')  ' h5diff: arrays in h5-files have different ranks.'
+  Examples(iExample)%ErrorStatus=5
 ELSEIF(iSTATUS.EQ.2)THEN
   SWRITE(UNIT_stdOut,'(A)')  ' h5diff: file to compare not found.'
   Examples(iExample)%ErrorStatus=5
@@ -614,10 +678,11 @@ ELSEIF(iSTATUS.EQ.127)THEN
   Examples(iExample)%ErrorStatus=5
 ELSE!IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' HDF5 Datasets do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A)')  '    Type               : '//ADJUSTL(TRIM(Examples(iExample)%H5diffToleranceType))
   SWRITE(UNIT_stdOut,'(A)')  '    tmpTol             : '//ADJUSTL(TRIM(tmpTol))
   SWRITE(UNIT_stdOut,'(A)')  '    H5DIFF             : '//ADJUSTL(TRIM(H5DIFF))
-  SWRITE(UNIT_stdOut,'(A)')  '    ReferenceStateFile : '//TRIM(Examples(iExample)%ReferenceStateFile)
-  SWRITE(UNIT_stdOut,'(A)')  '    CheckedFileName    : '//TRIM(Examples(iExample)%CheckedStateFile)
+  SWRITE(UNIT_stdOut,'(A)')  '    ReferenceStateFile : '//TRIM(Examples(iExample)%H5DIFFReferenceStateFile)
+  SWRITE(UNIT_stdOut,'(A)')  '    CheckedFileName    : '//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
   Examples(iExample)%ErrorStatus=3
 END IF
 
