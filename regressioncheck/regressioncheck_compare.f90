@@ -580,7 +580,7 @@ LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile,ExistF
 !==================================================================================================================================
 OutputFileName     = ''
 OutputFileName2    = ''
-CheckedFilename    = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CheckedStateFile)
+CheckedFilename    = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
 ReferenceStateFile = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceStateFile)
 INQUIRE(File=CheckedFilename,EXIST=ExistCheckedFile)
 IF(.NOT.ExistCheckedFile) THEN
@@ -682,7 +682,7 @@ ELSE!IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  '    tmpTol             : '//ADJUSTL(TRIM(tmpTol))
   SWRITE(UNIT_stdOut,'(A)')  '    H5DIFF             : '//ADJUSTL(TRIM(H5DIFF))
   SWRITE(UNIT_stdOut,'(A)')  '    ReferenceStateFile : '//TRIM(Examples(iExample)%ReferenceStateFile)
-  SWRITE(UNIT_stdOut,'(A)')  '    CheckedFileName    : '//TRIM(Examples(iExample)%CheckedStateFile)
+  SWRITE(UNIT_stdOut,'(A)')  '    CheckedFileName    : '//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
   Examples(iExample)%ErrorStatus=3
 END IF
 
