@@ -3603,9 +3603,11 @@ SUBROUTINE ElemConnectivity()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide
+USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
+                                 ,SidePeriodicType
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,           ONLY:OffSetElem,BC,BoundaryType,MortarType
+USE MOD_Particle_Surfaces_Vars, ONLY:SideNormVec
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_MPI_Vars,            ONLY:OffSetElemMPI
@@ -3620,9 +3622,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID,BCID,SideID
+INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID,BCID,SideID,BCSideID
 INTEGER(KIND=8)               :: GlobalElemID
 LOGICAL                       :: found
+REAL                          :: Vec1(1:3)
 #ifdef MPI
 INTEGER                       :: iHaloElem
 INTEGER(KIND=8)               :: HaloGlobalElemID
@@ -3669,25 +3672,85 @@ END DO ! iElem=1,PP_nElems
 ! which local side of neighbor element is connected to MY element
 DO iElem=1,nTotalElems
   DO ilocSide=1,6
-    DO iMortar=1,4
-      NBElemID=PartElemToElemAndSide(iMortar,ilocSide,iElem)
-      IF(NBElemID.EQ.-1) CYCLE
-      found=.FALSE.
-      ! loop  over all local sides of neighbor element to find the right face
-      DO ilocSide2=1,6
-        DO iMortar2=1,4
-          ElemID=PartElemToElemAndSide(iMortar2,ilocSide2,NBElemID)
-          IF(ElemID.LE.0) CYCLE
-          IF(ElemID.EQ.iElem) THEN
-            ! finally, found matching local sides
-            PartElemToElemAndSide(iMortar+4,ilocSide,iElem)=ilocSide2
-            Found=.TRUE.
-            EXIT
-          END IF
-        END DO ! iMortar=1,4
-        IF(Found) EXIT
-      END DO ! ilocSide=1,6
-    END DO ! iMortar=1,4
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)    
+    ! check for ref-mapping or tracing
+    IF(DoRefMapping)THEN
+      IF(SideID.GT.0)THEN
+        BCSideID=PartBCSideList(SideID)
+      ELSE
+        BCSideID=-1
+      END IF
+    ELSE
+      BCSideID=SideID
+    END IF
+    IF(BCSideID.GT.0)THEN ! only BC faces 
+      IF(SidePeriodicType(SideID).NE.0)THEN ! only periodic sides
+        Vec1=SideNormVec(1:3,BCSideID)
+      ELSE ! disable non-periodic  sides
+        BCSideID=-1
+      END IF
+    END IF
+    IF(BCSideID.GT.0)THEN ! periodic sides
+      DO iMortar=1,4
+        NBElemID=PartElemToElemAndSide(iMortar,ilocSide,iElem)
+        IF(NBElemID.EQ.-1) CYCLE
+        found=.FALSE.
+        ! loop  over all local sides of neighbor element to find the right face
+        DO ilocSide2=1,6
+          DO iMortar2=1,4
+            ElemID=PartElemToElemAndSide(iMortar2,ilocSide2,NBElemID)
+            IF(ElemID.LE.0) CYCLE
+            IF(ElemID.EQ.iElem) THEN
+              ! check if periodic side
+              SideID=PartElemToSide(E2S_SIDE_ID,ilocSide2,NBElemID)    
+              ! check for ref-mapping or tracing
+              IF(DoRefMapping)THEN
+                BCSideID=PartBCSideList(SideID)
+              ELSE
+                BCSideID=SideID
+              END IF
+              IF(BCSideID.GT.0)THEN ! only BC faces 
+                IF(SidePeriodicType(SideID).NE.0)THEN ! only periodic sides
+                  IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(Vec1,SideNormVec(1:3,BCSideID))),1.0))THEN
+                    ! finally, found matching local sides
+                    PartElemToElemAndSide(iMortar+4,ilocSide,iElem)=ilocSide2
+                    Found=.TRUE.
+                    EXIT
+                  ELSE
+                    CYCLE
+                  END IF
+                ELSE ! disable non-periodic  sides
+                  CYCLE
+                END IF
+              ELSE
+                CYCLE
+              END IF
+            END IF
+          END DO ! iMortar=1,4
+          IF(Found) EXIT
+        END DO ! ilocSide=1,6
+      END DO ! iMortar=1,4
+    ELSE ! non-periodic sides
+      DO iMortar=1,4
+        NBElemID=PartElemToElemAndSide(iMortar,ilocSide,iElem)
+        IF(NBElemID.EQ.-1) CYCLE
+        found=.FALSE.
+        ! loop  over all local sides of neighbor element to find the right face
+        DO ilocSide2=1,6
+          DO iMortar2=1,4
+            ElemID=PartElemToElemAndSide(iMortar2,ilocSide2,NBElemID)
+            IF(ElemID.LE.0) CYCLE
+            IF(ElemID.EQ.iElem) THEN
+              ! finally, found matching local sides
+              PartElemToElemAndSide(iMortar+4,ilocSide,iElem)=ilocSide2
+              Found=.TRUE.
+              EXIT
+            END IF
+          END DO ! iMortar=1,4
+          IF(Found) EXIT
+        END DO ! ilocSide=1,6
+      END DO ! iMortar=1,4
+    END IF ! periodic sides
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
