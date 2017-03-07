@@ -709,7 +709,7 @@ END IF
 SWRITE(UNIT_stdOut,'(A)')      ' Reference:                      ['//TRIM(Examples(iExample)%ReferenceFile)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' Reference Norm:                 ['//TRIM(Examples(iExample)%ReferenceNormFile)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' State:                          ['//TRIM(Examples(iExample)%ReferenceStateFile)//']'
-SWRITE(UNIT_stdOut,'(A)')      ' HDF5 dataset:                   ['//TRIM(Examples(iExample)%ReferenceDataSetName)//']'
+SWRITE(UNIT_stdOut,'(A)')      ' HDF5 dataset:                   ['//TRIM(Examples(iExample)%H5DIFFReferenceDataSetName)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' Restart:                        ['//TRIM(Examples(iExample)%RestartFileName)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' Example%SubExample:             ['//TRIM(Examples(iExample)%SubExample)//']'
 SWRITE(UNIT_stdOut,'(A,I6,A1)')' Example%SubExampleNumber:       [',      Examples(iExample)%SubExampleNumber,']'

@@ -595,7 +595,7 @@ IF(.NOT.ExistReferenceNormFile) THEN
   RETURN
 END IF
 
-DataSet=TRIM(Examples(iExample)%ReferenceDataSetName)
+DataSet=TRIM(Examples(iExample)%H5DIFFReferenceDataSetName)
 OutputFileName=TRIM(Examples(iExample)%PATH)//'H5DIFF_info.out'
 
 IF(Examples(iExample)%H5diffTolerance.GT.0.0)THEN
