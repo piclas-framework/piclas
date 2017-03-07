@@ -70,6 +70,7 @@ intel_tracking:
   tags:
     - withmodules
   script:
+    - echo "nothing to do";
     #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC 2; fi
 
 
@@ -109,6 +110,7 @@ intel_PIC:
   tags:
     - withmodules
   script:
+    - echo "nothing to do";
     #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC 2; fi
 
 intel_convtest:
