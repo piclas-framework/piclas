@@ -252,7 +252,7 @@ DO iExample=1,nExamples
   Examples(iExample)%ReferenceFile=''
   Examples(iExample)%ReferenceNormFile=''
   Examples(iExample)%H5DIFFCheckedStateFile=''
-  Examples(iExample)%ReferenceStateFile=''
+  Examples(iExample)%H5DIFFReferenceStateFile=''
   Examples(iExample)%H5DIFFReferenceDataSetName=''
   Examples(iExample)%H5diffToleranceType='absolute'
   Examples(iExample)%H5diffTolerance=-1.
@@ -350,7 +350,7 @@ DO ! extract reggie information
     IF(TRIM(readRHS(1)).EQ.'ReferenceTolerance')CALL str2real(readRHS(2),Example%ReferenceTolerance,iSTATUS)
     IF(TRIM(readRHS(1)).EQ.'ReferenceFile')                Example%ReferenceFile         =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'ReferenceNormFile')            Example%ReferenceNormFile     =TRIM(ADJUSTL(readRHS(2)))
-    IF(TRIM(readRHS(1)).EQ.'ReferenceStateFile')           Example%ReferenceStateFile    =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5DIFFReferenceStateFile')           Example%H5DIFFReferenceStateFile    =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'H5DIFFCheckedStateFile')       Example%H5DIFFCheckedStateFile      =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'H5DIFFReferenceDataSetName')   Example%H5DIFFReferenceDataSetName  =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'H5diffToleranceType')          Example%H5diffToleranceType   =TRIM(ADJUSTL(readRHS(2)))
@@ -1277,7 +1277,7 @@ SWRITE(UNIT_stdOut,'(A)') '                            |                        
 SWRITE(UNIT_stdOut,'(A)') '        number of variables | nVar= 5 (depricated)                                   '
 SWRITE(UNIT_stdOut,'(A)') '                 MPI on/off | MPI= T                                                 '
 SWRITE(UNIT_stdOut,'(A)') '     L2/Linf reference file | ReferenceNormFile= referencenorm.txt                   '
-SWRITE(UNIT_stdOut,'(A)') '  ref state file for h5diff | ReferenceStateFile= cavity_reference_State_0.200.h5    '
+SWRITE(UNIT_stdOut,'(A)') '  ref state file for h5diff | H5DIFFReferenceStateFile= cavity_refe_State_0.20.h5    '
 SWRITE(UNIT_stdOut,'(A)') '      state file for h5diff | H5DIFFCheckedStateFile= cavity_State_0000000.200.h5    '
 SWRITE(UNIT_stdOut,'(A)') '      array name for h5diff | H5DIFFReferenceDataSetName= DG_Solution                '
 SWRITE(UNIT_stdOut,'(A)') '       if restart is wanted | RestartFileName=                                       '

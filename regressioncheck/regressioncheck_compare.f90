@@ -105,7 +105,7 @@ IF(Examples(iExample)%ConvergenceTest)THEN
 END IF
 
 ! diff h5 file
-IF(Examples(iExample)%ReferenceStateFile.NE.'')THEN
+IF(Examples(iExample)%H5DIFFReferenceStateFile.NE.'')THEN
   CALL CompareDataSet(iExample)
   IF(Examples(iExample)%ErrorStatus.EQ.5)THEN
     CALL AddError(MPIthreadsStr,'h5diff: Comparison not possible',iExample,iSubExample,ErrorStatus=3,ErrorCode=4)
@@ -581,7 +581,7 @@ LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile,ExistF
 OutputFileName     = ''
 OutputFileName2    = ''
 CheckedFilename    = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
-ReferenceStateFile = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceStateFile)
+ReferenceStateFile = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%H5DIFFReferenceStateFile)
 INQUIRE(File=CheckedFilename,EXIST=ExistCheckedFile)
 IF(.NOT.ExistCheckedFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: generated state file does not exist! need ',CheckedFilename
@@ -681,7 +681,7 @@ ELSE!IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  '    Type               : '//ADJUSTL(TRIM(Examples(iExample)%H5diffToleranceType))
   SWRITE(UNIT_stdOut,'(A)')  '    tmpTol             : '//ADJUSTL(TRIM(tmpTol))
   SWRITE(UNIT_stdOut,'(A)')  '    H5DIFF             : '//ADJUSTL(TRIM(H5DIFF))
-  SWRITE(UNIT_stdOut,'(A)')  '    ReferenceStateFile : '//TRIM(Examples(iExample)%ReferenceStateFile)
+  SWRITE(UNIT_stdOut,'(A)')  '    ReferenceStateFile : '//TRIM(Examples(iExample)%H5DIFFReferenceStateFile)
   SWRITE(UNIT_stdOut,'(A)')  '    CheckedFileName    : '//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
   Examples(iExample)%ErrorStatus=3
 END IF
