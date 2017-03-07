@@ -19,7 +19,6 @@ build_gnu:
   script:
     - module load env/gnu ; rm -rf build_gnu || true 
     - mkdir -p build_gnu ; cd build_gnu ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make all
-    - cd bin ; ./regressioncheck build feature_tracking_DSMC 2
 
 build_intel:
   stage: build
