@@ -38,9 +38,12 @@ REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! E
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! PartilceState at t^n
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+!REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (1:NParts,1:3) with 2nd index: x,y,z
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
 #endif
 #ifdef IMPA
+REAL    , ALLOCATABLE :: PartDeltaX(:,:)                                     ! Change of particle during Newton step
+LOGICAL , ALLOCATABLE :: PartLambdaAccept(:)                                 ! Accept particle search direction
 REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
 ! Newton iteration
 REAL    , ALLOCATABLE :: F_PartX0(:,:)                                       ! Particle function evaluated at t^0
@@ -222,6 +225,9 @@ TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! 
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle
   INTEGER                , ALLOCATABLE   :: lastElement(:)  !      =>NULL()  ! Element number allocated
+!#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+!  INTEGER                , ALLOCATABLE   :: StageElement(:)  !      =>NULL()  ! Element number allocated
+!#endif
                                                                              ! to each Particle at previous timestep
 !----------------------------------------------------------------------------!----------------------------------
                                                                              ! Following vectors are assigned in

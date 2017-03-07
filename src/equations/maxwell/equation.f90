@@ -279,7 +279,7 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variab
 REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
-REAL                            :: spatialWindow,tShift            !> electromagnetic wave shaping vars
+REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
 INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 REAL                            :: eta, kx,ky,kz
@@ -475,7 +475,7 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
 CASE(12) ! planar wave test case
   resu(1:3)=E_0*cos(BeamWaveNumber*DOT_PRODUCT(WaveVector,x)-BeamOmegaW*t)
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
-  resu(7:8)=0.0 ! for L-norm calculation -> initialize with zero
+  resu(7:8)=0.
 
 CASE(14) ! Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
   ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
@@ -518,7 +518,7 @@ CASE(16) !Gauß-shape with perfect focus (w(z)=w_0): initial & boundary conditio
     RETURN
   END IF
   ! IC or BC
-  tShift=t-ABS(WaveBasePoint(BeamIdir3))/c
+  tShift=t-ABS(WaveBasePoint(BeamIdir3))/c ! shift to wave base point position
   IF(t.LT.dt)THEN ! initial condiction: IC
     spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  &
                               (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv     &
@@ -526,11 +526,12 @@ CASE(16) !Gauß-shape with perfect focus (w(z)=w_0): initial & boundary conditio
     timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
     resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac
   ELSE ! boundary condiction: BC
+    tShiftBC=t+(WaveBasePoint(BeamIdir3)-x(3))/c ! shift to wave base point position
     ! intensity * Gaussian filter in transversal and longitudinal direction
     spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
                           (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)
     timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
-    temporalWindow=EXP(-0.5*(tShift/sigma_t)**2)
+    temporalWindow=EXP(-0.5*(tShiftBC/sigma_t)**2)
     resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac*temporalWindow
   END IF
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3)) 

@@ -708,8 +708,8 @@ ELSE
 END IF
 SWRITE(UNIT_stdOut,'(A)')      ' Reference:                      ['//TRIM(Examples(iExample)%ReferenceFile)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' Reference Norm:                 ['//TRIM(Examples(iExample)%ReferenceNormFile)//']'
-SWRITE(UNIT_stdOut,'(A)')      ' State:                          ['//TRIM(Examples(iExample)%ReferenceStateFile)//']'
-SWRITE(UNIT_stdOut,'(A)')      ' HDF5 dataset:                   ['//TRIM(Examples(iExample)%ReferenceDataSetName)//']'
+SWRITE(UNIT_stdOut,'(A)')      ' State:                          ['//TRIM(Examples(iExample)%H5DIFFReferenceStateFile)//']'
+SWRITE(UNIT_stdOut,'(A)')      ' HDF5 dataset:                   ['//TRIM(Examples(iExample)%H5DIFFReferenceDataSetName)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' Restart:                        ['//TRIM(Examples(iExample)%RestartFileName)//']'
 SWRITE(UNIT_stdOut,'(A)')      ' Example%SubExample:             ['//TRIM(Examples(iExample)%SubExample)//']'
 SWRITE(UNIT_stdOut,'(A,I6,A1)')' Example%SubExampleNumber:       [',      Examples(iExample)%SubExampleNumber,']'
@@ -946,22 +946,22 @@ SELECT CASE(MODE)
     SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm *.out > /dev/null 2>&1'
     CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
     IF(iSTATUS.NE.0)THEN
-      SWRITE(UNIT_stdOut,'(A)')' CleanFolder(',TRIM(Examples(iExample)%PATH),'): Could not remove *.out files!'
+      SWRITE(UNIT_stdOut,'(A)')' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove *.out files!'
     END IF
     ! delete all *State* files except *reference* state files
-    IF((Examples(iExample)%ReferenceStateFile.EQ.'').AND. &
+    IF((Examples(iExample)%H5DIFFReferenceStateFile.EQ.'').AND. &
        (Examples(iExample)%RestartFileName.EQ.'') ) THEN
       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm *State* > /dev/null 2>&1'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       IF(iSTATUS.NE.0)THEN
-        SWRITE(UNIT_stdOut,'(A)')' CleanFolder(',Examples(iExample)%PATH,'): Could not remove *State* files!'
+        SWRITE(UNIT_stdOut,'(A)')' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove *State* files!'
       END IF
     ELSE
       ! create list of all *State* files and loop them: don't delete *reference* files
       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && ls *State* > tmp.txt'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       IF(iSTATUS.NE.0)THEN
-        SWRITE(UNIT_stdOut,'(A)')' CleanFolder(',Examples(iExample)%PATH,'): Could not remove tmp.txt!'
+        SWRITE(UNIT_stdOut,'(A)')' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not create tmp.txt!'
       END IF
       ! read tmp.txt | list of directories if regressioncheck/examples
       FileName=TRIM(Examples(iExample)%PATH)//'tmp.txt'
@@ -970,12 +970,12 @@ SELECT CASE(MODE)
       DO 
         READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS) tmp
         IF (iSTATUS.NE.0) EXIT
-        IF((Examples(iExample)%ReferenceStateFile.NE.TRIM(tmp)).AND. & ! skip ReferenceStateFile and RestartFileName
+        IF((Examples(iExample)%H5DIFFReferenceStateFile.NE.TRIM(tmp)).AND. & ! skip H5DIFFReferenceStateFile and RestartFileName
            (Examples(iExample)%RestartFileName.NE.TRIM(tmp)) ) THEN
            SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm '//TRIM(tmp)
            CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
            IF(iSTATUS.NE.0) THEN
-             SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder(',Examples(iExample)%PATH,'): Could not remove state file ',TRIM(tmp)
+             SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove state file ',TRIM(tmp)
            END IF
         END IF
       END DO
@@ -984,7 +984,7 @@ SELECT CASE(MODE)
       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm tmp.txt'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       IF(iSTATUS.NE.0) THEN
-        SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder(',Examples(iExample)%PATH,'): Could not remove tmp.txt'
+        SWRITE(UNIT_stdOut,'(A)')  ' CleanFolder('//TRIM(Examples(iExample)%PATH)//'): Could not remove tmp.txt'
       END IF
     END IF
     ! delete "userblock.tmp"

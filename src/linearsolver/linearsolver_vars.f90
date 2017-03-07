@@ -42,6 +42,8 @@ REAL                 :: PartgammaEW                                             
 REAL                 :: rEps0,srEps0                                                ! FD-step-size for PartMV in PartNewton
 REAL,ALLOCATABLE     :: PartXK(:,:)                                                 ! ParticlePosition for linearization
 REAL,ALLOCATABLE     :: R_PartXK(:,:)                                               ! Part_dt of PartXK
+REAL,PARAMETER       :: Part_alpha=0.0001
+REAL,PARAMETER       :: Part_sigma(1:2) = (/0.1, 0.5/)
 #endif
 #endif /*PARTICLES*/
 #if (PP_TimeDiscMethod==104)
@@ -66,6 +68,7 @@ INTEGER              :: FullEisenstatWalker                                     
                                                                                     ! 2 - Particle Newton and Field Solver
 REAL                 :: PartRelaxationFac                                           ! relaxation factor for particles
 REAL                 :: PartRelaxationFac0                                          ! relaxation factor for particles
+INTEGER              :: AdaptIterRelaxation0                                        ! iter to adapt relaxation
 LOGICAL              :: DoPartRelaxation                                            ! flag for particle relaxation
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
