@@ -572,12 +572,9 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)             :: iExample
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: DataSet
-CHARACTER(LEN=255)             :: CheckedFileName,OutputFileName
-CHARACTER(LEN=255)             :: ReferenceStateFile
-CHARACTER(LEN=550)             :: SYSCOMMAND
+CHARACTER(LEN=255)             :: DataSet,tmp
+CHARACTER(LEN=999)             :: CheckedFileName,OutputFileName,ReferenceStateFile,SYSCOMMAND
 CHARACTER(LEN=21)              :: tmpTol
-CHARACTER(LEN=255)             :: tmp
 INTEGER                        :: iSTATUS,iSTATUS2,ioUnit
 LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile,ExistFile
 !==================================================================================================================================
