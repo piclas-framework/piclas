@@ -727,6 +727,9 @@ USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 #endif /*MPI*/
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars,                      ONLY: RK_c,nRKStages
+#endif
 
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -765,6 +768,9 @@ INTEGER                          :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
 INTEGER                          :: ind, Shift(1:3), iCase
 INTEGER                          :: j_offset
 #endif /*MPI*/
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+INTEGER                          :: iStage
+#endif
 !===================================================================================================================================
 
 ! zeros
@@ -845,6 +851,14 @@ END IF
 #if (PP_TimeDiscMethod==201)
 deltaT=CALCTIMESTEP()
 halo_eps = c*deltaT*SafetyFactor*max(dt_part_ratio,1.0)
+#elif (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+halo_eps = RK_c(2)
+DO iStage=2,nRKStages-1
+  halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))
+END DO
+halo_eps = MAX(halo_eps,1.-RK_c(nRKStages))
+SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 max. RKdtFrac  |    ',halo_eps 
+halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximum RKdtFrac
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
