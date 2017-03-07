@@ -145,7 +145,7 @@ REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
 REAL    :: xi0(3),dxi(3),length(3)
 
 #ifdef PARTICLES
-INTEGER            :: iSide,lowerLimit,ElemID,SideID,NBElemID
+INTEGER            :: iSide,lowerLimit,ElemID,SideID
 REAL               :: StartT2,BezierTime
 #endif /*PARTICLES*/
 REAL               :: StartT,EndT
@@ -437,19 +437,26 @@ lowerLimit=nSides ! all incl. my mortar sides
 lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
 #endif /*MPI*/
 
+! copy BezierControlPoints from master sides to slave sides for MINE mortar sides
+DO iSide=1,lowerLimit
+  SideID=MortarSlave2MasterInfo(iSide)
+  IF(SideID.EQ.-1)CYCLE
+  BezierControlPoints3D(:,:,:,iSide)= BezierControlPoints3D(:,:,:,SideID)
+END DO ! iSide=firstMPISide_YOUR,nSides
+
 ! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for 
 ! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
 ! this requires check for flip and MortarSlave2Master
 DO iSide=1,lowerLimit
   ! check flip or mortar sideid
-  ElemID  =SideToElem(S2E_ELEM_ID,iSide)
-  NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+  ElemID=SideToElem(S2E_ELEM_ID,iSide)
   SideID=MortarSlave2MasterInfo(iSide)
   IF(ElemID.EQ.NBElemID)THEN
     IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
   END IF
   ! elevation occurs within this routine
   IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+  !IF((flip.EQ.0).OR.(SideID.GT.0))THEN
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
                                      ,SideSlabNormals(1:3,1:3,iSide)                                         &
@@ -465,7 +472,6 @@ DO iSide=1,lowerLimit
   IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
     IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
     IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
   END IF
 END DO 
@@ -547,7 +553,7 @@ DO iLocSide=1,6
   CALL ChangeBasis2D(3,Nloc,Nloc,Vdm_CLN_N,tmp,tmp2)
   ! turn into right hand system of side
   DO q=0,Nloc; DO p=0,Nloc
-    pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
+    pq=CGNS_SideToVol2(p,q,iLocSide)
     ! Compute Face_xGP for sides
     Face_xGP(1:3,p,q,sideID)=tmp2(:,pq(1),pq(2))
   END DO; END DO ! p,q
@@ -571,7 +577,7 @@ DO iLocSide=1,6
     CALL ChangeBasis2D(3,Nloc,Nloc,Vdm_CLN_N,tmp,tmp2)
     ! turn into right hand system of side
     DO q=0,Nloc; DO p=0,Nloc
-      pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
+      pq=CGNS_SideToVol2(p,q,iLocSide)
       Ja_Face_l(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))
 	  ! DEBUG old version
       !Ja_Face(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))

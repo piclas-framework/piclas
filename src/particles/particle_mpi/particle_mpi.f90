@@ -1517,7 +1517,6 @@ END SUBROUTINE FinalizeParticleMPI
 SUBROUTINE ExchangeBezierControlPoints3D() 
 !===================================================================================================================================
 ! exchange all beziercontrolpoints at MPI interfaces
-! maybe extended to periodic sides, to be tested
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1528,7 +1527,6 @@ USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_Y
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1630,7 +1628,7 @@ USE MOD_PreProc
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
-USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides,nPartSides
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1647,7 +1645,11 @@ LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
 
-ALLOCATE(SideIndex(1:nPartSides),STAT=ALLOCSTAT)
+
+! dirty hack
+!nTotalBCSides=nSides
+
+ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'  Cannot allocate SideIndex!')
@@ -1710,6 +1712,10 @@ ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors) &
         , PartMPI%GlobalToLocal(0:PartMPI%nProcs-1)  )
 iMPINeighbor=0
 PartMPI%GlobalToLocal=-1
+!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+!IPWRITE(UNIT_stdOut,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
+!IPWRITE(UNIT_stdOut,*) 'blabla',PartMPI%isMPINeighbor
+!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 DO iProc=0,PartMPI%nProcs-1
   IF(PartMPI%isMPINeighbor(iProc))THEN
     iMPINeighbor=iMPINeighbor+1
@@ -1732,6 +1738,16 @@ IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(MINVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
   IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
 END IF
+!IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
+
+
+!IF(DepositionType.EQ.'shape_function') THEN
+!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
+!ELSE
+!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
+!END IF
+
+!CALL  WriteParticlePartitionInformation()
 
 END SUBROUTINE InitHaloMesh
 

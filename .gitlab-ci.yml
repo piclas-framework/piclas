@@ -87,7 +87,8 @@ gnu_convtest:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_convtest 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC_mortar 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  ./regressioncheck build feature_tracking_DSMC_periodic 2; fi
 
 build_gnu_mpi:
   stage: reggie_long
@@ -101,7 +102,8 @@ build_gnu_HDF5_single_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build build_HDF5_single_MPI no-debug 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC_mortar 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  ./regressioncheck build feature_tracking_DSMC_periodic 2; fi
 
 
 
@@ -119,6 +121,13 @@ intel_convtest:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_convtest 2; fi
+
+intel_build_mpi:
+  stage: reggie_long
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build 2; fi
 
 intel_build_mpi:
   stage: reggie_long

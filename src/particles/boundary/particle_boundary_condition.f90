@@ -22,11 +22,7 @@ INTERFACE GetBoundaryInteractionRef
   MODULE PROCEDURE GetBoundaryInteractionRef
 END INTERFACE
 
-INTERFACE PartSwitchElement
-  MODULE PROCEDURE PartSwitchElement
-END INTERFACE
-
-PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
+PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef
 !===================================================================================================================================
 
 CONTAINS
@@ -73,7 +69,7 @@ REAL,INTENT(IN)                      :: xi,eta
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                :: ElemID
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
-LOGICAL,INTENT(OUT)                  :: crossedBC
+LOGICAL,INTENT(OUT)                  :: Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
@@ -89,7 +85,7 @@ __STAMP__&
 ,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
-crossedBC    =.FALSE.
+Reflected    =.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -178,9 +174,11 @@ __STAMP__,&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID &
-                        ,ElemID,opt_perimoved=crossedBC) ! opt_reflected is peri-moved
-
+  ! new implementation, nothing to due :)
+  ! however, never checked
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -259,8 +257,7 @@ REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
-INTEGER,INTENT(INOUT)                :: ElemID
-LOGICAL,INTENT(OUT)                  :: crossedBC
+LOGICAL,INTENT(OUT)                  :: reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
@@ -274,7 +271,7 @@ __STAMP__&
 ,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
-crossedBC    =.FALSE.
+Reflected    =.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -367,15 +364,12 @@ __STAMP__,&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! sanity check
-  IF(CartesianPeriodic) CALL abort(&
+  ! new implementation, nothing to due :)
+  ! however, never checked
+CALL abort(&
 __STAMP__&
-,' No periodic BCs for CartesianPeriodic!')
-  ! move particle periodic distance
-  BCSideID=PartBCSideList(SideID)
-  CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID &
-                        ,BCSideID=BCSideID,opt_perimoved=crossedBC) ! opt_reflected is peri-moved
-
+,' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
+  !compute new bc
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------

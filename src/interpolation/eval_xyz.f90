@@ -159,7 +159,7 @@ END IF ! useBGField
 END SUBROUTINE eval_xyz_curved
 
 
-SUBROUTINE eval_xyz_elemcheck(x_in,xi,ElemID,DoReUseMap,ForceMode)
+SUBROUTINE eval_xyz_elemcheck(x_in,xi,ElemID,DoReUseMap)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tensor product interpolation
@@ -180,7 +180,6 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)          :: ElemID                                 ! elem index
 REAL,INTENT(IN)             :: x_in(3)                                  ! physical position of particle 
 LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap
-LOGICAL,INTENT(IN),OPTIONAL :: ForceMode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)          :: xi(1:3)
@@ -198,11 +197,11 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
 END IF
 
 IF(CurvedElem(ElemID))THEN
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=2)
 ELSE
   ! fill dummy XCL_NGeo1
   IF(NGeo.EQ.1)THEN
-    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=2)
   ELSE
     XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
     XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
@@ -221,7 +220,7 @@ ELSE
     dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
     dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
     dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
-    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode)
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=2)
   END IF
 END IF
 
@@ -435,12 +434,11 @@ REAL,INTENT(IN)                  :: wBaryCL_N_in(0:N_In) ! derivation of CL poin
 REAL,INTENT(INOUT)               :: Xi(3) ! position in reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: Lag(1:3,0:N_In), F(1:3),Xi_Old(1:3)
+REAL                             :: Lag(1:3,0:N_In), F(1:3)
 INTEGER                          :: NewTonIter,i,j,k
 REAL                             :: deltaXi(1:3),deltaXi2
 REAL                             :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
-REAL                             :: buff,buff2, Norm_F, Norm_F_old,lambda
-INTEGER                          :: iArmijo
+REAL                             :: buff,buff2
 !===================================================================================================================================
 
 
@@ -465,8 +463,6 @@ ELSE
   deltaXi2=1. !HUGE(1.0)
 END IF
 
-Norm_F=DOT_PRODUCT(F,F)
-Norm_F_old=Norm_F
 NewtonIter=0
 !abortCrit=ElemRadiusN_in(ElemID)*ElemRadiusN_in(ElemID)*RefMappingEps
 DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
@@ -508,11 +504,9 @@ __STAMP__&
   ! Iterate Xi using Newton step
   ! Use FAIL
   !Xi = Xi - MATMUL(sJac,F)
-
-  ! Armijo step size control
   deltaXi=MATMUL(sJac,F)
+  Xi = Xi - deltaXI!MATMUL(sJac,F)
   deltaXi2=DOT_PRODUCT(deltaXi,deltaXi)
-  Xi_Old=Xi
 
   Norm_F_old=Norm_F
   Norm_F=Norm_F*2.
@@ -555,16 +549,30 @@ __STAMP__&
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
 #endif
-        CALL abort(&
-  __STAMP__&
-  ,'Particle Not inSide of Element, ElemID,',ElemID)
+      CALL abort(&
+__STAMP__&
+,'Particle Not inSide of Element, ElemID,',ElemID)
     ELSE
       EXIT
     END IF
   END IF
-
+  
+  ! Compute function value
+  CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_N_in,wBaryCL_N_in,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),N_In,XiCL_N_in,wBaryCL_N_in,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),N_In,XiCL_N_in,wBaryCL_N_in,Lag(3,:))
+  ! F(xi) = x(xi) - x_in
+  F=-x_in ! xRp
+  DO k=0,N_In
+    DO j=0,N_In
+      buff=Lag(2,j)*Lag(3,k)
+      DO i=0,N_In
+        buff2=Lag(1,i)*buff
+        F=F+XCL_N_in(:,i,j,k)*buff2
+      END DO !l=0,N_In
+    END DO !i=0,N_In
+  END DO !j=0,N_In
 END DO !newton
-
 !print*,'newton iter', newtoniter
 
 END SUBROUTINE RefElemNewton
