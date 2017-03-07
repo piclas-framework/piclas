@@ -605,10 +605,10 @@ ELSE
   WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
 END IF
 IF(Examples(iExample)%H5diffToleranceType.EQ.'absolute')THEN
-  SYSCOMMAND=H5DIFF//' --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+  SYSCOMMAND=H5DIFF//'-r --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
             //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
 ELSEIF(Examples(iExample)%H5diffToleranceType.EQ.'relative')THEN
-  SYSCOMMAND=H5DIFF//' --relative='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+  SYSCOMMAND=H5DIFF//'-r --relative='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
             //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
 ELSE ! wrong tolerance type
   CALL abort(&
@@ -635,9 +635,11 @@ IF(ExistFile) THEN
     END IF
   END DO
   CLOSE(ioUnit)
+  SYSCOMMAND='rm '//TRIM(OutputFileName)//' > /dev/null 2>&1'
+  CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
+ELSE
+  SWRITE(UNIT_stdOut,'(A)')' H5DIFF_info.out was not created!'
 END IF
-SYSCOMMAND='rm '//TRIM(OutputFileName)//' > /dev/null 2>&1'
-CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
 
 
 !SWRITE(UNIT_stdOut,'(A)')''
