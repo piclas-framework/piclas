@@ -1,8 +1,8 @@
 stages: 
   - build
   - error_clean
-  - reggie_tracking
   - reggie_short
+  - reggie_tracking
   - reggie_long
 
 cache:
@@ -19,6 +19,7 @@ build_gnu:
   script:
     - module load env/gnu ; rm -rf build_gnu || true 
     - mkdir -p build_gnu ; cd build_gnu ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make all
+    - cd bin ; ./regressioncheck build feature_tracking_DSMC 2
 
 build_intel:
   stage: build
@@ -63,7 +64,6 @@ gnu_tracking:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC 2; fi
-    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC 2
 
 intel_tracking:
   stage: reggie_tracking

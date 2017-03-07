@@ -605,10 +605,10 @@ ELSE
   WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
 END IF
 IF(Examples(iExample)%H5diffToleranceType.EQ.'absolute')THEN
-  SYSCOMMAND=H5DIFF//'-r --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+  SYSCOMMAND=H5DIFF//' -r --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
             //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
 ELSEIF(Examples(iExample)%H5diffToleranceType.EQ.'relative')THEN
-  SYSCOMMAND=H5DIFF//'-r --relative='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+  SYSCOMMAND=H5DIFF//' -r --relative='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
             //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
 ELSE ! wrong tolerance type
   CALL abort(&
