@@ -3052,13 +3052,12 @@ REAL                          :: Qtra, Qrot, Qvib
       Qrot = 1.
       Qvib = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
-                / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+        Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
 !       Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
       Qrot = 1.
-      Qvib = EXP(-SpecDSMC(iSpec)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
+      Qvib = 1. / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
     END IF
   ELSE
     Qrot = 1.
@@ -3095,7 +3094,7 @@ INTEGER                       :: iPolyatMole, iDOF
 REAL                          :: Qtra, Qrot, Qvib
 !===================================================================================================================================
   Qtra = ((2. * Pi * Species(Educt_Spec1)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))**0.5 &
-       * ((2. * Pi * Species(Educt_Spec2)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))
+       * ((2. * Pi * Species(Educt_Spec2)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))**0.5
   Qrot = 1.
   Qvib = 1.
   IF(SpecDSMC(Educt_Spec1)%InterID.EQ.2) THEN
@@ -3103,12 +3102,11 @@ REAL                          :: Qtra, Qrot, Qvib
       iPolyatMole = SpecDSMC(Educt_Spec1)%SpecToPolyArray
       Qrot = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
-                / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+        Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
       Qrot = 1.
-      Qvib = Qvib * EXP(-SpecDSMC(Educt_Spec1)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(Educt_Spec1)%CharaTVib / Temp))
+      Qvib = Qvib * 1. / (1. - EXP(-SpecDSMC(Educt_Spec1)%CharaTVib / Temp))
     END IF
   END IF
   IF(SpecDSMC(Educt_Spec2)%InterID.EQ.2) THEN
@@ -3116,12 +3114,11 @@ REAL                          :: Qtra, Qrot, Qvib
       iPolyatMole = SpecDSMC(Educt_Spec2)%SpecToPolyArray
       Qrot = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
-                / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+        Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
       Qrot = 1.
-      Qvib = Qvib * EXP(-SpecDSMC(Educt_Spec2)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(Educt_Spec2)%CharaTVib / Temp))
+      Qvib = Qvib * 1. / (1. - EXP(-SpecDSMC(Educt_Spec2)%CharaTVib / Temp))
     END IF
   END IF
   VarPartitionFuncAct = Qtra * Qrot * Qvib
@@ -3163,12 +3160,11 @@ REAL                          :: Qtra, Qrot, Qvib
       iPolyatMole = SpecDSMC(Educt_Spec1)%SpecToPolyArray
       Qrot = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
-                / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+        Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
       Qrot = 1.
-      Qvib = Qvib * EXP(-SpecDSMC(Educt_Spec1)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(Educt_Spec1)%CharaTVib / Temp))
+      Qvib = Qvib * 1. / (1. - EXP(-SpecDSMC(Educt_Spec1)%CharaTVib / Temp))
     END IF
   END IF
   IF(SpecDSMC(Educt_Spec2)%InterID.EQ.2) THEN
@@ -3176,12 +3172,11 @@ REAL                          :: Qtra, Qrot, Qvib
       iPolyatMole = SpecDSMC(Educt_Spec2)%SpecToPolyArray
       Qrot = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
-                / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+        Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
       Qrot = 1.
-      Qvib = Qvib * EXP(-SpecDSMC(Educt_Spec2)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(Educt_Spec2)%CharaTVib / Temp))
+      Qvib = Qvib * 1. / (1. - EXP(-SpecDSMC(Educt_Spec2)%CharaTVib / Temp))
     END IF
   END IF
   VarPartitionFuncAct = Qtra * Qrot * Qvib
@@ -3218,21 +3213,24 @@ REAL                          :: Qtra, Qrot, Qvib
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       Qvib = 1.
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
-                / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+        Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
       END DO
     ELSE
-      Qvib = EXP(-SpecDSMC(iSpec)%CharaTVib / (2. * Temp)) / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
+      Qvib = 1. / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
     END IF
   ELSE
     Qvib = 1.
   END IF
   IF (Adsorption%Coordination(iSpec).EQ.1) THEN
-  Qvib = Qvib * Adsorption%CrystalIndx * EXP(-CharaTemp / Temp) / (1. - EXP(-CharaTemp / Temp))
+  Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
   ELSE IF (Adsorption%Coordination(iSpec).EQ.2) THEN
-  Qvib = Qvib * 2. * EXP(-CharaTemp / Temp) / (1. - EXP(-CharaTemp / Temp))
+    IF ((Adsorption%DiCoord(iSpec).EQ.1) .OR. (Adsorption%DiCoord(iSpec).EQ.2)) THEN
+      Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))** 2.
+    ELSE
+      Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
+    END IF
   ELSE
-  Qvib = Qvib * EXP(-CharaTemp / Temp) / (1. - EXP(-CharaTemp / Temp))
+  Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
   END IF
   Qrot = 1.
   VarPartitionFuncSurf = Qtra * Qrot * Qvib
@@ -3438,7 +3436,7 @@ __STAMP__,&
           A = Heat_A**2. * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2. 
           B = Heat_B**2. * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2.
           Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
-        ELSE IF (Adsorption%DiCoord(iSpec).EQ.2) THEN !weak binding
+        ELSE IF (Adsorption%DiCoord(iSpec).EQ.3) THEN !weak binding
           Heat_A = Adsorption%HeatOfAdsZero(iSpec)
           Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A/2.) * sigma_m
         ELSE
