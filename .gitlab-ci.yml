@@ -54,6 +54,7 @@ intel:
     - withmodules
   script:
     - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck
+    - cat /home/gitlab-runner/builds/54967830/0/piclas/boltzplatz/build_intel/../regressioncheck/examples/run_basic/std_files_SubEx0001/std-MPIthreads00000002_SubEx0001_iRun0001.out
 
 
 
