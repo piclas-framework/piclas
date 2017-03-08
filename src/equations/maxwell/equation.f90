@@ -633,7 +633,7 @@ USE MOD_PreProc
 !USE MOD_DG_Vars,       ONLY : U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,  ONLY : Source
+USE MOD_PICDepo_Vars,  ONLY : Source,DoDeposition
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
@@ -658,9 +658,8 @@ REAL                            :: r                                            
 REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1    ! for Dipole
 !===================================================================================================================================
 eps0inv = 1./eps0
-SELECT CASE (IniExactFunc)
-CASE(0) ! Particles
 #ifdef PARTICLES
+IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
@@ -668,8 +667,11 @@ CASE(0) ! Particles
       Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* source(  4,i,j,k,iElem) * c_corr 
     END DO; END DO; END DO
   END DO
+END IF
 #endif /*PARTICLES*/
-  !CALL CalcDepositedCharge()
+SELECT CASE (IniExactFunc)
+CASE(0) ! Particles
+  ! empty, nothing to do
 CASE(1) ! Constant          - no sources
 CASE(2) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources

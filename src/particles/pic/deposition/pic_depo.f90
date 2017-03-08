@@ -68,6 +68,13 @@ CHARACTER(32)             :: hilf
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
 
+DoDeposition = GETLOGICAL('PIC-DoDeposition','T')
+IF(.NOT.DoDeposition) THEN
+  ! fill deposition type with emtpy string
+  DepositionType='NONE'
+  OutputSource=.FALSE.
+  RETURN
+END IF
 DepositionType = GETSTR('PIC-Deposition-Type','nearest_blurrycenter')
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType is not known yet)
@@ -804,8 +811,10 @@ IF(doInnerParts)THEN
   source=0.0
   firstPart=1
   lastPart =PDM%ParticleVecLength
+  IF(.NOT.DoDeposition) RETURN
   !IF(firstPart.GT.lastPart) RETURN
 ELSE
+  IF(.NOT.DoDeposition) RETURN
 #ifdef MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
   lastPart =PDM%ParticleVecLength
@@ -814,7 +823,6 @@ ELSE
   lastPart =0
 #endif /*MPI*/
 END IF
-
   
 !IF((firstPart.GT.lastPart).AND.(DepositionType.NE.'delta_distri').AND.(DepositionType.NE.'shape_function')&
 !                          .AND.(DepositionType.NE.'nearest_blurrycenter')) RETURN

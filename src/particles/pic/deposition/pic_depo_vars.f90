@@ -10,6 +10,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                               :: DoDeposition       ! flag to switch deposition on/off
 REAL,ALLOCATABLE                      :: source(:,:,:,:,:)  ! source(1:4,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE                   :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
