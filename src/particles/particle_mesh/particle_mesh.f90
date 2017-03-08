@@ -3705,7 +3705,11 @@ DO iElem=1,nTotalElems
               SideID=PartElemToSide(E2S_SIDE_ID,ilocSide2,NBElemID)    
               ! check for ref-mapping or tracing
               IF(DoRefMapping)THEN
-                BCSideID=PartBCSideList(SideID)
+                IF(SideID.GT.0)THEN
+                  BCSideID=PartBCSideList(SideID)
+                ELSE
+                  BCSideID=-1
+                END IF
               ELSE
                 BCSideID=SideID
               END IF
