@@ -27,7 +27,7 @@ build_intel:
   script:
     - module load env/intel ; rm -rf build_intel || true 
     - mkdir -p build_intel ; cd build_intel ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make all
-    #- cd bin ; ./regressioncheck build feature_PIC 2 # test when h5diff for intel is fixed
+    - cd bin ; ./regressioncheck build feature_PIC 2 # test when h5diff for intel is fixed
 
 clean:
   stage: error_clean
