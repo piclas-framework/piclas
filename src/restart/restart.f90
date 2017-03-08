@@ -202,6 +202,7 @@ USE MOD_HDF5_Input,           ONLY: File_ID,DatasetExists
 #endif
 USE MOD_TimeDisc_Vars,           ONLY: dt
 #endif /*PP_HDG*/
+USE MOD_Particle_Tracking,       ONLY: ParticleCollectCharges
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -244,14 +245,14 @@ REAL                     :: VFR_total
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
-SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
+  SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
 #ifdef MPI
-   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-   CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
 #endif
   ! Read in time from restart file
   !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
@@ -326,7 +327,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     DEALLOCATE(U_local)
 #endif
 #elif defined PP_HDG
-CALL abort(&
+    CALL abort(&
 __STAMP__&
 ,' Restart with changed polynomial degree not implemented for HDG!')
 !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
@@ -614,15 +615,17 @@ __STAMP__&
 
   CALL CloseDataFile() 
 
-
-
+#ifdef PARTICLES
+  ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
+  CALL ParticleCollectCharges()
+#endif /*PARTICLES*/
 #ifdef PP_HDG
-iter=0
-! INSTEAD OF ALL THIS **** DO
-! 1) MPI-Communication for shape-function particles
-! 2) Deposition
-! 3) ONE HDG solve
-CALL  RecomputeLambda(RestartTime)
+  iter=0
+  ! INSTEAD OF ALL THIS **** DO
+  ! 1) MPI-Communication for shape-function particles
+  ! 2) Deposition
+  ! 3) ONE HDG solve
+  CALL  RecomputeLambda(RestartTime)
 #endif /*PP_HDG*/
 
 
@@ -636,6 +639,10 @@ CALL  RecomputeLambda(RestartTime)
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
 #endif
 ELSE
+#ifdef PARTICLES
+  ! include initially collected particles for first call of field-solver (here because of consistency, but not used until timedisc)
+  CALL ParticleCollectCharges()
+#endif /*PARTICLES*/
   ! Delete all files since we are doing a fresh start
   IF(DoWriteStateToHDF5) CALL FlushHDF5()
 END IF !IF(DoRestart)

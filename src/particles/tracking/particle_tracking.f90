@@ -1484,7 +1484,7 @@ REAL, ALLOCATABLE                :: NewRealChargesLoc(:)
 INTEGER                          :: iSide, SideID, RegionID, iSample,jSample
 REAL                             :: source_e, area
 !===================================================================================================================================
-IF (iter.GE.0) THEN !not for shape_function-init
+IF (nCollectChargesBCs .GT. 0) THEN
   ALLOCATE( NewRealChargesLoc(1:nCollectChargesBCs) )
   NewRealChargesLoc=0.
 #ifdef MPI
