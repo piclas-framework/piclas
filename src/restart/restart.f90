@@ -617,7 +617,7 @@ __STAMP__&
 
 #ifdef PARTICLES
   ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
-  CALL ParticleCollectCharges()
+  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
 #endif /*PARTICLES*/
 #ifdef PP_HDG
   iter=0
@@ -641,7 +641,7 @@ __STAMP__&
 ELSE
 #ifdef PARTICLES
   ! include initially collected particles for first call of field-solver (here because of consistency, but not used until timedisc)
-  CALL ParticleCollectCharges()
+  CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
 #endif /*PARTICLES*/
   ! Delete all files since we are doing a fresh start
   IF(DoWriteStateToHDF5) CALL FlushHDF5()
