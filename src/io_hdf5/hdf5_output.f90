@@ -45,9 +45,18 @@ INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
 
+#ifdef PARTICLES
+INTERFACE WriteIMDStateToHDF5
+  MODULE PROCEDURE WriteIMDStateToHDF5
+END INTERFACE
+#endif /*PARTICLES*/
+
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header
 PUBLIC :: WriteTimeAverage
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5
+#ifdef PARTICLES
+PUBLIC :: WriteIMDStateToHDF5
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
@@ -1716,5 +1725,58 @@ END IF
 
 END SUBROUTINE DistributedWriteArray
 #endif /*MPI*/
+
+
+#ifdef PARTICLES
+SUBROUTINE WriteIMDStateToHDF5()
+!===================================================================================================================================
+! Write the particles data aquired from an IMD *.chkpt file to disk and abort the program
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars,         ONLY: Species,nSpecies
+USE MOD_Mesh_Vars,             ONLY: MeshFile
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!INTEGER,INTENT(IN)               :: Ntot, length
+!REAL,INTENT(IN)                  :: Ai(1:length)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES      
+!INTEGER,INTENT(INOUT)            :: Ni(1:length)     
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!INTEGER         :: iN, iRan, Nitemp, Nrest, Ntot0
+!REAL            :: Atot, Bi(0:length), RandVal1, A2i(1:length), A2tot !,Error,Nrel(1:length),Arel(1:length)
+REAL            :: t,tFuture
+INTEGER         :: I
+!===================================================================================================================================
+DO I = 1,nSpecies
+print*,"Species(i)%IMDTimeScale=",Species(i)%IMDTimeScale
+  IF(Species(i)%IMDTimeScale.GT.0.0)THEN
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"Species(i)%IMDTimeScale   :",Species(i)%IMDTimeScale
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"Species(i)%IMDLengthScale :",Species(i)%IMDLengthScale
+    SWRITE(UNIT_StdOut,'(A,I6)')    "Species(i)%IMDNumber      :",Species(i)%IMDNumber
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"Species(i)%IMDMultiplier  :",Species(i)%IMDMultiplier
+    ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
+    t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"t",t
+    tFuture=t
+    CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+    SWRITE(*,*) "t=",t
+    SWRITE(*,*) " "
+    SWRITE(*,*) " "
+    SWRITE(*,*) " "
+    CALL abort(&
+    __STAMP__&
+    ,'StateFile from IMD data created. Terminating now!')
+  END IF
+END DO
+print*,"done ---------------------- ?"
+read*
+
+END SUBROUTINE WriteIMDStateToHDF5
+#endif /*PARTICLES*/
 
 END MODULE MOD_HDF5_output
