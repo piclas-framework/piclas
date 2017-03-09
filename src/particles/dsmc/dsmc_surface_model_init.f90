@@ -380,8 +380,8 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:8) = 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,2) = .TRUE.
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,4) = .TRUE.
-    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,6) = .TRUE.
-    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,8) = .TRUE.
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,5) = .TRUE.
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,7) = .TRUE.
     ! bridge
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,9) = Surfpos +(surfsquare+1)*(Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,10) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1)

@@ -1273,11 +1273,11 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
       END SELECT 
     END IF
     
-    Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,4)*n_loc(2) + PartState(PartID,6)*n_loc(3)
+    Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
     Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
     
     IF (DSMC%WallModel.GT.2) THEN
-      CALL CalcBackgndPartAdsorb(p,q,SurfSideID,PartID,Norm_Ec,adsorption_case,outSpec,AdsorptionEnthalpie)
+      CALL CalcBackgndPartAdsorb(p,q,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
     ELSE
 !       CALL CalcPartAdsorb(p,qSurfSideID,PartID,Norm_Ec,adsorption_case,outSpec)
       AdsorptionEnthalpie = 0.
