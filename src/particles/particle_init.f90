@@ -334,6 +334,8 @@ KeepWallParticles = .FALSE.
 
 nSpecies = GETINT('Part-nSpecies','1')
 
+! IMD data import from *.chkpt file
+DoImportIMDFile=.FALSE.
 
 ! init varibale MPF per particle
 IF (usevMPF) THEN
@@ -407,16 +409,22 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC','0.')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
+      Species(iSpec)%IMDTimeScale          = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDTimeScale','0.0')
+      Species(iSpec)%IMDLengthScale        = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDLengthScale','0.0')
+      Species(iSpec)%IMDMultiplier         = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDMultiplier','0.0')
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
 #endif
     END IF ! iInit
     ! get emission and init data
-    Species(iSpec)%Init(iInit)%UseForInit           = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
-    Species(iSpec)%Init(iInit)%UseForEmission       = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
+    Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
+    Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
+    Species(iSpec)%Init(iInit)%IMDFile               = GETSTR('Part-Species'//TRIM(hilf2)//'-IMDFile','no file found')         
+    Species(iSpec)%Init(iInit)%IMDCutOff             = GETSTR('Part-Species'//TRIM(hilf2)//'-IMDCutOff','no_cutoff')
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
+    IF(TRIM(Species(iSpec)%Init(iInit)%IMDFile).NE.'no file found')DoImportIMDFile=.TRUE.
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
     Species(iSpec)%Init(iInit)%RadiusICGyro          = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
@@ -463,8 +471,8 @@ DO iSpec = 1, nSpecies
     !--- Check if Initial ParticleInserting is really used
     IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
       .AND.(Species(iSpec)%Init(iInit)%UseForInit) ) THEN
-      IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
-      .AND. AlmostEqual(Species(iSpec)%Init(iInit)%PartDensity,0.) ) THEN
+      IF (  (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
+            .AND. AlmostEqual(Species(iSpec)%Init(iInit)%PartDensity,0.) ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
         SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
         SWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit

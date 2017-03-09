@@ -44,7 +44,7 @@ END INTERFACE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, ParticleSurfaceflux, ParticleInserting &
-                , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF                              
+                , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
 !===================================================================================================================================
                                                                                                   
 CONTAINS                                                                                           
@@ -550,34 +550,37 @@ USE MOD_LD,                    ONLY:LD_SetParticlePosition
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                       :: FractNbr, iInit                                                    
+INTEGER,INTENT(IN)                       :: FractNbr, iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)                    :: NbrOfParticle                                               
+INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef MPI
 INTEGER                                  :: mode
-INTEGER                                  :: iProc,tProc, CellX, CellY, CellZ                                  
-INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)                               
+INTEGER                                  :: iProc,tProc, CellX, CellY, CellZ
+INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)
 INTEGER                                  :: MessageSize
-LOGICAL                                  :: InsideMyBGM                                                 
+LOGICAL                                  :: InsideMyBGM
 #endif
 REAL,ALLOCATABLE                         :: particle_positions(:)
-INTEGER                                  :: allocStat                                           
-INTEGER                                  :: i,j,k,ParticleIndexNbr                                      
+INTEGER                                  :: allocStat
+INTEGER                                  :: i,j,k,ParticleIndexNbr
 INTEGER                                  :: mySumOfMatchedParticles, sumOfMatchedParticles              
-INTEGER                                  :: nChunks, chunkSize, chunkSize2                                        
+INTEGER                                  :: nChunks, chunkSize, chunkSize2
 REAL                                     :: lineVector(3),VectorGap(3)         
 REAL                                     :: RandVal(3), Particle_pos(3),lineVector2(3)                  
-REAL                                     :: n(3) , radius_vec(3)                                        
-REAL                                     :: II(3,3),JJ(3,3),NN(3,3)                                     
-REAL                                     :: RandVal1                              
+REAL                                     :: n(3) , radius_vec(3)
+REAL                                     :: II(3,3),JJ(3,3),NN(3,3)
+REAL                                     :: RandVal1
 REAL                                     :: radius, argumentTheta                    
 REAL                                     :: rgyrate, Bintpol, pilen                    
-REAL                                     :: x_step, y_step, z_step,  x_pos , y_pos                      
-REAL                                     :: xlen, ylen, zlen                                            
-INTEGER                                  :: iPart                                             
+REAL                                     :: x_step, y_step, z_step,  x_pos , y_pos
+REAL                                     :: xlen, ylen, zlen
+REAL                                     :: IMD_array(12),xMin,xMax,yMin,yMax,zMin,zMax
+INTEGER                                  :: Nshift,ioUnit,io_error,IndNum
+CHARACTER(LEN=255)                       :: StrTmp
+INTEGER                                  :: iPart
 REAL,ALLOCATABLE                         :: particle_positions_Temp(:) 
 REAL                                     :: Vec3D(3), l_ins, v_line, delta_l, v_drift_line, A_ins, PartIns
 REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_lengths(2), v_BV(2), delta_lBV(2)
@@ -1499,8 +1502,8 @@ __STAMP__&
             * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
          CALL abort(&
-__STAMP__&
-,'ERROR: Number of particles in init / emission region',iInit)
+         __STAMP__&
+         ,'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = abs(GEO%xmaxglob  - GEO%xminglob)  
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
@@ -1525,6 +1528,163 @@ __STAMP__&
             END DO
           END DO
        END DO
+
+
+
+
+    CASE('IMD') ! read IMD particle position from *.chkpt file
+      ! set velocity distribution to read external data
+      print*,"chunkSize",chunkSize
+      print*,"FractNbr",FractNbr
+print*,"Reading from file: ",TRIM(Species(FractNbr)%Init(iInit)%IMDFile)
+      IF(TRIM(Species(FractNbr)%Init(iInit)%IMDFile).NE.'no file found')THEN
+        Species(FractNbr)%Init(iInit)%velocityDistribution='IMD'
+#ifdef MPI
+        IF(.NOT.PartMPI%InitGroup(InitGroup)%MPIROOT)THEN
+        !IF(PMPIVAR%iProc>0)THEN
+          print*,"NOT root: myrank",myrank
+          CALL abort(__STAMP__&
+          ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
+        ELSE
+          print*,"I am root: myrank",myrank
+        END IF
+!        !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!        IF (PMPIVAR%nProcs .GT. 1) THEN
+!          CALL abort(__STAMP__&
+!          ,'ERROR in particle_emission.f90: Run application in single mode! (SpaceIC=IMD)')
+!        END IF
+#endif /*MPI*/
+        ! Read particle data from file
+        !OPEN(UNIT=120,FILE='laser.00007.chkpt_10000_parts',STATUS='OLD',ACTION='READ',IOSTAT=io_error)
+        ioUnit=GETFREEUNIT()
+        OPEN(UNIT=ioUnit,FILE=TRIM(Species(FractNbr)%Init(iInit)%IMDFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
+        IF(io_error.NE.0)THEN
+          CALL abort(__STAMP__&
+          ,'ERROR in particle_emission.f90: Cannot open specified File (particle position) for SpaceIC=IMD!')
+        END IF
+        ! IMD Data Format (ASCII)
+        !   1      2    3         4           5         6         7         8         9         10       11     12
+        !#C number type mass      x           y         z         vx        vy        vz        Epot     Z      eam_rho
+        !   2294   0    26.981538 3589.254381 46.066405 91.985804 -1.576543 -0.168184 -0.163417 0.000000 2.4332 0.000000
+        print*,"==============================================================================="
+        print*,"position"
+        !READ(Species(FractNbr)%Init(iInit)%IMDFile, '(i10)' ) i
+        IndNum=INDEX(Species(FractNbr)%Init(iInit)%IMDFile, '/',BACK = .TRUE.)
+        IF(IndNum.GT.0)THEN
+          !IndNum=INDEX(Species(FractNbr)%Init(iInit)%IMDFile,'/',BACK = .TRUE.) ! get path without binary
+          StrTmp=TRIM(Species(FractNbr)%Init(iInit)%IMDFile(IndNum+1:LEN(Species(FractNbr)%Init(iInit)%IMDFile)))
+          IndNum=INDEX(StrTmp,'.',BACK = .TRUE.)
+          IF(IndNum.GT.0)THEN
+            StrTmp=StrTmp(1:IndNum-1)
+            IndNum=INDEX(StrTmp,'.')
+            IF(IndNum.GT.0)THEN
+              StrTmp=StrTmp(IndNum+1:LEN(StrTmp))
+            END IF
+          END IF
+        END IF
+
+        !read(Species(FractNbr)%Init(iInit)%IMDFile(7:11),*,iostat=io_error)  i
+        read(StrTmp,*,iostat=io_error)  i
+        Species(FractNbr)%IMDNumber = i
+print*,"IMD *.chkpt file = ",StrTmp
+print*,"Species(FractNbr)%Init(iInit)%IMDFile(7:11)",Species(FractNbr)%Init(iInit)%IMDFile(7:11)
+print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
+!read*
+        Nshift=0
+        xMin=HUGE(1.)
+        yMin=HUGE(1.)
+        zMin=HUGE(1.)
+        xMax=-HUGE(1.)
+        yMax=-HUGE(1.)
+        zMax=-HUGE(1.)
+        DO i=1,9
+        !print*,"i",i
+          !READ(ioUnit,*)
+          READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
+          print*,i,' : ',StrTmp
+        END DO
+!print*,PDM%maxParticleNumber
+!print*,"chunkSize=",chunkSize
+!read*
+        DO i=1,chunkSize
+        !DO i=1,PDM%maxParticleNumber !NbrOfParticle
+          READ(ioUnit,*,IOSTAT=io_error) IMD_array(1:12)
+          !IF(io_error.EQ.-1)EXIT ! end of file reached
+!print*,IMD_array(1:12)
+!read*
+          IF(io_error>0)THEN
+            CALL abort(__STAMP__&
+            ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')
+          ELSE IF(io_error<0)THEN
+            SWRITE(*,*) "End of file reached. i=",i
+            EXIT
+          ELSE
+            !print*,IMD(1:11)
+            IF(1.EQ.2)THEN ! transformation
+              ! 0.) multiply by unit system factor (1e-10)
+              ! 1.) switch X and Z axis and invert Z
+              ! 2.) shift origin in X- and Y-direction by -10nm
+              Particle_pos = (/  IMD_array(6)       *1.E-10-10.13E-9,&
+                                 IMD_array(5)       *1.E-10-10.13E-9,&
+                               -(IMD_array(4)-10500)*1.E-10/)
+            ELSE ! no transformation
+              Particle_pos = (/  IMD_array(4)*1.E-10,&
+                                 IMD_array(5)*1.E-10,&
+                                 IMD_array(6)*1.E-10/)
+            END IF
+!print*,Particle_pos
+!read*
+            particle_positions((i-Nshift)*3-2) = Particle_pos(1)
+            particle_positions((i-Nshift)*3-1) = Particle_pos(2)
+            particle_positions((i-Nshift)*3  ) = Particle_pos(3)
+            xMin=MIN(Particle_pos(1),xMin)
+            yMin=MIN(Particle_pos(2),yMin)
+            zMin=MIN(Particle_pos(3),zMin)
+            xMax=MAX(Particle_pos(1),xMax)
+            yMax=MAX(Particle_pos(2),yMax)
+            zMax=MAX(Particle_pos(3),zMax)
+            !print*,"x",Particle_pos(1)
+            !print*,"y",Particle_pos(2)
+            !print*,"z",Particle_pos(3)
+            ! check cutoff
+            SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%IMDCutOff))
+            CASE('no_cutoff') ! nothing to do
+            CASE('Epot') ! kill particles that have Epot (i.e. they are in the solid body)
+              IF(IMD_array(10).NE.0.0)THEN ! IMD_array(10) is Epot
+                Nshift=Nshift+1
+              END IF
+            CASE('coordinates') ! kill particles that are below a certain threshold in z-direction
+              CALL abort(__STAMP__&
+              ,'ERROR in particle_emission.f90: not implemented yet!')
+            CASE('velocity') ! kill particles that are below a certain velocity threshold
+              CALL abort(__STAMP__&
+              ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')
+            END SELECT
+          END IF
+        END DO
+        CLOSE(ioUnit)
+        print*, "     x-Min [nm]                         x-Max [nm]"
+        print*, xMin*1.e9,xMax*1.e9
+        print*, "     y-Min [nm]                         y-Max [nm]"
+        print*, yMin*1.e9,yMax*1.e9
+        print*, "     z-Min [nm]                         z-Max [nm]"
+        print*, zMin*1.e9,zMax*1.e9
+print*,""
+        SWRITE(*,*) "Particles Read: chunkSize/NbrOfParticle=>",(i-Nshift)-1
+        chunkSize     = (i-Nshift)-1 ! don't change here, change at velocity
+        NbrOfParticle = (i-Nshift)-1 ! don't change here, change at velocity
+      ELSE ! TRIM(Species(FractNbr)%Init(iInit)%IMDFile) = 'no file found' -> exit
+        Species(FractNbr)%Init(iInit)%velocityDistribution=''
+      END IF
+print*,"particle posiiton done..."
+print*,"Species(FractNbr)%Init(iInit)%velocityDistribution=",Species(FractNbr)%Init(iInit)%velocityDistribution
+print*,""
+!read*
+
+
+
+
+
     END SELECT
     !------------------SpaceIC-cases: end-----------------------------------------------------------!
     chunkSize=chunkSize2
@@ -1834,20 +1994,23 @@ LOGICAL                          :: Is_BGGas
 REAL                             :: sigma(3), ftl, PartVelo 
 REAL                             :: RandN_save
 LOGICAL                          :: RandN_in_Mem
-CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-REAL                                   :: RadiusIC                         ! Radius for IC circle
-REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
-REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
-REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
-REAL                                   :: VeloIC                           ! velocity for inital Data
-REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
-REAL                                   :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
-REAL                                   :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
-REAL                                   :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
-REAL                                   :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
-REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
-REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
-REAL                                   :: MJRatio(3)                       ! momentum to temperature ratio
+CHARACTER(30)                    :: velocityDistribution             ! specifying keyword for velocity distribution
+REAL                             :: RadiusIC                         ! Radius for IC circle
+REAL                             :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
+REAL                             :: NormalIC(3)                      ! Normal / Orientation of circle
+REAL                             :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
+REAL                             :: VeloIC                           ! velocity for inital Data
+REAL                             :: VeloVecIC(3)                     ! normalized velocity vector
+REAL                             :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
+REAL                             :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
+REAL                             :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
+REAL                             :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
+REAL                             :: Alpha                            ! WaveNumber for sin-deviation initiation.
+REAL                             :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
+REAL                             :: MJRatio(3)                       ! momentum to temperature ratio
+REAL                             :: IMD_array(12)!,Vabs,Ekin
+INTEGER                          :: Nshift,ioUnit,io_error
+CHARACTER(LEN=255)               :: StrTmp
 ! Maxwell-Juettner
 REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
 !===================================================================================================================================
@@ -2408,6 +2571,116 @@ CASE('OneD-twostreaminstabilty')
                                                    OneDTwoStreamVelo
     END IF  
   END DO
+
+
+
+
+
+CASE('IMD') ! read IMD particle velocity from *.chkpt file
+  print*,"==============================================================================="
+  print*,"velocity"
+!read*
+  Nshift=0
+  ioUnit=GETFREEUNIT()
+  !OPEN(UNIT=120,FILE='laser.00007.chkpt_10000_parts',STATUS='OLD',ACTION='READ',IOSTAT=io_error)
+  OPEN(UNIT=ioUnit,FILE=TRIM(Species(FractNbr)%Init(iInit)%IMDFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
+  !DO i=1,9
+    !READ(ioUnit,*)
+  !END DO
+        DO i=1,9
+        !print*,"i",i
+          !READ(ioUnit,*)
+          READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
+          print*,i,' : ',StrTmp
+        END DO
+  IF(io_error.NE.0)THEN
+    CALL abort(__STAMP__&
+    ,'ERROR in particle_emission.f90: Cannot open specified File (particle velocity) for SpaceIC=IMD!')
+  END IF
+  ! get particle velocity
+  print*,"NbrOfParticle",NbrOfParticle
+  print*,"of PDM%maxParticleNumber",PDM%maxParticleNumber
+  DO i=1,PDM%maxParticleNumber !NbrOfParticle
+        READ(ioUnit,*,IOSTAT=io_error) IMD_array(1:12)
+        IF(io_error>0)THEN
+          CALL abort(__STAMP__&
+          ,'ERROR in particle_emission.f90: Error reading specified File (particle velocity) for SpaceIC=IMD!')
+     !   ELSE IF(io_error<0)THEN
+     !     SWRITE(*,*) "End of file reached. i=",i
+     !     EXIT
+     !   ELSE
+        ELSE IF(io_error<0)THEN
+          SWRITE(*,*) "End of file reached. i=",i
+          SWRITE(*,*) "Particles Read: chunkSize/NbrOfParticle=>",i-1
+          !chunkSize     = (i-Nshift)-1
+          NbrOfParticle = (i-Nshift)-1
+          EXIT
+        ELSE
+        END IF
+       ! switch Vx and Vz and invert Vz
+       PartState(i-Nshift,4:6) =&
+       (/IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
+         IMD_array(8)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
+        -IMD_array(7)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
+
+
+
+
+
+!      ! convert kinetic energy to velocity
+!        !SIGN(A,B) returns the value of A with the sign of B.
+!        !Return value: The kind of the return value is that of A and B. If B\ge 0 then the result is ABS(A), else it is -ABS(A). 
+!       ! Vx
+!       IF(1.EQ.1)THEN
+!         Ekin                  = SQRT(PartState(i-Nshift,4)**2+PartState(i-Nshift,5)**2+PartState(i-Nshift,6)**2)
+!         Vabs                  = SQRT(2.0*Ekin*1.60217657E-19/Species(FractNbr)%MassIC)
+!         PartState(i-Nshift,4) = PartState(i-Nshift,4)*Vabs/Ekin
+!         PartState(i-Nshift,5) = PartState(i-Nshift,5)*Vabs/Ekin
+!         PartState(i-Nshift,6) = PartState(i-Nshift,6)*Vabs/Ekin
+!         
+!       ELSE ! Komponentenweise
+!         IF(PartState(i-Nshift,4).LT.0.0)THEN
+!            PartState(i-Nshift,4)=-SQRT(-2.0*PartState(i-Nshift,4)*1.60217657E-19/Species(FractNbr)%MassIC)
+!         ELSE
+!            PartState(i-Nshift,4)= SQRT( 2.0*PartState(i-Nshift,4)*1.60217657E-19/Species(FractNbr)%MassIC)
+!         END IF
+!         ! Vy
+!         IF(PartState(i-Nshift,5).LT.0.0)THEN
+!            PartState(i-Nshift,5)=-SQRT(-2.0*PartState(i-Nshift,5)*1.60217657E-19/Species(FractNbr)%MassIC)
+!         ELSE
+!            PartState(i-Nshift,5)= SQRT( 2.0*PartState(i-Nshift,5)*1.60217657E-19/Species(FractNbr)%MassIC)
+!         END IF
+!         ! Vz
+!         IF(PartState(i-Nshift,6).LT.0.0)THEN
+!            PartState(i-Nshift,6)=-SQRT(-2.0*PartState(i-Nshift,6)*1.60217657E-19/Species(FractNbr)%MassIC)
+!         ELSE
+!            PartState(i-Nshift,6)= SQRT( 2.0*PartState(i-Nshift,6)*1.60217657E-19/Species(FractNbr)%MassIC)
+!         END IF
+!       END IF
+!      ! PartState(i-Nshift,4:6) = &
+!      ! SIGN(SQRT(2.0*ABS(PartState(i-Nshift,4:6))*1.60217657E-19/Species(FractNbr)%MassIC),PartState(i-Nshift,4:6))
+
+
+
+
+       SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%IMDCutOff))
+       CASE('no_cutoff') ! nothing to do
+       CASE('Epot') ! kill particles that have Epot (i.e. they are in the solid body)
+         IF(IMD_array(10).GT.0.0)THEN ! IMD_array(10) is Epot
+           Nshift=Nshift+1
+         END IF
+       CASE('coordinates') ! kill particles that are below a certain threshold in z-direction
+         CALL abort(__STAMP__&
+         ,'ERROR in particle_emission.f90: not implemented yet!')
+       CASE('velocity') ! kill particles that are below a certain velocity threshold
+         CALL abort(__STAMP__&
+         ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')
+       END SELECT
+  END DO
+  CLOSE(ioUnit)
+
+
+
 
 CASE DEFAULT
   CALL abort(&
@@ -4385,6 +4658,7 @@ END IF
 !IPWRITE(*,*)'Error=',Error
 
 END SUBROUTINE IntegerDivide
+
 
 FUNCTION SYNGE(velabs, temp, mass, BK2)
 !===================================================================================================================================
