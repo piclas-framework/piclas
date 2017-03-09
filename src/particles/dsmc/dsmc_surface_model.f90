@@ -1050,6 +1050,7 @@ DO subsurfxi = 1,nSurfSample
       END IF
     END DO
     ReactNum_run = ReactNum_run + Adsorption%ReactNum-Adsorption%DissNum
+    
     !-------------------------------------------------------------------------------------------------------------------------------
     ! sort Neighbours to coordinations for search of two random neighbour positions from particle position
     ! for dissociation and diffusion
@@ -1258,7 +1259,7 @@ DO subsurfxi = 1,nSurfSample
       END IF
     END DO
     END IF
-    ReactNum_run = ReactNum_run + iReact - 1
+    ReactNum_run = ReactNum_run + Adsorption%DissNum
     
     !-------------------------------------------------------------------------------------------------------------------------------
     ! Calculate propabilities for exchange reactions
