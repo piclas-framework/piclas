@@ -1637,6 +1637,16 @@ print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
             particle_positions((i-Nshift)*3-2) = Particle_pos(1)
             particle_positions((i-Nshift)*3-1) = Particle_pos(2)
             particle_positions((i-Nshift)*3  ) = Particle_pos(3)
+
+
+
+       PartState(i-Nshift,4:6) =&
+       (/IMD_array(7)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
+         IMD_array(8)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
+        -IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
+
+
+
             xMin=MIN(Particle_pos(1),xMin)
             yMin=MIN(Particle_pos(2),yMin)
             zMin=MIN(Particle_pos(3),zMin)
@@ -2577,6 +2587,8 @@ CASE('OneD-twostreaminstabilty')
 
 
 CASE('IMD') ! read IMD particle velocity from *.chkpt file
+  ! do nothing
+CASE('IMD-test')
   print*,"==============================================================================="
   print*,"velocity"
 !read*
