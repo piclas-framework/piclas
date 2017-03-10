@@ -4126,7 +4126,6 @@ DO iStage=2,nRKStages
     CALL MPIParticleRecv()   ! finish communication
 #endif
     CALL ParticleCollectCharges()
-    CALL ParticleInserting()
   END IF
 #endif /*PARTICLES*/
 END DO
