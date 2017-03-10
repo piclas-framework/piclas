@@ -1764,13 +1764,15 @@ print*,"Species(i)%IMDTimeScale=",Species(i)%IMDTimeScale
     SWRITE(UNIT_StdOut,'(A,E24.12)')"t",t
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    SWRITE(*,*) "t=",t
-    SWRITE(*,*) " "
-    SWRITE(*,*) " "
-    SWRITE(*,*) " "
-    CALL abort(&
-    __STAMP__&
-    ,'StateFile from IMD data created. Terminating now!')
+    SWRITE(UNIT_StdOut,'(A)') "t=",t
+    SWRITE(UNIT_StdOut,'(A)') " "
+    SWRITE(UNIT_StdOut,'(A)') " "
+    SWRITE(UNIT_StdOut,'(A)') " "
+    SWRITE(UNIT_StdOut,'(A)')"StateFile from IMD data created. Terminating now!"
+    STOP 0
+    !CALL abort(&
+    !__STAMP__&
+    !,'StateFile from IMD data created. Terminating now!')
   END IF
 END DO
 print*,"done ---------------------- ?"
