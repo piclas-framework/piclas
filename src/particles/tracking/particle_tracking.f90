@@ -17,8 +17,13 @@ INTERFACE ParticleRefTracking
   MODULE PROCEDURE ParticleRefTracking
 END INTERFACE
 
+INTERFACE ParticleCollectCharges
+  MODULE PROCEDURE ParticleCollectCharges
+END INTERFACE
+
 PUBLIC::ParticleTracing
 PUBLIC::ParticleRefTracking
+PUBLIC::ParticleCollectCharges
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -427,13 +432,13 @@ DO iPart=1,PDM%ParticleVecLength
     ! sanity check
     PartIsDone=.FALSE.
     IF(IsBCElem(ElemID))THEN
-      CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved)
+      CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved,1)
       IF(PartIsDone) CYCLE ! particle has left domain by a boundary condition
       IF(PartIsMoved)THEN ! particle is reflected at a wall
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       ELSE
         ! particle has not encountered any boundary condition
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
 #else
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
@@ -467,7 +472,7 @@ DO iPart=1,PDM%ParticleVecLength
           END DO
         END IF
       END IF
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
 #else
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
@@ -627,7 +632,7 @@ __STAMP__ &
           ! no fall back algorithm
           CALL FallBackFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
           LastPos=PartState(iPart,1:3)
-          CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved)
+          CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved,1)
           IF(PartIsDone) CYCLE
           CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
           ! false, reallocate particle
@@ -689,7 +694,7 @@ END DO ! iPart
 END SUBROUTINE ParticleRefTracking
 
 
-RECURSIVE SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
+RECURSIVE SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved,iCount)
 !===================================================================================================================================
 ! Calculate intersection with boundary and choose boundary interaction type for reference tracking routine
 !===================================================================================================================================
@@ -714,6 +719,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)            :: PartID,firstSide,LastSide,nlocSides
+INTEGER,INTENT(IN)            :: iCount
 LOGICAL,INTENT(INOUT)         :: PartisDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES!
@@ -809,7 +815,10 @@ DO WHILE(DoTracing)
                                                                           ,PartId,SideID,flip,ElemID,reflected)
         !IF(PEM%Element(PartID).NE.OldElemID)THEN
         IF(ElemID.NE.OldElemID)THEN
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved)
+          IF (iCount.GE.1000 .AND. MOD(iCount,1000).EQ.0) THEN !threshold might be changed...
+            IPWRITE(*,'(I4,A,I0,A,3(x,I0))') ' WARNING: proc has called BCTracking ',iCount,'x recursively! Part, Side, Elem:',PartId,SideID,ElemID
+          END IF
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved,iCount+1)
           PartisMoved=.TRUE.
           RETURN 
         END IF
@@ -1439,5 +1448,136 @@ DO ilocSide=1,6
 END DO
 
 END SUBROUTINE CheckPlanarInside
+
+
+
+SUBROUTINE ParticleCollectCharges(initialCall_opt)
+!===================================================================================================================================
+! Routine for communicating and evaluating collected charges on surfaces as floating potential
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF,BezierSampleN,SurfMeshSubSideData
+USE MOD_Equation_Vars,           ONLY : eps0
+USE MOD_TimeDisc_Vars,           ONLY : iter,IterDisplayStep,DoDisplayIter, dt,RKdtFrac
+USE MOD_Particle_Mesh_Vars,      ONLY : GEO,NbrOfRegions
+USE MOD_Particle_Vars,           ONLY : RegionElectronRef
+USE MOD_Mesh_Vars,               ONLY : SideToElem
+USE MOD_Particle_Vars,           ONLY : nCollectChargesBCs,CollectCharges
+USE MOD_Particle_Boundary_Vars,  ONLY : PartBound
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,       ONLY : PartMPI
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL      :: initialCall_opt
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iCC, currentBC
+#ifdef MPI
+REAL, ALLOCATABLE                :: NewRealChargesGlob(:)
+#endif /*MPI*/
+REAL, ALLOCATABLE                :: NewRealChargesLoc(:)
+INTEGER                          :: iSide, SideID, RegionID, iSample,jSample
+REAL                             :: source_e, area
+LOGICAL                          :: InitialCall
+!===================================================================================================================================
+IF (nCollectChargesBCs .GT. 0) THEN
+  IF(PRESENT(initialCall_opt))THEN
+    InitialCall=initialCall_opt
+  ELSE
+    InitialCall=.FALSE.
+  END IF
+  IF (.NOT.InitialCall) THEN !-- normal call during timedisc
+    ALLOCATE( NewRealChargesLoc(1:nCollectChargesBCs) )
+    NewRealChargesLoc=0.
+#ifdef MPI
+    ALLOCATE( NewRealChargesGlob(1:nCollectChargesBCs) )
+    NewRealChargesGlob=0.
+#endif /* MPI */
+    DO iCC=1,nCollectChargesBCs
+      NewRealChargesLoc(iCC)=CollectCharges(iCC)%NumOfNewRealCharges
+      !--adding BR-electrons if corresponding regions exist: go through sides/trias if present in proc
+      IF (NbrOfRegions .GT. 0) THEN
+        currentBC = CollectCharges(iCC)%BC
+        IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
+          CYCLE
+        ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
+          CALL abort(__STAMP__,&
+            'ERROR in ParticleBoundary: Something is wrong with SideNumber of BC ',currentBC)
+        END IF
+        DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+          SideID=BCdata_auxSF(currentBC)%SideList(iSide)
+          IF (SideToElem(1,SideID).LT.1) CALL abort(&
+__STAMP__,&
+'ERROR in ParticleBoundary: Something is wrong with SideToElem') !would need SideToElem(2,SideID) as in SurfFlux
+          RegionID=GEO%ElemToRegion(SideToElem(1,SideID))
+          IF (RegionID .NE. 0) THEN
+            source_e = PartBound%Voltage(currentBC)+PartBound%Voltage_CollectCharges(currentBC)-RegionElectronRef(2,RegionID) !dU
+            IF (source_e .LT. 0.) THEN
+              source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+              * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+            ELSE
+              source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+              * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+            END IF
+            source_e = source_e*SQRT(RegionElectronRef(3,RegionID))*1.67309567E+05 !rho*v_flux, const.=sqrt(q/(2*pi*m_el))
+            area=0.
+            DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+              area = area &
+                + SurfMeshSubSideData(iSample,jSample,SideID)%area
+            END DO; END DO
+            NewRealChargesLoc(iCC) = NewRealChargesLoc(iCC) - dt*RKdtFrac*source_e*area !dQ=dt*rho*v_flux*dA
+          END IF !RegionID .NE. 0
+        END DO ! iSide
+      END IF ! NbrOfRegions .GT. 0
+      !--
+    END DO
+#ifdef MPI
+    CALL MPI_ALLREDUCE(NewRealChargesLoc,NewRealChargesGlob,nCollectChargesBCs,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+    DO iCC=1,nCollectChargesBCs
+      CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesGlob(iCC)
+    END DO
+    DEALLOCATE(NewRealChargesGlob)
+#else
+    DO iCC=1,nCollectChargesBCs
+      CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesLoc(iCC)
+    END DO
+#endif /* MPI */
+    DEALLOCATE(NewRealChargesLoc)
+    DO iCC=1,nCollectChargesBCs
+      CollectCharges(iCC)%NumOfRealCharges=CollectCharges(iCC)%NumOfRealCharges+CollectCharges(iCC)%NumOfNewRealCharges
+      CollectCharges(iCC)%NumOfNewRealCharges=0.
+      currentBC = CollectCharges(iCC)%BC
+      PartBound%Voltage_CollectCharges(currentBC) = ABS(CollectCharges(iCC)%ChargeDist)/eps0 &
+        *CollectCharges(iCC)%NumOfRealCharges/BCdata_auxSF(currentBC)%GlobalArea
+      IF(BCdata_auxSF(currentBC)%LocalArea.GT.0.) THEN
+        IF(DoDisplayIter)THEN
+          IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+            IPWRITE(*,'(I4,A,I2,2(x,E16.9))') 'Floating Potential and charges',iCC &
+              ,PartBound%Voltage_CollectCharges(CollectCharges(iCC)%BC),CollectCharges(iCC)%NumOfRealCharges
+          END IF
+        END IF
+      END IF
+    END DO !iCC=1,nCollectChargesBCs
+  ELSE ! InitialCall: NumOfRealCharges only (contains initial value)
+    DO iCC=1,nCollectChargesBCs
+      currentBC = CollectCharges(iCC)%BC
+      PartBound%Voltage_CollectCharges(currentBC) = ABS(CollectCharges(iCC)%ChargeDist)/eps0 &
+        *CollectCharges(iCC)%NumOfRealCharges/BCdata_auxSF(currentBC)%GlobalArea
+      IF(BCdata_auxSF(currentBC)%LocalArea.GT.0.) THEN
+        IPWRITE(*,'(I4,A,I2,2(x,E16.9))') 'Initial Phi_float and charges:',iCC &
+          ,PartBound%Voltage_CollectCharges(CollectCharges(iCC)%BC),CollectCharges(iCC)%NumOfRealCharges
+      END IF
+    END DO !iCC=1,nCollectChargesBCs
+  END IF
+END IF !ChargeCollecting
+
+END SUBROUTINE ParticleCollectCharges
+
 
 END MODULE MOD_Particle_Tracking

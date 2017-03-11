@@ -328,6 +328,13 @@ IF (DoRestart) THEN
   END DO
 
   SELECT CASE(BalanceMethod)
+  CASE(-1) ! same as in no-restart: the elements are equally distributed
+    nElems=nGlobalElems/nProcessors
+    iElem=nGlobalElems-nElems*nProcessors
+    DO iProc=0,nProcessors-1
+      offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
+    END DO
+    offsetElemMPI(nProcessors)=nGlobalElems
   CASE(0) ! old scheme
     IF(nGlobalElems.EQ.nProcessors) THEN
       DO iProc=0, nProcessors-1
