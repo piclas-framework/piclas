@@ -58,8 +58,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+#ifndef PP_HDG
 INTEGER    :: i,j,k,iElem
+#endif
 !===================================================================================================================================
+
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.LinearSolverInitIsDone)THEN
    CALL abort(&
 __STAMP__&
@@ -131,10 +134,14 @@ DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
 ! UpdateNextFreePosition in each interation
 UpdateInIter         = GETINT('UpdateInIter','-1')
-PartRelaxationFac    = GETREAL('PartRelaxationFac','0.')
+PartRelaxationFac    = GETREAL('PartRelaxationFac','0.0')
 PartRelaxationFac0   = PartRelaxationFac
 DoPartRelaxation=.TRUE.
-IF(ALMOSTZERO(PartRelaxationFac)) DoPartRelaxation=.FALSE.
+IF(ALMOSTZERO(PartRelaxationFac))THEN
+  DoPartRelaxation=.FALSE.
+ELSE
+  AdaptIterRelaxation0 = GETREAL('AdaptIterRelaxation0','2')
+END IF
 IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
 #endif

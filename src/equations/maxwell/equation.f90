@@ -282,6 +282,7 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variab
 REAL                            :: omegaG,g,h,k,B0G
 INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift            !> electromagnetic wave shaping vars
+REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 REAL                            :: eta, kx,ky,kz
@@ -484,6 +485,7 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
 CASE(12) ! planar wave test case
   resu(1:3)=E_0*cos(BeamWaveNumber*DOT_PRODUCT(WaveVector,x)-BeamOmegaW*t)
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
+  resu(7:8)=0.
 
 CASE(14) ! Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
   ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
@@ -526,7 +528,7 @@ CASE(16) !Gauß-shape with perfect focus (w(z)=w_0): initial & boundary conditio
     RETURN
   END IF
   ! IC or BC
-  tShift=t-ABS(WaveBasePoint(BeamIdir3))/c
+  tShift=t-ABS(WaveBasePoint(BeamIdir3))/c ! shift to wave base point position
   IF(t.LT.dt)THEN ! initial condiction: IC
     spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  &
                               (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv     &
@@ -534,11 +536,12 @@ CASE(16) !Gauß-shape with perfect focus (w(z)=w_0): initial & boundary conditio
     timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
     resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac
   ELSE ! boundary condiction: BC
+    tShiftBC=t+(WaveBasePoint(BeamIdir3)-x(3))/c ! shift to wave base point position
     ! intensity * Gaussian filter in transversal and longitudinal direction
     spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
                           (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)
     timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
-    temporalWindow=EXP(-0.5*(tShift/sigma_t)**2)
+    temporalWindow=EXP(-0.5*(tShiftBC/sigma_t)**2)
     resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac*temporalWindow
   END IF
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3)) 
@@ -640,7 +643,7 @@ USE MOD_PreProc
 !USE MOD_DG_Vars,       ONLY : U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,  ONLY : Source
+USE MOD_PICDepo_Vars,  ONLY : Source,DoDeposition
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
@@ -665,9 +668,8 @@ REAL                            :: r                                            
 REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1    ! for Dipole
 !===================================================================================================================================
 eps0inv = 1./eps0
-SELECT CASE (IniExactFunc)
-CASE(0) ! Particles
 #ifdef PARTICLES
+IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
@@ -675,8 +677,11 @@ CASE(0) ! Particles
       Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* source(  4,i,j,k,iElem) * c_corr 
     END DO; END DO; END DO
   END DO
+END IF
 #endif /*PARTICLES*/
-  !CALL CalcDepositedCharge()
+SELECT CASE (IniExactFunc)
+CASE(0) ! Particles
+  ! empty, nothing to do
 CASE(1) ! Constant          - no sources
 CASE(2) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources

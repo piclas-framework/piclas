@@ -119,6 +119,7 @@ USE MOD_Particle_Vars!, ONLY:
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
+USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
 USE MOD_DSMC_Vars,             ONLY:useDSMC
 USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK, OutputMesh
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
@@ -142,7 +143,7 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec, iInit, iPartBound, iSeed
+INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
 INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
@@ -242,6 +243,18 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,'Cannot allocate Norm2_F_PartXk_old arrays!')
 END IF
+ALLOCATE(PartDeltaX(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartDeltaX arrays!')
+END IF
+ALLOCATE(PartLambdaAccept(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartLambdaAccept arrays!')
+END IF
 ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -258,8 +271,16 @@ __STAMP__&
   ,' Cannot allocate PartIsImplicit arrays!')
 END IF
 PartIsImplicit=.FALSE.
+! ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
+!         ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
+! IF (ALLOCSTAT.NE.0) THEN
+!   CALL abort(&
+! __STAMP__&
+!   ,' Cannot allocate the stage position and element arrays!')
+! END IF
+! StagePartPos=0
+! PEM%StageElement=0
 #endif
-
 
 IF(DoRefMapping)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
@@ -269,9 +290,7 @@ IF(DoRefMapping)THEN
   PartPosRef=-888.
 END IF
 
-
 ! predefine random vectors
-
 NumRanVec = GETINT('Particles-NumberOfRandomVectors','100000')
 IF ((usevMPF).OR.(useDSMC)) THEN
   ALLOCATE(RandomVec(NumRanVec, 3))
@@ -801,6 +820,8 @@ ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
+ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
+PartBound%Voltage_CollectCharges(:)=0.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 !--determine MaxNbrOfSpeciesSwaps for correct allocation
 MaxNbrOfSpeciesSwaps=0
@@ -1083,6 +1104,38 @@ IF(enableParticleMerge) THEN
  CALL DefinePolyVec(vMPFMergePolyOrder) 
  CALL DefineSplitVec(vMPFMergeCellSplitOrder)
 END IF
+
+!-- Floating Potential
+ALLOCATE(BCdata_auxSF(1:nPartBound))
+DO iPartBound=1,nPartBound
+  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
+  BCdata_auxSF(iPartBound)%GlobalArea=0.
+  BCdata_auxSF(iPartBound)%LocalArea=0.
+END DO
+nDataBC_CollectCharges=0
+nCollectChargesBCs = GETINT('PIC-nCollectChargesBCs','0')
+IF (nCollectChargesBCs .GT. 0) THEN
+#if !(defined (PP_HDG) && (PP_nVar==1))
+  CALL abort(__STAMP__&
+    , 'CollectCharges only implemented for electrostatic HDG!')
+#endif
+  ALLOCATE(CollectCharges(1:nCollectChargesBCs))
+  DO iCC=1,nCollectChargesBCs
+    WRITE(UNIT=hilf,FMT='(I2)') iCC
+    CollectCharges(iCC)%BC = GETINT('PIC-CollectCharges'//TRIM(hilf)//'-BC','0')
+    IF (CollectCharges(iCC)%BC.LT.1 .OR. CollectCharges(iCC)%BC.GT.nPartBound) THEN
+      CALL abort(__STAMP__&
+      , 'nCollectChargesBCs must be between 1 and nPartBound!')
+    ELSE IF (BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber.EQ. -1) THEN !not set yet
+      BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber=0
+      nDataBC_CollectCharges=nDataBC_CollectCharges+1 !side-data will be set in InitializeParticleSurfaceflux!!!
+    END IF
+    CollectCharges(iCC)%NumOfRealCharges = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-NumOfRealCharges','0.')
+    CollectCharges(iCC)%NumOfNewRealCharges = 0.
+    CollectCharges(iCC)%ChargeDist = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-ChargeDist','0.')
+  END DO !iCC
+END IF !nCollectChargesBCs .GT. 0
+
 
 END SUBROUTINE InitializeVariables
 

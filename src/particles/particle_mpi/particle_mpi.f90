@@ -209,10 +209,15 @@ PartCommSize   = PartCommSize+1
 ! IsNewPart for Surface-Flux: particle are always killed after suface-flux-emission
 PartCommSize   = PartCommSize + 1 
 #endif
+#if defined(IMPA)
+! communicate deltaX
+PartCommSize   = PartCommSize + 6
+! and PartAcceptLambda
+PartCommSize   = PartCommSize + 1
+#endif
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
 #endif /*IMEX or IMPA*/
-
 
 ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  & 
         , PartMPIExchange%nPartsRecv(2,PartMPI%nMPINeighbors)  &
@@ -563,7 +568,8 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #if defined(IMPA)
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
+                                     ,PartDeltaX,PartLambdaAccept
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
@@ -732,6 +738,13 @@ DO iProc=1, PartMPI%nMPINeighbors
 #endif /*no IMEX */
 #if defined(IMPA)
       ! required for particle newton && closed particle description
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartDeltaX(1:6,iPart)
+      IF (PartLambdaAccept(iPart)) THEN
+        PartSendBuf(iProc)%content(14+jPos) = 1.
+      ELSE
+        PartSendBuf(iProc)%content(14+jPos) = 0.
+      END IF
+      jPos=jPos+7
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartXK(1:6,iPart)
       jPos=jPos+6
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = R_PartXK(1:6,iPart)
@@ -832,7 +845,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
 #ifdef IMPA
-      DoPartInNewton(iPart) = .FALSE.
+      DoPartInNewton(iPart)   = .FALSE.
+      PartLambdaAccept(iPart) = .TRUE.
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       PartIsImplicit(iPart)     = .FALSE.
@@ -1118,11 +1132,12 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
+                                     ,PartDeltaX,PartLambdaAccept
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit !,StagePartPos
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1232,6 +1247,13 @@ DO iProc=1,PartMPI%nMPINeighbors
 #endif /*PP_TimeDiscMethod!=110*/
 #endif /*IMEX*/ 
 #if defined(IMPA)
+    PartDeltaX(1:6,PartID)     = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 1) THEN
+      PartLambdaAccept(PartID)=.TRUE.
+    ELSE ! IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 0) THEN
+      PartLambdaAccept(PartID)=.FALSE.
+    END IF
+    jPos=jPos+7
     PartXK(1:6,PartID)         = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6
     R_PartXK(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
@@ -1333,6 +1355,10 @@ DO iProc=1,PartMPI%nMPINeighbors
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! only for fully implicit
     PEM%lastElement(PartID) = PEM%Element(PartID)
+!    PEM%StageElement(PartID)= PEM%Element(PartID)
+!    StagePartPos(PartID,1)  = PartState(PartID,1)
+!    StagePartPos(PartID,2)  = PartState(PartID,2)
+!    StagePartPos(PartID,3)  = PartState(PartID,3)
 #endif
   END DO
   IF(DoExternalParts)THEN
@@ -1491,6 +1517,7 @@ END SUBROUTINE FinalizeParticleMPI
 SUBROUTINE ExchangeBezierControlPoints3D() 
 !===================================================================================================================================
 ! exchange all beziercontrolpoints at MPI interfaces
+! maybe extended to periodic sides, to be tested
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1501,6 +1528,7 @@ USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_Y
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
+
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1598,11 +1626,11 @@ SUBROUTINE InitHaloMesh()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
-USE MOD_Mesh_Vars,                  ONLY:nSides
+!USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
-USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides,nPartSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1619,11 +1647,7 @@ LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
 
-
-! dirty hack
-!nTotalBCSides=nSides
-
-ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
+ALLOCATE(SideIndex(1:nPartSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'  Cannot allocate SideIndex!')
@@ -1686,10 +1710,6 @@ ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors) &
         , PartMPI%GlobalToLocal(0:PartMPI%nProcs-1)  )
 iMPINeighbor=0
 PartMPI%GlobalToLocal=-1
-!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-!IPWRITE(UNIT_stdOut,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
-!IPWRITE(UNIT_stdOut,*) 'blabla',PartMPI%isMPINeighbor
-!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 DO iProc=0,PartMPI%nProcs-1
   IF(PartMPI%isMPINeighbor(iProc))THEN
     iMPINeighbor=iMPINeighbor+1
@@ -1712,16 +1732,6 @@ IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(MINVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
   IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
 END IF
-!IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
-
-
-!IF(DepositionType.EQ.'shape_function') THEN
-!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
-!ELSE
-!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
-!END IF
-
-!CALL  WriteParticlePartitionInformation()
 
 END SUBROUTINE InitHaloMesh
 
