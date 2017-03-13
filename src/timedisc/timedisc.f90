@@ -4124,7 +4124,6 @@ DO iStage=2,nRKStages
     CALL SendNbOfParticles() ! send number of particles
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles
     CALL MPIParticleRecv()   ! finish communication
-    PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
 #endif
     CALL ParticleCollectCharges()
   END IF
@@ -4132,6 +4131,9 @@ DO iStage=2,nRKStages
 END DO
 
 #ifdef PARTICLES
+#ifdef MPI
+PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
+#endif
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
