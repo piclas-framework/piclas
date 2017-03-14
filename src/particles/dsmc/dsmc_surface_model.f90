@@ -1274,7 +1274,6 @@ DO subsurfxi = 1,nSurfSample
         IF ( (Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions).NE.iSpec) &
            .AND. (Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions).NE.iSpec) ) CYCLE
       END IF
-      exch_react_possible = .TRUE.
       ! Choose which reaction partner considered particle is 
       ! -> defines which species is second reaction partner and if forward or reverse reaction
       ! ----------------------------------------------------------------------------------------------------------------------------
@@ -1294,6 +1293,7 @@ DO subsurfxi = 1,nSurfSample
                 Coord_ReactP(iReact+ReactNum_run))%Species(Pos_ReactP(iReact+ReactNum_run))
         ! continue only if species on chosen site is appropriate partner
         IF ((jSpec.EQ.Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
+          exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions)
           Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions)
@@ -1346,6 +1346,7 @@ DO subsurfxi = 1,nSurfSample
                 Coord_ReactP(iReact+ReactNum_run))%Species(Pos_ReactP(iReact+ReactNum_run))
         ! continue only if species on chosen site is appropriate partner
         IF ((jSpec.EQ.Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
+          exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions)
           Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions)
@@ -1398,6 +1399,7 @@ DO subsurfxi = 1,nSurfSample
                 Coord_ReactP(iReact+ReactNum_run))%Species(Pos_ReactP(iReact+ReactNum_run))
         ! continue only if species on chosen site is appropriate partner
         IF ((jSpec.EQ.Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
+          exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions)
           Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions)
@@ -1450,6 +1452,7 @@ DO subsurfxi = 1,nSurfSample
                 Coord_ReactP(iReact+ReactNum_run))%Species(Pos_ReactP(iReact+ReactNum_run))
         ! continue only if species on chosen site is appropriate partner
         IF ((jSpec.EQ.Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
+          exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions)
           Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions)
