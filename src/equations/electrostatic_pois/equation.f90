@@ -261,7 +261,7 @@ USE MOD_Globals,            ONLY : abort
 USE MOD_PreProc
 USE MOD_Equation_Vars,      ONLY : eps0,c_corr,IniExactFunc,Phi
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,       ONLY : Source
+USE MOD_PICDepo_Vars,       ONLY : Source,DoDeposition
 USE MOD_Particle_Mesh_Vars, ONLY : NbrOfRegions,GEO
 USE MOD_Particle_Vars,      ONLY : RegionElectronRef
 #endif /*PARTICLES*/
@@ -286,14 +286,12 @@ INTEGER                         :: i,j,k,iElem,RegionID
 REAL                            :: eps0inv, source_e
 !===================================================================================================================================
 eps0inv = 1./eps0
-SELECT CASE (IniExactFunc)
-CASE(0) ! Particles
 #ifdef PARTICLES
+IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
       source_e=0.
-#ifdef PARTICLES
       RegionID=0
       IF (NbrOfRegions .GT. 0) RegionID=GEO%ElemToRegion(iElem)
       IF (RegionID .NE. 0) THEN
@@ -306,18 +304,14 @@ CASE(0) ! Particles
                    * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
         END IF
       END IF
-#endif /*PARTICLES*/
       Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * source(1:3,i,j,k,iElem)
       Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + coeff*eps0inv * ( source(  4,i,j,k,iElem) - source_e ) * c_corr 
-      !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
-      !print*, t
-     ! print*, eps0inv * source(4,i,j,k,iElem)*c_corr
-      !print*, eps0inv * source(1:3,i,j,k,iElem)
-      !read*
-      !END IF
     END DO; END DO; END DO
   END DO
+END IF
 #endif /*PARTICLES*/
+SELECT CASE (IniExactFunc)
+CASE(0) ! Particles
 CASE(1) ! Constant          - no sources
 CASE DEFAULT
   CALL abort(&
@@ -342,7 +336,7 @@ USE MOD_PreProc
 USE MOD_Equation_Vars, ONLY : Phit,Phi
 USE MOD_DG_Vars,       ONLY: U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
-USE MOD_PICDepo_Vars,  ONLY : Source
+USE MOD_PICDepo_Vars,  ONLY : Source,DoDeposition
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #ifdef LSERK
 USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
@@ -361,8 +355,7 @@ INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv
 !===================================================================================================================================
 eps0inv = 1./eps0
-SELECT CASE (IniExactFunc)
-CASE(0) ! Particles
+IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
@@ -376,6 +369,9 @@ CASE(0) ! Particles
       !END IF
     END DO; END DO; END DO
   END DO
+END IF
+SELECT CASE (IniExactFunc)
+CASE(0) ! Particles
 CASE(1) ! Constant          - no sources
 CASE DEFAULT
   CALL abort(&

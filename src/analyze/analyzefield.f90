@@ -419,7 +419,7 @@ IF (.NOT.isOpen) THEN
     WRITE(unit_index_PI,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
     DO iPlane = 1, nPoyntingIntPlanes
       WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index_PI,'(A14,F6.3)',ADVANCE='NO') 'Plane-Pos-', PosPoyntingInt(iPlane)
+      WRITE(unit_index_PI,'(A14,I0.3,A1,E13.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
     END DO              
     WRITE(unit_index_PI,'(A1)') ''
   END IF

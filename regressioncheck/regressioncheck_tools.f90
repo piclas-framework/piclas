@@ -3,7 +3,6 @@
 !==================================================================================================================================
 !> Contains the utilize routines of the regressioncheck
 !> -GetExampleList extracts the examples which are subfolders in examples 
-!> -CleanExample removes the output in a example after a successful run
 !> -InitExample reads in the parameter_reggie.ini file
 !==================================================================================================================================
 MODULE MOD_RegressionCheck_Tools
@@ -25,10 +24,6 @@ INTERFACE GetExampleList
   MODULE PROCEDURE GetExampleList
 END INTERFACE
 
-INTERFACE CleanExample
-  MODULE PROCEDURE CleanExample
-END INTERFACE
-
 INTERFACE InitExample
   MODULE PROCEDURE InitExample
 END INTERFACE
@@ -45,8 +40,20 @@ INTERFACE AddError
   MODULE PROCEDURE AddError
 END INTERFACE
 
+INTERFACE GetParameterFromFile
+  MODULE PROCEDURE GetParameterFromFile
+END INTERFACE
+
+INTERFACE CheckFileForString
+  MODULE PROCEDURE CheckFileForString
+END INTERFACE
+
 INTERFACE REGGIETIME
   MODULE PROCEDURE REGGIETIME
+END INTERFACE
+
+INTERFACE CalcOrder
+  MODULE PROCEDURE CalcOrder
 END INTERFACE
 
 INTERFACE str2real
@@ -61,10 +68,13 @@ INTERFACE str2logical
   MODULE PROCEDURE str2logical
 END INTERFACE
 
-PUBLIC::GetExampleList,InitExample,CleanExample, CheckForExecutable,GetCommandLineOption
+PUBLIC::GetExampleList,InitExample,CheckForExecutable,GetCommandLineOption
 PUBLIC::SummaryOfErrors
 PUBLIC::AddError
+PUBLIC::GetParameterFromFile
+PUBLIC::CheckFileForString
 PUBLIC::REGGIETIME
+PUBLIC::CalcOrder
 PUBLIC::str2real,str2int,str2logical
 !==================================================================================================================================
 
@@ -103,12 +113,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                        :: nArgs                             ! Number of supplied command line arguments
 !===================================================================================================================================
-RuntimeOption='run'     ! default
-RuntimeOptionType='run' ! default
-RuntimeOptionTypeII=''  ! default
-RuntimeOptionTypeIII='' ! default
-BuildDebug=.FALSE.      ! default
-BuildNoDebug=.FALSE.    ! default
+RuntimeOption='run'           ! only run pre-built executable (no building of new cmake compiler flag combinations)
+RuntimeOptionType='run_basic' ! set to standard case folder 'run_basic'
+RuntimeOptionTypeII=''        ! default
+RuntimeOptionTypeIII=''       ! default
+BuildDebug=.FALSE.            ! default
+BuildNoDebug=.FALSE.          ! default
 ! Get number of command line arguments and read in runtime option of regressioncheck
 nArgs=COMMAND_ARGUMENT_COUNT()
 IF(nArgs.EQ.0)THEN
@@ -130,13 +140,16 @@ ELSE
     IF(TRIM(RuntimeOptionType).EQ.'debug')THEN
       BuildDebug=.TRUE.
       RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays the complete 
-                                         ! compilation process for debugging
+                                    ! compilation process for debugging
     ELSEIF(TRIM(RuntimeOptionType).EQ.'no-debug')THEN
       BuildNoDebug=.TRUE.
-      RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays the complete 
+      RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays no putput 
     END IF
-    IF(TRIM(RuntimeOptionTypeII).EQ.'debug')BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
-    IF(TRIM(RuntimeOptionType).EQ.'run')RuntimeOptionType='run_basic'
+    IF(TRIM(RuntimeOptionTypeII).EQ.'debug')THEN
+      BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
+    ELSEIF(TRIM(RuntimeOptionTypeII).EQ.'no-debug')THEN
+      BuildNoDebug=.TRUE. ! redirect std- and err-output channels to "/build_reggie/build_reggie.out"
+    END IF
   ELSE IF((TRIM(RuntimeOption).EQ.'--help').OR.(TRIM(RuntimeOption).EQ.'help').OR.(TRIM(RuntimeOption).EQ.'HELP')) THEN
     CALL Print_Help_Information()
     STOP
@@ -237,9 +250,12 @@ DO iExample=1,nExamples
   ! fill PATH of examples
   Examples(iExample)%PATH = TRIM(ExamplesDir)//TRIM(ExampleNames(iExample))
   Examples(iExample)%ReferenceFile=''
-  Examples(iExample)%CheckedStateFile=''
-  Examples(iExample)%ReferenceStateFile=''
-  Examples(iExample)%ReferenceDataSetName=''
+  Examples(iExample)%ReferenceNormFile=''
+  Examples(iExample)%H5DIFFCheckedStateFile=''
+  Examples(iExample)%H5DIFFReferenceStateFile=''
+  Examples(iExample)%H5DIFFReferenceDataSetName=''
+  Examples(iExample)%H5diffToleranceType='absolute'
+  Examples(iExample)%H5diffTolerance=-1.
   Examples(iExample)%RestartFileName=''
   Examples(iExample)%ErrorStatus=0
 END DO
@@ -264,15 +280,14 @@ END SUBROUTINE GetExampleList
 !>  optional reference files for error-norms, reference state file and tested dataset and name of the checked state file
 !>  optional a restart filename
 !==================================================================================================================================
-SUBROUTINE InitExample(FilePath,FilePathLength,Example)
+SUBROUTINE InitExample(FilePath,Example)
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: tExample,readRHS
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)                        :: FilePathLength
-CHARACTER(LEN=FilePathLength),INTENT(IN)  :: FilePath
+CHARACTER(LEN=*),INTENT(IN)               :: FilePath
 TYPE(tExample),INTENT(INOUT)              :: Example
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -295,15 +310,16 @@ ELSE
 END IF
 
 ! init
-Example%MPIrun                 = .FALSE. ! don't use "mpirun" n default
-Example%MPIcommand             = 'mpirun'! use mpirun for running parallel simulations as default
-Example%MPIthreads             = '1'     ! run with 1 MPI thread on default
-Example%MPIthreadsN            = 1       ! minimum
-Example%nRuns                  = 1       ! minimum
-Example%nVar                   = 0
-Example%ReferenceTolerance     = -1.
-Example%SubExampleNumber       = 0       ! init total number of subexamples
-Example%SubExampleOption(1:20) = '-'     ! default option is nothing
+Example%MPIrun                  = .FALSE. ! don't use "mpirun" n default
+Example%MPIcommand              = 'mpirun'! use mpirun for running parallel simulations as default
+Example%MPIthreadsStr           = '1'     ! run with 1 MPI thread on default
+Example%MPIthreadsN             = 1       ! minimum
+Example%nRuns                   = 1       ! minimum
+Example%nVar                    = 0
+Example%ReferenceTolerance      = -1.
+Example%SubExample              = '-'     ! init
+Example%SubExampleNumber        = 0       ! init total number of subexamples
+Example%SubExampleOption(1:100) = '-'     ! default option is nothing
 DO ! extract reggie information
   READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1 ! get first line assuming it is something like "nVar= 5"
   IF(iSTATUS.EQ.-1) EXIT ! end of file (EOF) reached
@@ -315,28 +331,35 @@ DO ! extract reggie information
   IF(IndNum.GT.0)THEN ! definition found
     readRHS(1)=temp1(1:IndNum-1)      ! parameter name
     readRHS(2)=temp1(IndNum+1:MaxNum) ! parameter setting
+    ! number of DG cells in one direction
+    IF(TRIM(readRHS(1)).EQ.'NumberOfCells')CALL GetParameterList(ParameterList   = Example%NumberOfCellsStr,&
+                                                                 nParameters     = 100,               &
+                                                                 ParameterNumber = Example%NumberOfCellsN)
     ! get size of EQNSYS (deprecated)
     IF(TRIM(readRHS(1)).EQ.'nVar')CALL str2int(readRHS(2),Example%nVar,iSTATUS)
     ! single or parallel
     IF(TRIM(readRHS(1)).EQ.'MPIrun')    CALL str2logical(readRHS(2),Example%MPIrun,iSTATUS) ! True/False
     IF(TRIM(readRHS(1)).EQ.'MPIcommand')            Example%MPIcommand        =TRIM(ADJUSTL(readRHS(2)))
-    !IF(TRIM(readRHS(1)).EQ.'MPIthreads')CALL str2int(    readRHS(2),Example%MPIthreads,iSTATUS)!number of threads
-    IF(TRIM(readRHS(1)).EQ.'MPIthreads')CALL GetParameterList(ParameterList   = Example%MPIthreads,&
+    !IF(TRIM(readRHS(1)).EQ.'MPIthreads')CALL str2int(    readRHS(2),Example%MPIthreadsStr,iSTATUS)!number of threads
+    IF(TRIM(readRHS(1)).EQ.'MPIthreads')CALL GetParameterList(ParameterList   = Example%MPIthreadsStr,&
                                                               nParameters     = 100,               &
                                                               ParameterNumber = Example%MPIthreadsN)
     ! number of scaling runs
     IF(TRIM(readRHS(1)).EQ.'nRuns')CALL str2int(readRHS(2),Example%nRuns,iSTATUS)
     ! Reference Norm/State
     IF(TRIM(readRHS(1)).EQ.'ReferenceTolerance')CALL str2real(readRHS(2),Example%ReferenceTolerance,iSTATUS)
-    IF(TRIM(readRHS(1)).EQ.'ReferenceFile')          Example%ReferenceFile         =TRIM(ADJUSTL(readRHS(2)))
-    IF(TRIM(readRHS(1)).EQ.'ReferenceStateFile')     Example%ReferenceStateFile    =TRIM(ADJUSTL(readRHS(2)))
-    IF(TRIM(readRHS(1)).EQ.'CheckedStateFile')       Example%CheckedStateFile      =TRIM(ADJUSTL(readRHS(2)))
-    IF(TRIM(readRHS(1)).EQ.'ReferenceDataSetName')   Example%ReferenceDataSetName  =TRIM(ADJUSTL(readRHS(2)))
-    IF(TRIM(readRHS(1)).EQ.'RestartFileName')        Example%RestartFileName       =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'ReferenceFile')                Example%ReferenceFile         =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'ReferenceNormFile')            Example%ReferenceNormFile     =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5DIFFReferenceStateFile')           Example%H5DIFFReferenceStateFile    =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5DIFFCheckedStateFile')       Example%H5DIFFCheckedStateFile      =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5DIFFReferenceDataSetName')   Example%H5DIFFReferenceDataSetName  =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5diffToleranceType')          Example%H5diffToleranceType   =TRIM(ADJUSTL(readRHS(2)))
+    IF(TRIM(readRHS(1)).EQ.'H5diffTolerance')   CALL str2real(readRHS(2),Example%H5diffTolerance,iSTATUS)
+    IF(TRIM(readRHS(1)).EQ.'RestartFileName')              Example%RestartFileName       =TRIM(ADJUSTL(readRHS(2)))
     ! SubExamples - currently one subexample class is allowed with multiple options
     IF(TRIM(readRHS(1)).EQ.'SubExample') CALL GetParameterList(ParameterName   = Example%SubExample,       &
                                                                ParameterList   = Example%SubExampleOption, &
-                                                               nParameters     = 20,                       &
+                                                               nParameters     = 100,                       &
                                                                ParameterNumber = Example%SubExampleNumber)
     ! Line integration (e.g. integrate a property over time, the data is read from a .csv or .dat file)
     ! e.g. in parameter_reggie.ini: IntegrateLine= Database.csv   ,1            ,','       ,1:2        , 1.0e2
@@ -384,11 +407,175 @@ DO ! extract reggie information
       IF(Example%IntegrateLineHeaderLines.EQ.0)       Example%IntegrateLine=.FALSE.
       IF(Example%IntegrateLineDelimiter(1:3).EQ.'999')Example%IntegrateLine=.FALSE.
     END IF ! 'IntegrateLine'
+    ! Line comparison (compare one complete line in, e.g., a *.csv or *.dat file)
+    ! in parameter_reggie.ini define: 
+    !            CompareDatafileRow  =  Database.csv   ,Database.csv_ref, 1e-3      , 1            , ','       , last
+    !                                   data file name ,ref data file   , Tolerance , header lines , delimiter , line number
+    IF(TRIM(readRHS(1)).EQ.'CompareDatafileRow')THEN
+       Example%CompareDatafileRow            = .TRUE.
+       Example%CompareDatafileRowHeaderLines = 0       ! init
+       Example%CompareDatafileRowTolerance   = -1      ! init
+       Example%CompareDatafileRowReadHeader  = .FALSE. ! init
+       Example%CompareDatafileRowDelimiter   = '999'   ! init
+       IndNum2=INDEX(readRHS(2),',')
+       IF(IndNum2.GT.0)THEN ! get the name of the data file
+         temp2                     = readRHS(2)
+         Example%CompareDatafileRowFile      = TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! data file name
+         temp2                     = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+         IndNum2                   = INDEX(temp2,',')
+         IF(IndNum2.GT.0)THEN ! get the name of the reference data file
+           Example%CompareDatafileRowRefFile = TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! ref data file name
+           temp2                   = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+           IndNum2                 = INDEX(temp2,',')
+           IF(IndNum2.GT.0)THEN ! get tolerance value for comparison
+             CALL str2real(temp2(1:IndNum2-1),Example%CompareDatafileRowTolerance,iSTATUS)
+             temp2                 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+             IndNum2               = INDEX(temp2,',')
+             IF(IndNum2.GT.0)THEN ! use 1st header line for column data labels
+               CALL str2logical(temp2(1:IndNum2-1),Example%CompareDatafileRowReadHeader,iSTATUS)
+               temp2                 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+               IndNum2               = INDEX(temp2,',')
+               IF(IndNum2.GT.0)THEN ! get number of header lines in data file (they are ignored on reading the file)
+                 CALL str2int(temp2(1:IndNum2-1),Example%CompareDatafileRowHeaderLines,iSTATUS)
+                 temp2               = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                 IndNum2             = INDEX(temp2,"'")
+                 IF(IndNum2.GT.0)THEN ! get delimiter for separating the columns in the data file
+                   IndNum3=INDEX(temp2(IndNum2+1:LEN(TRIM(temp2))),"'")+IndNum2
+                   Example%CompareDatafileRowDelimiter=temp2(IndNum2+1:IndNum3-1)
+                   temp2             = temp2(IndNum3+1:LEN(TRIM(temp2))) ! next
+                   IndNum2           = INDEX(temp2,',')
+                   IF(IndNum2.GT.0)THEN ! get row number
+                     temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                     IF(ADJUSTL(TRIM(temp2)).EQ.'last')THEN ! use the 'last' line number in file for comparison
+                       Example%CompareDatafileRowNumber=HUGE(1)
+                       iSTATUS=0
+                     ELSE
+                       CALL str2int(temp2,Example%CompareDatafileRowNumber,iSTATUS)
+                     END IF 
+                   END IF ! get row number
+                 END IF ! get delimiter
+               END IF !  get number of header lines
+             END IF ! use 1st header line for column data labels
+           END IF ! get tolerance value for comparison
+         END IF ! get the name of the reference data file
+       END IF ! get file name
+      ! set CompareDatafileRow to false if any of the following cases is true
+      IF(ANY( (/iSTATUS.NE.0                                       ,&
+                Example%CompareDatafileRowFile.EQ.''               ,&
+                Example%CompareDatafileRowRefFile.EQ.''            ,&
+                Example%CompareDatafileRowTolerance.LT.0.          ,&
+                Example%CompareDatafileRowHeaderLines.EQ.0         ,&
+                Example%CompareDatafileRowDelimiter(1:3).EQ.'999'/) )) Example%CompareDatafileRow=.FALSE.
+    END IF ! 'CompareDatafileRow'
+    ! Convergence Test (h- or p-convergence for increasing the number of cells or increasing the polynomial degree N)
+    ! in parameter_reggie.ini define: 
+    !  for p: ConvergenceTest =       p     ,                   IntegrateLine                      , 0.12434232          , 1e-2
+    !  for h: ConvergenceTest =       h     ,                   Constant                           , 3.99                , 1e-2
+    !                          type (h or p), comparison type (IntegrateLine or power law exponent), value for comparison, Tolerance
+    IF(TRIM(readRHS(1)).EQ.'ConvergenceTest')THEN
+      Example%ConvergenceTest           = .TRUE.
+      Example%ConvergenceTestType       = ''     ! init
+      Example%ConvergenceTestDomainSize = -999.0 ! init
+      Example%ConvergenceTestValue      = -999.0 ! init
+      Example%ConvergenceTestTolerance  = -1.     ! init
+      IndNum2=INDEX(readRHS(2),',')
+      IF(IndNum2.GT.0)THEN ! get the type of the convergence test (h- or p-convergence)
+        temp2                     = readRHS(2)
+        Example%ConvergenceTestType= TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! type
+        temp2                     = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+        IndNum2                   = INDEX(temp2,',')
+        IF(IndNum2.GT.0)THEN ! get the size of the domain
+          CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestDomainSize,iSTATUS)
+          temp2                          = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+          IndNum2                        = INDEX(temp2,',')
+          IF((IndNum2.GT.0).AND.(iSTATUS.EQ.0))THEN ! get value for comparison
+            CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestValue,iSTATUS)
+            temp2                  = TRIM(ADJUSTL(temp2(IndNum2+1:LEN(TRIM(temp2))))) ! next
+            IndNum2               = LEN(temp2)
+            IF((IndNum2.GT.0).AND.(iSTATUS.EQ.0))THEN ! get tolerance value for comparison
+              CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestTolerance,iSTATUS)
+            END IF ! get tolerance value for comparison
+          END IF ! get value for comparison
+        END IF ! get the comparison type
+      END IF ! get the type of the convergence test (h- or p-convergence)
+      ! set ConvergenceTest to false if any of the following cases is true
+      IF(ANY( (/iSTATUS.NE.0                             ,&
+                Example%ConvergenceTestType.EQ.''        ,&
+                Example%ConvergenceTestDomainSize.LT.-1. ,&
+                Example%ConvergenceTestValue.LT.-1.      ,&
+                Example%ConvergenceTestTolerance.EQ.-1.     &
+                /) )) Example%ConvergenceTest=.FALSE.
+      IF(Example%ConvergenceTest.EQV..FALSE.)THEN
+        SWRITE(UNIT_stdOut,'(A,A)')      'Example%ConvergenceTestType       : ',Example%ConvergenceTestType
+        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestDomainSize : ',Example%ConvergenceTestDomainSize
+        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestValue      : ',Example%ConvergenceTestValue
+        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestTolerance  : ',Example%ConvergenceTestTolerance
+      END IF
+    END IF ! 'ConvergenceTest'
+    ! Check the bounds of an array in a HDF5 file, if they are outside the supplied ranges -> fail
+    IF(TRIM(readRHS(1)).EQ.'CompareHDF5ArrayBounds')THEN
+      Example%CompareHDF5ArrayBounds           = .TRUE. ! read an array from a HDF5 file and compare certain entry
+      Example%CompareHDF5ArrayBoundsValue(1:2) = 0.     ! value ranges for comparison
+      Example%CompareHDF5ArrayBoundsRange(1:2) = -1     ! HDF5 array dim ranges
+      Example%CompareHDF5ArrayBoundsName       = '-1'   ! array name in HDF5 file
+      Example%CompareHDF5ArrayBoundsFile       = '-1'   ! name of HDF5 file
+      IndNum2=INDEX(readRHS(2),',')
+      IF(IndNum2.GT.0)THEN ! get name of array in HDF5 file
+        temp2                              = readRHS(2)
+        Example%CompareHDF5ArrayBoundsFile = TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! type
+        temp2                              = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+        IndNum2                            = INDEX(temp2,',')
+        IF(IndNum2.GT.0)THEN ! get name of array in HDF5 file
+          Example%CompareHDF5ArrayBoundsName = TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! type
+          temp2                              = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+          IndNum2                            = INDEX(temp2,',')
+          IF(IndNum2.GT.0)THEN ! HDF5 array dim ranges
+            IndNum2             = INDEX(temp2,',')
+            IndNum3=INDEX(temp2(1:IndNum2),':')
+            IF(IndNum3.GT.0)THEN ! check range
+              CALL str2int(temp2(1        :IndNum3-1),Example%CompareHDF5ArrayBoundsRange(1),iSTATUS) ! column number 1
+              CALL str2int(temp2(IndNum3+1:IndNum2-1),Example%CompareHDF5ArrayBoundsRange(2),iSTATUS) ! column number 2
+              temp2             = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+              IndNum2           = LEN(TRIM(temp2))
+              IF(IndNum2.GT.0)THEN ! value ranges for comparison
+                IndNum2           = LEN(temp2)
+                IndNum3=INDEX(temp2(1:IndNum2),':')
+                IF(IndNum3.GT.0)THEN ! check range
+                  CALL str2real(temp2(1        :IndNum3-1),Example%CompareHDF5ArrayBoundsValue(1),iSTATUS) ! column number 1
+                  CALL str2real(temp2(IndNum3+1:IndNum2-1),Example%CompareHDF5ArrayBoundsValue(2),iSTATUS) ! column number 2
+                END IF ! check range
+              END IF ! value ranges for comparison
+            END IF ! check range
+          END IF ! HDF5 array dim ranges
+        END IF ! get name of array in HDF5 file
+      END IF ! get name of HDF5 file
+      ! set "CompareHDF5ArrayBounds" to false if any of the following cases is true
+      IF(ANY( (/iSTATUS.NE.0                                                                           ,&
+                ANY(Example%CompareHDF5ArrayBoundsRange(1:2).EQ.-1)                                    ,&
+                    Example%CompareHDF5ArrayBoundsName.EQ.'-1'                                         ,&
+                    Example%CompareHDF5ArrayBoundsFile.EQ.'-1'                                         ,&
+                    Example%CompareHDF5ArrayBoundsValue(1).GT.Example%CompareHDF5ArrayBoundsValue(2)   ,&
+                    Example%CompareHDF5ArrayBoundsRange(1).GT.Example%CompareHDF5ArrayBoundsRange(2)  /)&
+                  ))Example%CompareHDF5ArrayBounds=.FALSE.
+      IF(Example%CompareHDF5ArrayBounds.EQV..FALSE.)THEN
+        SWRITE(UNIT_stdOut,'(A,E25.14,A)') 'Example%CompareHDF5ArrayBoundsValue(1) : '&
+                                           ,Example%CompareHDF5ArrayBoundsValue(1),' (lower)'
+        SWRITE(UNIT_stdOut,'(A,E25.14,A)') 'Example%CompareHDF5ArrayBoundsValue(2) : '&
+                                           ,Example%CompareHDF5ArrayBoundsValue(2),' (upper)'
+        SWRITE(UNIT_stdOut,'(A,I6,A)') 'Example%CompareHDF5ArrayBoundsRange(1) : '&
+                                           ,Example%CompareHDF5ArrayBoundsRange(1),' (lower)'
+        SWRITE(UNIT_stdOut,'(A,I6,A)') 'Example%CompareHDF5ArrayBoundsRange(2) : '&
+                                           ,Example%CompareHDF5ArrayBoundsRange(2),' (upper)'
+        SWRITE(UNIT_stdOut,'(A,A)')        'Example%CompareHDF5ArrayBoundsName     : ',Example%CompareHDF5ArrayBoundsName
+        SWRITE(UNIT_stdOut,'(A,A)')        'Example%CompareHDF5ArrayBoundsFile     : ',Example%CompareHDF5ArrayBoundsFile
+      END IF
+    END IF ! 'CompareHDF5ArrayBounds'
     ! Next feature
     !IF(TRIM(readRHS(1)).EQ.'NextFeature')
   END IF ! IndNum.GT.0 -> definition found
 END DO
 CLOSE(ioUnit)
+
 END SUBROUTINE InitExample
 
 
@@ -459,74 +646,6 @@ ELSE ! no opening bracket "{" found, single argument is expected
 END IF
 END SUBROUTINE GetParameterList
 
-
-!==================================================================================================================================
-!> This routine goes into each example folder of the regressioncheck. Inside, the not required State-files and std.out and err.out
-!> files are removed. The subroutine is called, if the example is computed successfully.
-!==================================================================================================================================
-SUBROUTINE CleanExample(iExample)
-! MODULES
-USE MOD_Globals
-USE MOD_RegressionCheck_Vars,  ONLY: Examples
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)             :: iExample
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=500)             :: SYSCOMMAND
-CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=255)             :: tmp
-INTEGER                        :: iSTATUS,ioUnit
-!==================================================================================================================================
-! delete all *.out files
-SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm *.out > /dev/null 2>&1'
-CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-IF(iSTATUS.NE.0)THEN
-  SWRITE(UNIT_stdOut,'(A)')' CleanExample(',Examples(iExample)%PATH,'): Could not remove *.out files!'
-END IF
-
-! delete all *State* files except *reference* state files
-IF((Examples(iExample)%ReferenceStateFile.EQ.'').AND. &
-   (Examples(iExample)%RestartFileName.EQ.'') ) THEN
-  SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm *State* > /dev/null 2>&1'
-  CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  IF(iSTATUS.NE.0)THEN
-    SWRITE(UNIT_stdOut,'(A)')' CleanExample(',Examples(iExample)%PATH,'): Could not remove *State* files!'
-  END IF
-ELSE
-  ! create list of all *State* files and loop them: don't delete *reference* files
-  SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && ls *State* > tmp.txt'
-  CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  IF(iSTATUS.NE.0)THEN
-    SWRITE(UNIT_stdOut,'(A)')' CleanExample(',Examples(iExample)%PATH,'): Could not remove tmp.txt!'
-  END IF
-  ! read tmp.txt | list of directories if regressioncheck/examples
-  FileName=TRIM(Examples(iExample)%PATH)//'tmp.txt'
-  ioUnit=GETFREEUNIT()
-  OPEN(UNIT = ioUnit, FILE = FileName, STATUS ="OLD", IOSTAT = iSTATUS ) 
-  DO 
-    READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS) tmp
-    IF (iSTATUS.NE.0) EXIT
-    IF((Examples(iExample)%ReferenceStateFile.NE.TRIM(tmp)).AND. &
-       (Examples(iExample)%RestartFileName.NE.TRIM(tmp)) ) THEN
-       SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm '//TRIM(tmp)
-       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-       IF(iSTATUS.NE.0) THEN
-         SWRITE(UNIT_stdOut,'(A)')  ' CleanExample(',Examples(iExample)%PATH,'): Could not remove state file ',TRIM(tmp)
-       END IF
-    END IF
-  END DO
-  CLOSE(ioUnit)
-  ! clean tmp.txt
-  SYSCOMMAND='cd '//TRIM(Examples(iExample)%PATH)//' && rm tmp.txt'
-  CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  IF(iSTATUS.NE.0) THEN
-    SWRITE(UNIT_stdOut,'(A)')  ' CleanExample(',Examples(iExample)%PATH,'): Could not remove tmp.txt'
-  END IF
-END IF
-
-END SUBROUTINE CleanExample
 
 
 !==================================================================================================================================
@@ -654,7 +773,7 @@ REAL,INTENT(INOUT),OPTIONAL    :: EndTime            ! Used to track computation
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: Time
-CHARACTER(LEN=255)             :: TableRowSpacing ! set row spacing between examples in table
+CHARACTER(LEN=255)             :: SpacingBetweenExamples(2) ! set row spacing between examples in table
 !===================================================================================================================================
 IF(.NOT.PRESENT(EndTime))THEN
   Time=REGGIETIME() ! Measure processing duration
@@ -670,22 +789,27 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)') ' Summary of Errors (0=no Error): '
   SWRITE(UNIT_stdOut,'(A)') ' '
   aError=>firstError ! set aError to first error in list
-  TableRowSpacing=''
-  SWRITE(UNIT_stdOut,'(A45,2x,A30,2x,A10,2x,A15,2x,A35,2x)') 'Example','SubExample','ErrorCode','build','Information'
+  SpacingBetweenExamples(:)=''
+  SWRITE(UNIT_stdOut,'(A5,2x,A45,2x,A30,2x,A10,2x,A15,2x,A12,2x,A35,2x)')&
+                       'run#','Example','SubExample','ErrorCode','build','MPI threads','Information'
   DO WHILE (ASSOCIATED(aError))
-    IF(TRIM(TableRowSpacing).NE.TRIM(aError%Example))THEN
-      SWRITE(UNIT_stdOut,'(A)') ''
+    IF( (TRIM(SpacingBetweenExamples(1)).NE.TRIM(aError%Example)) .OR. & ! IF the exmaple changes, include blank line
+        (TRIM(SpacingBetweenExamples(2)).NE.TRIM(aError%Build  )) )THEN  ! IF the binary  changes, include blank line
+      SWRITE(UNIT_stdOut,'(A)') '' ! include empty line
     END IF
-    TableRowSpacing=TRIM(aError%Example)
-    SWRITE(UNIT_stdOut,'(A45,2x)',ADVANCE='no') TRIM(aError%Example)
+    SpacingBetweenExamples(1)=TRIM(aError%Example)
+    SpacingBetweenExamples(2)=TRIM(aError%Build)
+    SWRITE(UNIT_stdOut,'(I5,2x)',ADVANCE='no') aError%RunNumber                                               ! run#
+    SWRITE(UNIT_stdOut,'(A45,2x)',ADVANCE='no') TRIM(aError%Example)                                          ! Example
     IF(TRIM(aError%SubExampleOption).EQ.'-')THEN
       SWRITE(UNIT_stdOut,'(A30,2x)',ADVANCE='no') '-'
     ELSE
-      SWRITE(UNIT_stdOut,'(A30,2x)',ADVANCE='no') TRIM(aError%SubExample)//'='//TRIM(aError%SubExampleOption)
+      SWRITE(UNIT_stdOut,'(A30,2x)',ADVANCE='no') TRIM(aError%SubExample)//'='//TRIM(aError%SubExampleOption) ! SubExample
     END IF
-    SWRITE(UNIT_stdOut,'(I10,2x)',ADVANCE='no') aError%ErrorCode
-    SWRITE(UNIT_stdOut,'(A15,2x)',ADVANCE='no') TRIM(aError%Build)
-    SWRITE(UNIT_stdOut,'(A35,2x)',ADVANCE='no') TRIM(aError%Info)
+    SWRITE(UNIT_stdOut,'(I10,2x)',ADVANCE='no') aError%ErrorCode                                              ! ErrorCode
+    SWRITE(UNIT_stdOut,'(A15,2x)',ADVANCE='no') TRIM(aError%Build)                                            ! build
+    SWRITE(UNIT_stdOut,'(A12,2x)',ADVANCE='no') TRIM(aError%MPIthreadsStr)                                    ! MPI threads
+    SWRITE(UNIT_stdOut,'(A35,2x)',ADVANCE='no') TRIM(aError%Info)                                             ! Information
     SWRITE(UNIT_stdOut,'(A)') ' '
     IF(aError%ErrorCode.NE.0) nErrors=nErrors+1
     aError=>aError%nextError
@@ -708,17 +832,17 @@ END SUBROUTINE SummaryOfErrors
 !> Add an Error entry to the list of pointers containing information regarding the compilation process, execution process, 
 !> Error codes and example info
 !==================================================================================================================================
-SUBROUTINE AddError(Info,iExample,iSubExample,ErrorStatus,ErrorCode)
+SUBROUTINE AddError(MPIthreadsStr,Info,iExample,iSubExample,ErrorStatus,ErrorCode)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: ExampleNames,Examples,EXECPATH,firstError,aError
+USE MOD_RegressionCheck_Vars,    ONLY: ExampleNames,Examples,EXECPATH,firstError,aError,GlobalRunNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(len=*),INTENT(IN) :: Info
+CHARACTER(len=*),INTENT(IN) :: Info,MPIthreadsStr
 INTEGER,INTENT(IN)          :: iExample,iSubExample,ErrorStatus,ErrorCode
 !INTEGER         :: a
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -727,28 +851,168 @@ INTEGER,INTENT(IN)          :: iExample,iSubExample,ErrorStatus,ErrorCode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+!    !Debugging:
+!    SWRITE(UNIT_stdOut,*)"ErrorCode                                        = [",ErrorCode,"]"
+!    SWRITE(UNIT_stdOut,*)"ExampleNames(iExample)                           = [",Trim(ExampleNames(iExample)),"]"
+!    SWRITE(UNIT_stdOut,*)"Examples(iExample)%SubExample                    = [",Trim(Examples(iExample)%SubExample),"]"
+!    SWRITE(UNIT_stdOut,*)"Examples(iExample)%SubExampleOption(iSubExample) = [",&
+!    Trim(Examples(iExample)%SubExampleOption(iSubExample)),"]"
+!    SWRITE(UNIT_stdOut,*)"Info                                             = [",Trim(Info),"]"
+!    SWRITE(UNIT_stdOut,*)"MPIthreadsStr                                    = [",Trim(MPIthreadsStr),"]"
+!    SWRITE(UNIT_stdOut,*)"Build                                            = [",&
+!    TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH))),"]"
 Examples(iExample)%ErrorStatus=ErrorStatus
 IF(firstError%ErrorCode.EQ.-1)THEN ! first error pointer
   firstError%ErrorCode              =ErrorCode ! no error
+  firstError%RunNumber              =GlobalRunNumber ! 
   firstError%Example                =TRIM(ExampleNames(iExample))
   firstError%SubExample             =TRIM(Examples(iExample)%SubExample)
   firstError%SubExampleOption       =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
   firstError%Info                   =TRIM(Info)
+  firstError%MPIthreadsStr          =TRIM(MPIthreadsStr)
   firstError%Build                  =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
   ALLOCATE(aError)
   aError=>firstError
 ELSE ! next error pointer
   ALLOCATE(aError%nextError)
   aError%nextError%ErrorCode        =ErrorCode ! no error
+  aError%nextError%RunNumber        =GlobalRunNumber ! 
   aError%nextError%Example          =TRIM(ExampleNames(iExample))
   aError%nextError%SubExample       =TRIM(Examples(iExample)%SubExample)
   aError%nextError%SubExampleOption =TRIM(Examples(iExample)%SubExampleOption(iSubExample))
   aError%nextError%Info             =TRIM(Info)
+  aError%nextError%MPIthreadsStr    =TRIM(MPIthreadsStr)
   aError%nextError%Build            =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
   aError=>aError%nextError
 END IF
 
 END SUBROUTINE AddError
+
+
+!==================================================================================================================================
+!> read parameter values from a specified file
+!==================================================================================================================================
+SUBROUTINE GetParameterFromFile(FileName,ParameterName,output)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,            ONLY: Getfreeunit
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
+CHARACTER(LEN=*),INTENT(IN)  :: ParameterName     ! e.g. 'XX_EQNSYSNAME'
+!INTEGER         :: a
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
+INTEGER                        :: iSTATUS      ! status
+CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
+INTEGER                        :: ioUnit       ! field handler unit and ??
+INTEGER                        :: IndNum       ! Index Number
+!===================================================================================================================================
+output=''
+INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+IF(ExistFile) THEN
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
+  DO
+    READ(ioUnit,'(A)',iostat=iSTATUS)temp
+    temp2=ADJUSTL(temp)
+    IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
+    IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
+    IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
+      IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
+      IF(IndNum.GT.0)THEN
+        temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+        IndNum=INDEX(temp2, '=')
+        IF(IndNum.GT.0)THEN
+          temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
+          IndNum=INDEX(temp2, '!')
+          IF(IndNum.GT.0)THEN
+            temp2=temp2(1:IndNum-1)
+          END IF
+        END IF
+        output=TRIM(ADJUSTL(temp2))
+        EXIT
+      END IF
+    END IF
+  END DO
+  CLOSE(ioUnit)
+  IF(output.EQ.'')output='ParameterName does not exist'
+ELSE 
+  output='file does not exist'
+END IF
+END SUBROUTINE GetParameterFromFile
+
+
+!==================================================================================================================================
+!> search a file for a specific string, return .TRUE. if it is found
+!==================================================================================================================================
+SUBROUTINE CheckFileForString(FileName,ParameterName,ExistString)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,            ONLY: Getfreeunit
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)  :: FileName       !> e.g. './../build_reggie/bin/configuration.cmake'
+CHARACTER(LEN=*),INTENT(IN)  :: ParameterName  !> e.g. 'XX_EQNSYSNAME'
+!INTEGER         :: a
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT) :: ExistString ! e.g. 'navierstokes'
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                        :: ExistFile    !> file exists=.true., file does not exist=.false.
+INTEGER                        :: iSTATUS      !> status
+CHARACTER(LEN=255)             :: temp,temp2   !> temp variables for read in of file lines
+INTEGER                        :: ioUnit       !> field handler unit and ??
+INTEGER                        :: IndNum       !> Index Number
+!===================================================================================================================================
+!print*,"FileName      = ",TRIM(FileName)
+!print*,"ParameterName = ",TRIM(ParameterName)
+!print*,"Continue? ... "
+!read*
+ExistString=.FALSE.
+INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+IF(ExistFile) THEN
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
+  DO
+    READ(ioUnit,'(A)',iostat=iSTATUS)temp
+    temp2=ADJUSTL(temp)
+    IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
+    IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
+    IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
+      IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
+      IF(IndNum.GT.0)THEN
+        !temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+        !IndNum=INDEX(temp2, '=')
+        !IF(IndNum.GT.0)THEN
+          !temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
+          !IndNum=INDEX(temp2, '!')
+          !IF(IndNum.GT.0)THEN
+            !temp2=temp2(1:IndNum-1)
+          !END IF
+        !END IF
+        ExistString=.TRUE.!TRIM(ADJUSTL(temp2))
+        EXIT
+      END IF
+    END IF
+  END DO
+  CLOSE(ioUnit)
+  !IF(ExistString.EQ.'')ExistString=.FALSE.
+ELSE 
+  ExistString=.FALSE.
+END IF
+END SUBROUTINE CheckFileForString
 
 
 !==================================================================================================================================
@@ -786,6 +1050,52 @@ REGGIETIME=MPI_WTIME()
 CALL CPU_TIME(REGGIETIME)
 #endif
 END FUNCTION REGGIETIME
+
+
+!==================================================================================================================================
+!> Calculate the average convergence order for vectors h and E
+!==================================================================================================================================
+SUBROUTINE CalcOrder(DimOfVectors,h,E,order)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)       :: DimOfVectors
+REAL,INTENT(IN)          :: h(DimOfVectors)
+REAL,INTENT(IN)          :: E(DimOfVectors)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)         :: order
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!CHARACTER(len=*),INTENT(IN) :: str
+!INTEGER,INTENT(OUT)         :: int_number
+INTEGER                  :: I
+REAL                     :: m
+!===================================================================================================================================
+IF(DimOfVectors.LT.2)THEN
+  SWRITE(UNIT_stdOut,'(A)') 'SUBROUTINE CalcOrder(DimOfVectors,h,E,order): input dimension must be larger than 1!'
+  order=-999.
+END IF
+
+!print*,h
+!print*,E
+
+order=0.
+DO I=1,DimOfVectors-1
+  m=LOG(E(i+1)/E(i))/LOG(h(i+1)/h(i))
+!print*,"m=",m
+!read*
+  order=order+m
+END DO
+order=order/(DimOfVectors-1)
+!print*,"order=",order
+!read*
+END SUBROUTINE CalcOrder
 
 
 !==================================================================================================================================
@@ -966,10 +1276,10 @@ SWRITE(UNIT_stdOut,'(A)') ' parameter_reggie.ini       | contains parameters for
 SWRITE(UNIT_stdOut,'(A)') '                            |                                                        '
 SWRITE(UNIT_stdOut,'(A)') '        number of variables | nVar= 5 (depricated)                                   '
 SWRITE(UNIT_stdOut,'(A)') '                 MPI on/off | MPI= T                                                 '
-SWRITE(UNIT_stdOut,'(A)') '     L2/Linf reference file | ReferenceFile= referencenorm.txt                       '
-SWRITE(UNIT_stdOut,'(A)') '  ref state file for h5diff | ReferenceStateFile= cavity_reference_State_0.200.h5    '
-SWRITE(UNIT_stdOut,'(A)') '      state file for h5diff | CheckedStateFile= cavity_State_0000000.200000000.h5    '
-SWRITE(UNIT_stdOut,'(A)') '      array name for h5diff | ReferenceDataSetName= DG_Solution                      '
+SWRITE(UNIT_stdOut,'(A)') '     L2/Linf reference file | ReferenceNormFile= referencenorm.txt                   '
+SWRITE(UNIT_stdOut,'(A)') '  ref state file for h5diff | H5DIFFReferenceStateFile= cavity_refe_State_0.20.h5    '
+SWRITE(UNIT_stdOut,'(A)') '      state file for h5diff | H5DIFFCheckedStateFile= cavity_State_0000000.200.h5    '
+SWRITE(UNIT_stdOut,'(A)') '      array name for h5diff | H5DIFFReferenceDataSetName= DG_Solution                '
 SWRITE(UNIT_stdOut,'(A)') '       if restart is wanted | RestartFileName=                                       '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------'
 

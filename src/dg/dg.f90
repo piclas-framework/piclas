@@ -186,8 +186,6 @@ Geotemp(2:4,:,:,:)=NormVec(:,:,:,1:nSides)
 Geotemp(5:7,:,:,:)=TangVec1(:,:,:,1:nSides)
 Geotemp(8:10,:,:,:)=TangVec2(:,:,:,1:nSides)
 !Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
-
-IPWRITE(*,*) size(Geotemp)
 CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
 CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
 CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE

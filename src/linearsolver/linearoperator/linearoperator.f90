@@ -14,6 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#ifndef PP_HDG
 INTERFACE MatrixVector
   MODULE PROCEDURE MatrixVector
 END INTERFACE
@@ -25,6 +26,7 @@ END INTERFACE
 INTERFACE VectorDotProduct
   MODULE PROCEDURE VectorDotProduct
 END INTERFACE
+#endif /*NOT HDG*/
 
 #if defined(PARTICLES) && defined(IMPA)
 INTERFACE PartVectorDotProduct
@@ -37,7 +39,9 @@ END INTERFACE
 #endif
 
 
+#ifndef PP_HDG
 PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
+#endif /*NOT HDG*/
 #if defined(PARTICLES) && defined(IMPA)
 PUBLIC:: PartVectorDotProduct,PartMatrixVector
 #endif
@@ -45,6 +49,7 @@ PUBLIC:: PartVectorDotProduct,PartMatrixVector
 
 CONTAINS
 
+#ifndef PP_HDG
 SUBROUTINE MatrixVector(t,Coeff,X,Y)
 !===================================================================================================================================
 ! Computes Matrix Vector Product y=A*x for linear Equations only
@@ -214,6 +219,74 @@ END DO
 
 END SUBROUTINE VectorDotProduct
 
+
+SUBROUTINE ElementVectorDotProduct(a,b,resu)
+!===================================================================================================================================
+! Computes Dot Product for vectors a and b: resu=a.b
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)   :: a(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
+REAL,INTENT(IN)   :: b(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)  :: resu
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iVar,i,j,k
+!===================================================================================================================================
+
+resu=0.
+DO k=0,PP_N
+  DO j=0,PP_N
+    DO i=0,PP_N
+      DO iVar=1,PP_nVar
+        resu=resu + a(iVar,i,j,k)*b(iVar,i,j,k)
+      END DO
+    END DO
+  END DO
+END DO
+
+END SUBROUTINE ElementVectorDotProduct
+
+SUBROUTINE DENSE_MATMUL(n,A,x,y)
+!===================================================================================================================================
+! Computes a dense Matrix vector product
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)       :: A(n,n), x(n)
+INTEGER,INTENT(IN)    :: n
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)      :: y(n) !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER               :: i,j
+!===================================================================================================================================
+
+DO i=1,n
+ y(i)=0.
+END DO
+
+DO j=1,n
+  DO i=1,n
+    y(i) = y(i)+A(i,j)*x(j)
+  END DO ! i
+END DO ! j
+
+END SUBROUTINE DENSE_MATMUL
+#endif /*NOT HDG*/
+
+
 #if defined(PARTICLES) && defined(IMPA)
 SUBROUTINE PartVectorDotProduct(a,b,resu)
 !===================================================================================================================================
@@ -325,69 +398,5 @@ END IF
 END SUBROUTINE PartMatrixVector
 #endif
 
-SUBROUTINE ElementVectorDotProduct(a,b,resu)
-!===================================================================================================================================
-! Computes Dot Product for vectors a and b: resu=a.b
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)   :: a(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
-REAL,INTENT(IN)   :: b(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)  :: resu
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: iVar,i,j,k
-!===================================================================================================================================
-
-resu=0.
-DO k=0,PP_N
-  DO j=0,PP_N
-    DO i=0,PP_N
-      DO iVar=1,PP_nVar
-        resu=resu + a(iVar,i,j,k)*b(iVar,i,j,k)
-      END DO
-    END DO
-  END DO
-END DO
-
-END SUBROUTINE ElementVectorDotProduct
-
-SUBROUTINE DENSE_MATMUL(n,A,x,y)
-!===================================================================================================================================
-! Computes a dense Matrix vector product
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)       :: A(n,n), x(n)
-INTEGER,INTENT(IN)    :: n
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)      :: y(n) !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-INTEGER               :: i,j
-!===================================================================================================================================
-
-DO i=1,n
- y(i)=0.
-END DO
-
-DO j=1,n
-  DO i=1,n
-    y(i) = y(i)+A(i,j)*x(j)
-  END DO ! i
-END DO ! j
-
-END SUBROUTINE DENSE_MATMUL
 
 END MODULE MOD_LinearOperator

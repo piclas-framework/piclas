@@ -274,7 +274,7 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 ! MODULES
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
-USE MOD_PICDepo_Vars,ONLY:source
+USE MOD_PICDepo_Vars,ONLY:source,DoDeposition
 USE MOD_Equation_Vars,ONLY: eps0
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
@@ -297,9 +297,8 @@ REAL                             :: r1,r2, source_e
 REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 INTEGER                         :: RegionID
 !===================================================================================================================================
-SELECT CASE (IniExactFunc)
-CASE(0) ! Particles
 #ifdef PARTICLES
+IF(DoDeposition)THEN
   source_e=0.
   IF (PRESENT(Phi)) THEN
     RegionID=0
@@ -318,7 +317,12 @@ CASE(0) ! Particles
       END IF
   END IF
   resu(1)= - (source(4,i,j,k,iElem)-source_e)/eps0
+END IF
 #endif /*PARTICLES*/
+
+SELECT CASE (IniExactFunc)
+CASE(0) ! Particles
+  ! empty
 CASE(103)
  x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
  dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))

@@ -376,7 +376,8 @@ DO iVar = 1, PP_nVar
         r=q*(PP_N+1) + p+1
   !      CALL ExactFunc(BCstate,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
          IF (iVar.EQ.1) THEN
-           lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+           lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
+             +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
          ELSE
            lambda(iVar,r:r,SideID)= 0.0
          END IF
@@ -590,6 +591,9 @@ USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,       ONLY:ExplicitSource
+#endif
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
@@ -646,7 +650,8 @@ DO iVar = 1, PP_nVar
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
   !      CALL ExactFunc(BCstate,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
-       lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+       lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
+         +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     CASE(5) ! exact BC = Dirichlet BC !!
 !print*,"BCType=",BCType,"    BCsideID=",BCsideID,"     IniExactFunc",IniExactFunc
@@ -702,6 +707,18 @@ DO iVar = 1, PP_nVar
 END DO
 
 !volume source (volume RHS of u system)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+DO iElem=1,PP_nElems
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem))
+    RHS_vol(1:PP_nVar,r,iElem)=RHS_vol(1:PP_nVar,r,iElem)+ExplicitSource(1:PP_nVar,i,j,k,iElem)
+  END DO; END DO; END DO !i,j,k    
+  DO iVar = 1, PP_nVar
+    RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
+  END DO
+END DO !iElem 
+#else
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
@@ -711,6 +728,7 @@ DO iElem=1,PP_nElems
     RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
   END DO
 END DO !iElem 
+#endif
 
 !replace lambda with exact function (debugging)
 IF(onlyPostProc.OR.ExactLambda)THEN
@@ -893,7 +911,8 @@ DO BCsideID=1,nDirichletBCSides
     ! SPECIAL BC: BCState specifies exactfunc to be used!!
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      lambda(PP_nVar,r:r,SideID)= PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+      lambda(PP_nVar,r:r,SideID)= PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
+        +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides

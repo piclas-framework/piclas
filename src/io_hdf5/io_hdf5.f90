@@ -79,9 +79,9 @@ END SUBROUTINE InitIO_HDF5
 
 
 #ifdef MPI
-SUBROUTINE OpenHDF5File(FileString,create,single,communicatorOpt,userblockSize)
+SUBROUTINE OpenHDF5File(FileString,create,single,readOnly,communicatorOpt,userblockSize)
 #else
-SUBROUTINE OpenHDF5File(FileString,create,userblockSize)
+SUBROUTINE OpenHDF5File(FileString,create,readOnly,userblockSize)
 #endif
 !===================================================================================================================================
 ! Open HDF5 file and groups
@@ -94,6 +94,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)   :: FileString
 LOGICAL,INTENT(IN)            :: create
+LOGICAL,INTENT(IN)            :: readOnly
 #ifdef MPI
 LOGICAL,INTENT(IN)            :: single
 INTEGER,INTENT(IN),OPTIONAL   :: communicatorOpt
@@ -148,7 +149,11 @@ ELSE !read-only ! and write (added later)
   IF(.NOT.fileExists) CALL abort(&
 __STAMP__&
 , 'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
-  CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_ID)
+  IF (readOnly) THEN
+    CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDONLY_F,  File_ID, iError, access_prp = Plist_ID)
+  ELSE
+    CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_ID)
+  END IF
 END IF
 IF(iError.NE.0) CALL abort(&
 __STAMP__&

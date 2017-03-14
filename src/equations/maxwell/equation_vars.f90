@@ -10,6 +10,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL           :: CentralFlux                             ! flag for central or upwind flux
 REAL              :: c_corr
 REAL              :: c_corr2    !c_corr^2
 REAL              :: c_corr_c   !c_corr*c
@@ -33,15 +34,22 @@ REAL              :: tPulse
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
-REAL              :: WaveVector(1:3)
-REAL              :: WaveLength
-REAL,DIMENSION(3) :: WaveBasePoint
-REAL              :: tFWHM
-REAL              :: Beam_a0
-REAL              :: I_0
-REAL              :: sigma_t
-REAL              :: omega_0, omega_0_2inv
-LOGICAL           :: CentralFlux
+! planar wave and gaussian beam
+REAL              :: E_0(1:3)                               !> electric field vector of wave
+REAL              :: BeamEta                                !> impedance factor (2*impedance): BeamEta=2.*SQRT(mu0/eps0)
+REAL              :: BeamWaveNumber                         !> wave number: BeamWaveNumber= 2*pi/WaveLength
+REAL              :: BeamOmegaW                             !> angular frequency: BeamOmegaW = WaveNumber*c
+INTEGER           :: BeamIdir1,BeamIdir2,BeamIdir3          !> wave beam direction aux variables
+REAL              :: WaveVector(1:3)                        !> wave vector
+REAL              :: WaveLength                             !> wave length
+REAL,DIMENSION(3) :: WaveBasePoint                          !> wave base point || origin
+REAL              :: tFWHM                                  !> time for full wave half maximum
+REAL              :: Beam_a0                                !> value to scale max. electric field
+REAL              :: BeamAmpFac                             !> decide if pulse maxima is scaled by intensity or a_0 parameter
+REAL              :: tDelay                                 !> delay time filter for gaussian beam
+REAL              :: I_0                                    !> max. intensity
+REAL              :: sigma_t                                !> sigma_t can be used instead of tFWHM
+REAL              :: omega_0, omega_0_2inv                  !> spot size and inv of spot size
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)
