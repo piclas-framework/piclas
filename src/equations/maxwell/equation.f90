@@ -281,7 +281,6 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variab
 !REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
 REAL                            :: omegaG,g,h,k,B0G
 INTEGER                         :: MG,nG
-REAL                            :: spatialWindow,tShift            !> electromagnetic wave shaping vars
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
