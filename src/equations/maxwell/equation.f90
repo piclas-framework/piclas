@@ -406,6 +406,11 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   eps=1e-10
   !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
+  ! if a DOF is located in the origin, prevent division by zero ..
+  IF(ALMOSTZERO(r))THEN
+    resu(1:8)=0.
+    RETURN
+  END IF
   IF (x(1).GT.eps)      THEN
     phi = ATAN(x(2)/x(1))
   ELSE IF (x(1).LT.(-eps)) THEN
