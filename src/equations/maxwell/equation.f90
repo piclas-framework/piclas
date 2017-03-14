@@ -138,6 +138,8 @@ DO iRefState=1,nTmp
   CASE(4)
     DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
+  CASE(5)
+    TEScale            = GETREAL('TEScale','1.') 
   CASE(12,14,15,16)
     ! planar wave input
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
@@ -250,7 +252,7 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                             ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber,BeamOmegaW, &
-                             BeamAmpFac,tFWHM
+                             BeamAmpFac,tFWHM,TEScale
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -408,8 +410,9 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
   IF(ALMOSTZERO(r))THEN
-    resu(1:8)=0.
-    RETURN
+    CALL abort(&
+        __STAMP__&
+        ,' DOF located at axis. devision by zero! Change polynomial degree... ')
   END IF
   IF (x(1).GT.eps)      THEN
     phi = ATAN(x(2)/x(1))
@@ -429,7 +432,7 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   g=1.8412/0.004
   k=omegaG*c_inv
   h=SQRT(k**2-g**2)
-  B0G=1.
+  B0G=1.0
   Er  =-B0G*mG*omegaG/(r*g**2)*BESSEL_JN(mG,REAL(g*r))                             * &
                                                                  ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
   Ephi= B0G*omegaG/h      *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
@@ -444,6 +447,7 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   resu(4)= cos(phi)*Br - sin(phi)*Bphi
   resu(5)= sin(phi)*Br + cos(phi)*Bphi
   resu(6)= B0G*BESSEL_JN(mG,REAL(g*r))*cos(h*z+mG*phi-omegaG*t)
+  resu(1:6)=TEScale*resu(1:6)
   resu(7)= 0.0
   resu(8)= 0.0
 

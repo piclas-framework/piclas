@@ -50,6 +50,7 @@ REAL              :: tDelay                                 !> delay time filter
 REAL              :: I_0                                    !> max. intensity
 REAL              :: sigma_t                                !> sigma_t can be used instead of tFWHM
 REAL              :: omega_0, omega_0_2inv                  !> spot size and inv of spot size
+REAL              :: TEScale                                !> scaling of input TE-wave strength
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)
