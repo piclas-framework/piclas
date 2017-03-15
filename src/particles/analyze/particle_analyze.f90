@@ -662,47 +662,47 @@ END IF
 #ifdef MPI
 IF (PartMPI%MPIROOT) THEN
 #endif    /* MPI */
-  WRITE(unit_index,104,ADVANCE='NO') Time
+  WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Time
     IF (CalcNumSpec) THEN
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(SimNumSpec(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(SimNumSpec(iSpec))
       END DO
     END IF
     IF (CalcCharge) THEN 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(1)
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(1)
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(2)       
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(2)       
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(3)
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(3)
     END IF
     IF (CalcPartBalance) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartIn(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(nPartIn(iSpec))
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartOut(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(nPartOut(iSpec))
       END DO
     END IF
     IF (CalcEpot) THEN 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') WEl
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WEl
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') WMag
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WMag
     END IF
     IF (CalcEkin) THEN 
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Ekin(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Ekin(iSpec)
       END DO
     END IF
     IF (CalcTemp) THEN
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Temp(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Temp(iSpec)
       END DO
     END IF
     IF (CalcVelos) THEN
@@ -710,9 +710,9 @@ IF (PartMPI%MPIROOT) THEN
         DO dir = 1,4
           IF (VeloDirs(dir)) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') PartVtrans(iSpec,dir)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartVtrans(iSpec,dir)
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') PartVtherm(iSpec,dir)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartVtherm(iSpec,dir)
           END IF
         END DO
       END DO
@@ -720,11 +720,11 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcPartBalance) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') PartEkinIn(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartEkinIn(iSpec)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') PartEkinOut(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartEkinOut(iSpec)
       END DO
     END IF
 
@@ -732,26 +732,26 @@ IF (PartMPI%MPIROOT) THEN
     IF (CollisMode.GT.1) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,1)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,2)
       END DO
       IF ( DSMC%ElectronicModel ) THEN
         DO iSpec=1, nSpecies
         ! currently set to one
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,3)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,3)
         END DO
       END IF
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,1)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
       END DO
     END IF
 #endif
@@ -760,51 +760,51 @@ IF (PartMPI%MPIROOT) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,1)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,2)
         END DO
         IF (DSMC%ElectronicModel) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,3)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,3)
           END DO
         END IF
       END IF
       IF(CalcTemp) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,1)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Xi_Vib(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Xi_Vib(iSpec)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
         END DO
         DO iSpec=1, nSpeciesAnalyze
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') TempTotal(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') TempTotal(iSpec)
         END DO
         IF ( DSMC%ElectronicModel ) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,3)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,3)
           END DO
         END IF
       END IF
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') MeanCollProb
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MeanCollProb
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') MaxCollProb
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MaxCollProb
     END IF
 #if (PP_TimeDiscMethod==42)
 ! output for adsorption
@@ -818,16 +818,16 @@ IF (PartMPI%MPIROOT) THEN
 !         IF (CalcWallCoverage) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WallCoverage(iSpec)
       END DO
 !         END IF 
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Desorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -839,19 +839,19 @@ IF (PartMPI%MPIROOT) THEN
       END DO
       IF (Adsorption%TPD) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorption%TPD_Temp
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorption%TPD_Temp
       END IF
     END IF
     IF(CalcCollRates) THEN
       DO iCase=1, CollInf%NumCase +1 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') CRate(iCase)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') CRate(iCase)
       END DO
     END IF
     IF(CalcReacRates) THEN
       DO iCase=1, ChemReac%NumOfReact 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') RRate(iCase)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') RRate(iCase)
       END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
@@ -860,7 +860,7 @@ IF (PartMPI%MPIROOT) THEN
   END IF
 #endif    /* MPI */
 
-  104    FORMAT (e25.14)
+  !104    FORMAT (e25.14)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF( CalcPartBalance) CALL CalcParticleBalance()
