@@ -21,6 +21,10 @@ INTERFACE CompareResults
   MODULE PROCEDURE CompareResults
 END INTERFACE
 
+INTERFACE CompareConvergence
+  MODULE PROCEDURE CompareConvergence
+END INTERFACE
+
 INTERFACE CompareNorm
   MODULE PROCEDURE CompareNorm
 END INTERFACE
@@ -37,7 +41,7 @@ INTERFACE ReadNorm
   MODULE PROCEDURE ReadNorm
 END INTERFACE
 
-PUBLIC::CompareResults,CompareNorm,CompareDataSet,CompareRuntime,ReadNorm
+PUBLIC::CompareResults,CompareConvergence,CompareNorm,CompareDataSet,CompareRuntime,ReadNorm
 !==================================================================================================================================
 
 CONTAINS
@@ -69,15 +73,15 @@ INTEGER                        :: ErrorStatus                       !> Error-cod
 ! compare the results and write error messages for the current case
 ! -----------------------------------------------------------------------------------------------------------------------
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='no')  ' Comparing results...'
-! check error norms
+! check error norms  L2/LInf
 ALLOCATE(ReferenceNorm(Examples(iExample)%nVar,2))
 IF(Examples(iExample)%ReferenceNormFile.EQ.'')THEN
   ! constant value, should be zero no reference file given
-  CALL CompareNorm(ErrorStatus,iExample)
+  CALL CompareNorm(ErrorStatus,iExample,iSubExample)
 ELSE
   ! read in reference and compare to reference solution
   CALL ReadNorm(iExample,ReferenceNorm)
-  CALL CompareNorm(ErrorStatus,iExample,ReferenceNorm)
+  CALL CompareNorm(ErrorStatus,iExample,iSubExample,ReferenceNorm)
 END IF
 DEALLOCATE(ReferenceNorm)
 IF(ErrorStatus.EQ.1)THEN
@@ -88,12 +92,25 @@ IF(ErrorStatus.EQ.1)THEN
   CALL AddError(MPIthreadsStr,'Mismatch of error norms',iExample,iSubExample,ErrorStatus=1,ErrorCode=3)
 END IF
 
+! ConvergenceTest
+IF(Examples(iExample)%ConvergenceTest)THEN
+  IF(iSubExample.EQ.MAX(1,Examples(iExample)%SubExampleNumber))THEN ! after subexample 
+    ! the subexample must be executed with "N" or "MeshFile": check if the convergence was successful
+    CALL CompareConvergence(iExample)
+    IF(Examples(iExample)%ErrorStatus.EQ.3)THEN
+      CALL AddError(MPIthreadsStr,'Mismatch Order of '//TRIM(Examples(iExample)%ConvergenceTestType)&
+                                                      //'-Convergence',iExample,iSubExample,ErrorStatus=3,ErrorCode=3)
+    END IF
+  END IF
+END IF
+
 ! diff h5 file
-IF(Examples(iExample)%ReferenceStateFile.NE.'')THEN
+IF(Examples(iExample)%H5DIFFReferenceStateFile.NE.'')THEN
   CALL CompareDataSet(iExample)
-  IF(Examples(iExample)%ErrorStatus.EQ.3)THEN
+  IF(Examples(iExample)%ErrorStatus.EQ.5)THEN
+    CALL AddError(MPIthreadsStr,'h5diff: Comparison not possible',iExample,iSubExample,ErrorStatus=3,ErrorCode=4)
+  ELSEIF(Examples(iExample)%ErrorStatus.EQ.3)THEN
     CALL AddError(MPIthreadsStr,'Mismatch in HDF5-files. Datasets are unequal',iExample,iSubExample,ErrorStatus=3,ErrorCode=4)
-    !SWRITE(UNIT_stdOut,'(A)')  ' Mismatch in HDF5-files'
   END IF
 END IF
 
@@ -113,12 +130,230 @@ IF(Examples(iExample)%CompareDatafileRow)THEN
   END IF
 END IF
 
+! read an array from a HDF5 file and compare certain entry bounds that must be limited to a supplied value range
+IF(Examples(iExample)%CompareHDF5ArrayBounds)THEN
+  CALL CompareHDF5ArrayBounds(ErrorStatus,iExample)
+  IF(Examples(iExample)%ErrorStatus.EQ.5)THEN
+    CALL AddError(MPIthreadsStr,'Mismatch in CompareHDF5ArrayBounds',iExample,iSubExample,ErrorStatus=5,ErrorCode=5)
+  END IF
+END IF
+
 ! successful execution and comparison
 IF(Examples(iExample)%ErrorStatus.EQ.0)THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Example successful! '
 END IF
 
 END SUBROUTINE CompareResults
+
+
+!==================================================================================================================================
+!> Compare the results that were created by the binary execution
+!==================================================================================================================================
+SUBROUTINE CompareConvergence(iExample)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_RegressionCheck_Vars,    ONLY: Examples
+USE MOD_RegressionCheck_tools,   ONLY: str2int,CalcOrder
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)             :: iExample
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iSTATUS
+INTEGER                        :: I,J
+INTEGER                        :: NumberOfCellsInteger
+INTEGER                        :: iSubExample,p
+REAL,ALLOCATABLE               :: Order(:,:),OrderAveraged(:)
+INTEGER,ALLOCATABLE            :: OrderIncrease(:,:)
+LOGICAL,ALLOCATABLE            :: OrderReached(:)
+REAL                           :: DummyReal
+LOGICAL                        :: DoDebugOutput
+!==================================================================================================================================
+DoDebugOutput=.TRUE. ! change to ".TRUE." if problems with this routine occur for info written to screen
+SWRITE(UNIT_stdOut,'(A)')''
+SWRITE(UNIT_stdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' ConvergenceTest: '
+! 
+IF(DoDebugOutput)THEN
+  SWRITE(UNIT_stdOut,'(A,I5,A,I5,A)')' L2 Error for nVar=[',Examples(iExample)%nVar,&
+                                 '] and SubExampleNumber=[',Examples(iExample)%SubExampleNumber,']'
+  SWRITE(UNIT_stdOut,'(A5)', ADVANCE="NO") ''
+  DO J=1,Examples(iExample)%nVar
+    SWRITE(UNIT_stdOut, '(A10,I3,A1)',ADVANCE="NO") 'nVar=[',J,']'
+  END DO
+  SWRITE(UNIT_stdOut,'(A)')''
+  DO I=1,Examples(iExample)%SubExampleNumber
+    SWRITE(UNIT_stdOut,'(I5)', ADVANCE="NO") I
+    DO J=1,Examples(iExample)%nVar
+        SWRITE(UNIT_stdOut, '(E14.6)',ADVANCE="NO") Examples(iExample)%ConvergenceTestError(I,J)
+    END DO
+    SWRITE(UNIT_stdOut,'(A)')''
+  END DO
+  SWRITE(UNIT_stdOut,'(A)')''
+END IF
+
+! Calculate the approximate distance between the DG DOF
+! -----------------------------------------------------------------------------------------------------------------------
+! p-convergence
+IF(TRIM(Examples(iExample)%ConvergenceTestType).EQ.'p')THEN
+  ! for p-convergence, the number of cells is constant: convert type from CHARACTER to INTEGER
+  CALL str2int(ADJUSTL(TRIM(Examples(iExample)%NumberOfCellsStr(1))),NumberOfCellsInteger,iSTATUS) ! NumberOfCellsStr -> Int
+  SWRITE(UNIT_stdOut,'(A,I4,A)')' Selecting p-convergence: Number of cells in one direction=[',NumberOfCellsInteger,'] (const.)'
+  SWRITE(UNIT_stdOut,'(A)')''
+  ! Calculate the approximate distance between the DG DOF
+  DO iSubExample=1,Examples(iExample)%SubExampleNumber
+    CALL str2int(ADJUSTL(TRIM(Examples(iExample)%SubExampleOption(iSubExample))),p,iSTATUS) ! SubExampleOption -> Int
+    Examples(iExample)%ConvergenceTestGridSize(iSubExample)=&
+    Examples(iExample)%ConvergenceTestDomainSize/(NumberOfCellsInteger*(p+1))
+  END DO
+! -----------------------------------------------------------------------------------------------------------------------
+! h-convergence
+ELSEIF(TRIM(Examples(iExample)%ConvergenceTestType).EQ.'h')THEN
+  SWRITE(UNIT_stdOut,'(A,E14.6,A)')&
+  ' Selecting h-convergence: Expected Order of Convergence = [',Examples(iExample)%ConvergenceTestValue,']'
+  SWRITE(UNIT_stdOut,'(A)')''
+  ! Calc the approximate distance between the DG DOF
+  DO iSubExample=1,Examples(iExample)%SubExampleNumber
+    CALL str2int(ADJUSTL(TRIM(Examples(iExample)%NumberOfCellsStr(iSubExample))) &
+                 ,NumberOfCellsInteger,iSTATUS) ! sanity check if the number of threads is correct
+    Examples(iExample)%ConvergenceTestGridSize(iSubExample)=&
+    Examples(iExample)%ConvergenceTestDomainSize/(NumberOfCellsInteger*(Examples(iExample)%ConvergenceTestValue-1.+1.))
+  END DO
+END IF
+! -----------------------------------------------------------------------------------------------------------------------
+
+! Calculate ConvergenceTestGridSize (average spacing between DOF)
+ALLOCATE(Order(Examples(iExample)%SubExampleNumber-1,Examples(iExample)%nVar))
+DO J=1,Examples(iExample)%nVar
+  DO I=1,Examples(iExample)%SubExampleNumber-1
+    CALL CalcOrder(2,Examples(iExample)%ConvergenceTestGridSize(I:I+1),&
+                     Examples(iExample)%ConvergenceTestError(   I:I+1,J),Order(I,J))
+  END DO
+END DO
+
+! Check, if the Order of Convergece is increasing with increasing polynomial degree (only important for p-convergence)
+ALLOCATE(OrderIncrease(Examples(iExample)%SubExampleNumber-2,Examples(iExample)%nVar))
+DO J=1,Examples(iExample)%nVar
+  DO I=1,Examples(iExample)%SubExampleNumber-2
+    IF(Order(I,J).LT.Order(I+1,J))THEN ! increasing order
+      OrderIncrease(I,J)=1
+    ELSE ! non-increasing order
+      OrderIncrease(I,J)=0
+    END IF
+  END DO
+END DO
+
+! Calculate the averged Order of Convergence (only important for h-convergence)
+ALLOCATE(OrderAveraged(Examples(iExample)%nVar))
+DO J=1,Examples(iExample)%nVar
+  CALL CalcOrder(Examples(iExample)%SubExampleNumber,Examples(iExample)%ConvergenceTestGridSize(:),&
+                                                     Examples(iExample)%ConvergenceTestError(:,J),OrderAveraged(J))
+END DO
+
+! Check the calculated Orders of convergence
+ALLOCATE(OrderReached(Examples(iExample)%nVar))
+OrderReached=.FALSE. ! default
+! -----------------------------------------------------------------------------------------------------------------------
+! p-convergence
+IF(TRIM(Examples(iExample)%ConvergenceTestType).EQ.'p')THEN
+  ! 75% of the calculated values for the order of convergece must be increasing with decreasing grid spacing
+  DO J=1,Examples(iExample)%nVar
+    IF(REAL(SUM(OrderIncrease(:,J)))/REAL(Examples(iExample)%SubExampleNumber-2).LT.0.75)THEN
+      OrderReached(J)=.FALSE.
+    ELSE
+      OrderReached(J)=.TRUE.
+    END IF
+  END DO
+! -----------------------------------------------------------------------------------------------------------------------
+! h-convergence
+ELSEIF(TRIM(Examples(iExample)%ConvergenceTestType).EQ.'h')THEN
+  ! Check Order of Convergence versus the expected value and tolerance from input
+  DO J=1,Examples(iExample)%nVar
+    OrderReached(J)=AlmostEqualToTolerance( OrderAveraged(J)                            ,&
+                                           Examples(iExample)%ConvergenceTestValue     ,&
+                                           Examples(iExample)%ConvergenceTestTolerance )
+     IF((OrderReached(J).EQV..FALSE.).AND.(OrderAveraged(J).GT.0.0))THEN
+       !IntegralCompare=1
+       SWRITE(UNIT_stdOut,'(A)')         ' CompareConvergence does not match! Error in computation!'
+       SWRITE(UNIT_stdOut,'(A,E21.14)')  ' OrderAveraged(J)                        = ',OrderAveraged(J)
+       SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Examples(iExample)%ConvergenceTestValue = ',Examples(iExample)%ConvergenceTestValue
+       SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Tolerance                               = ',Examples(iExample)%ConvergenceTestTolerance
+     END IF
+  END DO
+END IF
+
+
+IF(DoDebugOutput)THEN
+  ! Write average spacing between DOF
+  SWRITE(UNIT_stdOut,'(A)')' ConvergenceTestGridSize (average spacing between DOF)'
+  DO I=1,Examples(iExample)%SubExampleNumber
+        write(*, '(I5,E14.6)') I,Examples(iExample)%ConvergenceTestGridSize(I)
+  END DO
+  ! Write Order of convergence
+  SWRITE(UNIT_stdOut,'(A)')''
+  SWRITE(UNIT_stdOut,'(A,I5,A,I5,A)')' Order of convergence for nVar=[',Examples(iExample)%nVar,&
+                                 '] and SubExampleNumber-1=[',Examples(iExample)%SubExampleNumber-1,']'
+  SWRITE(UNIT_stdOut,'(A5)', ADVANCE="NO") ''
+  DO J=1,Examples(iExample)%nVar
+    SWRITE(UNIT_stdOut, '(A10,I3,A1)',ADVANCE="NO") 'nVar=[',J,']'
+  END DO
+  SWRITE(UNIT_stdOut,'(A)')''
+  DO I=1,Examples(iExample)%SubExampleNumber-1
+    SWRITE(UNIT_stdOut,'(I5)', ADVANCE="NO") I
+    DO J=1,Examples(iExample)%nVar
+      SWRITE(UNIT_stdOut,'(E14.6)',ADVANCE="NO") Order(I,J)
+    END DO
+    SWRITE(UNIT_stdOut,'(A)')''
+  END DO
+  ! Write averge convergence order
+  SWRITE(UNIT_stdOut,'(A5)',ADVANCE="NO")'     '
+  DO J=1,Examples(iExample)%nVar
+    SWRITE(UNIT_stdOut, '(A14)',ADVANCE="NO") ' -------------'
+  END DO
+  SWRITE(UNIT_stdOut,'(A)')''
+  SWRITE(UNIT_stdOut,'(A5)',ADVANCE="NO")'mean'
+  DO J=1,Examples(iExample)%nVar
+    SWRITE(UNIT_stdOut,'(E14.6)',ADVANCE="NO") OrderAveraged(J)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)')''
+  SWRITE(UNIT_stdOut,'(A)')''
+  !    ! Write increasing order
+  !    DO I=1,Examples(iExample)%SubExampleNumber-2
+  !      SWRITE(UNIT_stdOut,'(I5)', ADVANCE="NO") I
+  !      DO J=1,Examples(iExample)%nVar
+  !        SWRITE(UNIT_stdOut,'(I14)',ADVANCE="NO") OrderIncrease(I,J)
+  !      END DO
+  !      SWRITE(UNIT_stdOut,'(A)')''
+  !    END DO
+  !    SWRITE(UNIT_stdOut,'(A)')''
+
+  ! Write if order of convergence was reached (h- or p-convergence)
+  SWRITE(UNIT_stdOut,'(A5)',ADVANCE="NO")'Check'
+  DO J=1,Examples(iExample)%nVar
+    SWRITE(UNIT_stdOut,'(L14)',ADVANCE="NO") OrderReached(J)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)')''
+  SWRITE(UNIT_stdOut,'(132("-"))')
+END IF
+
+! 50% of nVar Convergence tests must succeed
+DummyReal=0.
+DO J=1,Examples(iExample)%nVar
+  IF(OrderReached(J))DummyReal=DummyReal+1.
+END DO
+IF(DummyReal/REAL(Examples(iExample)%nVar).LT.0.5)THEN
+  Examples(iExample)%ErrorStatus=3
+ELSE
+  Examples(iExample)%ErrorStatus=0
+END IF
+
+END SUBROUTINE CompareConvergence
+
 
 !==================================================================================================================================
 !> Compare the runtime of an example  || fixed to a specific system
@@ -145,7 +380,7 @@ END SUBROUTINE CompareRuntime
 !> To compare the norms, the std.out file of the simulation is read-in. The last L2- and LInf-norm in the std.out file are
 !> compared to the reference.
 !==================================================================================================================================
-SUBROUTINE CompareNorm(LNormCompare,iExample,ReferenceNorm)
+SUBROUTINE CompareNorm(LNormCompare,iExample,iSubExample,ReferenceNorm)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -154,7 +389,7 @@ USE MOD_RegressionCheck_Vars,  ONLY: Examples
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)           :: iExample
+INTEGER,INTENT(IN)           :: iExample,iSubExample
 REAL,INTENT(IN),OPTIONAL     :: ReferenceNorm(Examples(iExample)%nVar,2)
 INTEGER,INTENT(OUT)          :: LNormCompare
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -167,7 +402,7 @@ REAL                         :: LNorm(Examples(iExample)%nVar),L2(Examples(iExam
 REAL                         :: eps
 !==================================================================================================================================
 
-! get fileid and open file
+! get fileID and open file
 ioUnit=GETFREEUNIT()
 FileName=TRIM(Examples(iExample)%PATH)//'std.out'
 INQUIRE(File=FileName,EXIST=ExistFile)
@@ -187,7 +422,7 @@ LInfCompare=.TRUE.
 LNormCompare=1
 DO 
   READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1!,temp2,LNorm(1),LNorm(2),LNorm(3),LNorm(4),LNorm(5)
-  IF(iSTATUS.EQ.-1) EXIT
+  IF(iSTATUS.EQ.-1) EXIT ! End Of File (EOF) reached: exit the loop
   
   READ(temp1,*,IOSTAT=iSTATUS2) temp2,temp3,LNorm
   IF(STRICMP(temp2,'L_2')) THEN
@@ -203,6 +438,11 @@ CLOSE(ioUnit)
 ! when NaN is encountered set the values to HUGE
 IF(ANY(ISNAN(L2)))   L2  =HUGE(1.)
 IF(ANY(ISNAN(LInf))) LInf=HUGE(1.)
+
+! Save values for ConvergenceTest
+IF(Examples(iExample)%ConvergenceTest)THEN
+  Examples(iExample)%ConvergenceTestError(iSubExample,1:Examples(iExample)%nVar)=L2(1:Examples(iExample)%nVar)
+END IF
 
 ! compare the retrieved norms from the std.out file
 IF(PRESENT(ReferenceNorm))THEN ! use user-defined norm if present, else use 0.001*SQRT(PP_RealTolerance)
@@ -332,39 +572,117 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)             :: iExample
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: DataSet
-CHARACTER(LEN=255)             :: CheckedFileName
-CHARACTER(LEN=255)             :: ReferenceNormFileName
-CHARACTER(LEN=500)             :: SYSCOMMAND
-CHARACTER(LEN=20)              :: tmpTol
-INTEGER                        :: iSTATUS
-LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile
+CHARACTER(LEN=255)             :: DataSet,tmp
+CHARACTER(LEN=999)             :: CheckedFileName,OutputFileName,OutputFileName2,ReferenceStateFile,SYSCOMMAND
+CHARACTER(LEN=21)              :: tmpTol,tmpInt
+INTEGER                        :: iSTATUS,iSTATUS2,ioUnit,I
+LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile,ExistFile
 !==================================================================================================================================
-
-
-CheckedFilename  =TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CheckedStateFile)
-ReferenceNormFilename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceStateFile)
+OutputFileName     = ''
+OutputFileName2    = ''
+CheckedFilename    = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
+ReferenceStateFile = TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%H5DIFFReferenceStateFile)
 INQUIRE(File=CheckedFilename,EXIST=ExistCheckedFile)
 IF(.NOT.ExistCheckedFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: generated state file does not exist! need ',CheckedFilename
-  Examples(iExample)%ErrorStatus=3
+  Examples(iExample)%ErrorStatus=5
   RETURN
 END IF
-INQUIRE(File=ReferenceNormFilename,EXIST=ExistReferenceNormFile)
+INQUIRE(File=ReferenceStateFile,EXIST=ExistReferenceNormFile)
 IF(.NOT.ExistReferenceNormFile) THEN
-  SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: reference state file does not exist! need ',ReferenceNormFilename
-  Examples(iExample)%ErrorStatus=3
+  SWRITE(UNIT_stdOut,'(A,A)')  ' h5diff: reference state file does not exist! need ',ReferenceStateFile
+  Examples(iExample)%ErrorStatus=5
   RETURN
 END IF
 
-DataSet=TRIM(Examples(iExample)%ReferenceDataSetName)
+DataSet=TRIM(Examples(iExample)%H5DIFFReferenceDataSetName)
+OutputFileName=TRIM(Examples(iExample)%PATH)//'H5DIFF_info.out'
 
-WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
-SYSCOMMAND=H5DIFF//' --delta='//TRIM(tmpTol)//' '//TRIM(ReferenceNormFileName)//' ' &
-          //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)
+IF(Examples(iExample)%H5diffTolerance.GT.0.0)THEN
+  WRITE(tmpTol,'(E21.14)') Examples(iExample)%H5diffTolerance
+ELSE
+  WRITE(tmpTol,'(E21.14)') SQRT(PP_RealTolerance)
+END IF
+IF(Examples(iExample)%H5diffToleranceType.EQ.'absolute')THEN
+  SYSCOMMAND=H5DIFF//' -r --delta='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+            //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
+ELSEIF(Examples(iExample)%H5diffToleranceType.EQ.'relative')THEN
+  SYSCOMMAND=H5DIFF//' -r --relative='//ADJUSTL(TRIM(tmpTol))//' '//TRIM(ReferenceStateFile)//' ' &
+            //TRIM(CheckedFileName)//' /'//TRIM(DataSet)//' /'//TRIM(DataSet)//' > '//TRIM(OutputFileName)
+ELSE ! wrong tolerance type
+  CALL abort(&
+  __STAMP__&
+  ,'H5Diff: wrong tolerance type (need "absolute" or "relative")')
+END IF
+!SWRITE(UNIT_stdOut,'(A)')' SYSCOMMAND: ['//TRIM(SYSCOMMAND)//']'
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-IF(iSTATUS.NE.0) THEN
+
+! check h5diff output (even if iSTATUS==0 it may sitll ahve failed to compare the datasets)
+INQUIRE(File=OutputFileName,EXIST=ExistFile)
+IF(ExistFile) THEN
+  SWRITE(UNIT_stdOut,'(A)')''
+  ! read H5DIFF_info.out | list of info
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT = ioUnit, FILE = OutputFileName, STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+  SWRITE(UNIT_stdOut,'(A)')' Reading '//TRIM(OutputFileName)
+  I=0
+  DO 
+    READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS2) tmp
+    IF (iSTATUS2.NE.0) EXIT
+    I=I+1
+    IF(I.LE.20)THEN
+      SWRITE(UNIT_stdOut,'(A)')'      ['//TRIM(tmp)//']'
+    END IF
+    IF(TRIM(tmp).EQ.'Some objects are not comparable')THEN
+      iSTATUS=-5
+    END IF
+  END DO
+  CLOSE(ioUnit)
+  IF(I.GT.20)THEN
+    I=MIN(I-20,20)
+    WRITE(tmpInt,'(I6)') I
+    SWRITE(UNIT_stdOut,'(A)')'      ... leaving out intermediate data ...'
+    OutputFileName2=TRIM(OutputFileName)//'2'
+    SYSCOMMAND='tail -n '//ADJUSTL(TRIM(tmpInt))//' '//TRIM(OutputFileName)//' > '//TRIM(OutputFileName2)
+    CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
+    INQUIRE(File=TRIM(OutputFileName2),EXIST=ExistFile)
+    IF(ExistFile) THEN
+      ! read H5DIFF_info.out | list of info
+      ioUnit=GETFREEUNIT()
+      OPEN(UNIT = ioUnit, FILE = TRIM(OutputFileName2), STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+      DO
+        READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS2) tmp
+        IF (iSTATUS2.NE.0) EXIT
+        SWRITE(UNIT_stdOut,'(A)')'      ['//TRIM(tmp)//']'
+      END DO
+      CLOSE(ioUnit)
+    END IF
+  END IF
+  SYSCOMMAND='rm '//TRIM(OutputFileName)//' '//TRIM(OutputFileName2)//' > /dev/null 2>&1'
+  CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
+ELSE
+  SWRITE(UNIT_stdOut,'(A)')' H5DIFF_info.out was not created!'
+END IF
+
+! set ErrorStatus
+IF(iSTATUS.EQ.0)THEN
+  RETURN ! all is safe
+ELSEIF(iSTATUS.EQ.-5)THEN
+  SWRITE(UNIT_stdOut,'(A)')  ' h5diff: arrays in h5-files have different ranks.'
+  Examples(iExample)%ErrorStatus=5
+ELSEIF(iSTATUS.EQ.2)THEN
+  SWRITE(UNIT_stdOut,'(A)')  ' h5diff: file to compare not found.'
+  Examples(iExample)%ErrorStatus=5
+ELSEIF(iSTATUS.EQ.127)THEN
+  SWRITE(UNIT_stdOut,'(A)')  ' h5diff executable could not be found.'
+  Examples(iExample)%ErrorStatus=5
+ELSE!IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' HDF5 Datasets do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A)')  '    Type               : '//ADJUSTL(TRIM(Examples(iExample)%H5diffToleranceType))
+  SWRITE(UNIT_stdOut,'(A)')  '    tmpTol             : '//ADJUSTL(TRIM(tmpTol))
+  SWRITE(UNIT_stdOut,'(A)')  '    H5DIFF             : '//ADJUSTL(TRIM(H5DIFF))
+  SWRITE(UNIT_stdOut,'(A)')  '    ReferenceStateFile : '//TRIM(Examples(iExample)%H5DIFFReferenceStateFile)
+  SWRITE(UNIT_stdOut,'(A)')  '    CheckedFileName    : '//TRIM(Examples(iExample)%H5DIFFCheckedStateFile)
   Examples(iExample)%ErrorStatus=3
 END IF
 
@@ -419,7 +737,7 @@ IndLastB =IndMax
 IndexNotFound=.TRUE.
 CurrentColumn=0
 EOL=0
-DO I=1,2 ! read the file twice in order to determine the array size
+DO I=1,2 ! read the file twice in Order to determine the array size
   LineNumbers=0
   DO 
     READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1 ! get first line assuming it is something like 'nVar= 5'
@@ -531,9 +849,9 @@ CHARACTER(LEN=1)               :: Delimiter
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: ColumnHeaders(:)
 CHARACTER(LEN=10000)           :: temp1,temp2
-INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,CurrentColumn,IndNum,MaxColumn!,K
-INTEGER                        :: IndFirstA,IndLastA,IndFirstB,IndLastB,EOL,MaxRow,K,ColumnNumber
-LOGICAL                        :: ExistFile,IndexNotFound,ReadHeaderLine,RowFound
+INTEGER                        :: iSTATUS,ioUnit,LineNumbers,HeaderLines,j
+INTEGER                        :: K,ColumnNumber
+LOGICAL                        :: ExistFile,ReadHeaderLine,RowFound
 LOGICAL,ALLOCATABLE            :: ValuesAreEqual(:)
 REAL,ALLOCATABLE               :: Values(:),ValuesRef(:)
 INTEGER                        :: DimValues,DimValuesRef,DimColumnHeaders
@@ -549,10 +867,6 @@ DO K=1,2 ! open the data and reference file
     Filename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CompareDatafileRowFile)
     ReadHeaderLine=.FALSE.
   END SELECT
-!print*,""
-!print*,""
-!print*,"Filename=",Filename
-!read*
   INQUIRE(File=Filename,EXIST=ExistFile)
   IF(.NOT.ExistFile) THEN
     SWRITE(UNIT_stdOut,'(A,A)')  ' CompareDatafileRow: reference state file does not exist! need ',TRIM(Filename)
@@ -578,8 +892,6 @@ DO K=1,2 ! open the data and reference file
     LineNumbers=LineNumbers+1
     IF((LineNumbers.EQ.1).AND.(ReadHeaderLine))THEN
       ColumnNumber=0
-!print*,"K=",K,"ColumnNumber=",ColumnNumber
-!read*
       CALL GetColumns(temp2,Delimiter,ColumnString=ColumnHeaders,Column=ColumnNumber)
     ELSEIF(LineNumbers.EQ.Examples(iExample)%CompareDatafileRowNumber)THEN ! remove header lines
       RowFound=.TRUE.
@@ -590,12 +902,8 @@ DO K=1,2 ! open the data and reference file
   IF(ADJUSTL(TRIM(temp2)).NE.'')THEN ! if string is not empty
     SELECT CASE(K)
     CASE(1) ! reference data file
-!print*,"K=",K,"ColumnNumber=",ColumnNumber
-!read*
       CALL GetColumns(temp2,Delimiter,ColumnReal=ValuesRef,Column=ColumnNumber)
     CASE(2) ! newly created data file
-!print*,"K=",K,"ColumnNumber=",ColumnNumber
-!read*
       CALL GetColumns(temp2,Delimiter,ColumnReal=Values   ,Column=ColumnNumber)
     END SELECT
   END IF
@@ -623,10 +931,7 @@ ELSE
   ALLOCATE(ColumnHeaders(1:DimValues))
   ColumnHeaders='no header found'
 END IF
-!print*,"done"
-!print*,"ColumnNumber=",ColumnNumber
-!read*
-print*,""
+SWRITE(UNIT_stdOut,'(A)') ""
 IF(ColumnNumber.GT.0)THEN
   ALLOCATE(ValuesAreEqual(1:ColumnNumber))
   ValuesAreEqual=.FALSE.
@@ -649,20 +954,16 @@ IF(ANY(.NOT.ValuesAreEqual))THEN
 ELSE
   DataCompare=0
 END IF
-
-!print*,"DataCompare=",DataCompare
-!stop "STOPPPP"
-
 END SUBROUTINE CompareDatafileRow
 
+
 !==================================================================================================================================
-!> Read column data from a supplied string InputString
+!> Read column data from the supplied string variable "InputString"
 !==================================================================================================================================
 SUBROUTINE GetColumns(InputString,Delimiter,ColumnString,ColumnReal,Column)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_RegressionCheck_Vars,  ONLY: Examples
 USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -675,16 +976,10 @@ REAL,ALLOCATABLE,INTENT(INOUT),OPTIONAL             :: ColumnReal(:)
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: ColumnStringLocal(:)
 CHARACTER(LEN=1)               :: Delimiter
-CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=10000)           :: temp1
 INTEGER                        :: IndNumOld,ColumnNumber
-INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,CurrentColumn,IndNum,MaxColumn!,K
-LOGICAL                        :: ExistFile,IndexNotFound,IntegralValuesAreEqual,RowFound,InquireColumns
-REAL,ALLOCATABLE               :: Values(:,:),Q
+INTEGER                        :: iSTATUS,j,IndNum
+LOGICAL                        :: InquireColumns
 !==================================================================================================================================
-!print*,"InputString=",TRIM(InputString)
-!print*,"Continue?"
-!read*
 IndNumOld=0
 IF(PRESENT(Column))THEN
   IF(Column.GT.0)THEN
@@ -709,10 +1004,7 @@ IF(InquireColumns)THEN
     ColumnNumber=ColumnNumber+1
   END DO ! while
 END IF
-!print*,"ColumnNumber=",ColumnNumber
 IF(PRESENT(Column))Column=ColumnNumber
-!print*,"Continue?"
-!read*
 IF(ADJUSTL(TRIM(InputString)).EQ.'')ColumnNumber=0 ! if InputString is empty, no ColumnNumber information can be extracted
 IF(ColumnNumber.GT.0)THEN
   ALLOCATE(ColumnStringLocal(ColumnNumber))
@@ -723,23 +1015,17 @@ IF(ColumnNumber.GT.0)THEN
     IF(J.EQ.ColumnNumber)IndNum=LEN(InputString)-1          ! for the last ColumnNumber
     IF(IndNum.GT.0)THEN
       ColumnStringLocal(J)=ADJUSTL(TRIM(InputString(1:IndNum-1)))
-      !print*,"ColumnStringLocal(",J,")=[",TRIM(ColumnStringLocal(J)),"]"
       InputString=InputString(IndNum+1:LEN(InputString))
     END IF
   END DO
 END IF
-!print*,"Continue?"
-!read*
 
 IF(PRESENT(ColumnString))THEN
   ALLOCATE(ColumnString(ColumnNumber))
   ColumnString='' ! default
   DO J=1,ColumnNumber
     ColumnString(J)=ADJUSTL(TRIM(ColumnStringLocal(J)))
-    !print*,"ColumnString(",J,")=",ColumnString(J)
   END DO
-!print*,"GetColumns DONE"
-!read*
   RETURN
 END IF
 IF(PRESENT(ColumnReal))THEN
@@ -747,14 +1033,142 @@ IF(PRESENT(ColumnReal))THEN
   ColumnReal=0 ! default
   DO J=1,ColumnNumber
     CALL str2real(ColumnStringLocal(J),ColumnReal(J),iSTATUS) 
-    !print*,"ColumnReal(",J,")=",ColumnReal(J)
   END DO
-!print*,"GetColumns DONE"
-!read*
   RETURN
 END IF
-!print*,"GetColumns DONE"
-!read*
 END SUBROUTINE GetColumns
+
+
+!==================================================================================================================================
+!> Read data from a HDF5 array and compare the array entries with pre-defined boundaries
+!==================================================================================================================================
+SUBROUTINE CompareHDF5ArrayBounds(ArrayCompare,iExample)
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_RegressionCheck_Vars,  ONLY: Examples
+USE MOD_HDF5_input,            ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute
+USE MOD_HDF5_Input,            ONLY: DatasetExists,File_ID,GetHDF5DataSize
+USE MOD_IO_HDF5,               ONLY: HSize
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)             :: iExample
+INTEGER,INTENT(OUT)            :: ArrayCompare
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+INTEGER                        :: iSTATUS,ioUnit,ArrayRank,nVal,nSize,I,J
+!INTEGER(HSIZE_T)               :: IntSize
+LOGICAL                        :: ExistFile,HDF5DatasetExists,FirstFound
+!REAL                           :: HDF5DataArray(10000,6)
+REAL,ALLOCATABLE               :: HDF5DataArray(:,:)
+!==================================================================================================================================
+ArrayCompare=0     ! 0 means success
+FirstFound=.FALSE. ! first problematic array entry found
+
+!print*,"test"
+!SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+!'Example%CompareHDF5ArrayBoundsValue(1) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(1),' (lower)'
+!SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+!'Example%CompareHDF5ArrayBoundsValue(2) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(2),' (upper)'
+!SWRITE(UNIT_stdOut,'(A,I6,A)')     &
+!'Example%CompareHDF5ArrayBoundsRange(1) : ',Examples(iExample)%CompareHDF5ArrayBoundsRange(1),' (lower)'
+!SWRITE(UNIT_stdOut,'(A,I6,A)')     &
+!'Example%CompareHDF5ArrayBoundsRange(2) : ',Examples(iExample)%CompareHDF5ArrayBoundsRange(2),' (upper)'
+!SWRITE(UNIT_stdOut,'(A,A)')        'Example%CompareHDF5ArrayBoundsName     :      ',Examples(iExample)%CompareHDF5ArrayBoundsName
+!SWRITE(UNIT_stdOut,'(A,A)')        'Example%CompareHDF5ArrayBoundsFile     :      ',Examples(iExample)%CompareHDF5ArrayBoundsFile
+
+
+
+Filename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%CompareHDF5ArrayBoundsFile)
+INQUIRE(File=Filename,EXIST=ExistFile)
+IF(.NOT.ExistFile) THEN
+  SWRITE(UNIT_stdOut,'(A,A)')  ' CompareHDF5ArrayBoundsFile: reference state file does not exist! need ',TRIM(Filename)
+  Examples(iExample)%ErrorStatus=5
+  RETURN
+ELSE
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+END IF
+
+!!SWRITE(UNIT_stdOut,*)'Reading [',TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),'] from File:',TRIM(FileName)
+#ifdef MPI
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.)
+#endif
+
+CALL DatasetExists(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),HDF5DatasetExists)
+IF(.NOT.HDF5DatasetExists) THEN
+  SWRITE(UNIT_stdOut,'(A,A,A1)')  ' CompareHDF5ArrayBoundsFile: Dataset in file does not exist! [',&
+                               TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),"]"
+  Examples(iExample)%ErrorStatus=5
+  CALL CloseDataFile() 
+  RETURN
+END IF
+
+! get array dimensions
+CALL GetHDF5DataSize(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),ArrayRank,HSize)
+!print*,"ArrayRank=",ArrayRank
+!print*,"HSize   =",HSize
+nVal   = INT(HSize(1))
+nSize  = INT(HSize(2))
+!print*,"nVal =",nVal
+!print*,"nSize=",nSize
+IF(ArrayRank.GT.2)THEN
+  SWRITE(UNIT_stdOut,'(A,A,A1)')  &
+    ' CompareHDF5ArrayBoundsFile: Dataset too large dimension (more than 2 dimensions not implemeted)! [',&
+    TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),"]"
+  Examples(iExample)%ErrorStatus=5
+  CALL CloseDataFile() 
+  RETURN
+END IF
+
+! allocate array and read hdf5 file into the array
+ALLOCATE(HDF5DataArray(nVal,nSize))
+!print*,shape(HDF5DataArray)
+!print*,""
+!print*,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName)
+!CALL DatasetExists(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),HDF5DatasetExists)
+!print*,"HDF5DatasetExists)=",HDF5DatasetExists
+!CALL ReadArray('PartData',2,(/nVal,nSize/),0,1,RealArray=HDF5DataArray)
+CALL ReadArray(TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),2,(/nVal,nSize/),0,1,RealArray=HDF5DataArray)
+
+!read*
+!print*,HDF5DataArray
+DO I=1,nVal
+  DO J=Examples(iExample)%CompareHDF5ArrayBoundsRange(1),Examples(iExample)%CompareHDF5ArrayBoundsRange(2)
+    IF( (HDF5DataArray(I,J).LT.Examples(iExample)%CompareHDF5ArrayBoundsValue(1)).OR.&
+        (HDF5DataArray(I,J).GT.Examples(iExample)%CompareHDF5ArrayBoundsValue(2))     )THEN
+      ArrayCompare=ArrayCompare+1
+      IF(FirstFound.EQV..FALSE.)THEN
+        SWRITE(UNIT_stdOut,'(A,I10,A1)')' First value outsite range found for [#',ArrayCompare,']'
+        SWRITE(UNIT_stdOut,'(A,E25.14)')'     HDF5DataArray(I,J)                     : ',HDF5DataArray(I,J)
+        SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+          '     Example%CompareHDF5ArrayBoundsValue(1) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(1),' (lower)'
+        SWRITE(UNIT_stdOut,'(A,E25.14,A)') &
+          '     Example%CompareHDF5ArrayBoundsValue(2) : ',Examples(iExample)%CompareHDF5ArrayBoundsValue(2),' (upper)'
+        FirstFound=.TRUE.
+      END IF
+      !print*,HDF5DataArray(I,1:nSize)
+      !read*
+    END IF
+  END DO
+END DO
+
+CALL CloseDataFile() 
+SDEALLOCATE(HDF5DataArray)
+!print*,"stop"
+!stop
+
+IF(ArrayCompare.GT.0)THEN
+  SWRITE(UNIT_stdOut,'(A)')         ' CompareHDF5ArrayBounds do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A,I10,A1)')  ' Number of failed comparisons: [',ArrayCompare,']'
+  Examples(iExample)%ErrorStatus=5
+END IF
+
+END SUBROUTINE CompareHDF5ArrayBounds
+
 
 END MODULE MOD_RegressionCheck_Compare

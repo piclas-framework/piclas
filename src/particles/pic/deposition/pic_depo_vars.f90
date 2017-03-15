@@ -10,6 +10,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                               :: DoDeposition       ! flag to switch deposition on/off
 REAL,ALLOCATABLE                      :: source(:,:,:,:,:)  ! source(1:4,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE                   :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
@@ -32,10 +33,10 @@ REAL,ALLOCATABLE                      :: tempcharge(:)      ! temp-charge for ep
 REAL,ALLOCATABLE                      :: NDepoChooseK(:,:)               ! array n over n
 REAL,ALLOCATABLE                      :: wBaryNDepo(:)      ! barycentric weights for deposition
 REAL,ALLOCATABLE                      :: swGPNDepo(:)       ! integration weights for deposition
-REAL,ALLOCATABLE                      :: sJNDepo(:,:,:,:)   ! sj on ndepo
 REAL,ALLOCATABLE                      :: XiNDepo(:)         ! gauss position of barycenters
 REAL,ALLOCATABLE                      :: Vdm_NDepo_GaussN(:,:) ! VdM between different polynomial degrees
-LOGICAL                               :: DoChangeBasis      ! Change polynomial degree
+REAL,ALLOCATABLE                      :: DDMassinv(:,:,:,:) ! inverse mass-matrix for deposition
+LOGICAL                               :: DeltaDistriChangeBasis   ! Change polynomial degree
 LOGICAL                               :: DoSFEqui           ! use equidistant points for SF
 INTEGER                               :: SfRadiusInt        ! radius integer for cylindrical and spherical shape function
 REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition 
@@ -62,7 +63,19 @@ REAL,ALLOCATABLE                      :: VolInt_W(:)
 REAL,ALLOCATABLE                      :: CellVolWeight_Volumes(:,:,:,:)
 INTEGER                               :: NbrOfSFdepoFixes                  !Number of fixes for shape func depo at planar BCs
 REAL    , ALLOCATABLE                 :: SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
+REAL    , ALLOCATABLE                 :: SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
 REAL    , ALLOCATABLE                 :: SFdepoFixesChargeMult(:)          !multiplier for mirrored charges (wall: -1.0, sym: 1.0)
+REAL                                  :: SFdepoFixesEps                    !epsilon for defined planes
+INTEGER                               :: NbrOfSFdepoFixLinks               !Number of linked SFdepoFixes
+INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:2 (2 Fixes are linked with each other!)
+INTEGER                               :: NbrOfSFdepoLayers                 !Number of const. source layer for sf-depo at planar BCs
+REAL    , ALLOCATABLE                 :: SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
+REAL    , ALLOCATABLE                 :: SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
+CHARACTER(LEN=256),ALLOCATABLE        :: SFdepoLayersSpace(:)              !name of space (cuboid or cylinder)
+REAL    , ALLOCATABLE                 :: SFdepoLayersBaseVector(:,:,:)     !1:nFixes;1:2;1:3(x,y,z)
+INTEGER , ALLOCATABLE                 :: SFdepoLayersSpec(:)               !species of particles for respective layer
+REAL    , ALLOCATABLE                 :: SFdepoLayersPartNum(:)            !number of particles in volume
+REAL    , ALLOCATABLE                 :: SFdepoLayersRadius(:)             !radius for cylinder-space
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================

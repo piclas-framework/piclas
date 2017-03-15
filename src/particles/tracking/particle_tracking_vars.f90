@@ -22,6 +22,7 @@ LOGICAL                                 :: MeasureTrackTime              ! switc
 LOGICAL                                 :: FastPeriodic                  ! moves the particle along whole periodic vector, 
                                                                          ! neglecting possible reflexions
 LOGICAL                                 :: CountNbOfLostParts            ! logical, to count the lost particles
+LOGICAL                                 :: CartesianPeriodic             ! old periodic for refmapping and ALL bcs periocic
 INTEGER                                 :: nLostParts                    ! Counter for lost particle
 REAL,ALLOCATABLE                        :: Distance(:)                   ! list of distance between particle and element-origin
                                                                          ! to all elements in the same background element

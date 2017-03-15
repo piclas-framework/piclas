@@ -51,6 +51,7 @@ PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 PUBLIC :: DatasetExists
+PUBLIC :: GetHDF5DataSize
 !===================================================================================================================================
 
 CONTAINS
@@ -184,7 +185,7 @@ END IF
 END FUNCTION ISVALIDMESHFILE
 
 
-SUBROUTINE GetHDF5DataSize(Loc_ID,DSetName,nDims,Size)
+SUBROUTINE GetHDF5DataSize(Loc_ID,DSetName,nDims,IntSize)
 !===================================================================================================================================
 ! Subroutine to determine HDF5 datasize
 !===================================================================================================================================
@@ -198,7 +199,7 @@ INTEGER(HID_T),INTENT(IN)            :: Loc_ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(OUT)                  :: nDims
-INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: Size(:)
+INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: IntSize(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: DSet_ID,FileSpace
@@ -211,10 +212,11 @@ CALL H5DGET_SPACE_F(DSet_ID, FileSpace, iError)
 ! Get number of dimensions of data space
 CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, nDims, iError)
 ! Get size and max size of data space
-ALLOCATE(Size(nDims),SizeMax(nDims))
-CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Size, SizeMax, iError)
+ALLOCATE(IntSize(nDims),SizeMax(nDims))
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, IntSize, SizeMax, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 CALL H5DCLOSE_F(DSet_ID, iError)
+DEALLOCATE(SizeMax)
 END SUBROUTINE GetHDF5DataSize
 
 

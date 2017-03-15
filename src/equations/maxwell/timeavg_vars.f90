@@ -31,5 +31,10 @@ CHARACTER(LEN=255),ALLOCATABLE :: VarNamesAvgOut(:)       !< time averaged varia
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesFlucOut(:)      !< fluctuation variable names
 REAL                 :: dtAvg                             !< sum of timesteps
 REAL                 :: dtOld                             !< dt from previous iteration
+#ifdef PARTICLES
+LOGICAL,ALLOCATABLE  :: DoPowerDensity(:)                 !> Sample Power-Density of species
+REAL,ALLOCATABLE     :: PowerDensity(:,:,:,:,:,:)         !> Power-Density of species
+INTEGER              :: nSpecPowerDensity
+#endif /*PARTICLES*/
 
 END MODULE MOD_Timeaverage_Vars
