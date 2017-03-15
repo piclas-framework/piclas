@@ -162,9 +162,11 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change)
 !         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
       ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
+          IsSpeciesSwap,opt_Reflected=crossedBC)
       ELSE IF (adsorbindex.EQ.-1) THEN ! elastic reflection
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
+          IsSpeciesSwap,opt_Reflected=crossedBC)
       ELSE ! should not happen
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -348,9 +350,11 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change)
 !         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
       ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
       ELSE IF (adsorbindex.EQ.-1) THEN ! elastic reflection
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
       ELSE ! should not happen
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
