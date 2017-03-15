@@ -140,6 +140,12 @@ DO iRefState=1,nTmp
     tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
   CASE(5)
     TEScale            = GETREAL('TEScale','1.') 
+    TERotation         = GETINT('TERotation','1') 
+    IF((TERotation.NE.-1).AND.(TERotation.NE.1))THEN
+      CALL abort(&
+    __STAMP__&
+    ,' TERotation has to be +-1 for right and left rotating TE modes.')
+    END IF
   CASE(12,14,15,16)
     ! planar wave input
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
@@ -252,7 +258,7 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                             ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber,BeamOmegaW, &
-                             BeamAmpFac,tFWHM,TEScale
+                             BeamAmpFac,tFWHM,TEScale,TERotation
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -427,26 +433,26 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   END IF
   z = x(3)
   omegaG=2*pi*35e9
-  mG=1
+  mG=1*TERotation
   nG=1
   g=1.8412/0.004
   k=omegaG*c_inv
   h=SQRT(k**2-g**2)
   B0G=1.0
   Er  =-B0G*mG*omegaG/(r*g**2)*BESSEL_JN(mG,REAL(g*r))                             * &
-                                                                 ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
+                                                                 ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
   Ephi= B0G*omegaG/h      *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
-                                                                 (-cos(h*z+mG*phi)*sin(omegaG*t)+sin(h*z+mG*phi)*cos(omegaG*t))
+                                                                 (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
   Br  =-B0G*h/g           *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
-                                                                 (-cos(h*z+mG*phi)*sin(omegaG*t)+sin(h*z+mG*phi)*cos(omegaG*t))
+                                                                 (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
   Bphi=-B0G*mG*h/(r*g**2)     *BESSEL_JN(mG,REAL(g*r))                             * &
-                                                                 ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
-  resu(1)= cos(phi)*Er - sin(phi)*Ephi
-  resu(2)= sin(phi)*Er + cos(phi)*Ephi
+                                                                 ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
+  resu(1)= COS(phi)*Er - SIN(phi)*Ephi
+  resu(2)= SIN(phi)*Er + COS(phi)*Ephi
   resu(3)= 0.0
-  resu(4)= cos(phi)*Br - sin(phi)*Bphi
-  resu(5)= sin(phi)*Br + cos(phi)*Bphi
-  resu(6)= B0G*BESSEL_JN(mG,REAL(g*r))*cos(h*z+mG*phi-omegaG*t)
+  resu(4)= COS(phi)*Br - SIN(phi)*Bphi
+  resu(5)= SIN(phi)*Br + COS(phi)*Bphi
+  resu(6)= B0G*BESSEL_JN(mG,REAL(g*r))*COS(h*z+mG*phi-omegaG*t)
   resu(1:6)=TEScale*resu(1:6)
   resu(7)= 0.0
   resu(8)= 0.0
