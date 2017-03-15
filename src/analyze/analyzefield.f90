@@ -630,7 +630,6 @@ REAL              :: RD
 
 Wel=0.
 WMag=0.
-
 DO iElem=1,nElems
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
