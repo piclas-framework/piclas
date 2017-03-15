@@ -52,6 +52,7 @@ REAL              :: sigma_t                                !> sigma_t can be us
 REAL              :: omega_0, omega_0_2inv                  !> spot size and inv of spot size
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 INTEGER           :: TERotation                             !> left or right rotating TE wave
+LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)

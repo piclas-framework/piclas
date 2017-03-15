@@ -141,6 +141,7 @@ DO iRefState=1,nTmp
   CASE(5)
     TEScale            = GETREAL('TEScale','1.') 
     TERotation         = GETINT('TERotation','1') 
+    TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
     IF((TERotation.NE.-1).AND.(TERotation.NE.1))THEN
       CALL abort(&
     __STAMP__&
@@ -258,7 +259,7 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                             ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber,BeamOmegaW, &
-                             BeamAmpFac,tFWHM,TEScale,TERotation
+                             BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -456,6 +457,16 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   resu(1:6)=TEScale*resu(1:6)
   resu(7)= 0.0
   resu(8)= 0.0
+  IF(TEPulse)THEN
+    sigma_t=(4.*PI)/omegaG/(2.*SQRT(2.*LOG(2.)))
+    tShift=t-4.*sigma_t
+    temporalWindow=EXP(-0.5*(t/sigma_t)**2)
+    IF (t.LE.8*sigma_t) THEN
+      resu(1:8)=resu(1:8)*temporalWindow
+    ELSE
+      resu(1:8)=0.
+    END IF
+  END IF
 
 CASE(7) ! Manufactured Solution
   resu(:)=0
