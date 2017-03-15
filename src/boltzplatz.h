@@ -103,4 +103,4 @@
 #define LOCAL_SEND_ID   4
 
 ! format
-#define OUTPUTFORMAT '(ES25.14E3)'
+#define OUTPUTFORMAT '(E25.14E3)'
