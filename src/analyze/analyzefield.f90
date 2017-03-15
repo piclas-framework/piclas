@@ -428,7 +428,7 @@ END IF
 WRITE(unit_index_PI,'(e25.14)',ADVANCE='NO') t
 DO iPlane = 1, nPoyntingIntPlanes
   WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index_PI,'(e25.14)',ADVANCE='NO') Sabs(iPlane)
+  WRITE(unit_index_PI,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
 END DO
 WRITE(unit_index_PI,'(A1)') ''
 

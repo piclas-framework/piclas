@@ -3345,8 +3345,8 @@ END DO !iBC
 #else
      BCdata_auxSF(iPartBound)%GlobalArea=BCdata_auxSF(iPartBound)%LocalArea
 #endif
-     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
-       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
+!     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
+!       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
    END DO
 #ifdef MPI
    DEALLOCATE(areasLoc,areasGlob)
