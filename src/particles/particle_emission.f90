@@ -1601,7 +1601,7 @@ print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
         !print*,"i",i
           !READ(ioUnit,*)
           READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
-          print*,i,' : ',StrTmp
+          print*,i,' : ',TRIM(StrTmp)
         END DO
 !print*,PDM%maxParticleNumber
 !print*,"chunkSize=",chunkSize
@@ -2588,7 +2588,7 @@ CASE('OneD-twostreaminstabilty')
 
 CASE('IMD') ! read IMD particle velocity from *.chkpt file
   ! do nothing
-CASE('IMD-test')
+CASE('IMD-test') ! delete this when everything is running!
   print*,"==============================================================================="
   print*,"velocity"
 !read*

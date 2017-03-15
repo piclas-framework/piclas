@@ -53,6 +53,7 @@ USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
 USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
 USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
+USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 #ifdef MPI
@@ -120,6 +121,8 @@ ParticleMPIInitIsDone=.FALSE.
 #endif /*MPI*/
 #endif /*PARTICLES*/
 
+CALL FinalizeTTM() ! FG grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+
 END SUBROUTINE FinalizeBoltzplatz
 
 
@@ -161,6 +164,7 @@ USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
 USE MOD_ParticleInit,       ONLY:InitParticles
+USE MOD_TTMInit,            ONLY:InitTTM
 USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
 USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
@@ -244,6 +248,7 @@ CALL IgnoredStrings()
 CALL InitHDG()
 #endif
 
+CALL InitTTM() ! FG grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 END SUBROUTINE InitBoltzplatz
 
 
