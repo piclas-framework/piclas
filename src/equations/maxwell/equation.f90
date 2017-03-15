@@ -458,10 +458,10 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   resu(7)= 0.0
   resu(8)= 0.0
   IF(TEPulse)THEN
-    sigma_t=(4.*PI)/omegaG/(2.*SQRT(2.*LOG(2.)))
+    sigma_t=4.*(2.*PI)/omegaG/(2.*SQRT(2.*LOG(2.)))
     tShift=t-4.*sigma_t
-    temporalWindow=EXP(-0.5*(t/sigma_t)**2)
-    IF (t.LE.8*sigma_t) THEN
+    temporalWindow=EXP(-0.5*(tshift/sigma_t)**2)
+    IF (t.LE.34*sigma_t) THEN
       resu(1:8)=resu(1:8)*temporalWindow
     ELSE
       resu(1:8)=0.
