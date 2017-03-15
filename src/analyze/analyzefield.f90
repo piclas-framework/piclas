@@ -132,19 +132,19 @@ END IF
 #ifdef MPI
  IF(MPIROOT)THEN
 #endif    /* MPI */
-   WRITE(unit_index,104,ADVANCE='NO') Time
+   WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Time
    IF (CalcEpot) THEN 
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,104,ADVANCE='NO') WEl
+     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WEl
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,104,ADVANCE='NO') WMag
+     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WMag
    END IF
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
  END IF
 #endif    /* MPI */
 
-104    FORMAT (e25.14)
+!104    FORMAT (OUTPUTFORMAT)
 
 !SWRITE(UNIT_stdOut,'(A)')' PARTCILE ANALYZE DONE!'
 !SWRITE(UNIT_StdOut,'(132("-"))')
@@ -428,7 +428,7 @@ END IF
 WRITE(unit_index_PI,'(e25.14)',ADVANCE='NO') t
 DO iPlane = 1, nPoyntingIntPlanes
   WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index_PI,'(e25.14)',ADVANCE='NO') Sabs(iPlane)
+  WRITE(unit_index_PI,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
 END DO
 WRITE(unit_index_PI,'(A1)') ''
 

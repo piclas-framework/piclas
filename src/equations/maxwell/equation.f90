@@ -138,6 +138,15 @@ DO iRefState=1,nTmp
   CASE(4)
     DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
+  CASE(5)
+    TEScale            = GETREAL('TEScale','1.') 
+    TERotation         = GETINT('TERotation','1') 
+    TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
+    IF((TERotation.NE.-1).AND.(TERotation.NE.1))THEN
+      CALL abort(&
+    __STAMP__&
+    ,' TERotation has to be +-1 for right and left rotating TE modes.')
+    END IF
   CASE(12,14,15,16)
     ! planar wave input
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
@@ -250,7 +259,7 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                             ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber,BeamOmegaW, &
-                             BeamAmpFac,tFWHM
+                             BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -276,12 +285,14 @@ REAL,PARAMETER                  :: Q=1, dD=1, omegaD=6.28318E8     ! aux. Consta
 REAL                            :: c1,s1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron
 REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variables for Gyrotron
-REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
-REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
-REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
+!REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
+!REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
+!REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
+REAL                            :: omegaG,g,h,k,B0G
+INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
-INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
+!INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 REAL                            :: eta, kx,ky,kz
 !===================================================================================================================================
 Cent=x
@@ -402,8 +413,14 @@ CASE(4) ! Dipole
   
 CASE(5) ! Initialization and BC Gyrotron Mode Converter
   eps=1e-10
-  IF (x(3).GT.eps) RETURN
+  !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
+  ! if a DOF is located in the origin, prevent division by zero ..
+  IF(ALMOSTZERO(r))THEN
+    CALL abort(&
+        __STAMP__&
+        ,' DOF located at axis. devision by zero! Change polynomial degree... ')
+  END IF
   IF (x(1).GT.eps)      THEN
     phi = ATAN(x(2)/x(1))
   ELSE IF (x(1).LT.(-eps)) THEN
@@ -416,22 +433,40 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
     phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
   END IF
   z = x(3)
+  omegaG=2*pi*35e9
+  mG=1*TERotation
+  nG=1
+  g=1.8412/0.004
+  k=omegaG*c_inv
+  h=SQRT(k**2-g**2)
+  B0G=1.0
   Er  =-B0G*mG*omegaG/(r*g**2)*BESSEL_JN(mG,REAL(g*r))                             * &
-                                                                 ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
+                                                                 ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
   Ephi= B0G*omegaG/h      *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
-                                                                 (-cos(h*z+mG*phi)*sin(omegaG*t)+sin(h*z+mG*phi)*cos(omegaG*t))
+                                                                 (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
   Br  =-B0G*h/g           *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
-                                                                 (-cos(h*z+mG*phi)*sin(omegaG*t)+sin(h*z+mG*phi)*cos(omegaG*t))
+                                                                 (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
   Bphi=-B0G*mG*h/(r*g**2)     *BESSEL_JN(mG,REAL(g*r))                             * &
-                                                                 ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
-  resu(1)= cos(phi)*Er - sin(phi)*Ephi
-  resu(2)= sin(phi)*Er + cos(phi)*Ephi
+                                                                 ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
+  resu(1)= COS(phi)*Er - SIN(phi)*Ephi
+  resu(2)= SIN(phi)*Er + COS(phi)*Ephi
   resu(3)= 0.0
-  resu(4)= cos(phi)*Br - sin(phi)*Bphi
-  resu(5)= sin(phi)*Br + cos(phi)*Bphi
-  resu(6)= B0G*BESSEL_JN(mG,REAL(g*r))*cos(h*z+mG*phi-omegaG*t)
+  resu(4)= COS(phi)*Br - SIN(phi)*Bphi
+  resu(5)= SIN(phi)*Br + COS(phi)*Bphi
+  resu(6)= B0G*BESSEL_JN(mG,REAL(g*r))*COS(h*z+mG*phi-omegaG*t)
+  resu(1:6)=TEScale*resu(1:6)
   resu(7)= 0.0
   resu(8)= 0.0
+  IF(TEPulse)THEN
+    sigma_t=4.*(2.*PI)/omegaG/(2.*SQRT(2.*LOG(2.)))
+    tShift=t-4.*sigma_t
+    temporalWindow=EXP(-0.5*(tshift/sigma_t)**2)
+    IF (t.LE.34*sigma_t) THEN
+      resu(1:8)=resu(1:8)*temporalWindow
+    ELSE
+      resu(1:8)=0.
+    END IF
+  END IF
 
 CASE(7) ! Manufactured Solution
   resu(:)=0
