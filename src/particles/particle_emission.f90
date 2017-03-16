@@ -1827,7 +1827,7 @@ INTEGER                          :: i,j,PositionNbr
 REAL                             :: Radius(3), n_vec(3), tan_vec(3), Velo1, Angle, Velo2, f
 REAL                             :: Vec3D(3), RandVal(3)
 REAL                             :: II(3,3),JJ(3,3),NN(3,3)
-INTEGER                          :: distnum
+INTEGER                          :: distnum,Rotation
 REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01,y_02, RandVal1
 REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
 LOGICAL                          :: Is_BGGas
@@ -1885,6 +1885,11 @@ CASE(1) !iInit
   MJRatio(1)=Species(FractNbr)%Init(iInit)%MJxRatio
   MJRatio(2)=Species(FractNbr)%Init(iInit)%MJyRatio
   MJRatio(3)=Species(FractNbr)%Init(iInit)%MJzRatio
+  SELECT CASE(TRIM(velocityDistribution))
+  CASE('tangential_constant')
+    Rotation= Species(FractNbr)%Init(iInit)%Rotation
+  END SELECT
+
 CASE(2) !SurfaceFlux
   IF (TRIM(Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution).EQ.'constant') THEN
     velocityDistribution=Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution
@@ -1991,7 +1996,11 @@ CASE('tangential_constant')
           n_vec = 0
         END IF
         !  And finally the velocities
-        PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
+        IF(Rotation.EQ.1)THEN
+          PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
+        ELSE
+          PartState(PositionNbr,4:6) = (-tan_vec(1:3) + n_vec(1:3)) * VeloIC
+        END IF
      END IF
      i = i + 1
   END DO
