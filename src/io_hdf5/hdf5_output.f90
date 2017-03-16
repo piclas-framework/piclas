@@ -29,6 +29,10 @@ INTERFACE GenerateFileSkeleton
   MODULE PROCEDURE GenerateFileSkeleton 
 END INTERFACE
 
+INTERFACE WriteTimeAverage
+  MODULE PROCEDURE WriteTimeAverage
+END INTERFACE
+
 INTERFACE
   SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR
@@ -47,6 +51,7 @@ END INTERFACE
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton,WritePMLzetaGlobalToHDF5
+PUBLIC :: WriteTimeAverage
 !===================================================================================================================================
 
 CONTAINS
@@ -100,9 +105,7 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER                        :: nVar
 #endif /*PARTICLES*/
-#ifdef MPI
 REAL                           :: StartT,EndT
-#endif /*MPI*/
 
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -122,9 +125,10 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
-  StartT=MPI_WTIME()
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
 #endif
-
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 RestartFile=Filename
@@ -278,9 +282,9 @@ IF(OutPutSource) THEN
   LocalStrVarNames(4)='ChargeDensity'
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif /*MPI*/
     CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',nVar,StrArray=LocalStrVarnames)
     CALL CloseDataFile()
@@ -311,14 +315,9 @@ CALL WritePMLDataToHDF5(FileName)
 IF(DoLoadBalance) CALL WriteElemWeightToHDF5(FileName)
 #endif /*MPI*/
 
-#ifdef MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+EndT=BOLTZPLATZTIME()
+SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+
 END SUBROUTINE WriteStateToHDF5
 
 
@@ -356,9 +355,9 @@ StrVarNames(1)='ElemWeight'
 
 IF(MPIRoot)THEN
 #ifdef MPI
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesLB',nVar,StrArray=StrVarNames)
   CALL CloseDataFile()
@@ -484,9 +483,9 @@ END IF
 ! output of rank 
 IF(MPIRoot)THEN
 #ifdef MPI
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarnames)
   CALL CloseDataFile()
@@ -563,9 +562,9 @@ IF(DoPML)THEN
 
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',PMLnVar,StrArray=StrVarNames)
     CALL CloseDataFile()
@@ -838,9 +837,9 @@ INTEGER                        :: minnParts
 
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',nVar,StrArray=StrVarNames)
     CALL CloseDataFile()
@@ -956,9 +955,9 @@ INTEGER                        :: minnParts
 
   IF(MPIRoot)THEN
 #ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.)
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
     CALL CloseDataFile()
@@ -973,7 +972,7 @@ INTEGER                        :: minnParts
                             collective=.FALSE.,offSetDim=1         ,&
                             communicator=PartMPI%COMM,RealArray=PartData)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
                         nValGlobal=(/nPart_glob,PartDataSize/),&
                         nVal=      (/locnPart,PartDataSize  /),&
@@ -1011,6 +1010,98 @@ INTEGER                        :: minnParts
 END SUBROUTINE WriteParticleToHDF5
 #endif /*PARTICLES*/
 
+
+SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,FutureTime,VarNamesAvg,VarNamesFluc,UAvg,UFluc,dtAvg,nVar_Avg,nVar_Fluc)
+!==================================================================================================================================
+!> Subroutine to write time averaged data and fluctuations HDF5 format
+!==================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars,   ONLY:ProjectName
+USE MOD_Mesh_Vars,      ONLY:offsetElem,nGlobalElems,nElems
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName                                 !< Name of mesh file
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesAvg(nVar_Avg)                        !< Average variable names
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesFluc(nVar_Fluc)                      !< Fluctuations variable names
+REAL,INTENT(IN)                :: OutputTime                                   !< Time of output
+REAL,INTENT(IN),OPTIONAL       :: FutureTime                                   !< Time of next output
+REAL,INTENT(IN),TARGET         :: UAvg(nVar_Avg,0:PP_N,0:PP_N,0:PP_N,nElems)   !< Averaged Solution
+REAL,INTENT(IN),TARGET         :: UFluc(nVar_Fluc,0:PP_N,0:PP_N,0:PP_N,nElems) !< Fluctuations
+REAL,INTENT(IN)                :: dtAvg                                        !< Timestep of averaging
+INTEGER,INTENT(IN)             :: nVar_Avg                                     !< Number of averaged variables
+INTEGER,INTENT(IN)             :: nVar_Fluc                                    !< Number of fluctuations
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+REAL                           :: StartT,EndT
+!==================================================================================================================================
+IF((nVar_Avg.EQ.0).AND.(nVar_Fluc.EQ.0)) RETURN ! no time averaging
+StartT=BOLTZPLATZTIME()
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
+END IF
+
+! Write timeaverages ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Avg.GT.0)THEN
+  ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TimeAvg',OutputTime))//'.h5'
+  IF(MPIRoot)THEN
+    CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FutureTime)
+#ifdef MPI
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
+#endif /*MPI*/
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+
+  ! Reopen file and write DG solution
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution', rank=5,&
+                          nValGlobal=(/nVar_Avg,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal=      (/nVar_Avg,PP_N+1,PP_N+1,PP_N+1,nElems/),&
+                          offset=    (/0,       0,     0,     0,     offsetElem/),&
+                          collective=.TRUE., RealArray=UAvg)
+END IF
+
+! Write fluctuations ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Fluc.GT.0)THEN
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Fluc',OutputTime))//'.h5'
+  IF(MPIRoot)THEN
+    CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FutureTime)
+#ifdef MPI
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
+#endif /*MPI*/
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+
+  ! Reopen file and write DG solution
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution', rank=5,&
+                          nValGlobal=(/nVar_Fluc,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal=      (/nVar_Fluc,PP_N+1,PP_N+1,PP_N+1,nElems/),&
+                          offset=    (/0,        0,     0,     0,     offsetElem/),&
+                          collective=.TRUE., RealArray=UFluc)
+END IF
+
+endT=BOLTZPLATZTIME()
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+END SUBROUTINE WriteTimeAverage
 
 ! PO: old
 !SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
@@ -1053,9 +1144,9 @@ CHARACTER(LEN=255)             :: FileName,MeshFile255
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 #ifdef MPI
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,userblockSize=userblock_total_len)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 #else
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,userblockSize=userblock_total_len)
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 #endif
 
 ! Write file header
@@ -1525,7 +1616,7 @@ IF(gatheredWrite)THEN
   
   IF(MPILocalRoot)THEN
     ! Reopen file and write DG solution (only IO nodes)
-    CALL OpenDataFile(FileName,create=create,single=.FALSE.,communicatorOpt=MPI_COMM_LEADERS)
+    CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS)
     IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nValGather,&
                                                  offset,collective=collective,RealArray=UReal)
     IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nValGather,&
@@ -1541,9 +1632,9 @@ IF(gatheredWrite)THEN
 ELSE
 #endif
 #ifdef MPI
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=create,readOnly=.FALSE.)
 #endif
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)
@@ -1602,7 +1693,7 @@ IF(.NOT.DoNotSplit)THEN
   IF(DataOnProc) THEN
     CALL MPI_COMM_SIZE(OutputCOMM, nOutPutProcs,iError)
     IF(nOutPutProcs.EQ.1)THEN
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,communicatorOpt=OutputCOMM)
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective=.FALSE.,RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1611,7 +1702,7 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective=.FALSE.,StrArray =StrArray)
       CALL CloseDataFile()
     ELSE 
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,communicatorOpt=OutputCOMM)
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective,RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1627,9 +1718,9 @@ IF(.NOT.DoNotSplit)THEN
   CALL MPI_BARRIER(COMMUNICATOR,IERROR)
   OutputCOMM=MPI_UNDEFINED
 ELSE
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL penDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)
@@ -1707,9 +1798,10 @@ FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PMLZetaGlobal',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
 CALL WriteAttributeToHDF5(File_ID,'VarNamesPMLzetaGlobal',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()

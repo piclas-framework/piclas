@@ -138,9 +138,9 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2,
 !===================================================================================================================================
 ! Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
 ! BCType: 1...periodic, 2...exact BC
-! Attention 1: this is only a tensor of local values U_Minus and has to be stored into the right U_Left or U_Right in
+! Attention 1: this is only a tensor of local values U_Face and has to be stored into the right U_Left or U_Right in
 !              SUBROUTINE CalcSurfInt
-! Attention 2: U_MinusPeriodic is only needed in the case of periodic boundary conditions
+! Attention 2: U_FacePeriodic is only needed in the case of periodic boundary conditions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,        ONLY:Abort,CROSS
@@ -149,8 +149,8 @@ USE MOD_Riemann,        ONLY:Riemann,RiemannPML
 USE MOD_Equation,       ONLY:ExactFunc
 USE MOD_Equation_vars,  ONLY:c,c_inv
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID,BCSideID
-USE MOD_Equation_Vars,  ONLY:BCData
+USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
+USE MOD_Equation_Vars,  ONLY:BCData,nBCByType
 USE MOD_PML_Vars,       ONLY:isPMLFace
 USE MOD_PML_Vars,       ONLY:PMLnVar, DoPML
 !USE MOD_Equation_Vars,  ONLY:IniExactFunc! richtig with particles???
@@ -173,7 +173,7 @@ REAL,INTENT(OUT)                     :: Flux( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nB
 INTEGER                              :: iBC,iSide,p,q,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: n_loc(3),resul(PP_nVar),epsBC
-REAL                                 :: U_Minus_loc(PP_nVar,0:PP_N,0:PP_N)
+REAL                                 :: U_Face_loc(PP_nVar,0:PP_N,0:PP_N)
 !===================================================================================================================================
 
 DO iBC=1,nBCs
@@ -189,11 +189,11 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       DO q=0,PP_N
         DO p=0,PP_N
-          CALL ExactFunc(BCState,t,tDeriv,BCFace_xGP(:,p,q,SideID),U_Minus_loc(:,p,q))
+          CALL ExactFunc(BCState,t,tDeriv,BCFace_xGP(:,p,q,SideID),U_Face_loc(:,p,q))
         END DO ! p
       END DO ! q
       ! Dirichlet means that we use the gradients from inside the grid cell
-      CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(  :,:,:), NormVec(:,:,:,SideID))
+      CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
       IF(DoPML) Flux(9:32,:,:,SideID) = 0.
    END DO
 
@@ -203,28 +203,28 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
 
-      U_Minus_loc=0.
+      U_Face_loc=0.
       ! A problem of the absorbing BC arises if E or B is close to zero. 
       ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
       !          that E cross n is zero which is enforced through the div. cleaning of E
       DO q=0,PP_N
         DO p=0,PP_N
           IF (SUM(abs(U_Minus(4:6,p,q,SideID))).GT.epsBC)THEN
-            U_Minus_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
-            U_Minus_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
+            U_Face_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
+            U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
           END IF ! sum(abs(B)) > epsBC
         END DO ! p
       END DO ! q
 
       IF(DoPML)THEN
          IF(isPMLFace(SideID)) THEN ! PML version - PML element
-           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
          ELSE
-           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
            Flux(9:32,:,:,SideID) = 0.
          END IF
       ELSE
-         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
   
@@ -236,22 +236,22 @@ DO iBC=1,nBCs
         DO p=0,PP_N
           resul=U_Minus(:,p,q,SideID)
           n_loc=normVec(:,p,q,SideID)
-          U_Minus_loc(1:3,p,q) = -resul(1:3) + 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
-          U_Minus_loc(4:6,p,q) =  resul(4:6) - 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
-          U_Minus_loc(  7,p,q) =  resul(  7)
-          U_Minus_loc(  8,p,q) = -resul(  8)
+          U_Face_loc(1:3,p,q) = -resul(1:3) + 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
+          U_Face_loc(4:6,p,q) =  resul(4:6) - 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
+          U_Face_loc(  7,p,q) =  resul(  7)
+          U_Face_loc(  8,p,q) = -resul(  8)
         END DO ! p
       END DO ! q
       IF(DoPML)THEN
          IF(isPMLFace(SideID)) THEN ! PML version - PML element
-           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
          ELSE
-           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
            Flux(9:32,:,:,SideID) = 0.
          END IF
       ELSE
          ! Dirichlet means that we use the gradients from inside the grid cell
-         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
  
@@ -262,26 +262,26 @@ DO iBC=1,nBCs
     !          that E cross n is zero which is enforced through the div. cleaning of E
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      U_Minus_loc=0.
+      U_Face_loc=0.
       ! A problem of the absorbing BC arises if E or B is close to zero. 
       ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
       !          that E cross n is zero which is enforced through the div. cleaning of E
       DO q=0,PP_N
         DO p=0,PP_N
-          U_Minus_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
-          U_Minus_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
+          U_Face_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
+          U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
         END DO ! p
       END DO ! q
       IF(DoPML)THEN
          IF(isPMLFace(SideID)) THEN ! PML version - PML element
-           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
          ELSE
-           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
            Flux(9:32,:,:,SideID) = 0.
          END IF
       ELSE
          ! Dirichlet means that we use the gradients from inside the grid cell
-         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
 
@@ -289,7 +289,7 @@ DO iBC=1,nBCs
           ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      U_Minus_loc=0.
+      U_Face_loc=0.
       ! A problem of the absorbing BC arises if E or B is close to zero. 
       ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
       !          that E cross n is zero which is enforced through the div. cleaning of E
@@ -297,21 +297,21 @@ DO iBC=1,nBCs
         DO p=0,PP_N
           IF (DOT_PRODUCT(U_Minus(4:6,p,q,SideID),U_Minus(4:6,p,q,SideID))*c*10.&
           .GT.DOT_PRODUCT(U_Minus(1:3,p,q,SideID),U_Minus(1:3,p,q,SideID)))THEN
-            U_Minus_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
-            U_Minus_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
+            U_Face_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
+            U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
           END IF ! sum(abs(B)) > epsBC
         END DO ! p
       END DO ! q
       IF(DoPML)THEN
         IF(isPMLFace(SideID)) THEN ! PML version - PML element
-          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
         ELSE
-          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
           Flux(9:32,:,:,SideID) = 0.
         END IF
       ELSE
         ! Dirichlet means that we use the gradients from inside the grid cell
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
 
@@ -323,24 +323,24 @@ DO iBC=1,nBCs
         DO p=0,PP_N
           resul=U_Minus(:,p,q,SideID)
           n_loc=normVec(:,p,q,SideID)
-          U_Minus_loc(1:3,p,q) =  resul(1:3) - 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
-          U_Minus_loc(4:6,p,q) = -resul(4:6) + 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
-          U_Minus_loc(  7,p,q) = -resul(  7)
-          U_Minus_loc(  8,p,q) =  resul(  8)
+          U_Face_loc(1:3,p,q) =  resul(1:3) - 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
+          U_Face_loc(4:6,p,q) = -resul(4:6) + 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
+          U_Face_loc(  7,p,q) = -resul(  7)
+          U_Face_loc(  8,p,q) =  resul(  8)
         END DO ! p
       END DO ! q
       ! Dirichlet means that we use the gradients from inside the grid cell
-      !CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:),U_Minus_loc(:,:,:),normal(:,:,:))
+      !CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
       IF(DoPML)THEN
         IF(isPMLFace(SideID)) THEN ! PML version - PML element
-          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
         ELSE
-          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
           Flux(9:32,:,:,SideID) = 0.
         END IF
       ELSE
         ! Dirichlet means that we use the gradients from inside the grid cell
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
 
@@ -431,9 +431,9 @@ REAL,ALLOCATABLE   :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(A,A)')'  Read BC state from file "',FileName
 #ifdef MPI
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.,single=.FALSE.)
 #else
-CALL OpenDataFile(FileName,create=.FALSE.)
+CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.)
 #endif
 CALL GetDataProps(nVar_HDF5,N_HDF5,nELems_HDF5,NodeType_HDF5)
 IF(((N_HDF5.NE.PP_N) .OR. (TRIM(NodeType_HDF5).NE.TRIM(NodeType))))THEN

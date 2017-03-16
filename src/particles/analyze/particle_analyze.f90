@@ -34,8 +34,13 @@ INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
 
+INTERFACE CalcPowerDensity
+  MODULE PROCEDURE CalcPowerDensity
+END INTERFACE
+
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
 PUBLIC:: CalcKineticEnergy, CalcEkinPart, AnalyzeParticles
+PUBLIC:: CalcPowerDensity
 #if (PP_TimeDiscMethod == 42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -582,7 +587,7 @@ SUBROUTINE AnalyzeParticles(Time)
   IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
   PartVtrans=0.
   PartVtherm=0.
-  IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm)
+  IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
 ! MPI Communication for values which are not YET communicated
 ! all routines ABOVE contains the required MPI-Communication
@@ -657,47 +662,47 @@ END IF
 #ifdef MPI
 IF (PartMPI%MPIROOT) THEN
 #endif    /* MPI */
-  WRITE(unit_index,104,ADVANCE='NO') Time
+  WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Time
     IF (CalcNumSpec) THEN
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(SimNumSpec(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(SimNumSpec(iSpec))
       END DO
     END IF
     IF (CalcCharge) THEN 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(1)
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(1)
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(2)       
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(2)       
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(3)
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(3)
     END IF
     IF (CalcPartBalance) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartIn(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(nPartIn(iSpec))
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartOut(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(nPartOut(iSpec))
       END DO
     END IF
     IF (CalcEpot) THEN 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') WEl
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WEl
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') WMag
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WMag
     END IF
     IF (CalcEkin) THEN 
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Ekin(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Ekin(iSpec)
       END DO
     END IF
     IF (CalcTemp) THEN
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Temp(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Temp(iSpec)
       END DO
     END IF
     IF (CalcVelos) THEN
@@ -705,9 +710,9 @@ IF (PartMPI%MPIROOT) THEN
         DO dir = 1,4
           IF (VeloDirs(dir)) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') PartVtrans(iSpec,dir)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartVtrans(iSpec,dir)
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') PartVtherm(iSpec,dir)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartVtherm(iSpec,dir)
           END IF
         END DO
       END DO
@@ -715,11 +720,11 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcPartBalance) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') PartEkinIn(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartEkinIn(iSpec)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') PartEkinOut(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartEkinOut(iSpec)
       END DO
     END IF
 
@@ -727,26 +732,26 @@ IF (PartMPI%MPIROOT) THEN
     IF (CollisMode.GT.1) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,1)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,2)
       END DO
       IF ( DSMC%ElectronicModel ) THEN
         DO iSpec=1, nSpecies
         ! currently set to one
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,3)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,3)
         END DO
       END IF
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,1)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
       END DO
     END IF
 #endif
@@ -755,51 +760,51 @@ IF (PartMPI%MPIROOT) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,1)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,2)
         END DO
         IF (DSMC%ElectronicModel) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,3)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,3)
           END DO
         END IF
       END IF
       IF(CalcTemp) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,1)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Xi_Vib(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Xi_Vib(iSpec)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
         END DO
         DO iSpec=1, nSpeciesAnalyze
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') TempTotal(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') TempTotal(iSpec)
         END DO
         IF ( DSMC%ElectronicModel ) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,3)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,3)
           END DO
         END IF
       END IF
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') MeanCollProb
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MeanCollProb
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') MaxCollProb
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MaxCollProb
     END IF
 #if (PP_TimeDiscMethod==42)
 ! output for adsorption
@@ -813,16 +818,16 @@ IF (PartMPI%MPIROOT) THEN
 !         IF (CalcWallCoverage) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WallCoverage(iSpec)
       END DO
 !         END IF 
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Desorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -834,19 +839,19 @@ IF (PartMPI%MPIROOT) THEN
       END DO
       IF (Adsorption%TPD) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorption%TPD_Temp
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorption%TPD_Temp
       END IF
     END IF
     IF(CalcCollRates) THEN
       DO iCase=1, CollInf%NumCase +1 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') CRate(iCase)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') CRate(iCase)
       END DO
     END IF
     IF(CalcReacRates) THEN
       DO iCase=1, ChemReac%NumOfReact 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') RRate(iCase)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') RRate(iCase)
       END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
@@ -855,7 +860,7 @@ IF (PartMPI%MPIROOT) THEN
   END IF
 #endif    /* MPI */
 
-  104    FORMAT (e25.14)
+  !104    FORMAT (e25.14)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF( CalcPartBalance) CALL CalcParticleBalance()
@@ -1570,7 +1575,7 @@ END IF
 END SUBROUTINE CalcTransTemp
 
 
-SUBROUTINE CalcVelocities(PartVtrans, PartVtherm)
+SUBROUTINE CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
 ! Calculates the drift and eigen velocity of all particles: PartVtotal = PartVtrans + PartVtherm 
 ! PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
@@ -1581,39 +1586,32 @@ USE MOD_Globals
 USE MOD_Particle_Analyze_Vars, ONLY: VeloDirs
 USE MOD_Particle_Vars,         ONLY: PartState, PartSpecies, PDM, nSpecies, PartMPF, usevMPF
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
+USE MOD_Particle_Analyze_Vars, ONLY: nSpeciesAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+REAL,INTENT(IN)                :: NumSpec(nSpeciesAnalyze)
+INTEGER(KIND=8),INTENT(IN)     :: SimNumSpec(nSpeciesAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: PartVtrans(:,:), PartVtherm(:,:) 
+REAL,INTENT(OUT)               :: PartVtrans(nSpecies,4), PartVtherm(nSpecies,4) 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: iSpec
 INTEGER                        :: i
-INTEGER                        :: NumSpecloc(nSpecies)
-INTEGER                        :: NumSpecglob(nSpecies)
 INTEGER                        :: dir
-REAL                           :: RealNumSpecloc(nSpecies), RealNumSpecglob(nSpecies)
-REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies,4)
+#ifdef MPI
+REAL                           :: RD(nSpecies*4)
+#endif /*MPI*/
 !===================================================================================================================================
 ! Compute velocity averages
   PartVtrans = 0.
-  PartVglob = 0.
-  PartVthermglob = 0.
   PartVtherm = 0.
-  NumSpecloc = 0
-  NumSpecglob = 0
-  RealNumSpecloc = 0.
-  RealNumSpecglob = 0.
-
+  
+  ! compute trans. velocity
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-      IF (usevMPF) THEN
-        RealNumSpecloc(PartSpecies(i)) = RealNumSpecloc(PartSpecies(i)) + PartMPF(i)
-      END IF
-      NumSpecloc(PartSpecies(i)) = NumSpecloc(PartSpecies(i)) + 1
       DO dir = 1,3
         IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
           IF (usevMPF) THEN 
@@ -1625,44 +1623,48 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
       END DO
     END IF
   END DO
+
 #ifdef MPI
-  CALL MPI_ALLREDUCE(PartVtrans, PartVglob, 4*nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
-  PartVtrans = PartVglob
-#endif
-  IF (usevMPF) THEN
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,PartVtrans ,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  ELSE
+    CALL MPI_REDUCE(PartVtrans  ,RD         ,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  END IF
+#endif /*MPI*/
+
+  IF(PartMPI%MPIRoot)THEN
+    IF (usevMPF) THEN
+      DO dir = 1,3
+        IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
+          DO iSpec = 1,nSpecies
+            IF(NumSpec(iSpec).EQ.0)THEN
+              PartVtrans(iSpec,dir) = 0.
+            ELSE
+              PartVtrans(iSpec,dir) = PartVtrans(iSpec,dir)/NumSpec(iSpec)
+            END IF
+          END DO ! iSpec = 1,nSpecies
+        END IF
+      END DO
+    ELSE !no vMPF
+      DO dir = 1,3
+        IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
+          DO iSpec = 1,nSpecies
+            IF(SimNumSpec(iSpec).EQ.0)THEN
+              PartVtrans(iSpec,dir) = 0.
+            ELSE
+              PartVtrans(iSpec,dir) = PartVtrans(iSpec,dir)/REAL(SimNumSpec(iSpec),8)
+            END IF
+          END DO ! iSpec = 1,nSpecies
+        END IF
+      END DO
+    END IF !usevMPF
+  END IF
+
 #ifdef MPI
-    CALL MPI_ALLREDUCE(RealNumSpecloc, RealNumSpecglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
-    RealNumSpecloc = RealNumSpecglob
-#endif
-    DO dir = 1,3
-      IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
-        DO iSpec = 1,nSpecies
-          IF(RealNumSpecloc(iSpec).EQ.0)THEN
-            PartVtrans(iSpec,dir) = 0.
-          ELSE
-            PartVtrans(iSpec,dir) = PartVtrans(iSpec,dir)/RealNumSpecloc(iSpec)
-          END IF
-        END DO ! iSpec = 1,nSpecies
-      END IF
-    END DO
-  ELSE !no vMPF
-#ifdef MPI
-    CALL MPI_ALLREDUCE(NumSpecloc, NumSpecglob, nSpecies, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
-    NumSpecloc = NumSpecglob
-#endif
-    DO dir = 1,3
-      IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
-        DO iSpec = 1,nSpecies
-          IF(NumSpecloc(iSpec).EQ.0)THEN
-            PartVtrans(iSpec,dir) = 0.
-          ELSE
-            PartVtrans(iSpec,dir) = PartVtrans(iSpec,dir)/NumSpecloc(iSpec)
-          END IF
-        END DO ! iSpec = 1,nSpecies
-      END IF
-    END DO
-  END IF !usevMPF
+  CALL MPI_BCAST(PartVtrans,4*nSpecies, MPI_DOUBLE_PRECISION,0,PartMPI%COMM,iERROR)
+#endif /*MPI*/
   
+  ! calculate thermal velocity
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       DO dir = 1,3
@@ -1678,35 +1680,42 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
       END DO
     END IF
   END DO
+
 #ifdef MPI
-  CALL MPI_ALLREDUCE(PartVtherm, PartVthermglob, 4*nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
-  PartVtherm = PartVthermglob
-#endif
-  DO dir = 1,3
-    IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
-      DO iSpec = 1,nSpecies
-        IF (usevMPF) THEN
-          IF(RealNumSpecloc(iSpec).EQ.0)THEN
-            PartVtherm(iSpec,dir)=0.
-          ELSE
-            PartVtherm(iSpec,dir)=PartVtherm(iSpec,dir)/RealNumSpecloc(iSpec)
-          END IF
-        ELSE
-          IF(NumSpecloc(iSpec).EQ.0)THEN
-            PartVtherm(iSpec,dir)=0.
-          ELSE
-            PartVtherm(iSpec,dir)=PartVtherm(iSpec,dir)/NumSpecloc(iSpec)
-          END IF
-        END IF
-      END DO ! iSpec = 1,nSpecies
-    END IF
-  END DO
- ! calc abolute value
-  IF (VeloDirs(4)) THEN
-    PartVtrans(:,4) = SQRT(PartVtrans(:,1)*PartVtrans(:,1) + PartVtrans(:,2)*PartVtrans(:,2) + PartVtrans(:,3)*PartVtrans(:,3))
-    PartVtherm(:,4) = PartVtherm(:,1) + PartVtherm(:,2) + PartVtherm(:,3)
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,PartVtherm,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+  ELSE
+    CALL MPI_REDUCE(PartVtherm  ,RD        ,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   END IF
-  PartVtherm(:,:) = SQRT(PartVtherm(:,:))
+#endif /*MPI*/
+
+  IF(PartMPI%MPIRoot)THEN
+    DO dir = 1,3
+      IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
+        DO iSpec = 1,nSpecies
+          IF (usevMPF) THEN
+            IF(NumSpec(iSpec).EQ.0)THEN
+              PartVtherm(iSpec,dir)=0.
+            ELSE
+              PartVtherm(iSpec,dir)=PartVtherm(iSpec,dir)/NumSpec(iSpec)
+            END IF
+          ELSE
+            IF(SimNumSpec(iSpec).EQ.0)THEN
+              PartVtherm(iSpec,dir)=0.
+            ELSE
+              PartVtherm(iSpec,dir)=PartVtherm(iSpec,dir)/REAL(SimNumSpec(iSpec),8)
+            END IF
+          END IF
+        END DO ! iSpec = 1,nSpecies
+      END IF
+    END DO
+ !   calc absolute value
+    IF (VeloDirs(4)) THEN
+      PartVtrans(:,4) = SQRT(PartVtrans(:,1)*PartVtrans(:,1) + PartVtrans(:,2)*PartVtrans(:,2) + PartVtrans(:,3)*PartVtrans(:,3))
+      PartVtherm(:,4) = PartVtherm(:,1) + PartVtherm(:,2) + PartVtherm(:,3)
+    END IF
+    PartVtherm(:,:) = SQRT(PartVtherm(:,:))
+  END IF
 END SUBROUTINE CalcVelocities
 
 
@@ -2292,7 +2301,120 @@ ELSE
 END IF
 CalcEkinPart=Ekin
 END FUNCTION CalcEkinPart
+
+
+SUBROUTINE CalcPowerDensity() 
+!===================================================================================================================================
+! compute the power density of the species
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Timeaverage_Vars,    ONLY:DoPowerDensity,PowerDensity
+USE MOD_Particle_Vars,       ONLY:nSpecies,PartSpecies,PDM
+USE MOD_PICDepo_Vars,        ONLY:Source
+USE MOD_Part_RHS,            ONLY:PartVeloToImp
+USE MOD_Preproc
+USE MOD_PICDepo,             ONLY:Deposition
+#ifndef PP_HDG
+USE MOD_DG_Vars,             ONLY:U
+#else
+USE MOD_Equation_Vars,       ONLY:E
+#endif
+#ifdef MPI
+USE MOD_Particle_MPI,        ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,   ONLY:PartMPIExchange
+USE MOD_Particle_MPI_Vars,   ONLY:DoExternalParts
+USE MOD_Particle_MPI_Vars,   ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+#endif /*MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iSpec,iSpec2
+INTEGER              :: iElem,i,j,k,iPart
+LOGICAL              :: doParticle(1:PDM%MaxParticleNumber)
+!===================================================================================================================================
+
+iSpec2=0
+PowerDensity=0.
+DO iSpec=1,nSpecies
+  IF(.NOT.DoPowerDensity(iSpec)) CYCLE
+  iSpec2=iSpec2+1
+  ! mark particle
+  DoParticle(:)=.FALSE.
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(iPart))THEN
+      IF(PartSpecies(iPart).EQ.iSpec)THEN
+        DoParticle(iPart)=.TRUE.
+      END IF
+    END IF ! ParticleInside
+  END DO ! iPart
+    
+  ! communicate shape function particles
+#ifdef MPI
+  PartMPIExchange%nMPIParticles=0
+  IF(DoExternalParts)THEN
+    ! as we do not have the shape function here, we have to deallocate something
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+    ! send number of particles
+    CALL SendNbOfParticles(doParticle_In=DoParticle)
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+    ! set exchanged number of particles to zero
+    PartMPIExchange%nMPIParticles=0
+  END IF
+#endif /*MPI*/
+
+  ! compute source terms
+  ! map particle from gamma v to v
+  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  ! compute particle source terms on field solver of implicit particles :)
+  CALL Deposition(doInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition(doInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  ! map particle from v to gamma v
+  CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+
+  ! compute power density
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+#ifndef PP_HDG
+          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*U(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*U(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+#else
+#if PP_nVar==1
+          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*E(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*E(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+#else
+          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
+#endif
+          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+#endif
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+  END DO ! iElem=1,PP_nElems
+END DO
+
+END SUBROUTINE CalcPowerDensity
  
+
 SUBROUTINE FinalizeParticleAnalyze()
 !===================================================================================================================================
 ! Finalizes variables necessary for analyse subroutines

@@ -14,6 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#ifndef PP_HDG
 INTERFACE LinearSolver
   MODULE PROCEDURE LinearSolver
 !  MODULE PROCEDURE LinearSolver_GMRES_P
@@ -24,8 +25,10 @@ INTERFACE LinearSolver
 !  MODULE PROCEDURE LinearSolver_BiCGSTAB
 END INTERFACE
 
+PUBLIC:: LinearSolver
+#endif /*NOT HDG*/
+
 PUBLIC:: InitLinearSolver, FinalizeLinearSolver
-PUBLIC:: LinearSolver!,LinearSolver_BiCGSTAB_PM,LinearSolver_GMRES_P
 !===================================================================================================================================
 
 CONTAINS
@@ -38,11 +41,14 @@ SUBROUTINE InitLinearSolver()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars
-USE MOD_Interpolation_Vars,   ONLY:wGP
-USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone,sJ
-USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
+USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone
+USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
+#ifndef PP_HDG
+USE MOD_Interpolation_Vars,   ONLY:wGP
+USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Precond,              ONLY:InitPrecond
+#endif /*NOT HDG*/
 USE MOD_Predictor,            ONLY:InitPredictor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -52,8 +58,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+#ifndef PP_HDG
 INTEGER    :: i,j,k,iElem
+#endif
 !===================================================================================================================================
+
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.LinearSolverInitIsDone)THEN
    CALL abort(&
 __STAMP__&
@@ -62,15 +71,17 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LINEAR SOLVER...'
 
+#ifndef PP_HDG
 nGP2D=(PP_N+1)**2
 nGP3D=nGP2D*(PP_N+1)
 nDOFLine=PP_nVar*(PP_N+1)
 nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
+#endif /*NOT HDG*/
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 ALLOCATE(ExplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 #endif
 ALLOCATE(LinSolverRHS  (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
@@ -93,10 +104,12 @@ EisenstatWalker=GETLOGICAL('EisenstatWalker','.FALSE.')
 gammaEW=GETREAL('gammaEW','0.9')
 #endif
 
+#ifndef PP_HDG
 nDofGlobalMPI=nDofGlobal
 #ifdef MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
+#endif /*NOT HDG*/
 
 nRestarts             = GETINT('nRestarts','1')
 eps_LinearSolver      = GETREAL('eps_LinearSolver','1e-3')
@@ -108,7 +121,7 @@ nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
 
-#if (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
 maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
 TotalFullNewtonIter  = 0
 Eps_FullNewton       = GETREAL('eps_FullNewton','1e-3')
@@ -121,10 +134,19 @@ DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
 ! UpdateNextFreePosition in each interation
 UpdateInIter         = GETINT('UpdateInIter','-1')
+PartRelaxationFac    = GETREAL('PartRelaxationFac','0.0')
+PartRelaxationFac0   = PartRelaxationFac
+DoPartRelaxation=.TRUE.
+IF(ALMOSTZERO(PartRelaxationFac))THEN
+  DoPartRelaxation=.FALSE.
+ELSE
+  AdaptIterRelaxation0 = GETREAL('AdaptIterRelaxation0','2')
+END IF
 IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
 #endif
 
+#ifndef PP_HDG
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 DO iElem=1,PP_nElems
   DO k=0,PP_N
@@ -161,17 +183,21 @@ CASE DEFAULT
 __STAMP__ &
 ,'WRONG TYPE OF LINEAR SOLVER:',LinSolver,999.)
 END SELECT
+#endif /*NOT HDG*/
+! init predictor
+CALL InitPredictor()
+
+#ifndef PP_HDG
+! init preconditoner
+CALL InitPrecond()
+#endif /*NOT HDG*/
 
 LinearSolverInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT LINEAR SOLVER DONE!'
-! init predictor
-CALL InitPredictor()
-! init preconditoner
-CALL InitPrecond()
-
 
 END SUBROUTINE InitLinearSolver
 
+#ifndef PP_HDG
 SUBROUTINE LinearSolver(t,Coeff,relTolerance)
 !==================================================================================================================================
 ! Selection between different linear solvers
@@ -239,7 +265,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -344,7 +370,7 @@ DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
   ! restart with new U
   ! LinSolverRHS and X0 = U
   !  U              = 0.5*(Uold+Un)
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -383,7 +409,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,        ONLY: U
 USE MOD_LinearSolver_Vars,  ONLY: eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
 USE MOD_LinearSolver_Vars,  ONLY: ImplicitSource,LinsolverRHS
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator, ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -464,7 +490,7 @@ DO iter=1,maxIter_LinearSolver
     U=0.5*(UOld+Un)
     chance=chance+1
     ! restart
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -497,7 +523,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,             ONLY: U
 USE MOD_LinearSolver_Vars,   ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,   ONLY: LinSolverRHS,ImplicitSource
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_ApplyPreconditioner, ONLY:Preconditioner
@@ -594,7 +620,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   Un   = U
   Uold = U
   ! restart
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -629,7 +655,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -778,7 +804,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   ! restart with new U
   ! LinSolverRHS and X0 = U
 !  U              = 0.5*(Uold+Un)
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -818,7 +844,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,       ONLY:U
 USE MOD_LinearSolver_Vars, ONLY:eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
 USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,ImplicitSource
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator, ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -922,7 +948,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   Un   = U
   Uold = U
   ! restart
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -957,7 +983,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY: U
 USE MOD_LinearSolver_Vars,       ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator,          ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -1104,7 +1130,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   Un   = 0.5*(Uold+Un)
   Uold = U
   LinSolverRHS = U
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -1136,7 +1162,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY: U
 USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver
@@ -1277,7 +1303,7 @@ DO WHILE (Restart<nRestarts)
   Restart=Restart+1
   ! new settings for source
   U=Un
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -1313,7 +1339,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -1456,7 +1482,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   Uold = U
 
   ! restart with new U
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -1499,7 +1525,7 @@ USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 !USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -1634,7 +1660,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   Uold = U
 
   ! restart with new U
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -1675,7 +1701,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,ldim
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -1818,7 +1844,7 @@ DO WHILE(Restart.LT.nRestarts)
 !  U              = 0.5*(Uold+Un)
   CALL Preconditioner(deltaX,U)
   U=U+Un
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ImplicitSource = ExplicitSource
 #else
   ImplicitSource = 0.
@@ -1843,6 +1869,7 @@ __STAMP__ &
 ,'BiCGSTAB(l) NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTABl
+#endif /*NOT HDG*/
 
 SUBROUTINE FinalizeLinearSolver()
 !===================================================================================================================================
@@ -1850,7 +1877,7 @@ SUBROUTINE FinalizeLinearSolver()
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
 #ifdef PARTICLES
 USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
@@ -1871,7 +1898,7 @@ LinearSolverInitIsDone = .FALSE.
 SDEALLOCATE(ImplicitSource)
 SDEALLOCATE(LinSolverRHS)
 CALL FinalizePredictor
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 SDEALLOCATE(ExplicitSource)
 #ifdef PARTICLES
 CALL FinalizePartSolver()
@@ -1879,6 +1906,5 @@ CALL FinalizePartSolver()
 #endif
 !SDEALLOCATE(FieldSource)
 END SUBROUTINE FinalizeLinearSolver
-
 
 END MODULE MOD_LinearSolver

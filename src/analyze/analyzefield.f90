@@ -132,19 +132,19 @@ END IF
 #ifdef MPI
  IF(MPIROOT)THEN
 #endif    /* MPI */
-   WRITE(unit_index,104,ADVANCE='NO') Time
+   WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Time
    IF (CalcEpot) THEN 
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,104,ADVANCE='NO') WEl
+     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WEl
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,104,ADVANCE='NO') WMag
+     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WMag
    END IF
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
  END IF
 #endif    /* MPI */
 
-104    FORMAT (e25.14)
+!104    FORMAT (OUTPUTFORMAT)
 
 !SWRITE(UNIT_stdOut,'(A)')' PARTCILE ANALYZE DONE!'
 !SWRITE(UNIT_StdOut,'(132("-"))')
@@ -419,7 +419,7 @@ IF (.NOT.isOpen) THEN
     WRITE(unit_index_PI,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
     DO iPlane = 1, nPoyntingIntPlanes
       WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index_PI,'(A14,F6.3)',ADVANCE='NO') 'Plane-Pos-', PosPoyntingInt(iPlane)
+      WRITE(unit_index_PI,'(A14,I0.3,A1,E13.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
     END DO              
     WRITE(unit_index_PI,'(A1)') ''
   END IF
@@ -428,7 +428,7 @@ END IF
 WRITE(unit_index_PI,'(e25.14)',ADVANCE='NO') t
 DO iPlane = 1, nPoyntingIntPlanes
   WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index_PI,'(e25.14)',ADVANCE='NO') Sabs(iPlane)
+  WRITE(unit_index_PI,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
 END DO
 WRITE(unit_index_PI,'(A1)') ''
 
@@ -630,7 +630,6 @@ REAL              :: RD
 
 Wel=0.
 WMag=0.
-
 DO iElem=1,nElems
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE

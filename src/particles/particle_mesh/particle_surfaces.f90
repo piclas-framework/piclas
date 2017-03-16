@@ -45,6 +45,10 @@ INTERFACE GetBezierSampledAreas
   MODULE PROCEDURE GetBezierSampledAreas
 END INTERFACE
 
+INTERFACE RotateMasterToSlave
+  MODULE PROCEDURE RotateMasterToSlave
+END INTERFACE
+
 INTERFACE EvaluateBezierPolynomialAndGradient
   MODULE PROCEDURE EvaluateBezierPolynomialAndGradient
 END INTERFACE
@@ -54,6 +58,7 @@ PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D
         GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
 
 PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier
+PUBLIC::RotateMasterToSlave
 
 !===================================================================================================================================
 
@@ -102,6 +107,7 @@ BezierNewtonAngle     = GETREAL('BezierNewtonAngle','1.570796326')! 1°=0.01754 
 !BezierHitEpsBi=1.000800
 BezierClipTolerance   = GETREAL('BezierClipTolerance','1e-8')
 BezierNewtonTolerance2= GETREAL('BezierNewtonTolerance','1e-4')
+BezierNewtonGuess     = GETINT('BezierNewtonGuess','1')
 BezierSplitLimit      = GETREAL('BezierSplitLimit','0.6')
 BezierSplitLimit      = 2.*BezierSplitLimit
 BezierClipMaxIter     = GETINT('BezierClipMaxIter','100')
@@ -476,119 +482,79 @@ END IF
 END SUBROUTINE EvaluateBezierPolynomialAndGradient
 
 
-SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,iElem)
+SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID,ilocSide_In,SideID_In)
 !===================================================================================================================================
 ! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
 ! the control points (coeffs for bezier basis) are calculated using the change basis subroutine that interpolates the points 
 ! from the curved lagrange basis geometry (pre-computed inverse of vandermonde is required)
+! This version uses mapping, hence simplified to one loop
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo
+USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo,MortarSlave2MasterInfo,MortarType
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Mesh_Vars,                ONLY:nSides
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
+USE MOD_Mappings,                 ONLY:CGNS_SideToVol2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: iElem
-REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER,INTENT(IN)          :: ElemID
+REAL,INTENT(IN)             :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER,INTENT(IN),OPTIONAL :: ilocSide_In
+INTEGER,INTENT(IN),OPTIONAL :: SideID_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: lastSideID,SideID
-INTEGER                           :: p,q
+INTEGER                           :: SideID,ilocSide,flip
+INTEGER                           :: p,q,pq(2)
 REAL                              :: tmp(3,0:NGeo,0:NGeo)  
-
+REAL                              :: tmp2(3,0:NGeo,0:NGeo)  
+LOGICAL                           :: DoSide
 !===================================================================================================================================
-! BCSides, InnerSides and MINE MPISides are filled
-!lastSideID  = nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
-lastSideID  = nSides
-!IF(DoRefMapping) lastSideID  = nBCSides
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 1.) XI_MINUS
-!-----------------------------------------------------------------------------------------------------------------------------------
-SideID=ElemToSide(E2S_SIDE_ID,XI_MINUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,XI_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:),tmp)
+
+DO ilocSide=1,6
+  DoSide=.FALSE.
+  SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+  flip=ElemToSide(E2S_FLIP,ilocSide,ElemID)
+  IF(PRESENT(ilocSide_In))THEN
+    DoSide=.TRUE.
+    IF(ilocSide_In.NE.ilocSide) CYCLE
+    IF(.NOT.PRESENT(SideID_In)) CALL abort(&
+__STAMP__&
+,' Error in Input! SideID_In required! ')
+  END IF
+  !if flip=0, master side or Mortar side
+  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1.OR.DoSide)THEN 
+    IF(PRESENT(SideID_In)) SideID=SideID_In
+    SELECT CASE(iLocSide)
+    CASE(XI_MINUS)
+      tmp=XCL_NGeo(1:3,0   ,:   ,:   )
+    CASE(XI_PLUS)
+      tmp=XCL_NGeo(1:3,NGeo,:   ,:   )
+    CASE(ETA_MINUS)
+      tmp=XCL_NGeo(1:3,:   ,0   ,:   )
+    CASE(ETA_PLUS)
+      tmp=XCL_NGeo(1:3,:   ,NGeo,:   )
+    CASE(ZETA_MINUS)
+      tmp=XCL_NGeo(1:3,:   ,:   ,0   )
+    CASE(ZETA_PLUS)
+      tmp=XCL_NGeo(1:3,:   ,:   ,NGeo)
+    END SELECT
+    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,tmp,tmp2)
     ! turn into right hand system of side
-    DO q=0,NGeo
-      DO p=0,NGeo
-        BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
-      END DO !p
-    END DO !q
-    !CALL GetSideSlabNormalsAndIntervals(NGeo,SideID)
-  END IF !flip=0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 2.) XI_PLUS
-!-----------------------------------------------------------------------------------------------------------------------------------
-SideID=ElemToSide(E2S_SIDE_ID,XI_PLUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,XI_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:),tmp)
-    !print*,'ixi'
-    BezierControlPoints3D(:,:,:,SideID)=tmp
-    !CALL GetSideSlabNormalsAndIntervals(NGeo,SideID)
-  END IF !flip=0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 3.) ETA_MINUS
-!-----------------------------------------------------------------------------------------------------------------------------------
-SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:),BezierControlPoints3D(1:3,:,:,sideID))
-    !CALL GetSideSlabNormalsAndIntervals(NGeo,SideID)
-   END IF !flip=0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 4.) ETA_PLUS
-!-----------------------------------------------------------------------------------------------------------------------------------
-SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:),tmp)
-    ! turn into right hand system of side
-    DO q=0,NGeo
-      DO p=0,NGeo
-        BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,NGeo-p,q)
-      END DO !p
-    END DO !q
-      !CALL GetSideSlabNormalsAndIntervals(NGeo,SideID)
-  END IF !flip=0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 5.) ZETA_MINUS
-!-----------------------------------------------------------------------------------------------------------------------------------
-SideID=ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ZETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0),tmp)
-    ! turn into right hand system of side
-    DO q=0,NGeo
-      DO p=0,NGeo
-        BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
-      END DO !p
-    END DO !q
-    !  CALL GetSideSlabNormalsAndIntervals(NGeo,SideID)
-  END IF !flip=0
-END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 6.) ZETA_PLUS
-!-----------------------------------------------------------------------------------------------------------------------------------
-SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ZETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo),BezierControlPoints3D(1:3,:,:,sideID))
-    !CALL GetSideSlabNormalsAndIntervals(NGeo,SideID)
-  END IF !flip=0
-END IF
+    DO q=0,NGeo; DO p=0,NGeo
+      pq=CGNS_SideToVol2(NGeo,p,q,iLocSide)
+      ! Compute BezierControlPoints3D for sides in MASTER system
+      BezierControlPoints3D(1:3,p,q,sideID)=tmp2(1:3,pq(1),pq(2))
+    END DO; END DO ! p,q
+  END IF
+END DO ! ilocSide=1,6
+
 END SUBROUTINE GetBezierControlPoints3D
 
 
@@ -1264,6 +1230,40 @@ DO i=1,NGeo+BezierElevation-1
   END DO
 END DO
 END FUNCTION ElevateBezierPolynomial
+
+
+SUBROUTINE RotateMasterToSlave(flip,BezierControlPoints3D)
+!===================================================================================================================================
+! Rotate BezierControlPoints3D from Master to Slave
+! The resulting controlpoints are orientated as a "new master" for the slave element
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc
+USE MOD_Mesh_Vars,      ONLY:nGeo
+USE MOD_Mappings,       ONLY:Flip_M2S
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)            :: flip 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)            :: BezierControlPoints3D(1:3,0:NGeo,0:NGeo)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
+INTEGER                       :: p,q,pq(2)
+!===================================================================================================================================
+
+BezierControlPoints3D_tmp=BezierControlPoints3D
+
+DO q=0,NGeo; DO p=0,NGeo
+  pq = Flip_M2S(NGeo,p,q,flip) 
+  BezierControlPoints3D(:,pq(1),pq(2))=BezierControlPoints3d_tmp(:,p,q)
+END DO; END DO ! p,q
+
+END SUBROUTINE RotateMasterToSlave
 
 
 END MODULE MOD_Particle_Surfaces

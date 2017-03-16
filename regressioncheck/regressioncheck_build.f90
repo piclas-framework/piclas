@@ -42,7 +42,7 @@ SUBROUTINE ReadConfiguration(iExample,nReggieBuilds,N_compile_flags)
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,RuntimeOptionType,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,BuildCODE2D,BuildPARABOLIC
 USE MOD_RegressionCheck_Vars,    ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -135,7 +135,7 @@ DO I=1,2
           COMPILE_FLAG=TRIM(ADJUSTL(temp(1:INDEX(temp,'=')-1)))
           N_compile_flags=N_compile_flags+1
           IF(I.EQ.1)THEN
-            SWRITE(UNIT_stdOut,'(A)')"include: ",TRIM(COMPILE_FLAG)!,TRIM(temp(INDEX(temp,'='):LEN(temp)))
+            SWRITE(UNIT_stdOut,'(A)')"include: ",TRIM(ADJUSTL(COMPILE_FLAG))!,TRIM(temp(INDEX(temp,'='):LEN(temp)))
           END IF
           IF(I.EQ.2)BuildConfigurations(N_compile_flags,1)=TRIM(ADJUSTL(COMPILE_FLAG))
           temp2=TRIM(ADJUSTL(temp(INDEX(temp,'=')+1:LEN(temp))))
@@ -205,6 +205,14 @@ DO I=1,2
   IF(I.EQ.1)BuildTESTCASE='default'
   IF(I.EQ.1)ALLOCATE(BuildTIMEDISCMETHOD(nReggieBuilds))
   IF(I.EQ.1)BuildTIMEDISCMETHOD='default'
+  IF(I.EQ.1)ALLOCATE(BuildMPI(nReggieBuilds))
+  IF(I.EQ.1)BuildMPI='OFF'
+  IF(I.EQ.1)ALLOCATE(BuildFV(nReggieBuilds))
+  IF(I.EQ.1)BuildFV='OFF'
+  IF(I.EQ.1)ALLOCATE(BuildCODE2D(nReggieBuilds))
+  IF(I.EQ.1)BuildCODE2D='OFF'
+  IF(I.EQ.1)ALLOCATE(BuildPARABOLIC(nReggieBuilds))
+  IF(I.EQ.1)BuildPARABOLIC='OFF'
 END DO
 
 
@@ -330,10 +338,10 @@ SUBROUTINE BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,N_compile_flag
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
-USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD
-USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase
+USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,BuildCODE2D
+USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError
-USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex
+USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -343,7 +351,7 @@ INTEGER,INTENT(IN)                        :: iExample,iReggieBuild,N_compile_fla
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                   :: ioUnit,iSTATUS,J,K
+INTEGER                                   :: ioUnit,iSTATUS,iSTATUS2,J,K
 CHARACTER(LEN=255)                        :: FileName
 LOGICAL                                   :: ExistFile
 CHARACTER(LEN=500)                        :: SYSCOMMAND
@@ -386,19 +394,42 @@ IF(BuildValid(iReggieBuild))THEN
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
   ! can be executed with the compiled executable or not
-  IF(iSTATUS.EQ.0)THEN
+  ! check MPI: single or parallel version
+  CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
+                                                            CodeNameUppCase//'_MPI'        ,BuildMPI(iReggieBuild),BACK=.TRUE.)
+  IF(iSTATUS.EQ.0)THEN ! -> succeeded to compile cmake configuration build
+    ! check TESTCASE: e.g. taylor green vortex
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                               CodeNameUppCase//'_TESTCASE'      ,BuildTESTCASE(iReggieBuild))
+                                                            CodeNameUppCase//'_TESTCASE'   ,BuildTESTCASE(iReggieBuild))
     ! set default for, e.g., PICLas code (currently no testcases are implemented)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
+    ! check TIMEDISCMETHOD: time integration method
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                               CodeNameUppCase//'_TIMEDISCMETHOD',BuildTIMEDISCMETHOD(iReggieBuild))
+                                                            CodeNameUppCase//'_TIMEDISCMETHOD',BuildTIMEDISCMETHOD(iReggieBuild))
     ! set default for, e.g., FLEXI (not a compilation flag)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
+    ! check EQNSYSNAME: equation system
     CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                               CodeNameUppCase//'_EQNSYSNAME'     ,BuildEQNSYS(iReggieBuild))
+                                                            CodeNameUppCase//'_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
+    ! check FV: finite volume sub cell operator
+    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
+                                                            CodeNameUppCase//'_FV'        ,BuildFV(iReggieBuild),BACK=.TRUE.)
+    IF(BuildFV(iReggieBuild).EQ.'flag does not exist')BuildFV(iReggieBuild)='OFF'
+
+    ! check 2D: 2D version of code
+    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
+                                                            CodeNameUppCase//'_CODE2D'    ,BuildCODE2D(iReggieBuild),BACK=.TRUE.)
+    IF(BuildCODE2D(iReggieBuild).EQ.'flag does not exist')BuildCODE2D(iReggieBuild)='OFF'
+
+    ! check PARABOLIC: with or without parabolic terms
+    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
+                                                            CodeNameUppCase//'_PARABOLIC' ,BuildPARABOLIC(iReggieBuild),BACK=.TRUE.)
+    IF(BuildPARABOLIC(iReggieBuild).EQ.'flag does not exist')BuildPARABOLIC(iReggieBuild)='OFF'
   ELSE ! iSTATUS.NE.0 -> failed to compile cmake configuration build
-    CALL AddError('Error while compiling',iExample,1,ErrorStatus=1,ErrorCode=1) !note: iSubExample is set to 1 as argument
+    ! AddError: note: iSubExample is set to 1 as argument
+    Examples(iExample)%SubExampleOption(1)='-' ! set default for error output
+    EXECPATH='-' ! set default for error output
+    CALL AddError('MPI='//TRIM(BuildMPI(iReggieBuild)),'Error while compiling',iExample,1,ErrorStatus=1,ErrorCode=1)
     CALL SummaryOfErrors() ! the summary or examples and error codes (if they exist) before calling abort
     ! the error that caused the compilation abort (if it was written to "build_reggie.out" due to silent compilation)
     FileName=TRIM(BuildDir)//'build_reggie/build_reggie.out'
@@ -412,7 +443,7 @@ IF(BuildValid(iReggieBuild))THEN
       SWRITE(UNIT_stdOut, '(A)')"Error output from: "//TRIM(FileName)
       SWRITE(UNIT_stdOut, '(A)')' '
       SYSCOMMAND='grep -rin error '//TRIM(FileName)
-      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS2)
       SWRITE(UNIT_stdOut,'(132("="))')
       SWRITE(UNIT_stdOut, '(A)')' '
     !ELSE
@@ -424,6 +455,10 @@ IF(BuildValid(iReggieBuild))THEN
   SWRITE(UNIT_stdOut,'(A)')"BuildEQNSYS(iReggieBuild)          = ["//TRIM(BuildEQNSYS(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildTESTCASE(iReggieBuild)        = ["//TRIM(BuildTESTCASE(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildTIMEDISCMETHOD(iReggieBuild)) = ["//TRIM(BuildTIMEDISCMETHOD(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"BuildMPI(iReggieBuild))            = ["//TRIM(BuildMPI(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"BuildFV(iReggieBuild))             = ["//TRIM(BuildFV(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"BuildCODE2D(iReggieBuild))         = ["//TRIM(BuildCODE2D(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"BuildPARABOLIC(iReggieBuild))      = ["//TRIM(BuildPARABOLIC(iReggieBuild))//"]"
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
   IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
@@ -454,7 +489,7 @@ END SUBROUTINE BuildConfiguration
 !==================================================================================================================================
 !> read compile flags from a specified file
 !==================================================================================================================================
-SUBROUTINE GetFlagFromFile(FileName,Flag,output)
+SUBROUTINE GetFlagFromFile(FileName,Flag,output,BACK)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
@@ -465,17 +500,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
 CHARACTER(LEN=*),INTENT(IN)  :: Flag     ! e.g. 'XX_EQNSYSNAME'
+LOGICAL,OPTIONAL,INTENT(IN)  :: BACK     ! get the second argument in the option
 !INTEGER         :: a
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
-INTEGER                        :: iSTATUS      ! status
-CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
-INTEGER                        :: ioUnit       ! field handler unit and ??
-INTEGER                        :: IndNum       ! Index Number
+LOGICAL                        :: ExistFile      ! file exists=.true., file does not exist=.false.
+INTEGER                        :: iSTATUS        ! status
+CHARACTER(LEN=255)             :: temp,temp2     ! temp variables for read in of file lines
+INTEGER                        :: ioUnit         ! field handler unit and ??
+INTEGER                        :: IndNum,IndNum2 ! Index Number
 !===================================================================================================================================
 output=''
 INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
@@ -498,6 +534,12 @@ IF(ExistFile) THEN
           END IF
         END IF
         output=TRIM(ADJUSTL(temp2(1:IndNum-1)))
+        IF(PRESENT(BACK))THEN
+          IndNum2=INDEX(temp2, ')')
+          IF(IndNum2.GT.0)THEN
+            output=TRIM(ADJUSTL(temp2(IndNum+1:IndNum2-1)))
+          END IF
+        END IF
         EXIT
       END IF
     END IF

@@ -253,9 +253,9 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! Open data file
 #ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-CALL OpenDataFile(FileString,create=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
 #endif
 
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
@@ -283,7 +283,11 @@ PartDistri(:)=0
 CALL CloseDataFile()
 Dexist=.FALSE. 
 IF (DoRestart) THEN 
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#ifdef MPI
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+#else
+  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
+#endif /*MPI*/
 
 #ifdef MPI
   IF(MPIRoot)THEN
@@ -302,10 +306,10 @@ IF (DoRestart) THEN
   END IF
   ALLOCATE(PartInt(1:nGlobalElems,2))
   PartInt(:,:)=0
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
   CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
   CALL CloseDataFile() 
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
   
   WeightSum = 0.0
   CurWeight = 0.0
@@ -324,19 +328,32 @@ IF (DoRestart) THEN
   END DO
 
   SELECT CASE(BalanceMethod)
-  CASE(0) ! old scheme
-    curiElem = 1
-    WeightSum=WeightSum/REAL(nProcessors)
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc)=curiElem - 1 
-      DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
-        CurWeight=CurWeight+ElemWeight(iElem)  
-        IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
-          curiElem = iElem + 1 
-          EXIT
-        END IF
-      END DO   
+  CASE(-1) ! same as in no-restart: the elements are equally distributed
+    nElems=nGlobalElems/nProcessors
+    iElem=nGlobalElems-nElems*nProcessors
+    DO iProc=0,nProcessors-1
+      offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
     END DO
+    offsetElemMPI(nProcessors)=nGlobalElems
+  CASE(0) ! old scheme
+    IF(nGlobalElems.EQ.nProcessors) THEN
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc) = iProc
+      END DO
+    ELSE
+      curiElem = 1
+      WeightSum=WeightSum/REAL(nProcessors)
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc)=curiElem - 1
+        DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
+          CurWeight=CurWeight+ElemWeight(iElem)
+          IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
+            curiElem = iElem + 1
+            EXIT
+          END IF
+        END DO
+      END DO
+    END IF
     offsetElemMPI(nProcessors)=nGlobalElems
   CASE(1)
     ! 1: last Proc receives the least load
@@ -699,14 +716,18 @@ IF(DExist)THEN
   SDEALLOCATE(ElemWeight)
   ALLOCATE(ElemWeight(1:nElems))
   !CALL ReadArray('ElemWeight',1,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#ifdef MPI
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+#else
+  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
+#endif /*MPI*/
   CALL ReadArray('ElemWeight',1,(/nElems/),OffsetElem,1,RealArray=ElemWeight)
   CALL CloseDataFile() 
 END IF
 #ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
-CALL OpenDataFile(FileString,create=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
 #endif 
 SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))
@@ -793,9 +814,15 @@ DO iElem=FirstElemInd,LastElemInd
       aSide%Ind=ABS(SideInfo(SIDE_ID,iSide))
       IF(oriented)THEN !oriented side
         aSide%flip=0
+#ifdef PARTICLES
+        aSide%BC_Alpha=99
+#endif /*PARTICLES*/
       ELSE !not oriented
         aSide%flip=MOD(Sideinfo(SIDE_Flip,iSide),10)
         IF((aSide%flip.LT.0).OR.(aSide%flip.GT.4)) STOP 'NodeID doesnt belong to side'
+#ifdef PARTICLES
+        aSide%BC_Alpha=-99
+#endif /*PARTICLES*/
       END IF
     ELSE !mortartype>0
       DO iMortar=1,aSide%nMortars
@@ -804,11 +831,13 @@ DO iElem=FirstElemInd,LastElemInd
         IF(SideInfo(SIDE_ID,iSide).LT.0) STOP 'Problem in Mortar readin,should be flip=0'
         aSide%mortarSide(iMortar)%sp%flip=0
         aSide%mortarSide(iMortar)%sp%Ind=ABS(SideInfo(SIDE_ID,iSide))
+#ifdef PARTICLES
+        aSide%BC_Alpha=99
+#endif /*PARTICLES*/
       END DO !iMortar
     END IF
   END DO !i=1,locnSides
 END DO !iElem
-
 
 ! build up side connection
 DO iElem=FirstElemInd,LastElemInd
@@ -834,6 +863,9 @@ DO iElem=FirstElemInd,LastElemInd
            (BoundaryType(aSide%BCindex,BC_TYPE).NE.100))THEN ! Reassignement from periodic to non-periodic
           doConnection=.FALSE.
           aSide%flip  =0
+#ifdef PARTICLES
+          aSide%BC_Alpha=0
+#endif /*PARTICLES*/
           IF(iMortar.EQ.0) aSide%mortarType  = 0
           IF(iMortar.EQ.0) aSide%nMortars    = 0
           elemID            = 0
