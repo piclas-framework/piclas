@@ -336,6 +336,7 @@ nSpecies = GETINT('Part-nSpecies','1')
 
 ! IMD data import from *.chkpt file
 DoImportIMDFile=.FALSE.
+IMDLengthScale=0.0
 
 ! init varibale MPF per particle
 IF (usevMPF) THEN
@@ -411,6 +412,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
       Species(iSpec)%IMDTimeScale          = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDTimeScale','0.0')
       Species(iSpec)%IMDLengthScale        = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDLengthScale','0.0')
+      IF(Species(iSpec)%IMDLengthScale.GT.0.0)IMDLengthScale=Species(iSpec)%IMDLengthScale
       Species(iSpec)%IMDMultiplier         = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDMultiplier','0.0')
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
