@@ -1538,13 +1538,13 @@ DO subsurfxi = 1,nSurfSample
           IF (ReactDirForward) THEN
             P_react_forward(iReact) = P_react_forward(iReact) + 1
           ELSE
-            P_react_back(iReact) = P_react_forward(iReact) + 1
+            P_react_back(iReact) = P_react_back(iReact) + 1
           END IF
         ELSE
           IF (ReactDirForward) THEN
             P_react_forward(iReact) = P_react_forward(iReact) + P_actual_react(iReact+ReactNum_run)
           ELSE
-            P_react_back(iReact) = P_react_forward(iReact) + P_actual_react(iReact+ReactNum_run)
+            P_react_back(iReact) = P_react_back(iReact) + P_actual_react(iReact+ReactNum_run)
           END IF
         END IF
       END IF
@@ -2014,7 +2014,7 @@ DO subsurfxi = 1,nSurfSample
     END IF
     ! update number of adsorbates
     adsorbnum(:) = nSites(:) - nSitesRemain(:)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(:) = nSitesRemain(:)
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(:) = nSitesRemain(1:3)
     ! increment number of considered surface particles
     trace = trace + 1
   END DO ! trace < traceNum
