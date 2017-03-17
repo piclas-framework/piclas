@@ -1825,7 +1825,7 @@ INTEGER,INTENT(INOUT)            :: NbrOfParticle
 ! LOCAL VARIABLES
 INTEGER                          :: i,j,PositionNbr        
 REAL                             :: Radius(3), n_vec(3), tan_vec(3), Velo1, Angle, Velo2, f
-REAL                             :: Vec3D(3), RandVal(3)
+REAL                             :: Vec3D(3), RandVal(3), Vec2D(2)
 REAL                             :: II(3,3),JJ(3,3),NN(3,3)
 INTEGER                          :: distnum,Rotation
 REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01,y_02, RandVal1
@@ -1850,6 +1850,8 @@ REAL                                   :: MWTemperatureIC                  ! Tem
 REAL                                   :: MJRatio(3)                       ! momentum to temperature ratio
 ! Maxwell-Juettner
 REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
+REAL                             :: VelocitySpread                         ! widening of init velocity
+REAL                             :: VelocityScale
 !===================================================================================================================================
 
 IF (PRESENT(Is_BGGas_opt)) THEN
@@ -1887,9 +1889,10 @@ CASE(1) !iInit
   MJRatio(3)=Species(FractNbr)%Init(iInit)%MJzRatio
   SELECT CASE(TRIM(velocityDistribution))
   CASE('tangential_constant')
-    Rotation= Species(FractNbr)%Init(iInit)%Rotation
+    Rotation       = Species(FractNbr)%Init(iInit)%Rotation
+    VelocitySpread = Species(FractNbr)%Init(iInit)%VelocitySpread
+    VelocitySpread = VelocitySpread*VeloIC/1.645 ! sigma of normal Distribution
   END SELECT
-
 CASE(2) !SurfaceFlux
   IF (TRIM(Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution).EQ.'constant') THEN
     velocityDistribution=Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution
@@ -1997,13 +2000,44 @@ CASE('tangential_constant')
         END IF
         !  And finally the velocities
         IF(Rotation.EQ.1)THEN
-          PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
+          PartState(PositionNbr,4:6) = tan_vec(1:3) * VelocityScale * VeloIC + n_vec(1:3) * VeloIC
         ELSE
-          PartState(PositionNbr,4:6) = (-tan_vec(1:3) + n_vec(1:3)) * VeloIC
+          PartState(PositionNbr,4:6) = -tan_vec(1:3) * VelocityScale * VeloIC + n_vec(1:3) * VeloIC
         END IF
+
+        IF(VelocitySpread.GT.0.)THEN
+          DO distnum = 1, 2
+            CALL RANDOM_NUMBER(RandVal)
+            Velo1 = 2.0*RandVal(1)-1.0
+            Velo2 = 2.0*RandVal(2)-1.0
+            Velosq= Velo1**2+Velo2**2
+            DO WHILE ((Velosq.LE.0).OR.(Velosq.GE.1))
+              CALL RANDOM_NUMBER(RandVal)
+              Velo1 = 2.0*RandVal(1)-1.0
+              Velo2 = 2.0*RandVal(2)-1.0
+              Velosq= Velo1**2+Velo2**2
+            END DO
+            Vec3D(distnum) = Velo1*SQRT(-2*VelocitySpread**2*LOG(Velosq)/Velosq)
+          END DO
+          distnum=3
+          CALL RANDOM_NUMBER(RandVal)
+          Velo1 = 2.0*RandVal(1)-1.0
+          Velo2 = 2.0*RandVal(2)-1.0
+          Velosq= Velo1**2+Velo2**2
+          DO WHILE ((Velosq.LE.0).OR.(Velosq.GE.1))
+            CALL RANDOM_NUMBER(RandVal)
+            Velo1 = 2.0*RandVal(1)-1.0
+            Velo2 = 2.0*RandVal(2)-1.0
+            Velosq= Velo1**2+Velo2**2
+          END DO
+          Vec3D(distnum) = Velo1*SQRT(-2*VelocitySpread**2/(Alpha**2)*LOG(Velosq)/Velosq)
+          !  And finally the velocities
+          PartState(PositionNbr,4:6) = PartState(PositionNbr,4:6) + VeloIC*Vec3D(1:3)
+        END IF 
      END IF
      i = i + 1
   END DO
+
 CASE('gyrotron_circle')
   i = 1
   IF (externalField(6).NE.0) THEN

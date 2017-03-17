@@ -417,7 +417,11 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'tangential_constant')THEN
-      Species(iSpec)%Init(iInit)%Rotation  = GETINT('Part-Species'//TRIM(hilf2)//'-rotation','1')
+      Species(iSpec)%Init(iInit)%Rotation        = GETINT('Part-Species'//TRIM(hilf2)//'-rotation','1')
+      Species(iSpec)%Init(iInit)%VelocitySpread  = GETREAL('Part-Species'//TRIM(hilf2)//'-velocityspread','0.')
+      IF(Species(iSpec)%Init(iInit)%VelocitySpread.LT.0. .OR. Species(iSpec)%Init(iInit)%VelocitySpread.GT.1.) CALL abort(&
+__STAMP__&
+          ,' Wrong input parameter for VelocitySpread in [0;1].')
     END IF
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
