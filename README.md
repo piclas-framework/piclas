@@ -30,6 +30,10 @@ This instruction contains the informations on using the cray-tools, too.
 
 For informations about the different particle tracking routines see [Tracking.md](TRACKING.md).
 
+## Regressioncheck
+
+For informations about the regressioncheck see [Reggie.md](Reggie.md).
+
 ## Used libraries
 
 Boltzplatz uses several external libraries as well as auxilliary functions from open source projects, including:
