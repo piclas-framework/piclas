@@ -614,7 +614,7 @@ SUBROUTINE GetParameterFiles(iExample,TIMEDISCMETHOD,parameter_ini,parameter_ini
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: CodeNameLowCase,Examples
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile,str2logical
+USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1007,7 +1007,7 @@ SUBROUTINE RunTheCode(iExample,iSubExample,iScaling,iRun,MPIthreadsStr,EXECPATH,
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,GlobalRunNumber
-USE MOD_RegressionCheck_tools,   ONLY: AddError,str2int
+USE MOD_RegressionCheck_tools,   ONLY: AddError
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
