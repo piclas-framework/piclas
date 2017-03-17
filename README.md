@@ -32,7 +32,7 @@ For informations about the different particle tracking routines see [Tracking.md
 
 ## Regressioncheck
 
-For informations about the regressioncheck see [Reggie.md](Reggie.md).
+For informations about the regressioncheck see [REGGIE.md](REGGIE.md).
 
 ## Used libraries
 
