@@ -561,7 +561,6 @@ SUBROUTINE GetBuildContinue()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_tools, ONLY:str2int
 USE MOD_RegressionCheck_vars,  ONLY:BuildContinueNumber,BuildDir
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

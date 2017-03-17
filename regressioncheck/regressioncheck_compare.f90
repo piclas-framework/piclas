@@ -155,7 +155,7 @@ SUBROUTINE CompareConvergence(iExample)
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples
-USE MOD_RegressionCheck_tools,   ONLY: str2int,CalcOrder
+USE MOD_RegressionCheck_tools,   ONLY: CalcOrder
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -697,7 +697,6 @@ SUBROUTINE IntegrateLine(IntegralCompare,iExample)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_RegressionCheck_Vars,  ONLY: Examples
-USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -837,7 +836,6 @@ SUBROUTINE CompareDatafileRow(DataCompare,iExample)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_RegressionCheck_Vars,  ONLY: Examples
-USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -964,7 +962,6 @@ SUBROUTINE GetColumns(InputString,Delimiter,ColumnString,ColumnReal,Column)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
