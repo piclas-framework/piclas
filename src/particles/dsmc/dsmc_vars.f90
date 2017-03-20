@@ -295,12 +295,6 @@ TYPE tAdsorption
   INTEGER                                :: nDisPropReactions
   INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   INTEGER , ALLOCATABLE                  :: DiCoord(:)              ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
-  REAL    , ALLOCATABLE                  :: Sigma(:,:,:,:,:)        ! Coverage effect on Adsorption energies
-  REAL    , ALLOCATABLE                  :: ProbSigma(:,:,:,:,:)    ! Coverage effect on Adsorption energies
-  REAL    , ALLOCATABLE                  :: ProbSigAds(:,:,:,:,:)      ! Adsorption probability of surface n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies,36*nSpecies)
-  REAL    , ALLOCATABLE                  :: ProbSigDes(:,:,:,:,:)      ! Desorption probability of surface n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies,36*nSpecies)
   REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
   REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
   REAL                                   :: SurfMassIC              ! Mass of the surface coordination for hard cube model

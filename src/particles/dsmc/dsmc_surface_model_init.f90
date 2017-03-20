@@ -134,12 +134,6 @@ ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nS
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nTotalSides),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nTotalSides))
-IF (DSMC%WallModel.EQ.2) THEN
-  ALLOCATE( Adsorption%ProbSigAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
-            Adsorption%ProbSigDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
-            Adsorption%Sigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
-            Adsorption%ProbSigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies))
-END IF
 ! IDcounter = 0
 Adsorption%SurfSideToGlobSideMap(:) = -1
 DO iSide = 1,nTotalSides
@@ -155,7 +149,7 @@ END DO
 !   WRITE(UNIT=hilf,FMT='(I2)') iSurf
 !   Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.0E+19')
 ! END DO
-! extend later to different densities for each boundary
+! expand later to different densities for each boundary
 Adsorption%DensSurfAtoms(:) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
 Adsorption%AreaIncrease = GETREAL('Particles-Surface-AreaIncrease','1')
 Adsorption%CrystalIndx = GETINT('Particles-Surface-CrystalIndex','4')
@@ -182,13 +176,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   AdsorbRecvBuf(iProc)%content_int=0
 END DO ! iProc
 #endif /*MPI*/
-
-IF (DSMC%WallModel.EQ.2) THEN
-  Adsorption%ProbSigAds(:,:,:,:,:) = 0.
-  Adsorption%ProbSigDes(:,:,:,:,:) = 0.
-  Adsorption%Sigma(:,:,:,:,:) = 1.
-  Adsorption%ProbSigma(:,:,:,:,:) = 0.
-END IF
 
 IF (DSMC%WallModel.GT.1) THEN
   CALL Init_SurfDist()
@@ -1076,10 +1063,6 @@ SDEALLOCATE(Adsorption%SumDesorbPart)
 SDEALLOCATE(Adsorption%SumReactPart)
 SDEALLOCATE(Adsorption%SumAdsorbPart)
 SDEALLOCATE(Adsorption%SurfSideToGlobSideMap)
-SDEALLOCATE(Adsorption%ProbSigAds)
-SDEALLOCATE(Adsorption%ProbSigDes)
-SDEALLOCATE(Adsorption%Sigma)
-SDEALLOCATE(Adsorption%ProbSigma)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
 
 SDEALLOCATE(Adsorption%Ads_Powerfactor)
