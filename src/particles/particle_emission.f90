@@ -1893,8 +1893,21 @@ CASE(1) !iInit
     Rotation       = Species(FractNbr)%Init(iInit)%Rotation
     VelocitySpread = Species(FractNbr)%Init(iInit)%VelocitySpread
     IF(VelocitySpread.GT.0)THEN
-      ! sigma of normal Distribution
-      VelocitySpread = VelocitySpread   !/(2.*SQRT(2.*LOG(10.)))*0.1*VeloIC
+      IF(Species(FractNbr)%Init(iInit)%VelocitySpreadMethod.EQ.0)THEN
+        ! sigma of normal Distribution, Kostas proposal
+        VelocitySpread = VelocitySpread * VeloIC   !/(2.*SQRT(2.*LOG(10.)))
+      ELSE IF(Species(FractNbr)%Init(iInit)%VelocitySpreadMethod.EQ.1)THEN
+        ! sigma is defined by changing the width of the distribution function at 10% of its maxima
+        ! the input value is the spread in percent, hence, 5% => v = v +- 0.05*v at 10% of maximum value
+        ! width of the velocity spread, deltaV:
+        VelocitySpread = 2.0*VelocitySpread * VeloIC
+        ! computing the corresponding sigma 
+        VelocitySpread = VelocitySpread / (2.*SQRT(2.*LOG(10.)))
+      ELSE
+     CALL abort(&
+__STAMP__&
+,' This method for the velocity spread is not implemented.')
+      END IF
       IF(alpha.GT.0) THEN 
         vMag2 = (1.0+1./(alpha*alpha)) * VeloIC*VeloIC
       ELSE
@@ -2024,9 +2037,9 @@ CASE('tangential_constant')
           END IF
           ! velocity spread of tangential velocity
           IF(Rotation.EQ.1)THEN
-            Vec3D  = tan_vec(1:3) * (1.0+Vec1D*VelocitySpread) * VeloIC
+            Vec3D  = tan_vec(1:3) * (VeloIC+Vec1D*VelocitySpread) 
           ELSE
-            Vec3D = -tan_vec(1:3) * (1.0+Vec1D*VelocitySpread) * VeloIC
+            Vec3D = -tan_vec(1:3) * (VeloIC+Vec1D*VelocitySpread)
           END IF
           ! compute axial velocity
           Vec1D = vMag2  - DOT_PRODUCT(Vec3D,Vec3D)
