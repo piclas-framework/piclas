@@ -1151,9 +1151,9 @@ DO subsurfxi = 1,nSurfSample
               chosen_Neigh_k = 1 + INT(REAL(n_empty_Neigh(kCoord))*RanNum)
               Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
                                                                                       NeighbourID(kCoord,chosen_Neigh_k))
-              IDRearrange = NeighbourID(jCoord,chosen_Neigh_k)
-              NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord))
-              NeighbourID(jCoord,n_empty_Neigh(jCoord)) = IDRearrange
+              IDRearrange = NeighbourID(kCoord,chosen_Neigh_k)
+              NeighbourID(kCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord))
+              NeighbourID(kCoord,n_empty_Neigh(kCoord)) = IDRearrange
             END IF
           ELSE
             Neighpos_k = Surfpos
@@ -1183,9 +1183,9 @@ DO subsurfxi = 1,nSurfSample
             chosen_Neigh_k = 1 + INT(REAL(n_empty_Neigh(kCoord)-1)*RanNum)
             Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
                                                                                     NeighbourID(kCoord,chosen_Neigh_k))
-            IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
-            NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord)-1)
-            NeighbourID(jCoord,n_empty_Neigh(jCoord)-1) = IDRearrange
+            IDRearrange = NeighbourID(kCoord,chosen_Neigh_j)
+            NeighbourID(kCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord)-1)
+            NeighbourID(kCoord,n_empty_Neigh(kCoord)-1) = IDRearrange
           ELSE IF ( (jCoord.NE.kCoord) .AND. (n_empty_Neigh(jCoord).GT.0) .AND. (n_empty_Neigh(kCoord).GT.0) ) THEN
             ! assign availiable neighbour positions
             CALL RANDOM_NUMBER(RanNum)
@@ -1199,9 +1199,9 @@ DO subsurfxi = 1,nSurfSample
             chosen_Neigh_k = 1 + INT(REAL(n_empty_Neigh(kCoord))*RanNum)
             Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
                                                                                     NeighbourID(kCoord,chosen_Neigh_k))
-            IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
-            NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord))
-            NeighbourID(jCoord,n_empty_Neigh(jCoord)) = IDRearrange
+            IDRearrange = NeighbourID(kCoord,chosen_Neigh_j)
+            NeighbourID(kCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord))
+            NeighbourID(kCoord,n_empty_Neigh(kCoord)) = IDRearrange
           END IF
         END IF
         Pos_Product(1,iReact+ReactNum_run) = Neighpos_j
