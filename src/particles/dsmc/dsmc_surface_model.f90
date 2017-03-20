@@ -320,7 +320,7 @@ END SUBROUTINE CalcDiffusion
 SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,&
                                  AdsorptionEnthalpie)
 !===================================================================================================================================
-! Particle Adsorption probability calculation for wallmodel 3
+! Particle Adsorption probability calculation for one impinging particle using a background distribution (wallmodel 3)
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, Species, BoltzmannConst, WriteMacroValues
@@ -784,7 +784,7 @@ END SUBROUTINE CalcBackgndPartAdsorb
 
 SUBROUTINE CalcBackgndPartDesorb()
 !===================================================================================================================================
-! Routine for calculation of number of desorbing particles from background surface distribution
+! Routine for calculation of number of desorbing particles using background surface distribution (wallmodel 3)
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : WriteMacroValues, nSpecies, Species, BoltzmannConst
@@ -821,7 +821,7 @@ SUBROUTINE CalcBackgndPartDesorb()
   REAL                              :: VarPartitionFuncWall1, VarPartitionFuncWall2, VarPartitionFuncAct
   REAL                              :: CharaTemp
   INTEGER , ALLOCATABLE             :: Pos_ReactP(:), Coord_ReactP(:), Pos_Product(:,:), Coord_Product(:,:)
-  INTEGER , ALLOCATABLE             :: React_NeighbourID(:,:), NeighbourID(:)
+  INTEGER , ALLOCATABLE             :: React_NeighbourID(:,:), NeighbourID(:,:)
   REAL , ALLOCATABLE                :: P_react(:), P_actual_react(:),P_react_forward(:),P_react_back(:)
   REAL                              :: AdsorptionEnthalpie
 !variables used for sampling of vibrational energies of reacting/desorbing particles
@@ -907,11 +907,8 @@ DO subsurfxi = 1,nSurfSample
   ! structure of UsedSiteMap array for one coordination
   !           [<---------------nSites-------------->]
   ! Name    :  nSitesRemain                remainNum
-  !            o o o          8  8 8  8    ö ö ö  ö 
-  !
   ! AdsorbID:  1 2 3          4  5 6  7    8 9 10 11
   ! SurfPos :  1 7 8          11 9 10 3    4 5 2  6
-  
 
   ! calculate number of adsorbates for each species (for analyze)
   DO Coord = 1,3
@@ -1042,7 +1039,7 @@ DO subsurfxi = 1,nSurfSample
     !-------------------------------------------------------------------------------------------------------------------------------
     n_Neigh(:) = 0
     n_empty_Neigh(:) = 0
-    ALLOCATE(NeighbourID(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
+    ALLOCATE(NeighbourID(1:3,1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
     ALLOCATE(React_NeighbourID(1:3,1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
 
     DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
@@ -1052,9 +1049,7 @@ DO subsurfxi = 1,nSurfSample
               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
               .EQ.0) ) THEN
           n_empty_Neigh(Coord3) = n_empty_Neigh(Coord3) + 1
-          IF (Coord3.EQ.Coord) THEN
-            NeighbourID(n_empty_Neigh(Coord3)) = i
-          END IF
+          NeighbourID(Coord3,n_empty_Neigh(Coord3)) = i
         END IF
         n_Neigh(Coord3) = n_Neigh(Coord3) + 1
         React_NeighbourID(Coord3,n_Neigh(Coord3)) = i
@@ -1153,24 +1148,24 @@ DO subsurfxi = 1,nSurfSample
             IF (n_empty_Neigh(kCoord).GT.0) THEN
               ! assign availiable neighbour position for k
               CALL RANDOM_NUMBER(RanNum)
-              chosen_Neigh_k = 1 + INT(REAL(n_Neigh(kCoord))*RanNum)
+              chosen_Neigh_k = 1 + INT(REAL(n_empty_Neigh(kCoord))*RanNum)
               Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
-                                                                                      React_NeighbourID(kCoord,chosen_Neigh_k))
-              IDRearrange = React_NeighbourID(jCoord,chosen_Neigh_k)
-              React_NeighbourID(jCoord,chosen_Neigh_k) = React_NeighbourID(kCoord,n_Neigh(kCoord))
-              React_NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
+                                                                                      NeighbourID(kCoord,chosen_Neigh_k))
+              IDRearrange = NeighbourID(jCoord,chosen_Neigh_k)
+              NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord))
+              NeighbourID(jCoord,n_empty_Neigh(jCoord)) = IDRearrange
             END IF
           ELSE
             Neighpos_k = Surfpos
             IF (n_empty_Neigh(jCoord).GT.0) THEN
               ! assign availiable neighbour position for j
               CALL RANDOM_NUMBER(RanNum)
-              chosen_Neigh_j = 1 + INT(REAL(n_Neigh(jCoord))*RanNum)
+              chosen_Neigh_j = 1 + INT(REAL(n_empty_Neigh(jCoord))*RanNum)
               Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
-                                                                                      React_NeighbourID(jCoord,chosen_Neigh_j))
-              IDRearrange = React_NeighbourID(jCoord,chosen_Neigh_j)
-              React_NeighbourID(jCoord,chosen_Neigh_j) = React_NeighbourID(jCoord,n_Neigh(jCoord))
-              React_NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
+                                                                                      NeighbourID(jCoord,chosen_Neigh_j))
+              IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
+              NeighbourID(jCoord,chosen_Neigh_j) = NeighbourID(jCoord,n_empty_Neigh(jCoord))
+              NeighbourID(jCoord,n_empty_Neigh(jCoord)) = IDRearrange
             END IF
           END IF
         !NEITHER of resulting species have same coordination as surfaceposition of dissociating particle
@@ -1178,35 +1173,35 @@ DO subsurfxi = 1,nSurfSample
           IF ( (jCoord.EQ.kCoord) .AND. (n_empty_Neigh(jCoord).GT.1) ) THEN !resulting species are equal
             ! assign availiable neighbour positions
             CALL RANDOM_NUMBER(RanNum)
-            chosen_Neigh_j = 1 + INT(REAL(n_Neigh(jCoord))*RanNum)
+            chosen_Neigh_j = 1 + INT(REAL(n_empty_Neigh(jCoord))*RanNum)
             Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
-                                                                                    React_NeighbourID(jCoord,chosen_Neigh_j))
-            IDRearrange = React_NeighbourID(jCoord,chosen_Neigh_j)
-            React_NeighbourID(jCoord,chosen_Neigh_j) = React_NeighbourID(jCoord,n_Neigh(jCoord))
-            React_NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
+                                                                                    NeighbourID(jCoord,chosen_Neigh_j))
+            IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
+            NeighbourID(jCoord,chosen_Neigh_j) = NeighbourID(jCoord,n_empty_Neigh(jCoord))
+            NeighbourID(jCoord,n_empty_Neigh(jCoord)) = IDRearrange
             CALL RANDOM_NUMBER(RanNum)
-            chosen_Neigh_k = 1 + INT(REAL(n_Neigh(kCoord)-1)*RanNum)
+            chosen_Neigh_k = 1 + INT(REAL(n_empty_Neigh(kCoord)-1)*RanNum)
             Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
-                                                                                    React_NeighbourID(kCoord,chosen_Neigh_k))
-            IDRearrange = React_NeighbourID(jCoord,chosen_Neigh_j)
-            React_NeighbourID(jCoord,chosen_Neigh_k) = React_NeighbourID(kCoord,n_Neigh(kCoord)-1)
-            React_NeighbourID(jCoord,n_Neigh(jCoord)-1) = IDRearrange
+                                                                                    NeighbourID(kCoord,chosen_Neigh_k))
+            IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
+            NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord)-1)
+            NeighbourID(jCoord,n_empty_Neigh(jCoord)-1) = IDRearrange
           ELSE IF ( (jCoord.NE.kCoord) .AND. (n_empty_Neigh(jCoord).GT.0) .AND. (n_empty_Neigh(kCoord).GT.0) ) THEN
             ! assign availiable neighbour positions
             CALL RANDOM_NUMBER(RanNum)
-            chosen_Neigh_j = 1 + INT(REAL(n_Neigh(jCoord))*RanNum)
+            chosen_Neigh_j = 1 + INT(REAL(n_empty_Neigh(jCoord))*RanNum)
             Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
-                                                                                    React_NeighbourID(jCoord,chosen_Neigh_j))
-            IDRearrange = React_NeighbourID(jCoord,chosen_Neigh_j)
-            React_NeighbourID(jCoord,chosen_Neigh_j) = React_NeighbourID(jCoord,n_Neigh(jCoord))
-            React_NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
+                                                                                    NeighbourID(jCoord,chosen_Neigh_j))
+            IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
+            NeighbourID(jCoord,chosen_Neigh_j) = NeighbourID(jCoord,n_empty_Neigh(jCoord))
+            NeighbourID(jCoord,n_empty_Neigh(jCoord)) = IDRearrange
             CALL RANDOM_NUMBER(RanNum)
-            chosen_Neigh_k = 1 + INT(REAL(n_Neigh(kCoord))*RanNum)
+            chosen_Neigh_k = 1 + INT(REAL(n_empty_Neigh(kCoord))*RanNum)
             Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,&
-                                                                                    React_NeighbourID(kCoord,chosen_Neigh_k))
-            IDRearrange = React_NeighbourID(jCoord,chosen_Neigh_j)
-            React_NeighbourID(jCoord,chosen_Neigh_k) = React_NeighbourID(kCoord,n_Neigh(kCoord))
-            React_NeighbourID(jCoord,n_Neigh(jCoord)) = IDRearrange
+                                                                                    NeighbourID(kCoord,chosen_Neigh_k))
+            IDRearrange = NeighbourID(jCoord,chosen_Neigh_j)
+            NeighbourID(jCoord,chosen_Neigh_k) = NeighbourID(kCoord,n_empty_Neigh(kCoord))
+            NeighbourID(jCoord,n_empty_Neigh(jCoord)) = IDRearrange
           END IF
         END IF
         Pos_Product(1,iReact+ReactNum_run) = Neighpos_j
@@ -1543,9 +1538,9 @@ DO subsurfxi = 1,nSurfSample
       ! choose random empty neighbour site from relevant neighbours
       CALL RANDOM_NUMBER(RanNum)
       react_Neigh = 1 + INT(n_empty_Neigh(Coord) * RanNum)
-      Coord3 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,NeighbourID(react_Neigh))
+      Coord3 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,NeighbourID(Coord,react_Neigh))
       Pos_ReactP(ReactNum_run+1) = &
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,NeighbourID(react_Neigh))
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,NeighbourID(Coord,react_Neigh))
       ! calculate heat of adsorption for actual site
       Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.FALSE.)
       ! remove considered particle from bondorder
@@ -2129,8 +2124,8 @@ END SUBROUTINE CalcBackgndPartDesorb
 
 SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec)
 !===================================================================================================================================
-! Routine for adjusting the number of Adsorbates for background surface, if Adsorption took place in CalcBackgndPartAdsorb 
-! and Coverage changed strong enough
+! Routine for adjusting the number of Adsorbates of adsorbates background distribution (wallmodel 3)
+! if adsorption took place in CalcBackgndPartAdsorb and Coverage changed sufficiently
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Globals,                ONLY : abort
