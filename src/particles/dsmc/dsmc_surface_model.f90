@@ -14,8 +14,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC                       :: DSMC_Update_Wall_Vars
-! PUBLIC                       :: Particle_Wall_Adsorb
-! PUBLIC                       :: CalcPartAdsorb
 PUBLIC                       :: Calc_PartNum_Wall_Desorb
 PUBLIC                       :: CalcBackgndPartAdsorb
 PUBLIC                       :: CalcBackgndPartDesorb
@@ -139,8 +137,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
   IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
-!    INTEGER                          :: i, PartAds2
-   INTEGER                          :: iSurfSide, iSpec, p, q, NPois, WallPartNum, iProbSigma
+   INTEGER                          :: iSurfSide, iSpec, p, q, NPois, WallPartNum
    REAL                             :: PartAds, PartDes, RanNum, Tpois
 !===================================================================================================================================
 #if (PP_TimeDiscMethod==42)
@@ -2644,11 +2641,7 @@ SUBROUTINE CalcDesorbProb()
 ! Local variable declaration
    INTEGER                          :: SurfSide, iSpec, globSide, p, q
    REAL                             :: Theta, nu_des, rate, WallTemp
-   REAL                             :: Q_0A, D_A, Heat, E_des, sigma
-!    REAL                :: sigma(10)
-   INTEGER                          :: n, iProbSigma
-   REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall
-   REAL                             :: CharaTemp
+   REAL                             :: E_des
 !===================================================================================================================================
 ! CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
@@ -2671,7 +2664,7 @@ DO SurfSide=1,SurfMesh%nSides
 !===================================================================================================================================
     IF (DSMC%WallModel.EQ.1) THEN
 !===================================================================================================================================
-!   Polanyi-Wigner-eq. from Kolasinski's Surface Science (book) 
+!   Polanyi-Wigner-eq. from Kolasinski's Surface Science (book)
 !===================================================================================================================================
       Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)! / Adsorption%MaxCoverage(SurfSide,iSpec)
       !----- kann später auf von Wandtemperatur/Translationsenergie abhängige Werte erweitert werden          

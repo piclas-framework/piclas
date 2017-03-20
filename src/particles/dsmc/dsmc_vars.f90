@@ -266,7 +266,7 @@ TYPE tAdsorption
   INTEGER                                :: CrystalIndx             ! Number of binding atoms in hollow site
   INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption
-  ! parameters for Kisliuk and Polanyi Wigner model
+  ! parameters for Kisliuk and Polanyi Wigner model (wallmodel=1)
   REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
   REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
   REAL    , ALLOCATABLE                  :: PrefactorStick(:,:)     ! prefactor of sticking coefficient for surface n
@@ -275,7 +275,7 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Nu_b(:,:)               ! Nu exponent b for surface n
   REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
   REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
-  ! parameters for UBI-QEP model
+  ! parameters for UBI-QEP model (wallmodel=3)
   REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:)        ! heat of adsorption (K) on clear surfaces for surface n
   INTEGER                                :: DissNum                 ! Number of dissociative surface reactions for one species
   INTEGER                                :: ReactNum                ! Number of all surface reactions for one species
@@ -323,9 +323,6 @@ END TYPE
 
 TYPE tSurfaceDistributionInfo
   ! variables for surface distribution calculation
-!   LOGICAL , ALLOCATABLE                  :: HollowSite(:,:,:)
-!   LOGICAL , ALLOCATABLE                  :: BridgeSite(:,:,:)
-!   LOGICAL , ALLOCATABLE                  :: TopSite(:,:,:)
 #ifdef MPI
   INTEGER , ALLOCATABLE                  :: Nbr_changed(:)
 #endif /*MPI*/

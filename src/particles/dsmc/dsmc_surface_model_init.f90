@@ -35,13 +35,13 @@ SUBROUTINE InitDSMCSurfModel()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                ONLY : abort
-USE MOD_Mesh_Vars,              ONLY : nElems!, BC
+USE MOD_Mesh_Vars,              ONLY : nElems
 USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC!, CollisMode
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_Particle_Mesh_Vars,     ONLY : nTotalSides
 USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh!, PartBound
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
 #endif
@@ -56,9 +56,9 @@ USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES                                                                      !
+! LOCAL VARIABLES
   CHARACTER(32)                    :: hilf
-  INTEGER                          :: iSpec, iSide!, iSurf, IDcounter
+  INTEGER                          :: iSpec, iSide
 #if (PP_TimeDiscMethod==42)
   INTEGER                          :: idiff
 #endif
@@ -137,18 +137,9 @@ ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nS
 ! IDcounter = 0
 Adsorption%SurfSideToGlobSideMap(:) = -1
 DO iSide = 1,nTotalSides
-!   IF(BC(iSide).EQ.0) CYCLE
-!   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-!     IDcounter = IDcounter + 1
-!     Adsorption%SurfSideToGlobSideMap(IDcounter) = iSide
-!   END IF
   IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
   Adsorption%SurfSideToGlobSideMap(SurfMesh%SideIDToSurfID(iSide)) = iSide
 END DO
-! DO iSurf = 1,SurfMesh%nSides
-!   WRITE(UNIT=hilf,FMT='(I2)') iSurf
-!   Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.0E+19')
-! END DO
 ! expand later to different densities for each boundary
 Adsorption%DensSurfAtoms(:) = GETREAL('Particles-Surface-AtomsDensity','1.0E+19')
 Adsorption%AreaIncrease = GETREAL('Particles-Surface-AreaIncrease','1')
@@ -179,7 +170,6 @@ END DO ! iProc
 
 IF (DSMC%WallModel.GT.1) THEN
   CALL Init_SurfDist()
-!   IF (CollisMode.EQ.3) 
   CALL Init_SurfChem()
 #if (PP_TimeDiscMethod==42)
 ! initial distribution into equilibrium distribution (needed for better TPD results)
