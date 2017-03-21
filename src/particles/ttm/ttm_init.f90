@@ -50,13 +50,12 @@ USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo
 ! LOCAL VARIABLES
 INTEGER        :: ioUnit
 INTEGER        :: IndNum
-INTEGER        :: i,ix,iy,iz
+INTEGER        :: i,j,k,ix,iy,iz
 INTEGER        :: io_error
 INTEGER        :: iLineTTM
 INTEGER        :: iElem,iElemFD
 CHARACTER(255) :: StrTmp
 REAL           :: tmp_array(1:15)
-REAL           :: ElemBaryTolerance
 REAL           :: fd_hx,fd_hy,fd_hz
 !===================================================================================================================================
 IF(TTMInitIsDone)THEN
@@ -73,6 +72,8 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
   DoImportTTMFile=.TRUE.
   ! get FD grid array dimension in x, y and z direction
   TTMGridFDdim=GETINTARRAY('TTMGridFDdim',3,'0 , 0 , 0')
+  ! get FD grid element bary center tolerance for checking distance to elem bary center distance of DG cells
+  TTMElemBaryTolerance=GETREAL('TTMElemBaryTolerance','1e-6')
   ! get FD grid cell sizes
   CALL GetFDGridCellSize(fd_hx,fd_hy,fd_hz)
   IF(ANY(TTMGridFDdim(1:3).LE.0).OR.ANY((/fd_hx,fd_hy,fd_hz/).LE.0.0))THEN
@@ -83,6 +84,8 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
     TTM_FD=0.0
     ALLOCATE( ElemBaryFD(3,FD_nElems) )
     ElemBaryFD=0.0
+    ALLOCATE( ElemIndexFD(3,FD_nElems) )
+    ElemIndexFD=0.0
     ALLOCATE( ElemIsDone(FD_nElems) )
     ElemIsDone=.FALSE.
     ! IMD TTM data format and target arrays for data input (from ASCII data file *.ttm)
@@ -156,6 +159,11 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
 
       IF( (ix.LE.TTMGridFDdim(1)) .AND. (iy.LE.TTMGridFDdim(2)) .AND. (iz.LE.TTMGridFDdim(3)) ) THEN
         TTM_FD(1:11,ix,iy,iz) = tmp_array(4:14)
+        ElemIndexFD(1,iLineTTM)=ix
+        ElemIndexFD(2,iLineTTM)=iy
+        ElemIndexFD(3,iLineTTM)=iz
+!print*,"TTM_FD(1:11,ix,iy,iz)=",TTM_FD(1:11,ix,iy,iz)
+!read*
         ElemBaryFD(1,iLineTTM)=(REAL(ix)-0.5)*fd_hx 
         ElemBaryFD(2,iLineTTM)=(REAL(iy)-0.5)*fd_hy 
         ElemBaryFD(3,iLineTTM)=(REAL(iz)-0.5)*fd_hz 
@@ -187,41 +195,39 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
 !read*
           IF(ElemIsDone(iElemFD))CYCLE
           
-
-                    !dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
-                    !IF(dX.GT.r_sf) CYCLE
-                    !dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID))
-                    !IF(dY.GT.r_sf) CYCLE
-                    !dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
-                    !IF(dZ.GT.r_sf) CYCLE
-                    !radius2 = dX*dX+dY*dY+dZ*dZ
-
-          ElemBaryTolerance=1e-5
-
-          IF(AlmostEqualToTolerance(ElemBaryNGeo(1,iElem),ElemBaryFD(1,iElemFD),ElemBaryTolerance).EQV..FALSE.) CYCLE
-          IF(AlmostEqualToTolerance(ElemBaryNGeo(2,iElem),ElemBaryFD(2,iElemFD),ElemBaryTolerance).EQV..FALSE.) CYCLE
-          IF(AlmostEqualToTolerance(ElemBaryNGeo(3,iElem),ElemBaryFD(3,iElemFD),ElemBaryTolerance).EQV..FALSE.) CYCLE
-          !print*,"Found",iElem,iElemFD
-          !read*
+          IF(AlmostEqualToTolerance(ElemBaryNGeo(1,iElem),ElemBaryFD(1,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
+          IF(AlmostEqualToTolerance(ElemBaryNGeo(2,iElem),ElemBaryFD(2,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
+          IF(AlmostEqualToTolerance(ElemBaryNGeo(3,iElem),ElemBaryFD(3,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
           ElemIsDone(iElemFD)=.TRUE.
-          EXIT
 
+          ix=ElemIndexFD(1,iElemFD)
+          iy=ElemIndexFD(2,iElemFD)
+          iz=ElemIndexFD(3,iElemFD)
+
+!print*,"TTM_FD(1:11,ix,iy,iz)=",TTM_FD(1:11,ix,iy,iz)
+!read*
 
           DO i=0,PP_N ! set all DG DOF values equal to FD cell value
-            TTM_DG(1:11,i,i,i,iElem)=TTM_FD(1:11,ix,iy,iz)
+            DO j=0,PP_N ! set all DG DOF values equal to FD cell value
+              DO k=0,PP_N ! set all DG DOF values equal to FD cell value
+                TTM_DG(1:11,i,j,k,iElem)=TTM_FD(1:11,ix,iy,iz)
+              END DO
+            END DO
           END DO
+
+          EXIT
 
         END DO
       END DO
       IF(ANY(ElemIsDone).EQV..FALSE.)THEN
-print*,"not all found :("
-read*
-
+print*,"NOT all found :("
       ELSE
 print*,"ALL FOUND!!!! :-)"
-read*
-
       END IF
+      SDEALLOCATE(TTM_FD)
+      SDEALLOCATE(ElemBaryFD)
+      SDEALLOCATE(ElemIndexFD)
+      SDEALLOCATE(ElemIsDone)
   
     ELSE ! use swap-mesh or interpolate the FD grid to the DG solution
       SWRITE(*,*) "FD_nElems=",FD_nElems
@@ -241,7 +247,7 @@ END IF
 TTMInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT TTM DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-stop
+
 END SUBROUTINE InitTTM
 
 

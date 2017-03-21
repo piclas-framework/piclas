@@ -1753,32 +1753,109 @@ REAL            :: t,tFuture
 INTEGER         :: I
 !===================================================================================================================================
 DO I = 1,nSpecies
-print*,"Species(i)%IMDTimeScale=",Species(i)%IMDTimeScale
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDTimeScale=",Species(i)%IMDTimeScale
   IF(Species(i)%IMDTimeScale.GT.0.0)THEN
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"Species(i)%IMDTimeScale   :",Species(i)%IMDTimeScale
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"Species(i)%IMDLengthScale :",Species(i)%IMDLengthScale
-    SWRITE(UNIT_StdOut,'(A,I6)')    "Species(i)%IMDNumber      :",Species(i)%IMDNumber
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"Species(i)%IMDMultiplier  :",Species(i)%IMDMultiplier
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDTimeScale   :",Species(i)%IMDTimeScale
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDLengthScale :",Species(i)%IMDLengthScale
+    SWRITE(UNIT_StdOut,'(A,I6)')    "   Species(i)%IMDNumber      :",Species(i)%IMDNumber
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDMultiplier  :",Species(i)%IMDMultiplier
     ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
     t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"t",t
+    SWRITE(UNIT_StdOut,'(A,E24.12)')"   t",t
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    SWRITE(UNIT_StdOut,'(A)') "t=",t
-    SWRITE(UNIT_StdOut,'(A)') " "
-    SWRITE(UNIT_StdOut,'(A)') " "
-    SWRITE(UNIT_StdOut,'(A)') " "
-    SWRITE(UNIT_StdOut,'(A)')"StateFile from IMD data created. Terminating now!"
-    STOP 0
+    SWRITE(UNIT_StdOut,'(A,E24.12)') "   t=",t
+    SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD  MD data) created."
+    CALL WriteTTMToHDF5(t)
+    SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating now!"
+    STOP 0 ! terminate successfully
     !CALL abort(&
     !__STAMP__&
     !,'StateFile from IMD data created. Terminating now!')
   END IF
 END DO
-print*,"done ---------------------- ?"
-read*
 
 END SUBROUTINE WriteIMDStateToHDF5
+
+
+SUBROUTINE WriteTTMToHDF5(OutputTime)
+!===================================================================================================================================
+! write TTM field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_TTM_Vars,      ONLY: TTM_DG
+USE MOD_Mesh_Vars,     ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars,  ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_io_HDF5
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)     :: OutputTime!,FutureTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: N_variables
+CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
+CHARACTER(LEN=255)  :: FileName
+#ifdef MPI
+REAL                :: StartT,EndT
+#endif
+!REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+INTEGER             :: iElem
+!===================================================================================================================================
+N_variables=11
+ALLOCATE(StrVarNames(1:N_variables))
+StrVarNames(1) ='N[natoms]'
+StrVarNames(2) ='T_e[temp]'
+StrVarNames(3) ='T_i[md_temp]'
+StrVarNames(4) ='[xi]'
+StrVarNames(5) ='[source]'
+StrVarNames(6) ='[v_com.x]'
+StrVarNames(7) ='[v_com.y]'
+StrVarNames(8) ='[v_com.z]'
+StrVarNames(9) ='[fd_k]'
+StrVarNames(10)='[fd_g]'
+StrVarNames(11)='charge[Z]'
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TTM_DG TO HDF5 FILE...'
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TTM',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('TTM',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
+#ifdef MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
+#endif
+CALL WriteAttributeToHDF5(File_ID,'VarNamesTTM',N_variables,StrArray=StrVarNames)
+CALL CloseDataFile()
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName='DG_Solution', rank=5,&
+                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
+                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
+                        collective=.TRUE.,RealArray=TTM_DG)
+#ifdef MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+SDEALLOCATE(TTM_DG)
+SDEALLOCATE(StrVarNames)
+END SUBROUTINE WriteTTMToHDF5
+
 #endif /*PARTICLES*/
 
 END MODULE MOD_HDF5_output
