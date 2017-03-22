@@ -2274,7 +2274,7 @@ DO iElem=1,nTotalElems
   END IF
 END DO ! iElem
 
-IF (TRIM(DepositionType).EQ.'shape_function')THEN
+IF (TRIM(DepositionType).EQ.'shape_function_simple')THEN
   ALLOCATE(ElemRadius2_sf(1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__ &
