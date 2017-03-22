@@ -1570,11 +1570,11 @@ CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=HODSMC%nOutputDSMC)
 CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
 
-! Write ini file parameters and compile flags
-CALL GetParameters(params)
-CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-!CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-DEALLOCATE(params)
+! ! Write ini file parameters and compile flags
+! CALL GetParameters(params)
+! CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
+! !CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
+! DEALLOCATE(params)
 
 CALL CloseDataFile()
 END SUBROUTINE GenerateDSMCHOFileSkeleton
