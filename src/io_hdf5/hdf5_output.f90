@@ -1753,18 +1753,17 @@ REAL            :: t,tFuture
 INTEGER         :: I
 !===================================================================================================================================
 DO I = 1,nSpecies
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDTimeScale=",Species(i)%IMDTimeScale
+    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
   IF(Species(i)%IMDTimeScale.GT.0.0)THEN
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDTimeScale   :",Species(i)%IMDTimeScale
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDLengthScale :",Species(i)%IMDLengthScale
-    SWRITE(UNIT_StdOut,'(A,I6)')    "   Species(i)%IMDNumber      :",Species(i)%IMDNumber
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"   Species(i)%IMDMultiplier  :",Species(i)%IMDMultiplier
+    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
+    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDLengthScale :",Species(i)%IMDLengthScale
+    SWRITE(UNIT_StdOut,'(A,I5,A,I25)')     "   Species(",i,")%IMDNumber      :",Species(i)%IMDNumber
+    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDMultiplier  :",Species(i)%IMDMultiplier
     ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
     t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
-    SWRITE(UNIT_StdOut,'(A,E24.12)')"   t",t
+    SWRITE(UNIT_StdOut,'(A,E25.14E3)')     "   Calculated time t             :",t
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    SWRITE(UNIT_StdOut,'(A,E24.12)') "   t=",t
     SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD  MD data) created."
     CALL WriteTTMToHDF5(t)
     SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating now!"

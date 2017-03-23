@@ -59,7 +59,7 @@ REAL           :: tmp_array(1:15)
 REAL           :: fd_hx,fd_hy,fd_hz
 !===================================================================================================================================
 IF(TTMInitIsDone)THEN
-   SWRITE(*,*) "InitTTM already called."
+   SWRITE(UNIT_stdOut,'(A)') "InitTTM already called."
    RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -92,15 +92,12 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
     !        1      2    3       4  5      6       7       8       9    10   11       ->  TTM_FD(1:11,ix,iy,iz,iLineTTM) -> TTM_DG
     !  1 2 3 4      5    6       7  8      9       10      11      12   13   14 15    ->  tmp_array(1:15)
     ! #x y z natoms temp md_temp xi source v_com.x v_com.y v_com.z fd_k fd_g Z  proc
-    print*,"Reading from file: ",TRIM(TTMFile)
+    SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMFile)
 #ifdef MPI
     IF(.NOT.PartMPI%MPIROOT)THEN
-      !print*,"NOT root: myrank",myrank
       CALL abort(&
       __STAMP__&
       ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
-    ELSE
-      !print*,"I am root: myrank",myrank
     END IF
 #endif /*MPI*/
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(TTMFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
@@ -123,33 +120,32 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
       END IF
     END IF
 
-    !read(Species(FractNbr)%Init(iInit)%IMDFile(7:11),*,iostat=io_error)  i
     read(StrTmp,*,iostat=io_error)  i
     TTMNumber = i
-    print*,"IMD *.ttm file = ",StrTmp
-    print*,"TTMNumber",TTMNumber
+    SWRITE(UNIT_stdOut,'(A,A)')  " IMD *.ttm file = ",StrTmp
+    SWRITE(UNIT_stdOut,'(A,I5)') " TTMNumber",TTMNumber
 
     iLineTTM=0
     DO i=1,1 ! header lines: currently 1 -> adjust?
-    !print*,"i",i
-      !READ(ioUnit,*)
       READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
-      !print*,i,' : ',TRIM(StrTmp) ! print header line
     END DO
     DO
       READ(ioUnit,*,IOSTAT=io_error) tmp_array(1:15)
       IF(io_error>0)THEN
-        SWRITE(*,*) "io_error=",io_error
-        SWRITE(*,*) "A problem reading the TTM file occured in line: ",iLineTTM+2
-        print*,'[',tmp_array(1:15),']'
+        SWRITE(UNIT_stdOut,'(A,I5)') " io_error=",io_error
+        SWRITE(UNIT_stdOut,'(A,I5)') " A problem reading the TTM file occured in line: ",iLineTTM+2
+        SWRITE(UNIT_stdOut,'(A1)') ' ['
+        DO j=1,15
+          SWRITE(UNIT_stdOut,'(A1,E25.14E3)',ADVANCE='NO') " ",tmp_array(j)
+        END DO
+        SWRITE(UNIT_stdOut,'(A1)') ']'
         CALL abort(&
         __STAMP__&
         ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
       ELSE IF(io_error<0)THEN
-        SWRITE(*,*) "End of file reached: ",iLineTTM+1
+        SWRITE(UNIT_stdOut,'(A,I5)') "End of file reached: ",iLineTTM+1
         EXIT
       ELSE ! io_error = 0
-      !print*,'[',tmp_array(1:15),']'
       END IF
       iLineTTM=iLineTTM+1 ! *.ttm data file: line counter
 
@@ -162,15 +158,11 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
         ElemIndexFD(1,iLineTTM)=ix
         ElemIndexFD(2,iLineTTM)=iy
         ElemIndexFD(3,iLineTTM)=iz
-!print*,"TTM_FD(1:11,ix,iy,iz)=",TTM_FD(1:11,ix,iy,iz)
-!read*
         ElemBaryFD(1,iLineTTM)=(REAL(ix)-0.5)*fd_hx 
         ElemBaryFD(2,iLineTTM)=(REAL(iy)-0.5)*fd_hy 
         ElemBaryFD(3,iLineTTM)=(REAL(iz)-0.5)*fd_hz 
-          !print*,ElemBaryFD(:,iLineTTM)
-!read*
       ELSE
-        SWRITE(*,*) "A problem reading the TTM file occured in line: ",iLineTTM+1
+        SWRITE(UNIT_stdOut,'(A,I5)') "A problem reading the TTM file occured in line: ",iLineTTM+1
         DoImportTTMFile=.FALSE.
         EXIT
       END IF
@@ -181,63 +173,44 @@ IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
       ,'Number of FD elements FD_nElems does not comply with the number of FD elements read from *.ttm file'//TRIM(TTMFile))
     END IF
     CLOSE(ioUnit)
-    print*,"Read ",iLineTTM," lines from file (+1 header line)"
+    SWRITE(UNIT_stdOut,'(A,I5,A)') "Read ",iLineTTM," lines from file (+1 header line)"
 
     IF(FD_nElems.EQ.PP_nElems)THEN ! same number of elements in FD grid and DG solution -> assume they coincide
       ! the local DG solution in physical and reference space
       ALLOCATE( TTM_DG(1:11,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
-      TTM_DG=0.0
-
+      TTM_DG=0.0 ! initialize
       DO iElem=1,PP_nElems
         DO iELemFD=1,FD_nElems
-          !print*,iElem,ElemBaryNGeo(:,iElem)
-          !print*,iElemFD,ElemBaryFD(:,iElemFD)
-!read*
-          IF(ElemIsDone(iElemFD))CYCLE
-          
+          IF(ElemIsDone(iElemFD))CYCLE ! the element has already been found
           IF(AlmostEqualToTolerance(ElemBaryNGeo(1,iElem),ElemBaryFD(1,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
           IF(AlmostEqualToTolerance(ElemBaryNGeo(2,iElem),ElemBaryFD(2,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
           IF(AlmostEqualToTolerance(ElemBaryNGeo(3,iElem),ElemBaryFD(3,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
           ElemIsDone(iElemFD)=.TRUE.
-
-          ix=ElemIndexFD(1,iElemFD)
-          iy=ElemIndexFD(2,iElemFD)
-          iz=ElemIndexFD(3,iElemFD)
-
-!print*,"TTM_FD(1:11,ix,iy,iz)=",TTM_FD(1:11,ix,iy,iz)
-!read*
-
           DO i=0,PP_N ! set all DG DOF values equal to FD cell value
             DO j=0,PP_N ! set all DG DOF values equal to FD cell value
               DO k=0,PP_N ! set all DG DOF values equal to FD cell value
-                TTM_DG(1:11,i,j,k,iElem)=TTM_FD(1:11,ix,iy,iz)
+                TTM_DG(1:11,i,j,k,iElem)=TTM_FD(1:11,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
               END DO
             END DO
           END DO
-
-          EXIT
-
         END DO
       END DO
       IF(ANY(ElemIsDone).EQV..FALSE.)THEN
-print*,"NOT all found :("
+        SWRITE(UNIT_stdOut,'(A)') " NOT all IMD TTM FD cells have been located within the DG grid!"
       ELSE
-print*,"ALL FOUND!!!! :-)"
+        SWRITE(UNIT_stdOut,'(A)') " All IMD TTM FD cells have been located within the DG grid!"
       END IF
       SDEALLOCATE(TTM_FD)
       SDEALLOCATE(ElemBaryFD)
       SDEALLOCATE(ElemIndexFD)
       SDEALLOCATE(ElemIsDone)
-  
     ELSE ! use swap-mesh or interpolate the FD grid to the DG solution
-      SWRITE(*,*) "FD_nElems=",FD_nElems
-      SWRITE(*,*) "PP_nElems=",PP_nElems
+      SWRITE(UNIT_stdOut,'(A,I5)') "FD_nElems=",FD_nElems
+      SWRITE(UNIT_stdOut,'(A,I5)') "PP_nElems=",PP_nElems
       CALL abort(&
       __STAMP__&
       ,'Error interpolating ttm data (FD grid) to DG solution. FD_nElems.NE.PP_nElems. Different elements not implemented')
-     
     END IF
-
   END IF
 ELSE
   DoImportTTMFile=.FALSE.
@@ -287,20 +260,19 @@ IF(io_error.NE.0)THEN
   __STAMP__&
   ,'Cannot open specified File (ttm data) from '//TRIM(TTMLogFile))
 END IF
-print*,"Reading from file: ",TRIM(TTMLogFile)
+SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMLogFile)
 i=1
 DO !i=1,1 ! header lines: currently 1 -> adjust?
   READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
   IF(io_error>0)THEN
-    SWRITE(*,*) "io_error=",io_error
-    SWRITE(*,*) "A problem reading the TTM file occured in line: ",i+1
-    SWRITE(*,*) StrTmp
-    !print*,'[',tmp_array(1:15),']'
+    SWRITE(UNIT_stdOut,'(A,I5)') "io_error=",io_error
+    SWRITE(UNIT_stdOut,'(A,I5)') "A problem reading the TTM file occured in line: ",i+1
+    SWRITE(UNIT_stdOut,'(A)') StrTmp
     CALL abort(&
     __STAMP__&
     ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
   ELSE IF(io_error<0)THEN
-    SWRITE(*,*) "End of file reached: ",i
+    SWRITE(UNIT_stdOut,'(A,I5)') "End of file reached: ",i
     EXIT
   ELSE ! io_error = 0
     i=i+1
@@ -311,12 +283,12 @@ DO !i=1,1 ! header lines: currently 1 -> adjust?
       IF(IndNum.GT.0)THEN
         CALL str2real(StrTmp(8:IndNum-1),fd_hx,io_error)
         IF(io_error.NE.0)THEN
-          SWRITE(*,*) "io_error=",io_error,", failed to get fd_hx"
+          SWRITE(UNIT_stdOut,'(A,I5,A)') "io_error=",io_error,", failed to get fd_hx"
           fd_hx=-99.
           Exit
         END IF
         fd_hx=fd_hx*IMDLengthScale
-print*,"fd_hx=",fd_hx
+        SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hx=",fd_hx
         StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
       END IF
 
@@ -328,12 +300,12 @@ print*,"fd_hx=",fd_hx
         IF(IndNum.GT.0)THEN
           CALL str2real(StrTmp(8:IndNum-1),fd_hy,io_error)
           IF(io_error.NE.0)THEN
-            SWRITE(*,*) "io_error=",io_error,", failed to get fd_hy"
+            SWRITE(UNIT_stdOut,'(A,I5,A)') "io_error=",io_error,", failed to get fd_hy"
             fd_hy=-99.
             Exit
           END IF
           fd_hy=fd_hy*IMDLengthScale
-print*,"fd_hy=",fd_hy
+          SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hy=",fd_hy
           StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
         END IF
       END IF
@@ -347,12 +319,12 @@ print*,"fd_hy=",fd_hy
           IF(IndNum.GT.0)THEN
             CALL str2real(StrTmp(8:IndNum-1),fd_hz,io_error)
             IF(io_error.NE.0)THEN
-              SWRITE(*,*) "io_error=",io_error,", failed to get fd_hz"
+              SWRITE(UNIT_stdOut,'(A,I5,A)') "io_error=",io_error,", failed to get fd_hz"
               fd_hz=-99.
               Exit
             END IF
             fd_hz=fd_hz*IMDLengthScale
-print*,"fd_hz=",fd_hz
+          SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hz=",fd_hz
             StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
         END IF
       END IF

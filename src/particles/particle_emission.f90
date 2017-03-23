@@ -1528,34 +1528,18 @@ __STAMP__&
             END DO
           END DO
        END DO
-
-
-
-
     CASE('IMD') ! read IMD particle position from *.chkpt file
       ! set velocity distribution to read external data
-      print*,"chunkSize",chunkSize
-      print*,"FractNbr",FractNbr
-print*,"Reading from file: ",TRIM(Species(FractNbr)%Init(iInit)%IMDFile)
+      SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(Species(FractNbr)%Init(iInit)%IMDFile)
       IF(TRIM(Species(FractNbr)%Init(iInit)%IMDFile).NE.'no file found')THEN
         Species(FractNbr)%Init(iInit)%velocityDistribution='IMD'
 #ifdef MPI
         IF(.NOT.PartMPI%InitGroup(InitGroup)%MPIROOT)THEN
-        !IF(PMPIVAR%iProc>0)THEN
-          print*,"NOT root: myrank",myrank
           CALL abort(__STAMP__&
           ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
-        ELSE
-          print*,"I am root: myrank",myrank
         END IF
-!        !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!        IF (PMPIVAR%nProcs .GT. 1) THEN
-!          CALL abort(__STAMP__&
-!          ,'ERROR in particle_emission.f90: Run application in single mode! (SpaceIC=IMD)')
-!        END IF
 #endif /*MPI*/
         ! Read particle data from file
-        !OPEN(UNIT=120,FILE='laser.00007.chkpt_10000_parts',STATUS='OLD',ACTION='READ',IOSTAT=io_error)
         ioUnit=GETFREEUNIT()
         OPEN(UNIT=ioUnit,FILE=TRIM(Species(FractNbr)%Init(iInit)%IMDFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
         IF(io_error.NE.0)THEN
@@ -1566,9 +1550,6 @@ print*,"Reading from file: ",TRIM(Species(FractNbr)%Init(iInit)%IMDFile)
         !   1      2    3         4           5         6         7         8         9         10       11     12
         !#C number type mass      x           y         z         vx        vy        vz        Epot     Z      eam_rho
         !   2294   0    26.981538 3589.254381 46.066405 91.985804 -1.576543 -0.168184 -0.163417 0.000000 2.4332 0.000000
-        print*,"==============================================================================="
-        print*,"position"
-        !READ(Species(FractNbr)%Init(iInit)%IMDFile, '(i10)' ) i
         IndNum=INDEX(Species(FractNbr)%Init(iInit)%IMDFile, '/',BACK = .TRUE.)
         IF(IndNum.GT.0)THEN
           !IndNum=INDEX(Species(FractNbr)%Init(iInit)%IMDFile,'/',BACK = .TRUE.) ! get path without binary
@@ -1582,14 +1563,9 @@ print*,"Reading from file: ",TRIM(Species(FractNbr)%Init(iInit)%IMDFile)
             END IF
           END IF
         END IF
-
-        !read(Species(FractNbr)%Init(iInit)%IMDFile(7:11),*,iostat=io_error)  i
-        read(StrTmp,*,iostat=io_error)  i
-        Species(FractNbr)%IMDNumber = i
-print*,"IMD *.chkpt file = ",StrTmp
-print*,"Species(FractNbr)%Init(iInit)%IMDFile(7:11)",Species(FractNbr)%Init(iInit)%IMDFile(7:11)
-print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
-!read*
+        read(StrTmp,*,iostat=io_error)  Species(FractNbr)%IMDNumber
+        SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.chkpt file                            : ",TRIM(StrTmp)
+        SWRITE(UNIT_stdOut,'(A,I15)') " Species(FractNbr)%IMDNumber                 : ",Species(FractNbr)%IMDNumber
         Nshift=0
         xMin=HUGE(1.)
         yMin=HUGE(1.)
@@ -1598,28 +1574,19 @@ print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
         yMax=-HUGE(1.)
         zMax=-HUGE(1.)
         DO i=1,9
-        !print*,"i",i
-          !READ(ioUnit,*)
           READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
-          print*,i,' : ',TRIM(StrTmp)
+          IF(io_error.NE.0)THEN
+             SWRITE(UNIT_stdOut,'(A,I5,A3,A)') 'Error in line ',i,' : ',TRIM(StrTmp)
+          END IF
         END DO
-!print*,PDM%maxParticleNumber
-!print*,"chunkSize=",chunkSize
-!read*
         DO i=1,chunkSize
-        !DO i=1,PDM%maxParticleNumber !NbrOfParticle
           READ(ioUnit,*,IOSTAT=io_error) IMD_array(1:12)
-          !IF(io_error.EQ.-1)EXIT ! end of file reached
-!print*,IMD_array(1:12)
-!read*
           IF(io_error>0)THEN
             CALL abort(__STAMP__&
             ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')
           ELSE IF(io_error<0)THEN
-            SWRITE(*,*) "End of file reached. i=",i
             EXIT
           ELSE
-            !print*,IMD(1:11)
             IF(1.EQ.2)THEN ! transformation
               ! 0.) multiply by unit system factor (1e-10)
               ! 1.) switch X and Z axis and invert Z
@@ -1632,20 +1599,14 @@ print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
                                  IMD_array(5)*1.E-10,&
                                  IMD_array(6)*1.E-10/)
             END IF
-!print*,Particle_pos
-!read*
             particle_positions((i-Nshift)*3-2) = Particle_pos(1)
             particle_positions((i-Nshift)*3-1) = Particle_pos(2)
             particle_positions((i-Nshift)*3  ) = Particle_pos(3)
 
-
-
-       PartState(i-Nshift,4:6) =&
-       (/IMD_array(7)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
-         IMD_array(8)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
-        -IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
-
-
+            PartState(i-Nshift,4:6) =&
+            (/IMD_array(7)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
+              IMD_array(8)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
+             -IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
 
             xMin=MIN(Particle_pos(1),xMin)
             yMin=MIN(Particle_pos(2),yMin)
@@ -1653,9 +1614,6 @@ print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
             xMax=MAX(Particle_pos(1),xMax)
             yMax=MAX(Particle_pos(2),yMax)
             zMax=MAX(Particle_pos(3),zMax)
-            !print*,"x",Particle_pos(1)
-            !print*,"y",Particle_pos(2)
-            !print*,"z",Particle_pos(3)
             ! check cutoff
             SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%IMDCutOff))
             CASE('no_cutoff') ! nothing to do
@@ -1673,28 +1631,19 @@ print*,"Species(FractNbr)%IMDNumber",Species(FractNbr)%IMDNumber
           END IF
         END DO
         CLOSE(ioUnit)
-        print*, "     x-Min [nm]                         x-Max [nm]"
-        print*, xMin*1.e9,xMax*1.e9
-        print*, "     y-Min [nm]                         y-Max [nm]"
-        print*, yMin*1.e9,yMax*1.e9
-        print*, "     z-Min [nm]                         z-Max [nm]"
-        print*, zMin*1.e9,zMax*1.e9
-print*,""
-        SWRITE(*,*) "Particles Read: chunkSize/NbrOfParticle=>",(i-Nshift)-1
+        SWRITE(UNIT_stdOut,'(A25,A25)')  "x-Min [nm]","x-Max [nm]"
+        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') xMin*1.e9,xMax*1.e9
+        SWRITE(UNIT_stdOut,'(A25,A25)')  "y-Min [nm]","y-Max [nm]"
+        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') yMin*1.e9,yMax*1.e9
+        SWRITE(UNIT_stdOut,'(A25,A25)')  "z-Min [nm]","z-Max [nm]"
+        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') zMin*1.e9,zMax*1.e9
+        SWRITE(UNIT_stdOut,'(A)') ""
+        SWRITE(UNIT_stdOut,'(A,I15)')  "Particles Read: chunkSize/NbrOfParticle = ",(i-Nshift)-1
         chunkSize     = (i-Nshift)-1 ! don't change here, change at velocity
         NbrOfParticle = (i-Nshift)-1 ! don't change here, change at velocity
       ELSE ! TRIM(Species(FractNbr)%Init(iInit)%IMDFile) = 'no file found' -> exit
         Species(FractNbr)%Init(iInit)%velocityDistribution=''
       END IF
-print*,"particle posiiton done..."
-print*,"Species(FractNbr)%Init(iInit)%velocityDistribution=",Species(FractNbr)%Init(iInit)%velocityDistribution
-print*,""
-!read*
-
-
-
-
-
     END SELECT
     !------------------SpaceIC-cases: end-----------------------------------------------------------!
     chunkSize=chunkSize2
@@ -2581,10 +2530,6 @@ CASE('OneD-twostreaminstabilty')
                                                    OneDTwoStreamVelo
     END IF  
   END DO
-
-
-
-
 
 CASE('IMD') ! read IMD particle velocity from *.chkpt file
   ! do nothing
