@@ -76,8 +76,9 @@ intel_tracking:
   tags:
     - withmodules
   script:
+    - echo "nothing to do";
     # fix h5diff on runner -> libs may be wrongly set in the binary file
-    - echo "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
+    # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
     #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC 2; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
