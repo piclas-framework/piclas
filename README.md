@@ -30,6 +30,10 @@ This instruction contains the informations on using the cray-tools, too.
 
 For informations about the different particle tracking routines see [Tracking.md](TRACKING.md).
 
+## Regressioncheck
+
+For informations about the regressioncheck see [REGGIE.md](REGGIE.md).
+
 ## Used libraries
 
 Boltzplatz uses several external libraries as well as auxilliary functions from open source projects, including:
@@ -38,6 +42,7 @@ Boltzplatz uses several external libraries as well as auxilliary functions from 
 * [MPI](http://www.mcs.anl.gov/research/projects/mpi/)
 * [LAPACK](http://www.netlib.org/lapack/)
 * [cmake](https://www.cmake.org)
+* CTAGS
 
 ## I need help or further information:
 
