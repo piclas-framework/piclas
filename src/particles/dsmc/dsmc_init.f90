@@ -799,9 +799,9 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
       CALL InitParticleBoundarySampling()
       SWRITE(UNIT_stdOut,'(A)')'WARNING: Particles-DSMC-CalcSurfaceVal == FALSE!'
     END IF
-    IF (DSMC%WallModel.EQ.2) CALL abort(&
+    IF ((DSMC%WallModel.EQ.2) .OR.(DSMC%WallModel.EQ.1)) CALL abort(&
       __STAMP__&
-      ,'Error: WallModel 2 not working!')
+      ,'Error: WallModel 1&2 not working!')
     CALL InitDSMCSurfModel()
   ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.LE.1) THEN
     CALL abort(&

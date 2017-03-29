@@ -84,7 +84,7 @@ IF (DSMC%WallModel.EQ.1) THEN
             Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),& 
             Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),& 
             Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
-ELSE IF (DSMC%WallModel.GT.1) THEN 
+ELSE IF (DSMC%WallModel.EQ.3) THEN 
   ALLOCATE( Adsorption%HeatOfAdsZero(1:nSpecies),&
             Adsorption%Coordination(1:nSpecies),&
             Adsorption%DiCoord(1:nSpecies))
@@ -111,14 +111,14 @@ DO iSpec = 1,nSpecies
     Adsorption%Nu_b(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
     Adsorption%DesorbEnergy(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
     Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
-  ELSE IF (DSMC%WallModel.GT.1) THEN 
+  ELSE IF (DSMC%WallModel.EQ.3) THEN 
     Adsorption%Coordination(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Coordination','0')
     Adsorption%DiCoord(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-DiCoordination','0')
     Adsorption%HeatOfAdsZero(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfAdsorption-K','0.')
   END IF
 END DO
 ! initialize surface atom mass: if not set define as atom mass of Pt
-IF (DSMC%WallModel.GT.1) Adsorption%SurfMassIC = GETREAL('Part-Species'//TRIM(hilf)//'-SurfMassIC','3.2395E-25')
+IF (DSMC%WallModel.EQ.3) Adsorption%SurfMassIC = GETREAL('Part-Species'//TRIM(hilf)//'-SurfMassIC','3.2395E-25')
 
 #if (PP_TimeDiscMethod==42)
   Adsorption%TPD = GETLOGICAL('Particles-DSMC-Adsorption-doTPD','.FALSE.')
@@ -168,7 +168,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 #endif /*MPI*/
 
-IF (DSMC%WallModel.GT.1) THEN
+IF (DSMC%WallModel.EQ.3) THEN
   CALL Init_SurfDist()
   CALL Init_SurfChem()
 #if (PP_TimeDiscMethod==42)
