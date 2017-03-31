@@ -339,6 +339,21 @@ TYPE tSurfaceDistributionInfo
 END TYPE
 TYPE(tSurfaceDistributionInfo),ALLOCATABLE   :: SurfDistInfo(:,:,:) ! Surface distribution tracking container
 
+TYPE tLiquid
+  INTEGER , ALLOCATABLE                  :: SumCondensPart(:,:,:,:) ! number of condensed particles
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumEvapPart(:,:,:,:)    ! number of evaporated particles
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: HeatOfCondens(:)        ! heat of condensation (K) on liquid for surface n
+  REAL    , ALLOCATABLE                  :: ProbCondens(:,:,:,:)    ! Condensation probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: ProbEvap(:,:,:,:)       ! Evaporation probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  
+  TYPE(tAdsorptionInfo), ALLOCATABLE     :: Info(:)                 ! Info for species n (nSpecies)
+END TYPE
+TYPE(tLiquid)                            :: Liquid
+
 TYPE tCollInf             ! informations of collision                                              
   INTEGER       , ALLOCATABLE    :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                        :: NumCase                 ! Number of possible collision combination

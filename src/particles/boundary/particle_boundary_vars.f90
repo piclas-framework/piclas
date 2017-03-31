@@ -104,6 +104,8 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
   LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
+  LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
+  INTEGER , ALLOCATABLE                  :: LiquidSpec(:)
   REAL    , ALLOCATABLE                  :: AmbientTemp(:)
   REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
   REAL    , ALLOCATABLE                  :: AmbientBeta(:)

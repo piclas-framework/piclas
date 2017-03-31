@@ -818,6 +818,7 @@ ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
+ALLOCATE(PartBound%SolidState(1:nPartBound))
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -865,6 +866,8 @@ DO iPartBound=1,nPartBound
      PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
+     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState','.TRUE.')
+     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
