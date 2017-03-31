@@ -19,13 +19,16 @@ END INTERFACE
 INTERFACE ExactFunc
   MODULE PROCEDURE ExactFunc 
 END INTERFACE
+INTERFACE ExactFlux
+  MODULE PROCEDURE ExactFlux
+END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
 END INTERFACE
 INTERFACE DivCleaningDamping
   MODULE PROCEDURE DivCleaningDamping
 END INTERFACE
-PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping
+PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping,ExactFlux
 !===================================================================================================================================
 
 CONTAINS
@@ -788,6 +791,52 @@ END IF
 !source fo divcorr damping!
 !Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
 END SUBROUTINE CalcSource
+
+
+SUBROUTINE ExactFlux(t,tDeriv,U_Master_loc,U_Slave_loc,NormVec,Face_xGP)
+!===================================================================================================================================
+! Routine to add an exact function to a Riemann-Problem Face
+! used at PML interfaces to emit a ave
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Equation_Vars, ONLY: IniExactFunc
+USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
+USE MOD_PreProc
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)       :: NormVec(1:3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)       :: Face_xGP(1:3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)       :: t           ! time
+INTEGER,INTENT(IN)    :: tDeriv      ! deriv
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)    :: U_master_loc(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(INOUT)    :: U_slave_loc (PP_nVar,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: p,q
+REAL                  :: U_Face_loc(1:8)
+!===================================================================================================================================
+
+! dirty fix....
+IF(Face_xGP(3,0,0).LT.0.01) RETURN
+
+DO q=0,PP_N
+  DO p=0,PP_N
+    IF(Face_xGP(3,p,q).LE.xyzPhysicalMinMax(5))THEN
+      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
+      IF(NormVec(3,p,q).GT.0)THEN
+        U_Master_loc(:,p,q)=U_Master_loc(:,p,q)+ U_Face_loc
+      ELSE
+        U_Slave_loc(:,p,q) =U_Slave_loc(:,p,q)+ U_Face_loc
+      END IF
+    END IF
+  END DO ! p
+END DO ! q
+
+END SUBROUTINE ExactFlux
 
 
 SUBROUTINE DivCleaningDamping()
