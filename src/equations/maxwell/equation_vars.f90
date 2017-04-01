@@ -53,6 +53,8 @@ REAL              :: omega_0, omega_0_2inv                  !> spot size and inv
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
+LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
+INTEGER           :: FluxDir                                !> direction of flux
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)

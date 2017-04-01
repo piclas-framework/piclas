@@ -136,6 +136,10 @@ DO iBC=1,nBCs
     END IF
   END IF
 END DO
+IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
+IF(DoExactFlux)THEN
+  FluxDir = GETINT('FluxDir','3') 
+END IF
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
   CASE(4)
@@ -261,8 +265,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
-                            ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber,BeamOmegaW, &
-                             BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse
+                                     ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
+                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -797,11 +801,13 @@ SUBROUTINE ExactFlux(t,tDeriv,U_Master_loc,U_Slave_loc,NormVec,Face_xGP)
 !===================================================================================================================================
 ! Routine to add an exact function to a Riemann-Problem Face
 ! used at PML interfaces to emit a ave
+! test of superposition of flu
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Equation_Vars, ONLY: IniExactFunc
-USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
+USE MOD_Globals
 USE MOD_PreProc
+USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir
+USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -820,17 +826,16 @@ INTEGER               :: p,q
 REAL                  :: U_Face_loc(1:8)
 !===================================================================================================================================
 
-! dirty fix....
-IF(Face_xGP(3,0,0).LT.0.01) RETURN
+IF(.NOT.DoExactFlux) RETURN
 
 DO q=0,PP_N
   DO p=0,PP_N
-    IF(Face_xGP(3,p,q).LE.xyzPhysicalMinMax(5))THEN
+    IF(ALMOSTEQUALTOTOLERANCE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
       CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
-      IF(NormVec(3,p,q).GT.0)THEN
-        U_Master_loc(:,p,q)=U_Master_loc(:,p,q)+ U_Face_loc
-      ELSE
+      IF(NormVec(FluxDir,p,q).GT.0)THEN
         U_Slave_loc(:,p,q) =U_Slave_loc(:,p,q)+ U_Face_loc
+      ELSE
+        U_Master_loc(:,p,q)=U_Master_loc(:,p,q)+ U_Face_loc
       END IF
     END IF
   END DO ! p
