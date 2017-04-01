@@ -264,14 +264,14 @@ SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMLogFile)
 i=1
 DO !i=1,1 ! header lines: currently 1 -> adjust?
   READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
-  IF(io_error>0)THEN
+  IF(io_error.GT.0)THEN
     SWRITE(UNIT_stdOut,'(A,I5)') "io_error=",io_error
     SWRITE(UNIT_stdOut,'(A,I5)') "A problem reading the TTM file occured in line: ",i+1
     SWRITE(UNIT_stdOut,'(A)') StrTmp
     CALL abort(&
     __STAMP__&
     ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
-  ELSE IF(io_error<0)THEN
+  ELSE IF(io_error.LT.0)THEN
     SWRITE(UNIT_stdOut,'(A,I5)') "End of file reached: ",i
     EXIT
   ELSE ! io_error = 0
