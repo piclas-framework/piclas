@@ -55,8 +55,8 @@ REAL,INTENT(OUT)   :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 ! LOCAL VARIABLES
 INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID
 #ifdef maxwell
-REAL               :: U_master_loc(PP_nVar,0:PP_N,0:PP_N)
-REAL               :: U_slave_loc (PP_nVar,0:PP_N,0:PP_N)
+REAL               :: U_master_loc(1:PP_nVar,0:PP_N,0:PP_N)
+REAL               :: U_slave_loc (1:PP_nVar,0:PP_N,0:PP_N)
 #endif /*maxwell*/
 !===================================================================================================================================
 
