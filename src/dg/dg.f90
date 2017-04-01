@@ -466,6 +466,9 @@ USE MOD_DG_Vars,ONLY:U
 USE MOD_Mesh_Vars,ONLY:Elem_xGP
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation,ONLY:ExactFunc
+#ifdef maxwell
+USE MOD_Equation_Vars,ONLY:DoExactFlux
+#endif /*maxwell*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -478,6 +481,9 @@ INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
+#ifdef maxwell
+IF(DoExactFlux) RETURN
+#endif /*maxwell*/
 DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
