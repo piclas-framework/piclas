@@ -109,8 +109,12 @@ U_slave=0.
 #endif /*OPTIMIZED*/
 
 ! unique flux per side
-ALLOCATE(Flux(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)) ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
-Flux=0.
+! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
+! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
+ALLOCATE(Flux_Master(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)) 
+ALLOCATE(Flux_Slave(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)) 
+Flux_Master=0.
+Flux_Slave=0.
 
 DGInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
@@ -211,7 +215,7 @@ SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_DG_Vars,          ONLY:U,Ut,U_master,U_slave,Flux !,nTotalU
+USE MOD_DG_Vars,          ONLY:U,Ut,U_master,U_slave,Flux_Master,Flux_Slave !,nTotalU
 USE MOD_SurfInt,          ONLY:SurfInt
 USE MOD_VolInt,           ONLY:VolInt
 USE MOD_ProlongToFace,    ONLY:ProlongToFace
@@ -288,17 +292,17 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartReceiveMPIData(PP_nVar+PMLnVar,Flux,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+CALL StartReceiveMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 ! fill the global surface flux list
 tLBStart = LOCALTIME() ! LB Time Start
-CALL FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides=.TRUE.)
+CALL FillFlux(t,tDeriv,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartSendMPIData(PP_nVar+PMLnVar,Flux,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+CALL StartSendMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
 !CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
@@ -306,10 +310,10 @@ tLBStart = LOCALTIME() ! LB Time Start
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
-CALL FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides=.FALSE.)
-CALL Flux_Mortar(Flux,doMPISides=.FALSE.)
+CALL FillFlux(t,tDeriv,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.FALSE.)
+CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
-CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
+CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.FALSE.)
 
 ! compute volume integral contribution and add to ut
 CALL VolInt(Ut,dofirstElems=.FALSE.)
@@ -325,8 +329,8 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 
 !FINALIZE Fluxes for MPI Sides
 tLBStart = LOCALTIME() ! LB Time Start
-CALL Flux_Mortar(Flux,doMPISides=.TRUE.)
-CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
+CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
+CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
@@ -526,7 +530,8 @@ SDEALLOCATE(Ut)
 SDEALLOCATE(U)
 SDEALLOCATE(U_master)
 SDEALLOCATE(U_slave)
-SDEALLOCATE(FLUX)
+SDEALLOCATE(FLUX_Master)
+SDEALLOCATE(FLUX_Slave)
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG
 
