@@ -20,7 +20,11 @@ INTERFACE RiemannPML                  ! wird in src/dg/fillflux.f90 aufgerufen (
   MODULE PROCEDURE RiemannPML
 END INTERFACE
 
-PUBLIC::Riemann,RiemannPML
+INTERFACE ExactFlux
+  MODULE PROCEDURE ExactFlux
+END INTERFACE
+
+PUBLIC::Riemann,RiemannPML,Exactflux
 !===================================================================================================================================
 
 CONTAINS
@@ -418,5 +422,143 @@ DO Count_2=0,PP_N
 END DO
 
 END SUBROUTINE RiemannPML
+
+
+SUBROUTINE ExactFlux(t,tDeriv,NormVec,Face_xGP,U_Master, U_slave,Flux)
+!===================================================================================================================================
+! Routine to add an exact function to a Riemann-Problem Face
+! used at PML interfaces to emit a ave
+! test of superposition of flu
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir,c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_Equation,      ONLY: ExactFunc
+USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
+USE MOD_PML_vars,      ONLY: PMLnVar
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)       :: t           ! time
+INTEGER,INTENT(IN)    :: tDeriv      ! deriv
+REAL,INTENT(IN)       :: NormVec(1:3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)       :: Face_xGP(1:3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)       :: U_master(1:PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(IN)       :: U_slave (1:PP_nVar,0:PP_N,0:PP_N)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)    :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: p,q
+REAL                  :: U_Face_loc(1:PP_nVar,0:PP_N,0:PP_N)
+!REAL                  :: A(1:8,1:8)
+REAL                  :: Flux_loc(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+!REAL                  :: n_loc(1:3)
+LOGICAL               :: UseMaster
+!===================================================================================================================================
+
+IF(.NOT.DoExactFlux) RETURN
+
+U_Face_loc=0.
+UseMaster=.TRUE.
+DO q=0,PP_N
+  DO p=0,PP_N
+    IF(ALMOSTEQUALTOTOLERANCE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
+      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc(:,p,q))
+      IF(NormVec(FluxDir,p,q).GT.0)THEN
+        UseMaster=.FALSE.
+      ELSE
+        UseMaster=.TRUE.
+      END IF
+    END IF
+  END DO ! p
+END DO ! q
+
+IF(Usemaster)THEN
+  CALL RiemannPML(Flux_loc(1:32,:,:),U_Master(:,:,:),U_Face_loc(:,:,:), NormVec(:,:,:))
+ELSE
+  CALL RiemannPML(Flux_loc(1:32,:,:),U_Face_loc(:,:,:),U_Slave(:,:,:), NormVec(:,:,:))
+END IF
+
+Flux=Flux+Flux_loc
+
+!DO q=0,PP_N
+!  DO p=0,PP_N
+!    IF(ALMOSTEQUALTOTOLERANCE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
+!      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
+!      n_loc(:)=NormVec(:,p,q)
+!      A(1,1:4)=0.
+!      A(1, 5 )=c2*n_loc(3)
+!      A(1, 6 )=-c2*n_loc(2)
+!      A(1, 7 )=0.
+!      A(1, 8 )=c_corr_c2*n_loc(1)
+!      A(2,1:3)=0.
+!      A(2, 4 )=-c2*n_loc(3)
+!      A(2, 5 )=0.
+!      A(2, 6 )=c2*n_loc(1)
+!      A(2, 7 )=0.
+!      A(2, 8 )=c_corr_c2*n_loc(2)
+!      A(3,1:3)=0.
+!      A(3, 4 )=c2*n_loc(2)
+!      A(3, 5 )=-c2*n_loc(1)
+!      A(3, 6 )=0.
+!      A(3, 7 )=0.
+!      A(3, 8 )=c_corr_c2*n_loc(3)
+!
+!      A(4, 1 )=0.
+!      A(4, 2 )=-n_loc(3)
+!      A(4, 3 )=n_loc(2)
+!      A(4,4:6)=0.
+!      A(4, 7 )=c_corr*n_loc(1)
+!      A(4, 8 )=0.
+!
+!      A(5, 1 )=n_loc(3)
+!      A(5, 2 )=0.
+!      A(5, 3 )=-n_loc(1)
+!      A(5,4:6)=0.
+!      A(5, 7 )=c_corr*n_loc(2)
+!      A(5, 8 )=0.
+!
+!      A(6, 1 )=-n_loc(2)
+!      A(6, 2 )=n_loc(1)
+!      A(6, 3 )=0.
+!      A(6,4:6)=0.
+!      A(6, 7 )=c_corr*n_loc(3)
+!      A(6, 8 )=0.
+!
+!      A(7,1:3)=0.
+!      A(7, 4 )=c_corr_c2*n_loc(1)
+!      A(7, 5 )=c_corr_c2*n_loc(2)
+!      A(7, 6 )=c_corr_c2*n_loc(3)
+!      A(7, 7 )=0.
+!      A(7, 8 )=0.
+!
+!      A(8, 1 )=c_corr*n_loc(1)
+!      A(8, 2 )=c_corr*n_loc(2)
+!      A(8, 3 )=c_corr*n_loc(3)
+!      A(8,4:6)=0.
+!      A(8, 7 )=0.
+!      A(8, 8 )=0.
+!      Flux_loc=MATMUL(A,U_Face_loc)
+!      !  U_Slave_loc(:,p,q) =U_Slave_loc(:,p,q)+ U_Face_loc
+!      !  U_Master_loc(:,p,q)=U_Master_loc(:,p,q)+ U_Face_loc
+!      !ELSE
+!      !  U_Slave_loc(:,p,q) =U_Slave_loc(:,p,q)+ U_Face_loc
+!      !  U_Master_loc(:,p,q)=U_Master_loc(:,p,q)+ U_Face_loc
+!      !END IF
+!      IF(NormVec(FluxDir,p,q).GT.0)THEN
+!        Flux(1:PP_nVar,p,q)=Flux(1:PP_nVar,p,q)+Flux_loc
+!      ELSE
+!        Flux(1:PP_nVar,p,q)=Flux(1:PP_nVar,p,q)-Flux_loc
+!      END IF
+!    END IF
+!  END DO ! p
+!END DO ! q
+
+END SUBROUTINE ExactFlux
+
 
 END MODULE MOD_Riemann

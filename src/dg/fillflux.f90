@@ -36,9 +36,9 @@ USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 USE MOD_PML_vars,        ONLY:isPMLFace,FaceToPML,DoPML,isPMLFace,isPMLInterFace,PMLnVar
-#ifdef maxwell
-USE MOD_Equation,        ONLY:ExactFlux
-#endif /*maxwell*/
+!#ifdef maxwell
+!USE MOD_Riemann,         ONLY:ExactFlux
+!#endif /*maxwell*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,10 +54,6 @@ REAL,INTENT(OUT)   :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID
-#ifdef maxwell
-REAL               :: U_master_loc(1:PP_nVar,0:PP_N,0:PP_N)
-REAL               :: U_slave_loc (1:PP_nVar,0:PP_N,0:PP_N)
-#endif /*maxwell*/
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
@@ -80,16 +76,11 @@ DO SideID=firstSideID,lastSideID
   IF(DoPML) THEN
     IF ( isPMLFace(SideID) )THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
                                  !     (flux-splitting!)
-      IF(isPMLInterFace(SideID))THEN
-#ifdef maxwell
-        U_master_loc=U_Master(:,:,:,SideID)
-        U_slave_loc =U_Slave(:,:,:,SideID)
-        CALL ExactFlux(t,tDeriv,U_Master_loc,U_Slave_loc,NormVec(:,:,:,SideID),Face_xGP(:,:,:,SideID))
-        CALL RiemannPML(Flux(1:32,:,:,SideID),U_Master_loc,U_Slave_loc, NormVec(:,:,:,SideID))
-#endif /*maxwell*/
-      ELSE
-        CALL RiemannPML(Flux(1:32,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID), NormVec(:,:,:,SideID))
-      END IF
+      CALL RiemannPML(Flux(1:32,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID), NormVec(:,:,:,SideID))
+!#ifdef maxwell
+!      IF(isPMLInterFace(SideID)) CALL ExactFlux(t,tDeriv,NormVec(:,:,:,SideID),Face_xGP(:,:,:,SideID) &
+!                                               ,U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID), Flux(1:PP_nVar+PMLnVar,:,:,SideID))
+!#endif /*maxwell*/
     ELSE ! 2.) no PML, standard flux
       CALL Riemann(Flux(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
     END IF
