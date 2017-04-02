@@ -262,7 +262,7 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
-                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,DoExactFlux,FluxDir
+                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse
 USE MOD_TimeDisc_Vars,    ONLY: dt
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
@@ -436,11 +436,7 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   ELSE
     phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
   END IF
-  IF(DoExactFlux)THEN
-    z = x(3)-xyzPhysicalMinMax(FluxDir*2-1)
-  ELSE
-    z = x(3)
-  END IF
+  z=x(3)
   omegaG=2*pi*35e9
   mG=1*TERotation
   nG=1
