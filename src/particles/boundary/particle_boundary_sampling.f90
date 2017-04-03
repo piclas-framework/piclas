@@ -154,6 +154,13 @@ DO iSide=nSides+1,nTotalSides
   END IF
 END DO
 
+ALLOCATE(SurfMesh%SurfSideToGlobSideMap(1:SurfMesh%nTotalSides))
+SurfMesh%SurfSideToGlobSideMap(:) = -1
+DO iSide = 1,nTotalSides
+  IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
+  SurfMesh%SurfSideToGlobSideMap(SurfMesh%SideIDToSurfID(iSide)) = iSide
+END DO
+
 SurfMesh%SurfOnProc=.FALSE.
 !IF(SurfMesh%nSides.GT.0) 
 IF(SurfMesh%nTotalSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
@@ -1084,6 +1091,7 @@ INTEGER :: iProc,iSurfSide
 SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfMesh%SurfaceArea)
 SDEALLOCATE(SurfMesh%SideIDToSurfID)
+SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)

@@ -819,6 +819,7 @@ ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
+ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -868,6 +869,9 @@ DO iPartBound=1,nPartBound
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
      PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState','.TRUE.')
      PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
+     IF (PartBound%LiquidSpec(iPartBound).GT.nSpecies) CALL abort(&
+__STAMP__&
+     ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%LiquidSpec(iPartBound))
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -1204,6 +1208,8 @@ SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PartBound%SolidState)
+SDEALLOCATE(PartBound%LiquidSpec)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

@@ -3503,7 +3503,7 @@ USE MOD_Timedisc_Vars         , ONLY : iter
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC, PartStateIntEn, Liquid
 USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
@@ -3536,6 +3536,7 @@ USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
+USE MOD_Mesh_Vars,              ONLY : BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3677,6 +3678,8 @@ __STAMP__&
         IF (useDSMC .AND. (.NOT. KeepWallParticles)) THEN !to be checked!!!
           IF ((DSMC%WallModel.GT.0).AND.(SurfMesh%SideIDToSurfID(SideID).GT.0)) THEN
             ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+          ELSE IF ((PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0).AND.(SurfMesh%SideIDToSurfID(SideID).GT.0)) THEN
+            ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
           ELSE
             ExtraParts = 0
           END IF

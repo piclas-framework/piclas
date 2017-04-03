@@ -53,6 +53,7 @@ USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
+USE MOD_Liquid_Boundary,            ONLY: Init_Liquid_Boundary
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -809,6 +810,11 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
         ,'Error in DSMC-Surface model init - wrong collismode!')
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
+! Initialize liquid surfaces (Evaporation/Condensation) variables
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL Init_Liquid_Boundary()
+!-----------------------------------------------------------------------------------------------------------------------------------
+  
   SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
   SWRITE(UNIT_StdOut,'(132("-"))')
 

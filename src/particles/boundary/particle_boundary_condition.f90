@@ -1989,7 +1989,7 @@ SUBROUTINE ParticleCondensation(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   REAL                             :: Xitild,EtaTild
   INTEGER                          :: p,q
   REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
-  REAL                             :: Adsorption_prob
+  REAL                             :: Condensation_prob
   INTEGER                          :: adsorption_case
   INTEGER                          :: SurfSideID, SpecID
   REAL, PARAMETER                  :: PI=3.14159265358979323846
@@ -2061,6 +2061,13 @@ SUBROUTINE ParticleCondensation(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
   
   EvaporationEnthalpie = 0.
+  
+  Condensation_prob = Liquid%ProbCondens(p,q,SurfSideID,SpecID)
+  CALL RANDOM_NUMBER(RanNum)
+  IF ( (Condensation_prob.GE.RanNum) ) THEN
+    outSpec(1) = SpecID
+    adsorption_case = 1
+  END IF
   
   SELECT CASE(adsorption_case)
   !---------------------------------------------------------------------------------------------------------------------------------

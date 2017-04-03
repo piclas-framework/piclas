@@ -57,6 +57,7 @@ TYPE tSurfaceMesh
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping form the SideID to shorter side list
   REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
+  INTEGER,ALLOCATABLE                   :: SurfSideToGlobSideMap(:)      ! map of surfside ID to global Side ID
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
@@ -105,7 +106,7 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
   LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
   LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
-  INTEGER , ALLOCATABLE                  :: LiquidSpec(:)
+  INTEGER , ALLOCATABLE                  :: LiquidSpec(:)                 ! Species of Liquid Boundary
   REAL    , ALLOCATABLE                  :: AmbientTemp(:)
   REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
   REAL    , ALLOCATABLE                  :: AmbientBeta(:)
