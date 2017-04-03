@@ -219,7 +219,7 @@ CALL InitBC()
 !CALL InitParticles()
 !#endif
 #ifndef PP_HDG
-CALL InitPML()
+CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #endif /*PP_HDG*/
 CALL InitDG()
 CALL InitFilter()

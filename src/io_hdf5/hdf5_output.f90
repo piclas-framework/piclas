@@ -1728,7 +1728,7 @@ END SUBROUTINE DistributedWriteArray
 
 
 #ifdef PARTICLES
-SUBROUTINE WriteIMDStateToHDF5()
+SUBROUTINE WriteIMDStateToHDF5(time)
 !===================================================================================================================================
 ! Write the particles data aquired from an IMD *.chkpt file to disk and abort the program
 !===================================================================================================================================
@@ -1736,12 +1736,14 @@ SUBROUTINE WriteIMDStateToHDF5()
 USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY: Species,nSpecies
 USE MOD_Mesh_Vars,             ONLY: MeshFile
+USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_TTM_Vars,              ONLY: DoImportTTMFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !INTEGER,INTENT(IN)               :: Ntot, length
-!REAL,INTENT(IN)                  :: Ai(1:length)
+REAL,INTENT(IN)                  :: time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES      
 !INTEGER,INTENT(INOUT)            :: Ni(1:length)     
@@ -1752,28 +1754,39 @@ IMPLICIT NONE
 REAL            :: t,tFuture
 INTEGER         :: I
 !===================================================================================================================================
-DO I = 1,nSpecies
-    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
-  IF(Species(i)%IMDTimeScale.GT.0.0)THEN
-    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
-    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDLengthScale :",Species(i)%IMDLengthScale
-    SWRITE(UNIT_StdOut,'(A,I5,A,I25)')     "   Species(",i,")%IMDNumber      :",Species(i)%IMDNumber
-    SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDMultiplier  :",Species(i)%IMDMultiplier
-    ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
-    t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
-    SWRITE(UNIT_StdOut,'(A,E25.14E3)')     "   Calculated time t             :",t
-    tFuture=t
-    CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD  MD data) created."
+IF(DoRestart)THEN
+  IF(DoImportTTMFile)THEN
+    t=time
     CALL WriteTTMToHDF5(t)
-    SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating now!"
-    STOP 0 ! terminate successfully
-    !CALL abort(&
-    !__STAMP__&
-    !,'StateFile from IMD data created. Terminating now!')
+    SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created."
   END IF
-END DO
-
+ELSE
+  DO I = 1,nSpecies
+      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
+    IF(Species(i)%IMDTimeScale.GT.0.0)THEN
+      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
+      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDLengthScale :",Species(i)%IMDLengthScale
+      SWRITE(UNIT_StdOut,'(A,I5,A,I25)')     "   Species(",i,")%IMDNumber      :",Species(i)%IMDNumber
+      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDMultiplier  :",Species(i)%IMDMultiplier
+      ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
+      t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
+      SWRITE(UNIT_StdOut,'(A,E25.14E3)')     "   Calculated time t             :",t
+      tFuture=t
+      CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+      IF(DoImportTTMFile)THEN
+        SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created."
+        CALL WriteTTMToHDF5(t)
+        SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating now!"
+      ELSE 
+        SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD MD data) created. Terminating now!"
+      END IF
+      STOP 0 ! terminate successfully
+      !CALL abort(&
+      !__STAMP__&
+      !,'StateFile from IMD data created. Terminating now!')
+    END IF
+  END DO
+END IF
 END SUBROUTINE WriteIMDStateToHDF5
 
 

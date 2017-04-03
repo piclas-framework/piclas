@@ -292,7 +292,7 @@ IF(DoRestart) CALL EvalGradient()
 #endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
 #ifdef PARTICLES
-IF(DoImportIMDFile) CALL WriteIMDStateToHDF5()
+IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 
