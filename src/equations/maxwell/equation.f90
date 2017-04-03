@@ -19,16 +19,13 @@ END INTERFACE
 INTERFACE ExactFunc
   MODULE PROCEDURE ExactFunc 
 END INTERFACE
-INTERFACE ExactFlux
-  MODULE PROCEDURE ExactFlux
-END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
 END INTERFACE
 INTERFACE DivCleaningDamping
   MODULE PROCEDURE DivCleaningDamping
 END INTERFACE
-PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping,ExactFlux
+PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping
 !===================================================================================================================================
 
 CONTAINS
@@ -111,7 +108,6 @@ c_corr2   = c_corr*c_corr
 c_corr_c  = c_corr*c 
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
-
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
@@ -268,6 +264,7 @@ USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
                                      ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse
 USE MOD_TimeDisc_Vars,    ONLY: dt
+USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -439,7 +436,7 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   ELSE
     phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
   END IF
-  z = x(3)
+  z=x(3)
   omegaG=2*pi*35e9
   mG=1*TERotation
   nG=1
@@ -663,7 +660,6 @@ END SELECT
 END SUBROUTINE ExactFunc
 
 
-
 SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
@@ -795,53 +791,6 @@ END IF
 !source fo divcorr damping!
 !Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
 END SUBROUTINE CalcSource
-
-
-SUBROUTINE ExactFlux(t,tDeriv,U_Master_loc,U_Slave_loc,NormVec,Face_xGP)
-!===================================================================================================================================
-! Routine to add an exact function to a Riemann-Problem Face
-! used at PML interfaces to emit a ave
-! test of superposition of flu
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir
-USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES 
-REAL,INTENT(IN)       :: NormVec(1:3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)       :: Face_xGP(1:3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)       :: t           ! time
-INTEGER,INTENT(IN)    :: tDeriv      ! deriv
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)    :: U_master_loc(PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(INOUT)    :: U_slave_loc (PP_nVar,0:PP_N,0:PP_N)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: p,q
-REAL                  :: U_Face_loc(1:8)
-!===================================================================================================================================
-
-IF(.NOT.DoExactFlux) RETURN
-
-DO q=0,PP_N
-  DO p=0,PP_N
-    IF(ALMOSTEQUALTOTOLERANCE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
-      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
-      IF(NormVec(FluxDir,p,q).GT.0)THEN
-        U_Slave_loc(:,p,q) =U_Slave_loc(:,p,q)+ U_Face_loc
-      ELSE
-        U_Master_loc(:,p,q)=U_Master_loc(:,p,q)+ U_Face_loc
-      END IF
-    END IF
-  END DO ! p
-END DO ! q
-
-END SUBROUTINE ExactFlux
 
 
 SUBROUTINE DivCleaningDamping()

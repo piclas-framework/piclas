@@ -26,7 +26,7 @@ PUBLIC::SurfInt
 CONTAINS
 
 
-SUBROUTINE SurfInt2(Flux,Ut,doMPISides)
+SUBROUTINE SurfInt2(Flux_Master,Flux_Slave,Ut,doMPISides)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
@@ -44,7 +44,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE  
-REAL,INTENT(IN)    :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
+REAL,INTENT(IN)    :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
+REAL,INTENT(IN)    :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -80,12 +81,12 @@ DO SideID=firstSideID,lastSideID
   IF(ElemID.LT.0) CYCLE ! boundary side is BC or MPI side
   IF(DoPML)THEN 
     IF(isPMLElem(ElemID))THEN
-      CALL CalcSurfInt2PML(Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
+      CALL CalcSurfInt2PML(Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
     ELSE
-      CALL CalcSurfInt2(Flux(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
+      CALL CalcSurfInt2(Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
     END IF
   ELSE
-    CALL CalcSurfInt2(Flux(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
+    CALL CalcSurfInt2(Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
   END IF
 END DO ! SideID=1,nSides
 
@@ -98,12 +99,12 @@ DO SideID=firstSideID,lastSideID
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
   IF(DoPML)THEN 
     IF(isPMLElem(ElemID))THEN
-      CALL CalcSurfInt2PML(Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
+      CALL CalcSurfInt2PML(Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
     ELSE
-      CALL CalcSurfInt2(Flux(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
+      CALL CalcSurfInt2(Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
     END IF
   ELSE
-    CALL CalcSurfInt2(Flux(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
+    CALL CalcSurfInt2(Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
   END IF
 END DO ! SideID=1,nSides
 
