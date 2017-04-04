@@ -137,6 +137,118 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
   
 END SUBROUTINE Evaporation
 
+#ifdef MPI
+SUBROUTINE ExchangeCondensNum() 
+!===================================================================================================================================
+! exchange the number of condensing particles on halo surface 
+! only processes with samling sides in their halo region and the original process participate on the communication
+! structure is similar to surface sampling/particle communication
+! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
+! the receiving process adds the new data to his own sides
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars               ,ONLY:nSpecies
+USE MOD_DSMC_Vars                   ,ONLY:Liquid
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,nSurfSample
+USE MOD_Particle_MPI_Vars           ,ONLY:CondensSendBuf,CondensRecvBuf,SurfExchange
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
+INTEGER                         :: iPos,p,q,iProc
+INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+!===================================================================================================================================
+
+nValues=nSpecies*(nSurfSample)**2
+
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesRecv(iProc)*nValues
+  CALL MPI_IRECV( CondensRecvBuf(iProc)%content_int             &
+                , MessageSize                                  &
+                , MPI_INT                                      &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
+                , 1011                                         &
+                , SurfCOMM%COMM                                &
+                , SurfExchange%RecvRequest(iProc)              & 
+                , IERROR )
+END DO ! iProc
+
+! build message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  iPos=0
+  DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        CondensSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= Liquid%SumCondensPart(p,q,SurfSideID,:)
+        iPos=iPos+nSpecies
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+!     Adsorption%SumAdsorbPart(:,:,SurfSideID,:)=0.
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+END DO
+
+! send message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
+  CALL MPI_ISEND( CondensSendBuf(iProc)%content_int         &
+                , MessageSize                              & 
+                , MPI_INT                                  &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
+                , 1011                                     &
+                , SurfCOMM%COMM                            &   
+                , SurfExchange%SendRequest(iProc)          &
+                , IERROR )                                     
+END DO ! iProc                                                
+
+! 4) Finish Received number of particles
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+  IF(SurfExchange%nSidesRecv(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+END DO ! iProc
+
+! add data do my list
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
+  iPos=0
+  DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        Liquid%SumCondensPart(p,q,SurfSideID,:)=Liquid%SumCondensPart(p,q,SurfSideID,:) &
+                                         +CondensRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
+        iPos=iPos+nSpecies
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  CondensRecvBuf(iProc)%content_int = 0
+  CondensSendBuf(iProc)%content_int = 0
+END DO ! iProc
+
+END SUBROUTINE ExchangeCondensNum
+#endif /*MPI*/
 
 SUBROUTINE Finalize_Liquid_Boundary()
 !===================================================================================================================================

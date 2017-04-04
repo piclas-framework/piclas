@@ -109,6 +109,9 @@ TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistSendBuf(:)                         ! S
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbRecvBuf(:)
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbSendBuf(:)
 
+TYPE(tMPIMessage),ALLOCATABLE  :: CondensRecvBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: CondensSendBuf(:)
+
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)     ! only mpi neighbors
