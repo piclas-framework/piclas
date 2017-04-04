@@ -56,9 +56,9 @@ DO iSpec = 1,nSpecies
 #endif
 END DO
 ! allocate and initialize liquid variables
-ALLOCATE( Liquid%ProbCondens(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Liquid%ProbEvap(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Liquid%SumCondensPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+ALLOCATE( Liquid%ProbCondens(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          Liquid%ProbEvap(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          Liquid%SumCondensPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Liquid%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies))
 Liquid%ProbCondens(:,:,:,:) = 1. !0.
 Liquid%ProbEvap(:,:,:,:) = 0.
