@@ -2274,7 +2274,7 @@ DO iElem=1,nTotalElems
   END IF
 END DO ! iElem
 
-IF (TRIM(DepositionType).EQ.'shape_function')THEN
+IF (TRIM(DepositionType).EQ.'shape_function_simple')THEN
   ALLOCATE(ElemRadius2_sf(1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__ &
@@ -2641,7 +2641,7 @@ INTEGER                                  :: NGeo3,NGeo2, nLoop,test,iTest,nTest,
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
 REAL                                     :: Distance ,maxScaleJ
 REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
-LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh, isBilinear
+LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -2697,7 +2697,6 @@ nCurvedElemsHalo           = 0
 nLinearElemsHalo           = 0
 nCurvedElemsHalo           = 0
 nBCElemsHalo               = 0
-isBilinear=.FALSE.
 
 NGeo2=(NGeo+1)*(NGeo+1)
 NGeo3=NGeo2*(NGeo+1)
@@ -3049,48 +3048,12 @@ IF (.NOT.DoRefMapping)THEN
 #endif /*MPI*/
           END IF
         ELSE
-          IF(isBiLinear)THEN
-            SideType(SideID)=BILINEAR
-            IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
+          SideType(SideID)=BILINEAR
+          IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
 #ifdef MPI
-            IF(SideID.GT.nPartSides) nBilinearHalo=nBilinearHalo+1
+          IF(SideID.GT.nPartSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
-          ELSE ! not bilinear
-            IF(BoundingBoxIsEmpty(SideID))THEN
-              SideType(SideID)=PLANAR_CURVED
-              IF(SideID.LE.nPartSides) nPlanarCurved=nPlanarCurved+1
-#ifdef MPI
-              IF(SideID.GT.nPartSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
-#endif /*MPI*/
-              v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-                  -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
-              
-              v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-                  +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
-              SideNormVec(:,SideID) = CROSSNORM(v1,v2)
-              v1=0.25*(BezierControlPoints3D(:,0,0,SideID)     &
-                      +BezierControlPoints3D(:,NGeo,0,SideID)  &
-                      +BezierControlPoints3D(:,0,NGeo,SideID)  &
-                      +BezierControlPoints3D(:,NGeo,NGeo,SideID))
-              ! check if normal vector points outwards
-              v2=v1-ElemBaryNGeo(:,iElem)
-              IF(flip.EQ.0)THEN
-                IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
-              ELSE IF(flip.EQ.-1)THEN
-                SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
-                PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
-              ELSE
-                IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
-              END IF
-              SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
-            ELSE
-              SideType(SideID)=CURVED
-              IF(SideID.LE.nPartSides) nCurved=nCurved+1
-#ifdef MPI
-              IF(SideID.GT.nPartSides) nCurvedHalo=nCurvedHalo+1
-#endif /*MPI*/
-            END IF
-          END IF
+
         END IF ! bounding bos is empty
       ELSE  ! non-linear edges
         IF(BoundingBoxIsEmpty(SideID))THEN
