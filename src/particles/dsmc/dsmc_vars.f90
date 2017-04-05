@@ -299,6 +299,10 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
   REAL                                   :: SurfMassIC              ! Mass of the surface coordination for hard cube model
   
+  INTEGER                                :: NumOfDissocReact
+  INTEGER                                :: NumOfAssocReact
+  INTEGER                                :: NumOfExchReact
+  
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
