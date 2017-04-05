@@ -142,6 +142,7 @@ DO iRefState=1,nTmp
     DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
   CASE(5)
+    TEFrequency        = GETREAL('TEFrequency','35e9') 
     TEScale            = GETREAL('TEScale','1.') 
     TERotation         = GETINT('TERotation','1') 
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
@@ -262,7 +263,7 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
-                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse
+                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency
 USE MOD_TimeDisc_Vars,    ONLY: dt
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
@@ -280,7 +281,7 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative vari
 ! LOCAL VARIABLES 
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
-REAL                            :: Cent(3),r,r2,zlen
+REAL                            :: Cent(3),r,r2,zlen, r_inv
 REAL                            :: a, b, d, l, m, nn, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
@@ -288,11 +289,13 @@ REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/)          ! aux. Consta
 REAL,PARAMETER                  :: Q=1, dD=1, omegaD=6.28318E8     ! aux. Constants for Dipole
 REAL                            :: c1,s1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron
-REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variables for Gyrotron
+REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez           ! aux. Variables for Gyrotron
 !REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 !REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 !REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
+REAL                            :: MuMN,SqrtN
 REAL                            :: omegaG,g,h,k,B0G
+REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz
 INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
@@ -416,6 +419,9 @@ CASE(4) ! Dipole
   END IF
   
 CASE(5) ! Initialization and BC Gyrotron Mode Converter
+  ! NEW:
+  ! Elektromagnetische Feldtheorie fuer Ingenieure und Physicker
+  ! p. 500ff
   eps=1e-10
   !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
@@ -425,39 +431,64 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
         __STAMP__&
         ,' DOF located at axis. devision by zero! Change polynomial degree... ')
   END IF
-  IF (x(1).GT.eps)      THEN
-    phi = ATAN(x(2)/x(1))
-  ELSE IF (x(1).LT.(-eps)) THEN
-    phi = ATAN(x(2)/x(1)) + pi
-  ELSE IF (x(2).GT.eps) THEN
-    phi = 0.5*pi
-  ELSE IF (x(2).LT.(-eps)) THEN
-    phi = 1.5*pi
-  ELSE
-    phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
-  END IF
+  r_inv=1.0/r
+  !IF (x(1).GT.eps)      THEN
+  !  phi = ATAN(x(2)/x(1))
+  !ELSE IF (x(1).LT.(-eps)) THEN
+  !  phi = ATAN(x(2)/x(1)) + pi
+  !ELSE IF (x(2).GT.eps) THEN
+  !  phi = 0.5*pi
+  !ELSE IF (x(2).LT.(-eps)) THEN
+  !  phi = 1.5*pi
+  !ELSE
+  !  phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
+  !END IF
+  phi = ATAN2(X(2),X(1))
   z=x(3)
-  omegaG=2*pi*35e9
+  omegaG=2*PI*TEFrequency
   mG=1*TERotation
   nG=1
-  g=1.8412/0.004
-  k=omegaG*c_inv
-  h=SQRT(k**2-g**2)
-  B0G=1.0
-  Er  =-B0G*mG*omegaG/(r*g**2)*BESSEL_JN(mG,REAL(g*r))                             * &
-                                                                 ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
-  Ephi= B0G*omegaG/h      *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
-                                                                 (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
-  Br  =-B0G*h/g           *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
-                                                                 (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
-  Bphi=-B0G*mG*h/(r*g**2)     *BESSEL_JN(mG,REAL(g*r))                             * &
-                                                                 ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
+  MuMN=1.8412 ! r0 is max raidus=0.004 ! hard cooded
+  SqrtN=MuMN/0.004
+  ! axial wave number
+  ! 1/c^2 omegaG^2 - kz^2=mu^2/ro^2
+  kz=SQRT((omegaG*c_inv)**2-SqrtN**2)
+  ! precompute coefficients
+  Bess_mG_R  = BESSEL_JN(mG  ,r*SqrtN)
+  Bess_mGM_R = BESSEL_JN(mG-1,r*SqrtN)
+  Bess_mGP_R = BESSEL_JN(mG+1,r*SqrtN)
+  COSTZ      = COS(kz*z-omegaG*t)
+  SINTZ      = SIN(kz*z-omegaG*t)
+  S1         = SIN(REAL(mG)*phi)
+  C1         = COS(REAL(mG)*phi)
+  ! electric field
+  Er   =  omegaG*REAL(mG)* Bess_mG_R*S1*SINTZ*r_inv
+  Ephi =  omegaG*SqrtN*0.5*(Bess_mGM_R-Bess_mGP_R)*SINTZ*C1
+  Ez   =  0.
+  ! magnetic field
+  Br   = -kz*0.5*SqrtN*(Bess_mGM_R-Bess_mGP_R)*C1*SINTZ
+  Bphi =  kz*REAL(mG)*Bess_mG_R*S1*SINTZ*r_inv
+  Bz   =  (SqrtN**2)*Bess_mG_R*C1*COSTZ
+
+  ! old version...
+  !g=1.8412/0.004
+  !k=omegaG*c_inv
+  !h=SQRT(k**2-g**2)
+  !B0G=1.0
+  !Er  =-B0G*mG*omegaG/(r*g**2)*BESSEL_JN(mG,REAL(g*r))                             * &
+  !                                                               ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
+  !Ephi= B0G*omegaG/h      *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
+  !                                                               (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
+  !Br  =-B0G*h/g           *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
+  !                                                               (-COS(h*z+mG*phi)*SIN(omegaG*t)+SIN(h*z+mG*phi)*COS(omegaG*t))
+  !Bphi=-B0G*mG*h/(r*g**2)     *BESSEL_JN(mG,REAL(g*r))                             * &
+  !                                                               ( COS(h*z+mG*phi)*COS(omegaG*t)+SIN(h*z+mG*phi)*SIN(omegaG*t))
   resu(1)= COS(phi)*Er - SIN(phi)*Ephi
   resu(2)= SIN(phi)*Er + COS(phi)*Ephi
   resu(3)= 0.0
   resu(4)= COS(phi)*Br - SIN(phi)*Bphi
   resu(5)= SIN(phi)*Br + COS(phi)*Bphi
-  resu(6)= B0G*BESSEL_JN(mG,REAL(g*r))*COS(h*z+mG*phi-omegaG*t)
+  resu(6)= Bz
   resu(1:6)=TEScale*resu(1:6)
   resu(7)= 0.0
   resu(8)= 0.0
