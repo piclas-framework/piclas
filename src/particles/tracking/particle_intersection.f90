@@ -464,7 +464,7 @@ C = a1(4)*a2(2)-a1(2)*a2(4)
 
 !scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
 scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
-scaleFac = scaleFac*BaseVectorsScale(SideID) !<...>^2 * cell-scale
+scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
 scaleFac = 1./scaleFac
 A = A * scaleFac
 B = B * scaleFac
