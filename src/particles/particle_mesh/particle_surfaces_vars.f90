@@ -22,6 +22,8 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors2                 ! vector
                                                                         ! from Bezierpoints (1:3,1:nBCSurfaces)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors3                 ! additional vector for bilinear intersection
                                                                         ! from Bezierpoints (1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:)           :: BaseVectorsScale             ! approx. size of face for bilinear intersection
+                                                                        ! from Bezierpoints (1:nBCSurfaces)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors0flip             ! vectors for building intersectionsurfaces for particle
                                                                         ! from Bezierpoints for Periodic sites (1:3,1:nBCSurfaces)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors1flip             ! vectors for building intersectionsurfaces for particle
