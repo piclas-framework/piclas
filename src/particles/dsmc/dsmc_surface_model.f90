@@ -361,6 +361,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   REAL                             :: vel_norm, vel_coll, potential_pot, a_const, mu, surfmass, trapping_prob,Norm_Ec2
   INTEGER                          :: iInteratom, xpos, ypos
   LOGICAL                          :: Cell_Occupied
+#if (PP_TimeDiscMethod==42)
+  REAL                             :: InfoProbAds, InfoProbDiss
+#endif
 !===================================================================================================================================
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
@@ -392,7 +395,11 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   P_Eley_Rideal(:) = 0.
   Prob_diss(:) = 0.
   Cell_Occupied = .FALSE.
-  
+#if (PP_TimeDiscMethod==42)
+  InfoProbAds = 0.
+  InfoProbDiss = 0.
+#endif
+
   ! Choose Random surface site with species coordination
   CALL RANDOM_NUMBER(RanNum)
   iSpec = PartSpecies(PartID)
@@ -515,6 +522,15 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     IF ((Norm_Ec2).GE.E_a) THEN
       Prob_ads = Calc_Beta_Adsorb(iSpec,Xi_Total,c_f) * (Norm_Ec2 - E_a)**phi_1 * (Norm_Ec2) ** phi_2 &
               * Species(iSpec)%MacroParticleFactor
+#if (PP_TimeDiscMethod==42)
+      IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        IF ((InfoProbAds + Prob_Ads).GT.1.) THEN
+          InfoProbAds = 1.
+        ELSE
+          InfoProbAds = InfoProbAds + Prob_Ads
+        END IF
+      END IF
+#endif
     ELSE
       Prob_ads = 0.
     END IF
@@ -534,7 +550,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) & 
             .EQ.0) ) THEN
         n_empty_Neigh(Coord2) = n_empty_Neigh(Coord2) + 1
-!       END IF
       n_Neigh(Coord2) = n_Neigh(Coord2) + 1
       NeighbourID(Coord2,n_Neigh(Coord2)) = i
       END IF
@@ -719,6 +734,15 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
           phi_2 = 1 - Xi_Total
           Prob_diss(ReactNum) = Calc_Beta_Diss(ReactNum,iSpec,Xi_Total,c_f) * ((Norm_Ec2) - E_a)**phi_1 * (Norm_Ec2) ** phi_2 &
                               * Species(iSpec)%MacroParticleFactor
+#if (PP_TimeDiscMethod==42)
+          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+            IF ((InfoProbAds + Prob_diss(ReactNum)).GT.1.) THEN
+              InfoProbAds = 1.
+            ELSE
+              InfoProbAds = InfoProbAds + Prob_diss(ReactNum)
+            END IF
+          END IF
+#endif
         END IF
       END IF
       END IF
@@ -1068,8 +1092,12 @@ DO subsurfxi = 1,nSurfSample
         P_actual_react(iReact) = rate * dt
         IF (rate*dt.GT.1) THEN
           P_react(iReact) = P_react(iReact) + 1
+          P_des(Prod_Spec1) = P_des(Prod_Spec1) + 1
+          adsorbates(Prod_Spec1) = adsorbates(Prod_Spec1) + 1
         ELSE
           P_react(iReact) = P_react(iReact) + P_actual_react(iReact)
+          P_des(Prod_Spec1) = P_des(Prod_Spec1) + P_actual_react(iReact)
+          adsorbates(Prod_Spec1) = adsorbates(Prod_Spec1) + 1
         END IF
       END IF
     END DO

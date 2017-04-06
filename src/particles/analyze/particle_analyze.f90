@@ -1345,9 +1345,11 @@ IF (DSMC%ReservoirRateStatistic) THEN
       Accomodation(iSpec) = 0.
     END IF
     IF (Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount.GT.0) THEN
-      DesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount
+      DesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
+      MolecDesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
     ELSE
       DesorbRate(iSpec) = 0.
+      MolecDesorbRate(iSpec) = 0.
     END IF
   END DO
 ELSE
@@ -1355,8 +1357,7 @@ ELSE
     DO iSpec = 1,nSpecies
       IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
         Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds &
-                                            / (REAL(nSurfSample) * REAL(nSurfSample) &
-                                            * REAL(SurfMesh%nSides) * REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount))
+                                              / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
         Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
       ELSE
         Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
@@ -1367,6 +1368,7 @@ ELSE
   DO iSpec = 1,nSpecies
     AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
     DesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
+    MolecDesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
   END DO
 END IF
 
@@ -1381,7 +1383,7 @@ END IF
 
 DO iSpec = 1,nSpecies
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
-  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
+  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
   IF (KeepWallParticles) THEN
     Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
@@ -1417,6 +1419,10 @@ REAL   , INTENT(OUT)            :: SurfExchRate(Adsorption%NumOfExchReact)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+
+SurfDissocRate = 0.
+SurfAssocRate = 0.
+SurfExchRate = 0.
 
 END SUBROUTINE GetSurfReactRates
 #endif /*(PP_TimeDiscMethod==42)*/

@@ -687,6 +687,10 @@ USE MOD_ReadInTools
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
 
+Adsorption%NumOfDissocReact = 0
+Adsorption%NumOfAssocReact = 0
+Adsorption%NumOfExchReact = 0
+
 ! Adsorption constants
 ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
           Adsorption%Ads_Prefactor(1:nSpecies))!,&
@@ -735,6 +739,7 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
     DO iReactNum = 1,MaxDissNum
       IF ((Adsorption%DissocReact(1,iReactNum,iSpec2).EQ.iSpec).OR.(Adsorption%DissocReact(2,iReactNum,iSpec2).EQ.iSpec) ) THEN
         nAssocReact(iSpec) = nAssocReact(iSpec) + 1
+        Adsorption%NumOfAssocReact = Adsorption%NumOfDissocReact + 1
       END IF
     END DO
     END DO
@@ -805,16 +810,15 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
     CALL abort(&
     __STAMP__&
     ,'Error in Init_SurfChem: given number of dissociation reactions in INI-File differs of number from given parameters!')
-  END IF  
-  ReactNum = 0
+  END IF
   DO iSpec=1,nSpecies
     DO iReactNum=1,MaxDissNum
       IF (Adsorption%DissocReact(1,iReactNum,iSpec).NE.0)THEN
-        ReactNum = ReactNum + 1
+        Adsorption%NumOfDissocReact = Adsorption%NumOfDissocReact + 1
       END IF
     END DO
   END DO
-  nDissoc = ReactNum
+  nDissoc =  Adsorption%NumOfDissocReact
   nDisProp = GETINT('Part-SurfChem-Nbr-ExchangeReactions','0')
   ! Allocate and fill one array for all types of reactions (dissociation, association, disproportionation/exchange reaction)
   ALLOCATE( Adsorption%ChemReactant(1:2,1:nDissoc+nDisProp),&
@@ -999,6 +1003,7 @@ Adsorption%DissNum = MaxDissNum
 Adsorption%ReactNum = MaxReactNum
 Adsorption%nDissocReactions = nDissoc
 Adsorption%nDisPropReactions = nDisProp
+Adsorption%NumOfExchReact = nDisProp
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
