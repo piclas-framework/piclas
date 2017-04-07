@@ -22,7 +22,11 @@ INTERFACE FinalizeTTM
   MODULE PROCEDURE FinalizeTTM
 END INTERFACE
 
-PUBLIC::InitTTM,FinalizeTTM
+INTERFACE InitIMD_TTM_Coupling
+  MODULE PROCEDURE InitIMD_TTM_Coupling
+END INTERFACE
+
+PUBLIC::InitTTM,FinalizeTTM,InitIMD_TTM_Coupling
 !===================================================================================================================================
 
 CONTAINS
@@ -296,7 +300,6 @@ DO !i=1,1 ! header lines: currently 1 -> adjust?
         StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
       END IF
 
-
       IndNum=INDEX(TRIM(StrTmp),'fd_h.y:')
       IF(IndNum.GT.0)THEN
         StrTmp=TRIM(StrTmp(IndNum:LEN(StrTmp)))
@@ -314,11 +317,9 @@ DO !i=1,1 ! header lines: currently 1 -> adjust?
         END IF
       END IF
 
-
       IndNum=INDEX(TRIM(StrTmp),'fd_h.z:')
       IF(IndNum.GT.0)THEN
         StrTmp=TRIM(StrTmp(IndNum:LEN(StrTmp)))
-  
           IndNum=INDEX(TRIM(StrTmp),'\')
           IF(IndNum.GT.0)THEN
             CALL str2real(StrTmp(8:IndNum-1),fd_hz,io_error)
@@ -343,6 +344,116 @@ END DO
 
 CLOSE(ioUnit)
 END SUBROUTINE GetFDGridCellSize
+
+
+SUBROUTINE InitIMD_TTM_Coupling() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! finalize TTM variables
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Globals_Vars,   ONLY:ElectronCharge
+USE MOD_PreProc
+USE MOD_TTM_Vars
+USE MOD_Particle_Vars, ONLY:PDM,PEM,BoltzmannConst,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
+USE MOD_Eval_xyz,      ONLY:eval_xyz_elemcheck
+USE MOD_Mesh_Vars,     ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars,     ONLY:CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission, ONLY:CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars,     ONLY:useDSMC
+USE MOD_Eval_xyz,      ONLY:Eval_XYZ_Poly
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: ChargeLower,ChargeUpper    ! 
+INTEGER :: ElemCharge(PP_nElems)      !
+INTEGER :: ElecSpecIndx,iSpec,location,iElem,iPart,ParticleIndexNbr
+REAL    :: ChargeProbability          ! 
+REAL    :: iRan, RandVal(2)           !
+REAL    :: PartPosRef(1:3)
+REAL    :: CellElectronTemperature
+!===================================================================================================================================
+ElemCharge=0
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart)) THEN
+    IF(ANY(PartSpecies(iPart).EQ.IMDSpeciesID(:)))THEN ! 
+      ! get the TTM cell charge avergae value and select and upper and lower charge number
+      ChargeLower=INT(TTM_DG(11,0,0,0,PEM%Element(iPart)))
+      ChargeUpper=ChargeLower+1
+      ChargeProbability=REAL(ChargeUpper)-TTM_DG(11,0,0,0,PEM%Element(iPart)) ! 2 - 1,4 = 0.6 -> 60% probability to get lower charge
+      ! distribute the charge using random numbers
+      CALL RANDOM_NUMBER(iRan)
+      IF(iRan.LT.ChargeProbability)THEN ! select the lower charge number
+        location = MINLOC(ABS(IMDSpeciesCharge-ChargeLower),1)
+        ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeLower
+      ELSE ! select the upper charge number
+        location = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1)
+        ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeUpper
+      END IF
+      PartSpecies(iPart)=IMDSpeciesID(location)
+    END IF
+  END IF
+END DO
+
+ElecSpecIndx = -1
+DO iSpec = 1, nSpecies
+  IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
+  IF(NINT(Species(iSpec)%ChargeIC/(-1.60217653E-19)).EQ.1) THEN
+    ElecSpecIndx = iSpec
+    EXIT
+  END IF
+END DO
+IF (ElecSpecIndx.EQ.-1) CALL abort(&
+  __STAMP__&
+  ,'Electron species not found. Cannot create electrons without the defined species!')
+
+DO iElem=1,PP_nElems
+  DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
+    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+    ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+    PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+    !Set new Species of new particle
+    PDM%ParticleInside(ParticleIndexNbr) = .true.
+    PartSpecies(ParticleIndexNbr) = ElecSpecIndx
+     
+    CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
+    PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
+    CALL Eval_xyz_Poly(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
+                      ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
+
+    IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
+      PartStateIntEn(ParticleIndexNbr, 1) = 0.
+      PartStateIntEn(ParticleIndexNbr, 2) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
+    END IF
+    PEM%Element(ParticleIndexNbr) = iElem
+    CellElectronTemperature=(TTM_DG(2,0,0,0,iElem)*ElectronCharge/BoltzmannConst)
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
+                                  Temperature=CellElectronTemperature)
+  END DO
+END DO
+
+
+
+!CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3),ElemID)
+!IF(MAXVAL(ABS(PartPosRef(1:3))).LT.1.0) THEN ! particle is inside 
+!  PEM%Element(iPart)=ElemID
+!END IF
+
+!  IF(DoRefMapping)THEN
+!    CALL ParticleRefTracking() ! newton
+!
+!  ELSE
+!    CALL ParticleTracing() ! schnittpunkt
+!  CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit)
+!  END IF
+
+END SUBROUTINE InitIMD_TTM_Coupling
 
 
 SUBROUTINE FinalizeTTM() 

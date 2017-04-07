@@ -18,6 +18,9 @@ LOGICAL               :: KeepWallParticles                                   ! F
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
 REAL                  :: IMDLengthScale                                      ! global IMD length scale
+INTEGER               :: IMDnSpecies                                         ! number of IMD species
+INTEGER , ALLOCATABLE :: IMDSpeciesID(:)                                     ! species ID for distributing the IMD atoms/ions
+INTEGER , ALLOCATABLE :: IMDSpeciesCharge(:)                                 ! charge number of IMD atoms/ions
 REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  

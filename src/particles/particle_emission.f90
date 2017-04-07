@@ -41,10 +41,13 @@ INTERFACE ParticleSurfaceflux
   MODULE PROCEDURE ParticleSurfaceflux
 END INTERFACE
 
+INTERFACE CalcVelocity_maxwell_lpn
+  MODULE PROCEDURE CalcVelocity_maxwell_lpn
+END INTERFACE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, ParticleSurfaceflux, ParticleInserting &
-                , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
+                , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF,CalcVelocity_maxwell_lpn
 !===================================================================================================================================
                                                                                                   
 CONTAINS                                                                                           
@@ -1198,7 +1201,7 @@ __STAMP__&
       chunkSize2=0
       DO WHILE (i .LE. chunkSize)          
         ! Check if particle would reach comp. domain in one timestep
-        CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
+        CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
         CALL RANDOM_NUMBER(RandVal)
         v_line = Vec3D(1)*lineVector(1) + Vec3D(2)*lineVector(2) + Vec3D(3)*lineVector(3) !lineVector component of velocity
         delta_l = dt*RKdtFrac * v_line - l_ins * RandVal(3)
@@ -1310,7 +1313,7 @@ __STAMP__&
       chunkSize2=0
       DO WHILE (i .LE. chunkSize)        
         ! Check if particle would reach comp. domain in one timestep
-        CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
+        CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
         CALL RANDOM_NUMBER(RandVal)
         v_line = Vec3D(1)*lineVector(1) + Vec3D(2)*lineVector(2) + Vec3D(3)*lineVector(3) !lineVector component of velocity
         delta_l = dt*RKdtFrac * v_line - l_ins * RandVal(3)
@@ -2227,9 +2230,9 @@ CASE('maxwell_lpn')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
        IF (useVTKFileBGG .AND. Is_BGGas) THEN
-         CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D, PEM%Element(PositionNbr))
+         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
        ELSE
-         CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
+         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
        END IF
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
@@ -3049,19 +3052,22 @@ END IF
 END SUBROUTINE ParticleInsertingPressureOut_Sampling
 
 
-SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D, Element)
+SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
 !===================================================================================================================================
 ! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species, BGGdataAtElem!, DoZigguratSampling
 !USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr, iInit
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
 INTEGER, OPTIONAL                :: Element !for BGG from VTK
+REAL,INTENT(IN), OPTIONAL        :: Temperature
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                 :: Vec3D(3)
@@ -3071,17 +3077,28 @@ REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz
 REAL                             :: RandN_save
 LOGICAL                          :: RandN_in_Mem
 !===================================================================================================================================
-
-IF (PRESENT(Element)) THEN
-  Tx=BGGdataAtElem(1,Element)
-  Ty=BGGdataAtElem(2,Element)
-  Tz=BGGdataAtElem(3,Element)
-  v_drift=BGGdataAtElem(4:6,Element)
-ELSE
+IF(PRESENT(iInit).AND.PRESENT(Temperature))CALL abort(&
+__STAMP__&
+,'CalcVelocity_maxwell_lpn. iInit and Temperature cannot both be input arguments!')
+IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
   Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+ELSEIF (PRESENT(Element)) THEN
+  Tx=BGGdataAtElem(1,Element)
+  Ty=BGGdataAtElem(2,Element)
+  Tz=BGGdataAtElem(3,Element)
+  v_drift=BGGdataAtElem(4:6,Element)
+ELSEIF(PRESENT(Temperature))THEN
+  Tx=Temperature
+  Ty=Temperature
+  Tz=Temperature
+  v_drift=0.0
+ELSE 
+CALL abort(&
+__STAMP__&
+,'PO: force temperature!!')
 END IF
 
 RandN_in_Mem=.FALSE.

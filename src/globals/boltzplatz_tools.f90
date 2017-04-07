@@ -164,7 +164,7 @@ USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
 USE MOD_ParticleInit,       ONLY:InitParticles
-USE MOD_TTMInit,            ONLY:InitTTM
+USE MOD_TTMInit,            ONLY:InitTTM,InitIMD_TTM_Coupling
 USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
 USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
@@ -249,6 +249,7 @@ CALL InitHDG()
 #endif
 
 CALL InitTTM() ! FG grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END SUBROUTINE InitBoltzplatz
 
 

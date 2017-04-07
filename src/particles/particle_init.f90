@@ -152,8 +152,8 @@ LOGICAL               :: TrueRandom, PartDens_OnlyInit                          
 INTEGER,ALLOCATABLE   :: iSeeds(:)
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins
-INTEGER               :: iVec, MaxNbrOfSpeciesSwaps
-LOGICAL                       :: exitTrue
+INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
+LOGICAL               :: exitTrue,IsIMDSpecies
 #ifdef MPI
 #endif
 !===================================================================================================================================
@@ -337,6 +337,7 @@ nSpecies = GETINT('Part-nSpecies','1')
 ! IMD data import from *.chkpt file
 DoImportIMDFile=.FALSE.
 IMDLengthScale=0.0
+
 
 ! init varibale MPF per particle
 IF (usevMPF) THEN
@@ -800,6 +801,22 @@ __STAMP__&
 
   END DO ! iInit
 END DO ! iSpec 
+
+! get information for IMD atom/ion charge determination and distribution
+IMDnSpecies         = GETINT('IMDnSpecies','1')
+ALLOCATE(IMDSpeciesID(IMDnSpecies))
+ALLOCATE(IMDSpeciesCharge(IMDnSpecies))
+iIMDSpec=1
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
+  IF(IsIMDSpecies)THEN
+    IMDSpeciesID(iIMDSpec)=iSpec
+    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/1.60217653E-19)
+    iIMDSpec=iIMDSpec+1
+  END IF
+END DO
+
 
 ! Which Lorentz boost method should be used?
 PartLorentzType = GETINT('Part-LorentzType','3')
