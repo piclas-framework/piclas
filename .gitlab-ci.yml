@@ -149,6 +149,8 @@ intel_HDF5_single_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI no-debug 2; fi
+    - echo "nothing to do";
+    # fix h5diff on runner -> libs may be wrongly set in the binary file
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI no-debug 2; fi
 
 
