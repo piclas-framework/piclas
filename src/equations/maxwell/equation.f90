@@ -296,7 +296,7 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez           ! aux. Variab
 !REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
 REAL                            :: MuMN,SqrtN
 REAL                            :: omegaG,g,h,k,B0G
-REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,sin2,cos2,costz2,sintz2
+REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,sin2,cos2,costz2,sintz2,dBess_mG_R
 INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
@@ -439,10 +439,10 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   phi = ATAN2(X(2),X(1))
   z=x(3)
   omegaG=2*PI*TEFrequency
-  mG=1 !TERotation
+  mG=1 ! TE_mG,nG
   nG=1
-  MuMN=1.8412 ! r0 is max raidus=0.004 ! hard cooded
-  SqrtN=MuMN/1.004
+  MuMN=1.8412  ! root TE_1,1 hard coded
+  SqrtN=MuMN/0.004 ! r0=0.004 is max raidus=0.004 ! hard coded
   ! axial wave number
   ! 1/c^2 omegaG^2 - kz^2=mu^2/ro^2
   kz=SQRT((omegaG*c_inv)**2-SqrtN**2)
@@ -450,6 +450,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   Bess_mG_R  = BESSEL_JN(mG  ,r*SqrtN)
   Bess_mGM_R = BESSEL_JN(mG-1,r*SqrtN)
   Bess_mGP_R = BESSEL_JN(mG+1,r*SqrtN)
+  dBess_mG_R = 0.5*(Bess_mGM_R-Bess_mGP_R)
   COSTZ      = COS(kz*z-omegaG*t)
   SINTZ      = SIN(kz*z-omegaG*t)
   sin1       = SIN(REAL(mG)*phi)
@@ -457,10 +458,10 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   IF(.NOT.TEPolarization)THEN ! no polarization, e.g. linear polarization along the a-axis
     ! electric field
     Er   =  omegaG*REAL(mG)* Bess_mG_R*sin1*r_inv*SINTZ
-    Ephi =  omegaG*SqrtN*0.5*(Bess_mGM_R-Bess_mGP_R)*cos1*SINTZ
+    Ephi =  omegaG*SqrtN*0.5*dBess_mG_R*cos1*SINTZ
     Ez   =  0.
     ! magnetic field
-    Br   = -kz*0.5*SqrtN*(Bess_mGM_R-Bess_mGP_R)*cos1*SINTZ
+    Br   = -kz*SqrtN*dBess_mG_R*cos1*SINTZ
     Bphi =  kz*REAL(mG)*Bess_mG_R*sin1*r_inv*SINTZ
     Bz   =  (SqrtN**2)*Bess_mG_R*cos1*COSTZ
   ELSE ! cirular polarization
@@ -478,10 +479,10 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
     END IF
     ! electric field
     Er   =  omegaG*REAL(mG)* Bess_mG_R*(sin1*SINTZ+sin2*SINTZ2)*r_inv
-    Ephi =  omegaG*SqrtN*0.5*(Bess_mGM_R-Bess_mGP_R)*(cos1*SINTZ+cos2*SINTZ2)
+    Ephi =  omegaG*SqrtN*dBess_mG_R*(cos1*SINTZ+cos2*SINTZ2)
     Ez   =  0.
     ! magnetic field
-    Br   = -kz*0.5*SqrtN*(Bess_mGM_R-Bess_mGP_R)*(cos1*SINTZ+cos2*SINTZ2)
+    Br   = -kz*SqrtN*dBess_mG_R*(cos1*SINTZ+cos2*SINTZ2)
     Bphi =  kz*REAL(mG)*Bess_mG_R*(sin1*SINTZ+sin2*SINTZ2)*r_inv
     ! caution: does we have to modify the z entry? yes
     Bz   =  (SqrtN**2)*Bess_mG_R*(cos1*COSTZ+cos2*COSTZ2)
