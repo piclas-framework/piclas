@@ -54,6 +54,7 @@ REAL              :: TEScale                                !> scaling of input 
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
+LOGICAL           :: TEPolarization                         !> linear or circular polarized
 LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
 INTEGER           :: FluxDir                                !> direction of flux
 ! Boundary condition arrays
