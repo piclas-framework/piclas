@@ -839,7 +839,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   END IF
 #if (PP_TimeDiscMethod==42)
   IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + Prob_ads
+    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + InfoProbAds
   END IF
 #endif
 
