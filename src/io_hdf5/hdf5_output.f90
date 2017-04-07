@@ -312,6 +312,7 @@ CALL WritePMLDataToHDF5(FileName)
 #endif
 
 #ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 IF(DoLoadBalance) CALL WriteElemWeightToHDF5(FileName)
 #endif /*MPI*/
 
