@@ -109,6 +109,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   DSMC%CalcQualityFactors = .TRUE.
 #endif
   DSMC%ReservoirSimuRate = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
+  DSMC%ReservoirSurfaceRate = GETLOGICAL('Particles-DSMCReservoirSurfaceRate','.FALSE.')
   DSMC%ReservoirRateStatistic = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%DoTEVRRelaxation = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')

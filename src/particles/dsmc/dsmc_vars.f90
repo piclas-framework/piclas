@@ -126,6 +126,7 @@ TYPE tDSMC
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
   LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
                                                             ! Switch to enable to create reaction rates curves
+  LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages                                                          
   LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
                                                             ! Default Value is false
   INTEGER                       :: VibEnergyModel           ! Model for vibration Energy: 
