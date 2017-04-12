@@ -3095,8 +3095,8 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo
-USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
-USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas
+USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, SurfFluxSideRejectType
+USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3108,10 +3108,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
 INTEGER               :: iPartBound,iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
-INTEGER               :: iCopy1, iCopy2, iCopy3
+INTEGER               :: iCopy1, iCopy2, iCopy3, iPoint, nType0, nType1, nType2
 CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF, projFak, v_thermal
-REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3)
+REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2), radius
+LOGICAL               :: insideBound, done
+INTEGER               :: iDir1, iDir2, iDir3
 INTEGER               :: nDataBC                             ! number of different PartBounds used for SFs
 INTEGER,ALLOCATABLE   :: TmpMapToBC(:)                       ! PartBC
 INTEGER,ALLOCATABLE   :: TmpSideStart(:)                     ! Start of Linked List for Sides in SurfacefluxBC
@@ -3123,6 +3125,7 @@ REAL                  :: totalArea
 REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN)     :: tmp_SubSideAreas, tmp_SubSideDmax
 REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN) :: tmp_Vec_nOut, tmp_Vec_t1, tmp_Vec_t2
 REAL,DIMENSION(1:2,0:NGeo,0:NGeo,1:BezierSampleN,1:BezierSampleN)                   :: tmp_BezierControlPoints2D
+REAL,DIMENSION(1:3,1:8)                             :: BoundingBox
 !===================================================================================================================================
 ! global calculations for sampling the bezier faces for area and vector calculations (checks the integration with CODE_ANALYZE)
 ALLOCATE(SurfMeshSubSideData(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
@@ -3224,6 +3227,9 @@ __STAMP__&
             ,'ERROR in init: axialDir for SFradial must be between 1 and 3!')
         END IF
         Species(iSpec)%Surfaceflux(iSF)%origin       = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-origin',2,'0. , 0.')
+        Species(iSpec)%Surfaceflux(iSF)%rmin     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmin','0.')
+        WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(Species(iSpec)%Surfaceflux(iSF)%rmax)
+        Species(iSpec)%Surfaceflux(iSF)%rmax     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmax',TRIM(hilf3))
       END IF !Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit
       !--- normalize VeloVecIC
       IF (.NOT. ALL(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(:).eq.0.)) THEN
@@ -3364,6 +3370,12 @@ DO iSpec=1,nSpecies
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
     IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+      IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+        ALLOCATE(SurfFluxSideRejectType(1:BCdata_auxSF(currentBC)%SideNumber))
+        nType0=0
+        nType1=0
+        nType2=0
+      END IF
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
         BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
         ElemID = SideToElem(1,BCSideID)
@@ -3388,6 +3400,61 @@ DO iSpec=1,nSpecies
             ,BezierSurfFluxProjection_opt=.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal &
             ,SurfMeshSubSideAreas=tmp_SubSideAreas)  !SubSide-areas proj. to inwards normals
         END IF
+        !-- check where the sides are located relative to rmin and rmax (based on corner nodes of bounding box)
+        !- RejectType=0 : complete side is inside valid bounds
+        !- RejectType=1 : complete side is outside of valid bounds
+        !- RejectType=2 : side is partly inside valid bounds
+        IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+          CALL GetSideBoundingBox(BCSideID,BoundingBox)
+          done=.FALSE.
+          DO iDir1=0,1
+            IF(done) EXIT
+            DO iDir2=0,1
+              IF(done) EXIT
+              DO iDir3=0,1
+                !-- coords orth. to axis of point:
+                iPoint=iDir1*4 + iDir2*2 + iDir3+1
+                point(1) = BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),iPoint)-Species(iSpec)%Surfaceflux(iSF)%origin(1)
+                point(2) = BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),iPoint)-Species(iSpec)%Surfaceflux(iSF)%origin(2)
+                radius = SQRT( (point(1))**2+(point(2))**2 )
+                IF (iPoint.EQ.1) THEN
+                  IF (radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin .AND. &
+                      radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+                    insideBound=.TRUE.
+                  ELSE !outside
+                    insideBound=.FALSE.
+                  END IF !in-/outside?
+                ELSE !iPoint.GT.1: type must be 2 if state of point if different from last point
+                  IF (radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin .AND. &
+                      radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+                    IF (.NOT.insideBound) THEN !different from last point
+                      SurfFluxSideRejectType(iSide)=2
+                      nType2=nType2+1
+                      done=.TRUE.
+                      EXIT
+                    END IF
+                  ELSE !outside
+                    IF (insideBound) THEN !different from last point
+                      SurfFluxSideRejectType(iSide)=2
+                      nType2=nType2+1
+                      done=.TRUE.
+                      EXIT
+                    END IF
+                  END IF !in-/outside?                 
+                END IF !iPoint.EQ.1
+              END DO !iDir3
+            END DO !iDir2
+          END DO !iDir1
+          IF (.NOT.done) THEN
+            IF (insideBound) THEN
+              SurfFluxSideRejectType(iSide)=0
+              nType0=nType0+1
+            ELSE
+              SurfFluxSideRejectType(iSide)=1
+              nType1=nType1+1
+            END IF
+          END IF
+        END IF !SimpleRadialVeloFit: check r-bounds
         DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
           vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
           vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
@@ -3418,6 +3485,11 @@ __STAMP__&
 __STAMP__&
 ,'wrong velo-distri for Surfaceflux!')
           END SELECT
+          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmin/rmax-rejection
+            IF (SurfFluxSideRejectType(iSide).EQ.1) THEN ! complete side is outside of valid bounds
+              nVFR = 0.
+            END IF
+          END IF
           Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
           !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
           Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
@@ -3452,6 +3524,9 @@ __STAMP__&
       CALL abort(&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
+    END IF
+    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+      IPWRITE(*,'(I4,A,2(x,I0),A,3(x,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ', nType0,nType1,nType2
     END IF
 
     !--- 3b: ReduceNoise initialization
@@ -3519,7 +3594,7 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SideType
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SideType, SurfFluxSideRejectType
 USE MOD_Timedisc_Vars          ,ONLY: dt
 
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi
@@ -3554,7 +3629,8 @@ INTEGER(KIND=8)             :: inserted_Particle_iter,inserted_Particle_time,ins
 INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:,:)
 REAL                        :: xiab(1:2,1:2),xi(2),E,F,G,D,gradXiEta2D(1:2,1:2),gradXiEta3D(1:2,1:3)
 REAL                        :: point(2),origin(2),veloR,vTot,phi,radius,preFac,powerFac,shiftFac
-INTEGER                     :: dir(3)
+INTEGER                     :: dir(3), nReject, allowedRejections
+LOGICAL                     :: AcceptPos
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -3712,9 +3788,11 @@ __STAMP__&
 ,'ERROR in ParticleSurfaceflux: cannot allocate particle_xis!')
           END IF
         END IF !VeloIsNormal
-        !-- put particles in subside
+        !-- put particles in subside (rejections are used if contraint reduces actual inserted number)
         iPart=1
-        DO WHILE (iPart .LE. PartInsSubSide)
+        nReject=0
+        allowedRejections=0
+        DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
           iLoop=0
           DO !ARM for xi considering the dA of the Subside in RefSpace
             iLoop = iLoop+1
@@ -3758,18 +3836,57 @@ __STAMP__&
             ELSE !no ARM -> accept xi
               EXIT
             END IF
-          END DO
+          END DO !Jacobian-based ARM-loop
           CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
-          !-- save position:
-          particle_positions(iPart*3-2) = Particle_pos(1)
-          particle_positions(iPart*3-1) = Particle_pos(2)
-          particle_positions(iPart*3  ) = Particle_pos(3)
-          IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-            particle_xis(iPart*2-1) = xi(1)
-            particle_xis(iPart*2  ) = xi(2)
-          END IF !VeloIsNormal
-          iPart=iPart+1
-        END DO
+
+          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmin/rmax-rejection
+            SELECT CASE(SurfFluxSideRejectType(iSide))
+            CASE(0) !- RejectType=0 : complete side is inside valid bounds
+              AcceptPos=.TRUE.
+            CASE(1) !- RejectType=1 : complete side is outside of valid bounds
+              CALL abort(&
+__STAMP__&
+,'side outside of valid bounds was considered although nVFR=0...?!')
+              !AcceptPos=.FALSE.
+            CASE(2) !- RejectType=2 : side is partly inside valid bounds
+              point(1)=Particle_pos(dir(2))-origin(1)
+              point(2)=Particle_pos(dir(3))-origin(2)
+              radius=SQRT( (point(1))**2+(point(2))**2 )
+              IF (radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin .AND. &
+                  radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+                AcceptPos=.TRUE.
+              ELSE
+                AcceptPos=.FALSE.
+              END IF
+            CASE DEFAULT
+              CALL abort(&
+__STAMP__&
+,'wrong SurfFluxSideRejectType!')
+            END SELECT !SurfFluxSideRejectType
+          ELSE !no check for rmin/rmax-rejection
+            AcceptPos=.TRUE.
+          END IF !SimpleRadialVeloFit
+
+          !-- save position if accepted:
+          IF (AcceptPos) THEN
+            particle_positions(iPart*3-2) = Particle_pos(1)
+            particle_positions(iPart*3-1) = Particle_pos(2)
+            particle_positions(iPart*3  ) = Particle_pos(3)
+            IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+              particle_xis(iPart*2-1) = xi(1)
+              particle_xis(iPart*2  ) = xi(2)
+            END IF !VeloIsNormal
+            iPart=iPart+1
+          ELSE
+            nReject=nReject+1
+            IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmin/rmax-rejection    
+              allowedRejections=allowedRejections+1
+            END IF
+          END IF
+        END DO !put particles in subside: WHILE(iPart+allowedRejections .LE. PartInsSubSide)
+        PartInsSubSide = PartInsSubSide - allowedRejections
+        NbrOfParticle = NbrOfParticle - allowedRejections
+!print*,'accept-part=',REAL(PartInsSubSide)/REAL(PartInsSubSide+nReject)
         
         ParticleIndexNbr = 1
         DO iPart=1,PartInsSubSide

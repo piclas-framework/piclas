@@ -2808,6 +2808,11 @@ DO iElem=1,nLoop
 #endif /*MPI*/
         END IF
       ELSE
+        v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
         SideType(TrueSideID)=BILINEAR
         IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
 #ifdef MPI
@@ -2921,6 +2926,11 @@ DO iElem=1,nLoop
 #endif /*MPI*/
           END IF
         ELSE
+          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
           SideType(TrueSideID)=BILINEAR
           IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
 #ifdef MPI
@@ -3048,6 +3058,11 @@ IF (.NOT.DoRefMapping)THEN
 #endif /*MPI*/
           END IF
         ELSE
+          v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+          SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
           SideType(SideID)=BILINEAR
           IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
 #ifdef MPI
@@ -3497,7 +3512,7 @@ USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,        ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                     ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D
-USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
+USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale
 !USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
@@ -3511,6 +3526,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                               :: iSide, BCSide
+REAL                                  :: crossVec(3)
 ! INTEGER                               :: iSide_temp
 !===================================================================================================================================
 IF(.NOT.DoRefMapping)THEN
@@ -3527,7 +3543,8 @@ IF(.NOT.DoRefMapping)THEN
   ALLOCATE( BaseVectors0(1:3,1:nTotalSides),&
             BaseVectors1(1:3,1:nTotalSides),&
             BaseVectors2(1:3,1:nTotalSides),&
-            BaseVectors3(1:3,1:nTotalSides))
+            BaseVectors3(1:3,1:nTotalSides),&
+            BaseVectorsScale(1:nTotalSides))
   !IF (GEO%nPeriodicVectors.GT.0) THEN
   !  ALLOCATE( BaseVectors0flip(1:3,1:nTotalSides),&
   !            BaseVectors1flip(1:3,1:nTotalSides),&
@@ -3548,12 +3565,15 @@ IF(.NOT.DoRefMapping)THEN
                               +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
     BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
                               -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    crossVec = CROSS(BaseVectors1(:,iSide),BaseVectors2(:,iSide)) !vector with length of approx. 4x area (BV12 have double length)
+    BaseVectorsScale(iSide) = 0.25*SQRT(DOT_PRODUCT(crossVec,crossVec))
   END DO ! iSide
 ELSE
   ALLOCATE( BaseVectors0(1:3,1:nTotalBCSides),&
             BaseVectors1(1:3,1:nTotalBCSides),&
             BaseVectors2(1:3,1:nTotalBCSides),&
-            BaseVectors3(1:3,1:nTotalBCSides))
+            BaseVectors3(1:3,1:nTotalBCSides),&
+            BaseVectorsScale(1:nTotalBCSides))
   DO iSide=1,nTotalSides
     BCSide = PartBCSideList(iSide)
     ! extension for periodic sides
@@ -3566,6 +3586,8 @@ ELSE
                               +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
     BaseVectors3(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
                               -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    crossVec = CROSS(BaseVectors1(:,BCSide),BaseVectors2(:,BCSide)) !vector with length of approx. 4x area (BV12 have double length)
+    BaseVectorsScale(BCSide) = 0.25*SQRT(DOT_PRODUCT(crossVec,crossVec))
   END DO ! iSide
 END IF
 
