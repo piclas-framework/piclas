@@ -1598,9 +1598,9 @@ __STAMP__&
                                  IMD_array(5)       *1.E-10-10.13E-9,&
                                -(IMD_array(4)-10500)*1.E-10/)
             ELSE ! no transformation
-              Particle_pos = (/  IMD_array(4)*1.E-10,&
-                                 IMD_array(5)*1.E-10,&
-                                 IMD_array(6)*1.E-10/)
+              Particle_pos = (/  IMD_array(4)*Species(FractNbr)%IMDLengthScale,&
+                                 IMD_array(5)*Species(FractNbr)%IMDLengthScale,&
+                                 IMD_array(6)*Species(FractNbr)%IMDLengthScale/)
             END IF
             particle_positions((i-Nshift)*3-2) = Particle_pos(1)
             particle_positions((i-Nshift)*3-1) = Particle_pos(2)
@@ -1609,7 +1609,7 @@ __STAMP__&
             PartState(i-Nshift,4:6) =&
             (/IMD_array(7)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
               IMD_array(8)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
-             -IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
+              IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
 
             xMin=MIN(Particle_pos(1),xMin)
             yMin=MIN(Particle_pos(2),yMin)
