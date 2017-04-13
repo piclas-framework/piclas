@@ -1770,7 +1770,7 @@ ELSE
       SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDMultiplier  :",Species(i)%IMDMultiplier
       ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
       t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
-      SWRITE(UNIT_StdOut,'(A,E25.14E3)')     "   Calculated time t             :",t
+      SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t             :",t,' (',t*1e12,' ps)'
       tFuture=t
       CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
       IF(DoImportTTMFile)THEN
@@ -1778,7 +1778,7 @@ ELSE
         CALL WriteTTMToHDF5(t)
         SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating now!"
       ELSE 
-        SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD MD data) created. Terminating now!"
+        SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating now!"
       END IF
       STOP 0 ! terminate successfully
       !CALL abort(&
