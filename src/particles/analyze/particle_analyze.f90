@@ -2670,11 +2670,11 @@ DO iSpec=1,nSpecies
           PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
+          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
+#else
           PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*E(1,i,j,k,iElem)
           PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*E(2,i,j,k,iElem)
           PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*E(3,i,j,k,iElem)
-#else
-          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
           PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
 #endif
