@@ -37,6 +37,10 @@ INTERFACE GetSideSlabNormalsAndIntervals
   MODULE PROCEDURE GetSideSlabNormalsAndIntervals
 END INTERFACE
 
+INTERFACE GetSideBoundingBox
+  MODULE PROCEDURE GetSideBoundingBox
+END INTERFACE
+
 INTERFACE GetElemSlabNormalsAndIntervals
   MODULE PROCEDURE GetElemSlabNormalsAndIntervals
 END INTERFACE
@@ -55,7 +59,7 @@ END INTERFACE
   
 
 PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D, GetSideSlabNormalsAndIntervals, &
-        GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
+        GetSideBoundingBox,GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
 
 PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier
 PUBLIC::RotateMasterToSlave
@@ -236,6 +240,7 @@ SDEALLOCATE(BaseVectors0)
 SDEALLOCATE(BaseVectors1)
 SDEALLOCATE(BaseVectors2)
 SDEALLOCATE(BaseVectors3)
+SDEALLOCATE(BaseVectorsScale)
 SDEALLOCATE(ElemSlabNormals)
 SDEALLOCATE(ElemSlabIntervals)
 SDEALLOCATE(BoundingBoxIsEmpty)
@@ -256,6 +261,7 @@ SDEALLOCATE(BezierSampleXi)
 SDEALLOCATE(SurfMeshSubSideData)
 SDEALLOCATE(SurfMeshSideAreas)
 SDEALLOCATE(BCdata_auxSF)
+SDEALLOCATE(SurfFluxSideRejectType)
 #ifdef CODE_ANALYZE
 SDEALLOCATE(SideBoundingBoxVolume)
 #endif
@@ -773,6 +779,42 @@ END IF
 SideBoundingBoxVolume=dx*dy*dz
 #endif /*CODE_ANALYZE*/
 END SUBROUTINE GetSideSlabNormalsAndIntervals
+
+
+
+SUBROUTINE GetSideBoundingBox(SideID, BoundingBox)
+!===================================================================================================================================
+! computes the 8 corners of bounding box of bezier basis surface (based on values from GetSideSlabNormalsAndIntervals)
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,SideSlabNormals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: SideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)   :: BoundingBox(1:3,1:8)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iDir1, iDir2, iDir3
+!===================================================================================================================================
+
+DO iDir1=0,1
+  DO iDir2=0,1
+      DO iDir3=0,1
+        BoundingBox(1:3,iDir1*4 + iDir2*2 + iDir3+1) = BezierControlPoints3D(:,0,0,SideID) &
+          + SideSlabNormals(:,1,SideID)*SideSlabIntervals(2*1-iDir1,SideID) &
+          + SideSlabNormals(:,2,SideID)*SideSlabIntervals(2*2-iDir2,SideID) &
+          + SideSlabNormals(:,3,SideID)*SideSlabIntervals(2*3-iDir3,SideID)
+      END DO
+  END DO
+END DO
+
+END SUBROUTINE GetSideBoundingBox
+
 
 
 SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)

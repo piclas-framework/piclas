@@ -22,6 +22,8 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors2                 ! vector
                                                                         ! from Bezierpoints (1:3,1:nBCSurfaces)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors3                 ! additional vector for bilinear intersection
                                                                         ! from Bezierpoints (1:3,1:nBCSurfaces)
+REAL,ALLOCATABLE,DIMENSION(:)           :: BaseVectorsScale             ! approx. size of face for bilinear intersection
+                                                                        ! from Bezierpoints (1:nBCSurfaces)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors0flip             ! vectors for building intersectionsurfaces for particle
                                                                         ! from Bezierpoints for Periodic sites (1:3,1:nBCSurfaces)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors1flip             ! vectors for building intersectionsurfaces for particle
@@ -98,7 +100,7 @@ TYPE tBCdata_auxSF
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
 END TYPE tBCdata_auxSF
 TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:)             !aux. data of BCs for surfacefluxes, (1:nPartBound) (!!!)
-
+INTEGER, ALLOCATABLE                     :: SurfFluxSideRejectType(:)   ! Type if parts in side can be rejected (1:SideNumber)
 
 !===================================================================================================================================
 
