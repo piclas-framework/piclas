@@ -392,7 +392,8 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit,BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 #ifdef MPI
@@ -415,7 +416,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
-REAL                              :: xi(2),eta(2),t(2)!, normVec(3)
+REAL                              :: xi(2),eta(2),t(2), scaleFac!, normVec(3)
 INTEGER                           :: nInter,nRoot, flipdummy!,BCSideID
 !===================================================================================================================================
 
@@ -461,6 +462,14 @@ A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
 
+!scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
+scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
+scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
+scaleFac = 1./scaleFac
+A = A * scaleFac
+B = B * scaleFac
+C = C * scaleFac
+
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 
 IF(nRoot.EQ.0)THEN
@@ -469,7 +478,7 @@ END IF
 
 IF (nRoot.EQ.1) THEN
   xi(1)=ComputeXi(a1,a2,eta(1))
-  t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+  t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
 
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
     IF(ABS(xi(1)).LT.BezierClipHit)THEN
@@ -497,7 +506,7 @@ ELSE
   !IF(ABS(eta(1)).LT.BezierHitEpsBi)THEN
   !IF(ABS(eta(1)).LT.OnePlusEps)THEN
   xi(1)=ComputeXi(a1,a2,eta(1))
-  t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+  t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
 
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
     ! as paper ramsay
@@ -517,7 +526,7 @@ ELSE
 
 
   xi(2)=ComputeXi(a1,a2,eta(2))
-  t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
+  t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
 
  !IF(ABS(eta(2)).LT.OnePlusEps)THEN
  IF(ABS(eta(2)).LT.BezierClipHit)THEN
@@ -2625,11 +2634,12 @@ END IF
 END SUBROUTINE QuatricSolver
 
 
-FUNCTION ComputeSurfaceDistance2(BiLinearCoeff,xi,eta,PartTrajectory,iPart)
+FUNCTION ComputeSurfaceDistance2(SideNormVec,BiLinearCoeff,xi,eta,PartTrajectory,iPart)
 !================================================================================================================================
 ! compute the required vector length to intersection
 ! ramsey paper algorithm 3.4
 !================================================================================================================================
+USE MOD_Globals,                  ONLY:Almostzero
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol
 USE MOD_Particle_Vars,            ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -2637,6 +2647,7 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,DIMENSION(3),INTENT(IN)         :: PartTrajectory
+REAL,DIMENSION(3),INTENT(IN)         :: SideNormVec !non-oriented, averaged normal vector based on all four edges
 REAL,DIMENSION(3),INTENT(IN)         :: BiLinearCoeff(1:3,4)
 REAL,INTENT(IN)                      :: xi,eta
 INTEGER,INTENT(IN)                   :: iPart
@@ -2648,8 +2659,22 @@ REAL                                 :: ComputeSurfaceDistance2
 REAL                                 :: t
 !================================================================================================================================
 
-
-IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
+!in ramsey paper the direction was chosen based on the largest component of PartTrajectory for preventing a division by zero.
+!however, by this significant floating point inaccuracies can occur if this direction is approx. orthogonal to side normal vec.
+!solution: chose direction based on SideNormVec and additionally check that no division by zero occurs.
+IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))).AND.(ABS(SideNormVec(1)).GE.ABS(SideNormVec(3))) &
+  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
+  t = t/ PartTrajectory(1)-epsilontol 
+ELSE IF(ABS(SideNormVec(2)).GE.ABS(SideNormVec(3)) &
+  .AND. .NOT.Almostzero(PartTrajectory(2)))THEN
+  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
+  t = t/ PartTrajectory(2)-epsilontol 
+ELSE IF(.NOT.Almostzero(PartTrajectory(3)))THEN
+  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
+  t = t/ PartTrajectory(3)-epsilontol 
+!if PartTrajectory should be zero in largest component of SideNormVec, decide based on original check:
+ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
   t = t/ PartTrajectory(1)-epsilontol 
 ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
