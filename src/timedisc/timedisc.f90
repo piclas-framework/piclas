@@ -1251,6 +1251,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
+USE MOD_Liquid_Boundary,  ONLY: Evaporation
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb
 USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
 #ifdef MPI
@@ -1276,6 +1277,7 @@ REAL    :: RandVal, dtFrac
     IF (DSMC%WallModel.EQ.3) THEN
       CALL CalcBackgndPartDesorb()
     END IF
+    CALL Evaporation()
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
