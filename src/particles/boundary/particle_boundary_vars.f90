@@ -107,6 +107,7 @@ TYPE tPartBoundary
   LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
   LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
   INTEGER , ALLOCATABLE                  :: LiquidSpec(:)                 ! Species of Liquid Boundary
+  REAL    , ALLOCATABLE                  :: ParamAntoine(:,:)       ! Parameters for Antoine Eq (vapor pressure) [3,nPartBound]
   REAL    , ALLOCATABLE                  :: AmbientTemp(:)
   REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
   REAL    , ALLOCATABLE                  :: AmbientBeta(:)

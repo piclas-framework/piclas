@@ -154,6 +154,8 @@ CALL abort(__STAMP__,&
   CalcSurfCoverage = GETLOGICAL('CalcSurfCoverage','.FALSE.')
   CalcAccomodation = GETLOGICAL('CalcAccomodation','.FALSE.')
 #if (PP_TimeDiscMethod==42)
+  CalcEvaporation = GETLOGICAL('CalcEvaporation','.FALSE.')
+  IF (CalcEvaporation) DoAnalyze = .TRUE.
   CalcSurfReacRates = GETLOGICAL('CalcSurfReacRates','.FALSE.')
   IF(CalcSurfNumSpec.OR.CalcSurfReacRates.OR.CalcSurfCoverage.OR.CalcAccomodation.OR.Adsorption%TPD) DoAnalyze = .TRUE.
 #else
@@ -252,6 +254,7 @@ SUBROUTINE AnalyzeParticles(Time)
   INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
   INTEGER             :: iCov
   REAL                :: WallCoverage(nSpecies), Accomodation(nSpecies)
+  REAL                :: EvaporationRate(nSpecies)
 #endif
   REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
   REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -572,6 +575,13 @@ SUBROUTINE AnalyzeParticles(Time)
           END IF
           OutputCounter = OutputCounter + 1
         END IF
+        IF (CalcEvaporation) THEN
+          DO iSpec = 1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Evap_Mass', iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
         IF(CalcCollRates) THEN
           DO iSpec = 1, nSpecies
             DO jSpec = iSpec, nSpecies
@@ -699,6 +709,7 @@ IF (DSMC%WallModel.GE.1) THEN
   IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
   IF (CalcSurfReacRates.OR.CalcAccomodation) CALL GetSurfRates(Accomodation,Adsorptionrate,Desorptionrate)
 END IF
+IF (CalcEvaporation) CALL GetEvaporationRate(EvaporationRate)
 #endif /*PP_TimeDiscMethod==42*/
 #if (PP_TimeDiscMethod==4)
 IF (DSMC%WallModel.GE.1) THEN
@@ -909,6 +920,12 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') Adsorption%TPD_Temp
       END IF
+    END IF
+    IF (CalcEvaporation) THEN
+      DO iSpec = 1, nSpecies
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,104,ADVANCE='NO') EvaporationRate(iSpec)
+      END DO
     END IF
     IF(CalcCollRates) THEN
       DO iCase=1, CollInf%NumCase +1 
@@ -1131,6 +1148,57 @@ END SUBROUTINE CalcShapeEfficiencyR
 
 
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
+SUBROUTINE GetEvaporationRate(EvaporationRate)
+!===================================================================================================================================
+! Calculate evaporation rate from number of particles of a species evaporating from surface in the defined analyze time [kg/s]
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PDM, nSpecies
+USE MOD_Particle_Analyze_Vars
+USE MOD_DSMC_Vars,              ONLY : Liquid
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
+USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
+#endif /*MPI*/
+USE MOD_TimeDisc_Vars,          ONLY : dt
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)               :: EvaporationRate(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSpec
+#ifdef MPI
+REAL                            :: RD(nSpecies)
+#endif /*MPI*/
+!===================================================================================================================================
+EvaporationRate = 0.
+
+DO iSpec=1,nSpecies
+  EvaporationRate(iSpec) = Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor &
+                        * REAL(Liquid%Info(iSpec)%NumOfDes - Liquid%Info(iSpec)%NumOfAds) / dt
+END DO
+
+Liquid%Info(:)%NumOfAds = 0
+Liquid%Info(:)%NumOfDes = 0
+
+#ifdef MPI
+  IF (PartMPI%MPIRoot) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,EvaporationRate,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    EvaporationRate = EvaporationRate / SurfCOMM%nProcs
+  ELSE
+    CALL MPI_REDUCE(EvaporationRate,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  END IF
+#endif /*MPI*/
+
+END SUBROUTINE GetEvaporationRate
+
+
 SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 !===================================================================================================================================
 ! Calculate number of wallparticles for all species

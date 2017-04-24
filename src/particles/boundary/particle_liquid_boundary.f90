@@ -38,9 +38,14 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
   IMPLICIT NONE
 !===================================================================================================================================
-! Local variable declaration
-   INTEGER                          :: iSpec
-   REAL                             :: PartAds, PartEvap, RanNum, Tpois
+! INPUT VARIABLES
+!===================================================================================================================================
+! OUTPUT VARIABLES
+!===================================================================================================================================
+! LOCAL VARIABLES
+  CHARACTER(32)                    :: hilf
+  INTEGER                          :: iSpec
+  REAL                             :: PartAds, PartEvap, RanNum, Tpois
 !===================================================================================================================================
 ! allocate info and constants
 ALLOCATE( Liquid%Info(1:nSpecies))
@@ -59,7 +64,7 @@ END DO
 ALLOCATE( Liquid%ProbCondens(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Liquid%ProbEvap(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Liquid%SumCondensPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Liquid%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies))
+          Liquid%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies) )
 Liquid%ProbCondens(:,:,:,:) = 1. !0.
 Liquid%ProbEvap(:,:,:,:) = 0.
 Liquid%SumCondensPart(:,:,:,:) = 0
@@ -84,7 +89,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
    REAL, PARAMETER                  :: PI=3.14159265358979323846_8
    INTEGER                          :: iSurfSide, iSpec, p, q, Npois
    REAL                             :: PartEvap, RanNum, Tpois
-   REAL                             :: LiquidTemp
+   REAL                             :: LiquidSurfTemp
    REAL                             :: pressure_vapor, A, B, C
 !===================================================================================================================================
 #if (PP_TimeDiscMethod==42)
@@ -95,14 +100,15 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
     DO iSurfSide = 1,SurfMesh%nSides
       IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))) CYCLE
       IF (PartBound%LiquidSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) ))).NE.iSpec) CYCLE
-      LiquidTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfSideToGlobSideMap(iSurfSide))))
+      LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfSideToGlobSideMap(iSurfSide))))
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
-          A = 5.40221
-          B = 1838.675
-          C = -31.737
-          pressure_vapor = 10 ** (A- B/(C+LiquidTemp)) * 1e5 !transformation bar -> Pa
-          PartEvap = pressure_vapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidTemp)**0.5 &
+          A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
+          B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
+          C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
+          ! Use Antoine Eq. to calculate pressure vapor
+          pressure_vapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
+          PartEvap = pressure_vapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
                    * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt
           CALL RANDOM_NUMBER(RanNum)            
           IF (EXP(-PartEvap).LE.TINY(PartEvap)) THEN
@@ -151,7 +157,7 @@ SUBROUTINE ExchangeCondensNum()
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_DSMC_Vars                   ,ONLY:Liquid
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,nSurfSample
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,nSurfSample,PartBound
 USE MOD_Particle_MPI_Vars           ,ONLY:CondensSendBuf,CondensRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING

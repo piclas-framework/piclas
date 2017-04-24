@@ -820,6 +820,7 @@ ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
 ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
+ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -872,6 +873,14 @@ DO iPartBound=1,nPartBound
      IF (PartBound%LiquidSpec(iPartBound).GT.nSpecies) CALL abort(&
 __STAMP__&
      ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%LiquidSpec(iPartBound))
+     ! Parameters for evaporation pressure using Antoine Eq.
+     PartBound%ParamAntoine(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-ParamAntoine',3,'0. , 0. , 0.')
+     IF ( (.NOT.PartBound%SolidState(iPartBound)) .AND. (ALMOSTZERO(PartBound%ParamAntoine(1,iPartBound))) &
+          .AND. (ALMOSTZERO(PartBound%ParamAntoine(2,iPartBound))) .AND. (ALMOSTZERO(PartBound%ParamAntoine(3,iPartBound))) ) THEN
+        CALL abort(&
+__STAMP__&
+       ,'Antoine Parameters not defined for Liquid Particle Boundary: ',iPartBound)
+     END IF
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -1210,6 +1219,7 @@ SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SolidState)
 SDEALLOCATE(PartBound%LiquidSpec)
+SDEALLOCATE(PartBound%ParamAntoine)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)
