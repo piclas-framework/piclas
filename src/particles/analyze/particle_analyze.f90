@@ -1190,7 +1190,6 @@ Liquid%Info(:)%NumOfDes = 0
 #ifdef MPI
   IF (PartMPI%MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,EvaporationRate,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    EvaporationRate = EvaporationRate / SurfCOMM%nProcs
   ELSE
     CALL MPI_REDUCE(EvaporationRate,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
