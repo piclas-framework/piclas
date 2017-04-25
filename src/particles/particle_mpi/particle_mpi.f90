@@ -1240,6 +1240,8 @@ DO iProc=1,PartMPI%nMPINeighbors
   ! determine the maximal possible polyatomic addition to the regular message
   IF (DSMC%NumPolyatomMolecs.GT.0) THEN
     MsgLengthPoly = MAXVAL(PolyatomMolDSMC(:)%VibDOF)*nRecvParticles
+  ELSE
+    MsgLengthPoly = 0
   END IF
   !IF(nRecvParticles.EQ.0) CYCLE
   MessageSize=nRecvParticles*PartCommSize
@@ -1251,7 +1253,7 @@ DO iProc=1,PartMPI%nMPINeighbors
   ! DO iPart=1,nRecvParticles
   ! nParts 1 Pos=1..17 
   ! nPart2 2 Pos=1..17,18..34
-  DO iPos=0,MessageSize-1-MsgLengthpoly,PartCommSize
+  DO iPos=0,MessageSize-1-MsgLengthPoly,PartCommSize
     IF(nRecvParticles.EQ.0) EXIT
     nRecv=nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
