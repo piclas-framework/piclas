@@ -59,8 +59,10 @@ doscaleX= 0
 doscaleY= 0
 ncolumn=len(column)
 dotikz=1
-Frequency=6e8      # 35e9 ! zero nothing to do
+Frequency=-1      # 35e9 ! zero nothing to do
 TimeDerivative=1 # 0/1 no/yes
+TimeMode=1 # mode=0: input value=abs value, e.g. Ekin, mode=1: input=diff value
+StartTime=2e-9
 imagename =['twt-fancy-particle-power-average-t67']
 Variables=['$t$','$P_{z=19.32}$']
 Units=['ns','kW']
@@ -156,6 +158,8 @@ def averagedata( Frequency,tScale,time,locdata):
     else:
         # copy data
         print(' average: no ' )
+        if(Frequency==-1):
+            print(' mean value: ', np.mean(locdata[:]))
         n=size(time)
         dataPlot=np.zeros((n,2))
         for ii in range(n):
@@ -169,8 +173,11 @@ def averagedata( Frequency,tScale,time,locdata):
 # 
 # the time-derivative is computed by a central differnces between t^n and t^n+1 
 # for the new time level t^n+1/2
+# TimeMode=0: input abs value like E_kin
+# TimeMode=1: input is difference like E_kin_in, which is the kinetic energy inflow over
+#             a certain time-interval
 #---------------------------------------------------------------------------------------
-def timederivative( TimeDerivative,tScale,time,locdata):
+def timederivative( TimeDerivative,TimeMode,StartTime,tScale,time,locdata):
     if(TimeDerivative>0):
         print(' time-derivative: yes ' )
         # rescale period to print time
@@ -180,27 +187,34 @@ def timederivative( TimeDerivative,tScale,time,locdata):
         n=size(time)
         iSample=0
         for ii in range(0,n-1):
-            dt=time[ii+1]-time[ii]
-            # ignore double values of dt
-            # second condition removes strong neg. peaks
-            if(dt>0 and locdata[ii+1]>0):
-                iSample=iSample+1
+            if(time[ii]>=StartTime):
+                dt=time[ii+1]-time[ii]
+                # ignore double values of dt
+                # second condition removes strong neg. peaks
+                if(dt>0):
+                    iSample=iSample+1
         nPeriods=iSample 
-        print('nSamples of n', nPeriods/n)
+        print(' nSamples of n', nPeriods/n)
         dataPlot=np.zeros((nPeriods,2))
         # second order time derivative of first order term
         iSample=0
+        mean=0.
         for ii in range(0,n-1):
-            dt=time[ii+1]-time[ii]
-            # ignore double values of dt
-            # second condition removes strong neg. peaks
-            if(dt>0 and locdata[ii+1]>0):
-                tStep=0.5*(time[ii+1]+time[ii])
-                dataPlot[iSample,0] = tStep*tScale
-                tDeri = (locdata[ii+1]-locdata[ii])/dt
-                dataPlot[iSample,1] = tDeri
-                iSample=iSample+1
-        print('check ', iSample)
+            if(time[ii]>=StartTime):
+                dt=time[ii+1]-time[ii]
+                # ignore double values of dt
+                # second condition removes strong neg. peaks
+                if(dt>0):
+                    tStep=0.5*(time[ii+1]+time[ii])
+                    dataPlot[iSample,0] = tStep*tScale
+                    if(TimeMode==0):
+                        tDeri = (locdata[ii+1]-locdata[ii])/dt
+                    else:
+                        tDeri = locdata[ii+1]/dt
+                    mean=mean+tDeri
+                    dataPlot[iSample,1] = tDeri
+                    iSample=iSample+1
+        print(' check ', iSample/n)
     else:
         # copy data
         print(' time-derivative: no ' )
@@ -258,7 +272,7 @@ def plotdata( iPlot,plotstart,data):
     else:
         ii=0
         for dataset in data:
-            dataPlot0 = timederivative( TimeDerivative,scale[0],dataset[:,0],dataset[:,plotstart[iPlot]])
+            dataPlot0 = timederivative( TimeDerivative,TimeMode,StartTime,scale[0],dataset[:,0],dataset[:,plotstart[iPlot]])
             dataPlot  = averagedata(Frequency,scale[0],dataPlot0[:,0],dataPlot0[:,1])
             plot(dataPlot[:,0],dataPlot[:,1],label=legendentries[ii])
             #plot(dataset[:,0],dataset[:,plotstart[iPlot]],label=legendentries[ii])
