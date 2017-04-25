@@ -1273,7 +1273,8 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal, iElem, kk , ll, mm, iSpec,nVar,nVarloc,nVarCount,ALLOCSTAT
-REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:), TVib_TempFac(:,:,:)
+REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
+REAL                           :: TVib_TempFac
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif
@@ -1283,7 +1284,6 @@ REAL                           :: StartT,EndT
   StartT=MPI_WTIME()
 #endif
 
-ALLOCATE(TVib_TempFac(0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC))
 ! Create dataset attribute "VarNames"
 nVarloc=11
 nVar=nVarloc*nSpecies
@@ -1353,14 +1353,24 @@ DO iSpec = 1, nSpecies
         ! compute internal energies / has to be changed for vfd 
         IF(useDSMC)THEN
           IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-            IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+            IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
               IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-                TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-                IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
-                ELSE
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
-                END IF
+                  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+                    IF( (DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)) &
+                        .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = CalcTVibPoly(DSMC_HOSolution(8,kk,ll,mm,iElem,iSpec),iSpec)
+                    ELSE
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
+                    END IF
+                  ELSE
+                    TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+                    IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                    ELSE
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib &
+                                                                  / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                    END IF
+                  END IF
               ELSE                                            ! TSHO-model
                 DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
                     , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant) 
@@ -1395,14 +1405,25 @@ DO iSpec = 1, nSpecies
           ! compute internal energies / has to be changed for vfd 
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-              IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+            IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
                 IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-                  TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
-                        *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-                  IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+                    IF( (DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)) &
+                        .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = CalcTVibPoly(DSMC_HOSolution(8,kk,ll,mm,iElem,iSpec) &
+                                                                                / DSMC_HOSolution(11,kk,ll,mm,iElem,iSpec),iSpec)
+                    ELSE
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
+                    END IF
                   ELSE
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+                    TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
+                          *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+                    IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                    ELSE
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib &
+                                                                  / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                    END IF
                   END IF
                 ELSE                                            ! TSHO-model
                   DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
@@ -1444,14 +1465,25 @@ DO iSpec = 1, nSpecies
           ! compute internal energies / has to be changed for vfd 
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-              IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+            IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
                 IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-                  TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
-                        *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-                  IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+                    IF( (DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)) &
+                        .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = CalcTVibPoly(DSMC_HOSolution(8,kk,ll,mm,iElem,iSpec) &
+                                                                                / DSMC_HOSolution(11,kk,ll,mm,iElem,iSpec),iSpec)
+                    ELSE
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
+                    END IF
                   ELSE
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+                    TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
+                          *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+                    IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                    ELSE
+                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib &
+                                                                  / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                    END IF
                   END IF
                 ELSE                                            ! TSHO-model
                   DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
