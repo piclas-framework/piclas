@@ -1218,6 +1218,7 @@ PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK
 #endif
 #endif /*IMEX*/
+! IF (DSMC%NumPolyatomMolecs.GT.0) ALLOCATE(MsgLengthPoly(1:PartMPI%nMPINeighbors))
 
 DO iProc=1,PartMPI%nMPINeighbors
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
