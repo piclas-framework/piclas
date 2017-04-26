@@ -403,7 +403,6 @@ REAL                         :: eps
 !==================================================================================================================================
 
 ! get fileID and open file
-ioUnit=GETFREEUNIT()
 FileName=TRIM(Examples(iExample)%PATH)//'std.out'
 INQUIRE(File=FileName,EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
@@ -412,7 +411,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:                 ',ExistFile
   ERROR STOP '-1'
 ELSE
-  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 
 ! find the last L2 and LInf norm the std.out file of the example
@@ -522,7 +521,6 @@ LOGICAL                              :: ExistFile
 REAL                                 :: LNorm(Examples(iExample)%nVar)
 !==================================================================================================================================
 ! open file and read in
-ioUnit=GETFREEUNIT()
 FileName=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceNormFile)
 INQUIRE(File=FileName,EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
@@ -531,7 +529,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:                    ',ExistFile
   ERROR STOP '-1'
 ELSE
-  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 
 ! read in the norms
@@ -622,8 +620,7 @@ INQUIRE(File=OutputFileName,EXIST=ExistFile)
 IF(ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A)')''
   ! read H5DIFF_info.out | list of info
-  ioUnit=GETFREEUNIT()
-  OPEN(UNIT = ioUnit, FILE = OutputFileName, STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+  OPEN(NEWUNIT = ioUnit, FILE = OutputFileName, STATUS ="OLD", IOSTAT = iSTATUS2 ) 
   SWRITE(UNIT_stdOut,'(A)')' Reading '//TRIM(OutputFileName)
   I=0
   DO 
@@ -648,8 +645,7 @@ IF(ExistFile) THEN
     INQUIRE(File=TRIM(OutputFileName2),EXIST=ExistFile)
     IF(ExistFile) THEN
       ! read H5DIFF_info.out | list of info
-      ioUnit=GETFREEUNIT()
-      OPEN(UNIT = ioUnit, FILE = TRIM(OutputFileName2), STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+      OPEN(NEWUNIT = ioUnit, FILE = TRIM(OutputFileName2), STATUS ="OLD", IOSTAT = iSTATUS2 ) 
       DO
         READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS2) tmp
         IF (iSTATUS2.NE.0) EXIT
@@ -721,8 +717,7 @@ IF(.NOT.ExistFile) THEN
   Examples(iExample)%ErrorStatus=5
   RETURN
 ELSE
-  ioUnit=GETFREEUNIT()
-  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 ! init parameters for reading the data file
 HeaderLines=Examples(iExample)%IntegrateLineHeaderLines
@@ -873,8 +868,7 @@ DO K=1,2 ! open the data and reference file
     Examples(iExample)%ErrorStatus=5
     RETURN
   ELSE
-    ioUnit=GETFREEUNIT()
-    OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+    OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
   END IF
   ! init parameters for reading the data file
   HeaderLines=Examples(iExample)%CompareDatafileRowHeaderLines
@@ -1088,7 +1082,6 @@ IF(.NOT.ExistFile) THEN
   Examples(iExample)%ErrorStatus=5
   RETURN
 ELSE
-  ioUnit=GETFREEUNIT()
   OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 
