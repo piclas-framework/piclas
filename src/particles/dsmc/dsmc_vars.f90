@@ -126,6 +126,7 @@ TYPE tDSMC
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
   LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
                                                             ! Switch to enable to create reaction rates curves
+  LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages                                                          
   LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
                                                             ! Default Value is false
   INTEGER                       :: VibEnergyModel           ! Model for vibration Energy: 
@@ -298,6 +299,10 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
   REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
   REAL                                   :: SurfMassIC              ! Mass of the surface coordination for hard cube model
+  
+  INTEGER                                :: NumOfDissocReact
+  INTEGER                                :: NumOfAssocReact
+  INTEGER                                :: NumOfExchReact
   
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE

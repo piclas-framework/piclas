@@ -361,6 +361,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   REAL                             :: vel_norm, vel_coll, potential_pot, a_const, mu, surfmass, trapping_prob,Norm_Ec2
   INTEGER                          :: iInteratom, xpos, ypos
   LOGICAL                          :: Cell_Occupied
+#if (PP_TimeDiscMethod==42)
+  REAL                             :: InfoProbAds, InfoProbDiss
+#endif
 !===================================================================================================================================
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
@@ -392,7 +395,11 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   P_Eley_Rideal(:) = 0.
   Prob_diss(:) = 0.
   Cell_Occupied = .FALSE.
-  
+#if (PP_TimeDiscMethod==42)
+  InfoProbAds = 0.
+  InfoProbDiss = 0.
+#endif
+
   ! Choose Random surface site with species coordination
   CALL RANDOM_NUMBER(RanNum)
   iSpec = PartSpecies(PartID)
@@ -426,7 +433,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     END DO
   END IF
   potential_pot = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.TRUE.)*BoltzmannConst
-!   vel_norm = - ( 2*(Norm_Ec+potential_pot)/Species(iSpec)%MassIC)**(0.5)
   vel_norm = - (( 2*(potential_pot)/Species(iSpec)%MassIC)**(0.5) + Norm_Velo)
   a_const = (Species(iSpec)%MassIC/(2*BoltzmannConst*WallTemp))**(0.5)
   IF (SiteSpec.EQ.0) THEN
@@ -470,8 +476,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     ! calculation of molecular adsorption probability with TCE
     EZeroPoint_Educt = 0.
     E_a = 0.
-!     c_f = Adsorption%DensSurfAtoms(SurfSideID) /  Norm_Velo
-!     c_f = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Norm_Velo
     c_f = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
         /( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
     ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
@@ -515,6 +519,15 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     IF ((Norm_Ec2).GE.E_a) THEN
       Prob_ads = Calc_Beta_Adsorb(iSpec,Xi_Total,c_f) * (Norm_Ec2 - E_a)**phi_1 * (Norm_Ec2) ** phi_2 &
               * Species(iSpec)%MacroParticleFactor
+#if (PP_TimeDiscMethod==42)
+      IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        IF ((InfoProbAds + Prob_Ads).GT.1.) THEN
+          InfoProbAds = 1.
+        ELSE
+          InfoProbAds = InfoProbAds + Prob_Ads
+        END IF
+      END IF
+#endif
     ELSE
       Prob_ads = 0.
     END IF
@@ -534,7 +547,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) & 
             .EQ.0) ) THEN
         n_empty_Neigh(Coord2) = n_empty_Neigh(Coord2) + 1
-!       END IF
       n_Neigh(Coord2) = n_Neigh(Coord2) + 1
       NeighbourID(Coord2,n_Neigh(Coord2)) = i
       END IF
@@ -673,9 +685,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.) * BoltzmannConst
         ! calculation of dissociative adsorption probability with TCE
         EZeroPoint_Educt = 0.
-!         c_f = Adsorption%DensSurfAtoms(SurfSideID) / Norm_Velo
-!         c_f = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
-!             / Norm_Velo
         c_f = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
             /( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
         ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
@@ -712,13 +721,22 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
           Xi_vib = 0.0
         END IF
         Norm_Ec2 = Norm_velo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
-                - EZeroPoint_Educt + potential_pot
+                - EZeroPoint_Educt !+ potential_pot
         IF ((Norm_Ec2).GE.E_a) THEN
           Xi_Total = Xi_vib + Xi_rot + 3
           phi_1 = Adsorption%Diss_Powerfactor(ReactNum,iSpec) - 3./2. + Xi_Total
           phi_2 = 1 - Xi_Total
           Prob_diss(ReactNum) = Calc_Beta_Diss(ReactNum,iSpec,Xi_Total,c_f) * ((Norm_Ec2) - E_a)**phi_1 * (Norm_Ec2) ** phi_2 &
                               * Species(iSpec)%MacroParticleFactor
+#if (PP_TimeDiscMethod==42)
+          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+            IF ((InfoProbAds + Prob_diss(ReactNum)).GT.1.) THEN
+              InfoProbAds = 1.
+            ELSE
+              InfoProbAds = InfoProbAds + Prob_diss(ReactNum)
+            END IF
+          END IF
+#endif
         END IF
       END IF
       END IF
@@ -762,6 +780,11 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   ! choose adsorption case
   adsorption_case = 0
   AdsorptionEnthalpie = 0.
+  !-------------------------------------------------------------------------------------------------------------------------------
+  ! choose which adsorption type takes place
+  !-------------------------------------------------------------------------------------------------------------------------------
+  IF (DSMC%ReservoirSurfaceRate) sum_probabilities = 0.
+  
   CALL RANDOM_NUMBER(RanNum)
   IF (sum_probabilities .GT. RanNum) THEN
     ! chose surface reaction case (0=inelastic scattering, 1=adsorption, 2=reaction (dissociation), 3=reaction (Eley-Rideal))
@@ -815,7 +838,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   END IF
 #if (PP_TimeDiscMethod==42)
   IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + Prob_ads
+    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + InfoProbAds
   END IF
 #endif
 
@@ -1068,8 +1091,12 @@ DO subsurfxi = 1,nSurfSample
         P_actual_react(iReact) = rate * dt
         IF (rate*dt.GT.1) THEN
           P_react(iReact) = P_react(iReact) + 1
+          P_des(Prod_Spec1) = P_des(Prod_Spec1) + 1
+          adsorbates(Prod_Spec1) = adsorbates(Prod_Spec1) + 1
         ELSE
           P_react(iReact) = P_react(iReact) + P_actual_react(iReact)
+          P_des(Prod_Spec1) = P_des(Prod_Spec1) + P_actual_react(iReact)
+          adsorbates(Prod_Spec1) = adsorbates(Prod_Spec1) + 1
         END IF
       END IF
     END DO
@@ -1641,6 +1668,8 @@ DO subsurfxi = 1,nSurfSample
     !-------------------------------------------------------------------------------------------------------------------------------
     ! choose which surface reaction takes place
     !-------------------------------------------------------------------------------------------------------------------------------
+    IF (DSMC%ReservoirSurfaceRate) sum_probabilities = 0.
+  
     CALL RANDOM_NUMBER(RanNum)
     IF (sum_probabilities .GT. RanNum) THEN
       DO iReact = 1,ReactNum_run+1
