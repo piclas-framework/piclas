@@ -751,6 +751,7 @@ INTEGER                          :: BGMCellZmax,BGMCellZmin
 INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iProc
 REAL                             :: deltaT
+REAL                             :: globalDiag
 #ifdef MPI
 INTEGER                          :: ii,jj,kk,i,j
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
@@ -862,8 +863,20 @@ halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximu
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
+
+! limit halo_eps to diagonal of bounding box
+globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 & 
+                 + (GEO%ymaxglob-GEO%yminglob)**2 & 
+                 + (GEO%zmaxglob-GEO%zminglob)**2 ) 
+IF(halo_eps.GT.globalDiag)THEN
+  SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |       unlimited halo distance  |    ',halo_eps 
+  SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
+  halo_eps=globalDiag
+END IF
+
 halo_eps2=halo_eps*halo_eps
 SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
+
 
 #ifdef MPI
 IF ((DepositionType.EQ.'shape_function')             &
