@@ -249,8 +249,8 @@ CALL IgnoredStrings()
 CALL InitHDG()
 #endif
 
-IF(DoImportTTMFile)THEN
   CALL InitTTM() ! FG grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
 END SUBROUTINE InitBoltzplatz
