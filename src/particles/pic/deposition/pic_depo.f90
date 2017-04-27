@@ -1296,6 +1296,7 @@ CASE('shape_function','shape_function_simple')
     Vec1(1:3) = 0.
     Vec2(1:3) = 0.
     Vec3(1:3) = 0.
+#ifdef MPI
     IF (NbrOfextParticles .GT. 0) THEN
       IF (GEO%nPeriodicVectors.EQ.1) THEN
         Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
@@ -1310,6 +1311,7 @@ CASE('shape_function','shape_function_simple')
         Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
       END IF
     END IF
+#endif /*MPI*/
 
     !-- layer particles (only once, i.e., during call with .NOT.DoInnerParts)
     DO iLayer=1,NbrOfSFdepoLayers
@@ -1395,8 +1397,8 @@ CASE('shape_function','shape_function_simple')
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
-  END IF !.NOT.DoInnerParts
 #endif /*MPI*/
+  END IF !.NOT.DoInnerParts
 
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
     ! map source from Equististant points on Gauss-Points
@@ -3353,22 +3355,21 @@ __STAMP__ &
         radius2 = dX*dX+dY*dY+dZ*dZ
         !-- calculate charge and current density at ip point using a shape function
         !-- currently only one shapefunction available, more to follow (including structure change)
-        IF (radius2 .LT. r2_sf) THEN
-          S = 1. - r2_sf_inv * radius2
-          !radius2=GaussDistance(k,l,m)
-          !IF (radius2 .LT. 1.0) THEN
-          !  S = 1 -  radius2
-          S1 = S*S
-          DO expo = 3, alpha_sf
-            S1 = S*S1
-          END DO
-          IF (SourceSize.EQ.1) THEN
-            source(4,k,l,m,ElemID) = source(4,k,l,m,ElemID) + Fac(1) * S1
+        IF (radius2 .GT. r2_sf) CYCLE
+        S = 1. - r2_sf_inv * radius2
+        !radius2=GaussDistance(k,l,m)
+        !IF (radius2 .LT. 1.0) THEN
+        !  S = 1 -  radius2
+        S1 = S*S
+        DO expo = 3, alpha_sf
+          S1 = S*S1
+        END DO
+        IF (SourceSize.EQ.1) THEN
+          source(4,k,l,m,ElemID) = source(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
-          ELSE IF (SourceSize.EQ.4) THEN
-            source(1:4,k,l,m,ElemID) = source(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+        ELSE IF (SourceSize.EQ.4) THEN
+          source(1:4,k,l,m,ElemID) = source(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
-          END IF
         END IF
       END DO; END DO; END DO
     END DO !ElemID=1,PP_nElems

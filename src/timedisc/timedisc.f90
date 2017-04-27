@@ -1097,8 +1097,8 @@ IF (t.GE.DelayTime) THEN
   PartMPIExchange%nMPIParticles=0
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
-END IF 
 #endif /*MPI*/
+END IF 
 
 IF (doParticleMerge) THEN
 #ifdef MPI
