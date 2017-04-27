@@ -204,7 +204,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         SWRITE(UNIT_stdOut,'(A,I10,A)') " Read ",iLineTTM," lines from file (+1 header line)"
     
         IF(FD_nElems.EQ.PP_nElems)THEN ! same number of elements in FD grid and DG solution -> assume they coincide
-          SWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells in DG mesh and map values ...'
+          SWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells within the DG mesh in order to map the values ...'
           ! the local DG solution in physical and reference space
           ALLOCATE( TTM_DG(1:11,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
           TTM_DG=0.0 ! initialize

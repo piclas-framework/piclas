@@ -429,6 +429,11 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
     IF(TRIM(Species(iSpec)%Init(iInit)%IMDFile).NE.'no file found')DoImportIMDFile=.TRUE.
+    IF(DoImportIMDFile)THEN
+      DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
+      SWRITE(UNIT_stdOut,'(A38,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
+      '| *CUSTOM |'
+    END IF
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
     Species(iSpec)%Init(iInit)%RadiusICGyro          = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
