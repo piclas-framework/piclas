@@ -1296,6 +1296,7 @@ CASE('shape_function','shape_function_simple')
     Vec1(1:3) = 0.
     Vec2(1:3) = 0.
     Vec3(1:3) = 0.
+#ifdef MPI     
     IF (NbrOfextParticles .GT. 0) THEN
       IF (GEO%nPeriodicVectors.EQ.1) THEN
         Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
@@ -1310,6 +1311,7 @@ CASE('shape_function','shape_function_simple')
         Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
       END IF
     END IF
+#endif /*MPI*/
 
     !-- layer particles (only once, i.e., during call with .NOT.DoInnerParts)
     DO iLayer=1,NbrOfSFdepoLayers
@@ -1395,8 +1397,8 @@ CASE('shape_function','shape_function_simple')
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
-  END IF !.NOT.DoInnerParts
 #endif /*MPI*/
+  END IF !.NOT.DoInnerParts
 
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
     ! map source from Equististant points on Gauss-Points
