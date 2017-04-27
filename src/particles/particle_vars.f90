@@ -116,6 +116,7 @@ TYPE tInit                                                                   ! P
   LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
   LOGICAL                                :: UseForEmission                   ! Use Init/Emission for emission?
   CHARACTER(255)                         :: IMDFile                          ! Laser data file name containing PartState(1:6)
+  REAL                                   :: IMDCutOffxValue                  ! cut-off coordinate for IMDCutOff='coordiantes'
   CHARACTER(255)                         :: IMDCutOff                        ! cut-off type for IMD data reduction: 1.) no_cutoff
                                                                              !                                      2.) Epot
                                                                              !                                      3.) coordinates

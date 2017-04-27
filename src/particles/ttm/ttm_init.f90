@@ -145,8 +145,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
     
         read(StrTmp,*,iostat=io_error)  i
         TTMNumber = i
-        SWRITE(UNIT_stdOut,'(A,A)')  " IMD *.ttm file = ",StrTmp
-        SWRITE(UNIT_stdOut,'(A,I5)') " TTMNumber",TTMNumber
+        SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.ttm file = ",StrTmp
+        SWRITE(UNIT_stdOut,'(A,I10)') " TTMNumber      = ",TTMNumber
     
         iLineTTM=0
         DO i=1,1 ! header lines: currently 1 -> adjust?
@@ -155,8 +155,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         DO
           READ(ioUnit,*,IOSTAT=io_error) tmp_array(1:15)
           IF(io_error>0)THEN
-            SWRITE(UNIT_stdOut,'(A,I5)') " io_error=",io_error
-            SWRITE(UNIT_stdOut,'(A,I5)') " A problem reading the TTM file occured in line: ",iLineTTM+2
+            SWRITE(UNIT_stdOut,'(A,I10)') " io_error=",io_error
+            SWRITE(UNIT_stdOut,'(A,I10)') " A problem reading the TTM file occured in line: ",iLineTTM+2
             SWRITE(UNIT_stdOut,'(A1)') ' ['
             DO j=1,15
               SWRITE(UNIT_stdOut,'(A1,E25.14E3)',ADVANCE='NO') " ",tmp_array(j)
@@ -166,7 +166,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
             __STAMP__&
             ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
           ELSE IF(io_error<0)THEN
-            SWRITE(UNIT_stdOut,'(A,I5)') "End of file reached: ",iLineTTM+1
+            SWRITE(UNIT_stdOut,'(A,I10,A)') " End of file reached: ",iLineTTM+1," -> EXIT"
             EXIT
           ELSE ! io_error = 0
           END IF
@@ -186,20 +186,25 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
             ElemBaryFD(2,iLineTTM)=(REAL(iy)-0.5)*fd_hy 
             ElemBaryFD(3,iLineTTM)=(REAL(iz)-0.5)*fd_hz 
           ELSE
-            SWRITE(UNIT_stdOut,'(A,I5)') "A problem reading the TTM file occured in line: ",iLineTTM+1
+            SWRITE(UNIT_stdOut,'(A,I10)') " A problem reading the TTM file occured in line: ",iLineTTM+1
             DoImportTTMFile=.FALSE.
             EXIT
           END IF
         END DO
         IF(FD_nElems.NE.ix*iy*iz)THEN
+          SWRITE(UNIT_stdOut,'(A)')     ' Error: FD_nElems.NE.ix*iy*iz'
+          SWRITE(UNIT_stdOut,'(A,I10)') ' FD_nElems = ',FD_nElems
+          SWRITE(UNIT_stdOut,'(A,I10)') ' ix*iy*iz  = ',ix*iy*iz
           CALL abort(&
           __STAMP__&
-          ,'Number of FD elements FD_nElems does not comply with the number of FD elements read from *.ttm file'//TRIM(TTMFile))
+          ,'Number of FD elements FD_nElems does not comply with the number of FD elements read from *.ttm file ['&
+          //TRIM(TTMFile)//']')
         END IF
         CLOSE(ioUnit)
-        SWRITE(UNIT_stdOut,'(A,I5,A)') "Read ",iLineTTM," lines from file (+1 header line)"
+        SWRITE(UNIT_stdOut,'(A,I10,A)') " Read ",iLineTTM," lines from file (+1 header line)"
     
         IF(FD_nElems.EQ.PP_nElems)THEN ! same number of elements in FD grid and DG solution -> assume they coincide
+          SWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells in DG mesh and map values ...'
           ! the local DG solution in physical and reference space
           ALLOCATE( TTM_DG(1:11,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
           TTM_DG=0.0 ! initialize
@@ -219,6 +224,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               END DO
             END DO
           END DO
+          SWRITE(UNIT_stdOut,'(A)') 'Done.'
           IF(ANY(ElemIsDone).EQV..FALSE.)THEN
             SWRITE(UNIT_stdOut,'(A)') " NOT all IMD TTM FD cells have been located within the DG grid!"
           ELSE
@@ -229,8 +235,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           SDEALLOCATE(ElemIndexFD)
           SDEALLOCATE(ElemIsDone)
         ELSE ! use swap-mesh or interpolate the FD grid to the DG solution
-          SWRITE(UNIT_stdOut,'(A,I5)') "FD_nElems=",FD_nElems
-          SWRITE(UNIT_stdOut,'(A,I5)') "PP_nElems=",PP_nElems
+          SWRITE(UNIT_stdOut,'(A,I10)') "FD_nElems=",FD_nElems
+          SWRITE(UNIT_stdOut,'(A,I10)') "PP_nElems=",PP_nElems
           CALL abort(&
           __STAMP__&
           ,'Error interpolating ttm data (FD grid) to DG solution. FD_nElems.NE.PP_nElems. Different elements not implemented')
@@ -273,7 +279,7 @@ REAL,INTENT(INOUT)   :: fd_hx,fd_hy,fd_hz
 ! LOCAL VARIABLES
 INTEGER        :: ioUnit
 INTEGER        :: IndNum,IndNum2
-INTEGER        :: i
+INTEGER        :: iLine
 INTEGER        :: io_error
 CHARACTER(255) :: StrTmp,StrTmp2
 !===================================================================================================================================
@@ -288,21 +294,21 @@ IF(io_error.NE.0)THEN
   ,'Cannot open specified File (ttm data) from '//TRIM(TTMLogFile))
 END IF
 SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMLogFile)
-i=1
-DO !i=1,1 ! header lines: currently 1 -> adjust?
+iLine=1
+DO !iLine=1,1 ! header lines: currently 1 -> adjust?
   READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
   IF(io_error.GT.0)THEN
-    SWRITE(UNIT_stdOut,'(A,I5)') "io_error=",io_error
-    SWRITE(UNIT_stdOut,'(A,I5)') "A problem reading the TTM file occured in line: ",i+1
+    SWRITE(UNIT_stdOut,'(A,I10)') "io_error=",io_error
+    SWRITE(UNIT_stdOut,'(A,I10)') "A problem reading the TTM file occured in line: ",iLine+1
     SWRITE(UNIT_stdOut,'(A)') StrTmp
     CALL abort(&
     __STAMP__&
     ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
   ELSE IF(io_error.LT.0)THEN
-    SWRITE(UNIT_stdOut,'(A,I5)') "End of file reached: ",i
+    SWRITE(UNIT_stdOut,'(A,I10)') "End of file reached: ",iLine
     EXIT
   ELSE ! io_error = 0
-    i=i+1
+    iLine=iLine+1
     IndNum=INDEX(TRIM(StrTmp),'fd_h.x:')
     IF(IndNum.GT.0)THEN
       StrTmp=TRIM(StrTmp(IndNum:LEN(StrTmp)))
@@ -310,7 +316,7 @@ DO !i=1,1 ! header lines: currently 1 -> adjust?
       IF(IndNum.GT.0)THEN
         CALL str2real(StrTmp(8:IndNum-1),fd_hx,io_error)
         IF(io_error.NE.0)THEN
-          SWRITE(UNIT_stdOut,'(A,I5,A)') "io_error=",io_error,", failed to get fd_hx"
+          SWRITE(UNIT_stdOut,'(A,I10,A)') "io_error=",io_error,", failed to get fd_hx"
           fd_hx=-99.
           Exit
         END IF
@@ -326,7 +332,7 @@ DO !i=1,1 ! header lines: currently 1 -> adjust?
         IF(IndNum.GT.0)THEN
           CALL str2real(StrTmp(8:IndNum-1),fd_hy,io_error)
           IF(io_error.NE.0)THEN
-            SWRITE(UNIT_stdOut,'(A,I5,A)') "io_error=",io_error,", failed to get fd_hy"
+            SWRITE(UNIT_stdOut,'(A,I10,A)') "io_error=",io_error,", failed to get fd_hy"
             fd_hy=-99.
             Exit
           END IF
@@ -339,23 +345,25 @@ DO !i=1,1 ! header lines: currently 1 -> adjust?
       IndNum=INDEX(TRIM(StrTmp),'fd_h.z:')
       IF(IndNum.GT.0)THEN
         StrTmp=TRIM(StrTmp(IndNum:LEN(StrTmp)))
-          IndNum=INDEX(TRIM(StrTmp),'\')
-          IF(IndNum.GT.0)THEN
-            CALL str2real(StrTmp(8:IndNum-1),fd_hz,io_error)
-            IF(io_error.NE.0)THEN
-              SWRITE(UNIT_stdOut,'(A,I5,A)') "io_error=",io_error,", failed to get fd_hz"
-              fd_hz=-99.
-              Exit
-            END IF
-            fd_hz=fd_hz*IMDLengthScale
-          SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hz=",fd_hz
-            StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
+        IndNum=INDEX(TRIM(StrTmp),'\')
+        IF(IndNum.GT.0)THEN
+          CALL str2real(StrTmp(8:IndNum-1),fd_hz,io_error)
+        ELSE
+          CALL str2real(StrTmp(8:LEN(StrTmp)),fd_hz,io_error)
         END IF
+        IF(io_error.NE.0)THEN
+          SWRITE(UNIT_stdOut,'(A,I10,A)') "io_error=",io_error,", failed to get fd_hz"
+          fd_hz=-99.
+          Exit
+        END IF
+        fd_hz=fd_hz*IMDLengthScale
+        SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hz=",fd_hz
+        StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
       END IF
 
       EXIT
     END IF
-    IF(i.GT.100)EXIT ! only read the first 100 lines
+    IF(iLine.GT.100)EXIT ! only read the first 100 lines
   END IF
 END DO
 

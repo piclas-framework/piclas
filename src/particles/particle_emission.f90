@@ -1621,12 +1621,13 @@ __STAMP__&
             SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%IMDCutOff))
             CASE('no_cutoff') ! nothing to do
             CASE('Epot') ! kill particles that have Epot (i.e. they are in the solid body)
-              IF(IMD_array(10).NE.0.0)THEN ! IMD_array(10) is Epot
+              IF(ABS(IMD_array(10)).GT.0.0)THEN ! IMD_array(10) is Epot
                 Nshift=Nshift+1
               END IF
             CASE('coordinates') ! kill particles that are below a certain threshold in z-direction
-              CALL abort(__STAMP__&
-              ,'ERROR in particle_emission.f90: not implemented yet!')
+              IF(IMD_array(4)*Species(FractNbr)%IMDLengthScale.GT.Species(FractNbr)%Init(iInit)%IMDCutOffxValue)THEN
+                Nshift=Nshift+1
+              END IF
             CASE('velocity') ! kill particles that are below a certain velocity threshold
               CALL abort(__STAMP__&
               ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')

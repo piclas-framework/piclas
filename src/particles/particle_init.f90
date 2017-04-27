@@ -424,6 +424,7 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
     Species(iSpec)%Init(iInit)%IMDFile               = GETSTR('Part-Species'//TRIM(hilf2)//'-IMDFile','no file found')         
     Species(iSpec)%Init(iInit)%IMDCutOff             = GETSTR('Part-Species'//TRIM(hilf2)//'-IMDCutOff','no_cutoff')
+    Species(iSpec)%Init(iInit)%IMDCutOffxValue       = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDCutOffxValue','-999.9')
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
