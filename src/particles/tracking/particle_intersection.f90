@@ -843,7 +843,9 @@ END IF
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(iPart.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,*) ' nInterSections ',nInterSections
+    IPWRITE(UNIT_stdout,*)'----------------------------------------------'
+    IPWRITE(UNIT_stdout,*)' PARTOUT        = ',PARTOUT
+    IPWRITE(UNIT_stdout,*)' nInterSections = ',nInterSections
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -2026,7 +2028,7 @@ DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierClipMaxIter))
 END DO
 
 IF(nIter.GT.BezierClipMaxIter) THEN
-  IPWRITE(UNIT_stdout,*) ' Bezier-Newton not converget!'
+  IPWRITE(UNIT_stdout,*) ' Bezier-Newton not converged!'
   IPWRITE(UNIT_stdout,*) ' SideId      : ', SideID
   IPWRITE(UNIT_stdout,*) ' ElemID      : ', PartSideToElem(S2E_ELEM_ID,SideID)
   IPWRITE(UNIT_stdout,*) ' Norm_P      : ', Norm_P

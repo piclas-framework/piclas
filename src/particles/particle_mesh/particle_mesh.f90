@@ -494,6 +494,7 @@ USE MOD_Particle_Intersection,  ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
+USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
@@ -510,6 +511,9 @@ LOGICAL,INTENT(OUT)                      :: Check
 REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifdef CODE_ANALYZE
+INTEGER                                  :: I,J,K
+#endif /*CODE_ANALYZE*/
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
 REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3)
@@ -582,15 +586,33 @@ DO ilocSide=1,6
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
-      IPWRITE(UNIT_stdout,*) ' SideType ',SideType(SideID)
-      IPWRITE(UNIT_stdout,*) ' alpha',alpha
-      IPWRITE(UNIT_stdout,*) ' nv',NormVec
-      IPWRITE(UNIT_stdout,*) ' PartTrajectory',PartTrajectory
-      IPWRITE(UNIT_stdout,*) ' dotprod',DOT_PRODUCT(NormVec,PartTrajectory)
-      IPWRITE(UNIT_stdout,*) ' point 2', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
-      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-x', BezierControlPoints3d(1,:,:,SideID)
-      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-y', BezierControlPoints3d(2,:,:,SideID)
-      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-z', BezierControlPoints3d(3,:,:,SideID)
+      IPWRITE(UNIT_stdout,*) ' SideType       ',SideType(SideID)
+      IPWRITE(UNIT_stdout,*) ' alpha          ',alpha
+      IPWRITE(UNIT_stdout,*) ' nv             ',NormVec
+      IPWRITE(UNIT_stdout,*) ' PartTrajectory ',PartTrajectory
+      IPWRITE(UNIT_stdout,*) ' dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
+      IPWRITE(UNIT_stdout,*) ' point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
+      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-x'
+      DO K=1,3
+        WRITE(UNIT_stdout,'(A,I1,A)',ADVANCE='NO')' P(:,:,',K,') = [ '
+        DO I=0,NGeo ! output for MATLAB
+          DO J=0,NGeo
+            WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3d(K,J,I,SideID)
+            IF(J.EQ.NGeo)THEN
+              IF(I.EQ.NGeo)THEN
+                WRITE(UNIT_stdout,'(A)')' ];'
+              ELSE
+                WRITE(UNIT_stdout,'(A)')' ;...'
+              END IF
+            ELSE ! comma
+              WRITE(UNIT_stdout,'(A)',ADVANCE='NO')' , '
+            END IF
+          END DO
+          !WRITE(UNIT_stdout,'(A)')' '
+        END DO
+      END DO
+      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-y', BezierControlPoints3d(2,:,:,SideID)
+      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-z', BezierControlPoints3d(3,:,:,SideID)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
