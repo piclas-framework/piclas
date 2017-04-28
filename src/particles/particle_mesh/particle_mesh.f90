@@ -99,6 +99,9 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
@@ -137,6 +140,11 @@ __STAMP__&
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
 nLostParts         = 0 
+
+#ifdef CODE_ANALYZE
+PARTOUT            = GETINT('PartOut','0')
+MPIRankOut         = GETINT('MPIRankOut','0')
+#endif /*CODE_ANALYZE*/
 
 !IF(.NOT.DoRefMapping) THEN
 !  SDEALLOCATE(nTracksPerElem)
@@ -470,14 +478,14 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check)
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check,IntersectPoint_Opt)
 !===================================================================================================================================
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY:Almostzero
+USE MOD_Globals,                ONLY:Almostzero,MyRank,UNIT_stdout
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
-USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec
+USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,BezierControlPoints3d
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection
@@ -485,6 +493,10 @@ USE MOD_Particle_Intersection,  ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+#ifdef CODE_ANALYZE
+USE MOD_Mesh_Vars,              ONLY:NGeo
+USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -496,19 +508,24 @@ REAL,INTENT(IN)                          :: PartPos_In(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                      :: Check
+REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifdef CODE_ANALYZE
+INTEGER                                  :: I,J,K
+#endif /*CODE_ANALYZE*/
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
 REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3)
 LOGICAL                                  :: isHit
-REAL                                     :: alpha,eta,xi
+REAL                                     :: alpha,eta,xi,IntersectPoint(1:3)
 !===================================================================================================================================
 
 ! virtual move to element barycenter
 LastPosTmp(1:3) =LastPartPos(PartID,1:3)
 LastPartPos(PartID,1:3) =ElemBaryNGeo(1:3,ElemID)
 PartPos(1:3) =PartPos_In(1:3)
+
 PartTrajectory=PartPos - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
@@ -521,7 +538,9 @@ IF(ALMOSTZERO(lengthPartTrajectory))THEN
 END IF
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 isHit=.FALSE.
+alpha=-1.
 DO ilocSide=1,6
+
   !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
   SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
   flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
@@ -531,7 +550,14 @@ DO ilocSide=1,6
     SideID=PartBCSideList(BCSideID)
     IF(SideID.LT.1) CYCLE
   END IF
-  
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' SideType ',SideType(SideID)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
   SELECT CASE(SideType(SideID))
   CASE(PLANAR_RECT)
     CALL ComputePlanarRectIntersection(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta ,PartID,flip,SideID)
@@ -545,30 +571,68 @@ DO ilocSide=1,6
   CASE(CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
   END SELECT
-  IF(DoRefMapping)THEN
-    IF(alpha.GT.-1)THEN
-      SELECT CASE(SideType(SideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        NormVec=SideNormVec(1:3,SideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
-      END SELECT 
-      IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
+  IF(alpha.GT.-1)THEN
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      NormVec=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+    END SELECT 
+    IF(flip.NE.0) NormVec=-NormVec
+    IntersectPoint=LastPartPos(PartID,1:3)+alpha*PartTrajectory
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' SideType       ',SideType(SideID)
+      IPWRITE(UNIT_stdout,*) ' alpha          ',alpha
+      IPWRITE(UNIT_stdout,*) ' nv             ',NormVec
+      IPWRITE(UNIT_stdout,*) ' PartTrajectory ',PartTrajectory
+      IPWRITE(UNIT_stdout,*) ' dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
+      IPWRITE(UNIT_stdout,*) ' point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
+      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-x'
+      DO K=1,3
+        WRITE(UNIT_stdout,'(A,I1,A)',ADVANCE='NO')' P(:,:,',K,') = [ '
+        DO I=0,NGeo ! output for MATLAB
+          DO J=0,NGeo
+            WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3d(K,J,I,SideID)
+            IF(J.EQ.NGeo)THEN
+              IF(I.EQ.NGeo)THEN
+                WRITE(UNIT_stdout,'(A)')' ];'
+              ELSE
+                WRITE(UNIT_stdout,'(A)')' ;...'
+              END IF
+            ELSE ! comma
+              WRITE(UNIT_stdout,'(A)',ADVANCE='NO')' , '
+            END IF
+          END DO
+          !WRITE(UNIT_stdout,'(A)')' '
+        END DO
+      END DO
+      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-y', BezierControlPoints3d(2,:,:,SideID)
+      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-z', BezierControlPoints3d(3,:,:,SideID)
     END IF
   END IF
-  IF(alpha.GT.-1.0) THEN
-    !IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) THEN
-    !IF((ABS(xi).GT.BezierClipHit).OR.(ABS(eta).GT.BezierClipHit)) THEN
-    !  isHit=.FALSE.
-    !END IF
-    isHit=.TRUE.
+#endif /*CODE_ANALYZE*/
+    IF(DOT_PRODUCT(NormVec,PartTrajectory).LT.0.)THEN
+      alpha=-1.0
+    ELSE
+      EXIT
+    END IF
+    ! PO: should now be obsolete
+    !IF(DoRefMapping)THEN
+    !  IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
+    !END IF ! DoRefMapping
   END IF
-  IF(isHit) EXIT
 END DO ! ilocSide
 Check=.TRUE.
-IF(isHit) Check=.FALSE.
+IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=0.
+IF(alpha.GT.-1) THEN
+  Check=.FALSE.
+  IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=IntersectPoint
+END IF
 LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
 
 END SUBROUTINE PartInElemCheck
@@ -751,6 +815,7 @@ INTEGER                          :: BGMCellZmax,BGMCellZmin
 INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iProc
 REAL                             :: deltaT
+REAL                             :: globalDiag
 #ifdef MPI
 INTEGER                          :: ii,jj,kk,i,j
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
@@ -862,8 +927,20 @@ halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximu
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
+
+! limit halo_eps to diagonal of bounding box
+globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 & 
+                 + (GEO%ymaxglob-GEO%yminglob)**2 & 
+                 + (GEO%zmaxglob-GEO%zminglob)**2 ) 
+IF(halo_eps.GT.globalDiag)THEN
+  SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |       unlimited halo distance  |    ',halo_eps 
+  SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
+  halo_eps=globalDiag
+END IF
+
 halo_eps2=halo_eps*halo_eps
 SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
+
 
 #ifdef MPI
 IF ((DepositionType.EQ.'shape_function')             &
@@ -2641,7 +2718,7 @@ INTEGER                                  :: NGeo3,NGeo2, nLoop,test,iTest,nTest,
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
 REAL                                     :: Distance ,maxScaleJ
 REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
-LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh, isBilinear
+LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -2697,7 +2774,6 @@ nCurvedElemsHalo           = 0
 nLinearElemsHalo           = 0
 nCurvedElemsHalo           = 0
 nBCElemsHalo               = 0
-isBilinear=.FALSE.
 
 NGeo2=(NGeo+1)*(NGeo+1)
 NGeo3=NGeo2*(NGeo+1)
@@ -2809,6 +2885,11 @@ DO iElem=1,nLoop
 #endif /*MPI*/
         END IF
       ELSE
+        v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
         SideType(TrueSideID)=BILINEAR
         IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
 #ifdef MPI
@@ -2922,6 +3003,11 @@ DO iElem=1,nLoop
 #endif /*MPI*/
           END IF
         ELSE
+          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
           SideType(TrueSideID)=BILINEAR
           IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
 #ifdef MPI
@@ -3049,48 +3135,17 @@ IF (.NOT.DoRefMapping)THEN
 #endif /*MPI*/
           END IF
         ELSE
-          IF(isBiLinear)THEN
-            SideType(SideID)=BILINEAR
-            IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
+          v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+          SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+          SideType(SideID)=BILINEAR
+          IF(SideID.LE.nPartSides) nBiLinear=nBiLinear+1
 #ifdef MPI
-            IF(SideID.GT.nPartSides) nBilinearHalo=nBilinearHalo+1
+          IF(SideID.GT.nPartSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
-          ELSE ! not bilinear
-            IF(BoundingBoxIsEmpty(SideID))THEN
-              SideType(SideID)=PLANAR_CURVED
-              IF(SideID.LE.nPartSides) nPlanarCurved=nPlanarCurved+1
-#ifdef MPI
-              IF(SideID.GT.nPartSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
-#endif /*MPI*/
-              v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-                  -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
-              
-              v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-                  +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
-              SideNormVec(:,SideID) = CROSSNORM(v1,v2)
-              v1=0.25*(BezierControlPoints3D(:,0,0,SideID)     &
-                      +BezierControlPoints3D(:,NGeo,0,SideID)  &
-                      +BezierControlPoints3D(:,0,NGeo,SideID)  &
-                      +BezierControlPoints3D(:,NGeo,NGeo,SideID))
-              ! check if normal vector points outwards
-              v2=v1-ElemBaryNGeo(:,iElem)
-              IF(flip.EQ.0)THEN
-                IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
-              ELSE IF(flip.EQ.-1)THEN
-                SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
-                PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
-              ELSE
-                IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
-              END IF
-              SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
-            ELSE
-              SideType(SideID)=CURVED
-              IF(SideID.LE.nPartSides) nCurved=nCurved+1
-#ifdef MPI
-              IF(SideID.GT.nPartSides) nCurvedHalo=nCurvedHalo+1
-#endif /*MPI*/
-            END IF
-          END IF
+
         END IF ! bounding bos is empty
       ELSE  ! non-linear edges
         IF(BoundingBoxIsEmpty(SideID))THEN
@@ -3534,7 +3589,7 @@ USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,        ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                     ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D
-USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
+USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale
 !USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
@@ -3548,6 +3603,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                               :: iSide, BCSide
+REAL                                  :: crossVec(3)
 ! INTEGER                               :: iSide_temp
 !===================================================================================================================================
 IF(.NOT.DoRefMapping)THEN
@@ -3564,7 +3620,8 @@ IF(.NOT.DoRefMapping)THEN
   ALLOCATE( BaseVectors0(1:3,1:nTotalSides),&
             BaseVectors1(1:3,1:nTotalSides),&
             BaseVectors2(1:3,1:nTotalSides),&
-            BaseVectors3(1:3,1:nTotalSides))
+            BaseVectors3(1:3,1:nTotalSides),&
+            BaseVectorsScale(1:nTotalSides))
   !IF (GEO%nPeriodicVectors.GT.0) THEN
   !  ALLOCATE( BaseVectors0flip(1:3,1:nTotalSides),&
   !            BaseVectors1flip(1:3,1:nTotalSides),&
@@ -3585,12 +3642,15 @@ IF(.NOT.DoRefMapping)THEN
                               +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
     BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
                               -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    crossVec = CROSS(BaseVectors1(:,iSide),BaseVectors2(:,iSide)) !vector with length of approx. 4x area (BV12 have double length)
+    BaseVectorsScale(iSide) = 0.25*SQRT(DOT_PRODUCT(crossVec,crossVec))
   END DO ! iSide
 ELSE
   ALLOCATE( BaseVectors0(1:3,1:nTotalBCSides),&
             BaseVectors1(1:3,1:nTotalBCSides),&
             BaseVectors2(1:3,1:nTotalBCSides),&
-            BaseVectors3(1:3,1:nTotalBCSides))
+            BaseVectors3(1:3,1:nTotalBCSides),&
+            BaseVectorsScale(1:nTotalBCSides))
   DO iSide=1,nTotalSides
     BCSide = PartBCSideList(iSide)
     ! extension for periodic sides
@@ -3603,6 +3663,8 @@ ELSE
                               +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
     BaseVectors3(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
                               -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    crossVec = CROSS(BaseVectors1(:,BCSide),BaseVectors2(:,BCSide)) !vector with length of approx. 4x area (BV12 have double length)
+    BaseVectorsScale(BCSide) = 0.25*SQRT(DOT_PRODUCT(crossVec,crossVec))
   END DO ! iSide
 END IF
 

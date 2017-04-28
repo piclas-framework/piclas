@@ -1097,8 +1097,8 @@ IF (t.GE.DelayTime) THEN
   PartMPIExchange%nMPIParticles=0
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
-END IF 
 #endif /*MPI*/
+END IF 
 
 IF (doParticleMerge) THEN
 #ifdef MPI
@@ -1690,6 +1690,12 @@ ELSE
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                         + DSMC_RHS(1:PDM%ParticleVecLength,1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                         + DSMC_RHS(1:PDM%ParticleVecLength,2)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
 END IF
 
 END SUBROUTINE TimeStep_DSMC_Debug

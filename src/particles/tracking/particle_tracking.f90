@@ -57,6 +57,9 @@ USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -79,6 +82,9 @@ REAL                          :: tLBStart,tLBEnd
 INTEGER                       :: inElem
 #endif /*MPI*/
 INTEGER ::local
+#ifdef CODE_ANALYZE
+REAL                          :: IntersectionPoint(1:3)
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
 IF(PRESENT(DoParticle_IN))THEN
@@ -107,9 +113,24 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     PartTrajectory=PartTrajectory/lengthPartTrajectory
 #ifdef CODE_ANALYZE
-    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit)
-    IF(.NOT.isHit)THEN 
-     IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element, ElemID=',ElemID
+    ! caution: reuse of variable, isHit=TRUE == inside
+    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint) 
+    IF(.NOT.isHit)THEN  ! particle not inside
+     IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element! '
+     IF(ElemID.LE.PP_nElems)THEN
+       IPWRITE(UNIT_stdOut,*) ' ElemID         ', ElemID+offSetElem
+     ELSE
+#ifdef MPI
+       IPWRITE(UNIT_stdOut,*) ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
+                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
+#endif /*MPI*/
+     END IF
+     IPWRITE(UNIT_stdOut,*) ' ElemBaryNGeo      ', ElemBaryNGeo(1:3,ElemID)
+     IPWRITE(UNIT_stdOut,*) ' IntersectionPoint ', IntersectionPoint
+     IPWRITE(UNIT_stdOut,*) ' LastPartPos:      ', LastPartPos(iPart,1:3)
+     IPWRITE(UNIT_stdOut,*) ' PartPos:          ', PartState(iPart,1:3)
+     IPWRITE(UNIT_stdOut,*) ' PartTrajectory:   ', PartTrajectory
+     IPWRITE(UNIT_stdOut,*) ' lengthPT:         ', lengthPartTrajectory
      CALL abort(&
      __STAMP__ &
      ,'iPart=. ',iPart)
@@ -121,7 +142,7 @@ DO iPart=1,PDM%ParticleVecLength
     local=0
     firstElem=ElemID
     IF (ElemType(ElemID).EQ.1) THEN
-      CALL CheckPlanarInside(iPart,ElemID,PartisDone)
+      CALL CheckPlanarInside(iPart,ElemID,lengthPartTrajectory,PartisDone)
       IF (PartisDone) THEN
         PEM%Element(iPart) = ElemID
         CYCLE
@@ -328,7 +349,7 @@ DO iPart=1,PDM%ParticleVecLength
                                                  + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
         END IF
 #else
-        IPWRITE(UNIT_stdOut,*) ' ElemID         ', ElemID+offSetElem
+        IPWRITE(UNIT_stdOut,*) ' ElemID         ', InElem+offSetElem
 #endif
 #ifdef MPI
         InElem=PEM%LastElement(iPart)
@@ -1402,7 +1423,7 @@ END IF ! nInter>0
 END SUBROUTINE FallBackFaceIntersection
 
 
-SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
+SUBROUTINE CheckPlanarInside(PartID,ElemID,lengthPartTrajectory,PartisDone)
 !===================================================================================================================================
 ! checks if particle is inside of linear element with planar faces
 !===================================================================================================================================
@@ -1410,25 +1431,26 @@ SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PartState
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec,BezierControlPoints3D,epsilontol
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemRadiusNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)            :: PartID,ElemID
+REAL,INTENT(IN)               :: lengthPartTrajectory
 LOGICAL,INTENT(INOUT)         :: PartisDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
-REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction
+REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction, eps
 !===================================================================================================================================
 PartisDone = .TRUE.
 PlanarSideNum = 0
+eps = ElemRadiusNGeo(ElemID) / lengthPartTrajectory * epsilontol * 10. !value can be further increased, so far "semi-empirical".
 
 DO ilocSide=1,6
   SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
@@ -1441,8 +1463,10 @@ DO ilocSide=1,6
   END IF
   vector_face2particle(1:3) = PartState(PartID,1:3) - BezierControlPoints3D(1:3,0,0,SideID)
   Direction = DOT_PRODUCT(NormVec,vector_face2particle)
-  
-  IF ( (Direction.GE.0.) .OR. (ALMOSTZERO(Direction)) ) THEN
+
+  !IF ( (Direction.GE.0.) .OR. (ALMOSTZERO(Direction)) ) THEN
+  IF ( Direction.GE.-eps ) THEN !less rigorous check for planar-assumed sides: they can still be planar-nonrect for which the
+                                !bilin-algorithm will be used which might give a different result for very small distances!
     PartisDone = .FALSE.
   END IF
 END DO

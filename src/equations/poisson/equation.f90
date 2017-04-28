@@ -44,8 +44,10 @@ USE MOD_Preproc
 USE MOD_ReadInTools,ONLY:GETREALARRAY,GETREAL,GETINT
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 USE MOD_Equation_Vars
-USE MOD_Mesh_Vars,ONLY:nSides
+USE MOD_HDG_vars
+USE MOD_Mesh_Vars,ONLY:nSides,nInnerSides
 USE MOD_TimeDisc_Vars, ONLY: TEnd
+USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,ElemToSide
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,6 +56,12 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER :: i,j,k,iElem,iLocSide
+INTEGER :: p,q,flip,locSideID,SideID
+REAL    :: XCL_N_Face(3,0:PP_N,0:PP_N)
+REAL    :: Face_xGP(3,0:PP_N,0:PP_N)
+REAL    :: rtmp(nGP_vol)
+REAL    :: Invdummy(3,3)
 !===================================================================================================================================
 TEnd=GetReal('TEnd') 
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
@@ -81,19 +89,46 @@ c2     = c*c
 smu0=1./mu0
 c2_inv = 1./c2
 
+chitensWhichField = GETINT( 'chitensWhichField','1')
+chitensValue          = GETREAL('chitensValue','1.0')
+chitensRadius         = GETREAL('chitensRadius','0.0')
 ALLOCATE(chitens(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 ALLOCATE(chitensInv(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 ALLOCATE(chitens_face(3,3,0:PP_N,0:PP_N,nSides))
 
-chitens=0.
-chitens(1,1,:,:,:,:)=1.
-chitens(2,2,:,:,:,:)=1.
-chitens(3,3,:,:,:,:)=1.
-chitensInv=chitens
-chitens_face=0.
-chitens_face(1,1,:,:,:)=1.
-chitens_face(2,2,:,:,:)=1.
-chitens_face(3,3,:,:,:)=1.
+!chitens=0.
+!chitens(1,1,:,:,:,:)=1.
+!chitens(2,2,:,:,:,:)=1.
+!chitens(3,3,:,:,:,:)=1.
+!chitensInv=chitens
+!chitens_face=0.
+!chitens_face(1,1,:,:,:)=1.
+!chitens_face(2,2,:,:,:)=1.
+!chitens_face(3,3,:,:,:)=1.
+
+DO iElem=1,PP_nElems
+  !compute field on Gauss-Lobatto points (continuous!)
+  DO k=0,PP_N ; DO j=0,PP_N ; DO i=0,PP_N
+    CALL calcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem)) 
+  END DO; END DO; END DO !i,j,k
+
+  DO locSideID=1,6
+    flip=ElemToSide(E2S_FLIP,LocSideID,iElem)
+    SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
+    IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
+
+
+      DO q=0,PP_N; DO p=0,PP_N
+        CALL calcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:)) 
+      END DO ; END DO !p, q
+
+    END IF
+  END DO !locSideID
+END DO
+
+
+
+
 
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')
@@ -109,6 +144,55 @@ SWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
+
+SUBROUTINE CalcChiTens(x,chitens,chitensInv)
+!===================================================================================================================================
+! calculate diffusion tensor, diffusion coefficient chi1/chi0 along B vector field plus isotropic diffusion 1. 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Equation_Vars, ONLY:    chitensWhichField,chitensValue,chitensRadius
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: x(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: chitens(3,3)
+REAL,INTENT(OUT),OPTIONAL        :: chitensInv(3,3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL :: radius
+!===================================================================================================================================
+! default
+chitens=0.
+chitens(1,1)=1.
+chitens(2,2)=1.
+chitens(3,3)=1.
+
+! set chitens depending on geometry (i.e. location of DOF position x(1:3) in domain)
+SELECT CASE(chitensWhichField)
+CASE(1) ! default - vacuum
+CASE(2) ! sphere with radius, inner DOF receive chitensValue
+  radius=sqrt( x(1)**2 + x(2)**2 + x(3)**2 )
+  IF(radius.LT.chitensRadius)THEN
+    chitens(1,1)=chitensValue
+    chitens(2,2)=chitensValue
+    chitens(3,3)=chitensValue
+  END IF
+CASE DEFAULT
+  ! Stop, works only for 3 Stage O3 LS RK
+  CALL abort(__STAMP__,&
+             'chitensWhichField not known!',chitensWhichField,999.)
+END SELECT
+
+
+! only for diagonal matrices
+chitensInv(:,:)=1./chitens(:,:)
+
+
+END SUBROUTINE calcChiTens
 
 
 SUBROUTINE ExactFunc(ExactFunction,x,resu,t) 
@@ -341,6 +425,7 @@ CASE DEFAULT
              !'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 END SUBROUTINE CalcSourceHDG
+
 
 
 FUNCTION shapefunc(r)
