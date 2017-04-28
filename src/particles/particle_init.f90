@@ -431,8 +431,8 @@ DO iSpec = 1, nSpecies
     IF(TRIM(Species(iSpec)%Init(iInit)%IMDFile).NE.'no file found')DoImportIMDFile=.TRUE.
     IF(DoImportIMDFile)THEN
       DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
-      SWRITE(UNIT_stdOut,'(A38,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
-      '| *CUSTOM |'
+      SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
+      ' | *CUSTOM |'
     END IF
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
