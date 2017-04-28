@@ -667,6 +667,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals!,epsilonTol
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
 USE MOD_Globals,                 ONLY:myrank
@@ -782,6 +783,14 @@ rPerformBezierClip=rPerformBezierClip+1.
   dEta=MAXVAL(BezierControlPoints2D(2,:,:))-MINVAL(BezierControlPoints2D(2,:,:))
   IF(dXi.LT.dEta) firstClip=.FALSE.
   ! CALL recursive Bezier clipping algorithm
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' --------------------------------------------- '
+      IPWRITE(UNIT_stdout,*) ' clipping '
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
   CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
                 ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 ELSE!BezierNewtonAngle
@@ -990,13 +999,17 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 !   title = {Curves and Surfaces for CAGD: A Practical Guide},
 !   year = {2002},
 !================================================================================================================================
-!USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIter,FacNchooseK,BezierClipMaxIntersec
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,epsilontol,BezierClipHit,BezierSplitLimit
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
+USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1076,6 +1089,13 @@ DO iClipIter=iClipIter,BezierClipMaxIter
 
     ! calc Smin and Smax and check boundaries
     CALL CalcSminSmax(minmax,XiMin,XiMax)
+#ifdef CODE_ANALYZE
+     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+       IF(iPart.EQ.PARTOUT)THEN
+         IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiMin,XiMax
+       END IF
+     END IF
+#endif /*CODE_ANALYZE*/
     IF(nXiClip.EQ.0)THEN
       XiMin=MIN(-1.0,XiMin)
       XiMax=Max( 1.0,XiMax)
@@ -1187,6 +1207,15 @@ DO iClipIter=iClipIter,BezierClipMaxIter
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
       firstClip=.FALSE.
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+          IPWRITE(UNIT_stdout,*) ' split xi-upper '
+          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory &
                      ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
 
@@ -1281,6 +1310,15 @@ DO iClipIter=iClipIter,BezierClipMaxIter
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
       firstClip=.FALSE.
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+          IPWRITE(UNIT_stdout,*) ' split xi-lower '
+          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory&
                      ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
       DoCheck=.FALSE.
@@ -1434,6 +1472,13 @@ DO iClipIter=iClipIter,BezierClipMaxIter
 !    ELSE
       ! calc Smin and Smax and check boundaries
       CALL CalcSminSmax(minmax,Etamin,Etamax)
+#ifdef CODE_ANALYZE
+     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+       IF(iPart.EQ.PARTOUT)THEN
+         IPWRITE(UNIT_stdout,*) ' EtaMin,EtaMax ',EtaMin,EtaMax
+       END IF
+     END IF
+#endif /*CODE_ANALYZE*/
       IF(nEtaClip.EQ.0)THEN
         EtaMin=MIN(-1.0,EtaMin)
         EtaMax=Max( 1.0,EtaMax)
@@ -1538,6 +1583,15 @@ DO iClipIter=iClipIter,BezierClipMaxIter
         tmpnXi   =nXiClip
         tmpnEta  =nEtaClip
         firstClip=.TRUE.
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+            IPWRITE(UNIT_stdout,*) ' split eta-upper '
+            CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
         CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory &
                        ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
         ! second split
@@ -1632,6 +1686,15 @@ DO iClipIter=iClipIter,BezierClipMaxIter
         tmpnXi   =nXiClip
         tmpnEta  =nEtaClip
         firstClip=.TRUE.
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+            IPWRITE(UNIT_stdout,*) ' split eta-lower '
+            CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
         CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory &
                        ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
         DoCheck=.FALSE.
@@ -1787,6 +1850,14 @@ IF(DoCheck)THEN
   Xi=0.5*(Xi+1)
   Eta=0.5*(Eta+1)
 
+#ifdef CODE_ANALYZE
+     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+       IF(iPart.EQ.PARTOUT)THEN
+         IPWRITE(UNIT_stdout,*) ' xi,eta ',xi,eta
+       END IF
+     END IF
+#endif /*CODE_ANALYZE*/
+
   IF((ABS(eta).GT.BezierClipHit).OR.(ABS(xi).GT.BezierClipHit))THEN
     RETURN
   END IF
@@ -1831,6 +1902,14 @@ IF(DoCheck)THEN
   ! funny hard coded tolerance :), obtained by numerical experiments
   !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.MinusEps))THEN
   alphaNorm=alpha/lengthPartTrajectory
+
+#ifdef CODE_ANALYZE
+     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+       IF(iPart.EQ.PARTOUT)THEN
+         IPWRITE(UNIT_stdout,*) ' alpha,alphanorm ',alpha,alphaNorm
+       END IF
+     END IF
+#endif /*CODE_ANALYZE*/
 
   !IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
   IF((alphaNorm.LE.1.0).AND.(alphaNorm.GT.-epsilontol))THEN
