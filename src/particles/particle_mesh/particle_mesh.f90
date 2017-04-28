@@ -98,7 +98,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic &
+                                    ,PartOut,MPIRankOut
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
@@ -137,6 +138,11 @@ __STAMP__&
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
 nLostParts         = 0 
+
+#ifdef CODE_ANALYZE
+PARTOUT            = GETINT('PartOut','0')
+MPIRankOut         = GETINT('MPIRankOut','0')
+#endif /*CODE_ANALYZE*/
 
 !IF(.NOT.DoRefMapping) THEN
 !  SDEALLOCATE(nTracksPerElem)
@@ -470,14 +476,14 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check)
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check,IntersectPoint_Opt)
 !===================================================================================================================================
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY:Almostzero
+USE MOD_Globals,                ONLY:Almostzero,MyRank,UNIT_stdout
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
-USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec
+USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,BezierControlPoints3d
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection
@@ -485,6 +491,9 @@ USE MOD_Particle_Intersection,  ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -496,19 +505,21 @@ REAL,INTENT(IN)                          :: PartPos_In(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                      :: Check
+REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
 REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3)
 LOGICAL                                  :: isHit
-REAL                                     :: alpha,eta,xi
+REAL                                     :: alpha,eta,xi,IntersectPoint(1:3)
 !===================================================================================================================================
 
 ! virtual move to element barycenter
 LastPosTmp(1:3) =LastPartPos(PartID,1:3)
 LastPartPos(PartID,1:3) =ElemBaryNGeo(1:3,ElemID)
 PartPos(1:3) =PartPos_In(1:3)
+
 PartTrajectory=PartPos - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
@@ -521,7 +532,9 @@ IF(ALMOSTZERO(lengthPartTrajectory))THEN
 END IF
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 isHit=.FALSE.
+alpha=-1.
 DO ilocSide=1,6
+
   !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
   SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
   flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
@@ -531,7 +544,14 @@ DO ilocSide=1,6
     SideID=PartBCSideList(BCSideID)
     IF(SideID.LT.1) CYCLE
   END IF
-  
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' SideType ',SideType(SideID)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
   SELECT CASE(SideType(SideID))
   CASE(PLANAR_RECT)
     CALL ComputePlanarRectIntersection(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta ,PartID,flip,SideID)
@@ -545,30 +565,50 @@ DO ilocSide=1,6
   CASE(CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
   END SELECT
-  IF(DoRefMapping)THEN
-    IF(alpha.GT.-1)THEN
-      SELECT CASE(SideType(SideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        NormVec=SideNormVec(1:3,SideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
-      END SELECT 
-      IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
+  IF(alpha.GT.-1)THEN
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      NormVec=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+    END SELECT 
+    IF(flip.NE.0) NormVec=-NormVec
+    IntersectPoint=LastPartPos(PartID,1:3)+alpha*PartTrajectory
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' SideType ',SideType(SideID)
+      IPWRITE(UNIT_stdout,*) ' alpha',alpha
+      IPWRITE(UNIT_stdout,*) ' nv',NormVec
+      IPWRITE(UNIT_stdout,*) ' PartTrajectory',PartTrajectory
+      IPWRITE(UNIT_stdout,*) ' dotprod',DOT_PRODUCT(NormVec,PartTrajectory)
+      IPWRITE(UNIT_stdout,*) ' point 2', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
+      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-x', BezierControlPoints3d(1,:,:,SideID)
+      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-y', BezierControlPoints3d(2,:,:,SideID)
+      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-z', BezierControlPoints3d(3,:,:,SideID)
     END IF
   END IF
-  IF(alpha.GT.-1.0) THEN
-    !IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) THEN
-    !IF((ABS(xi).GT.BezierClipHit).OR.(ABS(eta).GT.BezierClipHit)) THEN
-    !  isHit=.FALSE.
-    !END IF
-    isHit=.TRUE.
+#endif /*CODE_ANALYZE*/
+    IF(DOT_PRODUCT(NormVec,PartTrajectory).LT.0.)THEN
+      alpha=-1.0
+    ELSE
+      EXIT
+    END IF
+    ! PO: should now be obsolete
+    !IF(DoRefMapping)THEN
+    !  IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
+    !END IF ! DoRefMapping
   END IF
-  IF(isHit) EXIT
 END DO ! ilocSide
 Check=.TRUE.
-IF(isHit) Check=.FALSE.
+IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=0.
+IF(alpha.GT.-1) THEN
+  Check=.FALSE.
+  IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=IntersectPoint
+END IF
 LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
 
 END SUBROUTINE PartInElemCheck
