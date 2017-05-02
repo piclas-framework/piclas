@@ -151,7 +151,8 @@ SUBROUTINE CalcChiTens(x,chitens,chitensInv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars, ONLY:    chitensWhichField,chitensValue,chitensRadius
+USE MOD_Equation_Vars, ONLY:chitensWhichField,chitensValue,chitensRadius
+USE MOD_Basis,         ONLY:GetInverse
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -188,8 +189,8 @@ CASE DEFAULT
 END SELECT
 
 
-! only for diagonal matrices
-chitensInv(:,:)=1./chitens(:,:)
+! inverse of diffusion 3x3 tensor on each gausspoint
+chitensInv(:,:)=getInverse(3,chitens(:,:))
 
 
 END SUBROUTINE calcChiTens
