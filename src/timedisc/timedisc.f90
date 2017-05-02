@@ -3168,7 +3168,7 @@ IF (t.GE.DelayTime) THEN
   CALL MPIParticleSend()
   ! finish communication
   CALL MPIParticleRecv()
-#endif
+! #endif ! old -> new is 9 lines below
   PartMPIExchange%nMPIParticles=0
   IF(DoExternalParts)THEN
     ! as we do not have the shape function here, we have to deallocate something
@@ -3177,6 +3177,7 @@ IF (t.GE.DelayTime) THEN
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
   END IF
+#endif
 
   ! map particle from gamma*v to v
   CALL PartVeloToImp(VeloToImp=.FALSE.) 
