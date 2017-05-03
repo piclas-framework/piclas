@@ -173,6 +173,7 @@ LOGICAL          :: CrossProductMetrics=.FALSE.
 !-----------------------------------------------------------------------------------------------------------------------------------
 !< PoyntingVectorIntegral variables
 !-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER             :: PoyntingMainDir       !< direction in which the poynting vector integral is to be computed
 INTEGER             :: nPoyntingIntSides=0   !< Sides for the calculation of the poynting vector
 LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  !< number of all PoyntingInt sides
 INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) !< number of plane used for calculation of poynting vector
