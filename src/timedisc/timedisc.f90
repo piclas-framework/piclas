@@ -345,6 +345,7 @@ iter_loc=0
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
 
 ! fill initial analyze stuff
+dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroValues=T)
 CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
