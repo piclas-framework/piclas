@@ -44,21 +44,21 @@ SUBROUTINE InitTTM()
 ! -------------------------------------------------------------------------------------------------------------------------------
 ! read the following fields ...
 ! 
-! 1.)  x:         0 to Nx-1 FD cells in x-direction                            not stored
-! 2.)  y:         0 to Ny-1 FD cells in y-direction                            not stored
-! 3.)  z:         0 to Nz-1 FD cells in z-direction                            not stored
-! 4.)  natoms:    number of atoms in the FD cell                               stored in TTM_FD(1,...  -> TTM_DG(1,...
-! 5.)  temp:      temperature of the electrons (fluid model)                   stored in TTM_FD(2,...  -> TTM_DG(2,...
-! 6.)  md_temp:   temperature of the atoms (MD simulated discrete atoms)       stored in TTM_FD(3,...  -> TTM_DG(3,...
-! 7.)  xi: ?                                                                   stored in TTM_FD(4,...  -> TTM_DG(4,...
-! 8.)  source:    energy input source, e.g., laser energy density per volume   stored in TTM_FD(5,...  -> TTM_DG(5,...
-! 9.)  v_com.x:   barycentric velocity of all MD atoms in x-direction          stored in TTM_FD(6,...  -> TTM_DG(6,...
-! 10.) v_com.y:   barycentric velocity of all MD atoms in y-direction          stored in TTM_FD(7,...  -> TTM_DG(7,...
-! 11.) v_com.z:   barycentric velocity of all MD atoms in z-direction          stored in TTM_FD(8,...  -> TTM_DG(8,...
-! 12.) fd_k:      heat conduction coefficient                                  stored in TTM_FD(9,...  -> TTM_DG(9,...
-! 13.) fd_g:      electron-phonon coupling coefficient                         stored in TTM_FD(10,... -> TTM_DG(10,...
-! 14.) Z:         averged charge of the atoms within the FD cell               stored in TTM_FD(11,... -> TTM_DG(11,...
-! 15.) proc:      rank number of MPI process                                   not stored
+! 1.)  x:         0 to Nx-1 FD cells in x-direction                          [-]                not stored
+! 2.)  y:         0 to Ny-1 FD cells in y-direction                          [-]                not stored
+! 3.)  z:         0 to Nz-1 FD cells in z-direction                          [-]                not stored
+! 4.)  natoms:    number of atoms in the FD cell                             [-]                stored in TTM_FD(1,.. -> TTM_DG(1,..
+! 5.)  temp:      temperature of the electrons (fluid model)                 [eV]               stored in TTM_FD(2,.. -> TTM_DG(2,..
+! 6.)  md_temp:   temperature of the atoms (MD simulated discrete atoms)     [eV]               stored in TTM_FD(3,.. -> TTM_DG(3,..
+! 7.)  xi: ?                                                                 [?]                stored in TTM_FD(4,.. -> TTM_DG(4,..
+! 8.)  source:    energy input source, e.g., laser energy density per volume [?]                stored in TTM_FD(5,.. -> TTM_DG(5,..
+! 9.)  v_com.x:   barycentric velocity of all MD atoms in x-direction        [Ångström/10,18fs] stored in TTM_FD(6,.. -> TTM_DG(6,..
+! 10.) v_com.y:   barycentric velocity of all MD atoms in y-direction        [Ångström/10,18fs] stored in TTM_FD(7,.. -> TTM_DG(7,..
+! 11.) v_com.z:   barycentric velocity of all MD atoms in z-direction        [Ångström/10,18fs] stored in TTM_FD(8,.. -> TTM_DG(8,..
+! 12.) fd_k:      heat conduction coefficient                                [?]                stored in TTM_FD(9,.. -> TTM_DG(9,..
+! 13.) fd_g:      electron-phonon coupling coefficient                       [?]                stored in TTM_FD(10,. -> TTM_DG(10,.
+! 14.) Z:         averged charge of the atoms within the FD cell             [e]                stored in TTM_FD(11,. -> TTM_DG(11,.
+! 15.) proc:      rank number of MPI process                                 [-]                not stored
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -412,29 +412,38 @@ REAL    :: ChargeProbability          !
 REAL    :: iRan, RandVal(2)           !
 REAL    :: PartPosRef(1:3)
 REAL    :: CellElectronTemperature
+REAL    :: MaxElectronTemp_eV
 !===================================================================================================================================
+! 1.) reconstruct ions and determine charge
 ElemCharge(1:PP_nElems)=0
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
     IF(ANY(PartSpecies(iPart).EQ.IMDSpeciesID(:)))THEN ! 
-      ! get the TTM cell charge avergae value and select and upper and lower charge number
-      ChargeLower=INT(TTM_DG(11,0,0,0,PEM%Element(iPart)))
-      ChargeUpper=ChargeLower+1
-      ChargeProbability=REAL(ChargeUpper)-TTM_DG(11,0,0,0,PEM%Element(iPart)) ! 2 - 1,4 = 0.6 -> 60% probability to get lower charge
-      ! distribute the charge using random numbers
-      CALL RANDOM_NUMBER(iRan)
-      IF(iRan.LT.ChargeProbability)THEN ! select the lower charge number
-        location = MINLOC(ABS(IMDSpeciesCharge-ChargeLower),1)
-        ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeLower
-      ELSE ! select the upper charge number
-        location = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1)
-        ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeUpper
+      IF(TTM_DG(11,0,0,0,PEM%Element(iPart)).EQ.0)THEN ! this would create uncharged atoms -> force singly charged ions
+        ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+1
+        location = MINLOC(ABS(IMDSpeciesCharge-1),1) !Determines the location of the element in the array with min value
+      ELSE
+        ! get the TTM cell charge avergae value and select and upper and lower charge number
+        ChargeLower       = INT(TTM_DG(11,0,0,0,PEM%Element(iPart))) ! use first DOF (0,0,0) because the data is const. in each cell
+        ChargeUpper       = ChargeLower+1
+        ChargeProbability = REAL(ChargeUpper)-TTM_DG(11,0,0,0,PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
+        ! distribute the charge using random numbers
+        CALL RANDOM_NUMBER(iRan)
+        IF(iRan.LT.ChargeProbability)THEN ! select the lower charge number
+          location = MINLOC(ABS(IMDSpeciesCharge-ChargeLower),1) !Determines the location of the element in the array with min value
+          ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeLower
+        ELSE ! select the upper charge number
+          location = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1) !Determines the location of the element in the array with min value
+          ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeUpper
+        END IF
       END IF
-      PartSpecies(iPart)=IMDSpeciesID(location)
+      PartSpecies(iPart)=IMDSpeciesID(location) ! set the species ID to atom/singly charged ion/doubly charged ... and so on
     END IF
   END IF
 END DO
 
+! 2.) reconstruct electrons
+MaxElectronTemp_eV=MAXVAL(TTM_DG(2,0,0,0,:))
 ElecSpecIndx = -1
 DO iSpec = 1, nSpecies
   IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
@@ -467,7 +476,11 @@ DO iElem=1,PP_nElems
       IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
     END IF
     PEM%Element(ParticleIndexNbr) = iElem
-    CellElectronTemperature=(TTM_DG(2,0,0,0,iElem)*ElectronCharge/BoltzmannConst)
+    IF(TTM_DG(2,0,0,0,iElem).LE.0.0)THEN ! not enough atoms in FD cell for averaging a temperature: use max value for electrons
+      CellElectronTemperature=(MaxElectronTemp_eV*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
+    ELSE
+      CellElectronTemperature=(TTM_DG(2,0,0,0,iElem)*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
+    END IF
     CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
                                   Temperature=CellElectronTemperature)
   END DO

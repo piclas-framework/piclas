@@ -1798,9 +1798,9 @@ ELSE
       IF(DoImportTTMFile)THEN
         SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created."
         CALL WriteTTMToHDF5(t)
-        SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating now!"
+        SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating successfully!"
       ELSE 
-        SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating now!"
+        SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating successfully!"
       END IF
       STOP 0 ! terminate successfully
       !CALL abort(&
