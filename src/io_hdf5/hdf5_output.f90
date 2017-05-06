@@ -1734,25 +1734,22 @@ SUBROUTINE WriteIMDStateToHDF5(time)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,         ONLY: Species,nSpecies
+USE MOD_Particle_Vars,         ONLY: Species,nSpecies,IMDInputFile
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Restart_Vars,          ONLY: DoRestart
-USE MOD_TTM_Vars,              ONLY: DoImportTTMFile
+USE MOD_TTM_Vars,              ONLY: DoImportTTMFile,TTMLogFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!INTEGER,INTENT(IN)               :: Ntot, length
 REAL,INTENT(IN)                  :: time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES      
-!INTEGER,INTENT(INOUT)            :: Ni(1:length)     
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER         :: iN, iRan, Nitemp, Nrest, Ntot0
-!REAL            :: Atot, Bi(0:length), RandVal1, A2i(1:length), A2tot !,Error,Nrel(1:length),Arel(1:length)
-REAL            :: t,tFuture
-INTEGER         :: I
+CHARACTER(LEN=255) :: tempStr
+REAL               :: t,tFuture,IMDtimestep
+INTEGER            :: I,iSTATUS,IMDanalyzeIter 
 !===================================================================================================================================
 IF(DoRestart)THEN
   IF(DoImportTTMFile)THEN
@@ -1768,9 +1765,34 @@ ELSE
       SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDLengthScale :",Species(i)%IMDLengthScale
       SWRITE(UNIT_StdOut,'(A,I5,A,I25)')     "   Species(",i,")%IMDNumber      :",Species(i)%IMDNumber
       SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDMultiplier  :",Species(i)%IMDMultiplier
-      ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
-      t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
+
+      ! old - ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
+      ! old - t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
+      ! old - SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t             :",t,' (',t*1e12,' ps)'
+
+      ! calc physical time in seconds for which the IMD *.chkpt file is defined
+      ! t = IMDanalyzeIter * IMDtimestep * IMDTimeScale * IMDNumber
+      IMDtimestep=0.0
+      CALL GetParameterFromFile(IMDInputFile,'timestep'   , TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
+      CALL str2real(TempStr,IMDtimestep,iSTATUS)
+      IF(iSTATUS.NE.0)THEN
+        CALL abort(&
+        __STAMP__&
+        ,'Could not find "timestep" in '//TRIM(IMDInputFile)//' for IMDtimestep!')
+      END IF
+
+      IMDanalyzeIter=0
+      CALL GetParameterFromFile(IMDInputFile,'checkpt_int', TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
+      CALL str2int(TempStr,IMDanalyzeIter,iSTATUS)
+      IF(iSTATUS.NE.0)THEN
+        CALL abort(&
+        __STAMP__&
+        ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
+      END IF
+
+      t = REAL(IMDanalyzeIter) * IMDtimestep * Species(i)%IMDTimeScale * REAL(Species(i)%IMDNumber)
       SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t             :",t,' (',t*1e12,' ps)'
+
       tFuture=t
       CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
       IF(DoImportTTMFile)THEN

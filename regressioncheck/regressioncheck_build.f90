@@ -476,6 +476,10 @@ END SUBROUTINE BuildConfiguration
 
 !==================================================================================================================================
 !> read compile flags from a specified file
+!> example line in "configuration.cmake": SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
+!> Flag: BOLTZPLATZ_EQNSYSNAME
+!> output: maxwell
+!> BACK: search from the back of the string to the front, e.g. needed for OPTION(BOLTZPLATZ_HDF5F90 "enable old HDF5 interface" OFF)
 !==================================================================================================================================
 SUBROUTINE GetFlagFromFile(FileName,Flag,output,BACK)
 ! MODULES
@@ -483,10 +487,10 @@ SUBROUTINE GetFlagFromFile(FileName,Flag,output,BACK)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
-CHARACTER(LEN=*),INTENT(IN)  :: Flag     ! e.g. 'XX_EQNSYSNAME'
-LOGICAL,OPTIONAL,INTENT(IN)  :: BACK     ! get the second argument in the option
-CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
+CHARACTER(LEN=*),INTENT(IN)    :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
+CHARACTER(LEN=*),INTENT(IN)    :: Flag     ! e.g. 'XX_EQNSYSNAME'
+LOGICAL,OPTIONAL,INTENT(IN)    :: BACK     ! get the second argument in the option -> e.g. FV=ON/OFF
+CHARACTER(LEN=*),INTENT(INOUT) :: output   ! e.g. 'navierstokes'
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                        :: ExistFile      ! file exists=.true., file does not exist=.false.

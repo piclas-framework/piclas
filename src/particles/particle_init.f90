@@ -810,6 +810,7 @@ END DO ! iSpec
 
 ! get information for IMD atom/ion charge determination and distribution
 IMDnSpecies         = GETINT('IMDnSpecies','1')
+IMDInputFile        = GETSTR('IMDInputFile','no file found')
 ALLOCATE(IMDSpeciesID(IMDnSpecies))
 ALLOCATE(IMDSpeciesCharge(IMDnSpecies))
 iIMDSpec=1

@@ -33,7 +33,32 @@ CONTAINS
 
 SUBROUTINE InitTTM()
 !===================================================================================================================================
-! IMD Two Temperature Model (TTM)
+! IMD Two Temperature Model (TTM):
+! Read TTM data from ASCII file and create FD mesh which is then mapped onto the TTM-DG solution for output
+! IMD TTM data format and target arrays for data input (from ASCII data file *.ttm) are shown below
+! -------------------------------------------------------------------------------------------------------------------------------
+! The properties and array index are chosen as follows
+!        1      2    3       4  5      6       7       8       9    10   11       ->  TTM_FD(1:11,ix,iy,iz,iLineTTM) -> TTM_DG
+!  1 2 3 4      5    6       7  8      9       10      11      12   13   14 15    ->  tmp_array(1:15)
+! #x y z natoms temp md_temp xi source v_com.x v_com.y v_com.z fd_k fd_g Z  proc
+! -------------------------------------------------------------------------------------------------------------------------------
+! read the following fields ...
+! 
+! 1.)  x:         0 to Nx-1 FD cells in x-direction                            not stored
+! 2.)  y:         0 to Ny-1 FD cells in y-direction                            not stored
+! 3.)  z:         0 to Nz-1 FD cells in z-direction                            not stored
+! 4.)  natoms:    number of atoms in the FD cell                               stored in TTM_FD(1,...  -> TTM_DG(1,...
+! 5.)  temp:      temperature of the electrons (fluid model)                   stored in TTM_FD(2,...  -> TTM_DG(2,...
+! 6.)  md_temp:   temperature of the atoms (MD simulated discrete atoms)       stored in TTM_FD(3,...  -> TTM_DG(3,...
+! 7.)  xi: ?                                                                   stored in TTM_FD(4,...  -> TTM_DG(4,...
+! 8.)  source:    energy input source, e.g., laser energy density per volume   stored in TTM_FD(5,...  -> TTM_DG(5,...
+! 9.)  v_com.x:   barycentric velocity of all MD atoms in x-direction          stored in TTM_FD(6,...  -> TTM_DG(6,...
+! 10.) v_com.y:   barycentric velocity of all MD atoms in y-direction          stored in TTM_FD(7,...  -> TTM_DG(7,...
+! 11.) v_com.z:   barycentric velocity of all MD atoms in z-direction          stored in TTM_FD(8,...  -> TTM_DG(8,...
+! 12.) fd_k:      heat conduction coefficient                                  stored in TTM_FD(9,...  -> TTM_DG(9,...
+! 13.) fd_g:      electron-phonon coupling coefficient                         stored in TTM_FD(10,... -> TTM_DG(10,...
+! 14.) Z:         averged charge of the atoms within the FD cell               stored in TTM_FD(11,... -> TTM_DG(11,...
+! 15.) proc:      rank number of MPI process                                   not stored
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -70,12 +95,12 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT TTM ...'
 
-DoImportTTMFile   =GETLOGICAL('DoImportTTMFile','.FALSE.')
+DoImportTTMFile = GETLOGICAL('DoImportTTMFile','.FALSE.')
+TTMLogFile      = TRIM(GETSTR('TTMLogFile',''))
 
 IF(DoImportTTMFile.EQV..TRUE.)THEN
   IF(DoRestart.EQV..FALSE.)THEN ! if no restart is performed: read the TTM field data from *.ttm file
     TTMFile   =TRIM(GETSTR('TTMFile',''))
-    TTMLogFile=TRIM(GETSTR('TTMLogFile',''))
     IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
       ! get FD grid array dimension in x, y and z direction
       TTMGridFDdim=GETINTARRAY('TTMGridFDdim',3,'0 , 0 , 0')
@@ -95,26 +120,6 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ElemIndexFD=0.0
         ALLOCATE( ElemIsDone(FD_nElems) )
         ElemIsDone=.FALSE.
-        ! IMD TTM data format and target arrays for data input (from ASCII data file *.ttm)
-        !        1      2    3       4  5      6       7       8       9    10   11       ->  TTM_FD(1:11,ix,iy,iz,iLineTTM) -> TTM_DG
-        !  1 2 3 4      5    6       7  8      9       10      11      12   13   14 15    ->  tmp_array(1:15)
-        ! #x y z natoms temp md_temp xi source v_com.x v_com.y v_com.z fd_k fd_g Z  proc
-        !
-        ! 1.)  x:         0 to Nx-1 FD cells in x-direction                            not stored
-        ! 2.)  y:         0 to Ny-1 FD cells in y-direction                            not stored
-        ! 3.)  z:         0 to Nz-1 FD cells in z-direction                            not stored
-        ! 4.)  natoms:    number of atoms in the FD cell                               stored in TTM_FD(1,...
-        ! 5.)  temp:      temperature of the electrons (fluid model)                   stored in TTM_FD(2,...
-        ! 6.)  md_temp:   temperature of the atoms (MD simulated discrete atoms)       stored in TTM_FD(3,...
-        ! 7.)  xi: ?                                                                   stored in TTM_FD(4,...
-        ! 8.)  source:    energy input source, e.g., laser energy density per volume   stored in TTM_FD(5,...
-        ! 9.)  v_com.x:   barycentric velocity of all MD atoms in x-direction          stored in TTM_FD(6,...
-        ! 10.) v_com.y:   barycentric velocity of all MD atoms in y-direction          stored in TTM_FD(7,...
-        ! 11.) v_com.z:   barycentric velocity of all MD atoms in z-direction          stored in TTM_FD(8,...
-        ! 12.) fd_k:      heat conduction coefficient                                  stored in TTM_FD(9,...
-        ! 13.) fd_g:      electron-phonon coupling coefficient                         stored in TTM_FD(10,...
-        ! 14.) Z:         averged charge of the atoms within the FD cell               stored in TTM_FD(11,...
-        ! 15.) proc:      rank number of MPI process                                   not stored
         SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMFile)
 #ifdef MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
@@ -260,7 +265,8 @@ END SUBROUTINE InitTTM
 
 SUBROUTINE GetFDGridCellSize(fd_hx,fd_hy,fd_hz)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! search for the following line and extract "fd_hx,fd_hy,fd_hz"
+! search for the following line and extract the values for fd_hx, fd_hy and fd_hz
+! the info is extracted from the IMD+TTM output- or log-file
 ! fd_h.x:24.107143, fd_h.y:22.509134,fd_h.z:22.509134\nnVolume of one FD cell: 1.221415e+04 [cubic Angstroms] 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
@@ -375,7 +381,9 @@ END SUBROUTINE GetFDGridCellSize
 
 SUBROUTINE InitIMD_TTM_Coupling() 
 !----------------------------------------------------------------------------------------------------------------------------------!
-! finalize TTM variables
+! 1.) assign charges to each atom using the averaged FD cell charge within each FD cell and sum the charge for step 2.)
+! 2.) reconstruct the electron phase space using MD and TTM data and the summed charged per FD cell for which an electron is 
+!     created to achieve an ionization degree of unity (fully ionized plasma)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -398,14 +406,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: ChargeLower,ChargeUpper    ! 
-INTEGER :: ElemCharge(PP_nElems)      !
+INTEGER :: ElemCharge(1:PP_nElems)      !
 INTEGER :: ElecSpecIndx,iSpec,location,iElem,iPart,ParticleIndexNbr
 REAL    :: ChargeProbability          ! 
 REAL    :: iRan, RandVal(2)           !
 REAL    :: PartPosRef(1:3)
 REAL    :: CellElectronTemperature
 !===================================================================================================================================
-ElemCharge=0
+ElemCharge(1:PP_nElems)=0
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
     IF(ANY(PartSpecies(iPart).EQ.IMDSpeciesID(:)))THEN ! 
@@ -465,20 +473,6 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-
-
-!CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3),ElemID)
-!IF(MAXVAL(ABS(PartPosRef(1:3))).LT.1.0) THEN ! particle is inside 
-!  PEM%Element(iPart)=ElemID
-!END IF
-
-!  IF(DoRefMapping)THEN
-!    CALL ParticleRefTracking() ! newton
-!
-!  ELSE
-!    CALL ParticleTracing() ! schnittpunkt
-!  CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit)
-!  END IF
 
 END SUBROUTINE InitIMD_TTM_Coupling
 

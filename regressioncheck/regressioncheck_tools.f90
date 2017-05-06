@@ -38,9 +38,9 @@ INTERFACE AddError
   MODULE PROCEDURE AddError
 END INTERFACE
 
-INTERFACE GetParameterFromFile
-  MODULE PROCEDURE GetParameterFromFile
-END INTERFACE
+!INTERFACE GetParameterFromFile
+  !MODULE PROCEDURE GetParameterFromFile
+!END INTERFACE
 
 INTERFACE CheckFileForString
   MODULE PROCEDURE CheckFileForString
@@ -58,7 +58,7 @@ END INTERFACE
 PUBLIC::GetExampleList,InitExample,CheckForExecutable,GetCommandLineOption
 PUBLIC::SummaryOfErrors
 PUBLIC::AddError
-PUBLIC::GetParameterFromFile
+!PUBLIC::GetParameterFromFile
 PUBLIC::CheckFileForString
 PUBLIC::REGGIETIME
 PUBLIC::CalcOrder
@@ -846,57 +846,57 @@ END IF
 END SUBROUTINE AddError
 
 
-!==================================================================================================================================
-!> read parameter values from a specified file
-!==================================================================================================================================
-SUBROUTINE GetParameterFromFile(FileName,ParameterName,output)
-! MODULES
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
-CHARACTER(LEN=*),INTENT(IN)  :: ParameterName     ! e.g. 'XX_EQNSYSNAME'
-CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
-INTEGER                        :: iSTATUS      ! status
-CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
-INTEGER                        :: ioUnit       ! field handler unit and ??
-INTEGER                        :: IndNum       ! Index Number
-!===================================================================================================================================
-output=''
-INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
-IF(ExistFile) THEN
-  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
-  DO
-    READ(ioUnit,'(A)',iostat=iSTATUS)temp
-    temp2=ADJUSTL(temp)
-    IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
-    IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
-    IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
-      IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
-      IF(IndNum.GT.0)THEN
-        temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
-        IndNum=INDEX(temp2, '=')
-        IF(IndNum.GT.0)THEN
-          temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
-          IndNum=INDEX(temp2, '!')
-          IF(IndNum.GT.0)THEN
-            temp2=temp2(1:IndNum-1)
-          END IF
-        END IF
-        output=TRIM(ADJUSTL(temp2))
-        EXIT
-      END IF
-    END IF
-  END DO
-  CLOSE(ioUnit)
-  IF(output.EQ.'')output='ParameterName does not exist'
-ELSE
-  output='file does not exist'
-END IF
-END SUBROUTINE GetParameterFromFile
+! !==================================================================================================================================
+! !> read parameter values from a specified file
+! !==================================================================================================================================
+! SUBROUTINE GetParameterFromFile(FileName,ParameterName,output)
+! ! MODULES
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT/OUTPUT VARIABLES
+! CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
+! CHARACTER(LEN=*),INTENT(IN)  :: ParameterName     ! e.g. 'XX_EQNSYSNAME'
+! CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
+! INTEGER                        :: iSTATUS      ! status
+! CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
+! INTEGER                        :: ioUnit       ! field handler unit and ??
+! INTEGER                        :: IndNum       ! Index Number
+! !===================================================================================================================================
+! output=''
+! INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+! IF(ExistFile) THEN
+!   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
+!   DO
+!     READ(ioUnit,'(A)',iostat=iSTATUS)temp
+!     temp2=ADJUSTL(temp)
+!     IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
+!     IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
+!     IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
+!       IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
+!       IF(IndNum.GT.0)THEN
+!         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+!         IndNum=INDEX(temp2, '=')
+!         IF(IndNum.GT.0)THEN
+!           temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
+!           IndNum=INDEX(temp2, '!')
+!           IF(IndNum.GT.0)THEN
+!             temp2=temp2(1:IndNum-1)
+!           END IF
+!         END IF
+!         output=TRIM(ADJUSTL(temp2))
+!         EXIT
+!       END IF
+!     END IF
+!   END DO
+!   CLOSE(ioUnit)
+!   IF(output.EQ.'')output='ParameterName does not exist'
+! ELSE
+!   output='file does not exist'
+! END IF
+! END SUBROUTINE GetParameterFromFile
 
 
 !==================================================================================================================================

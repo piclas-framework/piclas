@@ -95,6 +95,10 @@ INTERFACE str2logical
   MODULE PROCEDURE str2logical
 END INTERFACE
 
+INTERFACE GetParameterFromFile
+  MODULE PROCEDURE GetParameterFromFile
+END INTERFACE
+
 !===================================================================================================================================
 CONTAINS
 
@@ -462,6 +466,86 @@ INTEGER,INTENT(OUT)         :: stat
 !===================================================================================================================================
 READ(str,*,IOSTAT=stat)  logical_number
 END SUBROUTINE str2logical
+
+
+!==================================================================================================================================
+!> read compile flags from a specified file
+!> example line in "configuration.cmake": SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
+!> ParameterName: timestep
+!> output: 0.1
+!==================================================================================================================================
+SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DelimiterSymbolIN,CommentSymbolIN)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)          :: FileName          !> e.g. './../laser.inp'
+CHARACTER(LEN=*),INTENT(IN)          :: ParameterName     !> e.g. 'timestep'
+CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: DelimiterSymbolIN !> e.g. '='
+CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: CommentSymbolIN   !> e.g. '#'
+CHARACTER(LEN=*),INTENT(INOUT)       :: output            !> e.g. '0.1'
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                        :: ExistFile               !> file exists=.true., file does not exist=.false.
+INTEGER                        :: iSTATUS                 !> status
+CHARACTER(LEN=255)             :: temp,temp2,temp3        !> temp variables for read in of file lines
+CHARACTER(LEN=255)             :: DelimiterSymbol         !> symbol for commenting out code, e.g., "#" or "!"
+CHARACTER(LEN=255)             :: CommentSymbol           !> symbol for commenting out code, e.g., "#" or "!"
+INTEGER                        :: ioUnit                  !> field handler unit and ??
+INTEGER                        :: IndNum,IndNum2          !> Index Number
+CHARACTER(LEN=8)               :: DefMsg
+!===================================================================================================================================
+IF(PRESENT(DelimiterSymbolIN))THEN
+  DelimiterSymbol=TRIM(ADJUSTL(DelimiterSymbolIN))
+ELSE
+  DelimiterSymbol='='
+END IF
+IF(PRESENT(CommentSymbolIN))THEN
+  CommentSymbol=TRIM(ADJUSTL(CommentSymbolIN))
+ELSE
+  CommentSymbol='!'
+END IF
+output=''
+! read from file
+INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+IF(ExistFile) THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
+  DO
+    READ(ioUnit,'(A)',iostat=iSTATUS)temp
+    IF(ADJUSTL(temp).EQ.TRIM(CommentSymbol)) CYCLE  ! complete line is commented out
+    IF(iSTATUS.EQ.-1)EXIT                           ! end of file is reached
+    IF(LEN(trim(temp)).GT.1)THEN                    ! exclude empty lines
+      IndNum=INDEX(temp,TRIM(ParameterName))        ! e.g. 'timestep'
+      IF(IndNum.GT.0)THEN
+        IF(IndNum-1.GT.0)THEN                       ! check if the parameter name is contained within a substring of another 
+          IF(temp(IndNum-1:IndNum-1).NE.' ')CYCLE   ! parameter, e.g., "timestep" within "fd_timestep" -> skip
+        END IF
+        temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+        IF(DelimiterSymbol.NE.'')THEN               ! demiliting symbol must not be empty
+          IndNum=INDEX(temp2,TRIM(DelimiterSymbol)) ! only use string FROM delimiting symbol
+          IF(IndNum.EQ.0)THEN
+            temp3=TRIM(ADJUSTL(temp2(IndNum+1:LEN(temp2))))
+            temp2=temp3
+          END IF
+        END IF
+        IndNum=INDEX(temp2,TRIM(CommentSymbol)) ! only use string UP TO commenting symbol
+        IF(IndNum.EQ.0)IndNum=LEN(TRIM(temp2))+1
+        output=TRIM(ADJUSTL(temp2(1:IndNum-1)))
+        DefMsg='CUSTOM'
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM(ParameterName),' | ', output,' | ',TRIM(DefMsg),' | '
+        EXIT ! found the parameter -> exit loop
+      END IF
+    END IF
+  END DO
+  CLOSE(ioUnit)
+  IF(output.EQ.'')output='ParameterName does not exist'
+ELSE 
+  output='file does not exist'
+END IF
+END SUBROUTINE GetParameterFromFile
+
+
 
 
 FUNCTION INTSTAMP(Nam,Num)

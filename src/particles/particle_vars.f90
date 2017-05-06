@@ -18,6 +18,7 @@ LOGICAL               :: KeepWallParticles                                   ! F
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
 REAL                  :: IMDLengthScale                                      ! global IMD length scale
+CHARACTER(255)        :: IMDInputFile                                        ! Laser data file name containing PartState(1:6)
 INTEGER               :: IMDnSpecies                                         ! number of IMD species
 INTEGER , ALLOCATABLE :: IMDSpeciesID(:)                                     ! species ID for distributing the IMD atoms/ions
 INTEGER , ALLOCATABLE :: IMDSpeciesCharge(:)                                 ! charge number of IMD atoms/ions
