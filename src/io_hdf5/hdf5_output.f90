@@ -1734,7 +1734,7 @@ SUBROUTINE WriteIMDStateToHDF5(time)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,         ONLY: Species,nSpecies,IMDInputFile
+USE MOD_Particle_Vars,         ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_TTM_Vars,              ONLY: DoImportTTMFile,TTMLogFile
@@ -1758,56 +1758,51 @@ IF(DoRestart)THEN
     SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created."
   END IF
 ELSE
-  DO I = 1,nSpecies
-      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
-    IF(Species(i)%IMDTimeScale.GT.0.0)THEN
-      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDTimeScale   :",Species(i)%IMDTimeScale
-      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDLengthScale :",Species(i)%IMDLengthScale
-      SWRITE(UNIT_StdOut,'(A,I5,A,I25)')     "   Species(",i,")%IMDNumber      :",Species(i)%IMDNumber
-      SWRITE(UNIT_StdOut,'(A,I5,A,E25.14E3)')"   Species(",i,")%IMDMultiplier  :",Species(i)%IMDMultiplier
+  IF(IMDTimeScale.GT.0.0)THEN
 
-      ! old - ! calc physical time in seconds for which the IMD *.chkpt file is defined: IMDTimeScale * IMDNumber * IMDMultiplier
-      ! old - t=Species(i)%IMDTimeScale*REAL(Species(i)%IMDNumber)*Species(i)%IMDMultiplier                      
-      ! old - SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t             :",t,' (',t*1e12,' ps)'
-
-      ! calc physical time in seconds for which the IMD *.chkpt file is defined
-      ! t = IMDanalyzeIter * IMDtimestep * IMDTimeScale * IMDNumber
-      IMDtimestep=0.0
-      CALL GetParameterFromFile(IMDInputFile,'timestep'   , TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
-      CALL str2real(TempStr,IMDtimestep,iSTATUS)
-      IF(iSTATUS.NE.0)THEN
-        CALL abort(&
-        __STAMP__&
-        ,'Could not find "timestep" in '//TRIM(IMDInputFile)//' for IMDtimestep!')
-      END IF
-
-      IMDanalyzeIter=0
-      CALL GetParameterFromFile(IMDInputFile,'checkpt_int', TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
-      CALL str2int(TempStr,IMDanalyzeIter,iSTATUS)
-      IF(iSTATUS.NE.0)THEN
-        CALL abort(&
-        __STAMP__&
-        ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
-      END IF
-
-      t = REAL(IMDanalyzeIter) * IMDtimestep * Species(i)%IMDTimeScale * REAL(Species(i)%IMDNumber)
-      SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t             :",t,' (',t*1e12,' ps)'
-
-      tFuture=t
-      CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-      IF(DoImportTTMFile)THEN
-        SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created."
-        CALL WriteTTMToHDF5(t)
-        SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating successfully!"
-      ELSE 
-        SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating successfully!"
-      END IF
-      STOP 0 ! terminate successfully
-      !CALL abort(&
-      !__STAMP__&
-      !,'StateFile from IMD data created. Terminating now!')
+    ! calc physical time in seconds for which the IMD *.chkpt file is defined
+    ! t = IMDanalyzeIter * IMDtimestep * IMDTimeScale * IMDNumber
+    IMDtimestep=0.0
+    CALL GetParameterFromFile(IMDInputFile,'timestep'   , TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
+    CALL str2real(TempStr,IMDtimestep,iSTATUS)
+    IF(iSTATUS.NE.0)THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Could not find "timestep" in '//TRIM(IMDInputFile)//' for IMDtimestep!')
     END IF
-  END DO
+
+    IMDanalyzeIter=0
+    CALL GetParameterFromFile(IMDInputFile,'checkpt_int', TempStr ,DelimiterSymbolIN=' ',CommentSymbolIN='#')
+    CALL str2int(TempStr,IMDanalyzeIter,iSTATUS)
+    IF(iSTATUS.NE.0)THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
+    END IF
+
+    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDtimestep       :",IMDtimestep
+    SWRITE(UNIT_StdOut,'(A,I25)')                    "   IMDanalyzeIter    :",IMDanalyzeIter
+    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDTimeScale      :",IMDTimeScale
+    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDLengthScale    :",IMDLengthScale
+    SWRITE(UNIT_StdOut,'(A,I25)')                    "   IMDNumber         :",IMDNumber
+    t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
+    SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t :",t,' (',t*1e12,' ps)'
+
+    tFuture=t
+    CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+    IF(DoImportTTMFile)THEN
+      SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created."
+      CALL WriteTTMToHDF5(t)
+      SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating successfully!"
+    ELSE 
+      SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating successfully!"
+    END IF
+    STOP 0 ! terminate successfully
+  ELSE
+    CALL abort(&
+    __STAMP__&
+    , " IMDLengthScale.LE.0.0 which is not allowed")
+  END IF
 END IF
 END SUBROUTINE WriteIMDStateToHDF5
 

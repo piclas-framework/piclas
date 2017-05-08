@@ -120,6 +120,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ElemIndexFD=0.0
         ALLOCATE( ElemIsDone(FD_nElems) )
         ElemIsDone=.FALSE.
+        !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("Reading TTM data from"),' | ', TRIM(TTMFile),&
+                                                      !' | ',TRIM("OUTPUT"),' | '
         SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMFile)
 #ifdef MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
@@ -150,8 +152,10 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
     
         read(StrTmp,*,iostat=io_error)  i
         TTMNumber = i
-        SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.ttm file = ",StrTmp
-        SWRITE(UNIT_stdOut,'(A,I10)') " TTMNumber      = ",TTMNumber
+        !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("IMD *.ttm file"),' | ', TRIM(StrTmp),' | ',TRIM("OUTPUT"),' | '
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("TTMNumber")     ,' | ', TTMNumber   ,' | ',TRIM("OUTPUT"),' | '
+        !SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.ttm file = ",StrTmp
+        !SWRITE(UNIT_stdOut,'(A,I10)') " TTMNumber      = ",TTMNumber
     
         iLineTTM=0
         DO i=1,1 ! header lines: currently 1 -> adjust?

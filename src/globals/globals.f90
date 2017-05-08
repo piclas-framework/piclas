@@ -473,6 +473,7 @@ END SUBROUTINE str2logical
 !> example line in "configuration.cmake": SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 !> ParameterName: timestep
 !> output: 0.1
+!> Type of Msg: [G]et[P]arameter[F]rom[File] -> GPFF: not ordinary read-in tool
 !==================================================================================================================================
 SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DelimiterSymbolIN,CommentSymbolIN)
 ! MODULES
@@ -532,7 +533,7 @@ IF(ExistFile) THEN
         IndNum=INDEX(temp2,TRIM(CommentSymbol)) ! only use string UP TO commenting symbol
         IF(IndNum.EQ.0)IndNum=LEN(TRIM(temp2))+1
         output=TRIM(ADJUSTL(temp2(1:IndNum-1)))
-        DefMsg='CUSTOM'
+        DefMsg='GPFF'
         SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM(ParameterName),' | ', output,' | ',TRIM(DefMsg),' | '
         EXIT ! found the parameter -> exit loop
       END IF

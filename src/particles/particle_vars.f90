@@ -16,12 +16,21 @@ LOGICAL               :: useManualTimeStep                                   ! L
                                                                              ! with IAG programming style
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
+! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
+REAL                  :: IMDTimeScale                                        ! Time unit of input file
 REAL                  :: IMDLengthScale                                      ! global IMD length scale
+INTEGER               :: IMDNumber                                           ! Output number IMD Data file
 CHARACTER(255)        :: IMDInputFile                                        ! Laser data file name containing PartState(1:6)
 INTEGER               :: IMDnSpecies                                         ! number of IMD species
 INTEGER , ALLOCATABLE :: IMDSpeciesID(:)                                     ! species ID for distributing the IMD atoms/ions
 INTEGER , ALLOCATABLE :: IMDSpeciesCharge(:)                                 ! charge number of IMD atoms/ions
+CHARACTER(255)        :: IMDAtomFile                                         ! Laser data file name containing PartState(1:6)
+REAL                  :: IMDCutOffxValue                                     ! cut-off coordinate for IMDCutOff='coordiantes'
+CHARACTER(255)        :: IMDCutOff                                           ! cut-off type for IMD data reduction: 1.) no_cutoff
+                                                                             !                                      2.) Epot
+                                                                             !                                      3.) coordinates
+                                                                             !                                      4.) velocity
 REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  
@@ -116,12 +125,6 @@ TYPE tInit                                                                   ! P
   !Specific Emission/Init values
   LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
   LOGICAL                                :: UseForEmission                   ! Use Init/Emission for emission?
-  CHARACTER(255)                         :: IMDFile                          ! Laser data file name containing PartState(1:6)
-  REAL                                   :: IMDCutOffxValue                  ! cut-off coordinate for IMDCutOff='coordiantes'
-  CHARACTER(255)                         :: IMDCutOff                        ! cut-off type for IMD data reduction: 1.) no_cutoff
-                                                                             !                                      2.) Epot
-                                                                             !                                      3.) coordinates
-                                                                             !                                      4.) velocity
   CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
   INTEGER(8)                             :: initialParticleNumber            ! Number of Particles at time 0.0
@@ -229,10 +232,6 @@ TYPE tSpecies                                                                ! P
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
-  REAL                                   :: IMDTimeScale                     ! Time unit of input file                               
-  REAL                                   :: IMDLengthScale                   ! Time unit of input file                               
-  INTEGER                                :: IMDNumber                        ! Output number IMD Data file                           
-  REAL                                   :: IMDMultiplier                    ! Multiplier for Output number IMD Data file
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
   TYPE(tSurfaceflux),ALLOCATABLE         :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission

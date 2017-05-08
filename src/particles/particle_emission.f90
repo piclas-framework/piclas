@@ -529,6 +529,7 @@ USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY:DoPoissonRounding
+USE MOD_Particle_Vars,         ONLY:IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
@@ -1533,8 +1534,10 @@ __STAMP__&
        END DO
     CASE('IMD') ! read IMD particle position from *.chkpt file
       ! set velocity distribution to read external data
-      SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(Species(FractNbr)%Init(iInit)%IMDFile)
-      IF(TRIM(Species(FractNbr)%Init(iInit)%IMDFile).NE.'no file found')THEN
+      SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(IMDAtomFile)
+      !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("Reading IMD data from"),' | ', TRIM(IMDAtomFile),&
+                                                    !' | ',TRIM("OUTPUT"),' | '
+      IF(TRIM(IMDAtomFile).NE.'no file found')THEN
         Species(FractNbr)%Init(iInit)%velocityDistribution='IMD'
 #ifdef MPI
         IF(.NOT.PartMPI%InitGroup(InitGroup)%MPIROOT)THEN
@@ -1544,7 +1547,7 @@ __STAMP__&
 #endif /*MPI*/
         ! Read particle data from file
         ioUnit=GETFREEUNIT()
-        OPEN(UNIT=ioUnit,FILE=TRIM(Species(FractNbr)%Init(iInit)%IMDFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
+        OPEN(UNIT=ioUnit,FILE=TRIM(IMDAtomFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
         IF(io_error.NE.0)THEN
           CALL abort(__STAMP__&
           ,'ERROR in particle_emission.f90: Cannot open specified File (particle position) for SpaceIC=IMD!')
@@ -1553,10 +1556,10 @@ __STAMP__&
         !   1      2    3         4           5         6         7         8         9         10       11     12
         !#C number type mass      x           y         z         vx        vy        vz        Epot     Z      eam_rho
         !   2294   0    26.981538 3589.254381 46.066405 91.985804 -1.576543 -0.168184 -0.163417 0.000000 2.4332 0.000000
-        IndNum=INDEX(Species(FractNbr)%Init(iInit)%IMDFile, '/',BACK = .TRUE.)
+        IndNum=INDEX(IMDAtomFile, '/',BACK = .TRUE.)
         IF(IndNum.GT.0)THEN
-          !IndNum=INDEX(Species(FractNbr)%Init(iInit)%IMDFile,'/',BACK = .TRUE.) ! get path without binary
-          StrTmp=TRIM(Species(FractNbr)%Init(iInit)%IMDFile(IndNum+1:LEN(Species(FractNbr)%Init(iInit)%IMDFile)))
+          !IndNum=INDEX(IMDAtomFile,'/',BACK = .TRUE.) ! get path without binary
+          StrTmp=TRIM(IMDAtomFile(IndNum+1:LEN(IMDAtomFile)))
           IndNum=INDEX(StrTmp,'.',BACK = .TRUE.)
           IF(IndNum.GT.0)THEN
             StrTmp=StrTmp(1:IndNum-1)
@@ -1566,9 +1569,14 @@ __STAMP__&
             END IF
           END IF
         END IF
-        read(StrTmp,*,iostat=io_error)  Species(FractNbr)%IMDNumber
-        SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.chkpt file                            : ",TRIM(StrTmp)
-        SWRITE(UNIT_stdOut,'(A,I15)') " Species(FractNbr)%IMDNumber                 : ",Species(FractNbr)%IMDNumber
+        read(StrTmp,*,iostat=io_error)  IMDNumber
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("IMD *.chkpt file"),' | ', TRIM(StrTmp),' | ',TRIM("OUTPUT"),' | '
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("IMDNumber")       ,' | ', IMDNumber   ,' | ',TRIM("OUTPUT"),' | '
+        !SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
+        !SWRITE(UNIT_stdOut,'(A68,L,A)') ' |               IMD *.chkpt file |                                 ',DoRefMapping,&
+  !' | OUTPUT |'
+        !SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.chkpt file          : ",TRIM(StrTmp)
+        !SWRITE(UNIT_stdOut,'(A,I15)') " IMDNumber                 : ",IMDNumber
         Nshift=0
         xMin=HUGE(1.)
         yMin=HUGE(1.)
@@ -1598,18 +1606,18 @@ __STAMP__&
                                  IMD_array(5)       *1.E-10-10.13E-9,&
                                -(IMD_array(4)-10500)*1.E-10/)
             ELSE ! no transformation
-              Particle_pos = (/  IMD_array(4)*Species(FractNbr)%IMDLengthScale,&
-                                 IMD_array(5)*Species(FractNbr)%IMDLengthScale,&
-                                 IMD_array(6)*Species(FractNbr)%IMDLengthScale/)
+              Particle_pos = (/  IMD_array(4)*IMDLengthScale,&
+                                 IMD_array(5)*IMDLengthScale,&
+                                 IMD_array(6)*IMDLengthScale/)
             END IF
             particle_positions((i-Nshift)*3-2) = Particle_pos(1)
             particle_positions((i-Nshift)*3-1) = Particle_pos(2)
             particle_positions((i-Nshift)*3  ) = Particle_pos(3)
 
             PartState(i-Nshift,4:6) =&
-            (/IMD_array(7)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
-              IMD_array(8)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
-              IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
+            (/IMD_array(7)*IMDLengthScale/IMDTimeScale,&
+              IMD_array(8)*IMDLengthScale/IMDTimeScale,&
+              IMD_array(9)*IMDLengthScale/IMDTimeScale/)
 
             xMin=MIN(Particle_pos(1),xMin)
             yMin=MIN(Particle_pos(2),yMin)
@@ -1618,14 +1626,14 @@ __STAMP__&
             yMax=MAX(Particle_pos(2),yMax)
             zMax=MAX(Particle_pos(3),zMax)
             ! check cutoff
-            SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%IMDCutOff))
+            SELECT CASE(TRIM(IMDCutOff))
             CASE('no_cutoff') ! nothing to do
             CASE('Epot') ! kill particles that have Epot (i.e. they are in the solid body)
               IF(ABS(IMD_array(10)).GT.0.0)THEN ! IMD_array(10) is Epot
                 Nshift=Nshift+1
               END IF
             CASE('coordinates') ! kill particles that are below a certain threshold in z-direction
-              IF(IMD_array(4)*Species(FractNbr)%IMDLengthScale.GT.Species(FractNbr)%Init(iInit)%IMDCutOffxValue)THEN
+              IF(IMD_array(4)*IMDLengthScale.GT.IMDCutOffxValue)THEN
                 Nshift=Nshift+1
               END IF
             CASE('velocity') ! kill particles that are below a certain velocity threshold
@@ -1645,7 +1653,7 @@ __STAMP__&
         SWRITE(UNIT_stdOut,'(A,I15)')  "Particles Read: chunkSize/NbrOfParticle = ",(i-Nshift)-1
         chunkSize     = (i-Nshift)-1 ! don't change here, change at velocity
         NbrOfParticle = (i-Nshift)-1 ! don't change here, change at velocity
-      ELSE ! TRIM(Species(FractNbr)%Init(iInit)%IMDFile) = 'no file found' -> exit
+      ELSE ! TRIM(IMDAtomFile) = 'no file found' -> exit
         Species(FractNbr)%Init(iInit)%velocityDistribution=''
       END IF
     END SELECT
@@ -2535,114 +2543,8 @@ CASE('OneD-twostreaminstabilty')
     END IF  
   END DO
 
-CASE('IMD') ! read IMD particle velocity from *.chkpt file
+CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
   ! do nothing
-CASE('IMD-test') ! delete this when everything is running!
-  print*,"==============================================================================="
-  print*,"velocity"
-!read*
-  Nshift=0
-  ioUnit=GETFREEUNIT()
-  !OPEN(UNIT=120,FILE='laser.00007.chkpt_10000_parts',STATUS='OLD',ACTION='READ',IOSTAT=io_error)
-  OPEN(UNIT=ioUnit,FILE=TRIM(Species(FractNbr)%Init(iInit)%IMDFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
-  !DO i=1,9
-    !READ(ioUnit,*)
-  !END DO
-        DO i=1,9
-        !print*,"i",i
-          !READ(ioUnit,*)
-          READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
-          print*,i,' : ',StrTmp
-        END DO
-  IF(io_error.NE.0)THEN
-    CALL abort(__STAMP__&
-    ,'ERROR in particle_emission.f90: Cannot open specified File (particle velocity) for SpaceIC=IMD!')
-  END IF
-  ! get particle velocity
-  print*,"NbrOfParticle",NbrOfParticle
-  print*,"of PDM%maxParticleNumber",PDM%maxParticleNumber
-  DO i=1,PDM%maxParticleNumber !NbrOfParticle
-        READ(ioUnit,*,IOSTAT=io_error) IMD_array(1:12)
-        IF(io_error>0)THEN
-          CALL abort(__STAMP__&
-          ,'ERROR in particle_emission.f90: Error reading specified File (particle velocity) for SpaceIC=IMD!')
-     !   ELSE IF(io_error<0)THEN
-     !     SWRITE(*,*) "End of file reached. i=",i
-     !     EXIT
-     !   ELSE
-        ELSE IF(io_error<0)THEN
-          SWRITE(*,*) "End of file reached. i=",i
-          SWRITE(*,*) "Particles Read: chunkSize/NbrOfParticle=>",i-1
-          !chunkSize     = (i-Nshift)-1
-          NbrOfParticle = (i-Nshift)-1
-          EXIT
-        ELSE
-        END IF
-       ! switch Vx and Vz and invert Vz
-       PartState(i-Nshift,4:6) =&
-       (/IMD_array(9)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
-         IMD_array(8)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale,&
-        -IMD_array(7)*Species(FractNbr)%IMDLengthScale/Species(FractNbr)%IMDTimeScale/)
-
-
-
-
-
-!      ! convert kinetic energy to velocity
-!        !SIGN(A,B) returns the value of A with the sign of B.
-!        !Return value: The kind of the return value is that of A and B. If B\ge 0 then the result is ABS(A), else it is -ABS(A). 
-!       ! Vx
-!       IF(1.EQ.1)THEN
-!         Ekin                  = SQRT(PartState(i-Nshift,4)**2+PartState(i-Nshift,5)**2+PartState(i-Nshift,6)**2)
-!         Vabs                  = SQRT(2.0*Ekin*1.60217657E-19/Species(FractNbr)%MassIC)
-!         PartState(i-Nshift,4) = PartState(i-Nshift,4)*Vabs/Ekin
-!         PartState(i-Nshift,5) = PartState(i-Nshift,5)*Vabs/Ekin
-!         PartState(i-Nshift,6) = PartState(i-Nshift,6)*Vabs/Ekin
-!         
-!       ELSE ! Komponentenweise
-!         IF(PartState(i-Nshift,4).LT.0.0)THEN
-!            PartState(i-Nshift,4)=-SQRT(-2.0*PartState(i-Nshift,4)*1.60217657E-19/Species(FractNbr)%MassIC)
-!         ELSE
-!            PartState(i-Nshift,4)= SQRT( 2.0*PartState(i-Nshift,4)*1.60217657E-19/Species(FractNbr)%MassIC)
-!         END IF
-!         ! Vy
-!         IF(PartState(i-Nshift,5).LT.0.0)THEN
-!            PartState(i-Nshift,5)=-SQRT(-2.0*PartState(i-Nshift,5)*1.60217657E-19/Species(FractNbr)%MassIC)
-!         ELSE
-!            PartState(i-Nshift,5)= SQRT( 2.0*PartState(i-Nshift,5)*1.60217657E-19/Species(FractNbr)%MassIC)
-!         END IF
-!         ! Vz
-!         IF(PartState(i-Nshift,6).LT.0.0)THEN
-!            PartState(i-Nshift,6)=-SQRT(-2.0*PartState(i-Nshift,6)*1.60217657E-19/Species(FractNbr)%MassIC)
-!         ELSE
-!            PartState(i-Nshift,6)= SQRT( 2.0*PartState(i-Nshift,6)*1.60217657E-19/Species(FractNbr)%MassIC)
-!         END IF
-!       END IF
-!      ! PartState(i-Nshift,4:6) = &
-!      ! SIGN(SQRT(2.0*ABS(PartState(i-Nshift,4:6))*1.60217657E-19/Species(FractNbr)%MassIC),PartState(i-Nshift,4:6))
-
-
-
-
-       SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%IMDCutOff))
-       CASE('no_cutoff') ! nothing to do
-       CASE('Epot') ! kill particles that have Epot (i.e. they are in the solid body)
-         IF(IMD_array(10).GT.0.0)THEN ! IMD_array(10) is Epot
-           Nshift=Nshift+1
-         END IF
-       CASE('coordinates') ! kill particles that are below a certain threshold in z-direction
-         CALL abort(__STAMP__&
-         ,'ERROR in particle_emission.f90: not implemented yet!')
-       CASE('velocity') ! kill particles that are below a certain velocity threshold
-         CALL abort(__STAMP__&
-         ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')
-       END SELECT
-  END DO
-  CLOSE(ioUnit)
-
-
-
-
 CASE DEFAULT
   CALL abort(&
 __STAMP__&

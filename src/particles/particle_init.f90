@@ -335,8 +335,21 @@ KeepWallParticles = .FALSE.
 nSpecies = GETINT('Part-nSpecies','1')
 
 ! IMD data import from *.chkpt file
-DoImportIMDFile=.FALSE.
+DoImportIMDFile=.FALSE. ! default
 IMDLengthScale=0.0
+
+IMDTimeScale          = GETREAL('IMDTimeScale','10.18e-15')
+IMDLengthScale        = GETREAL('IMDLengthScale','1.0E-10')
+IMDAtomFile           = GETSTR( 'IMDAtomFile','no file found')         
+IMDCutOff             = GETSTR( 'IMDCutOff','no_cutoff')
+IMDCutOffxValue       = GETREAL('IMDCutOffxValue','-999.9')
+
+IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
+IF(DoImportIMDFile)THEN
+  DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
+  SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
+  ' | *CUSTOM |'
+END IF
 
 
 ! init varibale MPF per particle
@@ -411,10 +424,6 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC','0.')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
-      Species(iSpec)%IMDTimeScale          = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDTimeScale','0.0')
-      Species(iSpec)%IMDLengthScale        = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDLengthScale','0.0')
-      IF(Species(iSpec)%IMDLengthScale.GT.0.0)IMDLengthScale=Species(iSpec)%IMDLengthScale
-      Species(iSpec)%IMDMultiplier         = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDMultiplier','0.0')
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
 #endif
@@ -422,18 +431,9 @@ DO iSpec = 1, nSpecies
     ! get emission and init data
     Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
     Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
-    Species(iSpec)%Init(iInit)%IMDFile               = GETSTR('Part-Species'//TRIM(hilf2)//'-IMDFile','no file found')         
-    Species(iSpec)%Init(iInit)%IMDCutOff             = GETSTR('Part-Species'//TRIM(hilf2)//'-IMDCutOff','no_cutoff')
-    Species(iSpec)%Init(iInit)%IMDCutOffxValue       = GETREAL('Part-Species'//TRIM(hilf2)//'-IMDCutOffxValue','-999.9')
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
-    IF(TRIM(Species(iSpec)%Init(iInit)%IMDFile).NE.'no file found')DoImportIMDFile=.TRUE.
-    IF(DoImportIMDFile)THEN
-      DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
-      SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
-      ' | *CUSTOM |'
-    END IF
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
     Species(iSpec)%Init(iInit)%RadiusICGyro          = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
