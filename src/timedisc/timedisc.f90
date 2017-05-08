@@ -219,7 +219,7 @@ USE MOD_Equation,              ONLY: EvalGradient
 #endif /*PP_POIS*/
 USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 #ifdef MPI
-USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
+USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 !USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
@@ -515,7 +515,6 @@ DO !iter_t=0,MaxIter
     END IF
     CalcTimeEnd=BOLTZPLATZTIME()
 #ifdef MPI
-    !CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
     CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
