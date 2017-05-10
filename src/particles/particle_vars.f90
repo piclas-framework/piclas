@@ -202,6 +202,7 @@ TYPE tSurfaceflux
   INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
+  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
   LOGICAL                                :: SimpleRadialVeloFit !fit of veloR/veloTot=-r*(A*exp(B*r)+C)
   REAL                                   :: preFac !A
   REAL                                   :: powerFac !B

@@ -261,7 +261,6 @@ SDEALLOCATE(BezierSampleXi)
 SDEALLOCATE(SurfMeshSubSideData)
 SDEALLOCATE(SurfMeshSideAreas)
 SDEALLOCATE(BCdata_auxSF)
-SDEALLOCATE(SurfFluxSideRejectType)
 #ifdef CODE_ANALYZE
 SDEALLOCATE(SideBoundingBoxVolume)
 #endif
