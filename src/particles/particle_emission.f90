@@ -3227,7 +3227,6 @@ __STAMP__&
             ,'ERROR in init: axialDir for SFradial must be between 1 and 3!')
         END IF
         Species(iSpec)%Surfaceflux(iSF)%origin       = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-origin',2,'0. , 0.')
-        Species(iSpec)%Surfaceflux(iSF)%rmin     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmin','0.')
         WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(Species(iSpec)%Surfaceflux(iSF)%rmax)
         Species(iSpec)%Surfaceflux(iSF)%rmax     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmax',TRIM(hilf3))
       END IF !Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit
@@ -3400,7 +3399,7 @@ DO iSpec=1,nSpecies
             ,BezierSurfFluxProjection_opt=.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal &
             ,SurfMeshSubSideAreas=tmp_SubSideAreas)  !SubSide-areas proj. to inwards normals
         END IF
-        !-- check where the sides are located relative to rmin and rmax (based on corner nodes of bounding box)
+        !-- check where the sides are located relative to rmax (based on corner nodes of bounding box)
         !- RejectType=0 : complete side is inside valid bounds
         !- RejectType=1 : complete side is outside of valid bounds
         !- RejectType=2 : side is partly inside valid bounds
@@ -3418,15 +3417,13 @@ DO iSpec=1,nSpecies
                 point(2) = BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),iPoint)-Species(iSpec)%Surfaceflux(iSF)%origin(2)
                 radius = SQRT( (point(1))**2+(point(2))**2 )
                 IF (iPoint.EQ.1) THEN
-                  IF (radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin .AND. &
-                      radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+                  IF (radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
                     insideBound=.TRUE.
                   ELSE !outside
                     insideBound=.FALSE.
                   END IF !in-/outside?
                 ELSE !iPoint.GT.1: type must be 2 if state of point if different from last point
-                  IF (radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin .AND. &
-                      radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+                  IF (radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
                     IF (.NOT.insideBound) THEN !different from last point
                       SurfFluxSideRejectType(iSide)=2
                       nType2=nType2+1
@@ -3485,7 +3482,7 @@ __STAMP__&
 __STAMP__&
 ,'wrong velo-distri for Surfaceflux!')
           END SELECT
-          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmin/rmax-rejection
+          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
             IF (SurfFluxSideRejectType(iSide).EQ.1) THEN ! complete side is outside of valid bounds
               nVFR = 0.
             END IF
@@ -3839,7 +3836,7 @@ __STAMP__&
           END DO !Jacobian-based ARM-loop
           CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
 
-          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmin/rmax-rejection
+          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
             SELECT CASE(SurfFluxSideRejectType(iSide))
             CASE(0) !- RejectType=0 : complete side is inside valid bounds
               AcceptPos=.TRUE.
@@ -3852,8 +3849,7 @@ __STAMP__&
               point(1)=Particle_pos(dir(2))-origin(1)
               point(2)=Particle_pos(dir(3))-origin(2)
               radius=SQRT( (point(1))**2+(point(2))**2 )
-              IF (radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin .AND. &
-                  radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+              IF (radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
                 AcceptPos=.TRUE.
               ELSE
                 AcceptPos=.FALSE.
@@ -3863,7 +3859,7 @@ __STAMP__&
 __STAMP__&
 ,'wrong SurfFluxSideRejectType!')
             END SELECT !SurfFluxSideRejectType
-          ELSE !no check for rmin/rmax-rejection
+          ELSE !no check for rmax-rejection
             AcceptPos=.TRUE.
           END IF !SimpleRadialVeloFit
 
@@ -3879,7 +3875,7 @@ __STAMP__&
             iPart=iPart+1
           ELSE
             nReject=nReject+1
-            IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmin/rmax-rejection    
+            IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
               allowedRejections=allowedRejections+1
             END IF
           END IF
