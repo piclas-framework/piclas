@@ -3911,6 +3911,9 @@ END IF
 
 CALL HDG(t,U,iter)
 
+! calling the analyze routines
+CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
+
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
@@ -3925,12 +3928,7 @@ IF (t.GE.DelayTime) THEN
   !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
   CALL CalcPartRHS()
 END IF
-#endif /*PARTICLES*/
 
-! calling the analyze routines
-CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
-
-#ifdef PARTICLES
 ! particles
 IF (t.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
