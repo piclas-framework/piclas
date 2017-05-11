@@ -656,7 +656,7 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero,AlmostEqualToTolerance,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
@@ -667,6 +667,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals!,epsilonTol
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
 USE MOD_Globals,                 ONLY:myrank
 USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
@@ -693,7 +694,7 @@ REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGe
 #ifdef CODE_ANALYZE
 REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 #endif /*CODE_ANALYZE*/
-INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
+INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID,realInterID
 LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
@@ -839,6 +840,16 @@ END IF
   locEta(1)=XiNewton(2)
 END IF
 
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(iPart.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,*)'----------------------------------------------'
+    IPWRITE(UNIT_stdout,*)' PARTOUT        = ',PARTOUT
+    IPWRITE(UNIT_stdout,*)' nInterSections = ',nInterSections
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
 SELECT CASE(nInterSections)
 CASE(0)
   RETURN
@@ -864,7 +875,13 @@ CASE DEFAULT
   ! sort intersection distance
 !  CALL BubbleSortID(locAlpha,locID,nIntersections)
   CALL InsertionSort(locAlpha(1:nIntersections),locID,nIntersections)
-  
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' locAlpha-sorted ',locAlpha(1:nIntersections)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
   IF(DoRefMapping)THEN
     DO iInter=1,nInterSections 
       IF(locAlpha(iInter).GT.-1.0)THEN
@@ -878,95 +895,51 @@ CASE DEFAULT
     END DO ! iInter
   ELSE
     ! no ref mapping
-    IF(SideID.LE.nSides)THEN
-      IF(SideID.LE.nBCSides)THEN
-        ! requires first hit with BC
-        ! take closest
-        DO iInter=1,nInterSections 
-          IF(locAlpha(iInter).GT.-1.0)THEN
-            alpha=locAlpha(iInter)
-            xi =locXi (locID(iInter))
-            eta=loceta(locID(iInter))
-            DEALLOCATE(locID)
-            isHit=.TRUE.
-            IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
-            IF(CriticalParallelInSide)THEN
-              IF(ALMOSTZERO(alpha))THEN
-                IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
-              END IF
-            END IF
-            RETURN 
-          END IF
-        END DO ! iInter
-      ELSE ! inner side
-        realnInter=1
-        isInter=1
-        DO iInter=2,nInterSections
-          IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
-          .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
-              realNInter=realnInter+1
-              isInter=iInter
-          END IF
-        END DO
-        IF(MOD(realNInter,2).EQ.0) THEN
-          DEALLOCATE(locID)
-          alpha=-1.0
-          isHit=.FALSE.
-          IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
-          IF(CriticalParallelInSide)THEN
-            IF(ALMOSTZERO(alpha))THEN
-              IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
-            END IF
-          END IF
-          RETURN ! leave and enter a cell multiple times
-        ELSE
-          alpha=locAlpha(isInter)
-          xi =locXi (locID(isInter))
-          eta=loceta(locID(isInter))
-          isHit=.TRUE.
-          DEALLOCATE(locID)
-          IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
-          IF(CriticalParallelInSide)THEN
-            IF(ALMOSTZERO(alpha))THEN
-              IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
-            END IF
-          END IF
-          RETURN
+    ! get real number of intersections
+    realnInter=1
+    ALLOCATE(realInterID(1:nInterSections))
+    realInterID=0
+    realInterID(1)=1
+    ! PO & CS:
+    ! we used the approach to check the previous (i-1)  with the current (i) alpha, if they
+    ! are almost identically, it is ignored (multiple intersections are reduced to one)
+    ! second possibility:
+    ! check only to the accepted alphas
+    DO iInter=2,nInterSections
+      IF(.NOT.ALMOSTEQUALTOTOLERANCE(locAlpha(iInter-1),locAlpha(iInter),0.002))THEN
+        realNInter=realNInter+1
+        realInterID(realNInter)=iInter
+        isInter=iInter
+      END IF
+    END DO ! iInter=2,nInterSections
+#ifdef CODE_ANALYZE
+     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+       IF(iPart.EQ.PARTOUT)THEN
+         IPWRITE(UNIT_stdout,*) ' realnInter ',realnInter
+       END IF
+     END IF
+#endif /*CODE_ANALYZE*/
+    IF(BC(SideID).GT.0)THEN
+      ! boundary side, take first intersection
+      alpha=locAlpha(1)
+      xi =locXi (locID(1))
+      eta=loceta(locID(1))
+      DEALLOCATE(locID)
+      DEALLOCATE(realInterID)
+      isHit=.TRUE.
+      IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+      IF(CriticalParallelInSide)THEN
+        IF(ALMOSTZERO(alpha))THEN
+          IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
         END IF
-      END IF ! inner Side
-    END IF ! SideID.LE.nSides
-#ifdef MPI
-    ! halo side
-    IF(BC(SideID).GT.0)THEN ! BC Sides
-      ! take closest
-      DO iInter=1,nInterSections 
-        IF(locAlpha(iInter).GT.-1.0)THEN
-          alpha=locAlpha(iInter)
-          xi =locXi (locID(iInter))
-          eta=loceta(locID(iInter))
-          DEALLOCATE(locID)
-          isHit=.TRUE.
-          IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
-          IF(CriticalParallelInSide)THEN
-            IF(ALMOSTZERO(alpha))THEN
-              IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
-            END IF
-          END IF
-          RETURN 
-        END IF
-      END DO ! iInter
-    ELSE ! no BC Side
-      realnInter=1
-      isInter=1
-      DO iInter=2,nInterSections
-        IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
-        .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
-            realNInter=realnInter+1
-            isInter=iInter
-        END IF
-      END DO
+      END IF
+      RETURN 
+    ELSE
       IF(MOD(realNInter,2).EQ.0) THEN
+        ! particle leaves and enters cell multiple times, however, remain 
+        ! still inside of the element
         DEALLOCATE(locID)
+        DEALLOCATE(realInterID)
         alpha=-1.0
         isHit=.FALSE.
         IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
@@ -975,23 +948,24 @@ CASE DEFAULT
             IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
           END IF
         END IF
-        RETURN ! leave and enter a cell multiple times
+        RETURN 
       ELSE
-        alpha=locAlpha(isInter)
-        xi =locXi (locID(isInter))
-        eta=loceta(locID(isInter))
+        ! particle leaves and enters, take the LAST intersection 
+        alpha=locAlpha(realInterID(realNInter))
+        xi =locXi (locID(realInterID(realNInter)))
+        eta=loceta(locID(realInterID(realNInter)))
         isHit=.TRUE.
+        DEALLOCATE(locID)
+        DEALLOCATE(realInterID)
         IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
         IF(CriticalParallelInSide)THEN
           IF(ALMOSTZERO(alpha))THEN
             IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
           END IF
         END IF
-        DEALLOCATE(locID)
         RETURN
       END IF
-    END IF ! inner Side
-#endif /*MPI*/
+    END IF ! BC or no BC side
   END IF
   SDEALLOCATE(locID)
 END SELECT
@@ -2054,7 +2028,7 @@ DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierClipMaxIter))
 END DO
 
 IF(nIter.GT.BezierClipMaxIter) THEN
-  IPWRITE(UNIT_stdout,*) ' Bezier-Newton not converget!'
+  IPWRITE(UNIT_stdout,*) ' Bezier-Newton not converged!'
   IPWRITE(UNIT_stdout,*) ' SideId      : ', SideID
   IPWRITE(UNIT_stdout,*) ' ElemID      : ', PartSideToElem(S2E_ELEM_ID,SideID)
   IPWRITE(UNIT_stdout,*) ' Norm_P      : ', Norm_P

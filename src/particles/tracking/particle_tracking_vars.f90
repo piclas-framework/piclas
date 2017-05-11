@@ -27,6 +27,10 @@ INTEGER                                 :: nLostParts                    ! Count
 REAL,ALLOCATABLE                        :: Distance(:)                   ! list of distance between particle and element-origin
                                                                          ! to all elements in the same background element
 INTEGER,ALLOCATABLE                     :: ListDistance(:)               ! the corresponding element id
+#ifdef CODE_ANALYZE
+INTEGER                                 :: PartOut
+INTEGER                                 :: MPIRankOut
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
 
