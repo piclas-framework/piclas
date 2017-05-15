@@ -45,12 +45,18 @@ INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
 
+#ifndef PP_HDG
 INTERFACE WritePMLzetaGlobalToHDF5
   MODULE PROCEDURE WritePMLzetaGlobalToHDF5
 END INTERFACE
+#endif /*PP_HDG*/
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
-PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton,WritePMLzetaGlobalToHDF5
+PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
+#ifndef PP_HDG
+PUBLIC :: WritePMLzetaGlobalToHDF5
+#endif /*PP_HDG*/
+
 PUBLIC :: WriteTimeAverage
 !===================================================================================================================================
 
@@ -1726,7 +1732,7 @@ END IF
 END SUBROUTINE DistributedWriteArray
 #endif /*MPI*/
 
-
+#ifndef PP_HDG
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
@@ -1812,6 +1818,7 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 SDEALLOCATE(PMLzetaGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WritePMLzetaGlobalToHDF5
+#endif /*PP_HDG*/
 
 
 END MODULE MOD_HDF5_output

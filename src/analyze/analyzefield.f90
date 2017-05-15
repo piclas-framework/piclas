@@ -616,9 +616,11 @@ REAL              :: RD
 Wel=0.
 WMag=0.
 DO iElem=1,nElems
+#ifndef PP_HDG
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
   END IF
+#endif
   !--- Calculate and save volume of element iElem
   WEl_tmp=0. 
   WMag_tmp=0. 

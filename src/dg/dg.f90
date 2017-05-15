@@ -56,7 +56,9 @@ USE MOD_Restart_Vars,       ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars, ONLY: xGP,wGP,wBary,InterpolationInitIsDone
 USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
+#ifndef PP_HDG
 USE MOD_PML_Vars,           ONLY: PMLnVar ! additional fluxes for the CFS-PML auxiliary variables
+#endif /*PP_HDG*/
 #ifdef OPTIMIZED
 USE MOD_Riemann,            ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
@@ -108,6 +110,7 @@ U_slave=0.
   CALL GetRiemannMatrix()
 #endif /*OPTIMIZED*/
 
+#ifndef PP_HDG
 ! unique flux per side
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
@@ -115,6 +118,7 @@ ALLOCATE(Flux_Master(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Flux_Slave(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)) 
 Flux_Master=0.
 Flux_Slave=0.
+#endif /*PP_HDG*/
 
 DGInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
