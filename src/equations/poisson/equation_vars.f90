@@ -28,10 +28,13 @@ REAL              :: fDamping
 LOGICAL           :: DoParabolicDamping
 
 
-
-REAL,ALLOCATABLE  :: chitens(:,:,:,:,:,:) !diffusion 3x3 tensor on each gausspoint
+INTEGER           :: chitensWhichField       ! which diffusion field should be selected: 1 - standard
+!                                                                                        2 - sphere with radius chitensRadius
+REAL              :: chitensRadius           ! diffusion factor within radius
+REAL              :: chitensValue            ! diffusion factor
+REAL,ALLOCATABLE  :: chitens(:,:,:,:,:,:)    ! diffusion 3x3 tensor on each gausspoint
 REAL,ALLOCATABLE  :: chitensInv(:,:,:,:,:,:) ! inverse of diffusion 3x3 tensor on each gausspoint
-REAL,ALLOCATABLE  :: chitens_face(:,:,:,:,:) !diffusion 3x3 tensor on each face gausspoint
+REAL,ALLOCATABLE  :: chitens_face(:,:,:,:,:) ! diffusion 3x3 tensor on each face gausspoint
 
 
 

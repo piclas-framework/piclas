@@ -205,12 +205,14 @@ TYPE tSurfaceflux
   INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
+  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
   LOGICAL                                :: SimpleRadialVeloFit !fit of veloR/veloTot=-r*(A*exp(B*r)+C)
   REAL                                   :: preFac !A
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
+  REAL                                   :: rmax                             ! max radius of to-be inserted particles
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

@@ -194,9 +194,11 @@ DO iRefState=1,nTmp
     ,' Input of pulse length is wrong.')
     END IF
     ! in 15: scaling by a_0 or intensity
-    Beam_a0 = GETREAL ('Beam_a0','0.0')
+    Beam_a0 = GETREAL ('Beam_a0','-1.0')
     ! decide if pulse maxima is scaled by intensity or a_0 parameter
-    IF(ALMOSTZERO(Beam_a0))THEN
+    BeamEta=2.*SQRT(mu0/eps0)
+    IF(Beam_a0.LE.0.0)THEN
+      Beam_a0 = 0.0
       BeamAmpFac=SQRT(BeamEta*I_0)
     ELSE
       BeamAmpFac=Beam_a0*2*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
@@ -204,7 +206,6 @@ DO iRefState=1,nTmp
     omega_0 = GETREAL ('omega_0','1.')
     omega_0_2inv =2.0/(omega_0**2)
   
-    BeamEta=2.*SQRT(mu0/eps0)
     IF(ALMOSTEQUAL(ABS(WaveVector(1)),1.))THEN ! wave in x-direction
       BeamIdir1=2
       BeamIdir2=3

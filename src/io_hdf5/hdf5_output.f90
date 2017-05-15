@@ -313,7 +313,7 @@ CALL WritePMLDataToHDF5(FileName)
 
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-IF(DoLoadBalance) CALL WriteElemWeightToHDF5(FileName)
+IF(DoLoadBalance) CALL WriteElemTimeToHDF5(FileName)
 #endif /*MPI*/
 
 EndT=BOLTZPLATZTIME()
@@ -322,7 +322,7 @@ SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 END SUBROUTINE WriteStateToHDF5
 
 
-SUBROUTINE WriteElemWeightToHDF5(FileName)
+SUBROUTINE WriteElemTimeToHDF5(FileName)
 !===================================================================================================================================
 ! Write additional (elementwise scalar) data to HDF5
 !===================================================================================================================================
@@ -330,7 +330,7 @@ SUBROUTINE WriteElemWeightToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY:offsetElem,nGlobalElems
-USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight,WeightOutput
+USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -346,13 +346,12 @@ INTEGER                        :: nVar
 
 
 IF(nLoadBalance.EQ.0) THEN
-  IF(.NOT.ALLOCATED(ElemWeight)) RETURN
-  ElemTime=ElemWeight
+  IF(.NOT.ALLOCATED(ElemTime)) RETURN
 END IF
 
 nVar=1
 ALLOCATE(StrVarNames(nVar))
-StrVarNames(1)='ElemWeight'
+StrVarNames(1)='ElemTime'
 
 IF(MPIRoot)THEN
 #ifdef MPI
@@ -365,25 +364,16 @@ IF(MPIRoot)THEN
 END IF
 
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='ElemWeight', rank=1,  &
+                        DataSetName='ElemTime', rank=1,  &
                         nValGlobal=(/nGlobalElems/),&
                         nVal=      (/PP_nElems   /),&
                         offset=    (/offsetElem  /),&
                         collective=.TRUE.,RealArray=ElemTime)
 
-!CALL WriteArrayToHDF5(DataSetName='ElemWeight', rank=1,&
-!                    nValGlobal=(/nGlobalElems/),       &
-!                    nVal=      (/PP_nElems/),          &
-!                    offset=    (/offsetElem/),         &
-!                    collective=.TRUE., existing=.FALSE., RealArray=ElemTime)
-!
 DEALLOCATE(StrVarNames)
 ElemTime=0.
-IF(MPIRoot)THEN
-  WeightOutput=0. ! elem time statistics
-END IF
 
-END SUBROUTINE WriteElemWeightToHDF5
+END SUBROUTINE WriteElemTimeToHDF5
 
 
 SUBROUTINE WriteAdditionalDataToHDF5(FileName)
@@ -405,7 +395,7 @@ USE MOD_Particle_Vars ,ONLY:PDM,PEM
 #endif /*PARTICLES*/
 #ifdef MPI
 USE MOD_LoadBalance_Vars, ONLY:DoLoadBalance
-USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight
+USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,nPartsPerElem
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -424,10 +414,9 @@ INTEGER                        :: iPart
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
-
 #ifdef MPI
 IF(DoLoadBalance)THEN
-  nVar=4
+  nVar=5
 ELSE
   nVar=3
 END IF
@@ -468,15 +457,15 @@ END DO ! iPart
 #ifdef MPI
 IF(DoLoadBalance)THEN
   StrVarNames(4)='ElemTime'
+  StrVarNames(5)='nPartsPerElem'
   IF(nLoadBalance.EQ.0) THEN
-    IF(.NOT.ALLOCATED(ElemWeight))THEN
+    IF(.NOT.ALLOCATED(ElemTime))THEN
       ElemTime=0.
-    ELSE
-      ElemTime=ElemWeight
     END IF
   END IF
   DO iElem=1,PP_nElems
     ElemData(4,iElem)=ElemTime(iElem)
+    ElemData(5,iElem)=nPartsPerElem(iElem)
   END DO ! iElem =1,PP_nElems
 END IF
 #endif /*MPI*/

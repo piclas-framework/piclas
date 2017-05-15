@@ -215,7 +215,7 @@ USE MOD_Equation,              ONLY: EvalGradient
 #endif /*PP_POIS*/
 USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 #ifdef MPI
-USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
+USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 !USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
@@ -511,7 +511,6 @@ DO !iter_t=0,MaxIter
     END IF
     CalcTimeEnd=BOLTZPLATZTIME()
 #ifdef MPI
-    !CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
     CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
@@ -1092,8 +1091,8 @@ IF (t.GE.DelayTime) THEN
   PartMPIExchange%nMPIParticles=0
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
-END IF 
 #endif /*MPI*/
+END IF 
 
 IF (doParticleMerge) THEN
 #ifdef MPI
@@ -1685,6 +1684,12 @@ ELSE
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                         + DSMC_RHS(1:PDM%ParticleVecLength,1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                         + DSMC_RHS(1:PDM%ParticleVecLength,2)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
 END IF
 
 END SUBROUTINE TimeStep_DSMC_Debug
@@ -3900,6 +3905,9 @@ END IF
 
 CALL HDG(t,U,iter)
 
+! calling the analyze routines
+CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
+
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
@@ -3914,12 +3922,7 @@ IF (t.GE.DelayTime) THEN
   !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
   CALL CalcPartRHS()
 END IF
-#endif /*PARTICLES*/
 
-! calling the analyze routines
-CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
-
-#ifdef PARTICLES
 ! particles
 IF (t.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength

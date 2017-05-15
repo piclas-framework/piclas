@@ -26,10 +26,6 @@ END INTERFACE
 !  MODULE PROCEDURE SingleStepOptimalPartition
 !END INTERFACE
 
-INTERFACE ComputeParticleWeightAndLoad
-  MODULE PROCEDURE ComputeParticleWeightAndLoad
-END INTERFACE
-
 INTERFACE ComputeElemLoad
   MODULE PROCEDURE ComputeElemLoad
 END INTERFACE
@@ -38,16 +34,12 @@ INTERFACE LoadBalance
   MODULE PROCEDURE LoadBalance
 END INTERFACE
 
-INTERFACE CalculateProcWeights
-  MODULE PROCEDURE CalculateProcWeights
-END INTERFACE
-
 INTERFACE LoadMeasure 
   MODULE PROCEDURE LoadMeasure
 END INTERFACE
 
-PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance,LoadMeasure,CalculateProcWeights
-PUBLIC::ComputeParticleWeightAndLoad,ComputeElemLoad
+PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance,LoadMeasure
+PUBLIC::ComputeElemLoad
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -78,8 +70,9 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
 DoLoadBalance= GETLOGICAL('DoLoadBalance','F')
 DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
-DeviationThreshold  = 1.0+DeviationThreshold
+!DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
+nLoadBalanceSteps = 0
 
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
 IF (ParticleMPIWeight.LT.0) THEN
@@ -118,7 +111,6 @@ ALLOCATE( tTotal(1:14)    &
 tCartMesh=0.
 tTracking=0.
 
-LastImbalance=0.
 tTotal=0.
 LoadSum=0.
 tCurrent=0.
@@ -131,246 +123,6 @@ SWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitLoadBalance
 
-
-SUBROUTINE ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadbalance) 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! compute the current particle weight
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_LoadBalance_Vars,      ONLY:tCurrent,LoadSum,tTotal,nloaditer,nTotalParts,nLoadBalance,PartWeightMethod,DeviationThreshold&
-                                   ,WeightAverageMethod,ParticleMPIWeight,LastImbalance,ElemWeight
-#ifndef PP_HDG
-USE MOD_PML_Vars,              ONLY:DoPML,nPMLElems
-#endif /*PP_HDG*/
-USE MOD_Utils,                 ONLY:InsertionSort
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT)           :: PerformLoadBalance
-REAL ,INTENT(OUT)             :: Currentimbalance
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL              :: TotalLoad(1:14)
-REAL,ALLOCATABLE  :: GlobalLoad(:,:,:), GlobalWeights(:,:,:)
-REAL              :: totalRatio(2,0:nProcessors-1),WeightList(1:nProcessors)
-CHARACTER(LEN=64) :: filename, firstLine(2)
-CHARACTER(LEN=4)  :: hilf
-INTEGER           :: iounit,iProc,iOut,iWeigth,iList,listZeros
-INTEGER           :: nWeights(2,3)
-REAL              :: PartWeight(3,2)
-REAL              :: MaxWeight, MinWeight !dummy so far, used in timedisc-call
-
-!===================================================================================================================================
-
-nLoadBalance=nLoadBalance+1
-
-! per iter
-! finish load measure
-LoadSum=LoadSum/REAL(nLoadIter)
-
-TotalLoad=0.
-! per dt_analyze
-! dg
-TotalLoad(1:2)=tTotal(1:2)/(REAL(nloaditer)*REAL(PP_nElems))
-#ifndef PP_HDG
-IF(DoPML)THEN
-  IF(nPMLElems.GT.0) TotalLoad(3)=tTotal(3)/(REAL(nPMLElems)*REAL(nloaditer))
-END IF
-#endif /*PP_HDG*/
-TotalLoad(13)=tTotal(13)/(REAL(nloaditer)*REAL(PP_nElems))
-
-! particles
-IF(nTotalParts.GT.0)THEN
-  TotalLoad(4:12)=tTotal(4:12)/nTotalParts
-  TotalLoad(14)=tTotal(14)/nTotalParts
-ELSE
-  TotalLoad(4:12)=0.
-  TotalLoad(14)=0.
-END IF
-
-  ! communication to root
-  IF(MPIRoot)THEN
-    ALLOCATE(GlobalLoad(1:2,1:14,0:nProcessors-1))
-    GlobalLoad=0.
-  ELSE
-    ALLOCATE(GlobalLoad(2,1,0))
-  END IF
-  CALL MPI_GATHER(LoadSum  ,14,MPI_DOUBLE_PRECISION,GlobalLoad(1,:,:),14,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
-  CALL MPI_GATHER(TotalLoad,14,MPI_DOUBLE_PRECISION,GlobalLoad(2,:,:),14,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
-
-! no mpi
-!  ALLOCATE(GlobalLoad(1:2,1:13,0))
-!  GlobalLoad(1,:,:) = LoadSum
-!  GlobalLoad(2,:,:) = TotalLoad
-
-! compute weights
-IF(MPIRoot)THEN
-  PartWeight=0.
-  nWeights=0
-  ALLOCATE(GlobalWeights(1:2,1:5,0:nProcessors-1))
-  ! 1 - pure DG time
-  ! 2 - pure particle time
-  ! 3 - ratio t_particle / t_DG
-  ! 4 - ratio communication time
-  ! 5 - total ratio (incl. comm+analyze)
-  GlobalWeights=0.
-  DO iOut=1,2 !WeightAverageMethod
-    DO iProc=0,nProcessors-1
-      GlobalWeights(iOut,1,iProc) = GlobalLoad(iOut,1 ,iProc)+GlobalLoad(iOut,3 ,iProc) 
-      GlobalWeights(iOut,2,iProc) = SUM(GlobalLoad(iOut,4:9,iProc))+SUM(GlobalLoad(iOut,11:12,iProc))
-      IF(.NOT.ALMOSTZERO(GlobalWeights(iOut,1,iProc)))THEN
-        GlobalWeights(iOut,3,iProc) =  GlobalWeights(iOut,2,iProc) /  GlobalWeights(iOut,1,iProc)
-        PartWeight(1,iOut)=PartWeight(1,iOut)+GlobalWeights(iOut,3,iProc)
-        nWeights(iOut,1)=nWeights(iOut,1)+1
-      END IF
-      IF(.NOT.ALMOSTZERO(GlobalLoad(iOut,2,iProc))) THEN
-        GlobalWeights(iOut,4,iProc) = GlobalLoad(iOut,10,iProc) / GlobalLoad(iOut,2,iProc)
-        PartWeight(2,iOut)=PartWeight(2,iOut)+GlobalWeights(iOut,4,iProc)
-        nWeights(iOut,2)=nWeights(iOut,2)+1
-      END IF
-      IF(.NOT.ALMOSTZERO(SUM(GlobalLoad(iOut,1:3,iProc))+GlobalLoad(iOut,13,iProc))) THEN
-        GlobalWeights(iOut,5,iProc) = (SUM(GlobalLoad(iOut,4:12,iProc))+GlobalLoad(iOut,14,iProc)) &
-                                     / (SUM(GlobalLoad(iOut,1:3,iProc))+GlobalLoad(iOut,13,iProc))
-        PartWeight(3,iOut)=PartWeight(3,iOut)+GlobalWeights(iOut,5,iProc)
-        nWeights(iOut,3)=nWeights(iOut,3)+1
-      END IF
-    END DO ! iProc
-    DO iProc=0,nProcessors-1
-      IF(ALMOSTZERO(GlobalWeights(iOut,5,iProc)))THEN
-        totalRatio(iOut,iProc)=HUGE(0.)
-      ELSE
-        totalRatio(iOut,iProc)=GlobalWeights(iOut,5,iProc)
-      END IF
-    END DO ! iProc
-    DO iWeigth=1,3
-      IF (nWeights(iOut,iWeigth).NE.0) THEN
-        PartWeight(iWeigth,iOut)=PartWeight(iWeigth,iOut)/nWeights(iOut,iWeigth)
-      ELSE !iWeigth=0, for safety...
-        PartWeight(iWeigth,iOut)=0.
-      END IF
-    END DO
-  END DO ! iOut
-  !ParticleMPIWeight=MINVAL(totalRatio(WeightAverageMethod,:)) ! currently per analyze_dt
-
-  SELECT CASE(PartWeightMethod)
-  CASE(1)
-!    ParticleMPIWeight=PartWeight(3,WeightAverageMethod)
-    WeightList(1:nProcessors)=GlobalWeights(WeightAverageMethod,5,0:nProcessors-1)
-    listZeros=0
-    ParticleMPIWeight=0.
-    DO iList=1,nProcessors
-      IF(ALMOSTZERO(WeightList(iList)))THEN
-        listZeros=listZeros+1
-      ELSE
-        ParticleMPIWeight=ParticleMPIWeight+WeightList(iList)
-      END IF
-    END DO
-    ParticleMPIWeight=ParticleMPIWeight/(nProcessors-listZeros)
-  CASE(2)
-    WeightList(1:nProcessors)=GlobalWeights(WeightAverageMethod,5,0:nProcessors-1)
-    CALL InsertionSort(a=WeightList,len=nProcessors)
-    listZeros=0
-    DO iList=1,nProcessors
-      IF(ALMOSTZERO(WeightList(iList)))THEN
-        listZeros=iList
-      ELSE
-        EXIT
-      END IF
-    END DO
-!SWRITE(*,*) 'listZeros: ',listZeros
-    IF (listZeros.EQ.nProcessors) THEN
-      ParticleMPIWeight=0.
-    ELSE IF (listZeros.EQ.nProcessors-1) THEN
-      ParticleMPIWeight=WeightList(nProcessors)
-    ELSE IF(MOD(nProcessors-listZeros,2).EQ.0)THEN
-      ParticleMPIWeight=0.5*( WeightList((nProcessors-listZeros)/2 + listZeros) &
-                             +WeightList((nProcessors-listZeros)/2 + 1 + listZeros) )
-    ELSE
-      ParticleMPIWeight=WeightList((nProcessors-listZeros)/2 + 1 + listZeros)
-    END IF
-  !CASE(3)
-  CASE DEFAULT
-    CALL abort(&
-      __STAMP__&
-      ,' No valid PartWeightMethod defined!')
-  END SELECT
-END IF
-
-  CALL MPI_BCAST (ParticleMPIWeight,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
- 
-! write load info to file
-IF(MPIRoot)THEN
-  firstLine(1)='Averaged Load per Iter Information:'
-  firstLine(2)='Load per analyze-dt Information:'
-  WRITE( hilf,'(I4.4)') nLoadBalance
-  DO iOut=1,2
-    IF(iOut.EQ.1)THEN
-      filename='LoadAveragedPerIter_'//TRIM(hilf)//'.csv'
-    ELSE
-      filename='LoadAveragedPerAnalyze'//TRIM(hilf)//'.csv'
-    END IF
-    ioUnit=GETFREEUNIT()
-    OPEN(UNIT=ioUnit,FILE=filename,STATUS='REPLACE')
-    WRITE(ioUnit,'(A)') firstLine(iOut)
-    WRITE(ioUnit,'(A,I10)')'total number of Procs,',nProcessors
-    WRITE(ioUnit,'(A20,ES17.5)') 'PartMPIWeight:  ', ParticleMPIWeight
-    WRITE(ioUnit,'(A20,ES17.5)') 'Mean-PartWeight: ', PartWeight(1,iOut)
-    WRITE(ioUnit,'(A20,ES17.5)') 'Mean-Comm-Weight:', PartWeight(2,iOut)
-    WRITE(ioUnit,'(A20,ES17.5)') 'Mean-TotalWeight:', PartWeight(3,iOut)
-    WRITE(ioUnit,'(6(A20))')'Rank','DG','Part','Ratio-Part-DG','Ratio-Comm','Ratio-total'
-    WRITE(ioUnit,'(A80,A40)')&
-          '================================================================================',&
-          '========================================'
-    DO iProc=0,nProcessors-1
-      WRITE(ioUnit,'(5X,I10,5x,5(3x,ES17.5))') iProc,GlobalWeights(iOut,1:5,iProc)
-      WRITE(ioUnit,'(A80,A40)')&
-            '--------------------------------------------------------------------------------',&
-            '----------------------------------------'
-    END DO ! iProc
-    WRITE(ioUnit,'(A)') ''
-    WRITE(ioUnit,'(A)') ''
-    WRITE(ioUnit,'(15(A20))')'Rank','DG','DGComm','PML','Part-Emission','Part-Tracking','PIC-Inter','PIC-Depo',&
-                             'DSMC','Push','PartComm' ,'SplitMerge','UNFP','DG-Analyze','Part-Analyze'
-    WRITE(ioUnit,'(A120,A120,A60)')&
-      '========================================================================================================================',&
-      '========================================================================================================================',&
-      '============================================================='
-    DO iProc=0,nProcessors-1
-      WRITE(ioUnit,'(5X,I10,5x,14(3x,ES17.5))') iProc,GlobalLoad(iOut,:,iProc)
-      WRITE(ioUnit,'(A120,A120,A60)')&
-      '------------------------------------------------------------------------------------------------------------------------',&
-      '------------------------------------------------------------------------------------------------------------------------',& 
-      '-------------------------------------------------------------'
-    END DO ! iProc
-    CLOSE(ioUnit) 
-  END DO ! iOut
-
-END IF
-
-DEALLOCATE(GlobalLoad)
-SDEALLOCATE(GlobalWeights)
-TotalLoad  =0.
-tTotal     =0.
-LoadSum    =0.
-tCurrent   =0.
-nTotalParts=0.
-nLoadIter  =0
-
-! compute current load
-CALL CalculateProcWeights()
-! compute impalance 
-CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemWeight)
-
-PerformLoadBalance=.FALSE.
-IF(CurrentImbalance.GT.DeviationThreshold*LastImbalance) PerformLoadBalance=.TRUE.
-
-
-END SUBROUTINE ComputeParticleWeightAndLoad
 
 
 SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance,time) 
@@ -385,13 +137,13 @@ USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nLoadBalance,tTotal,tCurrent
 #ifndef PP_HDG
 USE MOD_PML_Vars,                ONLY:DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars,        ONLY:DeviationThreshold,LastImbalance,LoadSum,nLoadIter
+USE MOD_LoadBalance_Vars,        ONLY:DeviationThreshold,LoadSum,nLoadIter
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,        ONLY:nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_PICDepo_Vars,            ONLY:DepositionType
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars,        ONLY:TargetWeight,WeightOutput
+USE MOD_LoadBalance_Vars,        ONLY:TargetWeight
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -498,28 +250,25 @@ CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 
 ! Fill .csv file for parformance analysis and load blaaaance
 IF(MPIRoot)THEN
-  WeightOutput(3) = (MaxWeight - WeightOutput(2))/(TargetWeight - WeightOutput(4)) ! real current imbalance (no average)
   outfile='ElemTimeStatistics.csv'
   INQUIRE(FILE=TRIM(outfile),EXIST=FileExists)
   IF(FileExists)THEN
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') time
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') MinWeight        - WeightOutput(1)
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') MaxWeight        - WeightOutput(2)
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(3)
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') TargetWeight     - WeightOutput(4)
+    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',MinWeight 
+    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',MaxWeight
+    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',CurrentImbalance
+    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',TargetWeight  
     WRITE(ioUnit,'(A1)') ' '
     CLOSE(ioUnit) 
   END IF
-  WeightOutput(1) = MinWeight
-  WeightOutput(2) = MaxWeight
-  WeightOutput(4) = TargetWeight
 END IF !IF(MPIRoot)
 
 
 PerformLoadBalance=.FALSE.
-IF(CurrentImbalance.GT.DeviationThreshold*LastImbalance) PerformLoadBalance=.TRUE.
+! only check if imbalance is > a given threshold
+IF(CurrentImbalance.GT.DeviationThreshold) PerformLoadBalance=.TRUE.
 
 #ifdef PARTICLES
 nTracksPerElem=0
@@ -543,13 +292,13 @@ SUBROUTINE LoadBalance(CurrentImbalance,PerformLoadBalance)
 !===================================================================================================================================
 ! routine perfoming the load balancing stuff
 !===================================================================================================================================
-! MODULES
+! USED MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Restart,               ONLY:Restart
 !USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
-USE MOD_LoadBalance_Vars,      ONLY:DeviationThreshold,LastImbalance,ElemWeight
+USE MOD_LoadBalance_Vars,      ONLY:DeviationThreshold,ElemTime,nLoadBalanceSteps
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,          ONLY:DepositionType
 USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -569,40 +318,37 @@ REAL              :: Newimbalance, MaxWeight, MinWeight
 
 
 ! only do load-balance if necessary
-IF(.NOT.PerformLoadBalance) RETURN
+IF(.NOT.PerformLoadBalance) THEN
+  ElemTime=0.
+  RETURN
+END IF
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
 
+nLoadBalanceSteps=nLoadBalanceSteps+1
 ! finialize all arrays
 CALL FinalizeBoltzplatz(IsLoadBalance=.TRUE.)
-SDEALLOCATE(ElemWeight)
 ! reallocate
 CALL InitBoltzplatz(IsLoadBalance=.TRUE.)
 
 ! restart
 CALL Restart()
 
-! check new distribution
-! compute current load
-! read in elemweight
-! new method uses read in elemweigfht
-!CALL CalculateProcWeights()
+! compute imbalance 
+CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)
+! zero ElemTime, the measurement starts again
+ElemTime=0.
 
-!! compute impalance 
-CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemWeight)
-
-IF( NewImbalance.GT.DeviationThreshold*LastImbalance   &
-  .OR. NewImbalance.GT.CurrentImbalance ) THEN
+IF( NewImbalance.GT.CurrentImbalance ) THEN
   SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful!'
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' LastImbalance:    ', LastImBalance
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' CurrentImbalance: ', CurrentImbalance
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: '    , NewImbalance
-  !SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    '    , MaxWeight
-  !SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight: '       , MinWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' OldImbalance: ', CurrentImbalance
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: ', NewImbalance
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight: '   , MinWeight
 END IF
  
-LastImbalance=NewImBalance
+!CurrentImbalance=NewImbalance
 
 #ifdef PARTICLES
 IF(   (TRIM(DepositionType).EQ.'shape_function')             &
@@ -697,50 +443,13 @@ nCurrentParts=0
 END SUBROUTINE LoadMeasure
 
 
-SUBROUTINE CalculateProcWeights() 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! calculation of weights of each processor
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_LoadBalance_Vars,  ONLY: ElemWeight,ParticleMPIWeight
-#ifdef PARTICLES
-USE MOD_Particle_Vars, ONLY: PDM,PEM
-#endif /*PARTICLES*/
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER     :: iElem, iPart,locnParts
-!===================================================================================================================================
-
-IF(.NOT.ALLOCATED(ElemWeight)) ALLOCATE(ElemWeight(1:PP_nElems))
-
-ElemWeight=1.0
-
-#ifdef PARTICLES
-DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
-  locnParts=0
-  DO iPart=1,PDM%ParticleVecLength
-    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-    IF(PEM%LastElement(iPart).NE.iElem) CYCLE
-    locnParts=locnParts+1
-  END DO
-  ElemWeight(iElem)=ElemWeight(iElem)+ParticleMPIWeight*locnParts
-END DO ! iElem
-#endif /*PARTICLES*/
-
-END SUBROUTINE CalculateProcWeights
-
-
-SUBROUTINE ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemWeight)
+SUBROUTINE ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! subroutine to compute the imbalance
+! Maxweight: maximum weight of all processes
+! Minweight: minimum weight of all processes
+! targetweight: current target weight
+! CurrentImbalance: rel. deviation of current imbalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -751,7 +460,7 @@ USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES 
-REAL,INTENT(IN)            :: ElemWeight(1:PP_nElems)
+REAL,INTENT(IN)            :: ElemTime(1:PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)           :: CurrentImbalance, MaxWeight, MinWeight
@@ -760,7 +469,7 @@ REAL,INTENT(OUT)           :: CurrentImbalance, MaxWeight, MinWeight
 !REAL                       :: MaxWeight
 !===================================================================================================================================
 
-WeightSum=SUM(ElemWeight)
+WeightSum=SUM(ElemTime)
 
 IF(ALMOSTZERO(WeightSum))THEN
   IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)'
@@ -771,7 +480,10 @@ CALL MPI_ALLREDUCE(WeightSum,MinWeight,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_W
 
 TargetWeight=TargetWeight/nProcessors
 
-CurrentImbalance=MaxWeight/TargetWeight
+! new computation of current imbalance
+!CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
+CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+!CurrentImbalance=MaxWeight/TargetWeight
 
 END SUBROUTINE ComputeImbalance
 
@@ -795,7 +507,6 @@ IMPLICIT NONE
 SDEALLOCATE( tTotal  )
 SDEALLOCATE( tCurrent  )
 SDEALLOCATE( LoadSum )
-SDEALLOCATE( ElemWeight )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
