@@ -496,6 +496,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Surfaces,      ONLY:OutputBezierControlPoints
 #endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -593,26 +594,7 @@ DO ilocSide=1,6
       IPWRITE(UNIT_stdout,*) ' dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
       IPWRITE(UNIT_stdout,*) ' point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
       IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-x'
-      DO K=1,3
-        WRITE(UNIT_stdout,'(A,I1,A)',ADVANCE='NO')' P(:,:,',K,') = [ '
-        DO I=0,NGeo ! output for MATLAB
-          DO J=0,NGeo
-            WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3d(K,J,I,SideID)
-            IF(J.EQ.NGeo)THEN
-              IF(I.EQ.NGeo)THEN
-                WRITE(UNIT_stdout,'(A)')' ];'
-              ELSE
-                WRITE(UNIT_stdout,'(A)')' ;...'
-              END IF
-            ELSE ! comma
-              WRITE(UNIT_stdout,'(A)',ADVANCE='NO')' , '
-            END IF
-          END DO
-          !WRITE(UNIT_stdout,'(A)')' '
-        END DO
-      END DO
-      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-y', BezierControlPoints3d(2,:,:,SideID)
-      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-z', BezierControlPoints3d(3,:,:,SideID)
+      CALL OutputBezierControlPoints(BezierControlPoints3D_in=BezierControlPoints3D(1:3,:,:,SideID))
     END IF
   END IF
 #endif /*CODE_ANALYZE*/

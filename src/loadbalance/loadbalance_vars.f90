@@ -20,17 +20,12 @@ REAL(KIND=8)                        :: nTotalParts                              
 INTEGER                             :: nLoadIter                                  ! number of load iter 
 !INTEGER                             :: nCurrentParts                              ! number of current particles
 INTEGER                             :: nLoadBalance                               ! number of load balances
+INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
 REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs
 INTEGER,ALLOCATABLE                 :: PartDistri(:)                              ! Part distribution of all procs
 INTEGER                             :: PartWeightMethod                           ! method to compute the particle weight
 INTEGER                             :: WeightAverageMethod                        ! method to average the particle weight
                                                                                   ! (1: iter, 2: dt_Analyze)
-REAL,ALLOCATABLE                    :: ElemWeight(:)
-REAL                                :: LastImbalance
-REAL                                :: WeightOutput(4)                            ! current elem time statistics
-                                                                                  ! MinWeight,MaxWeight,CurrentImbalance,
-                                                                                  ! TargetWeight (mean)
-                                                                                  ! contains data of previous analyse iter if
                                                                                   ! nSkipAnalyze is greater than 1
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
@@ -47,6 +42,7 @@ REAL                                :: targetWeight                             
 REAL                                :: tCartMesh                                  ! time for CartMesh deposition
 REAL                                :: tTracking                                  ! time for relocation of particles
 REAL,ALLOCATABLE                    :: ElemTime(:)
+REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nDeposPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nTracksPerElem(:)
