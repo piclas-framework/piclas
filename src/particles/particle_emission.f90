@@ -1825,9 +1825,9 @@ INTEGER,INTENT(INOUT)            :: NbrOfParticle
 ! LOCAL VARIABLES
 INTEGER                          :: i,j,PositionNbr        
 REAL                             :: Radius(3), n_vec(3), tan_vec(3), Velo1, Angle, Velo2, f
-REAL                             :: Vec3D(3), RandVal(3)
+REAL                             :: Vec3D(3), RandVal(3), Vec1D
 REAL                             :: II(3,3),JJ(3,3),NN(3,3)
-INTEGER                          :: distnum
+INTEGER                          :: distnum,Rotation
 REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01,y_02, RandVal1
 REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
 LOGICAL                          :: Is_BGGas
@@ -1840,6 +1840,7 @@ REAL                                   :: RadiusICGyro                     ! Rad
 REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
 REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
 REAL                                   :: VeloIC                           ! velocity for inital Data
+REAL                                   :: VeloIC2                          ! square of velocity for inital Data
 REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
 REAL                                   :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
 REAL                                   :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
@@ -1850,6 +1851,8 @@ REAL                                   :: MWTemperatureIC                  ! Tem
 REAL                                   :: MJRatio(3)                       ! momentum to temperature ratio
 ! Maxwell-Juettner
 REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
+REAL                             :: VelocitySpread                         ! widening of init velocity
+REAL                             :: vMag2                                  ! magnitude of velocity
 !===================================================================================================================================
 
 IF (PRESENT(Is_BGGas_opt)) THEN
@@ -1885,6 +1888,34 @@ CASE(1) !iInit
   MJRatio(1)=Species(FractNbr)%Init(iInit)%MJxRatio
   MJRatio(2)=Species(FractNbr)%Init(iInit)%MJyRatio
   MJRatio(3)=Species(FractNbr)%Init(iInit)%MJzRatio
+  SELECT CASE(TRIM(velocityDistribution))
+  CASE('tangential_constant')
+    Rotation       = Species(FractNbr)%Init(iInit)%Rotation
+    VelocitySpread = Species(FractNbr)%Init(iInit)%VelocitySpread
+    IF(VelocitySpread.GT.0)THEN
+      IF(Species(FractNbr)%Init(iInit)%VelocitySpreadMethod.EQ.0)THEN
+        ! sigma of normal Distribution, Kostas proposal
+        VelocitySpread = VelocitySpread * VeloIC   !/(2.*SQRT(2.*LOG(10.)))
+      ELSE IF(Species(FractNbr)%Init(iInit)%VelocitySpreadMethod.EQ.1)THEN
+        ! sigma is defined by changing the width of the distribution function at 10% of its maxima
+        ! the input value is the spread in percent, hence, 5% => v = v +- 0.05*v at 10% of maximum value
+        ! width of the velocity spread, deltaV:
+        VelocitySpread = 2.0*VelocitySpread * VeloIC
+        ! computing the corresponding sigma 
+        VelocitySpread = VelocitySpread / (2.*SQRT(2.*LOG(10.)))
+      ELSE
+     CALL abort(&
+__STAMP__&
+,' This method for the velocity spread is not implemented.')
+      END IF
+      IF(alpha.GT.0) THEN 
+        vMag2 = (1.0+1./(alpha*alpha)) * VeloIC*VeloIC
+      ELSE
+        vMag2 = VeloIC*VeloIC
+      END IF
+    END IF
+    VeloIC2        = VeloIC*VeloIC
+  END SELECT
 CASE(2) !SurfaceFlux
   IF (TRIM(Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution).EQ.'constant') THEN
     velocityDistribution=Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution
@@ -1984,17 +2015,57 @@ CASE('tangential_constant')
         tan_vec(1) = Radius(2)*n_vec(3) - Radius(3)*n_vec(2)
         tan_vec(2) = Radius(3)*n_vec(1) - Radius(1)*n_vec(3)
         tan_vec(3) = Radius(1)*n_vec(2) - Radius(2)*n_vec(1)
-        ! If Gyrotron resonator: Add velocity in normal direction!
-        IF (Alpha .gt. 0.) THEN 
-          n_vec = n_vec * ( 1 / Alpha )
-        ELSE 
-          n_vec = 0
-        END IF
-        !  And finally the velocities
-        PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
+
+        IF(VelocitySpread.GT.0.)THEN
+          IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
+            Vec1D = RandN_save
+            RandN_in_Mem=.FALSE.
+          ELSE
+            CALL RANDOM_NUMBER(RandVal)
+            Velo1 = 2.0*RandVal(1)-1.0
+            Velo2 = 2.0*RandVal(2)-1.0
+            Velosq= Velo1**2+Velo2**2
+            DO WHILE ((Velosq.LE.0).OR.(Velosq.GE.1))
+              CALL RANDOM_NUMBER(RandVal)
+              Velo1 = 2.0*RandVal(1)-1.0
+              Velo2 = 2.0*RandVal(2)-1.0
+              Velosq= Velo1**2+Velo2**2
+            END DO
+            Vec1D = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+            RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+            RandN_in_Mem=.TRUE.
+          END IF
+          ! velocity spread of tangential velocity
+          IF(Rotation.EQ.1)THEN
+            Vec3D  = tan_vec(1:3) * (VeloIC+Vec1D*VelocitySpread) 
+          ELSE
+            Vec3D = -tan_vec(1:3) * (VeloIC+Vec1D*VelocitySpread)
+          END IF
+          ! compute axial velocity
+          Vec1D = vMag2  - DOT_PRODUCT(Vec3D,Vec3D)
+          IF(Vec1D.LT.0) CALL abort(&
+__STAMP__&
+,' Error in set velocity!',PositionNbr)
+          Vec1D=SQRT(Vec1D)
+          PartState(PositionNbr,4:6) = Vec3D+n_vec(1:3) * Vec1D
+        ELSE ! no velocity spread
+          ! If Gyrotron resonator: Add velocity in normal direction!
+          IF (Alpha .gt. 0.) THEN 
+            n_vec = n_vec * ( 1 / Alpha )
+          ELSE 
+            n_vec = 0
+          END IF
+          !  And finally the velocities
+          IF(Rotation.EQ.1)THEN
+            PartState(PositionNbr,4:6) = tan_vec(1:3) * VeloIC + n_vec(1:3) * VeloIC
+          ELSE
+            PartState(PositionNbr,4:6) = -tan_vec(1:3) * VeloIC + n_vec(1:3) * VeloIC
+          END IF
+        END IF 
      END IF
      i = i + 1
   END DO
+
 CASE('gyrotron_circle')
   i = 1
   IF (externalField(6).NE.0) THEN
@@ -3366,8 +3437,8 @@ END DO !iBC
 #else
      BCdata_auxSF(iPartBound)%GlobalArea=BCdata_auxSF(iPartBound)%LocalArea
 #endif
-     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
-       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
+!     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
+!       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
    END DO
 #ifdef MPI
    DEALLOCATE(areasLoc,areasGlob)

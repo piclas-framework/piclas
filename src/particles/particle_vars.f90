@@ -116,6 +116,9 @@ TYPE tInit                                                                   ! P
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
+  INTEGER                                :: Rotation                         ! direction of rotation, similar to TE-mode
+  INTEGER                                :: VelocitySpreadMethod             ! method to compute the velocity spread
+  REAL                                   :: VelocitySpread                   ! velocity spread in percent
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
   REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
   REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid

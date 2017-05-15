@@ -295,6 +295,11 @@ ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
 ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
 ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
+Face_xGP=0.
+NormVec=0.
+TangVec1=0.
+TangVec2=0.
+SurfElem=0.
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')

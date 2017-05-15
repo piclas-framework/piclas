@@ -37,6 +37,7 @@ SUBROUTINE VolInt_weakForm(Ut,dofirstElems)
 ! MODULES
 USE MOD_DG_Vars,ONLY:D_hat!,D_hat_T
 USE MOD_Mesh_Vars,ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_PML_Vars,   ONLY: DoPML,ElemToPML,isPMLElem,U2t
 USE MOD_PreProc
 USE MOD_Flux,ONLY:EvalFlux3D                                         ! computes volume fluxes in local coordinates
 ! IMPLICIT VARIABLE HANDLING
@@ -90,18 +91,70 @@ DO iElem=firstElemID,lastElemID
       END DO ! i
     END DO ! j
   END DO ! k
-  DO l=0,PP_N
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          ! Update the time derivative with the spatial derivatives of the transformed fluxes
-          Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_hat(i,l)*f(:,l,j,k) + &
-                                                  D_hat(j,l)*g(:,i,l,k) + &
-                                                  D_hat(k,l)*h(:,i,j,l)
-        END DO !i
-      END DO ! j
-    END DO ! k
-  END DO ! l
+
+
+  IF(DoPML)THEN
+    IF(isPMLElem(iElem)) THEN ! 1.) PML version - PML element
+      DO l=0,PP_N
+        DO k=0,PP_N
+          DO j=0,PP_N
+            DO i=0,PP_N
+              ! Update the time derivative with the spatial derivatives of the transformed fluxes
+              Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_hat(i,l)*f(:,l,j,k) + &
+                                                      D_hat(j,l)*g(:,i,l,k) + &
+                                                      D_hat(k,l)*h(:,i,j,l)
+              ! Update the time derivatives of the auxiliary variables of the CFS-PML region
+              U2t(1 : 3,i,j,k,ElemToPML(iElem)) = U2t(1 : 3,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(1,l,j,k) , D_hat(j,l)*g(1,i,l,k) , D_hat(k,l)*h(1,i,j,l) /)
+              U2t(4 : 6,i,j,k,ElemToPML(iElem)) = U2t(4 : 6,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(2,l,j,k) , D_hat(j,l)*g(2,i,l,k) , D_hat(k,l)*h(2,i,j,l) /)
+              U2t(7 : 9,i,j,k,ElemToPML(iElem)) = U2t(7 : 9,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(3,l,j,k) , D_hat(j,l)*g(3,i,l,k) , D_hat(k,l)*h(3,i,j,l) /)
+              U2t(10:12,i,j,k,ElemToPML(iElem)) = U2t(10:12,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(4,l,j,k) , D_hat(j,l)*g(4,i,l,k) , D_hat(k,l)*h(4,i,j,l) /)
+              U2t(13:15,i,j,k,ElemToPML(iElem)) = U2t(13:15,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(5,l,j,k) , D_hat(j,l)*g(5,i,l,k) , D_hat(k,l)*h(5,i,j,l) /)
+              U2t(16:18,i,j,k,ElemToPML(iElem)) = U2t(16:18,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(6,l,j,k) , D_hat(j,l)*g(6,i,l,k) , D_hat(k,l)*h(6,i,j,l) /)
+              !Phi_B
+              U2t(19:21,i,j,k,ElemToPML(iElem)) = U2t(19:21,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(7,l,j,k) , D_hat(j,l)*g(7,i,l,k) , D_hat(k,l)*h(7,i,j,l) /)
+              !Phi_E
+              U2t(22:24,i,j,k,ElemToPML(iElem)) = U2t(22:24,i,j,k,ElemToPML(iElem)) + &
+                                              (/ D_hat(i,l)*f(8,l,j,k) , D_hat(j,l)*g(8,i,l,k) , D_hat(k,l)*h(8,i,j,l) /)
+              !print *,"FPt(:,i,j,k,ElemToPML(iElem))",FPt(:,i,j,k,ElemToPML(iElem))
+            END DO !i
+          END DO ! j
+        END DO ! k
+      END DO ! l
+    ELSE ! 2.) PML version - physical element
+      DO l=0,PP_N
+        DO k=0,PP_N
+          DO j=0,PP_N
+            DO i=0,PP_N
+              ! Update the time derivative with the spatial derivatives of the transformed fluxes
+              Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_hat(i,l)*f(:,l,j,k) + &
+                                                      D_hat(j,l)*g(:,i,l,k) + &
+                                                      D_hat(k,l)*h(:,i,j,l)
+            END DO !i
+          END DO ! j
+        END DO ! k
+      END DO ! l
+    END IF
+  ELSE ! 3.) physical element
+    DO l=0,PP_N
+      DO k=0,PP_N
+        DO j=0,PP_N
+          DO i=0,PP_N
+            ! Update the time derivative with the spatial derivatives of the transformed fluxes
+            Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_hat(i,l)*f(:,l,j,k) + &
+                                                    D_hat(j,l)*g(:,i,l,k) + &
+                                                    D_hat(k,l)*h(:,i,j,l)
+          END DO !i
+        END DO ! j
+      END DO ! k
+    END DO ! l
+  END IF ! isPMLElem(iElem)
 
   !CALL VolInt_Metrics(f,g,h,Metrics_fTilde(:,:,:,:,iElem),&
   !                          Metrics_gTilde(:,:,:,:,iElem),&
