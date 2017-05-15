@@ -388,7 +388,6 @@ USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundi
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #endif /*MPI*/
-USE MOD_LoadBalance_Vars,      ONLY: WeightOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -423,15 +422,14 @@ CHARACTER(LEN=255)            :: outfile
 ! Create .csv file for performance analysis and load blaaaance
 IF(MPIRoot)THEN
   IF(iter.EQ.0)THEN
-    WeightOutput=0. ! initialize with 0.
     outfile='ElemTimeStatistics.csv'
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
     WRITE(ioUnit,'(A25)',ADVANCE='NO') "time"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MinWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MaxWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "CurrentImbalance"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "TargetWeight (mean)"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MinWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MaxWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",CurrentImbalance"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",TargetWeight (mean)"
     WRITE(ioUnit,'(A1)') ' '
     CLOSE(ioUnit) 
   END IF
