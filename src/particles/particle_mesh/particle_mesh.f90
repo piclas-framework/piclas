@@ -496,6 +496,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Surfaces,      ONLY:OutputBezierControlPoints
 #endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -593,26 +594,7 @@ DO ilocSide=1,6
       IPWRITE(UNIT_stdout,*) ' dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
       IPWRITE(UNIT_stdout,*) ' point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
       IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-x'
-      DO K=1,3
-        WRITE(UNIT_stdout,'(A,I1,A)',ADVANCE='NO')' P(:,:,',K,') = [ '
-        DO I=0,NGeo ! output for MATLAB
-          DO J=0,NGeo
-            WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3d(K,J,I,SideID)
-            IF(J.EQ.NGeo)THEN
-              IF(I.EQ.NGeo)THEN
-                WRITE(UNIT_stdout,'(A)')' ];'
-              ELSE
-                WRITE(UNIT_stdout,'(A)')' ;...'
-              END IF
-            ELSE ! comma
-              WRITE(UNIT_stdout,'(A)',ADVANCE='NO')' , '
-            END IF
-          END DO
-          !WRITE(UNIT_stdout,'(A)')' '
-        END DO
-      END DO
-      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-y', BezierControlPoints3d(2,:,:,SideID)
-      !IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-z', BezierControlPoints3d(3,:,:,SideID)
+      CALL OutputBezierControlPoints(BezierControlPoints3D_in=BezierControlPoints3D(1:3,:,:,SideID))
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -879,12 +861,20 @@ END IF
 #endif /*MPI*/
 
 !--- compute number of background cells in each direction
-BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
-BGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
-BGMjmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
-BGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
-BGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
-BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+!BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+!BGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+!BGMjmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+!BGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+!BGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+!BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+
+! now fail safe, enlarge the BGM grid for safety reasons
+BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+BGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))-1
+BGMjmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+BGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))-1
+BGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1
 
 !--- JN: For MPI communication, information also about the neighboring FIBGM cells is needed
 !--- AS: shouldn't we add up here the nPaddingCells? 
@@ -948,12 +938,13 @@ IF ((DepositionType.EQ.'shape_function')             &
 .OR.(DepositionType.EQ.'shape_function_spherical')   &
 .OR.(DepositionType.EQ.'shape_function_simple')      &
 .OR.(DepositionType.EQ.'shape_function_1d')          )THEN
-  BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
-  BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
-  BGMjmax = INT((MIN(GEO%ymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
-  BGMjmin = INT((MAX(GEO%ymin-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
-  BGMkmax = INT((MIN(GEO%zmax+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
-  BGMkmin = INT((MAX(GEO%zmin-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+  ! and changed, tooo
+  BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+  BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1
+  BGMjmax = INT((MIN(GEO%ymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+  BGMjmin = INT((MAX(GEO%ymin-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1
+  BGMkmax = INT((MIN(GEO%zmax+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+  BGMkmin = INT((MAX(GEO%zmin-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1
 END IF
 #endif
 

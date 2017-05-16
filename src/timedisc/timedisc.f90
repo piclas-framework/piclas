@@ -186,10 +186,6 @@ USE MOD_AnalyzeField,          ONLY: AnalyzeField
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh,                  ONLY: SwapMesh
-#ifndef PP_HDG
-USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
-USE MOD_PML_Vars,              ONLY: DoPML
-#endif /*PP_HDG*/
 USE MOD_Filter,                ONLY: Filter
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
@@ -219,7 +215,7 @@ USE MOD_Equation,              ONLY: EvalGradient
 #endif /*PP_POIS*/
 USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 #ifdef MPI
-USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
+USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 !USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
@@ -515,7 +511,6 @@ DO !iter_t=0,MaxIter
     END IF
     CalcTimeEnd=BOLTZPLATZTIME()
 #ifdef MPI
-    !CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
     CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
@@ -579,14 +574,12 @@ DO !iter_t=0,MaxIter
       ! Analyze for output
       CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
 #ifndef PP_HDG
-      IF(DoPML) CALL BacktransformPMLVars()
 #endif /*PP_HDG*/
       ! Write state to file
       IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tFuture)
 #ifndef PP_HDG
       ! Write state to file
-      IF(DoPML) CALL TransformPMLVars()
 #endif /*PP_HDG*/
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
@@ -635,7 +628,7 @@ USE MOD_Analyze,                 ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,           ONLY: dt,iStage
 USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
-USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML
+USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
@@ -683,7 +676,7 @@ INTEGER(KIND=8),INTENT(INOUT) :: iter
 ! LOCAL VARIABLES
 !INTEGER                       :: iPart
 REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
-REAL                          :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+REAL                          :: U2t_temp(1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
@@ -774,14 +767,6 @@ tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
 ! field solver
 ! time measurement in weakForm
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.TRUE.)
-CALL DivCleaningDamping()
-
-#ifdef PP_POIS
-! Potential
-CALL DGTimeDerivative_weakForm_Pois(t,t,0)
-CALL DivCleaningDamping_Pois()
-#endif /*PP_POIS*/
-
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -793,6 +778,14 @@ END IF
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
 #endif /*MPI*/
+CALL DivCleaningDamping()
+
+#ifdef PP_POIS
+! Potential
+CALL DGTimeDerivative_weakForm_Pois(t,t,0)
+CALL DivCleaningDamping_Pois()
+#endif /*PP_POIS*/
+
 
 ! calling the analyze routines
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
@@ -959,12 +952,6 @@ DO iStage=2,nRKStages
 
   ! field solver
   CALL DGTimeDerivative_weakForm(t,tStage,0,doSource=.TRUE.)
-  CALL DivCleaningDamping()
-#ifdef PP_POIS
-  CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
-  CALL DivCleaningDamping_Pois()
-#endif
-
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -977,6 +964,13 @@ DO iStage=2,nRKStages
   tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+  CALL DivCleaningDamping()
+#ifdef PP_POIS
+  CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
+  CALL DivCleaningDamping_Pois()
+#endif
+
+
 
   ! performe RK steps
   ! field step
@@ -3912,6 +3906,9 @@ END IF
 
 CALL HDG(t,U,iter)
 
+! calling the analyze routines
+CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
+
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
@@ -3926,12 +3923,7 @@ IF (t.GE.DelayTime) THEN
   !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
   CALL CalcPartRHS()
 END IF
-#endif /*PARTICLES*/
 
-! calling the analyze routines
-CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
-
-#ifdef PARTICLES
 ! particles
 IF (t.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength

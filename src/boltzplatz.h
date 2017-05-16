@@ -101,3 +101,6 @@
 #define LOCAL_PROC_ID   3
 !#define NATIVE_SIDE_ID  1
 #define LOCAL_SEND_ID   4
+
+! format
+#define OUTPUTFORMAT '(E25.14E3)'

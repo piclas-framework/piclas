@@ -145,12 +145,14 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2,
 ! MODULES
 USE MOD_Globals,        ONLY:Abort,CROSS
 USE MOD_PreProc
-USE MOD_Riemann,        ONLY:Riemann
+USE MOD_Riemann,        ONLY:Riemann,RiemannPML
 USE MOD_Equation,       ONLY:ExactFunc
 USE MOD_Equation_vars,  ONLY:c,c_inv
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
 USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
-USE MOD_Equation_Vars,  ONLY:BCData,nBCByType,BCSideID
+USE MOD_Equation_Vars,  ONLY:BCData,nBCByType
+USE MOD_PML_Vars,       ONLY:isPMLFace
+USE MOD_PML_Vars,       ONLY:PMLnVar, DoPML
 !USE MOD_Equation_Vars,  ONLY:IniExactFunc! richtig with particles???
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -165,7 +167,7 @@ REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:PP_N,0:PP_N,1:nBC
 REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux(        PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,p,q,SideID
@@ -191,7 +193,8 @@ DO iBC=1,nBCs
         END DO ! p
       END DO ! q
       ! Dirichlet means that we use the gradients from inside the grid cell
-       CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+      CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+      IF(DoPML) Flux(9:32,:,:,SideID) = 0.
    END DO
 
   CASE(3) ! 1st order absorbing BC 
@@ -212,8 +215,17 @@ DO iBC=1,nBCs
           END IF ! sum(abs(B)) > epsBC
         END DO ! p
       END DO ! q
-  
-      CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+
+      IF(DoPML)THEN
+         IF(isPMLFace(SideID)) THEN ! PML version - PML element
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+         ELSE
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+           Flux(9:32,:,:,SideID) = 0.
+         END IF
+      ELSE
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+      END IF
     END DO
   
   CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
@@ -230,8 +242,17 @@ DO iBC=1,nBCs
           U_Face_loc(  8,p,q) = -resul(  8)
         END DO ! p
       END DO ! q
-      ! Dirichlet means that we use the gradients from inside the grid cell
-      CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+      IF(DoPML)THEN
+         IF(isPMLFace(SideID)) THEN ! PML version - PML element
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+         ELSE
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+           Flux(9:32,:,:,SideID) = 0.
+         END IF
+      ELSE
+         ! Dirichlet means that we use the gradients from inside the grid cell
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+      END IF
     END DO
  
   CASE(5) ! 1st order absorbing BC 
@@ -251,10 +272,18 @@ DO iBC=1,nBCs
           U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
         END DO ! p
       END DO ! q
-  
-      CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+      IF(DoPML)THEN
+         IF(isPMLFace(SideID)) THEN ! PML version - PML element
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+         ELSE
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+           Flux(9:32,:,:,SideID) = 0.
+         END IF
+      ELSE
+         ! Dirichlet means that we use the gradients from inside the grid cell
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+      END IF
     END DO
-
 
   CASE(6) ! 1st order absorbing BC + fix for low B field
           ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
@@ -273,9 +302,17 @@ DO iBC=1,nBCs
           END IF ! sum(abs(B)) > epsBC
         END DO ! p
       END DO ! q
-  
-      !CALL Riemann(Flux(:,:,:,SideID),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
-      CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),U_Face_loc(  :,:,:),NormVec(:,:,:,SideID))
+      IF(DoPML)THEN
+        IF(isPMLFace(SideID)) THEN ! PML version - PML element
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+        ELSE
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+          Flux(9:32,:,:,SideID) = 0.
+        END IF
+      ELSE
+        ! Dirichlet means that we use the gradients from inside the grid cell
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+      END IF
     END DO
 
   CASE(10) ! symmetry BC (perfect MAGNETIC conductor, PMC)
@@ -294,15 +331,34 @@ DO iBC=1,nBCs
       END DO ! q
       ! Dirichlet means that we use the gradients from inside the grid cell
       !CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
-      CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),U_Face_loc(  :,:,:),NormVec(:,:,:,SideID))
+      IF(DoPML)THEN
+        IF(isPMLFace(SideID)) THEN ! PML version - PML element
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+        ELSE
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+          Flux(9:32,:,:,SideID) = 0.
+        END IF
+      ELSE
+        ! Dirichlet means that we use the gradients from inside the grid cell
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+      END IF
     END DO
 
   CASE(20) ! exact BC = Dirichlet BC !!
     ! SPECIAL BC: BCState uses readin state
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      ! Dirichlet means that we use the gradients from inside the grid cell
-      CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
+      IF(DoPML)THEN
+        IF(isPMLFace(SideID)) THEN ! PML version - PML element
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
+        ELSE
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
+          Flux(9:32,:,:,SideID) = 0.
+        END IF
+      ELSE
+        ! Dirichlet means that we use the gradients from inside the grid cell
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
+      END IF
     END DO
   
   CASE DEFAULT ! unknown BCType

@@ -4,6 +4,7 @@ stages:
   - reggie_short
   - reggie_tracking
   - reggie_long
+  - reggie_special
 
 cache:
   key: "$CI_BUILD_REF"
@@ -152,3 +153,21 @@ intel_HDF5_single_mpi:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
 
 
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_special": Run test for TWT with recordpoints
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu_TWT:
+  stage: reggie_special
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_TWT_recordpoints
+
+intel_TWT:
+  stage: reggie_special
+  tags:
+    - withmodules
+  script:
+    - echo "nothing to do";
+    # fix h5diff on runner -> libs may be wrongly set in the binary file
+    #- module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_TWT_recordpoints
