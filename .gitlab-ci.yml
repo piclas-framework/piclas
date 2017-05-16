@@ -1,4 +1,4 @@
-stages: 
+stages:
   - build
   - error_clean
   - reggie_short
@@ -21,7 +21,7 @@ build_gnu:
     - withmodules
   script:
     - module load env/gnu ; rm -rf build_gnu || true 
-    - mkdir -p build_gnu ; cd build_gnu ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make all
+    - mkdir -p build_gnu ; cd build_gnu ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
 
 build_intel:
   stage: build
@@ -29,7 +29,7 @@ build_intel:
     - withmodules
   script:
     - module load env/intel ; rm -rf build_intel || true 
-    - mkdir -p build_intel ; cd build_intel ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make all
+    - mkdir -p build_intel ; cd build_intel ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "clean": delete build folders if previous builds fail and exit
@@ -69,7 +69,7 @@ gnu_tracking:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_tracking_DSMC -j no-debug ; fi
 
 intel_tracking:
   stage: reggie_tracking
@@ -79,7 +79,7 @@ intel_tracking:
     - echo "nothing to do";
     # fix h5diff on runner -> libs may be wrongly set in the binary file
     # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC 2; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC -j no-debug ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_long": Build and run
@@ -94,21 +94,21 @@ gnu_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build no-debug 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build -j no-debug ; fi
 
 gnu_PIC:
   stage: reggie_long
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
 
 gnu_convtest:
   stage: reggie_long
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_convtest 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_convtest -j no-debug ; fi
 
 
 gnu_HDF5_single_mpi:
@@ -116,7 +116,7 @@ gnu_HDF5_single_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build build_HDF5_single_MPI no-debug 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
 
 
 
@@ -125,7 +125,7 @@ intel_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build no-debug 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build -j no-debug ; fi
 
 intel_PIC:
   stage: reggie_long
@@ -135,20 +135,20 @@ intel_PIC:
     - echo "nothing to do";
     # fix h5diff on runner -> libs may be wrongly set in the binary file
     # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC 2; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
 
 intel_convtest:
   stage: reggie_long
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_convtest 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_convtest -j no-debug ; fi
 
 intel_HDF5_single_mpi:
   stage: reggie_long
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI no-debug 2; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
 
 
