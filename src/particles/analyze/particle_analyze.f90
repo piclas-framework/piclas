@@ -1758,13 +1758,13 @@ DO iPart=1,PDM%ParticleVecLength
     IF (usevMPF) THEN
       EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1) * PartMPF(iPart)
       ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2) * PartMPF(iPart)
-      IF ( DSMC%ElectronicModel ) THEN
+      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
         Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3) * PartMPF(iPart)
       END IF
     ELSE
       EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1)
       ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2)
-      IF ( DSMC%ElectronicModel ) THEN
+      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
         Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3)
       END IF
     END IF

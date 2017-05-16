@@ -284,6 +284,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
     ELSE
       ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,2))
     ENDIF
+    PartStateIntEn = 0. ! nullify
     ! reading molecular stuff
     SpecDSMC(1:nSpecies)%Xi_Rot = 0
     SpecDSMC(1:nSpecies)%MaxVibQuant = 0
