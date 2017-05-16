@@ -349,7 +349,8 @@ DO iPart=1,PDM%ParticleVecLength
                                                  + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
         END IF
 #else
-        IPWRITE(UNIT_stdOut,*) ' ElemID         ', InElem+offSetElem
+        !IPWRITE(UNIT_stdOut,*) ' ElemID         ', InElem+offSetElem  ! old
+        IPWRITE(UNIT_stdOut,*) ' ElemID         ', ElemID+offSetElem   ! new
 #endif
 #ifdef MPI
         InElem=PEM%LastElement(iPart)
@@ -1258,10 +1259,12 @@ IF(isMoved)THEN
         DeltaP=DeltaP - ESDIRK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
       END DO
       PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
+#ifdef MPI
       PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
       ! and move all the functions
       ! F_PartX0 is not changing, because of difference
       PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
+#endif /*MPI*/
       ! brainfuck, does F_PartXK(:,PartID) is changed?
       ! init: F_PartXK=F_PartXK0 
       ! sanity check for parallel...
