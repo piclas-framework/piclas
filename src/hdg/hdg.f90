@@ -80,6 +80,7 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
     AdaptIterNewton=GETINT('AdaptIterNewton','0')
     AdaptIterNewtonOld = AdaptIterNewton
     AdaptNewtonStartValue = GETLOGICAL('NewtonAdaptStartValue','false')
+    AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear','100')
     IF (NewtonExactApprox) AdaptNewtonStartValue=.true.
     IF (DoRestart) AdaptNewtonStartValue=.false.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
@@ -1022,7 +1023,8 @@ AdaptIterNewton = AdaptIterNewtonOld
 DO iter=1,MaxIterFixPoint
 
   IF (.NOT.beLinear) THEN
-    IF ((iter.EQ.100).OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
+    IF ((iter.EQ.AdaptIterNewtonToLinear)) THEN !.OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
+                                               !removed second cond. to ensure fast convergence with very small AdaptIterNewton
       IF(MPIroot) WRITE(*,*) 'The linear way, baby !!!!!!!!!!!!'
       DO iElem=1,PP_nElems
         RegionID=GEO%ElemToRegion(iElem)
