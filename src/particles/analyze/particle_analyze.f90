@@ -1200,56 +1200,6 @@ END SUBROUTINE CalcShapeEfficiencyR
 
 
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
-SUBROUTINE GetEvaporationRate(EvaporationRate)
-!===================================================================================================================================
-! Calculate evaporation rate from number of particles of a species evaporating from surface in the defined analyze time [kg/s]
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PDM, nSpecies
-USE MOD_Particle_Analyze_Vars
-USE MOD_DSMC_Vars,              ONLY : Liquid
-#ifdef MPI
-USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
-#endif /*MPI*/
-USE MOD_TimeDisc_Vars,          ONLY : dt
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)               :: EvaporationRate(nSpecies)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: iSpec
-#ifdef MPI
-REAL                            :: RD(nSpecies)
-#endif /*MPI*/
-!===================================================================================================================================
-EvaporationRate = 0.
-
-DO iSpec=1,nSpecies
-  EvaporationRate(iSpec) = Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor &
-                        * REAL(Liquid%Info(iSpec)%NumOfDes - Liquid%Info(iSpec)%NumOfAds) / dt
-END DO
-
-Liquid%Info(:)%NumOfAds = 0
-Liquid%Info(:)%NumOfDes = 0
-
-#ifdef MPI
-  IF (PartMPI%MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,EvaporationRate,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  ELSE
-    CALL MPI_REDUCE(EvaporationRate,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  END IF
-#endif /*MPI*/
-
-END SUBROUTINE GetEvaporationRate
-
-
 SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 !===================================================================================================================================
 ! Calculate number of wallparticles for all species
@@ -1492,6 +1442,56 @@ SurfAssocRate = 0.
 SurfExchRate = 0.
 
 END SUBROUTINE GetSurfReactRates
+
+
+SUBROUTINE GetEvaporationRate(EvaporationRate)
+!===================================================================================================================================
+! Calculate evaporation rate from number of particles of a species evaporating from surface in the defined analyze time [kg/s]
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PDM, nSpecies
+USE MOD_Particle_Analyze_Vars
+USE MOD_DSMC_Vars,              ONLY : Liquid
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
+USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
+#endif /*MPI*/
+USE MOD_TimeDisc_Vars,          ONLY : dt
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)               :: EvaporationRate(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSpec
+#ifdef MPI
+REAL                            :: RD(nSpecies)
+#endif /*MPI*/
+!===================================================================================================================================
+EvaporationRate = 0.
+
+DO iSpec=1,nSpecies
+  EvaporationRate(iSpec) = Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor &
+                        * REAL(Liquid%Info(iSpec)%NumOfDes - Liquid%Info(iSpec)%NumOfAds) / dt
+END DO
+
+Liquid%Info(:)%NumOfAds = 0
+Liquid%Info(:)%NumOfDes = 0
+
+#ifdef MPI
+  IF (PartMPI%MPIRoot) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,EvaporationRate,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  ELSE
+    CALL MPI_REDUCE(EvaporationRate,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  END IF
+#endif /*MPI*/
+
+END SUBROUTINE GetEvaporationRate
 #endif /*(PP_TimeDiscMethod==42)*/
 #endif /*(PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)*/
 
