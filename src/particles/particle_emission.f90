@@ -286,18 +286,21 @@ DO i=1,nSpecies
 #endif
         SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
         CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac
+          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
           IF (Species(i)%Init(iInit)%VirtPreInsert .AND. Species(i)%Init(iInit)%PartDensity.GT.0.) THEN
             NbrOfParticle = 0 ! calculated within SetParticlePosition itself!
           ELSE IF (.NOT.DoPoissonRounding) THEN
-            inserted_Particle_iter = INT(PartIns,8)
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal)
+            inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over 
+                                                                                        ! simulation
             CALL RANDOM_NUMBER(RandVal1)
-            !-- random-round the inserted_Particle_time for preventing periodicity
+            !-- random-round the inserted_Particle_time for preventing periodicity 
+            ! PO & SC: why, sometimes we do not want this add, TB is bad!
             IF (inserted_Particle_iter.GE.1) THEN
               CALL RANDOM_NUMBER(RandVal1)
-              inserted_Particle_time = INT(PartIns + RandVal1,8)
-            ELSE IF (inserted_Particle_iter.GE.0) THEN !needed, since InsertedParticleSurplus can increase
+              inserted_Particle_time = INT(PartIns + RandVal1,8) ! adds up to ONE 
+            ELSE IF((inserted_Particle_iter.GE.0).AND.(inserted_Particle_iter.LT.1)) THEN 
+                                                       !needed, since InsertedParticleSurplus can increase
                                                        !and _iter>1 needs to be possible for preventing periodicity
               IF (ALMOSTEQUAL(PartIns,0.)) THEN !dummy
                 inserted_Particle_time = INT(PartIns,8)
@@ -1754,6 +1757,10 @@ __STAMP__&
         END IF
       END IF
     ELSE
+      ! add number of matching error to particle emission to fit 
+      ! number of added particles
+      Species(FractNbr)%Init(iInit)%InsertedParticleSurplus = Species(FractNbr)%Init(iInit)%InsertedParticleSurplus &
+                                                            + nbrOfParticle  - sumOfMatchedParticles
       IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
         IF(DoDisplayEmissionWarnings)THEN
           SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
