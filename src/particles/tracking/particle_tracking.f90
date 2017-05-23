@@ -660,7 +660,7 @@ __STAMP__ &
           ! false, reallocate particle
           IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element, relocating!! '
-            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
+            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.)                                                             
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,*) ' xi                     ', partposref(1:3,ipart)

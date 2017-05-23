@@ -776,6 +776,10 @@ IF(( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                      
 ELSE
    nChunks = 1
 END IF
+
+! communication
+
+
 IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
   IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
@@ -1410,7 +1414,7 @@ __STAMP__&
             PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             IF(DoRefMapping)THEN
-              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.)
+              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFix=.TRUE.)
             ELSE
               CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
             END IF
@@ -1581,6 +1585,7 @@ __STAMP__&
  END IF
  IF (nChunks.GT.1) THEN
     DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+      ! sent particles
       !--- MPI_ISEND lengths of lists of particles leaving local mesh
       CALL MPI_ISEND(PartMPIInsert%nPartsSend(iProc), 1, MPI_INTEGER, iProc, 1011+FractNbr, PartMPI%InitGroup(InitGroup)%COMM, &
                      PartMPIInsert%SendRequest(iProc,1), IERROR)
@@ -1708,7 +1713,7 @@ ELSE ! mode.NE.1:
        PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
        IF(DoRefMapping)THEN
-         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.)
+         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,InitFix=.TRUE.)
        ELSE
          CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
        END IF
