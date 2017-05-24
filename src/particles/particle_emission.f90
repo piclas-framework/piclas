@@ -590,6 +590,7 @@ INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 #ifdef MPI
 INTEGER                                  :: InitGroup
+INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 #endif                        
 !===================================================================================================================================
 
@@ -1706,6 +1707,15 @@ ELSE ! mode.NE.1:
 !      WRITE(130+PartMPI%iProc,'(3(ES15.8))')particle_positions(i*3-2:i*3)
 !   END DO
 !   CLOSE(130+PartMPI%iProc)
+
+#ifdef MPI
+  ! in order to remove duplicated particles
+  IF(nChunks.EQ.1) THEN
+    ALLOCATE(PartFoundInProc(1:2,1:ChunkSize))
+    PartFoundInProc=-1
+  END IF
+#endif /*MPI*/
+
   mySumOfMatchedParticles=0
   ParticleIndexNbr = 1
   DO i=1,chunkSize*nChunks
@@ -1724,6 +1734,13 @@ ELSE ! mode.NE.1:
        !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
+#ifdef MPI
+          IF(nChunks.EQ.1) THEN
+            ! mark elements with Rank and local found particle index
+            PartFoundInProc(1,i)=MyRank
+            PartFoundInProc(2,i)=mySumOfMatchedParticles
+          END IF ! nChunks.EQ.1
+#endif /*MPI*/
        ELSE
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
        END IF
@@ -1736,7 +1753,27 @@ __STAMP__&
   END DO
  
 #ifdef MPI
- ! check the sum of the matched particles: did each particle find its "home"-CPU?
+  IF(nChunks.EQ.1) THEN
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartfoundInProc(1,:), ChunkSize, MPI_INTEGER, MPI_MAX &
+                                                        , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+    ! loop over all particles and check, if particle is found in my proc
+    ! proc with LARGES id gets the particle, all other procs remove the duplicated
+    ! particle from their list
+    DO i=1,chunkSize
+      IF(PartFoundInProc(2,i).GT.-1)THEN ! particle has been previously found by MyRank
+        IF(PartFoundInProc(1,i).NE.MyRank)THEN ! particle should not be found by MyRank 
+          ParticleIndexNbr = PDM%nextFreePosition(PartFoundInProc(2,i)+ PDM%CurrentNextFreePosition)
+          PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
+          PDM%IsNewPart(ParticleIndexNbr)=.FALSE.
+          ! correct number of found particles
+          mySumOfMatchedParticles = mySumOfMatchedParticles -1
+        END IF 
+      END IF
+    END DO ! i=1,chunkSize
+    DEALLOCATE(PartFoundInProc)
+  END IF
+
+  ! check the sum of the matched particles: did each particle find its "home"-CPU?
   CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM &
                                            , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
 #else
