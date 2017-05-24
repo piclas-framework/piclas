@@ -313,7 +313,8 @@ DO i=1,nSpecies
             END IF
             !-- evaluate inserted_Particle_time and inserted_Particle_iter
             inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
-              - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus
+              - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
+              + Species(i)%Init(iInit)%InsertedParticleMisMatch
             Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
             NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
             !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
@@ -1759,8 +1760,7 @@ __STAMP__&
     ELSE
       ! add number of matching error to particle emission to fit 
       ! number of added particles
-      Species(FractNbr)%Init(iInit)%InsertedParticleSurplus = Species(FractNbr)%Init(iInit)%InsertedParticleSurplus &
-                                                            + nbrOfParticle  - sumOfMatchedParticles
+      Species(FractNbr)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - sumOfMatchedParticles
       IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
         IF(DoDisplayEmissionWarnings)THEN
           SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
