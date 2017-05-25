@@ -1755,7 +1755,7 @@ __STAMP__&
   END DO
  
 #ifdef MPI
-  mySumOfMatchedParticles=0
+  mySumOfRemovedParticles=0
   IF(nChunksTemp.EQ.1) THEN
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartfoundInProc(1,:), ChunkSize, MPI_INTEGER, MPI_MAX &
                                                         , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
