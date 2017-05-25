@@ -589,7 +589,7 @@ REAL                                     :: intersecPoint(3), orifice_delta, lPe
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 #ifdef MPI
-INTEGER                                  :: InitGroup
+INTEGER                                  :: InitGroup,nChunksTemp
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 #endif                        
 !===================================================================================================================================
@@ -783,7 +783,7 @@ ELSE
 END IF
 
 ! communication
-
+IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') nChunks=1
 
 IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
@@ -1649,6 +1649,7 @@ __STAMP__&
   END IF
 ELSE ! mode.NE.1:
 !--- RECEIVE:
+  nChunksTemp=0
   IF(nChunks.EQ.1) THEN
     IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN !chunkSize can be 1 higher than NbrOfParticle for VPI+PartDens
        chunkSize=INT( REAL(SIZE(PartMPIInsert%send_message(0)%content)) / REAL(DimSend) )
@@ -1666,6 +1667,7 @@ ELSE ! mode.NE.1:
       ALLOCATE(particle_positions(1:chunkSize*DimSend), STAT=allocStat)
     END IF
     CALL MPI_BCAST(particle_positions, chunkSize*DimSend, MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+    nChunksTemp=1
   ELSE   
     DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
       CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,1),msg_status(:),IERROR)
@@ -1710,7 +1712,7 @@ ELSE ! mode.NE.1:
 
 #ifdef MPI
   ! in order to remove duplicated particles
-  IF(nChunks.EQ.1) THEN
+  IF(nChunksTemp.EQ.1) THEN
     ALLOCATE(PartFoundInProc(1:2,1:ChunkSize))
     PartFoundInProc=-1
   END IF
@@ -1735,7 +1737,7 @@ ELSE ! mode.NE.1:
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
 #ifdef MPI
-          IF(nChunks.EQ.1) THEN
+          IF(nChunksTemp.EQ.1) THEN
             ! mark elements with Rank and local found particle index
             PartFoundInProc(1,i)=MyRank
             PartFoundInProc(2,i)=mySumOfMatchedParticles
@@ -1753,7 +1755,7 @@ __STAMP__&
   END DO
  
 #ifdef MPI
-  IF(nChunks.EQ.1) THEN
+  IF(nChunksTemp.EQ.1) THEN
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartfoundInProc(1,:), ChunkSize, MPI_INTEGER, MPI_MAX &
                                                         , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
     ! loop over all particles and check, if particle is found in my proc
