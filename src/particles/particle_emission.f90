@@ -1740,7 +1740,7 @@ ELSE ! mode.NE.1:
           IF(nChunksTemp.EQ.1) THEN
             ! mark elements with Rank and local found particle index
             PartFoundInProc(1,i)=MyRank
-            PartFoundInProc(2,i)=mySumOfMatchedParticles
+            PartFoundInProc(2,i)=ParticleIndexNbr !mySumOfMatchedParticles
           END IF ! nChunks.EQ.1
 #endif /*MPI*/
        ELSE
@@ -1764,7 +1764,8 @@ __STAMP__&
     DO i=1,chunkSize
       IF(PartFoundInProc(2,i).GT.-1)THEN ! particle has been previously found by MyRank
         IF(PartFoundInProc(1,i).NE.MyRank)THEN ! particle should not be found by MyRank 
-          ParticleIndexNbr = PDM%nextFreePosition(PartFoundInProc(2,i)+ PDM%CurrentNextFreePosition)
+          ParticleIndexNbr = PartFoundInProc(2,i)
+          IF(.NOT.PDM%ParticleInside(ParticleIndexNbr)) WRITE(UNIT_stdOut,*) ' Error in emission in parallel!!'
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
           PDM%IsNewPart(ParticleIndexNbr)=.FALSE.
           ! correct number of found particles
