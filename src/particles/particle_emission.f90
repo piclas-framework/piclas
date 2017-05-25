@@ -589,7 +589,7 @@ REAL                                     :: intersecPoint(3), orifice_delta, lPe
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 #ifdef MPI
-INTEGER                                  :: InitGroup,nChunksTemp
+INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 #endif                        
 !===================================================================================================================================
@@ -1740,7 +1740,7 @@ ELSE ! mode.NE.1:
           IF(nChunksTemp.EQ.1) THEN
             ! mark elements with Rank and local found particle index
             PartFoundInProc(1,i)=MyRank
-            PartFoundInProc(2,i)=ParticleIndexNbr !mySumOfMatchedParticles
+            PartFoundInProc(2,i)=mySumOfMatchedParticles
           END IF ! nChunks.EQ.1
 #endif /*MPI*/
        ELSE
@@ -1755,6 +1755,7 @@ __STAMP__&
   END DO
  
 #ifdef MPI
+  mySumOfMatchedParticles=0
   IF(nChunksTemp.EQ.1) THEN
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartfoundInProc(1,:), ChunkSize, MPI_INTEGER, MPI_MAX &
                                                         , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
@@ -1764,16 +1765,21 @@ __STAMP__&
     DO i=1,chunkSize
       IF(PartFoundInProc(2,i).GT.-1)THEN ! particle has been previously found by MyRank
         IF(PartFoundInProc(1,i).NE.MyRank)THEN ! particle should not be found by MyRank 
-          ParticleIndexNbr = PartFoundInProc(2,i)
+          !ParticleIndexNbr = PartFoundInProc(2,i)
+          ParticleIndexNbr = PDM%nextFreePosition(PartFoundInProc(2,i) + PDM%CurrentNextFreePosition)
           IF(.NOT.PDM%ParticleInside(ParticleIndexNbr)) WRITE(UNIT_stdOut,*) ' Error in emission in parallel!!'
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
           PDM%IsNewPart(ParticleIndexNbr)=.FALSE.
           ! correct number of found particles
-          mySumOfMatchedParticles = mySumOfMatchedParticles -1
+          mySumOfRemovedParticles = mySumOfRemovedParticles +1
+          ! set update next free position to zero for removed particle
+          PDM%nextFreePosition(PartFoundInProc(2,i) + PDM%CurrentNextFreePosition) = 0
+          !mySumOfMatchedParticles = mySumOfMatchedParticles -1
         END IF 
       END IF
     END DO ! i=1,chunkSize
     DEALLOCATE(PartFoundInProc)
+    mySumOfMatchedParticles = mySumOfMatchedParticles - mySumOfRemovedParticles
   END IF
 
   ! check the sum of the matched particles: did each particle find its "home"-CPU?
@@ -1838,7 +1844,7 @@ __STAMP__&
 
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
-  NbrOfParticle = mySumOfMatchedParticles
+  NbrOfParticle = mySumOfMatchedParticles + mySumOfRemovedParticles
 
   DEALLOCATE( particle_positions, STAT=allocStat )
   IF (allocStat .NE. 0) THEN
