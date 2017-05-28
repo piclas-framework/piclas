@@ -84,6 +84,8 @@ intel_tracking:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_long": Build and run
 #                         - basic PIC tests
+#                         - test particle emission for gyrotron setup with fixed electric current of 44 A
+#                         - test record points for TWT setup and compare with h5diff
 #                         - build all specified compile options in "run_basic"
 #                         - h-p-convtests
 #                         - compile HDF5
@@ -102,6 +104,13 @@ gnu_PIC:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
+
+gnu_emission_gyro:
+  stage: reggie_long
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_emission_gyrotron -j no-debug ; fi
 
 gnu_TWT:
   stage: reggie_long
@@ -143,6 +152,13 @@ intel_PIC:
     # fix h5diff on runner -> libs may be wrongly set in the binary file
     # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
     #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
+
+intel_emission_gyro:
+  stage: reggie_long
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_emission_gyrotron -j no-debug ; fi
 
 intel_TWT:
   stage: reggie_long
