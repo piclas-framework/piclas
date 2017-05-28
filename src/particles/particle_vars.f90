@@ -159,6 +159,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
+  INTEGER(KIND=4)                        :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
   REAL                                   :: Nsigma                           ! sigma multiple of maxwell for virtual insert length
   LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapted SetPos/Velo)?
   CHARACTER(40)                          :: vpiDomainType                    ! specifying Keyword for virtual Pre-Inserting region

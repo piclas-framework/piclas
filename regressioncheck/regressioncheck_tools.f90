@@ -416,7 +416,7 @@ LOGICAL,INTENT(OUT)                       :: SkipExample
 ! LOCAL VARIABLES
 INTEGER                                   :: ioUnit
 INTEGER                                   :: iSTATUS,IndNum,IndNum2,IndNum3,MaxNum
-CHARACTER(LEN=255)                        :: FileName,temp1,temp2
+CHARACTER(LEN=255)                        :: FileName,temp1,temp2,temp3
 LOGICAL                                   :: ExistFile
 !==================================================================================================================================
 SkipExample=.FALSE.
@@ -445,6 +445,8 @@ Example%ReferenceTolerance      = -1.
 Example%SubExample              = '-'     ! init
 Example%SubExampleNumber        = 0       ! init total number of subexamples
 Example%SubExampleOption(1:100) = '-'     ! default option is nothing
+Example%IntegrateLineMultiplier = 1.0     ! default option for IntegrateLine
+Example%IntegrateLineOption     = 'default' ! default value is "default"
 DO ! extract reggie information
   READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1 ! get first line assuming it is something like "nVar= 5"
   IF(iSTATUS.EQ.-1) EXIT ! end of file (EOF) reached
@@ -489,11 +491,15 @@ DO ! extract reggie information
     ! Line integration (e.g. integrate a property over time, the data is read from a .csv or .dat file)
     ! e.g. in parameter_reggie.ini: IntegrateLine= Database.csv   ,1            ,','       ,1:2        , 1.0e2
     !                                              data file name , header lines, delimiter, colums x:y, integral value
+    IF(TRIM(readRHS(1)).EQ.'IntegrateLineMultiplier')CALL str2real(readRHS(2),Example%IntegrateLineMultiplier,iSTATUS)
+    IF(TRIM(readRHS(1)).EQ.'IntegrateLineOption')Example%IntegrateLineOption=TRIM(readRHS(2))
     IF(TRIM(readRHS(1)).EQ.'IntegrateLine')THEN
        Example%IntegrateLine            = .TRUE.
        Example%IntegrateLineRange(1:2)  = 0     ! init
        Example%IntegrateLineHeaderLines = 0     ! init
        Example%IntegrateLineDelimiter   = '999' ! init
+       Example%IntegrateLineValue       = 0     ! init
+       Example%IntegrateLineTolerance   = 5E-2  ! init 5% tolerance
        IndNum2=INDEX(readRHS(2),',')
        IF(IndNum2.GT.0)THEN ! get the name of the data file
          temp2                     = readRHS(2)
@@ -520,6 +526,12 @@ DO ! extract reggie information
                  temp2             = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
                  IndNum2           = LEN(temp2)
                  IF(IndNum2.GT.0)THEN ! get integral value
+                   IndNum2             = INDEX(temp2,',')
+                   IF(IndNum2.GT.0)THEN ! get tolerance - only if supplied, if not then use the default value (see top)
+                     temp3         = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                     CALL str2real(temp3,Example%IntegrateLineTolerance,iSTATUS)
+                     temp2         = temp2(1:IndNum2-1)
+                   END IF
                    CALL str2real(temp2,Example%IntegrateLineValue,iSTATUS)
                  END IF ! get integral value
                END IF ! check range

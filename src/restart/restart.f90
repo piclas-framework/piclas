@@ -477,7 +477,7 @@ __STAMP__&
         IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
           COUNTER = COUNTER + 1
           !CALL SingleParticleToExactElement(i)
-          CALL SingleParticleToExactElement(i,doHALO=.FALSE.)
+          CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.)
           IF (.NOT.PDM%ParticleInside(i)) THEN
             COUNTER2 = COUNTER2 + 1
             PartPosRef(1:3,i) = -888.
@@ -563,7 +563,7 @@ __STAMP__&
         PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
         PDM%ParticleInside(CurrentPartNum) = .true.
         IF(DoRefMapping)THEN
-          CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.)
+          CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.,initFix=.FALSE.)
         ELSE
           CALL SingleParticleToExactElementNoMap(CurrentPartNum,doHALO=.FALSE.)
         END IF

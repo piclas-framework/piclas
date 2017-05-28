@@ -286,18 +286,21 @@ DO i=1,nSpecies
 #endif
         SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
         CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac
+          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
           IF (Species(i)%Init(iInit)%VirtPreInsert .AND. Species(i)%Init(iInit)%PartDensity.GT.0.) THEN
             NbrOfParticle = 0 ! calculated within SetParticlePosition itself!
           ELSE IF (.NOT.DoPoissonRounding) THEN
-            inserted_Particle_iter = INT(PartIns,8)
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal)
+            inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over 
+                                                                                        ! simulation
             CALL RANDOM_NUMBER(RandVal1)
-            !-- random-round the inserted_Particle_time for preventing periodicity
+            !-- random-round the inserted_Particle_time for preventing periodicity 
+            ! PO & SC: why, sometimes we do not want this add, TB is bad!
             IF (inserted_Particle_iter.GE.1) THEN
               CALL RANDOM_NUMBER(RandVal1)
-              inserted_Particle_time = INT(PartIns + RandVal1,8)
-            ELSE IF (inserted_Particle_iter.GE.0) THEN !needed, since InsertedParticleSurplus can increase
+              inserted_Particle_time = INT(PartIns + RandVal1,8) ! adds up to ONE 
+            ELSE IF((inserted_Particle_iter.GE.0).AND.(inserted_Particle_iter.LT.1)) THEN 
+                                                       !needed, since InsertedParticleSurplus can increase
                                                        !and _iter>1 needs to be possible for preventing periodicity
               IF (ALMOSTEQUAL(PartIns,0.)) THEN !dummy
                 inserted_Particle_time = INT(PartIns,8)
@@ -310,7 +313,8 @@ DO i=1,nSpecies
             END IF
             !-- evaluate inserted_Particle_time and inserted_Particle_iter
             inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
-              - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus
+              - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
+              + Species(i)%Init(iInit)%InsertedParticleMisMatch
             Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
             NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
             !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
@@ -585,7 +589,8 @@ REAL                                     :: intersecPoint(3), orifice_delta, lPe
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 #ifdef MPI
-INTEGER                                  :: InitGroup
+INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
+INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 #endif                        
 !===================================================================================================================================
 
@@ -776,6 +781,10 @@ IF(( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                      
 ELSE
    nChunks = 1
 END IF
+
+! communication
+IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') nChunks=1
+
 IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
   IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
@@ -1410,7 +1419,7 @@ __STAMP__&
             PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             IF(DoRefMapping)THEN
-              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.)
+              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFix=.TRUE.)
             ELSE
               CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
             END IF
@@ -1581,6 +1590,7 @@ __STAMP__&
  END IF
  IF (nChunks.GT.1) THEN
     DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+      ! sent particles
       !--- MPI_ISEND lengths of lists of particles leaving local mesh
       CALL MPI_ISEND(PartMPIInsert%nPartsSend(iProc), 1, MPI_INTEGER, iProc, 1011+FractNbr, PartMPI%InitGroup(InitGroup)%COMM, &
                      PartMPIInsert%SendRequest(iProc,1), IERROR)
@@ -1639,6 +1649,7 @@ __STAMP__&
   END IF
 ELSE ! mode.NE.1:
 !--- RECEIVE:
+  nChunksTemp=0
   IF(nChunks.EQ.1) THEN
     IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN !chunkSize can be 1 higher than NbrOfParticle for VPI+PartDens
        chunkSize=INT( REAL(SIZE(PartMPIInsert%send_message(0)%content)) / REAL(DimSend) )
@@ -1656,6 +1667,7 @@ ELSE ! mode.NE.1:
       ALLOCATE(particle_positions(1:chunkSize*DimSend), STAT=allocStat)
     END IF
     CALL MPI_BCAST(particle_positions, chunkSize*DimSend, MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
+    nChunksTemp=1
   ELSE   
     DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
       CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,1),msg_status(:),IERROR)
@@ -1697,6 +1709,15 @@ ELSE ! mode.NE.1:
 !      WRITE(130+PartMPI%iProc,'(3(ES15.8))')particle_positions(i*3-2:i*3)
 !   END DO
 !   CLOSE(130+PartMPI%iProc)
+
+#ifdef MPI
+  ! in order to remove duplicated particles
+  IF(nChunksTemp.EQ.1) THEN
+    ALLOCATE(PartFoundInProc(1:2,1:ChunkSize))
+    PartFoundInProc=-1
+  END IF
+#endif /*MPI*/
+
   mySumOfMatchedParticles=0
   ParticleIndexNbr = 1
   DO i=1,chunkSize*nChunks
@@ -1708,13 +1729,20 @@ ELSE ! mode.NE.1:
        PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
        IF(DoRefMapping)THEN
-         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.)
+         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,InitFix=.TRUE.)
        ELSE
          CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
        END IF
        !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
+#ifdef MPI
+          IF(nChunksTemp.EQ.1) THEN
+            ! mark elements with Rank and local found particle index
+            PartFoundInProc(1,i)=MyRank
+            PartFoundInProc(2,i)=mySumOfMatchedParticles
+          END IF ! nChunks.EQ.1
+#endif /*MPI*/
        ELSE
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
        END IF
@@ -1727,7 +1755,34 @@ __STAMP__&
   END DO
  
 #ifdef MPI
- ! check the sum of the matched particles: did each particle find its "home"-CPU?
+  mySumOfRemovedParticles=0
+  IF(nChunksTemp.EQ.1) THEN
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartfoundInProc(1,:), ChunkSize, MPI_INTEGER, MPI_MAX &
+                                                        , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+    ! loop over all particles and check, if particle is found in my proc
+    ! proc with LARGES id gets the particle, all other procs remove the duplicated
+    ! particle from their list
+    DO i=1,chunkSize
+      IF(PartFoundInProc(2,i).GT.-1)THEN ! particle has been previously found by MyRank
+        IF(PartFoundInProc(1,i).NE.MyRank)THEN ! particle should not be found by MyRank 
+          !ParticleIndexNbr = PartFoundInProc(2,i)
+          ParticleIndexNbr = PDM%nextFreePosition(PartFoundInProc(2,i) + PDM%CurrentNextFreePosition)
+          IF(.NOT.PDM%ParticleInside(ParticleIndexNbr)) WRITE(UNIT_stdOut,*) ' Error in emission in parallel!!'
+          PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
+          PDM%IsNewPart(ParticleIndexNbr)=.FALSE.
+          ! correct number of found particles
+          mySumOfRemovedParticles = mySumOfRemovedParticles +1
+          ! set update next free position to zero for removed particle
+          PDM%nextFreePosition(PartFoundInProc(2,i) + PDM%CurrentNextFreePosition) = 0
+          !mySumOfMatchedParticles = mySumOfMatchedParticles -1
+        END IF 
+      END IF
+    END DO ! i=1,chunkSize
+    DEALLOCATE(PartFoundInProc)
+    mySumOfMatchedParticles = mySumOfMatchedParticles - mySumOfRemovedParticles
+  END IF
+
+  ! check the sum of the matched particles: did each particle find its "home"-CPU?
   CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM &
                                            , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
 #else
@@ -1749,6 +1804,9 @@ __STAMP__&
         END IF
       END IF
     ELSE
+      ! add number of matching error to particle emission to fit 
+      ! number of added particles
+      Species(FractNbr)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - sumOfMatchedParticles
       IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
         IF(DoDisplayEmissionWarnings)THEN
           SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
@@ -1786,7 +1844,7 @@ __STAMP__&
 
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
-  NbrOfParticle = mySumOfMatchedParticles
+  NbrOfParticle = mySumOfMatchedParticles + mySumOfRemovedParticles
 
   DEALLOCATE( particle_positions, STAT=allocStat )
   IF (allocStat .NE. 0) THEN
