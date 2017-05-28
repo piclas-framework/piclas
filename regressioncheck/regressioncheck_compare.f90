@@ -817,15 +817,16 @@ END DO
 
 Q=Q*Examples(iExample)%IntegrateLineMultiplier ! use multiplier if needed
 
-IntegralValuesAreEqual=AlmostEqualToTolerance( Q                                     ,&
-                                               Examples(iExample)%IntegrateLineValue ,&
+IntegralValuesAreEqual=AlmostEqualToTolerance( Q                                         ,&
+                                               Examples(iExample)%IntegrateLineValue     ,&
                                                Examples(iExample)%IntegrateLineTolerance )
+IF(.NOT.IntegralValuesAreEqual)THEN
   IntegralCompare=1
   SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLines do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLineOption                   =  '//TRIM(Examples(iExample)%IntegrateLineOption)
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' IntegrateLineValue                    = ',Q
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Tolerance                             = ',Examples(iExample)%IntegrateLineTolerance
-IF(.NOT.IntegralValuesAreEqual)THEN
   !SWRITE(UNIT_stdOut,'(A,E21.14)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5
 ELSE
