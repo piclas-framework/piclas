@@ -4,7 +4,6 @@ stages:
   - reggie_short
   - reggie_tracking
   - reggie_long
-  - reggie_special
 
 cache:
   key: "$CI_BUILD_REF"
@@ -104,6 +103,13 @@ gnu_PIC:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
 
+gnu_TWT:
+  stage: reggie_long
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_TWT_recordpoints -j no-debug ; fi
+
 gnu_convtest:
   stage: reggie_long
   tags:
@@ -138,6 +144,15 @@ intel_PIC:
     # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
     #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
 
+intel_TWT:
+  stage: reggie_long
+  tags:
+    - withmodules
+  script:
+    - echo "nothing to do";
+    # fix h5diff on runner -> libs may be wrongly set in the binary file
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_TWT_recordpoints -j no-debug ; fi
+
 intel_convtest:
   stage: reggie_long
   tags:
@@ -152,22 +167,3 @@ intel_HDF5_single_mpi:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
 
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_special": Run test for TWT with recordpoints
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_TWT:
-  stage: reggie_special
-  tags:
-    - withmodules
-  script:
-    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_TWT_recordpoints
-
-intel_TWT:
-  stage: reggie_special
-  tags:
-    - withmodules
-  script:
-    - echo "nothing to do";
-    # fix h5diff on runner -> libs may be wrongly set in the binary file
-    #- module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_TWT_recordpoints
