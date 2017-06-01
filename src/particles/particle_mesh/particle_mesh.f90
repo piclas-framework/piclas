@@ -661,10 +661,10 @@ DO ilocSide=1,6
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(15("="))')
-      WRITE(UNIT_stdout,'(A)') ' Output after compute intersection (PartInElemCheck): '
-      WRITE(UNIT_stdout,'(2(A,I0),A,L)') '| SideType: ',SideType(SideID),'| SideID: ',SideID,'| Hit: ',isHit
-      WRITE(UNIT_stdout,'(2(A,E15.8))') '| LengthPT: ',LengthPartTrajectory,'| Alpha: ',Alpha
-      WRITE(UNIT_stdout,'(A,2(E15.8))') '| Intersection xi/eta: ',xi,eta
+      WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (PartInElemCheck): '
+      WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,'| Hit: ',isHit
+      WRITE(UNIT_stdout,'(2(A,E15.8))')  '     | LengthPT: ',LengthPartTrajectory,' | Alpha: ',Alpha
+      WRITE(UNIT_stdout,'(A,2(X,E15.8))') '     | Intersection xi/eta: ',xi,eta
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -684,11 +684,11 @@ DO ilocSide=1,6
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,*) ' Normal vector  ',NormVec
-      WRITE(UNIT_stdout,*) ' PartTrajectory ',PartTrajectory
-      WRITE(UNIT_stdout,*) ' Dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
-      WRITE(UNIT_stdout,*) ' Point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
-      WRITE(UNIT_stdout,*) ' Beziercontrolpoints3d-x'
+      WRITE(UNIT_stdout,*) '     | Normal vector  ',NormVec
+      WRITE(UNIT_stdout,*) '     | PartTrajectory ',PartTrajectory
+      WRITE(UNIT_stdout,*) '     | Dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
+      WRITE(UNIT_stdout,*) '     | Point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
+      WRITE(UNIT_stdout,*) '     | Beziercontrolpoints3d-x'
       CALL OutputBezierControlPoints(BezierControlPoints3D_in=BezierControlPoints3D(1:3,:,:,SideID))
     END IF
   END IF

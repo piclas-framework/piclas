@@ -468,25 +468,26 @@ C = a1(4)*a2(2)-a1(2)*a2(4)
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A)') ' Output of bilinear intersection equation constants: '
-      WRITE(UNIT_stdout,'(A,E15.8,A,E15.8,A,E15.8)') '| A: ',A,'| B: ',B,'| C: ',C
+      WRITE(UNIT_stdout,'(15("-"))')
+      WRITE(UNIT_stdout,'(A)') '     | Output of bilinear intersection equation constants: '
+      WRITE(UNIT_stdout,'(A,E15.8,A,E15.8,A,E15.8)') '     | A: ',A,'| B: ',B,'| C: ',C
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
 
 !scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
-scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
-scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
-scaleFac = 1./scaleFac
-A = A * scaleFac
-B = B * scaleFac
-C = C * scaleFac
+!scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
+!scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
+!scaleFac = 1./scaleFac
+!A = A * scaleFac
+!B = B * scaleFac
+!C = C * scaleFac
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A)') ' Output of bilinear intersection equation constants (after scaling): '
-      WRITE(UNIT_stdout,'(3(A,E15.8))') '| A: ',A,'| B: ',B,'| C: ',C
+      WRITE(UNIT_stdout,'(A)') '     | Output of bilinear intersection equation constants (after scaling): '
+      WRITE(UNIT_stdout,'(3(A,E15.8))') '     | A: ',A,'| B: ',B,'| C: ',C
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -496,8 +497,8 @@ CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A)') ' Output after QuatricSolver: '
-      WRITE(UNIT_stdout,'(A,E15.8,A,2(E15.8))') '| number of root: ',nRoot,'| Eta: ',Eta(1:2)
+      WRITE(UNIT_stdout,'(A)') '     | Output after QuatricSolver: '
+      WRITE(UNIT_stdout,'(A,I0,A,2(X,E15.8))') '     | number of root: ',nRoot,'| Eta: ',Eta(1:2)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -513,8 +514,8 @@ IF (nRoot.EQ.1) THEN
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A)') ' nRoot = 1 '
-      WRITE(UNIT_stdout,'(A,2(E15.8),A,2(E15.8))') '| xi: ',xi(1:2),'| t: ',t(1:2)
+      WRITE(UNIT_stdout,'(A)') '     | nRoot = 1 '
+      WRITE(UNIT_stdout,'(A,2(X,E15.8),A,2(X,E15.8))') '     | xi: ',xi(1:2),'| t: ',t(1:2)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -531,7 +532,7 @@ IF (nRoot.EQ.1) THEN
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,2(E15.8),A,2(E15.8))') '| alpha: ',alpha,'| t: ',t(1:2)
+      WRITE(UNIT_stdout,'(A,E15.8,A,E15.8)') '     | alphanorm: ',alphaNorm,' | epsilonTolerance: ',epsilontol
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -564,6 +565,13 @@ ELSE
         nInter=nInter+1
         isHit=.TRUE.
         t(1)=t(1)
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A,E15.8,A,E15.8)') '     | alphanorm1: ',alphaNorm,' | epsilonTolerance: ',epsilontol
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
       ELSE
         t(1)=-1.0
       END IF
@@ -573,6 +581,15 @@ ELSE
 
   xi(2)=ComputeXi(a1,a2,eta(2))
   t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') '     | nRoot = 2 '
+      WRITE(UNIT_stdout,'(A,2(X,E15.8),A,2(X,E15.8))') '     | xi: ',xi(1:2),'| t: ',t(1:2)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
 
  !IF(ABS(eta(2)).LT.OnePlusEps)THEN
  IF(ABS(eta(2)).LT.BezierClipHit)THEN
@@ -585,6 +602,13 @@ ELSE
         t(2)=t(2)!/lengthPartTrajectory
         isHit=.TRUE.
         nInter=nInter+2
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A,E15.8,A,E15.8)') '     | alphanorm2: ',alphaNorm,' | epsilonTolerance: ',epsilontol
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
       ELSE
         t(2)=-1.0
       END IF
@@ -2738,9 +2762,14 @@ FUNCTION ComputeSurfaceDistance2(SideNormVec,BiLinearCoeff,xi,eta,PartTrajectory
 ! compute the required vector length to intersection
 ! ramsey paper algorithm 3.4
 !================================================================================================================================
-USE MOD_Globals,                  ONLY:Almostzero
+USE MOD_Preproc
+USE MOD_Globals
+!USE MOD_Globals,                  ONLY:Almostzero
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol
 USE MOD_Particle_Vars,            ONLY:LastPartPos
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -2758,6 +2787,74 @@ REAL                                 :: ComputeSurfaceDistance2
 REAL                                 :: t
 !================================================================================================================================
 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(15(":"))')
+            WRITE(UNIT_stdout,'(A)') '     -- Output in surfacedistance compute: '
+            WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     -- SideNormVec: ',SideNormVec(1:3)
+            WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     -- PartTrajectory: ',PartTrajectory(1:3)
+            WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     -- LastPartPos: ',lastPartPos(iPart,1:3)
+            WRITE(UNIT_stdout,'(A,4(X,E15.8))') '     -- BilinearCoeff1: ',BilinearCoeff(1,1:4)
+            WRITE(UNIT_stdout,'(A,4(X,E15.8))') '     -- BilinearCoeff2: ',BilinearCoeff(2,1:4)
+            WRITE(UNIT_stdout,'(A,4(X,E15.8))') '     -- BilinearCoeff3: ',BilinearCoeff(3,1:4)
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
+  t = t/ PartTrajectory(1)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t1: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
+  t = t/ PartTrajectory(2)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t2: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
+  t = t/ PartTrajectory(3)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t3: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
+  t = t/ PartTrajectory(1)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t4: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
+  t = t/ PartTrajectory(2)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t5: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
+  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
+  t = t/ PartTrajectory(3)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t6: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
 !in ramsey paper the direction was chosen based on the largest component of PartTrajectory for preventing a division by zero.
 !however, by this significant floating point inaccuracies can occur if this direction is approx. orthogonal to side normal vec.
 !solution: chose direction based on SideNormVec and additionally check that no division by zero occurs.
@@ -2765,23 +2862,65 @@ IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))).AND.(ABS(SideNormVec(1)).GE.ABS(
   .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
   t = t/ PartTrajectory(1)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t1: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
 ELSE IF(ABS(SideNormVec(2)).GE.ABS(SideNormVec(3)) &
   .AND. .NOT.Almostzero(PartTrajectory(2)))THEN
   t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
   t = t/ PartTrajectory(2)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t2: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
 ELSE IF(.NOT.Almostzero(PartTrajectory(3)))THEN
   t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
   t = t/ PartTrajectory(3)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t3: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
 !if PartTrajectory should be zero in largest component of SideNormVec, decide based on original check:
 ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
   t = t/ PartTrajectory(1)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t4: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
 ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
   t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
   t = t/ PartTrajectory(2)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t5: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
 ELSE
   t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
   t = t/ PartTrajectory(3)-epsilontol 
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t6: ',t
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
 END IF
 
 !IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GT.ABS(PartTrajectory(3))))THEN
