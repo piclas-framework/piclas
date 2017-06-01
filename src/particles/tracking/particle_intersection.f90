@@ -395,6 +395,9 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 #ifdef MPI
 USE MOD_Mesh_Vars,               ONLY:BC
@@ -462,6 +465,15 @@ A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
 
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') ' Output of bilinear intersection equation constants: '
+      WRITE(UNIT_stdout,'(A,E15.8,A,E15.8,A,E15.8)') '| A: ',A,'| B: ',B,'| C: ',C
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
 !scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
 scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
 scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
@@ -470,7 +482,25 @@ A = A * scaleFac
 B = B * scaleFac
 C = C * scaleFac
 
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') ' Output of bilinear intersection equation constants (after scaling): '
+      WRITE(UNIT_stdout,'(3(A,E15.8))') '| A: ',A,'| B: ',B,'| C: ',C
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') ' Output after QuatricSolver: '
+      WRITE(UNIT_stdout,'(A,E15.8,A,2(E15.8))') '| number of root: ',nRoot,'| Eta: ',Eta(1:2)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
 
 IF(nRoot.EQ.0)THEN
   RETURN
@@ -479,6 +509,15 @@ END IF
 IF (nRoot.EQ.1) THEN
   xi(1)=ComputeXi(a1,a2,eta(1))
   t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') ' nRoot = 1 '
+      WRITE(UNIT_stdout,'(A,2(E15.8),A,2(E15.8))') '| xi: ',xi(1:2),'| t: ',t(1:2)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
 
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
     IF(ABS(xi(1)).LT.BezierClipHit)THEN
@@ -489,6 +528,13 @@ IF (nRoot.EQ.1) THEN
         xitild=xi(1)
         etatild=eta(1)
         isHit=.TRUE.
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(iPart.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A,2(E15.8),A,2(E15.8))') '| alpha: ',alpha,'| t: ',t(1:2)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
         RETURN
       ELSE ! t is not in range
         RETURN

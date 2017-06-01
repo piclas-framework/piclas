@@ -58,6 +58,7 @@ USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
 #ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -125,12 +126,12 @@ DO iPart=1,PDM%ParticleVecLength
                                                  + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
 #endif /*MPI*/
      END IF
-     IPWRITE(UNIT_stdOut,*) ' ElemBaryNGeo      ', ElemBaryNGeo(1:3,ElemID)
-     IPWRITE(UNIT_stdOut,*) ' IntersectionPoint ', IntersectionPoint
-     IPWRITE(UNIT_stdOut,*) ' LastPartPos:      ', LastPartPos(iPart,1:3)
-     IPWRITE(UNIT_stdOut,*) ' PartPos:          ', PartState(iPart,1:3)
-     IPWRITE(UNIT_stdOut,*) ' PartTrajectory:   ', PartTrajectory
-     IPWRITE(UNIT_stdOut,*) ' lengthPT:         ', lengthPartTrajectory
+     IPWRITE(UNIT_stdOut,'(I0,A,6(E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
+     IPWRITE(UNIT_stdOut,'(I0,A,6(E15.8))') ' IntersectionPoint: ', IntersectionPoint
+     IPWRITE(UNIT_stdOut,'(I0,A,6(E15.8))') ' LastPartPos:       ', LastPartPos(iPart,1:3)
+     IPWRITE(UNIT_stdOut,'(I0,A,6(E15.8))') ' PartPos:           ', PartState(iPart,1:3)
+     IPWRITE(UNIT_stdOut,'(I0,A,6(E15.8))') ' PartTrajectory:    ', PartTrajectory
+     IPWRITE(UNIT_stdOut,'(I0,A,E15.8)')    ' lengthPT:          ', lengthPartTrajectory
      CALL abort(&
      __STAMP__ &
      ,'iPart=. ',iPart)
@@ -187,6 +188,17 @@ DO iPart=1,PDM%ParticleVecLength
           __STAMP__ &
           ,' Missing required side-data. Please increase halo region. ',SideID)
         END SELECT
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(15("="))')
+            WRITE(UNIT_stdout,'(A)') ' Output after compute intersection: '
+            WRITE(UNIT_stdout,'(2(A,I0),A,L)') '| SideType: ',SideType(SideID),'| SideID: ',SideID,'| Hit: ',isHit
+            WRITE(UNIT_stdout,'(2(A,E15.8))') '| LengthPT: ',LengthPartTrajectory,'| Alpha: ',locAlpha(ilocSide)
+            WRITE(UNIT_stdout,'(A,2(E15.8))') '| Intersection xi/eta: ',xi(ilocSide),eta(ilocSide)
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
         IF(isCriticalParallelInFace)THEN
           IPWRITE(UNIT_stdOut,*) ' Warning: Particle located inside of face and moves parallel to side. Undefined position. '
           IPWRITE(UNIT_stdOut,*) ' Removing particle with id: ',iPart
@@ -203,6 +215,16 @@ DO iPart=1,PDM%ParticleVecLength
           !IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
         END IF
       END DO ! ilocSide
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A,I0)') '> Number of found intersections: ',nIntersections
+          IF(markTol)THEN
+            WRITE(UNIT_stdout,'(A)') ' Tolerance marked ... '
+          END IF
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       SELECT CASE(nInterSections)
       CASE(0) ! no intersection
         PEM%Element(iPart)=ElemID
@@ -321,6 +343,32 @@ DO iPart=1,PDM%ParticleVecLength
          ! particle moves close to an edge or corner. this is a critical movement because of possible tolerance issues
 !        END IF
       END SELECT
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A)') ' Output of new Element after intersections number check: '
+          WRITE(UNIT_stdout,'(A,L,A,L,A,L)') '| crossed Side: ',crossedBC,' switched Element: ',SwitchedElement,&
+                  ' Particle tracking done: ',PartisDone
+          IF(SwitchedElement) THEN
+            WRITE(UNIT_stdout,'(A,I0,A,I0)') ' First_ElemID: ',PEM%LastElement(iPart),' new Element: ',ElemID
+            InElem=PEM%LastElement(iPart)
+            IF(InElem.LE.PP_nElems)THEN
+              WRITE(UNIT_stdOut,'(A,I0)') '| first global ElemID       ', InElem+offSetElem
+            ELSE
+              WRITE(UNIT_stdOut,'(A,I0)') '| first global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+            END IF
+            InElem=ElemID
+            IF(InElem.LE.PP_nElems)THEN
+              WRITE(UNIT_stdOut,'(A,I0)') '| new global ElemID       ', InElem+offSetElem
+            ELSE
+              WRITE(UNIT_stdOut,'(A,I0)') '| new global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+            END IF
+          END IF
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
     END DO ! PartisDone=.FALSE.
     IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
@@ -331,15 +379,17 @@ DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
-        IPWRITE(UNIT_stdOut,*) ' Tolerance Issue during tracing! '
-        IPWRITE(UNIT_stdOut,*) ' Lost particle with id', ipart
-        IPWRITE(UNIT_stdOut,*) ' LastPartPos: ',LastPartPos(ipart,1:3)
-        IPWRITE(UNIT_stdOut,*) ' PartState: ',PartState(ipart,1:3)
-        IPWRITE(UNIT_stdOut,*) ' Compuing PartPosRef of ... '
+        !WRITE(UNIT_stdOut,'(20(=))')
+        IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue during tracing! '
+        IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') ' Proc: ',MyRank,' lost particle with ID', iPart
+        IPWRITE(UNIT_stdOut,'(I0,A,E15.8)') ' LastPartPos: ',LastPartPos(ipart,1:3)
+        IPWRITE(UNIT_stdOut,'(I0,A,E15.8)') '     PartPos: ',PartState(ipart,1:3)
+        IPWRITE(UNIT_stdOut,'(I0,A)') ' Computing PartRefPos ... '
         CALL Eval_xyz_ElemCheck(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
-        IPWRITE(UNIT_stdOut,*) ' LastPartRefPos: ',refpos
+        IPWRITE(UNIT_stdOut,'(I0,A,E15.8)') ' LastPartRefPos: ',refpos
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
-        IPWRITE(UNIT_stdOut,*) '     PartRefPos: ',refpos
+        IPWRITE(UNIT_stdOut,'(I0,A,E15.8)') '     PartRefPos: ',refpos
+        !WRITE(UNIT_stdOut,'(20(=))')
 #ifdef MPI
         InElem=PEM%Element(iPart)
         IF(InElem.LE.PP_nElems)THEN

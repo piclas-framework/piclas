@@ -642,13 +642,6 @@ DO ilocSide=1,6
     SideID=PartBCSideList(BCSideID)
     IF(SideID.LT.1) CYCLE
   END IF
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(PartID.EQ.PARTOUT)THEN
-      IPWRITE(UNIT_stdout,*) ' SideType ',SideType(SideID)
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
 
   SELECT CASE(SideType(SideID))
   CASE(PLANAR_RECT)
@@ -663,6 +656,19 @@ DO ilocSide=1,6
   CASE(CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
   END SELECT
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(15("="))')
+      WRITE(UNIT_stdout,'(A)') ' Output after compute intersection (PartInElemCheck): '
+      WRITE(UNIT_stdout,'(2(A,I0),A,L)') '| SideType: ',SideType(SideID),'| SideID: ',SideID,'| Hit: ',isHit
+      WRITE(UNIT_stdout,'(2(A,E15.8))') '| LengthPT: ',LengthPartTrajectory,'| Alpha: ',Alpha
+      WRITE(UNIT_stdout,'(A,2(E15.8))') '| Intersection xi/eta: ',xi,eta
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
   IF(alpha.GT.-1)THEN
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -678,17 +684,16 @@ DO ilocSide=1,6
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
-      IPWRITE(UNIT_stdout,*) ' SideType       ',SideType(SideID)
-      IPWRITE(UNIT_stdout,*) ' alpha          ',alpha
-      IPWRITE(UNIT_stdout,*) ' nv             ',NormVec
-      IPWRITE(UNIT_stdout,*) ' PartTrajectory ',PartTrajectory
-      IPWRITE(UNIT_stdout,*) ' dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
-      IPWRITE(UNIT_stdout,*) ' point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
-      IPWRITE(UNIT_stdout,*) ' beziercontrolpoints3d-x'
+      WRITE(UNIT_stdout,*) ' Normal vector  ',NormVec
+      WRITE(UNIT_stdout,*) ' PartTrajectory ',PartTrajectory
+      WRITE(UNIT_stdout,*) ' Dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
+      WRITE(UNIT_stdout,*) ' Point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
+      WRITE(UNIT_stdout,*) ' Beziercontrolpoints3d-x'
       CALL OutputBezierControlPoints(BezierControlPoints3D_in=BezierControlPoints3D(1:3,:,:,SideID))
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
+
     IF(DOT_PRODUCT(NormVec,PartTrajectory).LT.0.)THEN
       alpha=-1.0
     ELSE
