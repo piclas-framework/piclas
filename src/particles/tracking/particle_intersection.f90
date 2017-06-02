@@ -449,17 +449,94 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
 !      -(0.25*BaseVectors0(3,SideID)-LastPartPos(iPart,3))*PartTrajectory(2)
 
 ! compute product with particle trajectory
-a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
-a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
-a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+!a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+!a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+!a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+!a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+!     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+!
+!a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+!a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+!a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+!a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+!     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
 
-a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
-a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
-a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+IF((ABS(SideNormVec(1,SideID)).GE.ABS(SideNormVec(2,SideID))) .AND.(ABS(SideNormVec(1,SideID)).LE.ABS(SideNormVec(3,SideID))) &
+  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+  a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
+  a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
+  a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
+  a1(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3)
+ELSE IF(ABS(SideNormVec(2,SideID)).LE.ABS(SideNormVec(3,SideID)) &
+  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3)
+ELSE IF(.NOT.Almostzero(PartTrajectory(3)))THEN
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+  a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+  a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+  a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+!if PartTrajectory should be zero in largest component of SideNormVec, decide based on original check:
+ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
+  a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
+  a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
+  a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
+  a1(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3)
+ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3)
+ELSE
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+  a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+  a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+  a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+END IF
 
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
@@ -471,17 +548,18 @@ C = a1(4)*a2(2)-a1(2)*a2(4)
       WRITE(UNIT_stdout,'(15("-"))')
       WRITE(UNIT_stdout,'(A)') '     | Output of bilinear intersection equation constants: '
       WRITE(UNIT_stdout,'(A,E15.8,A,E15.8,A,E15.8)') '     | A: ',A,'| B: ',B,'| C: ',C
+      WRITE(UNIT_stdout,'(A,4(X,G0),A,4(X,G0))') '     | a1: ',a1,'| a2: ',a2
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
 
 !scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
-!scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
-!scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
-!scaleFac = 1./scaleFac
-!A = A * scaleFac
-!B = B * scaleFac
-!C = C * scaleFac
+scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
+scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
+scaleFac = 1./scaleFac
+A = A * scaleFac
+B = B * scaleFac
+C = C * scaleFac
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -498,7 +576,7 @@ CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(A)') '     | Output after QuatricSolver: '
-      WRITE(UNIT_stdout,'(A,I0,A,2(X,E15.8))') '     | number of root: ',nRoot,'| Eta: ',Eta(1:2)
+      WRITE(UNIT_stdout,'(A,I0,A,2(X,G0))') '     | number of root: ',nRoot,'| Eta: ',Eta(1:2)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -2695,17 +2773,17 @@ REAL                    :: radicant
 !================================================================================================================================
 
 !IF(radicant.LT.-epsMach)THEN
-IF(ALMOSTZERO(a))THEN
-  IF(ABS(b).LT.epsMach)THEN
-    nRoot=0
-    R1=0.
-    R2=0.
-  ELSE
-    nRoot=1
-    R1=-c/b
-    R2=0.
-  END IF
-ELSE
+!IF(ALMOSTZERO(a))THEN
+!  IF(ABS(b).LT.epsMach)THEN
+!    nRoot=0
+!    R1=0.
+!    R2=0.
+!  ELSE
+!    nRoot=1
+!    R1=-c/b
+!    R2=0.
+!  END IF
+!ELSE
   radicant = B*B-4.0*A*C
   IF(radicant.LT.0.)THEN
     nRoot=0
@@ -2723,7 +2801,7 @@ ELSE
     R1=0.5*(-B+R1)/A
     R2=0.5*(-B+R2)/A ! sign above
   END IF
-END IF
+!END IF
 !IF(ABS(a).LT.epsMach)THEN
 !  IF(ABS(b).LT.epsMach)THEN
 !    nRoot=0
@@ -2795,9 +2873,9 @@ REAL                                 :: t
             WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     -- SideNormVec: ',SideNormVec(1:3)
             WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     -- PartTrajectory: ',PartTrajectory(1:3)
             WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     -- LastPartPos: ',lastPartPos(iPart,1:3)
-            WRITE(UNIT_stdout,'(A,4(X,E15.8))') '     -- BilinearCoeff1: ',BilinearCoeff(1,1:4)
-            WRITE(UNIT_stdout,'(A,4(X,E15.8))') '     -- BilinearCoeff2: ',BilinearCoeff(2,1:4)
-            WRITE(UNIT_stdout,'(A,4(X,E15.8))') '     -- BilinearCoeff3: ',BilinearCoeff(3,1:4)
+            WRITE(UNIT_stdout,'(A,4(X,G0))') '     -- BilinearCoeff1: ',BilinearCoeff(1,1:4)
+            WRITE(UNIT_stdout,'(A,4(X,G0))') '     -- BilinearCoeff2: ',BilinearCoeff(2,1:4)
+            WRITE(UNIT_stdout,'(A,4(X,G0))') '     -- BilinearCoeff3: ',BilinearCoeff(3,1:4)
           END IF
         END IF
 #endif /*CODE_ANALYZE*/
@@ -2828,37 +2906,39 @@ REAL                                 :: t
           END IF
         END IF
 #endif /*CODE_ANALYZE*/
-  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
-  t = t/ PartTrajectory(1)-epsilontol 
-#ifdef CODE_ANALYZE
-        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-          IF(iPart.EQ.PARTOUT)THEN
-            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t4: ',t
-          END IF
-        END IF
-#endif /*CODE_ANALYZE*/
-  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
-  t = t/ PartTrajectory(2)-epsilontol 
-#ifdef CODE_ANALYZE
-        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-          IF(iPart.EQ.PARTOUT)THEN
-            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t5: ',t
-          END IF
-        END IF
-#endif /*CODE_ANALYZE*/
-  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
-  t = t/ PartTrajectory(3)-epsilontol 
-#ifdef CODE_ANALYZE
-        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-          IF(iPart.EQ.PARTOUT)THEN
-            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t6: ',t
-          END IF
-        END IF
-#endif /*CODE_ANALYZE*/
+!  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
+!  t = t/ PartTrajectory(1)-epsilontol 
+!#ifdef CODE_ANALYZE
+!        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+!          IF(iPart.EQ.PARTOUT)THEN
+!            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t4: ',t
+!          END IF
+!        END IF
+!#endif /*CODE_ANALYZE*/
+!  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
+!  t = t/ PartTrajectory(2)-epsilontol 
+!#ifdef CODE_ANALYZE
+!        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+!          IF(iPart.EQ.PARTOUT)THEN
+!            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t5: ',t
+!          END IF
+!        END IF
+!#endif /*CODE_ANALYZE*/
+!  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
+!  t = t/ PartTrajectory(3)-epsilontol 
+!#ifdef CODE_ANALYZE
+!        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+!          IF(iPart.EQ.PARTOUT)THEN
+!            WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t6: ',t
+!          END IF
+!        END IF
+!#endif /*CODE_ANALYZE*/
 !in ramsey paper the direction was chosen based on the largest component of PartTrajectory for preventing a division by zero.
 !however, by this significant floating point inaccuracies can occur if this direction is approx. orthogonal to side normal vec.
 !solution: chose direction based on SideNormVec and additionally check that no division by zero occurs.
-IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))).AND.(ABS(SideNormVec(1)).GE.ABS(SideNormVec(3))) &
+!IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))).AND.(ABS(SideNormVec(1)).GE.ABS(SideNormVec(3))) &
+!  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))) .AND.(ABS(SideNormVec(1)).GE.ABS(SideNormVec(3))) &
   .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
   t = t/ PartTrajectory(1)-epsilontol 
@@ -2958,13 +3038,13 @@ REAL                                 :: a,b
 !================================================================================================================================
 
 a=eta*A2(1)+A2(2)
-b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
+!b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
 
-IF(ABS(B).GE.ABS(A))THEN
-  ComputeXi=(eta*(A1(3)-A2(3))+A1(4)-A2(4))/b
-ELSE
+!IF(ABS(B).GE.ABS(A))THEN
+!  ComputeXi=(-eta*(A2(3)-A1(3))-(A2(4)-A1(4)))/b
+!ELSE
   ComputeXi=(-eta*A2(3)-A2(4))/a
-END IF
+!END IF
 
 END FUNCTION ComputeXi
 
