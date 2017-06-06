@@ -1,0 +1,171 @@
+<CustomFilterDefinitions>
+  <CustomProxyDefinition name="EkineV" group="filters">
+    <CompoundSourceProxy id="6290" servers="1">
+      <Proxy group="filters" type="Calculator" id="4856" servers="1" compound_name="CalcGamma">
+        <Property name="AttributeMode" id="4856.AttributeMode" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="enum" id="4856.AttributeMode.enum">
+            <Entry value="1" text="Point Data"/>
+            <Entry value="2" text="Cell Data"/>
+          </Domain>
+        </Property>
+        <Property name="CoordinateResults" id="4856.CoordinateResults" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="4856.CoordinateResults.bool"/>
+        </Property>
+        <Property name="Function" id="4856.Function" number_of_elements="1">
+          <Element index="0" value="1/sqrt(1-(mag(Velocity)/299792458)^2)"/>
+        </Property>
+        <Property name="Input" id="4856.Input" number_of_elements="1">
+          <Proxy value="4656" output_port="0"/>
+          <Domain name="groups" id="4856.Input.groups"/>
+          <Domain name="input_array" id="4856.Input.input_array"/>
+          <Domain name="input_type" id="4856.Input.input_type"/>
+        </Property>
+        <Property name="ReplaceInvalidValues" id="4856.ReplaceInvalidValues" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="4856.ReplaceInvalidValues.bool"/>
+        </Property>
+        <Property name="ReplacementValue" id="4856.ReplacementValue" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="range" id="4856.ReplacementValue.range"/>
+        </Property>
+        <Property name="ResultArrayName" id="4856.ResultArrayName" number_of_elements="1">
+          <Element index="0" value="gamma"/>
+        </Property>
+        <Property name="ResultNormals" id="4856.ResultNormals" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="4856.ResultNormals.bool"/>
+        </Property>
+        <Property name="ResultTCoords" id="4856.ResultTCoords" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="4856.ResultTCoords.bool"/>
+        </Property>
+      </Proxy>
+      <Proxy group="filters" type="Calculator" id="5065" servers="1" compound_name="EkinEv">
+        <Property name="AttributeMode" id="5065.AttributeMode" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="enum" id="5065.AttributeMode.enum">
+            <Entry value="1" text="Point Data"/>
+            <Entry value="2" text="Cell Data"/>
+          </Domain>
+        </Property>
+        <Property name="CoordinateResults" id="5065.CoordinateResults" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="5065.CoordinateResults.bool"/>
+        </Property>
+        <Property name="Function" id="5065.Function" number_of_elements="1">
+          <Element index="0" value="(mass*299792458^2)*(gamma-1)*6.241509e+18"/>
+        </Property>
+        <Property name="Input" id="5065.Input" number_of_elements="1">
+          <Proxy value="5737" output_port="0"/>
+          <Domain name="groups" id="5065.Input.groups"/>
+          <Domain name="input_array" id="5065.Input.input_array"/>
+          <Domain name="input_type" id="5065.Input.input_type"/>
+        </Property>
+        <Property name="ReplaceInvalidValues" id="5065.ReplaceInvalidValues" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="5065.ReplaceInvalidValues.bool"/>
+        </Property>
+        <Property name="ReplacementValue" id="5065.ReplacementValue" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="range" id="5065.ReplacementValue.range"/>
+        </Property>
+        <Property name="ResultArrayName" id="5065.ResultArrayName" number_of_elements="1">
+          <Element index="0" value="ekin"/>
+        </Property>
+        <Property name="ResultNormals" id="5065.ResultNormals" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="5065.ResultNormals.bool"/>
+        </Property>
+        <Property name="ResultTCoords" id="5065.ResultTCoords" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="5065.ResultTCoords.bool"/>
+        </Property>
+      </Proxy>
+      <Proxy group="filters" type="Calculator" id="5737" servers="1" compound_name="Givemass">
+        <Property name="AttributeMode" id="5737.AttributeMode" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="enum" id="5737.AttributeMode.enum">
+            <Entry value="1" text="Point Data"/>
+            <Entry value="2" text="Cell Data"/>
+          </Domain>
+        </Property>
+        <Property name="CoordinateResults" id="5737.CoordinateResults" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="5737.CoordinateResults.bool"/>
+        </Property>
+        <Property name="Function" id="5737.Function" number_of_elements="1">
+          <Element index="0" value="9.1093826E-31"/>
+        </Property>
+        <Property name="Input" id="5737.Input" number_of_elements="1">
+          <Proxy value="4856" output_port="0"/>
+          <Domain name="groups" id="5737.Input.groups"/>
+          <Domain name="input_array" id="5737.Input.input_array"/>
+          <Domain name="input_type" id="5737.Input.input_type"/>
+        </Property>
+        <Property name="ReplaceInvalidValues" id="5737.ReplaceInvalidValues" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="5737.ReplaceInvalidValues.bool"/>
+        </Property>
+        <Property name="ReplacementValue" id="5737.ReplacementValue" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="range" id="5737.ReplacementValue.range"/>
+        </Property>
+        <Property name="ResultArrayName" id="5737.ResultArrayName" number_of_elements="1">
+          <Element index="0" value="mass"/>
+        </Property>
+        <Property name="ResultNormals" id="5737.ResultNormals" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="5737.ResultNormals.bool"/>
+        </Property>
+        <Property name="ResultTCoords" id="5737.ResultTCoords" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="5737.ResultTCoords.bool"/>
+        </Property>
+      </Proxy>
+      <Proxy group="filters" type="Threshold" id="4656" servers="1" compound_name="Species">
+        <Property name="AllScalars" id="4656.AllScalars" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="4656.AllScalars.bool"/>
+        </Property>
+        <Property name="Input" id="4656.Input" number_of_elements="1">
+          <Domain name="groups" id="4656.Input.groups"/>
+          <Domain name="input_array" id="4656.Input.input_array"/>
+          <Domain name="input_type" id="4656.Input.input_type"/>
+        </Property>
+        <Property name="SelectInputScalars" id="4656.SelectInputScalars" number_of_elements="5">
+          <Element index="0" value=""/>
+          <Element index="1" value=""/>
+          <Element index="2" value=""/>
+          <Element index="3" value="0"/>
+          <Element index="4" value="Species"/>
+          <Domain name="array_list" id="4656.SelectInputScalars.array_list">
+            <String text="Species"/>
+          </Domain>
+          <Domain name="field_list" id="4656.SelectInputScalars.field_list">
+            <Entry value="0" text="Point Data"/>
+          </Domain>
+        </Property>
+        <Property name="ThresholdBetween" id="4656.ThresholdBetween" number_of_elements="2">
+          <Element index="0" value="1"/>
+          <Element index="1" value="1"/>
+          <Domain name="range" id="4656.ThresholdBetween.range"/>
+        </Property>
+        <Property name="UseContinuousCellRange" id="4656.UseContinuousCellRange" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="4656.UseContinuousCellRange.bool"/>
+        </Property>
+      </Proxy>
+      <ExposedProperties>
+        <Property name="Function" proxy_name="Givemass" exposed_name="Function"/>
+        <Property name="Input" proxy_name="Species" exposed_name="Input"/>
+        <Property name="ThresholdBetween" proxy_name="Species" exposed_name="Threshold Range"/>
+      </ExposedProperties>
+      <OutputPort name="Output" proxy="EkinEv" port_index="0"/>
+      <Hints>
+        <ShowInMenu/>
+      </Hints>
+    </CompoundSourceProxy>
+  </CustomProxyDefinition>
+</CustomFilterDefinitions>
