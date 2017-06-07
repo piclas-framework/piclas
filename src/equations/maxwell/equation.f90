@@ -908,6 +908,8 @@ END FUNCTION beta
 SUBROUTINE GetWaveGuideRadius(BCStateIn) 
 !===================================================================================================================================
 ! routine to find the maximum radius of a  wave-guide at a given BC plane
+! radius computation requires interpolation points on the surface, hence
+! an additional change-basis is required to map Gauss to Gauss-Lobatto points 
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -915,6 +917,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides,BoundaryType,Face_xGP,BC
 USE MOD_Equation_Vars,  ONLY:TERadius
+#if (PP_NodeType==1)
+USE MOD_ChangeBasis,    ONLY:ChangeBasis2D
+USE MOD_Basis,          ONLY:LegGaussLobNodesAndWeights
+USE MOD_Basis,          ONLY:BarycentricWeights,InitializeVandermonde
+USE MOD_Interpolation_Vars, ONLY:xGP,wBary
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -927,7 +935,21 @@ INTEGER,INTENT(IN)      :: BCStateIn
 REAL                    :: Radius,RadiusMax
 INTEGER                 :: iSide,p,q
 INTEGER                 :: locType,locState
+#if (PP_NodeType==1)
+REAL                    :: xGP_tmp(0:PP_N),wBary_tmp(0:PP_N),wGP_tmp(0:PP_N)
+REAL                    :: Vdm_PolN_GL(0:PP_N,0:PP_N)
+#endif
+REAL                    :: Face_xGL(1:2,0:PP_N,0:PP_N)
 !===================================================================================================================================
+
+#if (PP_NodeType==1)
+! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
+! radius requires GL-points
+CALL LegGaussLobNodesAndWeights(PP_N,xGP_tmp,wGP_tmp)
+CALL BarycentricWeights(PP_N,xGP_tmp,wBary_tmp)
+!CALL InitializeVandermonde(PP_N,PP_N,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
+CALL InitializeVandermonde(PP_N,PP_N,wBary,xGP,xGP_tmp,Vdm_PolN_GL)
+#endif
 
 TERadius=0.
 Radius   =0.
@@ -935,9 +957,14 @@ DO iSide=1,nBCSides
   locType =BoundaryType(BC(iSide),BC_TYPE)
   locState=BoundaryType(BC(iSide),BC_STATE)
   IF(locState.EQ.BCStateIn)THEN
+#if (PP_NodeType==1)
+    CALL ChangeBasis2D(2,PP_N,PP_N,Vdm_PolN_GL,Face_xGP(1:2,:,:,iSide),Face_xGL)
+#else
+    Face_xGL(1:2,:,:)=Face_xGP(1:2,:,:,iSide)
+#endif
     DO q=0,PP_N
       DO p=0,PP_N
-        Radius=SQRT(Face_xGP(1,p,q,iSide)**2+Face_xGP(2,p,q,iSide)**2)
+        Radius=SQRT(Face_xGL(1,p,q)**2+Face_xGL(2,p,q)**2)
         TERadius=MAX(Radius,TERadius)
       END DO ! p
     END DO ! q
