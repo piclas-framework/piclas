@@ -996,7 +996,7 @@ INTEGER                  :: iPos
 !===================================================================================================================================
 
 iPos = 0
-iPos = INT(POS/DeltaExternalField) + 1
+iPos = INT((POS-CurvedExternalField(1,1))/DeltaExternalField) + 1
 IF (iPos.GE.nIntPoints) THEN
   IPWRITE(UNIT_stdOut,'(I4,A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
   CALL abort(&
