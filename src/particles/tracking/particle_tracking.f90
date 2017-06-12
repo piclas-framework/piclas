@@ -114,6 +114,28 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     PartTrajectory=PartTrajectory/lengthPartTrajectory
 #ifdef CODE_ANALYZE
+    IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+      IF(iPart.EQ.PARTOUT)THEN
+        WRITE(UNIT_stdout,'(110("="))')
+        WRITE(UNIT_stdout,'(A)') '     | Output of Particle information: '
+        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos: ',lastPartPos(iPart,1:3)
+        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Current PartPos: ',PartState(iPart,1:3)
+        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | PartTrajectory: ',PartTrajectory(1:3)
+        WRITE(UNIT_stdout,'(A,(G0))')    '     | Length PartTrajectory: ',lengthPartTrajectory
+#ifdef MPI
+        IF(InElem.LE.PP_nElems)THEN
+          WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', InElem+offSetElem
+        ELSE
+          WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+        END IF
+#else
+        WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID         ', PEM%LastElement(iPart)+offSetElem
+#endif
+      END IF
+    END IF
+#endif /*CODE_ANALYZE*/
+#ifdef CODE_ANALYZE
     ! caution: reuse of variable, isHit=TRUE == inside
     CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint) 
     IF(.NOT.isHit)THEN  ! particle not inside
@@ -191,13 +213,11 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
           IF(iPart.EQ.PARTOUT)THEN
-            WRITE(UNIT_stdout,'(15("="))')
+            WRITE(UNIT_stdout,'(30("-"))')
             WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (particle tracing): '
-            WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),'| SideID: ',SideID,'| Hit: ',isHit
-            WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     | Last PartPos   : ', LastPartPos(iPart,1:3)
-            WRITE(UNIT_stdout,'(A,3(X,E15.8))') '     | Current PartPos: ', PartState(iPart,1:3)
-            WRITE(UNIT_stdout,'(2(A,E15.8))') '     | LengthPT: ',LengthPartTrajectory,'| Alpha: ',locAlpha(ilocSide)
-            WRITE(UNIT_stdout,'(A,2(X,E15.8))') '     | Intersection xi/eta: ',xi(ilocSide),eta(ilocSide)
+            WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,' | Hit: ',isHit
+            WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha(ilocSide),' | LengthPartTrajectory: ', lengthPartTrajectory
+            WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi(ilocSide),eta(ilocSide)
           END IF
         END IF
 #endif /*CODE_ANALYZE*/
@@ -348,19 +368,24 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(15("="))') 
+          WRITE(UNIT_stdout,'(30("-"))') 
           WRITE(UNIT_stdout,'(A)') '     | Output of new Element after intersections number check: '
           WRITE(UNIT_stdout,'(A,L,A,L,A,L)') '     | crossed Side: ',crossedBC,' switched Element: ',SwitchedElement,&
                   ' Particle tracking done: ',PartisDone
           IF(SwitchedElement) THEN
             WRITE(UNIT_stdout,'(A,I0,A,I0)') '     | First_ElemID: ',PEM%LastElement(iPart),' | new Element: ',ElemID
             InElem=PEM%LastElement(iPart)
+#ifdef MPI
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', InElem+offSetElem
             ELSE
               WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
                                                      + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
             END IF
+#else
+            WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID         ', PEM%LastElement(iPart)+offSetElem
+#endif
+#ifdef MPI
             InElem=ElemID
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', InElem+offSetElem
@@ -368,6 +393,9 @@ DO iPart=1,PDM%ParticleVecLength
               WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
                                                      + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
             END IF
+#else
+            WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID         ', ElemID+offSetElem
+#endif
           END IF
         END IF
       END IF

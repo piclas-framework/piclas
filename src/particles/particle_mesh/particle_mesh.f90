@@ -577,6 +577,7 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check,IntersectPoint_Opt)
 USE MOD_Globals,                ONLY:Almostzero,MyRank,UNIT_stdout
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,BezierControlPoints3d
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection
@@ -663,12 +664,15 @@ DO ilocSide=1,6
       WRITE(UNIT_stdout,'(15("="))')
       WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (PartInElemCheck): '
       WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,'| Hit: ',isHit
-      WRITE(UNIT_stdout,'(2(A,E15.8))')  '     | LengthPT: ',LengthPartTrajectory,' | Alpha: ',Alpha
-      WRITE(UNIT_stdout,'(A,2(X,E15.8))') '     | Intersection xi/eta: ',xi,eta
+      WRITE(UNIT_stdout,'(2(A,G0))')  '     | LengthPT: ',LengthPartTrajectory,' | Alpha: ',Alpha
+      WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi,eta
     END IF
   END IF
+  ! Dirty fix for PartInElemCheck if Lastpartpos is almost on side (tolerance issues) 
+  IF((alpha)/LengthPartTrajectory.GT.0.99)THEN
+    alpha = -1.0
+  END IF
 #endif /*CODE_ANALYZE*/
-
   IF(alpha.GT.-1)THEN
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
