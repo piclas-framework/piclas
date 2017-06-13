@@ -3338,7 +3338,9 @@ __STAMP__&
     END IF
     Species(iSpec)%Surfaceflux(iSF)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
     Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-VeloIsNormal','.FALSE.')
-    IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+    IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=.FALSE.
+    ELSE
       Species(iSpec)%Surfaceflux(iSF)%VeloVecIC          =GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'1. , 0. , 0.')
       Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=GETLOGICAL('Part-Species'//TRIM(hilf2)//'-SimpleRadialVeloFit','.FALSE.')
       IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN

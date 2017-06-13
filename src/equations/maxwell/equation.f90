@@ -147,6 +147,13 @@ DO iRefState=1,nTmp
     TEPolarization     = GETLOGICAL('TEPolarization','.TRUE.') 
     TERotation         = GETINT('TERotation','1') 
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
+    ! check if it is a BC condition
+    DO iBC=1,nBCs
+      IF(BoundaryType(iBC,BC_STATE).EQ.5)THEN
+        ! call function to get radius
+        CALL GetWaveGuideRadius(5)
+      END IF
+    END DO
     IF((TERotation.NE.-1).AND.(TERotation.NE.1))THEN
       CALL abort(&
     __STAMP__&
@@ -265,7 +272,7 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
-                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization
+                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,TERadius
 USE MOD_TimeDisc_Vars,    ONLY: dt
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
@@ -302,7 +309,7 @@ INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
-REAL                            :: eta, kx,ky,kz
+REAL                            :: eta, kx,ky,kz,RadiusMax
 !===================================================================================================================================
 Cent=x
 SELECT CASE (ExactFunction)
@@ -432,6 +439,8 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
   IF(ALMOSTZERO(r))THEN
+    resu(1:8)=0.
+    RETURN
     CALL abort(&
         __STAMP__&
         ,' DOF located at axis. devision by zero! Change polynomial degree... ')
@@ -442,8 +451,13 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   omegaG=2*PI*TEFrequency
   mG=1 ! TE_mG,nG
   nG=1
-  MuMN=1.8412  ! root TE_1,1 hard coded
-  SqrtN=MuMN/0.004 ! r0=0.004 is max raidus=0.004 ! hard coded
+  MuMN=1.8411837813  ! root TE_1,1 hard coded
+  IF(TERadius.LT.1e-12)THEN
+    RadiusMax=0.004
+  ELSE
+    RadiusMax=TERadius
+  END IF
+  SqrtN=MuMN/RadiusMax! r0=0.004 is max raidus=0.004 ! hard coded
   ! axial wave number
   ! 1/c^2 omegaG^2 - kz^2=mu^2/ro^2
   kz=SQRT((omegaG*c_inv)**2-SqrtN**2)
@@ -889,6 +903,82 @@ FUNCTION beta(z,w)
    REAL beta, w, z                                                                                                  
    beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)                                                                    
 END FUNCTION beta 
+
+
+SUBROUTINE GetWaveGuideRadius(BCStateIn) 
+!===================================================================================================================================
+! routine to find the maximum radius of a  wave-guide at a given BC plane
+! radius computation requires interpolation points on the surface, hence
+! an additional change-basis is required to map Gauss to Gauss-Lobatto points 
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars    ,  ONLY:nBCSides,BoundaryType,Face_xGP,BC
+USE MOD_Equation_Vars,  ONLY:TERadius
+#if (PP_NodeType==1)
+USE MOD_ChangeBasis,    ONLY:ChangeBasis2D
+USE MOD_Basis,          ONLY:LegGaussLobNodesAndWeights
+USE MOD_Basis,          ONLY:BarycentricWeights,InitializeVandermonde
+USE MOD_Interpolation_Vars, ONLY:xGP,wBary
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)      :: BCStateIn
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Radius,RadiusMax
+INTEGER                 :: iSide,p,q
+INTEGER                 :: locType,locState
+#if (PP_NodeType==1)
+REAL                    :: xGP_tmp(0:PP_N),wBary_tmp(0:PP_N),wGP_tmp(0:PP_N)
+REAL                    :: Vdm_PolN_GL(0:PP_N,0:PP_N)
+#endif
+REAL                    :: Face_xGL(1:2,0:PP_N,0:PP_N)
+!===================================================================================================================================
+
+#if (PP_NodeType==1)
+! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
+! radius requires GL-points
+CALL LegGaussLobNodesAndWeights(PP_N,xGP_tmp,wGP_tmp)
+CALL BarycentricWeights(PP_N,xGP_tmp,wBary_tmp)
+!CALL InitializeVandermonde(PP_N,PP_N,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
+CALL InitializeVandermonde(PP_N,PP_N,wBary,xGP,xGP_tmp,Vdm_PolN_GL)
+#endif
+
+TERadius=0.
+Radius   =0.
+DO iSide=1,nBCSides
+  locType =BoundaryType(BC(iSide),BC_TYPE)
+  locState=BoundaryType(BC(iSide),BC_STATE)
+  IF(locState.EQ.BCStateIn)THEN
+#if (PP_NodeType==1)
+    CALL ChangeBasis2D(2,PP_N,PP_N,Vdm_PolN_GL,Face_xGP(1:2,:,:,iSide),Face_xGL)
+#else
+    Face_xGL(1:2,:,:)=Face_xGP(1:2,:,:,iSide)
+#endif
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Radius=SQRT(Face_xGL(1,p,q)**2+Face_xGL(2,p,q)**2)
+        TERadius=MAX(Radius,TERadius)
+      END DO ! p
+    END DO ! q
+  END IF ! locState.EQ.BCIn
+END DO
+
+#ifdef MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
+
+END SUBROUTINE GetWaveGuideRadius
+
 
 SUBROUTINE FinalizeEquation()
 !===================================================================================================================================

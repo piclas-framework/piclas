@@ -53,6 +53,7 @@ REAL              :: omega_0, omega_0_2inv                  !> spot size and inv
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
+REAL              :: TERadius                               !> Radius of Input TE wave, if wave is inserted over a plane
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
 LOGICAL           :: TEPolarization                         !> linear or circular polarized
 LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
