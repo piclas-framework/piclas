@@ -349,6 +349,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
+USE MOD_Restart_Vars,          ONLY: DoRestart
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 #endif
@@ -455,12 +456,14 @@ IF (CalcPoyntingInt) THEN
 #endif /*MPI*/
 #if (PP_nVar>=6)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-  IF(forceAnalyze)THEN
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
+    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut).OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut))&
+      CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
   END IF ! ForceAnalyze
-  IF(PRESENT(LastIter) .AND. LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+  !IF(Output .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+  IF(PRESENT(LastIter) .AND. LastIter .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #else
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
 #endif
@@ -491,22 +494,24 @@ END IF
 IF (DoAnalyze)  THEN
 #ifdef PARTICLES 
   ! particle analyze
-  IF(forceAnalyze)THEN
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     CALL AnalyzeParticles(t)
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeParticles(t) 
+    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut).OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut))&
+     CALL AnalyzeParticles(t) 
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t) 
+  !IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t) 
 #else /*pure DGSEM */
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-  IF(ForceAnalyze)THEN
+  IF(ForceAnalyze .AND. NOT.DoRestart)THEN
     CALL AnalyzeField(t) 
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeField(t) 
+    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut).OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut))&
+    CALL AnalyzeField(t) 
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeField(t) 
+  !IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeField(t) 
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
