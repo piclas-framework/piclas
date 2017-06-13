@@ -654,9 +654,10 @@ DO ilocSide=1,6
       CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
                                                                                        ,xi      &
                                                                                        ,eta      &
-                                                                                       ,PartID,flip,SideID)
+                                                                                       ,PartID,flip,SideID &
+                                                                                       ,ElemCheck_Opt=.TRUE.)
   CASE(CURVED)
-    CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
+    CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID,ElemCheck_Opt=.TRUE.)
   END SELECT
 
 #ifdef CODE_ANALYZE

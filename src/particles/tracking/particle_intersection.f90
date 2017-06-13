@@ -383,7 +383,7 @@ END SUBROUTINE ComputePlanarCurvedIntersection
 
 
 SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
-                                                   ,iPart,flip,SideID)
+                                                   ,iPart,flip,SideID,ElemCheck_Opt)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! robust version
@@ -412,6 +412,7 @@ IMPLICIT NONE
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
 INTEGER,INTENT(IN)                :: iPart,SideID,flip
+LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xitild,etatild
@@ -423,6 +424,7 @@ REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
 REAL                              :: xi(2),eta(2),t(2), scaleFac!, normVec(3)
 INTEGER                           :: nInter,nRoot, flipdummy!,BCSideID
+LOGICAL                           :: ElemCheck
 !===================================================================================================================================
 
 flipdummy=flip
@@ -754,14 +756,24 @@ ELSE
         xitild=xi(2)
         etatild=eta(2)
       CASE(3)
-        IF(ABS(t(1)).LT.ABS(t(2)))THEN
-          alpha=t(1)
-          xitild=xi(1)
-          etatild=eta(1)
+        ElemCheck = .FALSE.
+        IF(PRESENT(ElemCheck_Opt))THEN
+          ElemCheck = ElemCheck_Opt
+        END IF
+        IF(ElemCheck)THEN
+          alpha = -1
+          xitild = -2
+          etatild = -2
         ELSE
-          alpha=t(2)
-          xitild=xi(2)
-          etatild=eta(2)
+          IF(ABS(t(1)).LT.ABS(t(2)))THEN
+            alpha=t(1)
+            xitild=xi(1)
+            etatild=eta(1)
+          ELSE
+            alpha=t(2)
+            xitild=xi(2)
+            etatild=eta(2)
+          END IF
         END IF
       END SELECT
     ELSE
@@ -795,14 +807,24 @@ ELSE
         xitild=xi(2)
         etatild=eta(2)
       CASE(3)
-        IF(ABS(t(1)).LT.ABS(t(2)))THEN
-          alpha=t(1)
-          xitild=xi(1)
-          etatild=eta(1)
+        ElemCheck = .FALSE.
+        IF(PRESENT(ElemCheck_Opt))THEN
+          ElemCheck = ElemCheck_Opt
+        END IF
+        IF(ElemCheck)THEN
+          alpha = -1
+          xitild = -2
+          etatild = -2
         ELSE
-          alpha=t(2)
-          xitild=xi(2)
-          etatild=eta(2)
+          IF(ABS(t(1)).LT.ABS(t(2)))THEN
+            alpha=t(1)
+            xitild=xi(1)
+            etatild=eta(1)
+          ELSE
+            alpha=t(2)
+            xitild=xi(2)
+            etatild=eta(2)
+          END IF
         END IF
       END SELECT
     ELSE
@@ -828,7 +850,8 @@ END IF ! nRoot
 END SUBROUTINE ComputeBiLinearIntersection
 
 
-SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,opt_CriticalParllelInSide)
+SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart &
+                ,SideID,opt_CriticalParllelInSide,ElemCheck_Opt)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
@@ -860,6 +883,7 @@ IMPLICIT NONE
 REAL,INTENT(IN),DIMENSION(1:3)           :: PartTrajectory
 REAL,INTENT(IN)                          :: lengthPartTrajectory
 INTEGER,INTENT(IN)                       :: iPart,SideID
+LOGICAL,INTENT(IN),OPTIONAL              :: ElemCheck_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                         :: alpha,xi,eta
