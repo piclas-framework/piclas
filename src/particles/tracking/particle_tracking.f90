@@ -117,12 +117,13 @@ DO iPart=1,PDM%ParticleVecLength
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(iPart.EQ.PARTOUT)THEN
         WRITE(UNIT_stdout,'(110("="))')
-        WRITE(UNIT_stdout,'(A)') '     | Output of Particle information: '
-        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos: ',lastPartPos(iPart,1:3)
-        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Current PartPos: ',PartState(iPart,1:3)
-        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | PartTrajectory: ',PartTrajectory(1:3)
+        WRITE(UNIT_stdout,'(A)')         '     | Output of Particle information '
+        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos:       ',lastPartPos(iPart,1:3)
+        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Current PartPos:       ',PartState(iPart,1:3)
+        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | PartTrajectory:        ',PartTrajectory(1:3)
         WRITE(UNIT_stdout,'(A,(G0))')    '     | Length PartTrajectory: ',lengthPartTrajectory
 #ifdef MPI
+        InElem=PEM%LastElement(iPart)
         IF(InElem.LE.PP_nElems)THEN
           WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', InElem+offSetElem
         ELSE
@@ -137,7 +138,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
 #ifdef CODE_ANALYZE
     ! caution: reuse of variable, isHit=TRUE == inside
-    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint) 
+    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
     IF(.NOT.isHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element! '
      IF(ElemID.LE.PP_nElems)THEN
@@ -153,7 +154,7 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A,6(X,E15.8))') ' LastPartPos:       ', LastPartPos(iPart,1:3)
      IPWRITE(UNIT_stdOut,'(I0,A,6(X,E15.8))') ' PartPos:           ', PartState(iPart,1:3)
      IPWRITE(UNIT_stdOut,'(I0,A,6(X,E15.8))') ' PartTrajectory:    ', PartTrajectory
-     IPWRITE(UNIT_stdOut,'(I0,A,E15.8)')    ' lengthPT:          ', lengthPartTrajectory
+     IPWRITE(UNIT_stdOut,'(I0,A,E15.8)')      ' lengthPT:          ', lengthPartTrajectory
      CALL abort(&
      __STAMP__ &
      ,'iPart=. ',iPart)

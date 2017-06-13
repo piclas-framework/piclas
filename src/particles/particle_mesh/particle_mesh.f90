@@ -569,7 +569,7 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check,IntersectPoint_Opt)
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,CodeAnalyze_Opt)
 !===================================================================================================================================
 ! Checks if particle is in Element
 !===================================================================================================================================
@@ -598,9 +598,10 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                       :: ElemID,PartID
 REAL,INTENT(IN)                          :: PartPos_In(1:3)
+LOGICAL,INTENT(IN),OPTIONAL              :: CodeAnalyze_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT)                      :: Check
+LOGICAL,INTENT(OUT)                      :: FoundInElem
 REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -624,7 +625,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
-  Check=.TRUE.
+  FoundInElem =.TRUE.
   LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
   ! bugfix by Tilman
   RETURN
@@ -669,8 +670,12 @@ DO ilocSide=1,6
     END IF
   END IF
   ! Dirty fix for PartInElemCheck if Lastpartpos is almost on side (tolerance issues) 
-  IF((alpha)/LengthPartTrajectory.GT.0.99)THEN
-    alpha = -1.0
+  IF(PRESENT(CodeAnalyze_Opt))THEN
+    IF(CodeAnalyze_Opt)THEN
+      IF((alpha)/LengthPartTrajectory.GT.0.9)THEN
+        alpha = -1.0
+      END IF
+    END IF
   END IF
 #endif /*CODE_ANALYZE*/
   IF(alpha.GT.-1)THEN
@@ -709,10 +714,10 @@ DO ilocSide=1,6
     !END IF ! DoRefMapping
   END IF
 END DO ! ilocSide
-Check=.TRUE.
+FoundInElem=.TRUE.
 IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=0.
 IF(alpha.GT.-1) THEN
-  Check=.FALSE.
+  FoundInElem=.FALSE.
   IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=IntersectPoint
 END IF
 LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
