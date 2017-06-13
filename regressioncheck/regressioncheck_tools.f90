@@ -489,17 +489,19 @@ DO ! extract reggie information
                                                                nParameters     = 100,                       &
                                                                ParameterNumber = Example%SubExampleNumber)
     ! Line integration (e.g. integrate a property over time, the data is read from a .csv or .dat file)
-    ! e.g. in parameter_reggie.ini: IntegrateLine= Database.csv   ,1            ,','       ,1:2        , 1.0e2
-    !                                              data file name , header lines, delimiter, colums x:y, integral value
-    IF(TRIM(readRHS(1)).EQ.'IntegrateLineMultiplier')CALL str2real(readRHS(2),Example%IntegrateLineMultiplier,iSTATUS)
-    IF(TRIM(readRHS(1)).EQ.'IntegrateLineOption')Example%IntegrateLineOption=TRIM(readRHS(2))
+    ! e.g. in parameter_reggie.ini:
+    ! 
+    ! IntegrateLine= Database.csv   , 1           , ','      , 1:5       , 44.00         , 2.5e-2   , DivideByTimeStep , 5.340e-03 
+    !                data file name , header lines, delimiter, colums x:y, integral value, tolerance, option           , multiplier
     IF(TRIM(readRHS(1)).EQ.'IntegrateLine')THEN
        Example%IntegrateLine            = .TRUE.
-       Example%IntegrateLineRange(1:2)  = 0     ! init
-       Example%IntegrateLineHeaderLines = 0     ! init
-       Example%IntegrateLineDelimiter   = '999' ! init
-       Example%IntegrateLineValue       = 0     ! init
-       Example%IntegrateLineTolerance   = 5E-2  ! init 5% tolerance
+       Example%IntegrateLineRange(1:2)  = 0         ! init
+       Example%IntegrateLineHeaderLines = 0         ! init
+       Example%IntegrateLineDelimiter   = '999'     ! init
+       Example%IntegrateLineValue       = 0         ! init
+       Example%IntegrateLineTolerance   = 5E-2      ! init 5% tolerance
+       Example%IntegrateLineOption      = 'default' ! init 
+       Example%IntegrateLineMultiplier  = 1.0       ! init: 1.0 changed nothing
        IndNum2=INDEX(readRHS(2),',')
        IF(IndNum2.GT.0)THEN ! get the name of the data file
          temp2                     = readRHS(2)
@@ -524,15 +526,22 @@ DO ! extract reggie information
                  CALL str2int(temp2(1        :IndNum3-1),Example%IntegrateLineRange(1),iSTATUS) ! column number 1
                  CALL str2int(temp2(IndNum3+1:IndNum2-1),Example%IntegrateLineRange(2),iSTATUS) ! column number 2
                  temp2             = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-                 IndNum2           = LEN(temp2)
+                 IndNum2           = INDEX(temp2,',')
                  IF(IndNum2.GT.0)THEN ! get integral value
-                   IndNum2             = INDEX(temp2,',')
+                   CALL str2real(temp2(1:IndNum2-1),Example%IntegrateLineValue,iSTATUS)
+                   temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                   IndNum2         = INDEX(temp2,',')
                    IF(IndNum2.GT.0)THEN ! get tolerance - only if supplied, if not then use the default value (see top)
-                     temp3         = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-                     CALL str2real(temp3,Example%IntegrateLineTolerance,iSTATUS)
-                     temp2         = temp2(1:IndNum2-1)
-                   END IF
-                   CALL str2real(temp2,Example%IntegrateLineValue,iSTATUS)
+                     CALL str2real(temp2(1:IndNum2-1),Example%IntegrateLineTolerance,iSTATUS)
+                     temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                     IndNum2         = INDEX(temp2,',')
+                     IF(IndNum2.GT.0)THEN ! get option
+                       Example%IntegrateLineOption=TRIM(temp2(1:IndNum2-1))
+                       IF(temp2(IndNum2+1:LEN(TRIM(temp2))).NE.'')THEN ! get multiplier
+                         CALL str2real(temp2(IndNum2+1:LEN(TRIM(temp2))),Example%IntegrateLineMultiplier,iSTATUS)
+                       END IF ! get multiplier
+                     END IF ! get option
+                   END IF ! get tolerance
                  END IF ! get integral value
                END IF ! check range
              END IF ! get column ranges
