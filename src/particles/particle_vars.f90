@@ -118,6 +118,8 @@ TYPE tInit                                                                   ! P
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
   INTEGER                                :: Rotation                         ! direction of rotation, similar to TE-mode
   INTEGER                                :: VelocitySpreadMethod             ! method to compute the velocity spread
+  REAL                                   :: InflowRiseTime                   ! time to ramp the number of inflow particles 
+                                                                             ! linearly from zero to unity
   REAL                                   :: VelocitySpread                   ! velocity spread in percent
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
   REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
@@ -326,7 +328,8 @@ LOGICAL                                  :: useVTKFileBGG                     ! 
 REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
-LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson samling instead of random rounding
+LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
+LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 LOGICAL                                  :: FindNeighbourElems=.FALSE.
 

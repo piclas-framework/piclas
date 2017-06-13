@@ -256,6 +256,7 @@ INTEGER                , SAVE    :: NbrOfParticle=0
 INTEGER(KIND=8)                 :: inserted_Particle_iter,inserted_Particle_time               
 INTEGER(KIND=8)                 :: inserted_Particle_diff  
 REAL                             :: PartIns, RandVal1
+REAL                             :: RiseFactor, RiseTime
 #ifdef MPI
 INTEGER                          :: mode                                            
 INTEGER                          :: InitGroup
@@ -286,10 +287,11 @@ DO i=1,nSpecies
 #endif
         SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
         CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
-          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
           IF (Species(i)%Init(iInit)%VirtPreInsert .AND. Species(i)%Init(iInit)%PartDensity.GT.0.) THEN
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
             NbrOfParticle = 0 ! calculated within SetParticlePosition itself!
-          ELSE IF (.NOT.DoPoissonRounding) THEN
+          ELSE IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
             inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
             PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over 
                                                                                         ! simulation
@@ -321,7 +323,19 @@ DO i=1,nSpecies
             IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
               IF (NbrOfParticle.LT.5) NbrOfParticle=0
             END IF
-          ELSE !DoPoissonRounding
+          ELSE IF (DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
+            ! linear rise of inflow
+            RiseTime=Species(i)%Init(iInit)%InflowRiseTime
+            IF(RiseTime.GT.0.)THEN
+              IF(Time-DelayTime.LT.RiseTime)THEN
+                RiseFactor=(time-DelayTime)/RiseTime
+              ELSE 
+                RiseFactor=1.
+              END IF
+            ELSE
+              RiseFactor=1.
+            EnD IF
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
             CALL RANDOM_NUMBER(RandVal1)
             IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
               IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
@@ -330,6 +344,23 @@ DO i=1,nSpecies
             ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
               CALL SamplePoissonDistri( PartIns , NbrOfParticle , DoPoissonRounding)
             END IF
+          ELSE ! DoTimeDepInflow
+            ! linear rise of inflow
+            RiseTime=Species(i)%Init(iInit)%InflowRiseTime
+            IF(RiseTime.GT.0.)THEN
+              IF(Time-DelayTime.LT.RiseTime)THEN
+                RiseFactor=(time-DelayTime)/RiseTime
+              ELSE 
+                RiseFactor=1.
+              END IF
+            ELSE
+              RiseFactor=1.
+            EnD IF
+            ! emitted particles during time-slab
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac * RiseFactor &
+                   + Species(i)%Init(iInit)%InsertedParticleMisMatch
+            CALL RANDOM_NUMBER(RandVal1)
+            NbrOfParticle = INT(PartIns + RandVal1)
           END IF
 #ifdef MPI
           InitGroup=Species(i)%Init(iInit)%InitCOMM
@@ -529,7 +560,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Particle_Vars,         ONLY:DoPoissonRounding
+USE MOD_Particle_Vars,         ONLY:DoPoissonRounding,DoTimeDepInflow
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
@@ -792,14 +823,17 @@ IF (mode.EQ.1) THEN
       ! statistical handling of exact REAL-INT-conversion -> values in send(1)- and receive(2)-mode might differ for VPI+PartDens
       ! (NbrOf Particle can differ from root to other procs and, thus, need to be communicated of calculated later again)
       CALL RANDOM_NUMBER(RandVal1)
-      IF (.NOT.DoPoissonRounding) THEN
+      IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
         NbrOfParticle = INT(PartIns + RandVal1)
-      ELSE IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
+      ELSE IF (EXP(-PartIns).LE.TINY(PartIns) .AND.DoPoissonRounding) THEN
         IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
         NbrOfParticle = INT(PartIns + RandVal1)
         DoPoissonRounding = .FALSE.
-      ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
+      ELSE IF (DoPoissonRounding) THEN 
+        !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
         CALL SamplePoissonDistri( PartIns , NbrOfParticle , DoPoissonRounding)
+      ELSE ! DoTimeDepInflow
+        NbrOfParticle = INT(PartIns + RandVal1)
       END IF
     END IF
     chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
@@ -3222,7 +3256,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
-USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges
+USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
+                                   , DoTimeDepInflow
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox
@@ -3378,7 +3413,12 @@ __STAMP__&
     IF (DoPoissonRounding .AND. Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
       SWRITE(*,*)'WARNING: Poisson sampling not possible for noise reduction of surfacefluxes:'
       SWRITE(*,*)'switching now to Random rounding...'
-      DoPoissonRounding = .FALSE.
+      DoPoissonRounding   = .FALSE.
+    END IF
+    IF (DoTimeDepInflow .AND. Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
+      SWRITE(*,*)'WARNING: Time-dependent inflow is not possible for noise reduction of surfacefluxes:'
+      SWRITE(*,*)'switching now to Random rounding...'
+      DoTimeDepInflow   = .FALSE.
     END IF
     Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AcceptReject','.TRUE.')
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.GT.1) THEN
@@ -3396,6 +3436,7 @@ __STAMP__&
 END DO ! iSpec
 #ifdef MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
 #endif  /*MPI*/
 
 !-- 2.: create Side lists for applicable BCs
@@ -3786,7 +3827,7 @@ DO iSpec=1,nSpecies
       shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
     END IF
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
-    IF (.NOT.DoPoissonRounding) THEN
+    IF (.NOT.DoPoissonRounding .AND. .NOT. DoTimeDepInflow) THEN
       IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
         !-- calc global to-be-inserted number of parts and distribute to procs (root)
         SDEALLOCATE(PartInsProc)
@@ -3855,7 +3896,7 @@ __STAMP__&
                                                               ,1:BCdata_auxSF(currentBC)%SideNumber)%nVFR &
           ,PartInsSubSides(1:BezierSampleN,1:BezierSampleN,1:BCdata_auxSF(currentBC)%SideNumber) )
       END IF
-    END IF !.NOT.DoPoissonRounding
+    END IF !.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow
 
 !----- 0.: go through (sub)sides if present in proc
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
@@ -3888,11 +3929,11 @@ __STAMP__&
 
 !----- 1.: set positions
         !-- compute number of to be inserted particles
-        IF (.NOT.DoPoissonRounding) THEN
+        IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
           PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
 !IPWRITE(*,*) PartInsSubSide
 !read*
-        ELSE !DoPoissonRounding
+        ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
           PartIns = Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
                   * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
           IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
@@ -3902,6 +3943,10 @@ __STAMP__&
           ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
             CALL SamplePoissonDistri( PartIns , PartInsSubSide )
           END IF
+        ELSE !DoTimeDepInflow
+          CALL RANDOM_NUMBER(RandVal1)
+          PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+                         * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
         END IF !DoPoissonRounding
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
