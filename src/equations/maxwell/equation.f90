@@ -272,7 +272,8 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
-                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,TERadius
+                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,omega_0,&
+                                      TERadius
 USE MOD_TimeDisc_Vars,    ONLY: dt
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
@@ -575,10 +576,14 @@ CASE(14) ! Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
   ! beam insert is done by a paraxial assumption focus is at basepoint
   ! intensity * Gaussian filter in transversal and longitudinal direction
   spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  &
-                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv     &
-                       -0.5*(x(BeamIdir3)-WaveBasePoint(BeamIdir3))**2/((sigma_t*c)**2)  )
+                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  omega_0  )**2)     &
+                          -((x(BeamIdir3)-WaveBasePoint(BeamIdir3))**2)/((2*sigma_t*c)**2)  )
+  !spatialWindow = EXP(    -0.5*((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  &
+                            !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv     &
+                       !-0.25*(x(BeamIdir3)-WaveBasePoint(BeamIdir3))**2/((sigma_t*c)**2)  )
   ! build final coefficients
-  timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(t-ABS(WaveBasePoint(BeamIdir3))/c))
+  timeFac=SIN(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(t-ABS(WaveBasePoint(BeamIdir3))/c))
+  !timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(t-ABS(WaveBasePoint(BeamIdir3))/c))
   resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac
   resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
   resu(7:8)=0.
