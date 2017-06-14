@@ -500,7 +500,7 @@ IF (DoAnalyze)  THEN
     IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut).OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut))&
      CALL AnalyzeParticles(t) 
   END IF
-  !IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t) 
+  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t)
 #else /*pure DGSEM */
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start

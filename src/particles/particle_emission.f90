@@ -510,21 +510,21 @@ __STAMP__&
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
       IF(NbrOfParticle.GT.0)THEN
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-        IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-          nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
-          DO iPart=1,NbrOfparticle
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-                                    PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-          END DO ! iPart
-        ELSE
+        ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
+        !   nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
+        !   DO iPart=1,NbrOfparticle
+        !     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+        !     IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
+        !                             PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
+        !   END DO ! iPart
+        ! ELSE
           nPartIn(i)=nPartIn(i) + NBrofParticle
           DO iPart=1,NbrOfparticle
             PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
             IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
                                     PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
           END DO ! iPart
-        END IF
+        ! END IF
 #else
         nPartIn(i)=nPartIn(i) + NBrofParticle
         DO iPart=1,NbrOfparticle
