@@ -918,14 +918,14 @@ IF (PartMPI%MPIROOT) THEN
       IF (CalcSurfCoverage) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WallCoverage(iSpec)
         END DO
       END IF
 #if (PP_TimeDiscMethod==42)
       IF (CalcAccomodation) THEN
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Accomodation(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Accomodation(iSpec)
         END DO
       END IF
       IF (CalcAdsorbRates) THEN
@@ -939,35 +939,35 @@ IF (PartMPI%MPIROOT) THEN
         END DO
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorptionrate(iSpec)
         END DO
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Desorptionrate(iSpec)
         END DO
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') MolecDesorbRate(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MolecDesorbRate(iSpec)
         END DO
       END IF
       IF (CalcSurfReacRates) THEN
         DO iCase = 1, Adsorption%NumOfDissocReact
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') SurfDissocRate(iCase)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') SurfDissocRate(iCase)
         END DO
         DO iCase = 1, Adsorption%NumOfAssocReact
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') SurfAssocRate(iCase)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') SurfAssocRate(iCase)
         END DO
         DO iCase = 1, Adsorption%NumOfExchReact
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') SurfExchRate(iCase)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') SurfExchRate(iCase)
         END DO
       END IF
       IF (Adsorption%TPD) THEN
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%MeanEads
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%MeanEads
         END DO
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorption%TPD_Temp
@@ -976,7 +976,7 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcEvaporation) THEN
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') EvaporationRate(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') EvaporationRate(iSpec)
       END DO
     END IF
     IF(CalcCollRates) THEN
