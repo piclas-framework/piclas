@@ -17,10 +17,8 @@ INTEGER                        :: NumberOfProcs                     !> number of
 CHARACTER(LEN=20)              :: NumberOfProcsStr                  !> number of processors for parallel build as string
 INTEGER                        :: nExamples                         !> number of regressioncheck examples
 CHARACTER(LEN=255),ALLOCATABLE :: ExampleNames(:)                   !> name of each example
-CHARACTER(LEN=255)             :: RuntimeOption                     !> option for the regressioncheck: default (run), run and build
-CHARACTER(LEN=255)             :: RuntimeOptionType                 !> specific option for the regressioncheck: default (run)
-CHARACTER(LEN=255)             :: RuntimeOptionTypeII               !> specific option for the regressioncheck: default (empty)
-CHARACTER(LEN=255)             :: RuntimeOptionTypeIII              !> specific option for the regressioncheck: default (empty)
+CHARACTER(LEN=255)             :: RuntimeOption(6)                  !> options for the regressioncheck
+LOGICAL                        :: DoFullReggie                      !> run reggie recursively and test gitlab-ci.yml file locally
 CHARACTER(LEN=255)             :: EXECPATH                          !> path to solver incl. executable
 CHARACTER(LEN=255)             :: ExamplesDir                       !> path to the regression check example folders
 CHARACTER(LEN=255)             :: readRHS(2)                        !> parameter from parameter_reggie.ini: right hand side 
@@ -77,8 +75,11 @@ TYPE tExample                                                       !> examples 
                                                                     !> 1 - failed during execution
                                                                     !> 2 - test failed
   CHARACTER(LEN=255)               :: IntegrateLineFile             !> File name with ACSI number columns
+  CHARACTER(LEN=255)               :: IntegrateLineOption           !> speciel settings for integrate line function
+  REAL                             :: IntegrateLineMultiplier       !> multiply the integrated value by this factor
   INTEGER                          :: IntegrateLineRange(2)         !> the numerbs of two coulumns with data
   REAL                             :: IntegrateLineValue            !> the reference integral value
+  REAL                             :: IntegrateLineTolerance        !> the reference integral tolerance
   CHARACTER(LEN=255)               :: IntegrateLineDelimiter        !> delimiter string for reading the data file
   INTEGER                          :: IntegrateLineHeaderLines      !> number of header lines to be ignored from data file
   LOGICAL                          :: IntegrateLine                 !> read two columns from a file and integrate over line

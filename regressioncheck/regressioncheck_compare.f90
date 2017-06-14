@@ -403,7 +403,6 @@ REAL                         :: eps
 !==================================================================================================================================
 
 ! get fileID and open file
-ioUnit=GETFREEUNIT()
 FileName=TRIM(Examples(iExample)%PATH)//'std.out'
 INQUIRE(File=FileName,EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
@@ -412,7 +411,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:                 ',ExistFile
   ERROR STOP '-1'
 ELSE
-  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 
 ! find the last L2 and LInf norm the std.out file of the example
@@ -522,7 +521,6 @@ LOGICAL                              :: ExistFile
 REAL                                 :: LNorm(Examples(iExample)%nVar)
 !==================================================================================================================================
 ! open file and read in
-ioUnit=GETFREEUNIT()
 FileName=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%ReferenceNormFile)
 INQUIRE(File=FileName,EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
@@ -531,7 +529,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:                    ',ExistFile
   ERROR STOP '-1'
 ELSE
-  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 
 ! read in the norms
@@ -622,8 +620,7 @@ INQUIRE(File=OutputFileName,EXIST=ExistFile)
 IF(ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A)')''
   ! read H5DIFF_info.out | list of info
-  ioUnit=GETFREEUNIT()
-  OPEN(UNIT = ioUnit, FILE = OutputFileName, STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+  OPEN(NEWUNIT = ioUnit, FILE = OutputFileName, STATUS ="OLD", IOSTAT = iSTATUS2 ) 
   SWRITE(UNIT_stdOut,'(A)')' Reading '//TRIM(OutputFileName)
   I=0
   DO 
@@ -648,8 +645,7 @@ IF(ExistFile) THEN
     INQUIRE(File=TRIM(OutputFileName2),EXIST=ExistFile)
     IF(ExistFile) THEN
       ! read H5DIFF_info.out | list of info
-      ioUnit=GETFREEUNIT()
-      OPEN(UNIT = ioUnit, FILE = TRIM(OutputFileName2), STATUS ="OLD", IOSTAT = iSTATUS2 ) 
+      OPEN(NEWUNIT = ioUnit, FILE = TRIM(OutputFileName2), STATUS ="OLD", IOSTAT = iSTATUS2 ) 
       DO
         READ(ioUnit,FMT='(A)',IOSTAT=iSTATUS2) tmp
         IF (iSTATUS2.NE.0) EXIT
@@ -711,7 +707,8 @@ CHARACTER(LEN=355)             :: temp1,temp2
 INTEGER                        :: iSTATUS,ioUnit,LineNumbers,I,HeaderLines,j,IndMax,CurrentColumn,IndNum,MaxColumn!,K
 INTEGER                        :: IndFirstA,IndLastA,IndFirstB,IndLastB,EOL,MaxRow
 LOGICAL                        :: ExistFile,IndexNotFound,IntegralValuesAreEqual
-REAL,ALLOCATABLE               :: Values(:,:),Q
+REAL,ALLOCATABLE               :: Values(:,:)
+REAL                           :: dx,dQ,Q
 !==================================================================================================================================
 ! check if output file with data for integration over line exists
 Filename=TRIM(Examples(iExample)%PATH)//TRIM(Examples(iExample)%IntegrateLineFile)
@@ -721,8 +718,7 @@ IF(.NOT.ExistFile) THEN
   Examples(iExample)%ErrorStatus=5
   RETURN
 ELSE
-  ioUnit=GETFREEUNIT()
-  OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 ! init parameters for reading the data file
 HeaderLines=Examples(iExample)%IntegrateLineHeaderLines
@@ -808,18 +804,29 @@ END DO
 ! integrate the values numerically
 Q=0.
 DO I=1,MaxRow-1
-  Q=Q+(Values(I+1,1)-Values(I,1))*(Values(I+1,2)+Values(I,2))/2.
+  ! use trapezoidal rule (also known as the trapezoid rule or trapezium rule)
+  dx = Values(I+1,1)-Values(I,1)
+  dQ = dx * (Values(I+1,2)+Values(I,2))/2.
+  IF(TRIM(Examples(iExample)%IntegrateLineOption).EQ.'DivideByTimeStep')THEN ! assume that the first column is the time!
+    IF(ABS(dx).GT.0.0)THEN ! dx is assumed to be dt
+      dQ = dQ / dx
+    END IF
+  END IF
+  Q  = Q + dQ
 END DO
 
-IntegralValuesAreEqual=AlmostEqualToTolerance( Q                                     ,&
-                                               Examples(iExample)%IntegrateLineValue ,&
-                                               5.e-2                                 )
+Q=Q*Examples(iExample)%IntegrateLineMultiplier ! use multiplier if needed
+
+IntegralValuesAreEqual=AlmostEqualToTolerance( Q                                         ,&
+                                               Examples(iExample)%IntegrateLineValue     ,&
+                                               Examples(iExample)%IntegrateLineTolerance )
 IF(.NOT.IntegralValuesAreEqual)THEN
   IntegralCompare=1
   SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLines do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLineOption                   =  '//TRIM(Examples(iExample)%IntegrateLineOption)
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' IntegrateLineValue                    = ',Q
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
-  SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Tolerance                             = ',1.e-2!0.1*SQRT(PP_RealTolerance)
+  SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Tolerance                             = ',Examples(iExample)%IntegrateLineTolerance
   !SWRITE(UNIT_stdOut,'(A,E21.14)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5
 ELSE
@@ -873,8 +880,7 @@ DO K=1,2 ! open the data and reference file
     Examples(iExample)%ErrorStatus=5
     RETURN
   ELSE
-    ioUnit=GETFREEUNIT()
-    OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
+    OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
   END IF
   ! init parameters for reading the data file
   HeaderLines=Examples(iExample)%CompareDatafileRowHeaderLines
@@ -1088,7 +1094,6 @@ IF(.NOT.ExistFile) THEN
   Examples(iExample)%ErrorStatus=5
   RETURN
 ELSE
-  ioUnit=GETFREEUNIT()
   OPEN(UNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 

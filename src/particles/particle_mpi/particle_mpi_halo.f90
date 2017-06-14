@@ -1806,7 +1806,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,              ONLY:nSides,nElems
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems
-USE MOD_LoadBalance_Vars,       ONLY:DoLoadBalance,nLoadBalance, writePartitionInfo
+USE MOD_LoadBalance_Vars,       ONLY:DoLoadBalance,nLoadBalanceSteps, writePartitionInfo
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1879,7 +1879,7 @@ DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
   ioUnit=GETFREEUNIT()
   IF(DoLoadBalance)THEN
-    WRITE( hilf,'(I4.4)') nLoadBalance
+    WRITE( hilf,'(I4.4)') nLoadBalanceSteps
     filename='particlepartitionInfo-'//TRIM(hilf)//'.out'
   ELSE
     filename='particlepartitionInfo.out'
@@ -2063,7 +2063,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:nSides,nElems
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
-USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalance, writePartitionInfo
+USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalanceSteps, writePartitionInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2119,7 +2119,7 @@ DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
   ioUnit=GETFREEUNIT()
   IF(DoLoadBalance)THEN
-    WRITE( hilf,'(I4.4)') nLoadBalance
+    WRITE( hilf,'(I4.4)') nLoadBalanceSteps
     filename='particlepartitionInfo-'//TRIM(hilf)//'.out'
   ELSE
     filename='particlepartitionInfo.out'
