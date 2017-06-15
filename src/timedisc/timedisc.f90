@@ -572,7 +572,8 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA*/
       ! Analyze for output
-      CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
+      !CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter=finalIter)
+      CALL PerformAnalyze(tAnalyze,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter=finalIter)
 #ifndef PP_HDG
 #endif /*PP_HDG*/
       ! Write state to file
@@ -601,7 +602,7 @@ DO !iter_t=0,MaxIter
 !#endif /*PP_HDG*/
       IF (PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
 !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
-      CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
+      CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
     END IF
 #endif /*MPI*/

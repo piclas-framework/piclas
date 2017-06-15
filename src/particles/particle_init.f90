@@ -424,6 +424,7 @@ __STAMP__&
           ,' Wrong input parameter for VelocitySpread in [0;1].')
       Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
     END IF
+    Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
@@ -1027,6 +1028,18 @@ END IF
 DEALLOCATE(iseeds)
 !DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
+DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
+
+DO iSpec = 1, nSpecies
+  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+    IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
+      IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(&
+__STAMP__, &
+' Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow!')
+    END IF      
+  END DO ! iInit = 0, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1, nSpecies
+
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 

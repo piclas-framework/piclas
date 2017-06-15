@@ -826,6 +826,7 @@ IF(.NOT.IntegralValuesAreEqual)THEN
   SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLineOption                   =  '//TRIM(Examples(iExample)%IntegrateLineOption)
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' IntegrateLineValue                    = ',Q
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
+  SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Error                                 = ',ABS(Q/Examples(iExample)%IntegrateLineValue-1)
   SWRITE(UNIT_stdOut,'(A,E21.14)')  ' Tolerance                             = ',Examples(iExample)%IntegrateLineTolerance
   !SWRITE(UNIT_stdOut,'(A,E21.14)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5
