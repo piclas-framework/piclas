@@ -30,6 +30,9 @@
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ ## k).OR.x<-HUGE(1._ ## k)) CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
 #endif
 
+! Test for equality: read description in src/globals/globals.f90 for further infos
+#define ALMOSTEQUALRELATIVE(x,y,tol)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(tol))
+
 #ifdef MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,

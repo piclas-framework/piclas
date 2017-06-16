@@ -705,7 +705,7 @@ ELSE
       IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
         ! Two solutions can be correspond to one unique intersection (?!)
         IF(nInter.EQ.1)THEN
-          IF(.NOT.ALMOSTEQUALTOTOLERANCE(t(2),t(1),1e-8))THEN
+          IF(.NOT.ALMOSTEQUALRELATIVE(t(2),t(1),1e-8))THEN
             isHit=.TRUE.
             nInter=nInter+2
           END IF
@@ -858,7 +858,7 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero,AlmostEqualToTolerance,MyRank
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
@@ -1118,7 +1118,7 @@ CASE DEFAULT
     ! second possibility:
     ! check only to the accepted alphas
     DO iInter=2,nInterSections
-      IF(.NOT.ALMOSTEQUALTOTOLERANCE(locAlpha(iInter-1),locAlpha(iInter),0.002))THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(locAlpha(iInter-1),locAlpha(iInter),0.002))THEN
         realNInter=realNInter+1
         realInterID(realNInter)=iInter
         isInter=iInter
