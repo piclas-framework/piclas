@@ -2602,7 +2602,6 @@ SUBROUTINE CheckIfCurvedElem(IsCurved,XCL_NGeo)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Mesh_Vars,             ONLY:NGeo,Vdm_CLNGeo1_CLNGeo
 USE MOD_ChangeBasis,           ONLY:changeBasis3D
-USE MOD_Globals,               ONLY:ALMOSTEQUAL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2648,7 +2647,6 @@ SUBROUTINE PointsEqual(N,Points1,Points2,IsNotEqual)
 ! compute the distance between two data sets
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-!USE MOD_Globals,    ONLY:AlmostEqual
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 

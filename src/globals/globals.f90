@@ -35,10 +35,6 @@ INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
 END INTERFACE
 
-INTERFACE AlmostEqual
-  MODULE PROCEDURE AlmostEqual
-END INTERFACE
-
 INTERFACE AlmostZero
   MODULE PROCEDURE AlmostZero
 END INTERFACE
@@ -134,41 +130,41 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitGlobals
 
 
-FUNCTION AlmostEqual(Num1,Num2)
-!===================================================================================================================================
-! Bruce Dawson quote:
-! "There is no silver bullet. You have to choose wisely."
-!    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-!      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
-!      to your calculation. Maybe."
-!    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-!      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
-!      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-!    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
-!      Good luck and God speed."
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars,    ONLY:TwoEpsMach ! relative epsilon value: something like 4.???E-16 for double precision
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL            :: Num1,Num2      ! Number
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL         :: ALMOSTEQUAL
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*TwoEpsMach)THEN
-  ALMOSTEQUAL=.TRUE.
-ELSE
-  ALMOSTEQUAL=.FALSE.
-END IF
-END FUNCTION AlmostEqual
+! FUNCTION AlmostEqual(Num1,Num2) ! see boltzplatz.h
+! !===================================================================================================================================
+! ! Bruce Dawson quote:
+! ! "There is no silver bullet. You have to choose wisely."
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !      to your calculation. Maybe."
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !      Good luck and God speed."
+! !===================================================================================================================================
+! ! MODULES
+! USE MOD_Globals_Vars,    ONLY:TwoEpsMach ! relative epsilon value: something like 4.???E-16 for double precision
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL            :: Num1,Num2      ! Number
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! LOGICAL         :: ALMOSTEQUAL
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! !===================================================================================================================================
+! IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*TwoEpsMach)THEN
+!   ALMOSTEQUAL=.TRUE.
+! ELSE
+!   ALMOSTEQUAL=.FALSE.
+! END IF
+! END FUNCTION AlmostEqual
 
 
-! FUNCTION ALMOSTEQUALRELATIVE(Num1,Num2,Tolerance) ! old name was "AlmostEqualToTolerance", new name is same as for flexi
+! FUNCTION ALMOSTEQUALRELATIVE(Num1,Num2,Tolerance) ! old name "AlmostEqualToTolerance", new is same as for flexi: see boltzplatz.h
 ! !===================================================================================================================================
 ! ! Bruce Dawson quote:
 ! ! "There is no silver bullet. You have to choose wisely."

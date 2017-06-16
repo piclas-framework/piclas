@@ -32,6 +32,8 @@
 
 ! Test for equality: read description in src/globals/globals.f90 for further infos
 #define ALMOSTEQUALRELATIVE(x,y,tol)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(tol))
+! for fixed tolerance (for double precision use twice the machine precision 2E-52 ~ 2.22e-16 -> 2*2.22E-16=4.44E-16)
+#define ALMOSTEQUAL(x,y)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(4.44E-16))
 
 #ifdef MPI
 #  define SWRITE IF(MPIRoot) WRITE
