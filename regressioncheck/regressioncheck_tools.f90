@@ -416,7 +416,7 @@ LOGICAL,INTENT(OUT)                       :: SkipExample
 ! LOCAL VARIABLES
 INTEGER                                   :: ioUnit
 INTEGER                                   :: iSTATUS,IndNum,IndNum2,IndNum3,MaxNum
-CHARACTER(LEN=255)                        :: FileName,temp1,temp2,temp3
+CHARACTER(LEN=255)                        :: FileName,temp1,temp2
 LOGICAL                                   :: ExistFile
 !==================================================================================================================================
 SkipExample=.FALSE.
@@ -853,6 +853,8 @@ INTEGER,INTENT(IN)             :: nArgs
 INTEGER                        :: iSTATUS                           !> Error status
 INTEGER                        :: I                                 !> loop variable
 !===================================================================================================================================
+!TODO: use -j notation like in make (i.e. -j x uses x procs for compiling)
+
 IF(nArgs.GE.1)THEN ! first input argument must be "build"
   DO I=1,nArgs
     CALL str2int(RuntimeOption(I),NumberOfProcs,iSTATUS)
@@ -882,8 +884,9 @@ IF(nArgs.GE.1)THEN ! first input argument must be "build"
 ELSE
   NumberOfProcs=1
 END IF
+
 ! set the number of procs INTEGER/CHARACTER
-IF(NumberOfProcs.GE.1)THEN
+IF(NumberOfProcs.GT.0 .OR. NumberOfProcs.EQ.-1)THEN
   WRITE(UNIT=NumberOfProcsStr,FMT='(I5)') NumberOfProcs
 ELSE
   NumberOfProcsStr='fail'
@@ -1064,11 +1067,11 @@ IF(ExistFile) THEN
   END DO
   CLOSE(ioUnit)
   IF(output.EQ.'')THEN
-    SWRITE(UNIT_stdOut,'(A)') 'SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+    SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
     output='ParameterName does not exist'
   END IF
 ELSE
-  SWRITE(UNIT_stdOut,'(A)') 'SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+  SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
   output='file does not exist'
 END IF
 END SUBROUTINE GetParameterFromFile
