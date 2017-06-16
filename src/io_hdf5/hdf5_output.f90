@@ -1773,7 +1773,7 @@ StrVarNames(3)='PMLzetaGlobalZ'
 PMLzetaGlobal=0.
 DO iElem=1,PP_nElems
   IF(isPMLElem(iElem))THEN
-    IF(AlmostZero(PMLzeta0))THEN
+    IF(ALMOSTZERO(PMLzeta0))THEN
       PMLzetaGlobal(:,:,:,:,iElem)=0.0
     ELSE
       PMLzetaGlobal(:,:,:,:,iElem)=PMLzeta(:,:,:,:,ElemToPML(iElem))/PMLzeta0

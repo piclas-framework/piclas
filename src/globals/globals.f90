@@ -35,10 +35,6 @@ INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
 END INTERFACE
 
-INTERFACE AlmostZero
-  MODULE PROCEDURE AlmostZero
-END INTERFACE
-
 INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
@@ -198,38 +194,38 @@ END SUBROUTINE InitGlobals
 ! END FUNCTION ALMOSTEQUALRELATIVE
 
 
-FUNCTION AlmostZero(Num)
-!===================================================================================================================================
-! Performe an almost zero check. But ...
-! Bruce Dawson quote:
-! "There is no silver bullet. You have to choose wisely."
-!    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-!      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
-!      to your calculation. Maybe."
-!    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-!      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
-!      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-!    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
-!      Good luck and God speed."
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars,    ONLY:EpsMach
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL            :: Num ! Number
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL         :: AlmostZero
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-AlmostZero=.FALSE.
-IF(ABS(Num).LE.EpsMach) AlmostZero=.TRUE.
-
-END FUNCTION AlmostZero
+! FUNCTION AlmostZero(Num) ! see boltzplatz.h
+! !===================================================================================================================================
+! ! Performe an almost zero check. But ...
+! ! Bruce Dawson quote:
+! ! "There is no silver bullet. You have to choose wisely."
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !      to your calculation. Maybe."
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !      Good luck and God speed."
+! !===================================================================================================================================
+! ! MODULES
+! USE MOD_Globals_Vars,    ONLY:EpsMach
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL            :: Num ! Number
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! LOGICAL         :: AlmostZero
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! !===================================================================================================================================
+! 
+! AlmostZero=.FALSE.
+! IF(ABS(Num).LE.EpsMach) AlmostZero=.TRUE.
+! 
+! END FUNCTION AlmostZero
 
 
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)

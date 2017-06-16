@@ -574,7 +574,7 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY:Almostzero,MyRank,UNIT_stdout
+USE MOD_Globals,                ONLY:MyRank,UNIT_stdout
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,BezierControlPoints3d
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit

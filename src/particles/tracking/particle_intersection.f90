@@ -211,7 +211,7 @@ SUBROUTINE ComputePlanarCurvedIntersection(isHit                       &
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero,MyRank
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,SideSlabNormals
@@ -470,7 +470,7 @@ a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
      -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
 
 !IF((ABS(SideNormVec(1,SideID)).GE.ABS(SideNormVec(2,SideID))) .AND.(ABS(SideNormVec(1,SideID)).LE.ABS(SideNormVec(3,SideID))) &
-!  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+!  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
 !  a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
 !  a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
 !  a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
@@ -483,7 +483,7 @@ a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
 !  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1) &
 !       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3)
 !ELSE IF(ABS(SideNormVec(2,SideID)).LE.ABS(SideNormVec(3,SideID)) &
-!  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+!  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
 !  a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
 !  a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
 !  a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
@@ -495,7 +495,7 @@ a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
 !  a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
 !  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2) &
 !       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3)
-!ELSE IF(.NOT.Almostzero(PartTrajectory(3)))THEN
+!ELSE IF(.NOT.ALMOSTZERO(PartTrajectory(3)))THEN
 !  a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
 !  a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
 !  a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
@@ -858,7 +858,7 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero,MyRank
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
@@ -2814,7 +2814,7 @@ SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 ! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
 !================================================================================================================================
 USE MOD_Globals_Vars,       ONLY:epsMach
-USE MOD_Globals,            ONLY:UNIT_stdOut,myRank!AlmostZero
+USE MOD_Globals,            ONLY:UNIT_stdOut,myRank
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -2878,7 +2878,6 @@ FUNCTION ComputeSurfaceDistance2(SideNormVec,BiLinearCoeff,xi,eta,PartTrajectory
 !================================================================================================================================
 USE MOD_Preproc
 USE MOD_Globals
-!USE MOD_Globals,                  ONLY:Almostzero
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol
 USE MOD_Particle_Vars,            ONLY:LastPartPos
 #ifdef CODE_ANALYZE
@@ -2928,9 +2927,9 @@ REAL                                 :: t
 !however, by this significant floating point inaccuracies can occur if this direction is approx. orthogonal to side normal vec.
 !solution: chose direction based on SideNormVec and additionally check that no division by zero occurs.
 !IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))).AND.(ABS(SideNormVec(1)).GE.ABS(SideNormVec(3))) &
-!  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+!  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
 IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))) .AND.(ABS(SideNormVec(1)).GE.ABS(SideNormVec(3))) &
-  .AND. .NOT.Almostzero(PartTrajectory(1)))THEN
+  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
   t = t/ PartTrajectory(1)-epsilontol 
 #ifdef CODE_ANALYZE
@@ -2941,7 +2940,7 @@ IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))) .AND.(ABS(SideNormVec(1)).GE.ABS
         END IF
 #endif /*CODE_ANALYZE*/
 ELSE IF(ABS(SideNormVec(2)).GE.ABS(SideNormVec(3)) &
-  .AND. .NOT.Almostzero(PartTrajectory(2)))THEN
+  .AND. .NOT.ALMOSTZERO(PartTrajectory(2)))THEN
   t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
   t = t/ PartTrajectory(2)-epsilontol 
 #ifdef CODE_ANALYZE
@@ -2951,7 +2950,7 @@ ELSE IF(ABS(SideNormVec(2)).GE.ABS(SideNormVec(3)) &
           END IF
         END IF
 #endif /*CODE_ANALYZE*/
-ELSE IF(.NOT.Almostzero(PartTrajectory(3)))THEN
+ELSE IF(.NOT.ALMOSTZERO(PartTrajectory(3)))THEN
   t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
   t = t/ PartTrajectory(3)-epsilontol 
 #ifdef CODE_ANALYZE
