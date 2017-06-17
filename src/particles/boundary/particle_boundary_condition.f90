@@ -603,7 +603,7 @@ __STAMP__&
 !  Pt_temp(PartID,4:6)=0.
 !  ! what happens with force term || acceleration?
 !-------------------------
-IF (.NOT.AlmostZero(DOT_PRODUCT(WallVelo,WallVelo))) THEN
+IF (.NOT.ALMOSTZERO(DOT_PRODUCT(WallVelo,WallVelo))) THEN
   PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 ELSE
   Pt_temp(PartID,1:3)=Pt_temp(PartID,1:3)-2.*DOT_PRODUCT(Pt_temp(PartID,1:3),n_loc)*n_loc
