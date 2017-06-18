@@ -1,5 +1,6 @@
 ! fixed compiler flags
-CMAKE_BUILD_TYPE=DEBUG
+!CMAKE_BUILD_TYPE=DEBUG ! default
+CMAKE_BUILD_TYPE=Release ! use release temporary because DoRefMapping=T fails otherwise
 BOLTZPLATZ_BUILD_HDF5=OFF
 BOLTZPLATZ_POLYNOMIAL_DEGREE=N
 
