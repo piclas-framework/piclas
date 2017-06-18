@@ -1796,7 +1796,6 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TR
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.)
   CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
 CALL WriteAttributeToHDF5(File_ID,'VarNamesPMLzetaGlobal',N_variables,StrArray=StrVarNames)

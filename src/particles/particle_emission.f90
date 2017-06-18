@@ -1878,7 +1878,11 @@ __STAMP__&
 
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
+#ifdef MPI
   NbrOfParticle = mySumOfMatchedParticles + mySumOfRemovedParticles
+#else
+  NbrOfParticle = mySumOfMatchedParticles
+#endif
 
   DEALLOCATE( particle_positions, STAT=allocStat )
   IF (allocStat .NE. 0) THEN

@@ -433,7 +433,9 @@ IF(iSample.GT.0)THEN
   IF(.NOT.RP_fileExists) chunkSamples=iSample
   ! write buffer into file, we need two offset dimensions (one buffer, one processor)
   nSamples=nSamples+iSample
+#ifdef MPI
   IF(nRP_Procs.EQ.1)THEN
+#endif
     CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
                           nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
                           nVal=      (/PP_nVar+1,nRP      ,iSample/),&
@@ -442,6 +444,7 @@ IF(iSample.GT.0)THEN
                           chunkSize= (/PP_nVar+1,nGlobalRP,chunkSamples      /),&
                           RealArray=RP_Data(:,:,1:iSample),&
                           collective=.FALSE.)!, existing=RP_fileExists)
+#ifdef MPI
   ELSE
     CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
                           nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
@@ -452,6 +455,7 @@ IF(iSample.GT.0)THEN
                           RealArray=RP_Data(:,:,1:iSample),&
                           collective=.TRUE.)!, existing=RP_fileExists)
   END IF
+#endif
   lastSample=RP_Data(:,:,iSample)
 END IF
 CALL CloseDataFile()
