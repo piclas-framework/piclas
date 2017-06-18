@@ -1050,7 +1050,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_RegressionCheck_Vars,  ONLY: Examples
 USE MOD_HDF5_input,            ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute
-USE MOD_HDF5_Input,            ONLY: DatasetExists,File_ID,GetHDF5DataSize
+USE MOD_HDF5_Input,            ONLY: DatasetExists,File_ID,GetDataSize
 USE MOD_IO_HDF5,               ONLY: HSize
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1110,7 +1110,7 @@ IF(.NOT.HDF5DatasetExists) THEN
 END IF
 
 ! get array dimensions
-CALL GetHDF5DataSize(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),ArrayRank,HSize)
+CALL GetDataSize(File_ID,TRIM(Examples(iExample)%CompareHDF5ArrayBoundsName),ArrayRank,HSize)
 !print*,"ArrayRank=",ArrayRank
 !print*,"HSize   =",HSize
 nVal   = INT(HSize(1))
