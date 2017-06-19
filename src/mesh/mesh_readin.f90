@@ -775,7 +775,9 @@ END DO
 !                              SIDES
 !----------------------------------------------------------------------------------------------------------------------------
 
+#ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif /* MPI */
 offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1  
 nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,FirstElemInd)
 !read local SideInfo from data file 

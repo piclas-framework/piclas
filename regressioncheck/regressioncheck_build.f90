@@ -32,14 +32,14 @@ PUBLIC::GetFlagFromFile
 CONTAINS
 
 !==================================================================================================================================
-!> read the file "configuirations.reggie" and creates multiple compiler flag configurations for cmake that are written to
+!> read the file "configurations.reggie" and creates multiple compiler flag configurations for cmake that are written to
 !> "configurationsX.cmake"
 !==================================================================================================================================
 SUBROUTINE ReadConfiguration(iExample,nReggieBuilds,N_compile_flags)
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,RuntimeOption,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,BuildCODE2D,BuildPARABOLIC
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D,BuildPARABOLIC
 USE MOD_RegressionCheck_Vars,    ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -202,8 +202,8 @@ DO I=1,2
   IF(I.EQ.1)BuildMPI='OFF'
   IF(I.EQ.1)ALLOCATE(BuildFV(nReggieBuilds))
   IF(I.EQ.1)BuildFV='OFF'
-  IF(I.EQ.1)ALLOCATE(BuildCODE2D(nReggieBuilds))
-  IF(I.EQ.1)BuildCODE2D='OFF'
+  IF(I.EQ.1)ALLOCATE(Build2D(nReggieBuilds))
+  IF(I.EQ.1)Build2D='OFF'
   IF(I.EQ.1)ALLOCATE(BuildPARABOLIC(nReggieBuilds))
   IF(I.EQ.1)BuildPARABOLIC='OFF'
 END DO
@@ -330,7 +330,7 @@ SUBROUTINE BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,N_compile_flag
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
-USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,BuildCODE2D
+USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D
 USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError
 USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH
@@ -367,22 +367,29 @@ IF(BuildValid(iReggieBuild))THEN
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
   END DO
   CLOSE(ioUnit)
+  ! display the compile flag options
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  SYSCOMMAND='cd '//TRIM(BuildDir)//&
-   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_reggie.out  && make '//CodeNameLowCase//' >> build_reggie.out'
-  IF(BuildDebug)THEN
-    SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../  && make '//CodeNameLowCase
-  ELSEIF(BuildNoDebug)THEN
-    SYSCOMMAND='cd '//TRIM(BuildDir)//&
-   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_reggie.out  && make '//CodeNameLowCase//&
-                                                                                                         ' >> build_reggie.out 2>&1'
+
+  ! 1 of 4: set compilation command line
+  SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../'
+
+  ! 2 of 4: set output for cmake
+  IF(BuildDebug.EQV..FALSE.) SYSCOMMAND=TRIM(SYSCOMMAND)//' > build_reggie.out'
+
+  ! 3 of 4: set threads for compilation of make
+  SYSCOMMAND=TRIM(SYSCOMMAND)//' && make '//CodeNameLowCase//' -j'
+  IF(NumberOfProcs.GT.0) SYSCOMMAND=TRIM(SYSCOMMAND)//' '//TRIM(ADJUSTL(NumberOfProcsStr))
+
+  ! 4 of 4: pipe output of make
+  IF(BuildDebug.EQV..FALSE.)THEN
+    SYSCOMMAND=TRIM(SYSCOMMAND)//' >> build_reggie.out'
+    IF(BuildNoDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' 2>&1'
   END IF
-  IF(NumberOfProcs.GT.0)THEN
-    SYSCOMMAND=TRIM(SYSCOMMAND)//' -j '//TRIM(ADJUSTL(NumberOfProcsStr))
-  ELSE
-    SYSCOMMAND=TRIM(SYSCOMMAND)//' -j'
-  ENDIF
+
+  ! build the code
+  SWRITE(UNIT_stdOut, '(A)')' Building with ['//TRIM(SYSCOMMAND)//']'
+  SWRITE(UNIT_stdOut, '(A)')' '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
   ! can be executed with the compiled executable or not
@@ -410,8 +417,8 @@ IF(BuildValid(iReggieBuild))THEN
     IF(BuildFV(iReggieBuild).EQ.'flag does not exist')BuildFV(iReggieBuild)='OFF'
 
     ! check 2D: 2D version of code
-    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_CODE2D'    ,BuildCODE2D(iReggieBuild),BACK=.TRUE.)
-    IF(BuildCODE2D(iReggieBuild).EQ.'flag does not exist')BuildCODE2D(iReggieBuild)='OFF'
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_2D'    ,Build2D(iReggieBuild),BACK=.TRUE.)
+    IF(Build2D(iReggieBuild).EQ.'flag does not exist')Build2D(iReggieBuild)='OFF'
 
     ! check PARABOLIC: with or without parabolic terms
     CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_PARABOLIC' ,BuildPARABOLIC(iReggieBuild),BACK=.TRUE.)
@@ -448,7 +455,7 @@ IF(BuildValid(iReggieBuild))THEN
   SWRITE(UNIT_stdOut,'(A)')"BuildTIMEDISCMETHOD(iReggieBuild)) = ["//TRIM(BuildTIMEDISCMETHOD(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildMPI(iReggieBuild))            = ["//TRIM(BuildMPI(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildFV(iReggieBuild))             = ["//TRIM(BuildFV(iReggieBuild))//"]"
-  SWRITE(UNIT_stdOut,'(A)')"BuildCODE2D(iReggieBuild))         = ["//TRIM(BuildCODE2D(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"Build2D(iReggieBuild))             = ["//TRIM(Build2D(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildPARABOLIC(iReggieBuild))      = ["//TRIM(BuildPARABOLIC(iReggieBuild))//"]"
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
   IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out'

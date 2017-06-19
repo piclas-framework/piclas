@@ -683,7 +683,7 @@ __STAMP__&
       ( Species(FractNbr)%Init(iInit)%VeloVecIC(1)*Species(FractNbr)%Init(iInit)%BaseVector2IC(1) &
       + Species(FractNbr)%Init(iInit)%VeloVecIC(2)*Species(FractNbr)%Init(iInit)%BaseVector2IC(2) &
       + Species(FractNbr)%Init(iInit)%VeloVecIC(3)*Species(FractNbr)%Init(iInit)%BaseVector2IC(3) ) !BV2 component of drift-velocity
-    IF ( .NOT.AlmostEqual(A_ins,BV_lengths(1)*BV_lengths(2)) ) THEN
+    IF ( .NOT.ALMOSTEQUAL(A_ins,BV_lengths(1)*BV_lengths(2)) ) THEN
       SWRITE(*,'(A72,2(x,I0),A1)') 'cross product and product of theirs lenghts for BaseVectors of Spec/Init',&
         FractNbr, iInit, ':'
       SWRITE(*,*) A_ins, BV_lengths(1)*BV_lengths(2)
@@ -691,7 +691,7 @@ __STAMP__&
 __STAMP__&
 ,' BaseVectors of the current SpaceIC are not parallel?')
     END IF
-    IF ( .NOT.AlmostEqual(SQRT(v_drift_BV(1)**2+v_drift_BV(2)**2+v_drift_line**2),ABS(Species(FractNbr)%Init(iInit)%VeloIC)) ) THEN
+    IF ( .NOT.ALMOSTEQUAL(SQRT(v_drift_BV(1)**2+v_drift_BV(2)**2+v_drift_line**2),ABS(Species(FractNbr)%Init(iInit)%VeloIC)) ) THEN
       SWRITE(*,'(A60,2(x,I0),A1)') 'v_drift_BV1, v_drift_BV2, v_drift_line, VeloIC for Spec/Init',&
         FractNbr, iInit, ':'
       SWRITE(*,*) v_drift_BV(1),v_drift_BV(2),v_drift_line,Species(FractNbr)%Init(iInit)%VeloIC
@@ -746,7 +746,7 @@ __STAMP__&
 ,' Something is wrong with the PeriodicVector and the orifice BV!')
         END IF
         lPeri=SQRT(GEO%PeriodicVectors(1,1)**2+GEO%PeriodicVectors(2,1)**2+GEO%PeriodicVectors(3,1)**2)
-        IF ( .NOT.AlmostEqual(lPeri,BV_lengths(orificePeriodic)) ) THEN
+        IF ( .NOT.ALMOSTEQUAL(lPeri,BV_lengths(orificePeriodic)) ) THEN
           SWRITE(*,'(A22,I1,x,A1)') 'lPeri and length of BV',orificePeriodic,':'
           SWRITE(*,'(G0,x,G0)') lPeri,BV_lengths(orificePeriodic)
           CALL abort(&
@@ -792,7 +792,7 @@ ELSE
   DimSend=3 !save (and send) only positions
 END IF
 
-IF ( (NbrOfParticle .LE. 0).AND.(PartIns .LE. 0.).AND. (AlmostEqual(Species(FractNbr)%Init(iInit)%PartDensity,0.)) ) &
+IF ( (NbrOfParticle .LE. 0).AND.(PartIns .LE. 0.).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) &
   RETURN !0<Partins<1: statistical handling of exact REAL-INT-conv. below!
 
 nChunks = 1                   ! Standard: Nicht-MPI
@@ -1878,7 +1878,11 @@ __STAMP__&
 
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
+#ifdef MPI
   NbrOfParticle = mySumOfMatchedParticles + mySumOfRemovedParticles
+#else
+  NbrOfParticle = mySumOfMatchedParticles
+#endif
 
   DEALLOCATE( particle_positions, STAT=allocStat )
   IF (allocStat .NE. 0) THEN
@@ -4102,9 +4106,9 @@ __STAMP__&
             END IF !VeloIsNormal or SimpleRadialVeloFit
 !!test
 !CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),Particle_pos(1:3))
-!IF (.NOT.AlmostEqual(Particle_pos(1),ElemBaryNGeo(1,ElemID))) STOP "blubb1!!!"
-!IF (.NOT.AlmostEqual(Particle_pos(2),ElemBaryNGeo(2,ElemID))) STOP "blubb2!!!"
-!IF (.NOT.AlmostEqual(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
+!IF (.NOT.ALMOSTEQUAL(Particle_pos(1),ElemBaryNGeo(1,ElemID))) STOP "blubb1!!!"
+!IF (.NOT.ALMOSTEQUAL(Particle_pos(2),ElemBaryNGeo(2,ElemID))) STOP "blubb2!!!"
+!IF (.NOT.ALMOSTEQUAL(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
 !!
             ! shift lastpartpos minimal into cell for fail-safe tracking
             SELECT CASE(SideType(SideID))

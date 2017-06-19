@@ -496,7 +496,7 @@ IF(.NOT.DoExactFlux) RETURN
 !U_Master_loc=0.
 !DO q=0,PP_N
 !  DO p=0,PP_N
-!    IF(ALMOSTEQUALTOTOLERANCE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
+!    IF(ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
 !      ! the second state is always zero and already computed
 !      IF(UseMaster)THEN
 !        CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Slave_loc(:,p,q))
@@ -529,7 +529,7 @@ IF(.NOT.DoExactFlux) RETURN
 DO q=0,PP_N
   DO p=0,PP_N
     U_Face_loc=0.
-    IF(ALMOSTEQUALTOTOLERANCE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
+    IF(ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
       CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
       n_loc(1:3)=NormVec(1:3,p,q)
       A(1,1:4)=0.

@@ -574,7 +574,7 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY:Almostzero,MyRank,UNIT_stdout
+USE MOD_Globals,                ONLY:MyRank,UNIT_stdout
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,BezierControlPoints3d
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
@@ -2602,7 +2602,6 @@ SUBROUTINE CheckIfCurvedElem(IsCurved,XCL_NGeo)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Mesh_Vars,             ONLY:NGeo,Vdm_CLNGeo1_CLNGeo
 USE MOD_ChangeBasis,           ONLY:changeBasis3D
-USE MOD_Globals,               ONLY:ALMOSTEQUAL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2648,7 +2647,6 @@ SUBROUTINE PointsEqual(N,Points1,Points2,IsNotEqual)
 ! compute the distance between two data sets
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-!USE MOD_Globals,    ONLY:AlmostEqual
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 

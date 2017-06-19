@@ -237,7 +237,10 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,       ONLY:abort,myrank,MPI_COMM_WORLD,UNIT_stdOut
+USE MOD_Globals,       ONLY:abort,myrank,UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals,       ONLY:MPI_COMM_WORLD
+#endif /*MPI*/
 USE MOD_Mesh_Vars,     ONLY:Elem_xGP
 USE MOD_PML_Vars,      ONLY:PMLprintInfoProcs
 ! IMPLICIT VARIABLE HANDLING
@@ -413,7 +416,9 @@ DO I=0,PMLprintInfoProcs-1
        " isFace(",iSide,")=",isFace(iSide),"  of total= ",COUNT(isFace)
     END DO
   END IF
+#ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+#endif /*MPI*/
 END DO
 
 !print*,"should be total 16 (PML-interfaces) and total 100 (PML-faces)"

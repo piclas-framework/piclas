@@ -187,11 +187,11 @@ END DO
 CALL GetNumberOfProcs(nArgs)
 
 ! display the resulting options
-SWRITE(UNIT_stdOut,'(A,4(A1,A,A1),A7,I3,A11)')' Running with arguments: ',&
+SWRITE(UNIT_stdOut,'(A,4(A1,A,A1),A21,I3,A20)')' Running with arguments: ',&
 '[',TRIM(RuntimeOption(1)),']',&
 '[',TRIM(RuntimeOption(2)),']',&
 '[',TRIM(RuntimeOption(3)),']',&
-'[',TRIM(RuntimeOption(4)),']',' with [',NumberOfProcs,'] MPI ranks'
+'[',TRIM(RuntimeOption(4)),']',   ' and compiling with [',NumberOfProcs,'] threads (-1 is -j)'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildSolver  :  [',BuildSolver,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildDebug   :  [',BuildDebug,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildNoDebug :  [',BuildNoDebug,']'
@@ -416,7 +416,7 @@ LOGICAL,INTENT(OUT)                       :: SkipExample
 ! LOCAL VARIABLES
 INTEGER                                   :: ioUnit
 INTEGER                                   :: iSTATUS,IndNum,IndNum2,IndNum3,MaxNum
-CHARACTER(LEN=255)                        :: FileName,temp1,temp2,temp3
+CHARACTER(LEN=255)                        :: FileName,temp1,temp2
 LOGICAL                                   :: ExistFile
 !==================================================================================================================================
 SkipExample=.FALSE.
@@ -853,41 +853,64 @@ INTEGER,INTENT(IN)             :: nArgs
 INTEGER                        :: iSTATUS                           !> Error status
 INTEGER                        :: I                                 !> loop variable
 !===================================================================================================================================
+NumberOfProcs=0
 IF(nArgs.GE.1)THEN ! first input argument must be "build"
   DO I=1,nArgs
-    CALL str2int(RuntimeOption(I),NumberOfProcs,iSTATUS)
-    IF(iSTATUS.EQ.0)THEN
-      IF(I.EQ.1)THEN
-        RuntimeOption(1)='run'        ! return to default -> needed for setting it to 'run_basic'
-        SWRITE(UNIT_stdOut,'(A)') ' First argument cannot be a number! Specify "run" or "build"'
-        STOP 1
-      ELSEIF(I.EQ.2)THEN
-        RuntimeOption(2)='run_basic'  ! set to standard case folder 'run_basic'
-        IF(TRIM(RuntimeOption(1)).EQ.'run')THEN
-          SWRITE(UNIT_stdOut,'(A)') ' An argument with a specific number for building can only be used in "build" mode'
-          STOP 1
-        END IF
-      ELSE
-        RuntimeOption(I)=''           ! return to default
+    ! use -j notation like in make (i.e. -j x uses x procs for compiling)
+    IF(TRIM(RuntimeOption(I)).EQ.'-j')THEN ! use all available threads for compiling
+      NumberOfProcs=-1
+      IF(I.EQ.2)THEN
+        RuntimeOption(I)='run_basic' ! set back to default
+      !ELSE
+        !RuntimeOption(I)=''        ! return to default
       END IF
-      EXIT ! first integer input argument found -> use as number of procs for compilation
-    ELSE
-      NumberOfProcs=1
+      IF(nArgs.GT.I)THEN ! check if next argument is a number as in "-j 5" -> use 5 threads for compiling
+        CALL str2int(RuntimeOption(I+1),NumberOfProcs,iSTATUS) ! if the argument is not a number then "-1" is returned
+        !IF(iSTATUS.EQ.0)THEN
+          !RuntimeOption(I+1)=''           ! return to default
+        !END IF
+      END IF
     END IF
   END DO
-  ! sanity check
-  IF(iSTATUS.EQ.0)THEN
-    SWRITE(UNIT_stdOut,'(A,I3,A)') ' Building regression checks with [',NumberOfProcs,'] threads/processors'
+  IF(NumberOfProcs.EQ.0)THEN
+    DO I=1,nArgs
+      CALL str2int(RuntimeOption(I),NumberOfProcs,iSTATUS)
+      IF(iSTATUS.EQ.0)THEN
+        IF(I.EQ.1)THEN
+          RuntimeOption(1)='run'        ! return to default -> needed for setting it to 'run_basic'
+          SWRITE(UNIT_stdOut,'(A)') ' First argument cannot be a number! Specify "run" or "build"'
+          STOP 1
+        ELSEIF(I.EQ.2)THEN
+          RuntimeOption(2)='run_basic'  ! set to standard case folder 'run_basic'
+          IF(TRIM(RuntimeOption(1)).EQ.'run')THEN
+            SWRITE(UNIT_stdOut,'(A)') ' An argument with a specific number for building can only be used in "build" mode'
+            STOP 1
+          END IF
+        ELSE
+          RuntimeOption(I)=''           ! return to default
+        END IF
+        EXIT ! first integer input argument found -> use as number of procs for compilation
+      ELSE
+        NumberOfProcs=1
+      END IF
+    END DO
+  ELSE IF(NumberOfProcs.EQ.-1) THEN
+    SWRITE(UNIT_stdOut,'(A)')        ' Building regression checks with [ -j] threads/processors'
   END IF
+    ! sanity check
+    IF((iSTATUS.EQ.0).AND.(NumberOfProcs.GT.0))THEN
+      SWRITE(UNIT_stdOut,'(A,I3,A)') ' Building regression checks with [',NumberOfProcs,'] threads/processors'
+    END IF
 ELSE
   NumberOfProcs=1
 END IF
+
 ! set the number of procs INTEGER/CHARACTER
-IF(NumberOfProcs.GE.1)THEN
+IF(NumberOfProcs.GT.0 .OR. NumberOfProcs.EQ.-1)THEN
   WRITE(UNIT=NumberOfProcsStr,FMT='(I5)') NumberOfProcs
 ELSE
   NumberOfProcsStr='fail'
-  SWRITE(UNIT_stdOut,'(A)') ' The number of MPI ranks for building must be >= 1'
+  SWRITE(UNIT_stdOut,'(A)') ' The number of MPI ranks for building must be [>= 1] or [-j]'
   STOP 1
 END IF
 END SUBROUTINE GetNumberOfProcs
@@ -1019,22 +1042,23 @@ END SUBROUTINE AddError
 !==================================================================================================================================
 !> read parameter values from a specified file
 !==================================================================================================================================
-SUBROUTINE GetParameterFromFile(FileName,ParameterName,output)
+SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DoDisplayInfo)
 ! MODULES
 USE MOD_Globals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
-CHARACTER(LEN=*),INTENT(IN)  :: ParameterName     ! e.g. 'XX_EQNSYSNAME'
-CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
+CHARACTER(LEN=*),INTENT(IN)     :: FileName      ! e.g. './../build_reggie/bin/configuration.cmake'
+CHARACTER(LEN=*),INTENT(IN)     :: ParameterName ! e.g. 'XX_EQNSYSNAME'
+CHARACTER(LEN=*),INTENT(INOUT)  :: output        ! e.g. 'navierstokes'
+LOGICAL, INTENT(IN),OPTIONAL    :: DoDisplayInfo ! display error output if the parameter or the file is not found
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
-INTEGER                        :: iSTATUS      ! status
-CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
-INTEGER                        :: ioUnit       ! field handler unit and ??
-INTEGER                        :: IndNum       ! Index Number
+LOGICAL                         :: ExistFile    ! file exists=.true., file does not exist=.false.
+INTEGER                         :: iSTATUS      ! status
+CHARACTER(LEN=255)              :: temp,temp2   ! temp variables for read in of file lines
+INTEGER                         :: ioUnit       ! field handler unit and ??
+INTEGER                         :: IndNum       ! Index Number
 !===================================================================================================================================
 output=''
 INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
@@ -1064,11 +1088,23 @@ IF(ExistFile) THEN
   END DO
   CLOSE(ioUnit)
   IF(output.EQ.'')THEN
-    SWRITE(UNIT_stdOut,'(A)') 'SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+    IF(PRESENT(DoDisplayInfo))THEN
+      IF(DoDisplayInfo)THEN
+        SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+      END IF
+    ELSE
+      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+    END IF
     output='ParameterName does not exist'
   END IF
 ELSE
-  SWRITE(UNIT_stdOut,'(A)') 'SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+    IF(PRESENT(DoDisplayInfo))THEN
+      IF(DoDisplayInfo)THEN
+        SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+      END IF
+    ELSE
+      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+    END IF
   output='file does not exist'
 END IF
 END SUBROUTINE GetParameterFromFile
