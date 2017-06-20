@@ -462,7 +462,9 @@ IF (CalcPoyntingInt) THEN
     IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut).OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut))&
       CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
   END IF ! ForceAnalyze
-  IF(PRESENT(LastIter) .AND. LastIter .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+  IF(PRESENT(LastIter))THEN
+    IF(LastIter .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+  END IF ! PRESENT(LastIter)
 #else
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
 #endif
@@ -499,7 +501,9 @@ IF (DoAnalyze)  THEN
     IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut).OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut))&
      CALL AnalyzeParticles(t) 
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
+  IF(PRESENT(LastIter))THEN
+    IF(LastIter .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
+  END IF ! PRESENT(LastIter)
 #else /*pure DGSEM */
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
@@ -511,7 +515,9 @@ IF (DoAnalyze)  THEN
     IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut).OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut))&
      CALL AnalyzeField(t)
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(t)
+  IF(PRESENT(LastIter))THEN
+    IF(LastIter .AND. MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(t)
+  END IF ! PRESENT(LastIter)
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
@@ -614,21 +620,23 @@ IF (DoAnalyze)  THEN
   ELSE
     IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(t) 
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter)THEN
-    CALL CodeAnalyzeOutput(t) 
-    SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
-    TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
+  IF(PRESENT(LastIter))THEN
+    IF(LastIter)THEN
+      CALL CodeAnalyzeOutput(t) 
+      SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
+      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #ifdef MPI
-    IF(MPIRoot) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
-    ELSE ! no Root
-      CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
-    END IF
+      IF(MPIRoot) THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+      ELSE ! no Root
+        CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+      END IF
 #endif /* MPI */
-    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+    END IF
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
