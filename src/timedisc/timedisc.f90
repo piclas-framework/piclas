@@ -572,8 +572,7 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA*/
       ! Analyze for output
-      !CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter=finalIter)
-      CALL PerformAnalyze(tAnalyze,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter=finalIter)
+      CALL PerformAnalyze(tAnalyze,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter_In=finalIter)
 #ifndef PP_HDG
 #endif /*PP_HDG*/
       ! Write state to file
@@ -600,9 +599,9 @@ DO !iter_t=0,MaxIter
 !#ifndef PP_HDG
 !      dt_Min=CALCTIMESTEP()
 !#endif /*PP_HDG*/
-      IF (PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
+      IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
+      IF(PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
 !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
-      CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
     END IF
 #endif /*MPI*/
@@ -789,6 +788,8 @@ CALL DivCleaningDamping_Pois()
 
 
 ! calling the analyze routines
+! Analysis is called in first RK-stage of NEXT iteration, however, the iteration count is performed AFTER the time step,
+! hence, this is the correct iteration for calling the analysis routines.
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 ! first RK step
