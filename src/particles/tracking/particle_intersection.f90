@@ -423,7 +423,7 @@ REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
 REAL                              :: xi(2),eta(2),t(2), scaleFac!, normVec(3)
-INTEGER                           :: nInter,nRoot, flipdummy!,BCSideID
+INTEGER                           :: nInter,InterType,nRoot, flipdummy!,BCSideID
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
 
@@ -639,11 +639,9 @@ IF (nRoot.EQ.1) THEN
     RETURN 
   END IF ! eta .lt. OnePlusEps
 ELSE 
-  nInter=0
-  t=-1.
+  InterType=0
+  t(:)=-1.
 
-  !IF(ABS(eta(1)).LT.BezierHitEpsBi)THEN
-  !IF(ABS(eta(1)).LT.OnePlusEps)THEN
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
@@ -651,6 +649,7 @@ ELSE
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
+  ! compute Xi and alpha
   xi(1)=ComputeXi(a1,a2,eta(1))
   t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
 #ifdef CODE_ANALYZE
@@ -661,6 +660,9 @@ ELSE
   END IF
 #endif /*CODE_ANALYZE*/
 
+  ! check if intersection is possible
+  ! t(1) has to be nullified if intersection is NOT possible
+  ! else, the selection scheme is WRONG
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
     ! as paper ramsay
     IF(ABS(xi(1)).LT.BezierCliphit)THEN
@@ -668,7 +670,7 @@ ELSE
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
-        nInter=nInter+1
+        InterType=InterType+1
         isHit=.TRUE.
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -680,10 +682,14 @@ ELSE
       ELSE
         t(1)=-1.0
       END IF
+    ELSE
+      t(1)=-1.0
     END IF
+  ELSE
+    t(1)=-1.0
   END IF ! eta(1)
 
-
+  ! compute Xi and alpha for second intersection
   xi(2)=ComputeXi(a1,a2,eta(2))
   t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
 
@@ -695,23 +701,22 @@ ELSE
   END IF
 #endif /*CODE_ANALYZE*/
 
- !IF(ABS(eta(2)).LT.OnePlusEps)THEN
- IF(ABS(eta(2)).LT.BezierClipHit)THEN
-    !IF(ABS(xi(2)).LT.OnePlusEps)THEN
+  ! check if intersection is possible
+  ! t(2) has to be nullified if intersection is NOT possible
+  ! else, the selection scheme is WRONG
+  IF(ABS(eta(2)).LT.BezierClipHit)THEN
     IF(ABS(xi(2)).LT.BezierClipHit)THEN
       alphaNorm=t(2)/lengthPartTrajectory
-      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
-      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
         ! Two solutions can be correspond to one unique intersection (?!)
-        IF(nInter.EQ.1)THEN
+        IF(InterType.EQ.1)THEN
           IF(.NOT.ALMOSTEQUALRELATIVE(t(2),t(1),1e-8))THEN
             isHit=.TRUE.
-            nInter=nInter+2
+            InterType=InterType+2
           END IF
         ELSE
           isHit=.TRUE.
-          nInter=nInter+2
+          InterType=InterType+2
         END IF
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -723,30 +728,46 @@ ELSE
       ELSE
         t(2)=-1.0
       END IF
+    ELSE
+      t(2)=-1.0
     END IF
+  ELSE
+    t(2)=-1.0
   END IF
 
-  IF(nInter.EQ.0) RETURN
+  IF(InterType.EQ.0) THEN
+    RETURN
+  END IF
   isHit=.TRUE.
   IF(ALLOCATED(PartBCSideList))THEN ! correspond to DoRefMapping
-    !BCSideID=PartBCSideList(SideID)
-    !IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
-    IF(ABS(t(1)).LT.ABS(t(2)))THEN
-      alpha=t(1)
-      xitild=xi(1)
+    SELECT CASE(InterType)
+    CASE(1)
+      alpha  =t  (1)
+      xitild =xi (1)
       etatild=eta(1)
-    ELSE
-      alpha=t(2)
-      xitild=xi(2)
-      etatild=eta(2)
-    END IF
+    CASE(2)
+       alpha  =t  (2)
+       xitild =xi (2)
+       etatild=eta(2)
+    CASE DEFAULT
+     ! two intersections
+      IF(t(1).LT.t(2))THEN
+        alpha  =t  (1)
+        xitild =xi (1)
+        etatild=eta(1)
+      ELSE
+        alpha  =t  (2)
+        xitild =xi (2)
+        etatild=eta(2)
+      END IF
+    END SELECT
     RETURN
   END IF
   ! no refmapping 
   IF(SideID.LE.nSides)THEN
     IF(SideID.LE.nBCSides)THEN
       ! take closest
-      SELECT CASE(nInter)
+      SELECT CASE(InterType)
       CASE(1)
         alpha=t(1)
         xitild=xi(1)
@@ -777,7 +798,7 @@ ELSE
         END IF
       END SELECT
     ELSE
-      SELECT CASE(nInter)
+      SELECT CASE(InterType)
       CASE(1)
         alpha=t(1)
         xitild=xi(1)
@@ -797,7 +818,7 @@ ELSE
     ! halo side
     IF(BC(SideID).GT.0)THEN ! BC Sides
       ! take closest
-      SELECT CASE(nInter)
+      SELECT CASE(InterType)
       CASE(1)
         alpha=t(1)
         xitild=xi(1)
@@ -828,7 +849,7 @@ ELSE
         END IF
       END SELECT
     ELSE
-      SELECT CASE(nInter)
+      SELECT CASE(InterType)
       CASE(1)
         alpha=t(1)
         xitild=xi(1)
@@ -974,7 +995,6 @@ IF((PartFaceAngle.LT.BezierNewtonAngle))THEN ! 1° = 0.01745rad: critical side a
 #ifdef CODE_ANALYZE
 rPerformBezierClip=rPerformBezierClip+1.
 #endif /*CODE_ANALYZE*/
-  !print*,"bezier"
   !  this part in a new function or subroutine
   locAlpha=-1.0
   iClipIter=1
@@ -1531,7 +1551,6 @@ DO iClipIter=iClipIter,BezierClipMaxIter
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       IF(XiMax.NE.1.0)THEN
-        !print*,'do it 1'
         BezierControlPoints2D_temp=0.
         PlusXi=1.0+XiMax
         MinusXi=1.0-XiMax
