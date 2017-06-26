@@ -62,6 +62,25 @@ intel:
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_feature_short": Run most simple reggie features with previous builds on check-in (must be very fast)
+#                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_gyrotron_variable_Bz
+
+intel:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel/bin/ ; ./regressionchecki run feature_PIC_gyrotron_variable_Bz
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_tracking:
