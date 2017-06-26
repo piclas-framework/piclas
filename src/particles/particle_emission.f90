@@ -3247,7 +3247,6 @@ END DO
 
 END SUBROUTINE InsideExcludeRegionCheck
 
-
 SUBROUTINE InitializeParticleSurfaceflux()                                                                     
 !===================================================================================================================================
 ! Init Particle Inserting via Surface Flux
@@ -3261,7 +3260,7 @@ USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
-                                   , DoTimeDepInflow
+                                   , DoTimeDepInflow, SubSonic_MacroVal
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox
@@ -4897,6 +4896,119 @@ __STAMP__&
   BessK = 2._8*(ord-1._8)*BessK1/arg + BessK0
   
 END FUNCTION BessK
+
+
+SUBROUTINE SubSonicAnalyze()
+!===================================================================================================================================
+! Sampling of variables (part-density, velocity and energy) for SubSonic BC elements
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY:DSMCSampNearInt, DSMCSampCellVolW, useDSMC
+USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, SubSonic_MacroVal,BoltzmannConst
+USE MOD_Mesh_Vars,              ONLY:nElems
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsBCElem
+USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec             !      SubSonicBCElem              nSubSonicBCElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart, iElem, ElemID, SubSonicElemID, i, iSpec
+REAL                          :: Theta, TVib_TempFac
+REAL, ALLOCATABLE             :: Source(:,:,:)
+!===================================================================================================================================
+ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
+Source=0.0
+DO i=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(i)) THEN
+    ElemID = PEM%Element(i)
+    IF(.NOT.IsBCElem(ElemID))CYCLE
+    !ElemID = BC2SubSonicElemMap(ElemID)
+    iSpec = PartSpecies(i)
+    Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6)
+    Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(i,4:6)**2
+    Source(7,ElemID, iSpec) = Source(7,ElemID, iSpec) + 1.0  !density
+    IF(useDSMC)THEN
+      IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+        IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(i,1:2)
+        END IF
+      END IF
+      IF (DSMC%ElectronicModel) THEN
+        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(i,3)
+      END IF
+    END IF
+    Source(11,ElemID, iSpec) = Source(11,ElemID, iSpec) + 1.0
+  END IF
+END DO
+
+Theta=0.01
+
+!DO iElem = 1,nElems
+!IF(.NOT.IsBCElem(iElem))CYCLE
+DO SubSonicElemID = 1,nElems
+IF(.NOT.IsBCElem(SubSonicElemID))CYCLE
+DO iSpec = 1,nSpecies
+  ! write timesample particle values of bc elements in global macrovalues of bc elements
+  IF (Source(11,SubSonicElemID,iSpec).GT.0.0) THEN
+    ! compute flow velocity
+    SubSonic_MacroVal(1:3,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(1:3,SubSonicElemID,iSpec) &
+        + Theta*Source(1:3,SubSonicElemID, iSpec) / Source(11,SubSonicElemID,iSpec)
+    ! compute flow Temperature
+    SubSonic_MacroVal(4:6,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(4:6,SubSonicElemID,iSpec) &
+      + Theta*Species(iSpec)%MassIC/ BoltzmannConst &
+      * ( Source(4:6,SubSonicElemID,iSpec) / Source(11,SubSonicElemID,iSpec) &
+      - (Source(1:3,SubSonicElemID,iSpec)/Source(11,SubSonicElemID,iSpec))**2)
+    ! compute density
+    SubSonic_MacroVal(7,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(7,SubSonicElemID,iSpec) &
+        + Theta*Source(7,SubSonicElemID,iSpec) /GEO%Volume(iElem)*Species(iSpec)%MacroParticleFactor
+    IF(useDSMC)THEN
+      IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
+      IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
+            IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+              IF( (Source(8,SubSonicElemID,iSpec)/Source(11,SubSonicElemID,iSpec)) .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+                SubSonic_MacroVal(8,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(8,SubSonicElemID,iSpec) &
+                  + Theta*CalcTVibPoly(Source(8,SubSonicElemID,iSpec) / Source(11,SubSonicElemID,iSpec),iSpec)
+              ELSE
+                SubSonic_MacroVal(8,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(8,SubSonicElemID,iSpec)
+              END IF
+            ELSE
+              TVib_TempFac=Source(8,SubSonicElemID,iSpec)/ (Source(11,SubSonicElemID,iSpec) &
+                *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+              IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                SubSonic_MacroVal(8,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(8,SubSonicElemID,iSpec)
+              ELSE
+                SubSonic_MacroVal(8,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(8,SubSonicElemID,iSpec) &
+                  + Theta*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+              END IF
+            END IF
+          ELSE                                            ! TSHO-model
+            SubSonic_MacroVal(8,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(8,SubSonicElemID,iSpec) &
+              + Theta*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
+              , Source(8,SubSonicElemID,iSpec)/Source(11,SubSonicElemID,iSpec),SpecDSMC(iSpec)%MaxVibQuant)
+          END IF
+          SubSonic_MacroVal(9,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(9,SubSonicElemID,iSpec) &
+              + Theta*Source(9,SubSonicElemID,iSpec)/(Source(11,SubSonicElemID,iSpec)*BoltzmannConst)
+          IF (DSMC%ElectronicModel) THEN
+            SubSonic_MacroVal(10,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(10,SubSonicElemID,iSpec) &
+              + Theta*CalcTelec( Source(10,SubSonicElemID,iSpec)/Source(11,SubSonicElemID,iSpec),iSpec)
+          END IF
+        END IF
+      END IF
+    END IF
+  ELSE
+    SubSonic_MacroVal(1:10,SubSonicElemID,iSpec) = (1-Theta)*SubSonic_MacroVal(1:10,SubSonicElemID,iSpec)
+  END IF
+END DO
+END DO
+
+END SUBROUTINE SubSonicAnalyze
 
 
 END MODULE MOD_part_emission

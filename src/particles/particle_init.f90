@@ -828,6 +828,11 @@ ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 
+ALLOCATE(PartBound%SubSonic(1:nPartBound))
+ALLOCATE(PartBound%SubSonicMap(1:nPartBound))
+nSubSonicBC = 0
+PartBound%SubSonicMap(:) = -1
+
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
 PartBound%Voltage_CollectCharges(:)=0.
@@ -862,6 +867,11 @@ DO iPartBound=1,nPartBound
            GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientDynamicVisc','1.72326582572253E-5') ! N2:T=288K
        PartBound%AmbientThermalCond(iPartBound)=&
            GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientThermalCond','2.42948500556027E-2') ! N2:T=288K
+     END IF
+     PartBound%SubSonic(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SubSonic','.FALSE.')
+     IF(PartBound%SubSonic(iPartBound)) THEN
+       nSubSonicBC = nSubSonicBC + 1
+       Partbound%SubSonicMap(iPartBound) = nSubSonicBC
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
@@ -900,6 +910,32 @@ __STAMP__&
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
 END DO
+
+!! initialize variables for subsonic boundary conditions (each species)
+!DO iSpec = 1, nSpecies
+!DO iPartBound=1,nPartBound
+!  IF(PartBound%SubSonic(iPartBound)) THEN
+!    ALLOCATE(Species(iSpec)%SubSonicBound(1:nSubSonicBC))
+!    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+!    WRITE(UNIT=hilf2,FMT='(I2)') PartBound%SubSonicMap(iPartBound)
+!    hilf2=TRIM(hilf)//'-SubSonicBound'//TRIM(hilf2)
+!    !General Species Values for subsonic boundary
+!    Species(iSpec)%SubSonicBound(PartBound%SubSonicMap(iPartBound))%PartDens = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','-1.')
+!    Species(iSpec)%SubSonicBound(PartBound%SubSonicMap(iPartBound))%TransTemp = GETREAL('Part-Species'//TRIM(hilf2)//'-TransTemp','0.')
+!    Species(iSpec)%SubSonicBound(PartBound%SubSonicMap(iPartBound))%RotTemp = GETREAL('Part-Species'//TRIM(hilf2)//'-RotTemp','0.')
+!    Species(iSpec)%SubSonicBound(PartBound%SubSonicMap(iPartBound))%VibTemp = GETREAL('Part-Species'//TRIM(hilf2)//'-VibTemp','0.')
+!
+!    ALLOCATE(Species(iSpec)%SubSonicBound(PartBound%SubSonicMap(iPartBound))%Velo(1:3))
+!    Species(iSpec)%SubSonicBound(PartBound%SubSonicMap(iPartBound))%Velo(1:3) = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-Velo',3,'0. ,0. ,0.')
+!  END IF ! subsonic partbound
+!END DO ! iPartbound
+!END DO ! iSpec
+
+!IF(nSubSonicBC.GT.0)THEN
+!  ALLOCATE(SubSonic_MacroVal(1:10,1:nElems,1:nSpecies))
+!  SubSonic_MacroVal(1:10,1:nElems,1:nSpecies)
+!END IF
+
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
 ! Set mapping from field boundary to particle boundary index
@@ -909,11 +945,11 @@ DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,1).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
-      SWRITE(*,*)"PartBound",iPBC,"is internal bound, no mapping needed"
+      SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      SWRITE(*,*)"Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      SWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -1217,6 +1253,8 @@ SDEALLOCATE(PartBound%AmbientVelo)
 SDEALLOCATE(PartBound%AmbientDens)
 SDEALLOCATE(PartBound%AmbientDynamicVisc)
 SDEALLOCATE(PartBound%AmbientThermalCond)
+SDEALLOCATE(PartBound%SubSonic)
+SDEALLOCATE(PartBound%SubSonicMap)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)

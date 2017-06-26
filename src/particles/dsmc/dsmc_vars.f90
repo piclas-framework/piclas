@@ -45,15 +45,10 @@ TYPE tSpecInit
   REAL                        :: Telec                      ! electronic temperature, ini_1
 END TYPE tSpecInit
 
-TYPE tSpecSurfaceflux
-  REAL                        :: TVib                       ! vibrational temperature, ini_1
-  REAL                        :: TRot                       ! rotational temperature, ini_1
-  REAL                        :: Telec                      ! electronic temperature, ini_1
-END TYPE tSpecSurfaceflux
-
 TYPE tSpeciesDSMC                                           ! DSMC Species Param
   TYPE(tSpecInit),ALLOCATABLE :: Init(:) !   =>NULL()
-  TYPE(tSpecSurfaceflux),ALLOCATABLE :: Surfaceflux(:)
+  TYPE(tSpecInit),ALLOCATABLE :: Surfaceflux(:)
+  TYPE(tSpecInit),ALLOCATABLE :: SubSonicBound(:,:,:,:)
   LOGICAL                     :: PolyatomicMol              ! Species is a polyatomic molecule
   INTEGER                     :: SpecToPolyArray            ! 
   CHARACTER(LEN=64)           :: Name                       ! Species Name, required for DSMCSpeciesElectronicDatabase
