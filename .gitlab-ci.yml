@@ -2,6 +2,7 @@ stages:
   - build
   - error_clean
   - reggie_short
+  - reggie_feature_short
   - reggie_tracking
   - reggie_long
 
