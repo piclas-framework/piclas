@@ -78,7 +78,7 @@ intel_feature:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel/bin/ ; ./regressionchecki run feature_PIC_gyrotron_variable_Bz
+    - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_PIC_gyrotron_variable_Bz
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
