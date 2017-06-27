@@ -570,11 +570,11 @@ CASE(12) ! planar wave test case
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
   resu(7:8)=0.
 
-CASE(14) ! Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
-  ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
-  ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
-  ! beam insert is done by a paraxial assumption focus is at basepoint
-  ! intensity * Gaussian filter in transversal and longitudinal direction
+CASE(14) ! 1 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
+         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
+         ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
+         ! beam insert is done by a paraxial assumption focus is at basepoint
+         ! intensity * Gaussian filter in transversal and longitudinal direction
   spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  &
                             (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  omega_0  )**2)     &
                           -((x(BeamIdir3)-WaveBasePoint(BeamIdir3))**2)/((2*sigma_t*c)**2)  )
@@ -582,15 +582,15 @@ CASE(14) ! Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
                             !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv     &
                        !-0.25*(x(BeamIdir3)-WaveBasePoint(BeamIdir3))**2/((sigma_t*c)**2)  )
   ! build final coefficients
-  timeFac=SIN(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(t-ABS(WaveBasePoint(BeamIdir3))/c))
+  timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(t-ABS(WaveBasePoint(BeamIdir3))/c))
   !timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(t-ABS(WaveBasePoint(BeamIdir3))/c))
   resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac
   resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
   resu(7:8)=0.
-CASE(15) !Gauß-shape with perfect focus (w(z)=w_0): boundary condition (BC)
-  ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
-  ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
-  ! beam insert is done by a paraxial assumption focus is at basepoint and should be on BC
+CASE(15) ! 2 of 3: Gauß-shape with perfect focus (w(z)=w_0): boundary condition (BC)
+         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
+         ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
+         ! beam insert is done by a paraxial assumption focus is at basepoint and should be on BC
   IF (t.LE.8*sigma_t) THEN
     tShift=t-4*sigma_t
     ! intensity * Gaussian filter in transversal and longitudinal direction
@@ -606,10 +606,10 @@ CASE(15) !Gauß-shape with perfect focus (w(z)=w_0): boundary condition (BC)
     resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
     resu(7:8)=0.
   END IF
-CASE(16) !Gauß-shape with perfect focus (w(z)=w_0): initial & boundary condition (BC)
-  ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
-  ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
-  ! beam insert is done by a paraxial assumption focus is at basepoint and should be on BC
+CASE(16) ! 3 of 3: Gauß-shape with perfect focus (w(z)=w_0): initial & boundary condition (BC)
+         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filer are defined according to 
+         ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
+         ! beam insert is done by a paraxial assumption focus is at basepoint and should be on BC
   IF(t.GT.3*ABS(WaveBasePoint(BeamIdir3))/c)THEN ! pulse has passesd -> return 
     resu(1:8)=0.
     RETURN
