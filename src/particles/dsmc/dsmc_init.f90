@@ -52,6 +52,7 @@ USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
 USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
+USE MOD_Particle_Boundary_Vars,     ONLY: nSubSonicBC
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -418,7 +419,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
             END IF
           END IF
         END DO !Inits
-        ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
+        ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nSubSonicBC))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             WRITE(UNIT=hilf2,FMT='(I2)') iInit
@@ -435,6 +436,28 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
           IF ( DSMC%ElectronicModel ) THEN
             WRITE(UNIT=hilf,FMT='(I2)') iSpec
             SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
+            IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
+              CALL Abort(&
+              __STAMP__&
+              ,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iSF',iSpec,REAL(iInit))
+            END IF
+          END IF
+        END DO !SurfaceFluxBCs
+        ! add SubSonic boundaries
+        DO iInit = (Species(iSpec)%nSurfacefluxBCs+1),(Species(iSpec)%nSurfacefluxBCs+nSubSonicBC)
+          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+            SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = SpecDSMC(iSpec)%Init(0)%TVib
+            SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = SpecDSMC(iSpec)%Init(0)%TRot
+            IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot*SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib.EQ.0.) THEN
+              CALL Abort(&
+              __STAMP__&
+              ,'Error! TVib and TRot not def. in Part-SpeciesXX-SurfacefluxXX-TempVib/TempRot for iSpec, iSF',iSpec,REAL(iInit))
+            END IF
+          END IF
+          ! read electronic temperature
+          IF ( DSMC%ElectronicModel ) THEN
+            WRITE(UNIT=hilf,FMT='(I2)') iSpec
+            SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = SpecDSMC(iSpec)%Init(0)%Telec
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
               __STAMP__&
