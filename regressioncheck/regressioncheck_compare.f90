@@ -570,7 +570,7 @@ INTEGER,INTENT(IN)             :: iExample
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: DataSet,tmp
 CHARACTER(LEN=999)             :: CheckedFileName,OutputFileName,OutputFileName2,ReferenceStateFile,SYSCOMMAND
-CHARACTER(LEN=21)              :: tmpTol,tmpInt
+CHARACTER(LEN=25)              :: tmpTol,tmpInt
 INTEGER                        :: iSTATUS,iSTATUS2,ioUnit,I
 LOGICAL                        :: ExistCheckedFile,ExistReferenceNormFile,ExistFile
 !==================================================================================================================================
