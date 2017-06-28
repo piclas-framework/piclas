@@ -577,31 +577,26 @@ DO ! extract reggie information
              CALL str2real(temp2(1:IndNum2-1),Example%CompareDatafileRowTolerance,iSTATUS)
              temp2                 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
              IndNum2               = INDEX(temp2,',')
-             IF(IndNum2.GT.0)THEN ! use 1st header line for column data labels
-               CALL str2logical(temp2(1:IndNum2-1),Example%CompareDatafileRowReadHeader,iSTATUS)
-               temp2                 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-               IndNum2               = INDEX(temp2,',')
-               IF(IndNum2.GT.0)THEN ! get number of header lines in data file (they are ignored on reading the file)
-                 CALL str2int(temp2(1:IndNum2-1),Example%CompareDatafileRowHeaderLines,iSTATUS)
-                 temp2               = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-                 IndNum2             = INDEX(temp2,"'")
-                 IF(IndNum2.GT.0)THEN ! get delimiter for separating the columns in the data file
-                   IndNum3=INDEX(temp2(IndNum2+1:LEN(TRIM(temp2))),"'")+IndNum2
-                   Example%CompareDatafileRowDelimiter=temp2(IndNum2+1:IndNum3-1)
-                   temp2             = temp2(IndNum3+1:LEN(TRIM(temp2))) ! next
-                   IndNum2           = INDEX(temp2,',')
-                   IF(IndNum2.GT.0)THEN ! get row number
-                     temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-                     IF(ADJUSTL(TRIM(temp2)).EQ.'last')THEN ! use the 'last' line number in file for comparison
-                       Example%CompareDatafileRowNumber=HUGE(1)
-                       iSTATUS=0
-                     ELSE
-                       CALL str2int(temp2,Example%CompareDatafileRowNumber,iSTATUS)
-                     END IF
-                   END IF ! get row number
-                 END IF ! get delimiter
-               END IF !  get number of header lines
-             END IF ! use 1st header line for column data labels
+             IF(IndNum2.GT.0)THEN ! get number of header lines in data file (they are ignored on reading the file)
+               CALL str2int(temp2(1:IndNum2-1),Example%CompareDatafileRowHeaderLines,iSTATUS)
+               temp2               = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+               IndNum2             = INDEX(temp2,"'")
+               IF(IndNum2.GT.0)THEN ! get delimiter for separating the columns in the data file
+                 IndNum3=INDEX(temp2(IndNum2+1:LEN(TRIM(temp2))),"'")+IndNum2
+                 Example%CompareDatafileRowDelimiter=temp2(IndNum2+1:IndNum3-1)
+                 temp2             = temp2(IndNum3+1:LEN(TRIM(temp2))) ! next
+                 IndNum2           = INDEX(temp2,',')
+                 IF(IndNum2.GT.0)THEN ! get row number
+                   temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                   IF(ADJUSTL(TRIM(temp2)).EQ.'last')THEN ! use the 'last' line number in file for comparison
+                     Example%CompareDatafileRowNumber=HUGE(1)
+                     iSTATUS=0
+                   ELSE
+                     CALL str2int(temp2,Example%CompareDatafileRowNumber,iSTATUS)
+                   END IF
+                 END IF ! get row number
+               END IF ! get delimiter
+             END IF !  get number of header lines
            END IF ! get tolerance value for comparison
          END IF ! get the name of the reference data file
        END IF ! get file name
@@ -611,8 +606,20 @@ DO ! extract reggie information
                 Example%CompareDatafileRowRefFile.EQ.''            ,&
                 Example%CompareDatafileRowTolerance.LT.0.          ,&
                 Example%CompareDatafileRowHeaderLines.EQ.0         ,&
-                Example%CompareDatafileRowDelimiter(1:3).EQ.'999'/) )) Example%CompareDatafileRow=.FALSE.
+                Example%CompareDatafileRowDelimiter(1:3).EQ.'999'/) )) THEN
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' iSTATUS                                : ',iSTATUS
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%CompareDatafileRowFile         : ',TRIM(Example%CompareDatafileRowFile)
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%CompareDatafileRowRefFile      : ',TRIM(Example%CompareDatafileRowRefFile)
+         SWRITE(UNIT_stdOut,'(A,E25.14E3)')' Example%CompareDatafileRowTolerance    : ',Example%CompareDatafileRowTolerance
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' Example%CompareDatafileRowHeaderLines  : ',Example%CompareDatafileRowHeaderLines
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%CompareDatafileRowDelimiter    : ',TRIM(Example%CompareDatafileRowDelimiter)
+         SWRITE(UNIT_stdOut,'(A)')         ' Setting Example%CompareDatafileRow=.FALSE.'
+         Example%CompareDatafileRow=.FALSE.
+       ELSE
+         IF(Example%CompareDatafileRowHeaderLines.GT.0)Example%CompareDatafileRowReadHeader=.TRUE.
+       END IF
     END IF ! 'CompareDatafileRow'
+
     ! Convergence Test (h- or p-convergence for increasing the number of cells or increasing the polynomial degree N)
     ! in parameter_reggie.ini define:
     !  for p: ConvergenceTest =       p     ,                   IntegrateLine                      , 0.12434232          , 1e-2

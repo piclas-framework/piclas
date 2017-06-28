@@ -572,8 +572,9 @@ USE MOD_Timedisc_Vars,         ONLY:dt, iter, DoDisplayEmissionWarnings,IterDisp
 #endif
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
-USE MOD_PICInterpolation,      ONLY:InterpolateCurvedExternalField
-USE MOD_PICInterpolation_vars, ONLY:useCurvedExternalField
+USE MOD_PICInterpolation,      ONLY:InterpolateVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY:VariableExternalField
+USE MOD_PICInterpolation_vars, ONLY:useVariableExternalField
 USE MOD_Equation_vars,         ONLY:c_inv
 USE MOD_LD,                    ONLY:LD_SetParticlePosition
 !#ifdef MPI
@@ -1064,8 +1065,13 @@ __STAMP__&
          END IF
 
 !        2. calculate curved B-field at z-position in order to determin size of gyroradius
-         IF (useCurvedExternalField) THEN
-            Bintpol = InterpolateCurvedExternalField(particle_positions(i*3))
+         IF (useVariableExternalField) THEN
+            IF(particle_positions(i*3).LT.VariableExternalField(1,1))THEN ! assume particles travel in positive z-direction
+              CALL abort(&
+__STAMP__&
+,'SetParticlePosition: particle_positions(i*3) cannot be smaller than VariableExternalField(1,1). Fix *.csv data or emission!')
+            END IF
+            Bintpol = InterpolateVariableExternalField(particle_positions(i*3))
             rgyrate = 1./ SQRT ( 1 - (Species(FractNbr)%Init(iInit)%VeloIC**2 * (1 + 1./Species(FractNbr)%Init(iInit)%alpha**2)) &
                                 * c_inv * c_inv ) * Species(FractNbr)%MassIC * Species(FractNbr)%Init(iInit)%VeloIC / &
                       ( Bintpol * abs( Species(FractNbr)%ChargeIC) )

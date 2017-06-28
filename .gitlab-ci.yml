@@ -2,6 +2,7 @@ stages:
   - build
   - error_clean
   - reggie_short
+  - reggie_feature_short
   - reggie_tracking
   - reggie_long
 
@@ -62,6 +63,39 @@ intel:
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_feature_short": Run most simple reggie features with previous builds on check-in (must be very fast)
+#                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
+#                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu_PIC_gyrotron_variable_Bz:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_gyrotron_variable_Bz/
+
+gnu_PIC_single_particle_PML:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_single_particle_PML/
+    
+intel_PIC_gyrotron_variable_Bz:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_PIC_gyrotron_variable_Bz/
+    
+intel_PIC_single_particle_PML:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_PIC_single_particle_PML/
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_tracking:
@@ -83,7 +117,7 @@ intel_tracking:
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_long": Build and run
-#                         - basic PIC tests
+#                         - feature_PIC_single_particle/ : basic PIC test with a single particle in a cart box
 #                         - test particle emission for gyrotron setup with fixed electric current of 44 A
 #                         - test record points for TWT setup and compare with h5diff
 #                         - build all specified compile options in "run_basic"
@@ -103,7 +137,7 @@ gnu_PIC:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_single_particle/ -j no-debug ; fi
 
 gnu_emission_gyro:
   stage: reggie_long
@@ -151,7 +185,7 @@ intel_PIC:
     - echo "nothing to do";
     # fix h5diff on runner -> libs may be wrongly set in the binary file
     # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC -j no-debug ; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC_single_particle/ -j no-debug ; fi
 
 intel_emission_gyro:
   stage: reggie_long

@@ -800,7 +800,7 @@ StartT=BOLTZPLATZTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
-printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
+printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.FALSE.')
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
