@@ -407,7 +407,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)') ' CompareNorm: no File found under ',TRIM(Examples(iExample)%PATH)
   SWRITE(UNIT_stdOut,'(A,A)') ' FileName:                  ','std.out'
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:                 ',ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -525,7 +525,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)') ' ReadNorm: no File found under ',TRIM(Examples(iExample)%PATH)
   SWRITE(UNIT_stdOut,'(A,A)') ' FileName:                     ',TRIM(Examples(iExample)%ReferenceNormFile)
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:                    ',ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS='OLD',IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -767,7 +767,7 @@ DO I=1,2 ! read the file twice in Order to determine the array size
                 SWRITE(UNIT_stdOut,'(A)')  ' IntegrateLines failed to read data! Error in computation!'
                 SWRITE(UNIT_stdOut,'(A)')  ' The chosen column for line integration is larger than the available ones!'
                 Examples(iExample)%ErrorStatus=5
-                stop
+                ERROR STOP 1
                 RETURN
               END IF!IF(EOL.GT.1)
             END IF!IF(IndNum.GT.0)
@@ -1167,8 +1167,6 @@ END DO
 
 CALL CloseDataFile() 
 SDEALLOCATE(HDF5DataArray)
-!print*,"stop"
-!stop
 
 IF(ArrayCompare.GT.0)THEN
   SWRITE(UNIT_stdOut,'(A)')         ' CompareHDF5ArrayBounds do not match! Error in computation!'
