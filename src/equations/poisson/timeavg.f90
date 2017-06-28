@@ -48,6 +48,7 @@ USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
 #ifdef PARTICLES
 USE MOD_Particle_Vars,  ONLY: nSpecies
+USE MOD_PICDepo_Vars,   ONLY: DoDeposition
 #endif /*PARTICLES*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -176,14 +177,16 @@ iCounter=5
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
-DO iSpec=1,nSpecies
-  IF(ANY(CalcAvg(iCounter+1:iCounter+5))) THEN
-    DoPowerDensity(iSpec)=.TRUE.
-    nSpecPowerDensity=nSpecPowerDensity+1
-  END IF
-  iCounter=iCounter+5
-END DO
-IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
+IF(DoDeposition)THEN ! compute powerdensity only if particles are deposited
+  DO iSpec=1,nSpecies
+    IF(ANY(CalcAvg(iCounter+1:iCounter+5))) THEN
+      DoPowerDensity(iSpec)=.TRUE.
+      nSpecPowerDensity=nSpecPowerDensity+1
+    END IF
+    iCounter=iCounter+5
+  END DO
+  IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
+END IF
 #endif /*PARTICELS*/
 
 

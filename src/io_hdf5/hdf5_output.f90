@@ -76,7 +76,7 @@ USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
 USE MOD_Equation_Vars,        ONLY:StrVarNames
 USE MOD_Restart_Vars,         ONLY:RestartFile
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,         ONLY:OutputSource,Source
+USE MOD_PICDepo_Vars,         ONLY:OutputSource,PartSource
 #endif /*PARTICLES*/
 #ifdef MPI
 USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance
@@ -300,7 +300,7 @@ IF(OutPutSource) THEN
                           nValGlobal=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
                           nVal=      (/nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                           offset=    (/0,      0,     0,     0,     offsetElem/),&
-                          collective=.TRUE.,RealArray=Source)
+                          collective=.TRUE.,RealArray=PartSource)
 
   DEALLOCATE(LocalStrVarNames)
 END IF
