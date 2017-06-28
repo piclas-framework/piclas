@@ -158,7 +158,7 @@ LOGICAL                       :: exitTrue
 #endif
 !===================================================================================================================================
 ! Read print flags
-printRandomSeeds = GETLOGICAL('printRandomSeeds','.TRUE.')
+printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
