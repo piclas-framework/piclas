@@ -447,8 +447,9 @@ IF(BuildValid(iReggieBuild))THEN
     !ELSE
       !SWRITE(UNIT_stdOut, '(A)')TRIM(FileName)//" does not exist"
     END IF
-    CALL abort(__STAMP__&
-    ,'Could not compile '//CodeNameLowCase//'! iSTATUS=',iSTATUS,999.)
+    STOP 'Could not compile '//CodeNameLowCase
+    !CALL abort(__STAMP__&
+    !,'Could not compile '//CodeNameLowCase//'! iSTATUS=',iSTATUS,999.)
   END IF
   SWRITE(UNIT_stdOut,'(A)')"BuildEQNSYS(iReggieBuild)          = ["//TRIM(BuildEQNSYS(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildTESTCASE(iReggieBuild)        = ["//TRIM(BuildTESTCASE(iReggieBuild))//"]"
