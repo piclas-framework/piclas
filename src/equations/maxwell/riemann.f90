@@ -467,18 +467,72 @@ REAL,INTENT(INOUT)    :: Flux_Slave (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
 ! LOCAL VARIABLES
 INTEGER               :: p,q
 ! assume exact solution is solution of RP
-REAL                  :: U_Face_loc(1:PP_nVar)
-REAL                  :: A(1:8,1:8)
-REAL                  :: Flux_loc(1:PP_nVar)
-REAL                  :: n_loc(1:3)
+!REAL                  :: U_Face_loc(1:PP_nVar)
+!REAL                  :: A(1:8,1:8)
+!REAL                  :: Flux_loc(1:PP_nVar)
+!REAL                  :: n_loc(1:3)
 ! assume, that the RP has to be solved with U_ex
-!LOGICAL               :: UseMaster
-!REAL                  :: U_Master_loc(1:PP_nVar,0:PP_N,0:PP_N)
-!REAL                  :: U_Slave_loc (1:PP_nVar,0:PP_N,0:PP_N)
-!REAL                  :: Flux_loc(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+LOGICAL               :: UseMaster
+REAL                  :: U_Master_loc(1:PP_nVar,0:PP_N,0:PP_N)
+REAL                  :: U_Slave_loc (1:PP_nVar,0:PP_N,0:PP_N)
+REAL                  :: Flux_loc(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N), U_loc(1:PP_nVar)
 !===================================================================================================================================
 
 IF(.NOT.DoExactFlux) RETURN
+
+UseMaster=.TRUE.
+! emission over plane, hence, first entry decides orientation of  plane
+IF(NormVec(FluxDir,0,0).GT.0)THEN
+  UseMaster=.FALSE.
+ELSE IF(NormVec(FluxDir,0,0).LT.0)THEN
+  UseMaster=.TRUE.
+ELSE
+  CALL abort(&
+__STAMP__&
+,'wired mesh?')
+END IF
+
+IF(.NOT.ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,0,0),xyzPhysicalMinMax(FluxDir*2-1),1e-4)) RETURN
+
+U_Slave_loc =U_Slave
+U_Master_loc=U_Master
+ 
+DO q=0,PP_N
+  DO p=0,PP_N
+    ! the second state is always zero and already computed
+    ! caution, rotation
+    CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_loc(:))
+    IF(UseMaster)THEN
+      !U_Master_loc(:,p,q)=U_Master(:,p,q)
+      U_Slave_loc(:,p,q)=U_Slave_loc(:,p,q) + U_loc
+    ELSE
+      U_Master_loc(:,p,q)=U_Master_loc(:,p,q) + U_loc
+      !U_Slave_loc(:,p,q)=U_Slave(:,p,q)
+    END IF
+  END DO ! p
+END DO ! q
+
+Flux_loc=0.
+CALL RiemannPML(Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
+!CALL Riemann(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
+IF(Usemaster)THEN
+  DO q=0,PP_N
+    DO p=0,PP_N
+      !Flux_Slave(:,p,q) =Flux_loc(:,p,q)*SurfElem(p,q)
+      Flux_Master(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
+      !Flux_Master(:,p,q)=Flux_Master(:,p,q)+Flux_loc(:,p,q)*SurfElem(p,q)
+    END DO ! p
+  END DO ! q
+ELSE
+  DO q=0,PP_N
+    DO p=0,PP_N
+      !Flux_Master(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
+      Flux_Slave(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
+      !Flux_Slave(:,p,q)=Flux_Slave(:,p,q)+Flux_loc(:,p,q)*SurfElem(p,q)
+    END DO ! p
+  END DO ! q
+END IF
+
 
 !UseMaster=.TRUE.
 !! emission over plane, hence, first entry decides orientation of  plane
@@ -525,84 +579,84 @@ IF(.NOT.DoExactFlux) RETURN
 !  END DO ! q
 !END IF
 
-! assume that U_ex is solution of RP at interface and add to flux
-DO q=0,PP_N
-  DO p=0,PP_N
-    U_Face_loc=0.
-    IF(ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
-      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
-      n_loc(1:3)=NormVec(1:3,p,q)
-      A(1,1:4)=0.
-      A(1, 5 )=c2*n_loc(3)
-      A(1, 6 )=-c2*n_loc(2)
-      A(1, 7 )=0.
-      A(1, 8 )=c_corr_c2*n_loc(1)
-      A(2,1:3)=0.
-      A(2, 4 )=-c2*n_loc(3)
-      A(2, 5 )=0.
-      A(2, 6 )=c2*n_loc(1)
-      A(2, 7 )=0.
-      A(2, 8 )=c_corr_c2*n_loc(2)
-      A(3,1:3)=0.
-      A(3, 4 )=c2*n_loc(2)
-      A(3, 5 )=-c2*n_loc(1)
-      A(3, 6 )=0.
-      A(3, 7 )=0.
-      A(3, 8 )=c_corr_c2*n_loc(3)
-
-      A(4, 1 )=0.
-      A(4, 2 )=-n_loc(3)
-      A(4, 3 )=n_loc(2)
-      A(4,4:6)=0.
-      A(4, 7 )=c_corr*n_loc(1)
-      A(4, 8 )=0.
-
-      A(5, 1 )=n_loc(3)
-      A(5, 2 )=0.
-      A(5, 3 )=-n_loc(1)
-      A(5,4:6)=0.
-      A(5, 7 )=c_corr*n_loc(2)
-      A(5, 8 )=0.
-
-      A(6, 1 )=-n_loc(2)
-      A(6, 2 )=n_loc(1)
-      A(6, 3 )=0.
-      A(6,4:6)=0.
-      A(6, 7 )=c_corr*n_loc(3)
-      A(6, 8 )=0.
-
-      A(7,1:3)=0.
-      A(7, 4 )=c_corr_c2*n_loc(1)
-      A(7, 5 )=c_corr_c2*n_loc(2)
-      A(7, 6 )=c_corr_c2*n_loc(3)
-      A(7, 7 )=0.
-      A(7, 8 )=0.
-
-      A(8, 1 )=c_corr*n_loc(1)
-      A(8, 2 )=c_corr*n_loc(2)
-      A(8, 3 )=c_corr*n_loc(3)
-      A(8,4:6)=0.
-      A(8, 7 )=0.
-      A(8, 8 )=0.
-      !Flux_loc=0.
-      Flux_loc(1:PP_nVar)=MATMUL(A,U_Face_loc)
-      ! mapping
-      !         |
-      ! Master  |  Slave
-      !         |
-      !  nvec ----->
-      !         |
-      !         |
-      ! FluxM   | FluxSlave
-      ! PO: are the signs correct?
-      IF(NormVec(FluxDir,p,q).GT.0)THEN
-        Flux_Slave(1:PP_nVar,p,q)=Flux_Slave(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q)
-      ELSE
-        Flux_Master(1:PP_nVar,p,q)=Flux_Master(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q) ! or sign change?
-      END IF
-    END IF
-  END DO ! p
-END DO ! q
+!! assume that U_ex is solution of RP at interface and add to flux
+!DO q=0,PP_N
+!  DO p=0,PP_N
+!    U_Face_loc=0.
+!    IF(ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
+!      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
+!      n_loc(1:3)=NormVec(1:3,p,q)
+!      A(1,1:4)=0.
+!      A(1, 5 )=c2*n_loc(3)
+!      A(1, 6 )=-c2*n_loc(2)
+!      A(1, 7 )=0.
+!      A(1, 8 )=c_corr_c2*n_loc(1)
+!      A(2,1:3)=0.
+!      A(2, 4 )=-c2*n_loc(3)
+!      A(2, 5 )=0.
+!      A(2, 6 )=c2*n_loc(1)
+!      A(2, 7 )=0.
+!      A(2, 8 )=c_corr_c2*n_loc(2)
+!      A(3,1:3)=0.
+!      A(3, 4 )=c2*n_loc(2)
+!      A(3, 5 )=-c2*n_loc(1)
+!      A(3, 6 )=0.
+!      A(3, 7 )=0.
+!      A(3, 8 )=c_corr_c2*n_loc(3)
+!
+!      A(4, 1 )=0.
+!      A(4, 2 )=-n_loc(3)
+!      A(4, 3 )=n_loc(2)
+!      A(4,4:6)=0.
+!      A(4, 7 )=c_corr*n_loc(1)
+!      A(4, 8 )=0.
+!
+!      A(5, 1 )=n_loc(3)
+!      A(5, 2 )=0.
+!      A(5, 3 )=-n_loc(1)
+!      A(5,4:6)=0.
+!      A(5, 7 )=c_corr*n_loc(2)
+!      A(5, 8 )=0.
+!
+!      A(6, 1 )=-n_loc(2)
+!      A(6, 2 )=n_loc(1)
+!      A(6, 3 )=0.
+!      A(6,4:6)=0.
+!      A(6, 7 )=c_corr*n_loc(3)
+!      A(6, 8 )=0.
+!
+!      A(7,1:3)=0.
+!      A(7, 4 )=c_corr_c2*n_loc(1)
+!      A(7, 5 )=c_corr_c2*n_loc(2)
+!      A(7, 6 )=c_corr_c2*n_loc(3)
+!      A(7, 7 )=0.
+!      A(7, 8 )=0.
+!
+!      A(8, 1 )=c_corr*n_loc(1)
+!      A(8, 2 )=c_corr*n_loc(2)
+!      A(8, 3 )=c_corr*n_loc(3)
+!      A(8,4:6)=0.
+!      A(8, 7 )=0.
+!      A(8, 8 )=0.
+!      !Flux_loc=0.
+!      Flux_loc(1:PP_nVar)=MATMUL(A,U_Face_loc)
+!      ! mapping
+!      !         |
+!      ! Master  |  Slave
+!      !         |
+!      !  nvec ----->
+!      !         |
+!      !         |
+!      ! FluxM   | FluxSlave
+!      ! PO: are the signs correct?
+!      IF(NormVec(FluxDir,p,q).GT.0)THEN
+!        Flux_Slave(1:PP_nVar,p,q)=Flux_Slave(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q)
+!      ELSE
+!        Flux_Master(1:PP_nVar,p,q)=Flux_Master(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q) ! or sign change?
+!      END IF
+!    END IF
+!  END DO ! p
+!END DO ! q
 
 END SUBROUTINE ExactFlux
 
