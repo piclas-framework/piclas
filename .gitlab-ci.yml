@@ -67,22 +67,33 @@ intel:
 #                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
 #                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_feature:
+gnu_PIC_gyrotron_variable_Bz:
   stage: reggie_feature_short
   tags:
     - withmodules
   script:
     - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_gyrotron_variable_Bz/
-    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_single_particle_PML/
 
-intel_feature:
+gnu_PIC_single_particle_PML:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_single_particle_PML/
+    
+intel_PIC_gyrotron_variable_Bz:
   stage: reggie_feature_short
   tags:
     - withmodules
   script:
     - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_PIC_gyrotron_variable_Bz/
+    
+intel_PIC_single_particle_PML:
+  stage: reggie_feature_short
+  tags:
+    - withmodules
+  script:
     - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_PIC_single_particle_PML/
-
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking": Build and run tracking examples on nightly
