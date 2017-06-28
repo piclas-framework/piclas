@@ -679,14 +679,8 @@ ELSE
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      ELSE
-        t(1)=-1.0
       END IF
-    ELSE
-      t(1)=-1.0
     END IF
-  ELSE
-    t(1)=-1.0
   END IF ! eta(1)
 
   ! compute Xi and alpha for second intersection
@@ -725,14 +719,8 @@ ELSE
           END IF
         END IF
 #endif /*CODE_ANALYZE*/
-      ELSE
-        t(2)=-1.0
       END IF
-    ELSE
-      t(2)=-1.0
     END IF
-  ELSE
-    t(2)=-1.0
   END IF
 
   IF(InterType.EQ.0) THEN
