@@ -79,7 +79,7 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)')"PML region supplied via xyzPhysicalMinMax(1:6)"
 END IF
 ! display ranges of PML region depending on usePMLMinMax
-WRITE(UNIT_stdOut,'(A,L)') 'usePMLMinMax=',usePMLMinMax
+SWRITE(UNIT_stdOut,'(A,L)') 'usePMLMinMax=',usePMLMinMax
 IF(.NOT.usePMLMinMax)THEN
   SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMax(1:6) are'
   SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
