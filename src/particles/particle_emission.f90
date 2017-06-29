@@ -3529,7 +3529,7 @@ __STAMP__&
     END IF
     Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
     Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Init(0)%PartDensity
-    Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = .TRUE.
+    Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = .FALSE.
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.GT.1) THEN
       SWRITE(*,*)'WARNING: BezierSampleN > 0 may not be necessary as ARM is used for SurfaceFlux!'
     ELSE IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.LE.NGeo) THEN
@@ -4496,7 +4496,7 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, PartBound,nAdaptiveBC
+USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, PartBound, nAdaptiveBC
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif
@@ -4593,7 +4593,11 @@ __STAMP__&
         END SELECT
         VeloVec = Adaptive_MacroVal(1:3,ElemID,iSpec)
         VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
-        VeloVecIC = VeloVec / VeloIC
+        IF (ABS(VeloIC).GT.0.) THEN
+          VeloVecIC = VeloVec / VeloIC
+        ELSE
+          VeloVecIC = (/1.,0.,0./)
+        END IF
         vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
         projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
         v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
@@ -4658,7 +4662,7 @@ __STAMP__&
               D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
               IF (D .GT. 1.01) THEN !arbitrary warning threshold
                 IPWRITE(*,'(I4,x,A28,I0,A9,I0,A22,I0)') &
-                  'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
+                  'WARNING: ARM of AdaptiveSurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
               END IF
               CALL RANDOM_NUMBER(RandVal1)
               IF (RandVal1.LE.D) THEN
@@ -4909,7 +4913,11 @@ __STAMP__&
   END SELECT
   VeloVec = Adaptive_MacroVal(1:3,ElemID,FractNbr)
   VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
-  VeloVecIC = VeloVec / VeloIC
+  IF (ABS(VeloIC).GT.0.) THEN
+    VeloVecIC = VeloVec / VeloIC
+  ELSE
+    VeloVecIC = (/1.,0.,0./)
+  END IF
   projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
   v_thermal = SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC) !thermal speed
   IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
@@ -5570,7 +5578,7 @@ DO iSpec = 1,nSpecies
       - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
     ! compute density
     Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-        + Theta*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(iElem)*Species(iSpec)%MacroParticleFactor
+        + Theta*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
