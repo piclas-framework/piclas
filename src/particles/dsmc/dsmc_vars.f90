@@ -48,7 +48,6 @@ END TYPE tSpecInit
 TYPE tSpeciesDSMC                                           ! DSMC Species Param
   TYPE(tSpecInit),ALLOCATABLE :: Init(:) !   =>NULL()
   TYPE(tSpecInit),ALLOCATABLE :: Surfaceflux(:)
-  TYPE(tSpecInit),ALLOCATABLE :: SubSonicBound(:,:,:,:)
   LOGICAL                     :: PolyatomicMol              ! Species is a polyatomic molecule
   INTEGER                     :: SpecToPolyArray            ! 
   CHARACTER(LEN=64)           :: Name                       ! Species Name, required for DSMCSpeciesElectronicDatabase

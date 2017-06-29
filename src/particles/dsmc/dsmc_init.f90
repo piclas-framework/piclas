@@ -38,12 +38,12 @@ SUBROUTINE InitDSMC()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc,                    ONLY : PP_N
-USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo
+USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo, SideToElem
 USE MOD_Globals_Vars,               ONLY : Pi
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG
+USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG, Adaptive_MacroVal
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
@@ -52,8 +52,9 @@ USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
 USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars,     ONLY: nSubSonicBC
+USE MOD_Particle_Boundary_Vars,     ONLY: nAdaptiveBC
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
+USE MOD_Particle_Surfaces_Vars,     ONLY: BCdata_auxSF
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,6 +70,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   REAL                  :: JToEv, Temp
   INTEGER,ALLOCATABLE   :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
   REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
+  INTEGER               :: currentBC, ElemID, iSide, BCSideID
 #if ( PP_TimeDiscMethod ==42 )
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
   INTEGER               :: ii
@@ -381,18 +383,18 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
               IF (iInit.EQ.0)THEN
                 IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
                   CALL Abort(&
-                  __STAMP__&
-                  ,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for iSpec',iSpec)
+__STAMP__&
+,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for iSpec',iSpec)
                 ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                   CALL Abort(&
-                  __STAMP__&
-                  ,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for BGGas')
+__STAMP__&
+,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for BGGas')
                 END IF
               ELSE ! iInit >0
                 CALL Abort(&
-                __STAMP__&
-                ,'Error! TVib and TRot need to be defined in Part-SpeciesXX-InitXX-TempVib/TempRot for iSpec, iInit'&
-                ,iSpec,REAL(iInit))
+__STAMP__&
+,'Error! TVib and TRot need to be defined in Part-SpeciesXX-InitXX-TempVib/TempRot for iSpec, iInit'&
+,iSpec,REAL(iInit))
               END IF
             END IF
           END IF
@@ -408,18 +410,18 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
                   ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
                 ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                   CALL Abort(&
-                  __STAMP__&
-                  ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
+__STAMP__&
+,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
                 END IF
               ELSE ! iInit >0
                 CALL Abort(&
-                __STAMP__&
-                ,' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+__STAMP__&
+,' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
               END IF
             END IF
           END IF
         END DO !Inits
-        ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nSubSonicBC))
+        ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             WRITE(UNIT=hilf2,FMT='(I2)') iInit
@@ -428,8 +430,8 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot*SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib.EQ.0.) THEN
               CALL Abort(&
-              __STAMP__&
-              ,'Error! TVib and TRot not def. in Part-SpeciesXX-SurfacefluxXX-TempVib/TempRot for iSpec, iSF',iSpec,REAL(iInit))
+__STAMP__&
+,'Error! TVib and TRot not def. in Part-SpeciesXX-SurfacefluxXX-TempVib/TempRot for iSpec, iInit',iSpec,REAL(iInit))
             END IF
           END IF
           ! read electronic temperature
@@ -438,20 +440,38 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
             SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
-              __STAMP__&
-              ,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iSF',iSpec,REAL(iInit))
+__STAMP__&
+,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
             END IF
           END IF
         END DO !SurfaceFluxBCs
-        ! add SubSonic boundaries
-        DO iInit = (Species(iSpec)%nSurfacefluxBCs+1),(Species(iSpec)%nSurfacefluxBCs+nSubSonicBC)
+        ! add Adaptive boundaries
+        ! initialize  rot, vib and elec temperature of macrovalues
+        DO iInit = (Species(iSpec)%nSurfacefluxBCs+1),(Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC)
+          ! read rot and vib temperatures
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = SpecDSMC(iSpec)%Init(0)%TVib
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = SpecDSMC(iSpec)%Init(0)%TRot
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot*SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib.EQ.0.) THEN
               CALL Abort(&
-              __STAMP__&
-              ,'Error! TVib and TRot not def. in Part-SpeciesXX-SurfacefluxXX-TempVib/TempRot for iSpec, iSF',iSpec,REAL(iInit))
+__STAMP__&
+,'Error! TVib and TRot not def. in Part-SpeciesXX-SurfacefluxXX-TempVib/TempRot for iSpec, iInit',iSpec,REAL(iInit))
+            END IF
+            currentBC = Species(iSpec)%Surfaceflux(iInit)%BC !go through sides if present in proc...
+            IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+              DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+                BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+                ElemID = SideToElem(1,BCSideID)
+                IF (ElemID.LT.1) THEN !not sure if necessary
+                  ElemID = SideToElem(2,BCSideID)
+                END IF
+                Adaptive_MacroVal(8,ElemID,iSpec) = SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib
+                Adaptive_MacroVal(9,ElemID,iSpec) = SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot
+              END DO
+            ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
+            CALL abort(&
+__STAMP__&
+,'ERROR in DSMC_init of rot, vib and elec_shell: Someting is wrong with SideNumber of BC ',currentBC)
             END IF
           END IF
           ! read electronic temperature
@@ -460,8 +480,23 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
             SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = SpecDSMC(iSpec)%Init(0)%Telec
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
-              __STAMP__&
-              ,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iSF',iSpec,REAL(iInit))
+__STAMP__&
+,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+            END IF
+            currentBC = Species(iSpec)%Surfaceflux(iInit)%BC !go through sides if present in proc...
+            IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+              DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+                BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+                ElemID = SideToElem(1,BCSideID)
+                IF (ElemID.LT.1) THEN !not sure if necessary
+                  ElemID = SideToElem(2,BCSideID)
+                END IF
+                Adaptive_MacroVal(10,ElemID,iSpec) = SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
+              END DO
+            ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
+            CALL abort(&
+__STAMP__&
+,'ERROR in DSMC_init of elec_temperatur: Someting is wrong with SideNumber of BC ',currentBC)
             END IF
           END IF
         END DO !SurfaceFluxBCs

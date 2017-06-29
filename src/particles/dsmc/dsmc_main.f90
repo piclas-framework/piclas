@@ -55,6 +55,8 @@ SUBROUTINE DSMC_main()
 #ifdef MPI
   USE MOD_LoadBalance_Vars,      ONLY: ElemTime
 #endif /*MPI*/
+  USE MOD_Part_Emission,     ONLY: AdaptiveBCAnalyze
+  USE MOD_Particle_Boundary_Vars,ONLY: nAdaptiveBC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -212,6 +214,9 @@ SUBROUTINE DSMC_main()
     ! Calculate Entropy using Theorem of Boltzmann
     !CALL EntropyCalculation()
     !
+    ! Allocate sampling of near adaptive boundary element values
+    IF(nAdaptiveBC.GT.0) CALL AdaptiveBCAnalyze
+
     IF(SamplingActive) THEN
       CALL DSMCHO_data_sampling()
       IF(DSMC%NumOutput.NE.0) THEN

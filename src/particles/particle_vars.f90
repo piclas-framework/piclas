@@ -228,14 +228,14 @@ TYPE tSpecies                                                                ! P
   INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
   TYPE(tSurfaceflux),ALLOCATABLE         :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
-  TYPE(tSurfaceflux),ALLOCATABLE         :: SubSonicBound(:)                   ! Particle Data for each SurfaceFlux emission
+  TYPE(tSurfaceflux),ALLOCATABLE         :: AdaptiveBound(:)                   ! Particle Data for each SurfaceFlux emission
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   LOGICAL                                :: IsImplicit
 #endif
 END TYPE
 
-INTEGER                                  :: nSubSonicBC
-REAL, ALLOCATABLE                        :: SubSonic_MacroVal(:,:,:)
+INTEGER                                  :: nAdaptiveBC
+REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector

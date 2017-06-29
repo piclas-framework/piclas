@@ -102,14 +102,14 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientDens(:)
   REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
-  LOGICAL , ALLOCATABLE                  :: SubSonic(:)
-  INTEGER , ALLOCATABLE                  :: SubSonicMap(:)
+  LOGICAL , ALLOCATABLE                  :: Adaptive(:)
+  INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
   LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
-INTEGER                                  :: nSubSonicBC
+INTEGER                                  :: nAdaptiveBC
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
 !===================================================================================================================================
