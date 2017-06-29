@@ -830,7 +830,10 @@ ELSE ! standard flexi or PIC related simulation
     CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),'MeshFile',TempStr) ! find mesh file lcoation
     IndNum=INDEX(TempStr,'/',BACK = .TRUE.) ! get path without mesh file name (*.h5)
     IF(IndNum.GT.0)THEN
-      TempStr=TempStr(1:IndNum) ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      TempStr=TempStr(1:IndNum)                   ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      IF(TRIM(ADJUSTL(TempStr)).EQ.'./')TempStr='' ! e.g. "./turner2013_mesh.h5" -> "./"
+    ELSE ! parameter file not located within a different directory
+      TempStr=''
     END IF
     !parameter_folder ! get folder where the mesh is
     parameter_ini2=TRIM(ADJUSTL(TempStr))//'parameter_DSMC.ini'
