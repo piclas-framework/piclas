@@ -939,9 +939,9 @@ REAL                           :: Time
 CHARACTER(LEN=255)             :: SpacingBetweenExamples(2) ! set row spacing between examples in table
 !===================================================================================================================================
 IF(.NOT.PRESENT(EndTime))THEN
-  Time=REGGIETIME() ! Measure processing duration
+  Time=REGGIETIME() ! Measure processing duration -> when e.g. failed to compile occurs
 ELSE
-  Time=EndTime
+  Time=EndTime ! when reggie terminates normally
 END IF
 SWRITE(UNIT_stdOut,'(132("="))')
 nErrors=0
@@ -1176,7 +1176,7 @@ END SUBROUTINE CheckFileForString
 !==================================================================================================================================
 !> Calculates current time (own function because of a laterMPI implementation)
 !==================================================================================================================================
-#if MPI
+#ifdef MPI
 FUNCTION REGGIETIME(Comm)
 USE MOD_Globals, ONLY:iError,MPI_COMM_WORLD
 USE mpi
@@ -1187,7 +1187,7 @@ FUNCTION REGGIETIME()
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if MPI
+#ifdef MPI
 INTEGER, INTENT(IN),OPTIONAL    :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1196,7 +1196,7 @@ REAL                            :: REGGIETIME
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#if MPI
+#ifdef MPI
 IF(PRESENT(Comm))THEN
   CALL MPI_BARRIER(Comm,iError)
 ELSE
