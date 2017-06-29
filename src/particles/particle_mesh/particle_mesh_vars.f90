@@ -69,6 +69,10 @@ REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                       
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadius2NGeo                                ! radius of element + 2% tolerance
 INTEGER                                 :: RefMappingGuess                                ! select guess for mapping into reference
                                                                                           ! element
+                                                                                          ! 1 - 
+                                                                                          ! 2 - 
+                                                                                          ! 3 - 
+                                                                                          ! 4 - 
 REAL                                    :: RefMappingEps                                  ! tolerance for Netwton to get xi from X
 REAL                                    :: epsInCell                                      ! tolerance for eps for particle 
                                                                                           ! inside of ref element

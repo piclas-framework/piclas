@@ -105,6 +105,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
+USE MOD_Mesh_Vars,              ONLY:useCurveds
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -114,7 +115,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: ALLOCSTAT
+INTEGER           :: ALLOCSTAT,RefMappingGuessProposal
 INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob
 CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
@@ -154,7 +155,22 @@ CartesianPeriodic = GETLOGICAL('CartesianPeriodic','.FALSE.')
 IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
-RefMappingGuess = GETINT('RefMappingGuess','3')
+
+IF(UseCurveds)THEN ! don't use RefMappingGuess=1, better because ...
+  RefMappingGuessProposal=2
+  IF(PP_N.GT.NGeo)THEN ! better because ...
+    RefMappingGuessProposal=2
+  ELSE ! better because ...
+    RefMappingGuessProposal=3
+  END IF
+ELSE
+  RefMappingGuessProposal=3 ! default for linear meshes, better because ...
+END IF
+WRITE(hilf,'(I2.2)') RefMappingGuessProposal
+RefMappingGuess = GETINT('RefMappingGuess',hilf)
+IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! this might cause problems
+  SWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
+END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 
 epsInCell       = SQRT(3.0*RefMappingEps)
@@ -184,7 +200,7 @@ __STAMP__&
 BezierControlPoints3DElevated=0.
 
 ! BezierAreaSample stuff:
-WRITE( hilf, '(I2.2)') NGeo
+WRITE(hilf,'(I2.2)') NGeo
 BezierSampleN = GETINT('BezierSampleN',hilf)
 ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
 DO iSample=0,BezierSampleN

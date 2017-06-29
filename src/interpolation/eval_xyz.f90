@@ -414,7 +414,7 @@ SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
+USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps
 USE MOD_Mesh_Vars,               ONLY:offsetElem
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,LastPartPos
