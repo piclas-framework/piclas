@@ -234,7 +234,6 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
-INTEGER                                  :: nAdaptiveBC
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species

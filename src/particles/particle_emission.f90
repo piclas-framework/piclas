@@ -3305,7 +3305,7 @@ REAL,DIMENSION(1:2,0:NGeo,0:NGeo,1:BezierSampleN,1:BezierSampleN)               
 REAL,DIMENSION(1:3,1:8)                             :: BoundingBox
 INTEGER,ALLOCATABLE   :: Adaptive_BC_Map(:), tmp_Surfaceflux_BCs(:)
 LOGICAL,ALLOCATABLE   :: Adaptive_Found_Flag(:)
-INTEGER               :: nAdaptive_Found, iSS, nSurffluxBCs_old, nSurffluxBCs_new
+INTEGER               :: nAdaptive_Found, iSS, nSurffluxBCs_old, nSurffluxBCs_new, iSFx
 !===================================================================================================================================
 ! global calculations for sampling the bezier faces for area and vector calculations (checks the integration with CODE_ANALYZE)
 ALLOCATE(SurfMeshSubSideData(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
@@ -3375,7 +3375,7 @@ DO iSpec=1,nSpecies
   IF (Species(iSpec)%nSurfacefluxBCs .EQ. 0) CYCLE
   ALLOCATE(Species(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
   ! Initialize Surfaceflux to BC mapping and check if defined Surfacefluxes from init overlap with Adaptive BCs
-  ! additionally add Adaptive BCs into Surfaceflux array and rearrange surfaceflux array for Adaptive BC being the last entries
+  Species(iSpec)%Surfaceflux(:)%BC=-1
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     WRITE(UNIT=hilf2,FMT='(I2)') iSF
     hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
@@ -3383,9 +3383,6 @@ DO iSpec=1,nSpecies
     IF (nAdaptiveBC.GT.0) THEN
       DO iSS=1,nAdaptiveBC
         IF (Adaptive_BC_Map(iSS).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN
-          !Species(iSpec)%Surfaceflux(iSF)%Adaptive = .TRUE.
-          Species(iSpec)%Surfaceflux(iSF)%BC = Species(iSpec)%Surfaceflux(Species(iSpec)%nSurfacefluxBCs)%BC
-          Species(iSpec)%Surfaceflux(Species(iSpec)%nSurfacefluxBCs)%BC = Adaptive_BC_Map(iSS)
           Adaptive_Found_Flag(iSS) = .TRUE.
         END IF
       END DO
@@ -3396,7 +3393,8 @@ DO iSpec=1,nSpecies
     IF(Adaptive_Found_Flag(iSS)) nAdaptive_Found = nAdaptive_Found + 1
   END DO
   ! add missing Adaptive BCs at end of Surfaceflux array and reduce number of constant surfacefluxBC
-  IF (nAdaptive_Found.LT.nAdaptiveBC) THEN
+  ! additionally rearrange surfaceflux array for Adaptive BC being the last entries
+  IF (nAdaptiveBC.GT.0) THEN
     ALLOCATE(tmp_Surfaceflux_BCs(1:Species(iSpec)%nSurfacefluxBCs))
     tmp_Surfaceflux_BCs(:) = Species(iSpec)%Surfaceflux(:)%BC
     nSurffluxBCs_old = Species(iSpec)%nSurfacefluxBCs
@@ -3404,12 +3402,14 @@ DO iSpec=1,nSpecies
     nSurffluxBCs_new = Species(iSpec)%nSurfacefluxBCs + nAdaptiveBC
     DEALLOCATE(Species(iSpec)%Surfaceflux)
     ALLOCATE(Species(iSpec)%Surfaceflux(1:nSurffluxBCs_new))
-    Species(iSpec)%Surfaceflux(1:nSurffluxBCs_old)%BC = tmp_Surfaceflux_BCs(:)
-    DO iSF=1,(nAdaptiveBC-nAdaptive_Found)
-      DO iSS=1,nAdaptiveBC
-        IF(.NOT.Adaptive_Found_Flag(iSS)) EXIT
-      END DO
-      Species(iSpec)%Surfaceflux(nSurffluxBCs_old+iSF)%BC = Adaptive_BC_Map(iSS)
+    iSFx = 1
+    DO iSF=1,nSurffluxBCs_old
+      IF (PartBound%Adaptive(tmp_Surfaceflux_BCs(iSF))) CYCLE
+      Species(iSpec)%Surfaceflux(iSFx)%BC = tmp_Surfaceflux_BCs(iSF)
+      iSFx = iSFx +1
+    END DO
+    DO iSFx=1,nAdaptiveBC
+      Species(iSpec)%Surfaceflux(Species(iSpec)%nSurfacefluxBCs+iSFx)%BC = Adaptive_BC_Map(iSFx)
     END DO
     DEALLOCATE(tmp_Surfaceflux_BCs)
   END IF
@@ -4496,7 +4496,7 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, PartBound
+USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, PartBound,nAdaptiveBC
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif

@@ -116,7 +116,7 @@ USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound
+USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
@@ -831,6 +831,7 @@ ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
 nAdaptiveBC = 0
+PartBound%Adaptive(:) = .FALSE.
 PartBound%AdaptiveType(:) = -1
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
@@ -872,7 +873,6 @@ DO iPartBound=1,nPartBound
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
        PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       !Partbound%AdaptiveMap(iPartBound) = nAdaptiveBC
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
@@ -911,26 +911,6 @@ __STAMP__&
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
 END DO
-
-!! initialize variables for Adaptive boundary conditions (each species)
-!DO iSpec = 1, nSpecies
-!DO iPartBound=1,nPartBound
-!  IF(PartBound%Adaptive(iPartBound)) THEN
-!    ALLOCATE(Species(iSpec)%AdaptiveBound(1:nAdaptiveBC))
-!    WRITE(UNIT=hilf,FMT='(I2)') iSpec
-!    WRITE(UNIT=hilf2,FMT='(I2)') PartBound%AdaptiveMap(iPartBound)
-!    hilf2=TRIM(hilf)//'-AdaptiveBound'//TRIM(hilf2)
-!    !General Species Values for Adaptive boundary
-!    Species(iSpec)%AdaptiveBound(PartBound%AdaptiveMap(iPartBound))%PartDens = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','-1.')
-!    Species(iSpec)%AdaptiveBound(PartBound%AdaptiveMap(iPartBound))%TransTemp = GETREAL('Part-Species'//TRIM(hilf2)//'-TransTemp','0.')
-!    Species(iSpec)%AdaptiveBound(PartBound%AdaptiveMap(iPartBound))%RotTemp = GETREAL('Part-Species'//TRIM(hilf2)//'-RotTemp','0.')
-!    Species(iSpec)%AdaptiveBound(PartBound%AdaptiveMap(iPartBound))%VibTemp = GETREAL('Part-Species'//TRIM(hilf2)//'-VibTemp','0.')
-!
-!    ALLOCATE(Species(iSpec)%AdaptiveBound(PartBound%AdaptiveMap(iPartBound))%Velo(1:3))
-!    Species(iSpec)%AdaptiveBound(PartBound%AdaptiveMap(iPartBound))%Velo(1:3) = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-Velo',3,'0. ,0. ,0.')
-!  END IF ! Adaptive partbound
-!END DO ! iPartbound
-!END DO ! iSpec
 
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
