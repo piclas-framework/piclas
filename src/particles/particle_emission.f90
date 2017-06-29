@@ -4620,8 +4620,6 @@ __STAMP__&
 ,'wrong velo-distri for adaptive Surfaceflux!')
         END SELECT
 
-  !Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
-  !Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
         CALL RANDOM_NUMBER(RandVal1)
         PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
         !-- proceed with calculated to be inserted particles
