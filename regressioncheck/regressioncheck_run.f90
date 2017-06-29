@@ -190,14 +190,14 @@ IF(ExistFile) THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
   IF(iSTATUS.NE.0)THEN
     SWRITE(UNIT_stdOut,'(A)') ' Could not open .gitlab-ci.yml'
-    ERROR STOP '-1'
+    ERROR STOP 1
   END IF
   DO
     READ(ioUnit,'(A)',iostat=iSTATUS)temp
     IF(iSTATUS.GT.0)THEN
       SWRITE(UNIT_stdOut,'(A,I5)') " Read-in failed: iSTATUS=",iSTATUS
       SWRITE(UNIT_stdOut,'(A)') temp
-      ERROR STOP '-1'
+      ERROR STOP 1
     ELSE IF(iSTATUS.LT.0)THEN
       EXIT
     ELSE ! iSTATUS = 0
@@ -220,7 +220,7 @@ ELSE ! could not find 'configuration.cmake' at location of execution binary
   SWRITE(UNIT_stdOut,'(A13,A)') ' ERROR     : ','no ".gitlab-ci.yml" found.'
   SWRITE(UNIT_stdOut,'(A13,A)') ' FileName  : ', TRIM(FileName)
   SWRITE(UNIT_stdOut,'(A13,L)') ' ExistFile : ', ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 
 FileName=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'bin/regressioncheck'
@@ -237,7 +237,7 @@ IF(ExistFile.EQV..FALSE.)THEN
   SWRITE(UNIT_stdOut,'(A13,A)') ' ERROR     : ','no "regressioncheck" found.'
   SWRITE(UNIT_stdOut,'(A13,A)') ' FileName  : ', TRIM(FileName)
   SWRITE(UNIT_stdOut,'(A13,L)') ' ExistFile : ', ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 SWRITE(UNIT_stdOut,'(A)')' '
 
@@ -307,7 +307,7 @@ DO iReggie=1,nReggieUnique
   IF(iSTATUS.NE.0)THEN
     SWRITE(UNIT_stdOut,'(A)')    '   Failed running recursive regressioncheck'
     SWRITE(UNIT_stdOut,'(A,I5)') '     iSTATUS: ',iSTATUS
-    ERROR STOP '-1'
+    ERROR STOP 1
   ELSE
     CALL GetParameterFromFile(OutputFile,'RegressionCheck SUCCESSFUL!',TmpStr)
     SWRITE(UNIT_stdOut,'(A,A)') '   RegressionCheck SUCCESSFUL! ',ADJUSTL(TRIM(TmpStr))
@@ -382,7 +382,7 @@ IF(IndNum.GT.0)THEN
                                                                                                    //CodeNameLowCase//' binary.'
       SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
       SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
-      ERROR STOP '-1'
+      ERROR STOP 1
     END IF
   END IF
 END IF
@@ -401,7 +401,7 @@ SELECT CASE (TRIM(Examples(iExample)%EQNSYSNAME))
                                                                    //CodeNameUppCase//'_EQNSYSNAME with appropriate Nvar. Fix it by'
     SWRITE(UNIT_stdOut,'(A)')   '        adding the correct line of code to ../regressioncheck/regressioncheck_run.f90'
     SWRITE(UNIT_stdOut,'(A,A)') '        Examples(iExample)%EQNSYSNAME=',Examples(iExample)%EQNSYSNAME
-    ERROR STOP '77'
+    ERROR STOP 77
 END SELECT
 END SUBROUTINE GetNvar
 
@@ -634,7 +634,7 @@ ELSE ! pre-compiled binary
                                                                                                                       ' binary.'
     SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
     SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
-    ERROR STOP '-1'
+    ERROR STOP 1
   END IF
 END IF
 
@@ -830,7 +830,10 @@ ELSE ! standard flexi or PIC related simulation
     CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),'MeshFile',TempStr) ! find mesh file lcoation
     IndNum=INDEX(TempStr,'/',BACK = .TRUE.) ! get path without mesh file name (*.h5)
     IF(IndNum.GT.0)THEN
-      TempStr=TempStr(1:IndNum) ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      TempStr=TempStr(1:IndNum)                   ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      IF(TRIM(ADJUSTL(TempStr)).EQ.'./')TempStr='' ! e.g. "./turner2013_mesh.h5" -> "./"
+    ELSE ! parameter file not located within a different directory
+      TempStr=''
     END IF
     !parameter_folder ! get folder where the mesh is
     parameter_ini2=TRIM(ADJUSTL(TempStr))//'parameter_DSMC.ini'
@@ -840,14 +843,14 @@ INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
   SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini:      ',TRIM(parameter_ini)
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 IF(parameter_ini2.NE.'')THEN
   INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini2),EXIST=ExistFile)
   IF(.NOT.ExistFile) THEN
     SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
     SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini2:     ',TRIM(parameter_ini2)
-    ERROR STOP '-1'
+    ERROR STOP 1
   END IF
 END IF
 END SUBROUTINE
@@ -1213,7 +1216,7 @@ SELECT CASE(MODE)
     CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   CASE DEFAULT
     SWRITE(UNIT_stdOut,'(A,I3,A)') ' SUBROUTINE CleanFolder: MODE=',MODE,' does not exist!'
-    ERROR STOP '-1'
+    ERROR STOP 1
 END SELECT
 
 END SUBROUTINE CleanFolder

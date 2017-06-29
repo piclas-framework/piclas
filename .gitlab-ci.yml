@@ -160,13 +160,19 @@ gnu_convtest:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_convtest -j no-debug ; fi
 
-
 gnu_HDF5_single_mpi:
   stage: reggie_long
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
+
+gnu_HDG_turner:
+  stage: reggie_long
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_HDG_turner/ -j no-debug ; fi
 
 
 
@@ -216,4 +222,11 @@ intel_HDF5_single_mpi:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
+
+intel_HDG_turner:
+  stage: reggie_long
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC_HDG_turner/ -j no-debug ; fi
 

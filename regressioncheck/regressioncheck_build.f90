@@ -77,7 +77,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File under: ',TRIM(Examples(iExample)%PATH)
   SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ','configurations.reggie'
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -109,7 +109,7 @@ DO I=1,2
               IndNum = INDEX(temp(IndNum+1:LEN(temp)),',')
               IF (IndNum.GT.0) THEN
                 SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: Too many EXCLUDE flags (>3): ',TRIM(temp)
-                ERROR STOP '-1'
+                ERROR STOP 1
               ENDIF
             ELSE
               EXCLUDE_FLAG_B=TRIM(ADJUSTL(temp(INDEX(temp,',')+1:LEN(temp)        )))
@@ -179,7 +179,7 @@ DO I=1,2
     ,'Fortran runtime error: Attempting to allocate already allocated variable "BuildConfigurations"',iError,999.)
   IF((I.EQ.1).AND.(ALLOCATED(BuildConfigurations)))THEN
     SWRITE(UNIT_stdOut,'(A)') ' Fortran runtime error: Attempting to allocate already allocated variable "BuildConfigurations"'
-    STOP
+    ERROR STOP 1
   END IF
   IF(I.EQ.1)ALLOCATE(BuildConfigurations(N_compile_flags,N_subinclude_max+1))
   IF(I.EQ.1)BuildConfigurations=''
@@ -306,7 +306,7 @@ IF(BuildContinue)THEN
     SWRITE(UNIT_stdOut,'(A22,A)')          ' ERROR: ','The number of skipped builds exceeds the maxmum number of allocated builds.'
     SWRITE(UNIT_stdOut,'(A22,I5)') ' BuildContinueNumber: ',BuildContinueNumber 
     SWRITE(UNIT_stdOut,'(A22,I5)') '       nReggieBuilds: ', nReggieBuilds
-    ERROR STOP '-1'
+    ERROR STOP 1
   END IF
   BuildValid(1:BuildContinueNumber)=.FALSE.
   SWRITE(UNIT_stdOut, '(I5,A4,I5,A12)')COUNT(BuildValid),' of ', nReggieBuilds,' are valid'
@@ -316,7 +316,7 @@ IF(COUNT(BuildValid).GT.MaxBuildConfigurations)THEN
   SWRITE(UNIT_stdOut,'(A)') ' ERROR: The number of builds exceeds the maxmum number allowed.'
   SWRITE(UNIT_stdOut,'(A,A)') ' COUNT(BuildValid)     :  ', COUNT(BuildValid)
   SWRITE(UNIT_stdOut,'(A,L)') ' MaxBuildConfigurations: ', MaxBuildConfigurations
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -447,8 +447,9 @@ IF(BuildValid(iReggieBuild))THEN
     !ELSE
       !SWRITE(UNIT_stdOut, '(A)')TRIM(FileName)//" does not exist"
     END IF
-    CALL abort(__STAMP__&
-    ,'Could not compile '//CodeNameLowCase//'! iSTATUS=',iSTATUS,999.)
+    ERROR STOP 'Could not compile '//CodeNameLowCase
+    !CALL abort(__STAMP__&
+    !,'Could not compile '//CodeNameLowCase//'! iSTATUS=',iSTATUS,999.)
   END IF
   SWRITE(UNIT_stdOut,'(A)')"BuildEQNSYS(iReggieBuild)          = ["//TRIM(BuildEQNSYS(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildTESTCASE(iReggieBuild)        = ["//TRIM(BuildTESTCASE(iReggieBuild))//"]"
@@ -567,7 +568,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A)')   ' ERROR: tried to continue building at specific point, file does not exist '
   SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -577,18 +578,18 @@ IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A10,A)')   ' ERROR:   ','tried to read BuildContinue.reggie'
   SWRITE(UNIT_stdOut,'(A10,A)') ' temp:    ',temp
   SWRITE(UNIT_stdOut,'(A10,I5)') ' iSTATUS: ',iSTATUS
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 CALL str2int(temp,BuildContinueNumber,iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A22,A)')  ' ERROR:             ','tried to read BuildContinue.reggie, str2int failed'
   SWRITE(UNIT_stdOut,'(A22,I5)') ' BuildContinueNumber: ',BuildContinueNumber
   SWRITE(UNIT_stdOut,'(A22,I5)') ' iSTATUS:             ',iSTATUS
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 IF(BuildContinueNumber.LT.0) THEN
   SWRITE(UNIT_stdOut,'(A22,A)')   ' ERROR:             ','BuildContinueNumber is < 0'
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 END SUBROUTINE GetBuildContinue
 

@@ -120,7 +120,7 @@ DoFullReggie=.FALSE.          ! default: don't run reggie recursively using gitl
 nArgs=COMMAND_ARGUMENT_COUNT()
 IF(nArgs.GE.7)THEN
   SWRITE(UNIT_stdOut,'(A)') ' ERROR: too many arguments for regressioncheck!'
-  ERROR STOP '-2'
+  ERROR STOP 2
 END IF
 
 
@@ -129,7 +129,7 @@ DO I=1,nArgs
   ! check failure 
   IF(iSTATUS.NE.0)THEN
     SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!'
-    ERROR STOP '-2'
+    ERROR STOP 2
   END IF
   ! check help output request
   IF((TRIM(RuntimeOption(I)).EQ.'--help').OR.(TRIM(RuntimeOption(I)).EQ.'help').OR.(TRIM(RuntimeOption(I)).EQ.'HELP')) THEN
@@ -155,7 +155,7 @@ DO I=1,nArgs
       RuntimeOption(2)=''
     ELSE
       SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!' 
-      ERROR STOP '-2'
+      ERROR STOP 2
     END IF
   CASE DEFAULT ! RuntimeOption 2 - 4
     IF(BuildSolver.EQV..TRUE.)THEN
@@ -245,7 +245,7 @@ END SUBROUTINE GetCommandLineOption
 !   IF(nArgs.GE.4)CALL GET_COMMAND_ARGUMENT(4,RuntimeOptionTypeIII)
 !   IF(nArgs.GE.5)THEN
 !     SWRITE(UNIT_stdOut,'(A)') ' ERROR: too many arguments for regressioncheck!'
-!     ERROR STOP '-2'
+!     ERROR STOP 2
 !   END IF
 ! 
 !   ! get number of threads/procs for parallel building
@@ -271,10 +271,10 @@ END SUBROUTINE GetCommandLineOption
 !     END IF
 !   ELSE IF((TRIM(RuntimeOption).EQ.'--help').OR.(TRIM(RuntimeOption).EQ.'help').OR.(TRIM(RuntimeOption).EQ.'HELP')) THEN
 !     CALL Print_Help_Information()
-!     STOP
+!     STOP 0
 !   ELSE
 !     SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!'
-!     ERROR STOP '-2'
+!     ERROR STOP 2
 !   END IF
 ! 
 !   ! [RuntimeOptionType] = all: run all example folders
@@ -339,7 +339,7 @@ SYSCOMMANDTWO='cd '//TRIM(ExamplesDir)
 CALL EXECUTE_COMMAND_LINE(SYSCOMMANDTWO, WAIT=.TRUE., EXITSTAT=iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Error: Example folder does not work!'
-  ERROR STOP '66'
+  ERROR STOP 66
 END IF
 
 ! get number of examples by complicated fortran hack:
@@ -347,7 +347,7 @@ END IF
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Could not create tmp.txt to get number of examples'
-  ERROR STOP '99'
+  ERROR STOP 99
 END IF
 
 ! read tmp.txt | list of directories if regressioncheck/examples
@@ -389,7 +389,7 @@ SYSCOMMAND='cd '//TRIM(ExamplesDir)//' && rm tmp.txt'
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Could not remove tmp.txt'
-  ERROR STOP '99'
+  ERROR STOP 99
 END IF
 
 END SUBROUTINE GetExampleList
@@ -429,7 +429,6 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A16,L,A1)') '   ExistFile : [', ExistFile,']'
   SWRITE(UNIT_stdOut,'(A16,A)')    '   ERROR     : ','no parameter_reggie.ini found.                        ...skipping'
   RETURN
-  !ERROR STOP '-1'
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -837,7 +836,7 @@ IF(.NOT.ExistSolver) THEN
                                        Mode,': no executable found. Error during compilation or linking?'
   SWRITE(UNIT_stdOut,'(A41,A)')                         ' EXECPATH: ', TRIM(EXECPATH)
   SWRITE(UNIT_stdOut,'(A41,L)')                      ' ExistSolver: ', ExistSolver
-  ERROR STOP '77'
+  ERROR STOP 77
 END IF
 END SUBROUTINE CheckForExecutable
 
