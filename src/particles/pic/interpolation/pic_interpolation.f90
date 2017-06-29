@@ -926,7 +926,6 @@ DO WHILE (err.EQ.0)
   ERR = 0
   ncounts = ncounts + 1 
 END DO
-print*,"ncounts=",ncounts
 REWIND(ioUnit)
 nIntPoints = ncounts
 ! allocate needed space
