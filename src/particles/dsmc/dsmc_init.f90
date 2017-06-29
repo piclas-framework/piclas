@@ -848,7 +848,8 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
   USE MOD_DSMC_Vars,            ONLY : LD_MultiTemperaturMod
 #endif
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst
+  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species, PEM, Adaptive_MacroVal
+  USE MOD_Particle_Boundary_Vars,ONLY: PartBound
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -864,6 +865,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   REAL                        :: TVib                       ! vibrational temperature
   REAL                        :: TRot                       ! rotational temperature
   INTEGER                     :: iInitTemp, init_or_sfTemp
+  INTEGER                     :: ElemID
 !===================================================================================================================================
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
@@ -874,8 +876,26 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
       TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
       TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
     CASE(2) !SurfaceFlux
-      TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-      TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+      IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
+        !-- compute number of to be inserted particles
+        SELECT CASE(PartBound%AdaptiveType(Species(iSpecies)%Surfaceflux(iInit)%BC))
+        CASE(1) ! Pressure inlet (pressure, temperature const)
+          TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
+          TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
+        CASE(2) ! adaptive Outlet/freestream
+          ElemID = PEM%Element(iPart)
+          TVib=Adaptive_MacroVal(8,ElemID,iSpecies)
+          TRot=Adaptive_MacroVal(9,ElemID,iSpecies)
+        CASE(3) ! pressure outlet (pressure defined)
+        CASE DEFAULT
+          CALL abort(&
+__STAMP__&
+,'wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
+        END SELECT
+      ELSE
+        TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+        TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+      END IF
     CASE DEFAULT
       CALL abort(&
       __STAMP__&

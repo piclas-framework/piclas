@@ -4613,7 +4613,7 @@ __STAMP__&
         CASE DEFAULT
           CALL abort(&
 __STAMP__&
-,'wrong velo-distri for Surfaceflux!')
+,'wrong velo-distri for adaptive Surfaceflux!')
         END SELECT
 
   !Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
