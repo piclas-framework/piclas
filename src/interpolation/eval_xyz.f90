@@ -842,7 +842,10 @@ CASE(1)
   END DO 
   IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
 CASE(2) 
-  IF(ElemID.GT.PP_nElems) Xi(:)=(/0.,0.,0./)
+  IF(ElemID.GT.PP_nElems) THEN
+    Xi(:)=(/0.,0.,0./)
+    RETURN
+  END IF
   ! compute distance on Gauss Points
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
@@ -877,7 +880,7 @@ CASE(3)
     END IF
   END DO; END DO; END DO
 CASE(4)
-  ! trival guess 
+  ! trivial guess 
   xi=0.
 END SELECT
 

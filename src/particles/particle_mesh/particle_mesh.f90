@@ -156,15 +156,20 @@ IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
 
-IF(UseCurveds)THEN ! don't use RefMappingGuess=1, better because ...
+IF(UseCurveds)THEN ! don't use RefMappingGuess=1, because RefMappingGuess is only best for linear cubical elements
+  ! curved elements can be stronger deformed, hence, a better guess can be used
+  ! RefMappingGuess 2,3 searches the closest Gauss/CL points of the considered element. This point is used as the initial value for
+  ! the mapping. Note, that the position of the CL points can still be advantageous for the initial guess.
   RefMappingGuessProposal=2
-  IF(PP_N.GT.NGeo)THEN ! better because ...
+  IF(PP_N.GT.NGeo)THEN ! there are more Gauss points within an element then CL-points
+                       ! Gauss points sample the element finer
+                       ! Note: the Gauss points does not exist for HALO elements, here, the trivial guess is used.
     RefMappingGuessProposal=2
-  ELSE ! better because ...
+  ELSE ! more CL-points than Gauss points, hence, better sampling of the element
     RefMappingGuessProposal=3
   END IF
 ELSE
-  RefMappingGuessProposal=3 ! default for linear meshes, better because ...
+  RefMappingGuessProposal=1 ! default for linear meshes. Guess is exact for cubical, non-twisted elements
 END IF
 WRITE(hilf,'(I2.2)') RefMappingGuessProposal
 RefMappingGuess = GETINT('RefMappingGuess',hilf)
