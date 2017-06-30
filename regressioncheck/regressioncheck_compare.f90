@@ -171,7 +171,7 @@ INTEGER                        :: iSubExample,p
 REAL,ALLOCATABLE               :: Order(:,:),OrderAvg(:)
 INTEGER,ALLOCATABLE            :: OrderIncrease(:,:)
 LOGICAL,ALLOCATABLE            :: OrderReached(:)
-REAL                           :: DummyReal
+REAL                           :: SuccessRuns,SuccessRate
 LOGICAL                        :: DoDebugOutput
 !==================================================================================================================================
 DoDebugOutput=.TRUE. ! change to ".TRUE." if problems with this routine occur for info written to screen
@@ -339,16 +339,22 @@ IF(DoDebugOutput)THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
 END IF
 
-! 50% of nVar Convergence tests must succeed
-DummyReal=0.
+! The Success Rate (default if 50%) of nVar Convergence tests must succeed
+SuccessRuns=0.
 DO J=1,Examples(iExample)%nVar
-  IF(OrderReached(J))DummyReal=DummyReal+1.
+  IF(OrderReached(J))SuccessRuns=SuccessRuns+1.
 END DO
-IF(DummyReal/REAL(Examples(iExample)%nVar).LT.0.5)THEN
-  Examples(iExample)%ErrorStatus=3
-ELSE
+SuccessRate=SuccessRuns/REAL(Examples(iExample)%nVar)
+IF((SuccessRate.GT.Examples(iExample)%ConvergenceTestSuccessRate).OR.&
+   (ALMOSTEQUALRELATIVE(SuccessRate,Examples(iExample)%ConvergenceTestSuccessRate,1e-3)))THEN
   Examples(iExample)%ErrorStatus=0
+  SWRITE(UNIT_stdOut,'(A)')' Convergence successful ...'
+ELSE
+  Examples(iExample)%ErrorStatus=3
+  SWRITE(UNIT_stdOut,'(A)')' Failed convergence test because the success rate could no be met'
 END IF
+SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Success Rate = ',SuccessRate
+SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Tolerance    = ',Examples(iExample)%ConvergenceTestSuccessRate
 
 END SUBROUTINE CompareConvergence
 

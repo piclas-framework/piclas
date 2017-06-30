@@ -641,22 +641,28 @@ DO ! extract reggie information
       Example%ConvergenceTestDomainSize = -999.0 ! init
       Example%ConvergenceTestValue      = -999.0 ! init
       Example%ConvergenceTestTolerance  = -1.     ! init
+      Example%ConvergenceTestSuccessRate= 0.5    ! default: 50 % of tests of all nVar must hold
       IndNum2=INDEX(readRHS(2),',')
       IF(IndNum2.GT.0)THEN ! get the type of the convergence test (h- or p-convergence)
-        temp2                     = readRHS(2)
+        temp2 = readRHS(2)
         Example%ConvergenceTestType= TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! type
-        temp2                     = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-        IndNum2                   = INDEX(temp2,',')
+        temp2 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+        IndNum2 = INDEX(temp2,',')
         IF(IndNum2.GT.0)THEN ! get the size of the domain
           CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestDomainSize,iSTATUS)
-          temp2                          = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-          IndNum2                        = INDEX(temp2,',')
+          temp2 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+          IndNum2 = INDEX(temp2,',')
           IF((IndNum2.GT.0).AND.(iSTATUS.EQ.0))THEN ! get value for comparison
             CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestValue,iSTATUS)
-            temp2                  = TRIM(ADJUSTL(temp2(IndNum2+1:LEN(TRIM(temp2))))) ! next
-            IndNum2               = LEN(temp2)
+            temp2 = TRIM(ADJUSTL(temp2(IndNum2+1:LEN(TRIM(temp2))))) ! next
+            IndNum2 = INDEX(temp2,',')
+            IF(IndNum2.LE.0) IndNum2 = LEN(temp2)+1 ! no SuccessRate given -> use default
             IF((IndNum2.GT.0).AND.(iSTATUS.EQ.0))THEN ! get tolerance value for comparison
               CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestTolerance,iSTATUS)
+              IF((IndNum2.LT.LEN(TRIM(temp2))).AND.(iSTATUS.EQ.0))THEN
+                temp2 = TRIM(ADJUSTL(temp2(IndNum2+1:LEN(TRIM(temp2))))) ! next
+                CALL str2real(TRIM(ADJUSTL(temp2)),Example%ConvergenceTestSuccessRate,iSTATUS)
+              END IF
             END IF ! get tolerance value for comparison
           END IF ! get value for comparison
         END IF ! get the comparison type
@@ -666,13 +672,17 @@ DO ! extract reggie information
                 Example%ConvergenceTestType.EQ.''        ,&
                 Example%ConvergenceTestDomainSize.LT.-1. ,&
                 Example%ConvergenceTestValue.LT.-1.      ,&
-                Example%ConvergenceTestTolerance.EQ.-1.     &
+                Example%ConvergenceTestTolerance.EQ.-1.  ,&
+                Example%ConvergenceTestSuccessRate.LT.0. ,&
+                Example%ConvergenceTestSuccessRate.GT.1.  &
                 /) )) Example%ConvergenceTest=.FALSE.
+      SWRITE(UNIT_stdOut,'(A)') ' ERROR in Convergence-Test Read-in. Deactivating Convergence-Test!'
       IF(Example%ConvergenceTest.EQV..FALSE.)THEN
-        SWRITE(UNIT_stdOut,'(A,A)')      'Example%ConvergenceTestType       : ',Example%ConvergenceTestType
-        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestDomainSize : ',Example%ConvergenceTestDomainSize
-        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestValue      : ',Example%ConvergenceTestValue
-        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestTolerance  : ',Example%ConvergenceTestTolerance
+        SWRITE(UNIT_stdOut,'(A,A)')        ' Example%ConvergenceTestType       : ',Example%ConvergenceTestType
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestDomainSize : ',Example%ConvergenceTestDomainSize
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestValue      : ',Example%ConvergenceTestValue
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestTolerance  : ',Example%ConvergenceTestTolerance
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestSuccessRate: ',Example%ConvergenceTestSuccessRate
       END IF
     END IF ! 'ConvergenceTest'
     ! Check the bounds of an array in a HDF5 file, if they are outside the supplied ranges -> fail
