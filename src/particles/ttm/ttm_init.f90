@@ -220,9 +220,9 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           DO iElem=1,PP_nElems
             DO iELemFD=1,FD_nElems
               IF(ElemIsDone(iElemFD))CYCLE ! the element has already been found
-              IF(AlmostEqualToTolerance(ElemBaryNGeo(1,iElem),ElemBaryFD(1,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
-              IF(AlmostEqualToTolerance(ElemBaryNGeo(2,iElem),ElemBaryFD(2,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
-              IF(AlmostEqualToTolerance(ElemBaryNGeo(3,iElem),ElemBaryFD(3,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
+              IF(ALMOSTEQUALRELATIVE(ElemBaryNGeo(1,iElem),ElemBaryFD(1,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
+              IF(ALMOSTEQUALRELATIVE(ElemBaryNGeo(2,iElem),ElemBaryFD(2,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
+              IF(ALMOSTEQUALRELATIVE(ElemBaryNGeo(3,iElem),ElemBaryFD(3,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
               ElemIsDone(iElemFD)=.TRUE.
               DO i=0,PP_N ! set all DG DOF values equal to FD cell value
                 DO j=0,PP_N ! set all DG DOF values equal to FD cell value

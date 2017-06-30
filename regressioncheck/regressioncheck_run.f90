@@ -150,7 +150,6 @@ SUBROUTINE PerformFullRegressionCheck()
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Compare, ONLY: CompareResults,CompareConvergence
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -908,7 +907,6 @@ SUBROUTINE SetParameters(iExample,parameter_ini,UseFV,Use2D,UsePARABOLIC,SkipFol
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,CodeNameUppCase
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile
 USE MOD_RegressionCheck_Vars,    ONLY: ExampleNames
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
