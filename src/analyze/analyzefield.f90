@@ -377,7 +377,7 @@ REAL,INTENT(IN)     :: t, Sabs(nPoyntingIntPlanes)
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: unit_index_PI, iPlane
+INTEGER             :: ioUnit,iPlane
 LOGICAL             :: isRestart, isOpen,FileExists
 CHARACTER(LEN=64)   :: filename_PI
 !===================================================================================================================================
@@ -387,35 +387,34 @@ IF (DoRestart) THEN
 END IF
 
 filename_PI  = 'Power.csv'
-unit_index_PI=273
 
 #ifdef MPI
 IF(MPIRoot)THEN
 #endif    /* MPI */
 
-INQUIRE(UNIT   = unit_index_PI , OPENED = isOpen)
+INQUIRE(NEWUNIT=ioUnit , OPENED = isOpen)
 IF (.NOT.isOpen) THEN
   INQUIRE(file=TRIM(filename_PI),EXIST=FileExists)
   IF (isRestart .and. FileExists) THEN
-    OPEN(unit_index_PI,file=TRIM(filename_PI),position="APPEND",status="OLD")
+    OPEN(ioUnit,file=TRIM(filename_PI),position="APPEND",status="OLD")
   ELSE
-    OPEN(unit_index_PI,file=TRIM(filename_PI))
+    OPEN(ioUnit,file=TRIM(filename_PI))
     ! --- insert header
-    WRITE(unit_index_PI,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+    WRITE(ioUnit,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
     DO iPlane = 1, nPoyntingIntPlanes
-      WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index_PI,'(A14,I0.3,A1,E13.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
+      WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
+      WRITE(ioUnit,'(A14,I0.3,A1,E13.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
     END DO              
-    WRITE(unit_index_PI,'(A1)') ''
+    WRITE(ioUnit,'(A1)') ''
   END IF
 END IF
 ! write data to file
-WRITE(unit_index_PI,'(e25.14)',ADVANCE='NO') t
+WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') t
 DO iPlane = 1, nPoyntingIntPlanes
-  WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index_PI,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
+  WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
+  WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
 END DO
-WRITE(unit_index_PI,'(A1)') ''
+WRITE(ioUnit,'(A1)') ''
 
 #ifdef MPI
  END IF
