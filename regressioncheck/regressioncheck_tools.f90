@@ -85,70 +85,196 @@ CONTAINS
 SUBROUTINE GetCommandLineOption()
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption,RuntimeOptionType,BuildNoDebug,BuildDebug,RuntimeOptionTypeII
-USE MOD_RegressionCheck_Vars, ONLY: RuntimeOptionTypeIII,BuildContinue,BuildSolver
+USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption,BuildNoDebug,BuildDebug,DoFullReggie
+USE MOD_RegressionCheck_Vars, ONLY: BuildContinue,BuildSolver,NumberOfProcs
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: nArgs                             ! Number of supplied command line arguments
+INTEGER                        :: I
+INTEGER                        :: nArgs                   !> Number of supplied command line arguments
+INTEGER                        :: iSTATUS                 !> I/O status
 !===================================================================================================================================
-RuntimeOption='run'           ! only run pre-built executable (no building of new cmake compiler flag combinations)
-RuntimeOptionType='run_basic' ! set to standard case folder 'run_basic'
-RuntimeOptionTypeII=''        ! default
-RuntimeOptionTypeIII=''       ! default
-BuildDebug=.FALSE.            ! default
-BuildNoDebug=.FALSE.          ! default
+RuntimeOption(1)='run'        ! only run pre-built executable (no building of new cmake compiler flag combinations)
+RuntimeOption(2)='run_basic'  ! set to standard case folder 'run_basic'
+RuntimeOption(3)=''           ! default
+RuntimeOption(4)=''           ! default
+BuildDebug=.FALSE.            ! default: display the compelte compilation output
+BuildNoDebug=.FALSE.          ! default: don't display the compilation output
+BuildSolver=.FALSE.           ! default: no compiling, just pre-built binary execution
+DoFullReggie=.FALSE.          ! default: don't run reggie recursively using gitlab-ci.yml file
 ! Get number of command line arguments and read in runtime option of regressioncheck
 nArgs=COMMAND_ARGUMENT_COUNT()
-IF(nArgs.EQ.0)THEN
-  BuildSolver=.FALSE.
-ELSE
-  CALL GET_COMMAND_ARGUMENT(1,RuntimeOption)
-  IF(nArgs.GE.2)CALL GET_COMMAND_ARGUMENT(2,RuntimeOptionType)
-  IF(nArgs.GE.3)CALL GET_COMMAND_ARGUMENT(3,RuntimeOptionTypeII)
-  IF(nArgs.GE.4)CALL GET_COMMAND_ARGUMENT(4,RuntimeOptionTypeIII)
-
-  ! get number of threads/procs for parallel building
-  CALL GetNumberOfProcs(nArgs)
-
-  IF(TRIM(RuntimeOption).EQ.'run') THEN
-    BuildSolver=.FALSE.
-  ELSE IF(TRIM(RuntimeOption(1:5)).EQ.'build') THEN
-    IF(TRIM(RuntimeOption).EQ.'build-continue')BuildContinue=.TRUE.
-    BuildSolver=.TRUE.
-    IF(TRIM(RuntimeOptionType).EQ.'debug')THEN
-      BuildDebug=.TRUE.
-      RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays the complete
-                                    ! compilation process for debugging
-    ELSEIF(TRIM(RuntimeOptionType).EQ.'no-debug')THEN
-      BuildNoDebug=.TRUE.
-      RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays no putput
-    END IF
-    IF(TRIM(RuntimeOptionTypeII).EQ.'debug')THEN
-      BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
-    ELSEIF(TRIM(RuntimeOptionTypeII).EQ.'no-debug')THEN
-      BuildNoDebug=.TRUE. ! redirect std- and err-output channels to "/build_reggie/build_reggie.out"
-    END IF
-  ELSE IF((TRIM(RuntimeOption).EQ.'--help').OR.(TRIM(RuntimeOption).EQ.'help').OR.(TRIM(RuntimeOption).EQ.'HELP')) THEN
-    CALL Print_Help_Information()
-    STOP
-  ELSE
-    SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!'
-    ERROR STOP '-2'
-  END IF
-
-  ! [RuntimeOptionType] = all: run all example folders
-  IF((TRIM(RuntimeOptionType).EQ.'all').OR.(TRIM(RuntimeOptionType).EQ.'ALL'))RuntimeOptionType=''
+IF(nArgs.GE.7)THEN
+  SWRITE(UNIT_stdOut,'(A)') ' ERROR: too many arguments for regressioncheck!'
+  ERROR STOP 2
 END IF
 
-SWRITE(UNIT_stdOut,'(A,A1,A,A1,A1,A,A1,A1,A,A1,A1,A,A1)')' Running with arguments: ',&
-'[',TRIM(RuntimeOption)       ,']',&
-'[',TRIM(RuntimeOptionType)   ,']',&
-'[',TRIM(RuntimeOptionTypeII) ,']',&
-'[',TRIM(RuntimeOptionTypeIII),']'
+
+DO I=1,nArgs
+  CALL GET_COMMAND_ARGUMENT(I,RuntimeOption(I),STATUS=iSTATUS)
+  ! check failure 
+  IF(iSTATUS.NE.0)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!'
+    ERROR STOP 2
+  END IF
+  ! check help output request
+  IF((TRIM(RuntimeOption(I)).EQ.'--help').OR.(TRIM(RuntimeOption(I)).EQ.'help').OR.(TRIM(RuntimeOption(I)).EQ.'HELP')) THEN
+    CALL Print_Help_Information()
+    STOP 0
+  END IF
+  ! set the options
+  SELECT CASE(I)
+  CASE(1) ! RuntimeOption 1
+    IF(TRIM(RuntimeOption(I)).EQ.'run') THEN
+      BuildSolver=.FALSE.
+    ELSEIF(TRIM(RuntimeOption(I)).EQ.'build') THEN
+      BuildSolver=.TRUE.
+    ELSEIF(TRIM(RuntimeOption(I)).EQ.'full') THEN
+      BuildSolver=.FALSE.
+      DoFullReggie=.TRUE.
+    ELSEIF(TRIM(RuntimeOption(I)).EQ.'no-full') THEN ! needed for "regressioncheck full" because 'no-full' is added to the flags
+      DoFullReggie=.FALSE.
+      RuntimeOption(1)='run'
+    ELSEIF(TRIM(RuntimeOption(I)).EQ.'tutorials') THEN 
+      BuildSolver=.FALSE.
+      RuntimeOption(1)='tutorials'
+      RuntimeOption(2)=''
+    ELSE
+      SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!' 
+      ERROR STOP 2
+    END IF
+  CASE DEFAULT ! RuntimeOption 2 - 4
+    IF(BuildSolver.EQV..TRUE.)THEN
+      IF(TRIM(RuntimeOption(I)).EQ.'build-continue') BuildContinue=.TRUE.
+      IF(TRIM(RuntimeOption(I)).EQ.'debug')THEN
+        BuildDebug=.TRUE.             ! e.g. "./regressioncheck debug" or "./regressioncheck build feature_convtest debug"
+      ELSEIF(TRIM(RuntimeOption(I)).EQ.'no-debug')THEN
+        BuildNoDebug=.TRUE.           ! redirect std- and err-output channels to "/build_reggie/build_reggie.out"
+        IF(I.EQ.2)RuntimeOption(2)='run_basic'  ! set to standard case folder 'run_basic'
+      END IF
+      IF((I.EQ.2).AND.((BuildDebug.EQV..TRUE.).OR.(BuildNoDebug.EQV..TRUE.)))RuntimeOption(I)='run_basic' ! debug uses
+                                                                                            !"configuration.reggie" from "run_basic"
+    ELSE
+      IF(TRIM(RuntimeOption(I)).EQ.'no-debug')THEN ! needed for "regressioncheck full" because 'no-debug' is added to the flags
+        IF(I.EQ.2)RuntimeOption(2)='run_basic'  ! set to standard case folder 'run_basic'
+      END IF
+    END IF
+    ! [RuntimeOption] = all: run all example folders
+    IF((I.EQ.2).AND.((TRIM(RuntimeOption(I)).EQ.'all').OR.(TRIM(RuntimeOption(I)).EQ.'ALL')))RuntimeOption(I)=''
+    ! prevent infinite recursive loops
+    IF(TRIM(RuntimeOption(I)).EQ.'no-full') THEN
+      DoFullReggie=.FALSE.
+      IF(I.EQ.2)RuntimeOption(2)='run_basic'  ! set to standard case folder 'run_basic'
+    END IF
+  END SELECT
+END DO
+
+! get number of threads/procs for parallel building
+CALL GetNumberOfProcs(nArgs)
+
+! display the resulting options
+SWRITE(UNIT_stdOut,'(A,4(A1,A,A1),A21,I3,A20)')' Running with arguments: ',&
+'[',TRIM(RuntimeOption(1)),']',&
+'[',TRIM(RuntimeOption(2)),']',&
+'[',TRIM(RuntimeOption(3)),']',&
+'[',TRIM(RuntimeOption(4)),']',   ' and compiling with [',NumberOfProcs,'] threads (-1 is -j)'
+SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildSolver  :  [',BuildSolver,']'
+SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildDebug   :  [',BuildDebug,']'
+SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildNoDebug :  [',BuildNoDebug,']'
+SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' DoFullReggie :  [',DoFullReggie,']'
+
+
 END SUBROUTINE GetCommandLineOption
+
+
+! !==================================================================================================================================
+! !> reads the command line options for the regressioncheck
+! !> options are:
+! !> run [default]:  - runs only the regressioncheck
+! !> build           - builds all valid compiler flag combinations (default uses the configuration.reggie from run_basic) and
+! !>                   performs the tests
+! !>
+! !> ./regressioncheck [RuntimeOption] [RuntimeOptionType]
+! !>
+! !> ./regressioncheck                -> uses default "run" and runs the current compiler build and all "run_" examples
+! !> ./regressioncheck
+! !> ./regressioncheck build          -> runs "run_basic" for numerous builds
+! !> ./regressioncheck build convtest -> runs "feature_convtest" for numerous builds def. "feature_convtest/configuration.reggie"
+! !> ./regressioncheck build all      -> runs all examples for numerous builds defined in "run_basic/configuration.reggie"
+! !==================================================================================================================================
+! SUBROUTINE GetCommandLineOptionOLD()
+! ! MODULES
+! USE MOD_Globals
+! USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption,RuntimeOptionType,BuildNoDebug,BuildDebug,RuntimeOptionTypeII
+! USE MOD_RegressionCheck_Vars, ONLY: RuntimeOptionTypeIII,BuildContinue,BuildSolver
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT/OUTPUT VARIABLES
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! INTEGER                        :: nArgs                             ! Number of supplied command line arguments
+! !===================================================================================================================================
+! RuntimeOption='run'           ! only run pre-built executable (no building of new cmake compiler flag combinations)
+! RuntimeOptionType='run_basic' ! set to standard case folder 'run_basic'
+! RuntimeOptionTypeII=''        ! default
+! RuntimeOptionTypeIII=''       ! default
+! BuildDebug=.FALSE.            ! default
+! BuildNoDebug=.FALSE.          ! default
+! ! Get number of command line arguments and read in runtime option of regressioncheck
+! nArgs=COMMAND_ARGUMENT_COUNT()
+! IF(nArgs.EQ.0)THEN
+!   BuildSolver=.FALSE.
+! ELSE
+!   CALL GET_COMMAND_ARGUMENT(1,RuntimeOption)
+!   IF(nArgs.GE.2)CALL GET_COMMAND_ARGUMENT(2,RuntimeOptionType)
+!   IF(nArgs.GE.3)CALL GET_COMMAND_ARGUMENT(3,RuntimeOptionTypeII)
+!   IF(nArgs.GE.4)CALL GET_COMMAND_ARGUMENT(4,RuntimeOptionTypeIII)
+!   IF(nArgs.GE.5)THEN
+!     SWRITE(UNIT_stdOut,'(A)') ' ERROR: too many arguments for regressioncheck!'
+!     ERROR STOP 2
+!   END IF
+! 
+!   ! get number of threads/procs for parallel building
+!   CALL GetNumberOfProcs(nArgs)
+! 
+!   IF(TRIM(RuntimeOption).EQ.'run') THEN
+!     BuildSolver=.FALSE.
+!   ELSE IF(TRIM(RuntimeOption(1:5)).EQ.'build') THEN
+!     IF(TRIM(RuntimeOption).EQ.'build-continue')BuildContinue=.TRUE.
+!     BuildSolver=.TRUE.
+!     IF(TRIM(RuntimeOptionType).EQ.'debug')THEN
+!       BuildDebug=.TRUE.
+!       RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays the complete
+!                                     ! compilation process for debugging
+!     ELSEIF(TRIM(RuntimeOptionType).EQ.'no-debug')THEN
+!       BuildNoDebug=.TRUE.
+!       RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays no putput
+!     END IF
+!     IF(TRIM(RuntimeOptionTypeII).EQ.'debug')THEN
+!       BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
+!     ELSEIF(TRIM(RuntimeOptionTypeII).EQ.'no-debug')THEN
+!       BuildNoDebug=.TRUE. ! redirect std- and err-output channels to "/build_reggie/build_reggie.out"
+!     END IF
+!   ELSE IF((TRIM(RuntimeOption).EQ.'--help').OR.(TRIM(RuntimeOption).EQ.'help').OR.(TRIM(RuntimeOption).EQ.'HELP')) THEN
+!     CALL Print_Help_Information()
+!     STOP 0
+!   ELSE
+!     SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!'
+!     ERROR STOP 2
+!   END IF
+! 
+!   ! [RuntimeOptionType] = all: run all example folders
+!   IF((TRIM(RuntimeOptionType).EQ.'all').OR.(TRIM(RuntimeOptionType).EQ.'ALL'))RuntimeOptionType=''
+! END IF
+! 
+! SWRITE(UNIT_stdOut,'(A,4(A1,A,A1))')' Running with arguments: ',&
+! '[',TRIM(RuntimeOption)       ,']',&
+! '[',TRIM(RuntimeOptionType)   ,']',&
+! '[',TRIM(RuntimeOptionTypeII) ,']',&
+! '[',TRIM(RuntimeOptionTypeIII),']'
+! END SUBROUTINE GetCommandLineOptionOLD
 
 
 !==================================================================================================================================
@@ -159,7 +285,7 @@ END SUBROUTINE GetCommandLineOption
 SUBROUTINE GetExampleList()
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,  ONLY: nExamples,ExampleNames,Examples,ExamplesDir,BuildDir,RuntimeOptionType
+USE MOD_RegressionCheck_Vars,  ONLY: nExamples,ExampleNames,Examples,ExamplesDir,BuildDir,RuntimeOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -181,12 +307,16 @@ FilePathName=TRIM(cwd)//'/parameter_reggie.ini'       ! check if parameter_reggi
 INQUIRE(File=FilePathName,EXIST=ExistFile)            ! inquire
 
 IF(ExistFile.EQV..FALSE.)THEN ! use existing example folder
-  ExamplesDir=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'../regressioncheck/examples/'
+  IF(RuntimeOption(1).EQ."tutorials")THEN
+    ExamplesDir=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'../tutorials/'
+  ELSE
+    ExamplesDir=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'../regressioncheck/examples/'
+  END IF
   SYSCOMMAND='cd '//TRIM(ExamplesDir)//' && ls -d */ > tmp.txt'
 ELSE ! run regressioncheck for a single folder located anywhere from which the reggie is executed
   ExamplesDir='./../'
   SYSCOMMAND='cd '//TRIM(ExamplesDir)//' && ls -d '//TRIM(FileName)//'/ > tmp.txt'
-  RuntimeOptionType=TRIM(FileName) ! override RuntimeOptionType in order to select only this directory
+  RuntimeOption(2)=TRIM(FileName) ! override RuntimeOption in order to select only this directory
 END IF
 BuildDir=TRIM(BASEDIR(2:LEN(BASEDIR)-1))! use basedir because one cannot use: TRIM(cwd)//'/'
                                         ! because the checked out code source
@@ -197,7 +327,7 @@ SYSCOMMANDTWO='cd '//TRIM(ExamplesDir)
 CALL EXECUTE_COMMAND_LINE(SYSCOMMANDTWO, WAIT=.TRUE., EXITSTAT=iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Error: Example folder does not work!'
-  ERROR STOP '66'
+  ERROR STOP 66
 END IF
 
 ! get number of examples by complicated fortran hack:
@@ -205,7 +335,7 @@ END IF
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Could not create tmp.txt to get number of examples'
-  ERROR STOP '99'
+  ERROR STOP 99
 END IF
 
 ! read tmp.txt | list of directories if regressioncheck/examples
@@ -247,7 +377,7 @@ SYSCOMMAND='cd '//TRIM(ExamplesDir)//' && rm tmp.txt'
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A)')  ' Could not remove tmp.txt'
-  ERROR STOP '99'
+  ERROR STOP 99
 END IF
 
 END SUBROUTINE GetExampleList
@@ -260,7 +390,7 @@ END SUBROUTINE GetExampleList
 !>  optional reference files for error-norms, reference state file and tested dataset and name of the checked state file
 !>  optional a restart filename
 !==================================================================================================================================
-SUBROUTINE InitExample(FilePath,Example)
+SUBROUTINE InitExample(FilePath,Example,SkipExample)
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: tExample,readRHS
@@ -269,6 +399,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)               :: FilePath
 TYPE(tExample),INTENT(INOUT)              :: Example
+LOGICAL,INTENT(OUT)                       :: SkipExample
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                   :: ioUnit
@@ -276,14 +407,16 @@ INTEGER                                   :: iSTATUS,IndNum,IndNum2,IndNum3,MaxN
 CHARACTER(LEN=255)                        :: FileName,temp1,temp2
 LOGICAL                                   :: ExistFile
 !==================================================================================================================================
+SkipExample=.FALSE.
 ! test if file exists and open
 FileName=TRIM(FilePath)//'parameter_reggie.ini'
 INQUIRE(File=FileName,EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
-  SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no parameter_reggie.ini found.'
-  SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
-  SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
-  ERROR STOP '-1'
+  SkipExample=.TRUE.
+  SWRITE(UNIT_stdOut,'(A16,A,A1)') '   FileName  : [', TRIM(FileName),']'
+  SWRITE(UNIT_stdOut,'(A16,L,A1)') '   ExistFile : [', ExistFile,']'
+  SWRITE(UNIT_stdOut,'(A16,A)')    '   ERROR     : ','no parameter_reggie.ini found.                        ...skipping'
+  RETURN
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -299,6 +432,8 @@ Example%ReferenceTolerance      = -1.
 Example%SubExample              = '-'     ! init
 Example%SubExampleNumber        = 0       ! init total number of subexamples
 Example%SubExampleOption(1:100) = '-'     ! default option is nothing
+Example%IntegrateLineMultiplier = 1.0     ! default option for IntegrateLine
+Example%IntegrateLineOption     = 'default' ! default value is "default"
 DO ! extract reggie information
   READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1 ! get first line assuming it is something like "nVar= 5"
   IF(iSTATUS.EQ.-1) EXIT ! end of file (EOF) reached
@@ -341,13 +476,19 @@ DO ! extract reggie information
                                                                nParameters     = 100,                       &
                                                                ParameterNumber = Example%SubExampleNumber)
     ! Line integration (e.g. integrate a property over time, the data is read from a .csv or .dat file)
-    ! e.g. in parameter_reggie.ini: IntegrateLine= Database.csv   ,1            ,','       ,1:2        , 1.0e2
-    !                                              data file name , header lines, delimiter, colums x:y, integral value
+    ! e.g. in parameter_reggie.ini:
+    ! 
+    ! IntegrateLine= Database.csv   , 1           , ','      , 1:5       , 44.00         , 2.5e-2   , DivideByTimeStep , 5.340e-03 
+    !                data file name , header lines, delimiter, colums x:y, integral value, tolerance, option           , multiplier
     IF(TRIM(readRHS(1)).EQ.'IntegrateLine')THEN
        Example%IntegrateLine            = .TRUE.
-       Example%IntegrateLineRange(1:2)  = 0     ! init
-       Example%IntegrateLineHeaderLines = 0     ! init
-       Example%IntegrateLineDelimiter   = '999' ! init
+       Example%IntegrateLineRange(1:2)  = 0         ! init
+       Example%IntegrateLineHeaderLines = 0         ! init
+       Example%IntegrateLineDelimiter   = '999'     ! init
+       Example%IntegrateLineValue       = 0         ! init
+       Example%IntegrateLineTolerance   = 5E-2      ! init 5% tolerance
+       Example%IntegrateLineOption      = 'default' ! init 
+       Example%IntegrateLineMultiplier  = 1.0       ! init: 1.0 changed nothing
        IndNum2=INDEX(readRHS(2),',')
        IF(IndNum2.GT.0)THEN ! get the name of the data file
          temp2                     = readRHS(2)
@@ -372,9 +513,22 @@ DO ! extract reggie information
                  CALL str2int(temp2(1        :IndNum3-1),Example%IntegrateLineRange(1),iSTATUS) ! column number 1
                  CALL str2int(temp2(IndNum3+1:IndNum2-1),Example%IntegrateLineRange(2),iSTATUS) ! column number 2
                  temp2             = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-                 IndNum2           = LEN(temp2)
+                 IndNum2           = INDEX(temp2,',')
                  IF(IndNum2.GT.0)THEN ! get integral value
-                   CALL str2real(temp2,Example%IntegrateLineValue,iSTATUS)
+                   CALL str2real(temp2(1:IndNum2-1),Example%IntegrateLineValue,iSTATUS)
+                   temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                   IndNum2         = INDEX(temp2,',')
+                   IF(IndNum2.GT.0)THEN ! get tolerance - only if supplied, if not then use the default value (see top)
+                     CALL str2real(temp2(1:IndNum2-1),Example%IntegrateLineTolerance,iSTATUS)
+                     temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                     IndNum2         = INDEX(temp2,',')
+                     IF(IndNum2.GT.0)THEN ! get option
+                       Example%IntegrateLineOption=TRIM(temp2(1:IndNum2-1))
+                       IF(temp2(IndNum2+1:LEN(TRIM(temp2))).NE.'')THEN ! get multiplier
+                         CALL str2real(temp2(IndNum2+1:LEN(TRIM(temp2))),Example%IntegrateLineMultiplier,iSTATUS)
+                       END IF ! get multiplier
+                     END IF ! get option
+                   END IF ! get tolerance
                  END IF ! get integral value
                END IF ! check range
              END IF ! get column ranges
@@ -410,31 +564,26 @@ DO ! extract reggie information
              CALL str2real(temp2(1:IndNum2-1),Example%CompareDatafileRowTolerance,iSTATUS)
              temp2                 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
              IndNum2               = INDEX(temp2,',')
-             IF(IndNum2.GT.0)THEN ! use 1st header line for column data labels
-               CALL str2logical(temp2(1:IndNum2-1),Example%CompareDatafileRowReadHeader,iSTATUS)
-               temp2                 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-               IndNum2               = INDEX(temp2,',')
-               IF(IndNum2.GT.0)THEN ! get number of header lines in data file (they are ignored on reading the file)
-                 CALL str2int(temp2(1:IndNum2-1),Example%CompareDatafileRowHeaderLines,iSTATUS)
-                 temp2               = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-                 IndNum2             = INDEX(temp2,"'")
-                 IF(IndNum2.GT.0)THEN ! get delimiter for separating the columns in the data file
-                   IndNum3=INDEX(temp2(IndNum2+1:LEN(TRIM(temp2))),"'")+IndNum2
-                   Example%CompareDatafileRowDelimiter=temp2(IndNum2+1:IndNum3-1)
-                   temp2             = temp2(IndNum3+1:LEN(TRIM(temp2))) ! next
-                   IndNum2           = INDEX(temp2,',')
-                   IF(IndNum2.GT.0)THEN ! get row number
-                     temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-                     IF(ADJUSTL(TRIM(temp2)).EQ.'last')THEN ! use the 'last' line number in file for comparison
-                       Example%CompareDatafileRowNumber=HUGE(1)
-                       iSTATUS=0
-                     ELSE
-                       CALL str2int(temp2,Example%CompareDatafileRowNumber,iSTATUS)
-                     END IF
-                   END IF ! get row number
-                 END IF ! get delimiter
-               END IF !  get number of header lines
-             END IF ! use 1st header line for column data labels
+             IF(IndNum2.GT.0)THEN ! get number of header lines in data file (they are ignored on reading the file)
+               CALL str2int(temp2(1:IndNum2-1),Example%CompareDatafileRowHeaderLines,iSTATUS)
+               temp2               = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+               IndNum2             = INDEX(temp2,"'")
+               IF(IndNum2.GT.0)THEN ! get delimiter for separating the columns in the data file
+                 IndNum3=INDEX(temp2(IndNum2+1:LEN(TRIM(temp2))),"'")+IndNum2
+                 Example%CompareDatafileRowDelimiter=temp2(IndNum2+1:IndNum3-1)
+                 temp2             = temp2(IndNum3+1:LEN(TRIM(temp2))) ! next
+                 IndNum2           = INDEX(temp2,',')
+                 IF(IndNum2.GT.0)THEN ! get row number
+                   temp2           = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+                   IF(ADJUSTL(TRIM(temp2)).EQ.'last')THEN ! use the 'last' line number in file for comparison
+                     Example%CompareDatafileRowNumber=HUGE(1)
+                     iSTATUS=0
+                   ELSE
+                     CALL str2int(temp2,Example%CompareDatafileRowNumber,iSTATUS)
+                   END IF
+                 END IF ! get row number
+               END IF ! get delimiter
+             END IF !  get number of header lines
            END IF ! get tolerance value for comparison
          END IF ! get the name of the reference data file
        END IF ! get file name
@@ -444,8 +593,20 @@ DO ! extract reggie information
                 Example%CompareDatafileRowRefFile.EQ.''            ,&
                 Example%CompareDatafileRowTolerance.LT.0.          ,&
                 Example%CompareDatafileRowHeaderLines.EQ.0         ,&
-                Example%CompareDatafileRowDelimiter(1:3).EQ.'999'/) )) Example%CompareDatafileRow=.FALSE.
+                Example%CompareDatafileRowDelimiter(1:3).EQ.'999'/) )) THEN
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' iSTATUS                                : ',iSTATUS
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%CompareDatafileRowFile         : ',TRIM(Example%CompareDatafileRowFile)
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%CompareDatafileRowRefFile      : ',TRIM(Example%CompareDatafileRowRefFile)
+         SWRITE(UNIT_stdOut,'(A,E25.14E3)')' Example%CompareDatafileRowTolerance    : ',Example%CompareDatafileRowTolerance
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' Example%CompareDatafileRowHeaderLines  : ',Example%CompareDatafileRowHeaderLines
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%CompareDatafileRowDelimiter    : ',TRIM(Example%CompareDatafileRowDelimiter)
+         SWRITE(UNIT_stdOut,'(A)')         ' Setting Example%CompareDatafileRow=.FALSE.'
+         Example%CompareDatafileRow=.FALSE.
+       ELSE
+         IF(Example%CompareDatafileRowHeaderLines.GT.0)Example%CompareDatafileRowReadHeader=.TRUE.
+       END IF
     END IF ! 'CompareDatafileRow'
+
     ! Convergence Test (h- or p-convergence for increasing the number of cells or increasing the polynomial degree N)
     ! in parameter_reggie.ini define:
     !  for p: ConvergenceTest =       p     ,                   IntegrateLine                      , 0.12434232          , 1e-2
@@ -663,18 +824,19 @@ IF(.NOT.ExistSolver) THEN
                                        Mode,': no executable found. Error during compilation or linking?'
   SWRITE(UNIT_stdOut,'(A41,A)')                         ' EXECPATH: ', TRIM(EXECPATH)
   SWRITE(UNIT_stdOut,'(A41,L)')                      ' ExistSolver: ', ExistSolver
-  ERROR STOP '77'
+  ERROR STOP 77
 END IF
 END SUBROUTINE CheckForExecutable
 
 
 !==================================================================================================================================
 !> Get the number of threads/procs for a parallel compilation
+!> Check each input argument for being an integer and use it for the number of mpi ranks when compiling the code
 !==================================================================================================================================
 SUBROUTINE GetNumberOfProcs(nArgs)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars, ONLY: RuntimeOptionType,RuntimeOptionTypeII,RuntimeOptionTypeIII
+USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption
 USE MOD_RegressionCheck_Vars, ONLY: NumberOfProcs,NumberOfProcsStr
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -682,43 +844,68 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)             :: nArgs
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iSTATUS                           ! Error status
+INTEGER                        :: iSTATUS                           !> Error status
+INTEGER                        :: I                                 !> loop variable
 !===================================================================================================================================
-IF((nArgs.GE.2))THEN
-  CALL str2int(RuntimeOptionType,NumberOfProcs,iSTATUS)
-  IF(iSTATUS.EQ.0)THEN
-    RuntimeOptionType='run' ! return to default -> needed for setting it to 'run_basic'
-  ELSE
-    IF(nArgs.GE.3)THEN
-      CALL str2int(RuntimeOptionTypeII,NumberOfProcs,iSTATUS)
+NumberOfProcs=0
+IF(nArgs.GE.1)THEN ! first input argument must be "build"
+  DO I=1,nArgs
+    ! use -j notation like in make (i.e. -j x uses x procs for compiling)
+    IF(TRIM(RuntimeOption(I)).EQ.'-j')THEN ! use all available threads for compiling
+      NumberOfProcs=-1
+      IF(I.EQ.2)THEN
+        RuntimeOption(I)='run_basic' ! set back to default
+      !ELSE
+        !RuntimeOption(I)=''        ! return to default
+      END IF
+      IF(nArgs.GT.I)THEN ! check if next argument is a number as in "-j 5" -> use 5 threads for compiling
+        CALL str2int(RuntimeOption(I+1),NumberOfProcs,iSTATUS) ! if the argument is not a number then "-1" is returned
+        !IF(iSTATUS.EQ.0)THEN
+          !RuntimeOption(I+1)=''           ! return to default
+        !END IF
+      END IF
+    END IF
+  END DO
+  IF(NumberOfProcs.EQ.0)THEN
+    DO I=1,nArgs
+      CALL str2int(RuntimeOption(I),NumberOfProcs,iSTATUS)
       IF(iSTATUS.EQ.0)THEN
-        RuntimeOptionTypeII='' ! return to default
-      ELSE
-        IF(nArgs.GE.4)THEN
-          CALL str2int(RuntimeOptionTypeIII,NumberOfProcs,iSTATUS)
-          IF(iSTATUS.EQ.0)THEN
-            RuntimeOptionTypeIII=''
-          ELSE
-            NumberOfProcs=1
+        IF(I.EQ.1)THEN
+          RuntimeOption(1)='run'        ! return to default -> needed for setting it to 'run_basic'
+          SWRITE(UNIT_stdOut,'(A)') ' First argument cannot be a number! Specify "run" or "build"'
+          STOP 1
+        ELSEIF(I.EQ.2)THEN
+          RuntimeOption(2)='run_basic'  ! set to standard case folder 'run_basic'
+          IF(TRIM(RuntimeOption(1)).EQ.'run')THEN
+            SWRITE(UNIT_stdOut,'(A)') ' An argument with a specific number for building can only be used in "build" mode'
+            STOP 1
           END IF
         ELSE
-          NumberOfProcs=1
+          RuntimeOption(I)=''           ! return to default
         END IF
+        EXIT ! first integer input argument found -> use as number of procs for compilation
+      ELSE
+        NumberOfProcs=1
       END IF
-    ELSE
-      NumberOfProcs=1
-    END IF
+    END DO
+  ELSE IF(NumberOfProcs.EQ.-1) THEN
+    SWRITE(UNIT_stdOut,'(A)')        ' Building regression checks with [ -j] threads/processors'
   END IF
-  IF(iSTATUS.EQ.0)THEN
-    SWRITE(UNIT_stdOut,'(A,I3,A)') ' Building regression checks with',NumberOfProcs,' threads/processors'
-    IF(NumberOfProcs.GT.1)THEN
-      WRITE(UNIT=NumberOfProcsStr,FMT='(I5)') NumberOfProcs
-    ELSE
-      NumberOfProcsStr='fail'
+    ! sanity check
+    IF((iSTATUS.EQ.0).AND.(NumberOfProcs.GT.0))THEN
+      SWRITE(UNIT_stdOut,'(A,I3,A)') ' Building regression checks with [',NumberOfProcs,'] threads/processors'
     END IF
-  END IF
 ELSE
   NumberOfProcs=1
+END IF
+
+! set the number of procs INTEGER/CHARACTER
+IF(NumberOfProcs.GT.0 .OR. NumberOfProcs.EQ.-1)THEN
+  WRITE(UNIT=NumberOfProcsStr,FMT='(I5)') NumberOfProcs
+ELSE
+  NumberOfProcsStr='fail'
+  SWRITE(UNIT_stdOut,'(A)') ' The number of MPI ranks for building must be [>= 1] or [-j]'
+  STOP 1
 END IF
 END SUBROUTINE GetNumberOfProcs
 
@@ -846,6 +1033,10 @@ END IF
 END SUBROUTINE AddError
 
 
+!!!!!!!!! OLD
+!!!!!!!!! OLD
+!!!!!!!!! OLD
+
 ! !==================================================================================================================================
 ! !> read parameter values from a specified file
 ! !==================================================================================================================================
@@ -894,6 +1085,81 @@ END SUBROUTINE AddError
 !   CLOSE(ioUnit)
 !   IF(output.EQ.'')output='ParameterName does not exist'
 ! ELSE
+!   output='file does not exist'
+! END IF
+! END SUBROUTINE GetParameterFromFile
+
+
+
+!!!!!!!!! NEW
+!!!!!!!!! NEW
+!!!!!!!!! NEW
+! !==================================================================================================================================
+! !> read parameter values from a specified file
+! !==================================================================================================================================
+! SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DoDisplayInfo)
+! ! MODULES
+! USE MOD_Globals
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT/OUTPUT VARIABLES
+! CHARACTER(LEN=*),INTENT(IN)     :: FileName      ! e.g. './../build_reggie/bin/configuration.cmake'
+! CHARACTER(LEN=*),INTENT(IN)     :: ParameterName ! e.g. 'XX_EQNSYSNAME'
+! CHARACTER(LEN=*),INTENT(INOUT)  :: output        ! e.g. 'navierstokes'
+! LOGICAL, INTENT(IN),OPTIONAL    :: DoDisplayInfo ! display error output if the parameter or the file is not found
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! LOGICAL                         :: ExistFile    ! file exists=.true., file does not exist=.false.
+! INTEGER                         :: iSTATUS      ! status
+! CHARACTER(LEN=255)              :: temp,temp2   ! temp variables for read in of file lines
+! INTEGER                         :: ioUnit       ! field handler unit and ??
+! INTEGER                         :: IndNum       ! Index Number
+! !===================================================================================================================================
+! output=''
+! INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+! IF(ExistFile) THEN
+!   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
+!   DO
+!     READ(ioUnit,'(A)',iostat=iSTATUS)temp
+!     temp2=ADJUSTL(temp)
+!     IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
+!     IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
+!     IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
+!       IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
+!       IF(IndNum.GT.0)THEN
+!         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+!         IndNum=INDEX(temp2, '=')
+!         IF(IndNum.GT.0)THEN
+!           temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
+!           IndNum=INDEX(temp2, '!')
+!           IF(IndNum.GT.0)THEN
+!             temp2=temp2(1:IndNum-1)
+!           END IF
+!         END IF
+!         output=TRIM(ADJUSTL(temp2))
+!         EXIT
+!       END IF
+!     END IF
+!   END DO
+!   CLOSE(ioUnit)
+!   IF(output.EQ.'')THEN
+!     IF(PRESENT(DoDisplayInfo))THEN
+!       IF(DoDisplayInfo)THEN
+!         SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+!       END IF
+!     ELSE
+!       SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+!     END IF
+!     output='ParameterName does not exist'
+!   END IF
+! ELSE
+!     IF(PRESENT(DoDisplayInfo))THEN
+!       IF(DoDisplayInfo)THEN
+!         SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+!       END IF
+!     ELSE
+!       SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+!     END IF
 !   output='file does not exist'
 ! END IF
 ! END SUBROUTINE GetParameterFromFile

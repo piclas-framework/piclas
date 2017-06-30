@@ -56,9 +56,10 @@ SUBROUTINE InitParticleAnalyze()
   USE MOD_Globals
   USE MOD_Preproc
   USE MOD_Analyze_Vars            ,ONLY: DoAnalyze
-  USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot 
+  USE MOD_Particle_Analyze_Vars 
   USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
   USE MOD_Particle_Vars           ,ONLY: nSpecies
+  USE MOD_PICDepo_Vars            ,ONLY: DoDeposition
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -81,9 +82,16 @@ CALL abort(__STAMP__,&
   DoAnalyze = .FALSE.
   CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
   IF(CalcEpot) DoAnalyze = .TRUE.
-  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
-  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
-  IF(CalcCharge) DoAnalyze = .TRUE. 
+  ! only verifycharge and CalcCharge if particles are deposited onto the grid
+  DoVerifyCharge= .FALSE.
+  CalcCharge = .FALSE.
+  IF(DoDeposition) THEN
+    DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
+    CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+    IF(CalcCharge) DoAnalyze = .TRUE. 
+  ELSE
+    SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+  END IF
   CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
   CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
   CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
@@ -662,47 +670,47 @@ END IF
 #ifdef MPI
 IF (PartMPI%MPIROOT) THEN
 #endif    /* MPI */
-  WRITE(unit_index,104,ADVANCE='NO') Time
+  WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Time
     IF (CalcNumSpec) THEN
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(SimNumSpec(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(SimNumSpec(iSpec))
       END DO
     END IF
     IF (CalcCharge) THEN 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(1)
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(1)
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(2)       
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(2)       
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') PartCharge(3)
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartCharge(3)
     END IF
     IF (CalcPartBalance) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartIn(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(nPartIn(iSpec))
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartOut(iSpec))
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') REAL(nPartOut(iSpec))
       END DO
     END IF
     IF (CalcEpot) THEN 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') WEl
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WEl
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') WMag
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WMag
     END IF
     IF (CalcEkin) THEN 
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Ekin(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Ekin(iSpec)
       END DO
     END IF
     IF (CalcTemp) THEN
       DO iSpec=1, nSpeciesAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Temp(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Temp(iSpec)
       END DO
     END IF
     IF (CalcVelos) THEN
@@ -710,9 +718,9 @@ IF (PartMPI%MPIROOT) THEN
         DO dir = 1,4
           IF (VeloDirs(dir)) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') PartVtrans(iSpec,dir)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartVtrans(iSpec,dir)
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') PartVtherm(iSpec,dir)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartVtherm(iSpec,dir)
           END IF
         END DO
       END DO
@@ -720,11 +728,11 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcPartBalance) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') PartEkinIn(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartEkinIn(iSpec)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') PartEkinOut(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') PartEkinOut(iSpec)
       END DO
     END IF
 
@@ -732,26 +740,26 @@ IF (PartMPI%MPIROOT) THEN
     IF (CollisMode.GT.1) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,1)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,2)
       END DO
       IF ( DSMC%ElectronicModel ) THEN
         DO iSpec=1, nSpecies
         ! currently set to one
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,3)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,3)
         END DO
       END IF
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,1)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
       END DO
     END IF
 #endif
@@ -760,51 +768,51 @@ IF (PartMPI%MPIROOT) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,1)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,2)
         END DO
         IF (DSMC%ElectronicModel) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,3)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntEn(iSpec,3)
           END DO
         END IF
       END IF
       IF(CalcTemp) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,1)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') Xi_Vib(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Xi_Vib(iSpec)
         END DO
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
         END DO
         DO iSpec=1, nSpeciesAnalyze
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,104,ADVANCE='NO') TempTotal(iSpec)
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') TempTotal(iSpec)
         END DO
         IF ( DSMC%ElectronicModel ) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,3)
+            WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') IntTemp(iSpec,3)
           END DO
         END IF
       END IF
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') MeanCollProb
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MeanCollProb
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') MaxCollProb
+      WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MaxCollProb
     END IF
 #if (PP_TimeDiscMethod==42)
 ! output for adsorption
@@ -818,16 +826,16 @@ IF (PartMPI%MPIROOT) THEN
 !         IF (CalcWallCoverage) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WallCoverage(iSpec)
       END DO
 !         END IF 
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Desorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -839,19 +847,19 @@ IF (PartMPI%MPIROOT) THEN
       END DO
       IF (Adsorption%TPD) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorption%TPD_Temp
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorption%TPD_Temp
       END IF
     END IF
     IF(CalcCollRates) THEN
       DO iCase=1, CollInf%NumCase +1 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') CRate(iCase)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') CRate(iCase)
       END DO
     END IF
     IF(CalcReacRates) THEN
       DO iCase=1, ChemReac%NumOfReact 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') RRate(iCase)
+        WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') RRate(iCase)
       END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
@@ -860,7 +868,7 @@ IF (PartMPI%MPIROOT) THEN
   END IF
 #endif    /* MPI */
 
-  104    FORMAT (e25.14)
+  !104    FORMAT (e25.14)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF( CalcPartBalance) CALL CalcParticleBalance()
@@ -1758,13 +1766,13 @@ DO iPart=1,PDM%ParticleVecLength
     IF (usevMPF) THEN
       EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1) * PartMPF(iPart)
       ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2) * PartMPF(iPart)
-      IF ( DSMC%ElectronicModel ) THEN
+      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
         Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3) * PartMPF(iPart)
       END IF
     ELSE
       EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1)
       ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2)
-      IF ( DSMC%ElectronicModel ) THEN
+      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
         Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3)
       END IF
     END IF
@@ -2306,11 +2314,12 @@ END FUNCTION CalcEkinPart
 SUBROUTINE CalcPowerDensity() 
 !===================================================================================================================================
 ! compute the power density of the species
+! scalar product of < j, E >, with j- current density and E - electric field
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Timeaverage_Vars,    ONLY:DoPowerDensity,PowerDensity
 USE MOD_Particle_Vars,       ONLY:nSpecies,PartSpecies,PDM
-USE MOD_PICDepo_Vars,        ONLY:Source
+USE MOD_PICDepo_Vars,        ONLY:PartSource
 USE MOD_Part_RHS,            ONLY:PartVeloToImp
 USE MOD_Preproc
 USE MOD_PICDepo,             ONLY:Deposition
@@ -2392,19 +2401,19 @@ DO iSpec=1,nSpecies
       DO j=0,PP_N
         DO i=0,PP_N
 #ifndef PP_HDG
-          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*U(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*U(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*U(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*U(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
           PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #else
-          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*E(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*E(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #endif
-          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N

@@ -30,7 +30,7 @@ SUBROUTINE InitializeDeposition
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
+USE MOD_PICDepo_Vars!,  ONLY : DepositionType, PartSource, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP, sJ,nGlobalElems
@@ -86,14 +86,13 @@ IF((TRIM(InterpolationType).EQ.'nearest_gausspoint').AND. &
   ,'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!')
 END IF
 !--- Allocate arrays for charge density collection and initialize
-SDEALLOCATE(source)
-ALLOCATE(source(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
+ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
   __STAMP__&
-  ,'ERROR in pic_depo.f90: Cannot allocate source!')
+  ,'ERROR in pic_depo.f90: Cannot allocate PartSource!')
 END IF
-Source=0.
+PartSource=0.
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
 CASE('nearest_blurycenter')
@@ -255,7 +254,7 @@ CASE('shape_function','shape_function_simple')
     END IF !NbrOfSFdepoFixLinks>0
   END IF !NbrOfSFdepoFixes>0
 
-  !-- const. source layer for shape func depo at planar BCs
+  !-- const. PartSource layer for shape func depo at planar BCs
   NbrOfSFdepoLayers = GETINT('PIC-NbrOfSFdepoLayers','0')
   IF (NbrOfSFdepoLayers.GT.0) THEN
     SDEALLOCATE(SFdepoLayersGeo)
@@ -989,10 +988,10 @@ ELSE
 END IF
 
 IF(doInnerParts)THEN
-  source=0.0
+  IF(.NOT.DoDeposition) RETURN
+  PartSource=0.0
   firstPart=1
   lastPart =PDM%ParticleVecLength
-  IF(.NOT.DoDeposition) RETURN
   !IF(firstPart.GT.lastPart) RETURN
 ELSE
   IF(.NOT.DoDeposition) RETURN
@@ -1038,11 +1037,11 @@ CASE('nearest_blurrycenter')
       END IF ! Element(iPart).EQ.iElem
     END DO ! iPart
 !#if (PP_nVar==8)
-    source(1,:,:,:,iElem) = source(1,:,:,:,iElem)+ElemSource(iElem,1) 
-    source(2,:,:,:,iElem) = source(2,:,:,:,iElem)+ElemSource(iElem,2) 
-    source(3,:,:,:,iElem) = source(3,:,:,:,iElem)+ElemSource(iElem,3) 
+    PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(iElem,1) 
+    PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(iElem,2) 
+    PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(iElem,3) 
 !#endif                                            
-    source(4,:,:,:,iElem) = source(4,:,:,:,iElem)+ElemSource(iElem,4) 
+    PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(iElem,4) 
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
@@ -1054,9 +1053,9 @@ CASE('nearest_blurrycenter')
       tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 !#if (PP_nVar==8)
-      source(1:4,:,:,:,iElem) = source(1:4,:,:,:,iElem) / GEO%Volume(iElem)
+      PartSource(1:4,:,:,:,iElem) = PartSource(1:4,:,:,:,iElem) / GEO%Volume(iElem)
 !#else
-!      source(4,:,:,:,iElem) = source(4,:,:,:,iElem) / GEO%Volume(iElem)
+!      PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem) / GEO%Volume(iElem)
 !#endif
 #ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
@@ -1137,7 +1136,7 @@ CASE('cell_volweight')
          alpha1 = CellVolWeightFac(kk)
          alpha2 = CellVolWeightFac(ll)
          alpha3 = CellVolWeightFac(mm)
-         source(1:4,kk,ll,mm,iElem) =source(1:4,kk,ll,mm,iElem) +&
+         PartSource(1:4,kk,ll,mm,iElem) =PartSource(1:4,kk,ll,mm,iElem) +&
               BGMSourceCellVol(0,0,0,iElem,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
               BGMSourceCellVol(0,0,1,iElem,1:4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
               BGMSourceCellVol(0,1,0,iElem,1:4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
@@ -1191,10 +1190,10 @@ CASE('epanechnikov')
       DO kk = 0, PP_N
         DO ll = 0, PP_N
           DO mm = 0, PP_N
-           source(1:3,kk,ll,mm,iElem) = source(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) & 
+           PartSource(1:3,kk,ll,mm,iElem) = PartSource(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) &
                                           * Species(PartSpecies(iPart))%ChargeIC &
                                           * Species(PartSpecies(iPart))%MacroParticleFactor
-           source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm) & 
+           PartSource(4,kk,ll,mm,iElem) = PartSource(4,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm) & 
                                           * Species(PartSpecies(iPart))%ChargeIC &
                                           * Species(PartSpecies(iPart))%MacroParticleFactor
          END DO !mm
@@ -1219,8 +1218,8 @@ CASE('epanechnikov')
         DO ll = 0, PP_N
           DO mm = 0, PP_N
             alpha = wGP(kk)*wGP(ll)*wGP(mm)/sJ(kk,ll,mm,iElem)
-            source(1:4,kk,ll,mm,iElem) = 1./SQRT(alpha) * source(1:4,kk,ll,mm,iElem)*(PP_N+1)**3/ (GEO%Volume(iElem))
-            tempgridsource(iElem) = tempgridsource(iElem) + source(4,kk,ll,mm,iElem)*alpha
+            PartSource(1:4,kk,ll,mm,iElem) = 1./SQRT(alpha) * PartSource(1:4,kk,ll,mm,iElem)*(PP_N+1)**3/ (GEO%Volume(iElem))
+            tempgridsource(iElem) = tempgridsource(iElem) + PartSource(4,kk,ll,mm,iElem)*alpha
          END DO !mm
        END DO !ll
       END DO !kk
@@ -1228,7 +1227,7 @@ CASE('epanechnikov')
       !IF (tempgridsource(iElem).GT.0.0) THEN
       IF (ABS(tempgridsource(iElem)).GT.0.0) THEN
         alpha = tempcharge(iElem)/tempgridsource(iElem)
-        source(1:4,:,:,:,iElem) = source(1:4,:,:,:,iElem)*alpha
+        PartSource(1:4,:,:,:,iElem) = PartSource(1:4,:,:,:,iElem)*alpha
       END IF
 #ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
@@ -1401,9 +1400,9 @@ CASE('shape_function','shape_function_simple')
   END IF !.NOT.DoInnerParts
 
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
-    ! map source from Equististant points on Gauss-Points
+    ! map PartSource from Equististant points on Gauss-Points
     DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
+      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,PartSource(:,:,:,:,iElem),PartSource(:,:,:,:,iElem))
     END DO ! iElem=1,PP_nElems
   END IF
 
@@ -1498,8 +1497,8 @@ CASE('shape_function_1d')
                       DO expo = 3, alpha_sf
                         S1 = S*S1
                       END DO
-                      source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-                      source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                      PartSource(1:3,k,l,m,ElemID) = PartSource(1:3,k,l,m,ElemID) + Fac(1:3) * S1
+                      PartSource( 4 ,k,l,m,ElemID) = PartSource( 4 ,k,l,m,ElemID) + Fac(4) * S1
                     END IF
                   END DO; END DO; END DO
                   chargedone(ElemID) = .TRUE.
@@ -1603,8 +1602,8 @@ CASE('shape_function_1d')
                         DO expo = 3, alpha_sf
                           S1 = S*S1
                         END DO
-                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                        PartSource(1:3,k,l,m,ElemID) = PartSource(1:3,k,l,m,ElemID) + Fac(1:3) * S1
+                        PartSource( 4 ,k,l,m,ElemID) = PartSource( 4 ,k,l,m,ElemID) + Fac(4) * S1
                       END IF
                   END DO; END DO; END DO
                   chargedone(ElemID) = .TRUE.
@@ -1627,7 +1626,7 @@ CASE('shape_function_1d')
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
     ! map source from Equististant points on Gauss-Points
     DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
+      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,PartSource(:,:,:,:,iElem),PartSource(:,:,:,:,iElem))
     END DO ! iElem=1,PP_nElems
   END IF
 
@@ -1715,8 +1714,8 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                       DO expo = 3, alpha_sf
                         S1 = S*S1
                       END DO
-                      source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-                      source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                      PartSource(1:3,k,l,m,ElemID) = PartSource(1:3,k,l,m,ElemID) + Fac(1:3) * S1
+                      PartSource( 4 ,k,l,m,ElemID) = PartSource( 4 ,k,l,m,ElemID) + Fac(4) * S1
                     END IF
                   END DO; END DO; END DO
                   chargedone(ElemID) = .TRUE.
@@ -1813,8 +1812,8 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                         DO expo = 3, alpha_sf
                           S1 = S*S1
                         END DO
-                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                        PartSource(1:3,k,l,m,ElemID) = PartSource(1:3,k,l,m,ElemID) + Fac(1:3) * S1
+                        PartSource( 4 ,k,l,m,ElemID) = PartSource( 4 ,k,l,m,ElemID) + Fac(4) * S1
                       END IF
                   END DO; END DO; END DO
                   chargedone(ElemID) = .TRUE.
@@ -1834,9 +1833,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
   END IF
 #endif /*MPI*/
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
-    ! map source from Equististant points on Gauss-Points
+    ! map PartSource from Equististant points on Gauss-Points
     DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
+      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,PartSource(:,:,:,:,iElem),PartSource(:,:,:,:,iElem))
     END DO ! iElem=1,PP_nElems
   END IF
 
@@ -1890,8 +1889,8 @@ CASE('delta_distri')
               DO i=0,NDepo
            !     print*,'i,j,k,L',i,j,k,L_xi(1,i)* L_xi(2,j)* L_xi(3,k)
                 DeltaIntCoeff = L_xi(1,i)* L_xi(2,j)* L_xi(3,k)*prefac 
-                source(1:3,i,j,k,iElem) = source(1:3,i,j,k,iElem) + DeltaIntCoeff*PartState(iPart,4:6)
-                source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) + DeltaIntCoeff
+                PartSource(1:3,i,j,k,iElem) = PartSource(1:3,i,j,k,iElem) + DeltaIntCoeff*PartState(iPart,4:6)
+                PartSource( 4 ,i,j,k,iElem) = PartSource( 4 ,i,j,k,iElem) + DeltaIntCoeff
               END DO ! i
             END DO ! j
           END DO ! k
@@ -1911,13 +1910,13 @@ CASE('delta_distri')
       DO k=0,NDepo
         DO j=0,NDepo
           DO i=0,NDepo
-            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) * DDMassInv(i,j,k,iElem)
+            PartSource( : ,i,j,k,iElem) = PartSource( : ,i,j,k,iElem) * DDMassInv(i,j,k,iElem)
           END DO ! i
         END DO ! j
       END DO ! k
       IF(DeltaDistriChangeBasis)THEN
-        CALL ChangeBasis3D(4,NDepo,PP_N,Vdm_NDepo_GaussN,source(1:4,0:NDepo,0:NDepo,0:NDepo,iElem)&
-                                                        ,source(1:4,0:PP_N ,0:PP_N ,0:PP_N, iElem))
+        CALL ChangeBasis3D(4,NDepo,PP_N,Vdm_NDepo_GaussN,PartSource(1:4,0:NDepo,0:NDepo,0:NDepo,iElem)&
+                                                        ,PartSource(1:4,0:PP_N ,0:PP_N ,0:PP_N, iElem))
       END IF
 #ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
@@ -1984,9 +1983,9 @@ CASE('nearest_gausspoint')
             m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
           END IF
 !#if (PP_nVar==8)
-          source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + PartState(iPart,4:6) * prefac
+          PartSource(1:3,k,l,m,iElem) = PartSource(1:3,k,l,m,iElem) + PartState(iPart,4:6) * prefac
 !#endif
-          source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + prefac
+          PartSource( 4 ,k,l,m,iElem) = PartSource( 4 ,k,l,m,iElem) + prefac
           !IF (SAVE_GAUSS) THEN
           !  PartPosGauss(iPart,1) = k
           !  PartPosGauss(iPart,2) = l
@@ -2008,9 +2007,9 @@ CASE('nearest_gausspoint')
       DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
       ! get densities by dividing by gauss volume
 !#if (PP_nVar==8)
-        source(1:4,k,l,m,iElem) = source(1:4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
+        PartSource(1:4,k,l,m,iElem) = PartSource(1:4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
 !#else
-!        source(4,k,l,m,iElem) = source(4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
+!        PartSource(4,k,l,m,iElem) = PartSource(4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
 !#endif
       END DO; END DO; END DO
 #ifdef MPI
@@ -2089,7 +2088,7 @@ CASE('cartmesh_volumeweighting')
          alpha3 = GaussBGMFactor(3,kk,ll,mm,iElem)
 !#if (PP_nVar==8)
          DO i = 1,3
-           source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem)            + &
+           PartSource(i,kk,ll,mm,iElem) = PartSource(i,kk,ll,mm,iElem)            + &
                 BGMSource(k,l,m,i) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
                 BGMSource(k,l,m+1,i) * (1-alpha1) * (1-alpha2) * (alpha3) + &
                 BGMSource(k,l+1,m,i) * (1-alpha1) * (alpha2) * (1-alpha3) + &
@@ -2100,7 +2099,7 @@ CASE('cartmesh_volumeweighting')
                 BGMSource(k+1,l+1,m+1,i) * (alpha1) * (alpha2) * (alpha3)
          END DO
 !#endif
-           source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem)          + &
+           PartSource(4,kk,ll,mm,iElem) = PartSource(4,kk,ll,mm,iElem)          + &
               BGMSource(k,l,m,4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
               BGMSource(k,l,m+1,4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
               BGMSource(k,l+1,m,4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
@@ -2201,12 +2200,12 @@ CASE('cartmesh_splines')
               DO t = m-1,m+2
                 w = t-m+2
 !#if (PP_nVar==8)                  
-                source(1:4,kk,ll,mm,iElem) = source(1:4,kk,ll,mm,iElem) + BGMSource(r,ss,t,1:4) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                PartSource(1:4,kk,ll,mm,iElem) = PartSource(1:4,kk,ll,mm,iElem) + BGMSource(r,ss,t,1:4) * GPWeight(iElem,kk,ll,mm,u,v,w)
                 !DO i = 1,3
-                !  source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem) + BGMSource(r,ss,t,i) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                !  PartSource(i,kk,ll,mm,iElem) = PartSource(i,kk,ll,mm,iElem) + BGMSource(r,ss,t,i) * GPWeight(iElem,kk,ll,mm,u,v,w)
                 !END DO
 !#endif
-                !source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem) + BGMSource(r,ss,t,4) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                !PartSource(4,kk,ll,mm,iElem) = PartSource(4,kk,ll,mm,iElem) + BGMSource(r,ss,t,4) * GPWeight(iElem,kk,ll,mm,u,v,w)
               END DO !t
             END DO !s
           END DO !r
@@ -2464,7 +2463,7 @@ END IF
    END IF
 END DO
 
-!--- allocate actual source receive buffer
+!--- allocate actual PartSource receive buffer
 DO iProc = 0,PartMPI%nProcs-1
    IF ((PartMPI%DepoBGMConnect(iProc)%isBGMNeighbor).OR.(PartMPI%DepoBGMConnect(iProc)%isBGMPeriodicNeighbor)) THEN
       Counter = 0
@@ -3194,10 +3193,10 @@ __STAMP__ &
                     S1 = S*S1
                   END DO
                   IF (SourceSize.EQ.1) THEN
-                    source(4,k,l,m,ElemID) = source(4,k,l,m,ElemID) + Fac(1) * S1
+                    PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
                   ELSE IF (SourceSize.EQ.4) THEN
-                    source(1:4,k,l,m,ElemID) = source(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+                    PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
                   END IF
                 END IF
@@ -3365,10 +3364,10 @@ __STAMP__ &
           S1 = S*S1
         END DO
         IF (SourceSize.EQ.1) THEN
-          source(4,k,l,m,ElemID) = source(4,k,l,m,ElemID) + Fac(1) * S1
+          PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
         ELSE IF (SourceSize.EQ.4) THEN
-          source(1:4,k,l,m,ElemID) = source(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+          PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
         END IF
       END DO; END DO; END DO
@@ -3396,6 +3395,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
+SDEALLOCATE(PartSource)
 SDEALLOCATE(GaussBorder)
 SDEALLOCATE(ElemDepo_xGP)
 SDEALLOCATE(Vdm_EquiN_GaussN)

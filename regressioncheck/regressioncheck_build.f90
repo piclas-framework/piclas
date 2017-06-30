@@ -32,14 +32,14 @@ PUBLIC::GetFlagFromFile
 CONTAINS
 
 !==================================================================================================================================
-!> read the file "configuirations.reggie" and creates multiple compiler flag configurations for cmake that are written to
+!> read the file "configurations.reggie" and creates multiple compiler flag configurations for cmake that are written to
 !> "configurationsX.cmake"
 !==================================================================================================================================
 SUBROUTINE ReadConfiguration(iExample,nReggieBuilds,N_compile_flags)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: Examples,RuntimeOptionType,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,BuildCODE2D,BuildPARABOLIC
+USE MOD_RegressionCheck_Vars,    ONLY: Examples,RuntimeOption,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D,BuildPARABOLIC
 USE MOD_RegressionCheck_Vars,    ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ SWRITE(UNIT_stdOut,'(A)') &
 "  Regression Check: Read Cmake Configurations"
 SWRITE(UNIT_stdOut,'(132("="))')
 IF(BuildContinue)CALL GetBuildContinue()
-IF(RuntimeOptionType.EQ.'')THEN ! [RuntimeOptionType] has been cleared (set to '') as the input by the user was "all", i.e., use all
+IF(RuntimeOption(2).EQ.'')THEN ! [RuntimeOptionType] has been cleared (set to '') as the input by the user was "all", i.e., use all
                                 ! examples use fixed configuration file (maximum number of builds?) but (maximum number of builds?)
   FilePath='./../../regressioncheck/examples/run_basic/'
 ELSE
@@ -77,7 +77,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File under: ',TRIM(Examples(iExample)%PATH)
   SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ','configurations.reggie'
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -109,7 +109,7 @@ DO I=1,2
               IndNum = INDEX(temp(IndNum+1:LEN(temp)),',')
               IF (IndNum.GT.0) THEN
                 SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: Too many EXCLUDE flags (>3): ',TRIM(temp)
-                ERROR STOP '-1'
+                ERROR STOP 1
               ENDIF
             ELSE
               EXCLUDE_FLAG_B=TRIM(ADJUSTL(temp(INDEX(temp,',')+1:LEN(temp)        )))
@@ -179,7 +179,7 @@ DO I=1,2
     ,'Fortran runtime error: Attempting to allocate already allocated variable "BuildConfigurations"',iError,999.)
   IF((I.EQ.1).AND.(ALLOCATED(BuildConfigurations)))THEN
     SWRITE(UNIT_stdOut,'(A)') ' Fortran runtime error: Attempting to allocate already allocated variable "BuildConfigurations"'
-    STOP
+    ERROR STOP 1
   END IF
   IF(I.EQ.1)ALLOCATE(BuildConfigurations(N_compile_flags,N_subinclude_max+1))
   IF(I.EQ.1)BuildConfigurations=''
@@ -202,8 +202,8 @@ DO I=1,2
   IF(I.EQ.1)BuildMPI='OFF'
   IF(I.EQ.1)ALLOCATE(BuildFV(nReggieBuilds))
   IF(I.EQ.1)BuildFV='OFF'
-  IF(I.EQ.1)ALLOCATE(BuildCODE2D(nReggieBuilds))
-  IF(I.EQ.1)BuildCODE2D='OFF'
+  IF(I.EQ.1)ALLOCATE(Build2D(nReggieBuilds))
+  IF(I.EQ.1)Build2D='OFF'
   IF(I.EQ.1)ALLOCATE(BuildPARABOLIC(nReggieBuilds))
   IF(I.EQ.1)BuildPARABOLIC='OFF'
 END DO
@@ -306,7 +306,7 @@ IF(BuildContinue)THEN
     SWRITE(UNIT_stdOut,'(A22,A)')          ' ERROR: ','The number of skipped builds exceeds the maxmum number of allocated builds.'
     SWRITE(UNIT_stdOut,'(A22,I5)') ' BuildContinueNumber: ',BuildContinueNumber 
     SWRITE(UNIT_stdOut,'(A22,I5)') '       nReggieBuilds: ', nReggieBuilds
-    ERROR STOP '-1'
+    ERROR STOP 1
   END IF
   BuildValid(1:BuildContinueNumber)=.FALSE.
   SWRITE(UNIT_stdOut, '(I5,A4,I5,A12)')COUNT(BuildValid),' of ', nReggieBuilds,' are valid'
@@ -316,7 +316,7 @@ IF(COUNT(BuildValid).GT.MaxBuildConfigurations)THEN
   SWRITE(UNIT_stdOut,'(A)') ' ERROR: The number of builds exceeds the maxmum number allowed.'
   SWRITE(UNIT_stdOut,'(A,A)') ' COUNT(BuildValid)     :  ', COUNT(BuildValid)
   SWRITE(UNIT_stdOut,'(A,L)') ' MaxBuildConfigurations: ', MaxBuildConfigurations
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -330,7 +330,7 @@ SUBROUTINE BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,N_compile_flag
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
-USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,BuildCODE2D
+USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D
 USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError
 USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH
@@ -343,7 +343,7 @@ INTEGER,INTENT(IN)                        :: iExample,iReggieBuild,N_compile_fla
 INTEGER                                   :: ioUnit,iSTATUS,iSTATUS2,J,K
 CHARACTER(LEN=255)                        :: FileName
 LOGICAL                                   :: ExistFile
-CHARACTER(LEN=500)                        :: SYSCOMMAND
+CHARACTER(LEN=500)                        :: SYSCOMMAND,configuration_cmake
 CHARACTER(LEN=15)                         :: tempStr
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -367,51 +367,61 @@ IF(BuildValid(iReggieBuild))THEN
     SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
   END DO
   CLOSE(ioUnit)
+  ! display the compile flag options
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  SYSCOMMAND='cd '//TRIM(BuildDir)//&
-   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_reggie.out  && make '//CodeNameLowCase//' >> build_reggie.out'
-  IF(BuildDebug)THEN
-    SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../  && make '//CodeNameLowCase
-  ELSEIF(BuildNoDebug)THEN
-    SYSCOMMAND='cd '//TRIM(BuildDir)//&
-   'build_reggie && cmake `cat configurationX.cmake` ../../ > build_reggie.out  && make '//CodeNameLowCase//&
-                                                                                                         ' >> build_reggie.out 2>&1'
+
+  ! 1 of 4: set compilation command line
+  SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && cmake `cat configurationX.cmake` ../../'
+
+  ! 2 of 4: set output for cmake
+  IF(BuildDebug.EQV..FALSE.) SYSCOMMAND=TRIM(SYSCOMMAND)//' > build_reggie.out'
+
+  ! 3 of 4: set threads for compilation of make
+  SYSCOMMAND=TRIM(SYSCOMMAND)//' && make '//CodeNameLowCase//' -j'
+  IF(NumberOfProcs.GT.0) SYSCOMMAND=TRIM(SYSCOMMAND)//' '//TRIM(ADJUSTL(NumberOfProcsStr))
+
+  ! 4 of 4: pipe output of make
+  IF(BuildDebug.EQV..FALSE.)THEN
+    SYSCOMMAND=TRIM(SYSCOMMAND)//' >> build_reggie.out'
+    IF(BuildNoDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' 2>&1'
   END IF
-  IF(NumberOfProcs.GT.1)SYSCOMMAND=TRIM(SYSCOMMAND)//' -j '//TRIM(ADJUSTL(NumberOfProcsStr))
+
+  ! build the code
+  SWRITE(UNIT_stdOut, '(A)')' Building with ['//TRIM(SYSCOMMAND)//']'
+  SWRITE(UNIT_stdOut, '(A)')' '
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
   ! can be executed with the compiled executable or not
   ! check MPI: single or parallel version
-  CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                            CodeNameUppCase//'_MPI'        ,BuildMPI(iReggieBuild),BACK=.TRUE.)
+  configuration_cmake=TRIM(BuildDir)//'build_reggie/bin/configuration.cmake'
+  CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_MPI'        ,BuildMPI(iReggieBuild),BACK=.TRUE.)
   IF(iSTATUS.EQ.0)THEN ! -> succeeded to compile cmake configuration build
     ! check TESTCASE: e.g. taylor green vortex
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                            CodeNameUppCase//'_TESTCASE'   ,BuildTESTCASE(iReggieBuild))
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_TESTCASE'   ,BuildTESTCASE(iReggieBuild))
+
     ! set default for, e.g., PICLas code (currently no testcases are implemented)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
+
     ! check TIMEDISCMETHOD: time integration method
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                            CodeNameUppCase//'_TIMEDISCMETHOD',BuildTIMEDISCMETHOD(iReggieBuild))
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_TIMEDISCMETHOD',BuildTIMEDISCMETHOD(iReggieBuild))
+
     ! set default for, e.g., FLEXI (not a compilation flag)
     IF(BuildTESTCASE(iReggieBuild).EQ.'flag does not exist')BuildTESTCASE(iReggieBuild)='default'
+
     ! check EQNSYSNAME: equation system
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                            CodeNameUppCase//'_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_EQNSYSNAME',BuildEQNSYS(iReggieBuild))
+
     ! check FV: finite volume sub cell operator
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                            CodeNameUppCase//'_FV'        ,BuildFV(iReggieBuild),BACK=.TRUE.)
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_FV'        ,BuildFV(iReggieBuild),BACK=.TRUE.)
     IF(BuildFV(iReggieBuild).EQ.'flag does not exist')BuildFV(iReggieBuild)='OFF'
 
     ! check 2D: 2D version of code
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                            CodeNameUppCase//'_CODE2D'    ,BuildCODE2D(iReggieBuild),BACK=.TRUE.)
-    IF(BuildCODE2D(iReggieBuild).EQ.'flag does not exist')BuildCODE2D(iReggieBuild)='OFF'
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_2D'    ,Build2D(iReggieBuild),BACK=.TRUE.)
+    IF(Build2D(iReggieBuild).EQ.'flag does not exist')Build2D(iReggieBuild)='OFF'
 
     ! check PARABOLIC: with or without parabolic terms
-    CALL GetFlagFromFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake',&
-                                                            CodeNameUppCase//'_PARABOLIC' ,BuildPARABOLIC(iReggieBuild),BACK=.TRUE.)
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_PARABOLIC' ,BuildPARABOLIC(iReggieBuild),BACK=.TRUE.)
     IF(BuildPARABOLIC(iReggieBuild).EQ.'flag does not exist')BuildPARABOLIC(iReggieBuild)='OFF'
   ELSE ! iSTATUS.NE.0 -> failed to compile cmake configuration build
     ! AddError: note: iSubExample is set to 1 as argument
@@ -437,15 +447,16 @@ IF(BuildValid(iReggieBuild))THEN
     !ELSE
       !SWRITE(UNIT_stdOut, '(A)')TRIM(FileName)//" does not exist"
     END IF
-    CALL abort(__STAMP__&
-    ,'Could not compile '//CodeNameLowCase//'! iSTATUS=',iSTATUS,999.)
+    ERROR STOP 'Could not compile '//CodeNameLowCase
+    !CALL abort(__STAMP__&
+    !,'Could not compile '//CodeNameLowCase//'! iSTATUS=',iSTATUS,999.)
   END IF
   SWRITE(UNIT_stdOut,'(A)')"BuildEQNSYS(iReggieBuild)          = ["//TRIM(BuildEQNSYS(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildTESTCASE(iReggieBuild)        = ["//TRIM(BuildTESTCASE(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildTIMEDISCMETHOD(iReggieBuild)) = ["//TRIM(BuildTIMEDISCMETHOD(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildMPI(iReggieBuild))            = ["//TRIM(BuildMPI(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildFV(iReggieBuild))             = ["//TRIM(BuildFV(iReggieBuild))//"]"
-  SWRITE(UNIT_stdOut,'(A)')"BuildCODE2D(iReggieBuild))         = ["//TRIM(BuildCODE2D(iReggieBuild))//"]"
+  SWRITE(UNIT_stdOut,'(A)')"Build2D(iReggieBuild))             = ["//TRIM(Build2D(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildPARABOLIC(iReggieBuild))      = ["//TRIM(BuildPARABOLIC(iReggieBuild))//"]"
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
   IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out'
@@ -560,7 +571,7 @@ IF(.NOT.ExistFile) THEN
   SWRITE(UNIT_stdOut,'(A)')   ' ERROR: tried to continue building at specific point, file does not exist '
   SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
   SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
-  ERROR STOP '-1'
+  ERROR STOP 1
 ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
 END IF
@@ -570,18 +581,18 @@ IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A10,A)')   ' ERROR:   ','tried to read BuildContinue.reggie'
   SWRITE(UNIT_stdOut,'(A10,A)') ' temp:    ',temp
   SWRITE(UNIT_stdOut,'(A10,I5)') ' iSTATUS: ',iSTATUS
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 CALL str2int(temp,BuildContinueNumber,iSTATUS)
 IF(iSTATUS.NE.0) THEN
   SWRITE(UNIT_stdOut,'(A22,A)')  ' ERROR:             ','tried to read BuildContinue.reggie, str2int failed'
   SWRITE(UNIT_stdOut,'(A22,I5)') ' BuildContinueNumber: ',BuildContinueNumber
   SWRITE(UNIT_stdOut,'(A22,I5)') ' iSTATUS:             ',iSTATUS
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 IF(BuildContinueNumber.LT.0) THEN
   SWRITE(UNIT_stdOut,'(A22,A)')   ' ERROR:             ','BuildContinueNumber is < 0'
-  ERROR STOP '-1'
+  ERROR STOP 1
 END IF
 END SUBROUTINE GetBuildContinue
 

@@ -27,7 +27,8 @@ INTEGER                               :: nTotal_vol    !loop i,j,k
 INTEGER                               :: nTotal_face   !loop i,j
 ! interior face values for all elements
 REAL,ALLOCATABLE                      :: U_master(:,:,:,:),U_slave(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux(:,:,:,:)
+REAL,ALLOCATABLE                      :: Flux_Master(:,:,:,:)
+REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
 LOGICAL                               :: DGInitIsDone=.FALSE.
 !===================================================================================================================================
 END MODULE MOD_DG_Vars

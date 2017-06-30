@@ -1898,10 +1898,12 @@ DO iSpec=1,nSpecies
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('gyrotron_circle')
       Radius=Species(iSpec)%Init(iInit)%RadiusIC+Species(iSpec)%Init(iInit)%RadiusICGyro
-      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
+      !xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
+      !     SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
+      !ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
+      !     SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
+      xlen=Radius
+      ylen=Radius
       zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
            SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
       IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE.0)THEN
@@ -1911,6 +1913,7 @@ DO iSpec=1,nSpecies
         dt = CALCTIMESTEP()
 #endif /*PP_HDG*/
         lineVector(1:3)= dt* Species(iSpec)%Init(iInit)%VeloIC/Species(iSpec)%Init(iInit)%alpha 
+        zlen=0.
       END IF
       xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
       xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)

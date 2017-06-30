@@ -197,9 +197,9 @@ CASE(0) ! Particles
 #ifdef PARTICLES
 !  DO iElem=1,PP_nElems
 !    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-!      !  Get source from Particles
-!      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
-!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
+!      !  Get PartSource from Particles
+!      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * PartSource(1:3,i,j,k,iElem)
+!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * PartSource(  4,i,j,k,iElem) * c_corr 
 !    END DO; END DO; END DO
 !  END DO
 #endif /*PARTICLES*/
@@ -237,7 +237,7 @@ SUBROUTINE CalcSourceHDG(t,i,j,k,iElem,resu, Phi)
 ! MODULES
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
-USE MOD_PICDepo_Vars,ONLY:source,DoDeposition
+USE MOD_PICDepo_Vars,ONLY:PartSource,DoDeposition
 USE MOD_Equation_Vars,ONLY:Pi, eps0, mu0
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
@@ -264,8 +264,8 @@ INTEGER                         :: RegionID
 !===================================================================================================================================
 #ifdef PARTICLES
 IF(DoDeposition)THEN
-  Resu(1:3) = - source(1:3,i,j,k,iElem)*mu0
-  Resu(4) = - source(4,i,j,k,iElem)/eps0
+  Resu(1:3) = - PartSource(1:3,i,j,k,iElem)*mu0
+  Resu(4) = - PartSource(4,i,j,k,iElem)/eps0
 END IF
 #endif /*PARTICLES*/
 SELECT CASE (IniExactFunc)

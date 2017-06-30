@@ -414,7 +414,7 @@ SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
+USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps
 USE MOD_Mesh_Vars,               ONLY:offsetElem
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,LastPartPos
@@ -842,7 +842,10 @@ CASE(1)
   END DO 
   IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
 CASE(2) 
-  IF(ElemID.GT.PP_nElems) Xi(:)=(/0.,0.,0./)
+  IF(ElemID.GT.PP_nElems) THEN
+    Xi(:)=(/0.,0.,0./)
+    RETURN
+  END IF
   ! compute distance on Gauss Points
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
@@ -877,7 +880,7 @@ CASE(3)
     END IF
   END DO; END DO; END DO
 CASE(4)
-  ! trival guess 
+  ! trivial guess 
   xi=0.
 END SELECT
 

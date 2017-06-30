@@ -340,7 +340,7 @@ AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
 
-SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter)
+SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter_In)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
@@ -349,6 +349,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
+USE MOD_Restart_Vars,          ONLY: DoRestart
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 #endif
@@ -388,7 +389,6 @@ USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundi
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #endif /*MPI*/
-USE MOD_LoadBalance_Vars,      ONLY: WeightOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -397,7 +397,7 @@ REAL,INTENT(INOUT)            :: t
 REAL,INTENT(IN)               :: tenddiff
 INTEGER(KIND=8),INTENT(INOUT) :: iter
 LOGICAL,INTENT(IN)            :: forceAnalyze,output
-LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
+LOGICAL,INTENT(IN),OPTIONAL   :: LastIter_In
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -418,20 +418,20 @@ REAL                          :: tLBStart,tLBEnd
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 CHARACTER(LEN=255)            :: outfile
+LOGICAL                       :: LastIter
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load blaaaance
 IF(MPIRoot)THEN
   IF(iter.EQ.0)THEN
-    WeightOutput=0. ! initialize with 0.
     outfile='ElemTimeStatistics.csv'
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
     WRITE(ioUnit,'(A25)',ADVANCE='NO') "time"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MinWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MaxWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "CurrentImbalance"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "TargetWeight (mean)"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MinWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MaxWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",CurrentImbalance"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",TargetWeight (mean)"
     WRITE(ioUnit,'(A1)') ' '
     CLOSE(ioUnit) 
   END IF
@@ -442,6 +442,11 @@ END IF
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
 !IF(iter.EQ.0) RETURN
 #endif
+
+LastIter=.FALSE.
+IF(PRESENT(LastIter_in))THEN
+  IF(LastIter_in) LastIter=.TRUE.
+END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
@@ -456,15 +461,28 @@ IF (CalcPoyntingInt) THEN
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 #if (PP_nVar>=6)
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-  IF(forceAnalyze)THEN
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
+    ! initial analysis is only performed for NO restart
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
+     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+#if defined(LSERK)
+    ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+    ! is triggered with prolong-to-face, which would else be missing    
     IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
-  END IF ! ForceAnalyze
-  IF(PRESENT(LastIter) .AND. LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #else
-  IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
+    IF(.NOT.LastIter)THEN
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    END IF
+#endif
+  END IF ! ForceAnalyze
+#if defined(LSERK)
+  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
+  IF(LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+#else
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #endif
 #endif
 #ifdef MPI
@@ -493,22 +511,41 @@ END IF
 IF (DoAnalyze)  THEN
 #ifdef PARTICLES 
   ! particle analyze
-  IF(forceAnalyze)THEN
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
+    ! initial analysis is only performed for NO restart
     CALL AnalyzeParticles(t)
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeParticles(t) 
+    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+      .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+       CALL AnalyzeParticles(t)
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t) 
+#if defined(LSERK)
+  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
+  IF(LastIter) CALL AnalyzeParticles(t)
+#else
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
+#endif
 #else /*pure DGSEM */
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-  IF(ForceAnalyze)THEN
-    CALL AnalyzeField(t) 
+  ! analyze field
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
+    ! initial analysis is only performed for NO restart
+    CALL AnalyzeField(t)
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeField(t) 
+    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
+    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+      .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+       CALL AnalyzeField(t)
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeField(t) 
+#if defined(LSERK)
+  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
+  IF(LastIter) CALL AnalyzeField(t)
+#else
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(t)
+#endif
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
@@ -611,7 +648,7 @@ IF (DoAnalyze)  THEN
   ELSE
     IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(t) 
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter)THEN
+  IF(LastIter)THEN
     CALL CodeAnalyzeOutput(t) 
     SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks

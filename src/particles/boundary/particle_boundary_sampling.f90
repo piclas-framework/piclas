@@ -207,7 +207,6 @@ END DO
 ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides)) 
 SurfMesh%SurfaceArea=0.
 
-
 ALLOCATE(Xi_NGeo( 0:NGeo)  &
         ,wGP_NGeo(0:NGeo) )
 CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
@@ -246,6 +245,20 @@ DO iSide=1,nTotalSides
     END DO ! iSample=1,nSurfSample
   END DO ! jSample=1,nSurfSample
 END DO ! iSide=1,nTotalSides
+
+! get the full area of the BC's of all faces
+Area=0.
+DO iSide=1,nBCSides
+  SurfSideID=SurfMesh%SideIDToSurfID(iSide)
+  IF(SurfSideID.EQ.-1) CYCLE
+  Area = Area + SUM(SurfMesh%SurfaceArea(:,:,SurfSideID))
+END DO ! iSide=1,nTotalSides
+
+#ifdef MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
+#endif /*MPI*/
+
+SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Surface-Area: ', Area
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 

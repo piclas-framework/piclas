@@ -6,6 +6,7 @@ MODULE MOD_PML
 !  
 !===================================================================================================================================
 ! MODULES
+USE MOD_io_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -23,19 +24,11 @@ END INTERFACE
 INTERFACE CalcPMLSource
   MODULE PROCEDURE CalcPMLSource
 END INTERFACE
-INTERFACE TransformPMLVars
-  MODULE PROCEDURE TransformPMLVars
-END INTERFACE
 INTERFACE PMLTimeDerivative
   MODULE PROCEDURE PMLTimeDerivative
 END INTERFACE
-INTERFACE BacktransformPMLVars
-  MODULE PROCEDURE BacktransformPMLVars
-END INTERFACE
-INTERFACE ProbePML
-  MODULE PROCEDURE ProbePML
-END INTERFACE
-PUBLIC::InitPML,FinalizePML,CalcPMLSource,TransformPMLVars,PMLTimeDerivative,BacktransformPMLVars,ProbePML
+
+PUBLIC::InitPML,FinalizePML,CalcPMLSource,PMLTimeDerivative
 !===================================================================================================================================
 CONTAINS
 
@@ -47,10 +40,9 @@ SUBROUTINE InitPML()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t,Probes,DoPML,ntotalPML
-USE MOD_PML_Vars,            ONLY: nPMLElems,ElemtoPML,PMLtoElem
-USE MOD_PML_Vars,            ONLY: PMLzeta0,xyzPhysicalMinMax,PMLzetaShape,PMLspread,PMLwritezeta, PMLzetaNorm
-USE MOD_Mesh_Vars,           ONLY: Elem_xGP,Face_xGP,nBCSides  ! for PML region: xyz position of the Gauss points and Face Gauss points
+USE MOD_PML_Vars
+USE MOD_HDF5_output,   ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_HDF5_output,   ONLY: WritePMLzetaGlobalToHDF5
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -59,310 +51,124 @@ USE MOD_Mesh_Vars,           ONLY: Elem_xGP,Face_xGP,nBCSides  ! for PML region:
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: i,j,k,iElem,iProbe,iPMLElem
-REAL                :: xyzMinMax(6),xi,L,XiN
-REAL                :: zetaVec,zetaVecABS
-LOGICAL,ALLOCATABLE :: isPMLElem(:)
-INTEGER             :: PMLID,nGlobalPMLElems
+INTEGER              :: I
 !===================================================================================================================================
-
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
-
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
-
-
-! get information of PML size
+DoPML                  = GETLOGICAL('DoPML','.FALSE.')
 PMLzeta0               = GETREAL('PMLzeta0','0.')
+PMLalpha0              = GETREAL('PMLalpha0','0.')
 xyzPhysicalMinMax(1:6) = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+xyzPMLMinMax(1:6)      = GETREALARRAY('xyzPMLMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+! use xyzPhysicalMinMax before xyzPMLMinMax: 1.) check for xyzPhysicalMinMax 2.) check for xyzPMLMinMax
+IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMax),MINVAL(xyzPhysicalMinMax)))THEN ! if still the initialized values
+  xyzPhysicalMinMax(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+  IF(ALMOSTEQUAL(MAXVAL(xyzPMLMinMax),MINVAL(xyzPMLMinMax)))THEN ! if still the initialized values
+    xyzPMLMinMax(1:4)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+    usePMLMinMax=.FALSE. ! ! xyzPhysicalMinMax and xyzPMLMinMax are undefined -> use HUGE for both
+    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPhysicalMinMax(1:6): Setting [+-HUGE]"
+    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPMLMinMax(1:6)     : Setting [+-HUGE]"
+  ELSE
+    SWRITE(UNIT_stdOut,'(A)')"PML region supplied via xyzPMLMinMax(1:6)"
+    usePMLMinMax=.TRUE. ! xyzPhysicalMinMax is undefined but xyzPMLMinMax is not
+  END IF
+ELSE
+  SWRITE(UNIT_stdOut,'(A)')"PML region supplied via xyzPhysicalMinMax(1:6)"
+END IF
+! display ranges of PML region depending on usePMLMinMax
+SWRITE(UNIT_stdOut,'(A,L)') 'usePMLMinMax=',usePMLMinMax
+IF(.NOT.usePMLMinMax)THEN
+  SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMax(1:6) are'
+  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I-1)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+ELSE
+  SWRITE(UNIT_stdOut,'(A)') 'Ranges for xyzPMLMinMax(1:6) are'
+  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPMLMinMax(2*I-1)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPMLMinMax(2*I)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+END IF
+
 PMLzetaShape           = GETINT('PMLzetaShape','0')
+PMLRampLength          = GETREAL('PMLRampLength','1.')
 PMLspread              = GETINT('PMLspread','0')
-PMLwriteZeta           = GETINT('PMLwriteZeta','0')
+PMLwriteFields         = GETINT('PMLwriteFields','0')
 PMLzetaNorm            = GETLOGICAL('PMLzetaNorm','.FALSE.')
+
+PMLprintInfo           = GETINT('PMLprintInfo','0') ! 0=only root prints PML info, 1=all procs print PML info
+IF(PMLprintInfo.EQ.0)THEN
+  PMLprintInfoProcs=1 ! only root prints infos
+ELSE
+  PMLprintInfoProcs=nProcessors ! all procs print their infos
+END IF
+! caution, in current version read in in mesh
 ! only for Maxwell, PP_nVar=8
-#if PP_nVar == 8
-  DoPML                = GETLOGICAL('DoPML','.FALSE.')
-#else
-  DoPML=.FALSE.
-#endif
 
 IF(.NOT.DoPML) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' No PML region detected. '
-#if PP_nVar == 1
-  SWRITE(UNIT_stdOut,'(A)') ' Equation system does not support a PML '
-#endif
-#if PP_nVar == 4
-  SWRITE(UNIT_stdOut,'(A)') ' Equation system electrostatic does not support a PML '
-#endif
+  SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
+  PMLnVar=0
   nPMLElems=0
   RETURN
+ELSE
+#if PP_nVar == 1
+  CALL abort(__STAMP__,&
+      'Equation system does not support a PML!',999,999.)
+#endif
+#if PP_nVar == 4
+  CALL abort(__STAMP__,&
+      'Equation system does not support a PML!',999,999.)
+#endif
+  PMLnVar=24
 END IF
 
-ALLOCATE(Probes%Distance(3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-Probes%Distance=HUGE(1.)! Set Probes%Distance to a large number (lowest number counts later on)
-!print *, "xyzPhysicalMinMax",xyzPhysicalMinMax
-!print *, "PMLzeta size & shape",SIZE(PMLzeta),shape(PMLzeta)
-!print *, "U2 size & shape  ",SIZE(U2),shape(U2)
-!print *, "PMLzeta0",PMLzeta0
+! find all elements in the PML region. Here: find all elements located outside of 'xyzPhysicalMinMax' 
+CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.)
 
-!===================================================================================================================================
-! check if Element is PMLElem
-!===================================================================================================================================
+! find all faces in the PML region
+CALL FindInterfaces(isPMLFace,isPMLInterFace,isPMLElem)
 
-ALLOCATE(isPMLElem(1:PP_nElems))
-isPMLElem=.FALSE.
+! Get number of PML Elems, Faces and Interfaces. Create Mappngs PML <-> physical region
+CALL CountAndCreateMappings('PML',&
+                            isPMLElem,isPMLFace,isPMLInterFace,&
+                            nPMLElems,nPMLFaces, nPMLInterFaces,&
+                            ElemToPML,PMLToElem,&
+                            FaceToPML,PMLToFace,&
+                            FaceToPMLInter,PMLInterToFace)
 
-DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! x-PML region
-  IF (Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(1) .OR. Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(2)) THEN        
-    isPMLElem(iElem) = .TRUE.
-  END IF
-  ! y-PML region
-  IF (Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(3) .OR. Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(4)) THEN        
-    isPMLElem(iElem) = .TRUE.
-  END IF
-  ! z-PML region
-  IF (Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(5) .OR. Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(6)) THEN        
-    isPMLElem(iElem) = .TRUE.
-  END IF
-END DO; END DO; END DO; END DO !iElem,k,i,j
+! nPMLElems is determined, now allocate the PML field correnspondingly
+ALLOCATE(U2       (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))        
+ALLOCATE(U2t      (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
+U2=0.
+U2t=0.
 
-! Get number of PML Elems
-nPMLElems = 0
+! Set the damping profile function zeta=f(x,y) in the PML region
+CALL SetPMLdampingProfile()
 
-DO iElem=1,PP_nElems
-  IF(isPMLElem(iElem))THEN
-    nPMLElems=nPMLElems+1
-  END IF
-END DO ! iElem
+! create a HDF5 file containing the PMLzetaGlobal field
+CALL WritePMLzetaGlobalToHDF5()
 
-#ifdef MPI
-  CALL MPI_REDUCE(nPMLElems,nGlobalPMLElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-#else
-  nGlobalPMLElems=nPMLElems
-#endif /*MPI*/
-SWRITE(UNIT_stdOut,'(A,I10,A)') ' Found ', nGlobalPMLElems,' Elems inside of PML region.'
-
-ALLOCATE(ElemToPML(PP_nElems)&
-        ,PMLtoElem(nPMLElems))
-
-ElemToPML=0
-PMLtoElem=0
-
-! Create array with mapping
-PMLID=0
-DO iElem=1,PP_nElems
-  IF(isPMLElem(iElem))THEN
-    PMLID=PMLID+1
-    ElemToPML(iElem) = PMLID
-    PMLToElem(PMLID) = iElem
-  END IF
-END DO
-
-DEALLOCATE(isPMLElem)
-ALLOCATE(PMLzeta(1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
-ALLOCATE(U2     (1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))        
-ALLOCATE(U2t    (1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
-nTotalPML=6*(PP_N+1)**3
-! zero
-PMLzeta=0.
-U2 =0.0
-U2t=0.0
-
-!===================================================================================================================================
-!determine PMLzeta values for each interpolation point
-!===================================================================================================================================
-xyzMinMax(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:nBCSides)),MINVAL(Face_xGP(2,:,:,1:nBCSides)),&
-                 MAXVAL(Face_xGP(2,:,:,1:nBCSides)),MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
-!print *, "xyzMinMax",xyzMinMax
-SELECT CASE (PMLzetaShape)
-CASE(0) ! Constant Distribution of the Damping Coefficient
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        ! x-PML region
-        IF (Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(1) .OR. Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(2)) THEN        
-          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0
-        END IF
-        ! y-PML region
-        IF (Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(3) .OR. Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(4)) THEN        
-          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0
-        END IF
-        ! z-PML region
-        IF (Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(5) .OR. Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(6)) THEN        
-          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0
-        END IF
-  END DO; END DO; END DO; END DO !iElem,k,i,j
-CASE(1) ! Linear Distribution of the Damping Coefficient
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        ! x-PML region
-        IF     (Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(1)) THEN        
-          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(1)))/&
-                                      (ABS(xyzMinMax(1))-ABS(xyzPhysicalMinMax(1)))
-        ELSEIF (Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(2)) THEN
-          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(2)))/&
-                                      (ABS(xyzMinMax(2))-ABS(xyzPhysicalMinMax(2)))
-        END IF
-        ! y-PML region
-        IF     (Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(3)) THEN        
-          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(3)))/&
-                                      (ABS(xyzMinMax(3))-ABS(xyzPhysicalMinMax(3)))
-        ELSEIF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(4)) THEN    
-          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(4)))/&
-                                      (ABS(xyzMinMax(4))-ABS(xyzPhysicalMinMax(4)))
-        END IF
-        ! z-PML region
-        IF     (Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(5)) THEN        
-          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(5)))/&
-                                      (ABS(xyzMinMax(5))-ABS(xyzPhysicalMinMax(5)))
-        ELSEIF (Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(6)) THEN    
-          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(6)))/&
-                                      (ABS(xyzMinMax(6))-ABS(xyzPhysicalMinMax(6)))
-        END IF
-  END DO; END DO; END DO; END DO !iElem,k,i,j
-CASE(2) ! Sinusoidal  Distribution of the Damping Coefficient
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        ! x-PML region
-        IF     (Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(1)) THEN
-          xi                  = ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(1))
-          L                   = ABS(xyzMinMax(1))-ABS(xyzPhysicalMinMax(1))
-          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
-        ELSEIF (Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(2)) THEN
-          xi                  = ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(2))
-          L                   = ABS(xyzMinMax(2))-ABS(xyzPhysicalMinMax(2))
-          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
-        END IF
-        ! y-PML region
-        IF     (Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(3)) THEN
-          xi                  = ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(3))
-          L                   = ABS(xyzMinMax(3))-ABS(xyzPhysicalMinMax(3))
-          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
-        ELSEIF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(4)) THEN
-          xi                  = ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(4))
-          L                   = ABS(xyzMinMax(4))-ABS(xyzPhysicalMinMax(4))
-          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
-        END IF
-        ! z-PML region
-        IF     (Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(5)) THEN
-          xi                  = ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(5))
-          L                   = ABS(xyzMinMax(5))-ABS(xyzPhysicalMinMax(5))
-          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
-        ELSEIF (Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(6)) THEN
-          xi                  = ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(6))
-          L                   = ABS(xyzMinMax(6))-ABS(xyzPhysicalMinMax(6))
-          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
-        ENDIF 
-  END DO; END DO; END DO; END DO !iElem,k,i,j
-CASE(3) ! polynomial
-        ! f''(0) = 0, f'(1) = 0
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        ! x-PML region
-        IF     (Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(1)) THEN
-          xi                  = ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(1))
-          L                   = ABS(xyzMinMax(1))-ABS(xyzPhysicalMinMax(1))
-          XiN                 = xi/L
-          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
-        ELSEIF (Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(2)) THEN
-          xi                  = ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(2))
-          L                   = ABS(xyzMinMax(2))-ABS(xyzPhysicalMinMax(2))
-          XiN                 = xi/L
-          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
-        END IF
-        ! y-PML region
-        IF     (Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(3)) THEN
-          xi                  = ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(3))
-          L                   = ABS(xyzMinMax(3))-ABS(xyzPhysicalMinMax(3))
-          XiN                 = xi/L
-          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
-        ELSEIF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(4)) THEN
-          xi                  = ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(4))
-          L                   = ABS(xyzMinMax(4))-ABS(xyzPhysicalMinMax(4))
-          XiN                 = xi/L
-          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
-        END IF
-        ! z-PML region
-        IF     (Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(5)) THEN
-          xi                  = ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(5))
-          L                   = ABS(xyzMinMax(5))-ABS(xyzPhysicalMinMax(5))
-          XiN                 = xi/L
-          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
-        ELSEIF (Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(6)) THEN
-          xi                  = ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(6))
-          L                   = ABS(xyzMinMax(6))-ABS(xyzPhysicalMinMax(6))
-          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
-          XiN                 = xi/L
-        PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
-      ENDIF 
-END DO; END DO; END DO; END DO !iElem,k,i,j
-
-CASE DEFAULT
-!  CALL abort(__STAMP__,'Shape function for damping coefficient in PML region not specified!',999,999.)
-END SELECT ! PMLzetaShape
-
-!Test: Set All PMLzeta values for a direction to PMLzeta
-IF (PMLspread.EQ.1) THEN
-  DO iElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        IF (PMLzeta(1,i,j,k,iElem) .GT. 0.0) PMLzeta(:,i,j,k,iElem)=PMLzeta(1,i,j,k,iElem)
-        IF (PMLzeta(2,i,j,k,iElem) .GT. 0.0) PMLzeta(:,i,j,k,iElem)=PMLzeta(2,i,j,k,iElem)
-        IF (PMLzeta(3,i,j,k,iElem) .GT. 0.0) PMLzeta(:,i,j,k,iElem)=PMLzeta(3,i,j,k,iElem) 
-  END DO; END DO; END DO; END DO !iElem,k,i,j
-END IF
-
-!PMLzetaNorm=.TRUE.
-! Normalize zeta if multiple direction
-IF (PMLzetaNorm) THEN
-  DO iElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        zetaVecABS=SQRT(PMLzeta(1,i,j,k,iElem)**2 &
-                       +PMLzeta(2,i,j,k,iElem)**2 &
-                       +PMLzeta(3,i,j,k,iElem)**2 )
-        zetaVec=MAX(PMLzeta(1,i,j,k,iElem),0.)
-        zetaVec=MAX(PMLzeta(2,i,j,k,iElem),zetaVec)
-        zetaVec=MAX(PMLzeta(3,i,j,k,iElem),zetaVec)
-        PMLzeta(:,i,j,k,iElem) = PMLzeta(:,i,j,k,iElem)/zetaVecABS*zetaVec
-  END DO; END DO; END DO; END DO !iElem,k,i,j
-END IF
-
-!===================================================================================================================================
-! write PMLzeta field
-!===================================================================================================================================
-IF (PMLwritezeta.EQ.1) THEN
-  OPEN(unit=110,file='PMLzeta.dat',status='unknown')
-  DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        write(110,'(ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7)')&
-                   Elem_xGP(1,i,j,k,PMLtoElem(iPMLElem)),'  ', &
-                   Elem_xGP(2,i,j,k,PMLtoElem(iPMLElem)),'  ', &
-                   Elem_xGP(3,i,j,k,PMLtoElem(iPMLElem)),'  ', &
-                   PMLzeta(1,i,j,k,iPMLElem),'  ',             &
-                   PMLzeta(2,i,j,k,iPMLElem),'  ',             &
-                   PMLzeta(3,i,j,k,iPMLElem)
-  END DO; END DO; END DO; END DO !iElem,k,j,i
-  CLOSE(110)
-END IF
-!===================================================================================================================================
-! find element index for probe points
-!===================================================================================================================================
-Probes%Coordinates(1,:)=(/5.9,5.9,5.9/)
-Probes%Coordinates(2,:)=(/5.9,5.9,0.0/)
-Probes%Coordinates(3,:)=(/5.9,0.0,0.0/)
-DO iProbe=1,3;
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    Probes%Distance(iProbe,i,j,k,iElem)=SQRT((Elem_xGP(1,i,j,k,iElem)-Probes%Coordinates(iProbe,1))**2+&
-                                             (Elem_xGP(2,i,j,k,iElem)-Probes%Coordinates(iProbe,2))**2+&
-                                             (Elem_xGP(3,i,j,k,iElem)-Probes%Coordinates(iProbe,3))**2)
-  END DO; END DO; END DO; END DO;
-  !print *, "MINVAL(Probes%Distance(iProbe,:,:,:,:))        ",MINVAL(Probes%Distance(iProbe,:,:,:,:))
-  Probes%iElemMinLoc(iProbe,:)=MINLOC(Probes%Distance(iProbe,:,:,:,:))-(/1,1,1,0/) !weil I,J,K bei 0 beginnen
-  !print *, "MINLOC(Probes%Distance(iProbe,:,:,:,:))        ",MINLOC(Probes%Distance(iProbe,:,:,:,:))
-  Probes%Element(iProbe)=Probes%iElemMinLoc(iProbe,4)
-  !print *, "Probes%Element(iProbe)                         ",Probes%Element(iProbe)
-  !print *, "Probes%iElemMinLoc(iProbe,:)                 ",Probes%iElemMinLoc(iProbe,:)
-END DO !iProbe,iElem,k,i,j
-!NodeMap(:,1)=(/1,4,3,2/)
-!RESULT = MINVAL(ARRAY, DIM [, MASK]) 
-
-SWRITE(UNIT_stdOut,'(A)') ' INIT PML DONE...'
+PMLInitIsDone=.TRUE.
+SWRITE(UNIT_stdOut,'(A)')' INIT PML DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-
 END SUBROUTINE InitPML
 
 
@@ -373,10 +179,451 @@ SUBROUTINE CalcPMLSource()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,       ONLY: abort
-USE MOD_DG_Vars,       ONLY: Ut,U
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
+USE MOD_DG_Vars,       ONLY: Ut
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
 USE MOD_PML_Vars,      ONLY: PMLzeta,U2
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: i,j,k,iPMLElem,m
+!===================================================================================================================================
+! sources for the standard variables
+DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  DO m=1,8
+    Ut(m,i,j,k,PMLToElem(iPMLElem)) = Ut(m,i,j,k,PMLToElem(iPMLElem))  &
+                                     -PMLzeta(1,i,j,k,iPMLElem)*U2(m*3-2,i,j,k,iPMLElem) &   ! = 1,4,7,10,13,16,19,22
+                                     -PMLzeta(2,i,j,k,iPMLElem)*U2(m*3-1,i,j,k,iPMLElem) &   ! = 2,5,8,11,12,17,20,23
+                                     -PMLzeta(3,i,j,k,iPMLElem)*U2(m*3  ,i,j,k,iPMLElem)     ! = 3,6,9,12,15,18,21,24
+  END DO
+END DO; END DO; END DO !nPMLElems,k,j,i
+END DO
+END SUBROUTINE CalcPMLSource
+
+
+SUBROUTINE PMLTimeDerivative()
+!===================================================================================================================================
+! 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_PML_Vars,      ONLY: U2,U2t
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLnVar
+USE MOD_Mesh_Vars,     ONLY: sJ
+USE MOD_PML_Vars,      ONLY: PMLzetaEff
+USE MOD_Equation_Vars, ONLY: fDamping
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: i,j,k,iPMLElem,iPMLVar
+!===================================================================================================================================
+! We have to take the inverse of the Jacobians into account
+! the '-' sign is due to the movement of the term to the right-hand-side of the equation
+DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  DO iPMLVar=1,PMLnVar
+    U2t(iPMLVar,i,j,k,iPMLElem) = - U2t(iPMLVar,i,j,k,iPMLElem) * sJ(i,j,k,PMLToElem(iPMLElem))
+  END DO
+END DO; END DO; END DO; END DO !nPMLElems,k,j,i
+
+
+! Add Source Terms
+DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  U2t(1 : 3,i,j,k,iPMLElem) = U2t(1 : 3,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(1 : 3,i,j,k,iPMLElem)
+  U2t(4 : 6,i,j,k,iPMLElem) = U2t(4 : 6,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(4 : 6,i,j,k,iPMLElem)
+  U2t(7 : 9,i,j,k,iPMLElem) = U2t(7 : 9,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(7 : 9,i,j,k,iPMLElem)
+  U2t(10:12,i,j,k,iPMLElem) = U2t(10:12,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(10:12,i,j,k,iPMLElem)
+  U2t(13:15,i,j,k,iPMLElem) = U2t(13:15,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(13:15,i,j,k,iPMLElem)
+  U2t(16:18,i,j,k,iPMLElem) = U2t(16:18,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(16:18,i,j,k,iPMLElem)
+  U2t(19:21,i,j,k,iPMLElem) = U2t(19:21,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(19:21,i,j,k,iPMLElem)
+  U2t(22:24,i,j,k,iPMLElem) = U2t(22:24,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(22:24,i,j,k,iPMLElem)
+END DO; END DO; END DO; END DO !nPMLElems,k,j,i
+
+
+! 1.) DEBUGPML: apply the damping factor also to PML source terms
+! copied from: U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
+!U2 = U2 * fDamping
+
+! 2.) DEBUGPML: apply the damping factor only to PML variables for Phi_E and Phi_B
+!               to prevent charge-related instabilities (accumulation of divergence compensation over time)
+U2(19:24,:,:,:,:) = fDamping* U2(19:24,:,:,:,:) 
+
+END SUBROUTINE PMLTimeDerivative
+
+
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside)
+!===================================================================================================================================
+! Check 
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals,       ONLY:abort,myrank,UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals,       ONLY:MPI_COMM_WORLD
+#endif /*MPI*/
+USE MOD_Mesh_Vars,     ONLY:Elem_xGP
+USE MOD_PML_Vars,      ONLY:PMLprintInfoProcs
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: ElementIsInside
+REAL,INTENT(IN)    :: region(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iElem,i,j,k,m
+!===================================================================================================================================
+ALLOCATE(isElem(1:PP_nElems))
+isElem=.FALSE.
+! PML elements are inside of the xyPMLMinMax region
+#ifdef MPI
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+#endif /*MPI*/
+  WRITE(UNIT_stdOut,'(A,6E15.6)')"Checking region:", region
+#ifdef MPI
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+#endif /*MPI*/
+IF(ElementIsInside)THEN
+  isElem(:)=.TRUE.  !print*,"for elemens inside"
+ELSE
+  isElem(:)=.FALSE. !print*,"for elemens outside"
+END IF
+
+DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  DO m=1,3 ! m=x,y,z
+    IF ( (Elem_xGP(m,i,j,k,iElem) .LT. region(2*m-1)) .OR. & ! 1,3,5
+         (Elem_xGP(m,i,j,k,iElem) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+    END IF
+  END DO
+END DO; END DO; END DO; END DO !iElem,k,j,i
+
+
+#ifdef MPI
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+#endif /*MPI*/
+    IF(ElementIsInside)THEN
+      WRITE(UNIT_stdOut,'(A,I12)')"No. of elements INSIDE region: ",COUNT(isElem)
+    ELSE
+      WRITE(UNIT_stdOut,'(A,I12)')"No. of elements OUTSIDE region: ",COUNT(isElem)
+    END IF
+#ifdef MPI
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+#endif /*MPI*/
+
+END SUBROUTINE  FindElementInRegion
+
+
+SUBROUTINE FindInterfaces(isFace,isInterFace,isElem)
+!===================================================================================================================================
+! Check if a face is in a special region (e.g. PML) and/or connects a special region (e.g. PML) to the physical region
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+!USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD!,nProcessors
+USE MOD_Globals!,       ONLY: UNIT_stdOut,iError
+USE MOD_Mesh_Vars,     ONLY: nSides,nBCSides
+USE MOD_PML_vars,      ONLY: PMLprintInfoProcs
+#ifdef MPI
+USE MOD_MPI_Vars
+USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+!USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems)
+!CHARACTER(LEN=*),INTENT(IN)       :: TypeName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Plus,isFace_Minus,isFace_combined
+INTEGER                                 :: iSide
+INTEGER                                 :: I!,SideCounterUnity,SideCounterUnityGlobal
+LOGICAL                                 :: printInfo
+!===================================================================================================================================
+ALLOCATE(isFace(1:nSides))
+ALLOCATE(isInterFace(1:nSides))
+isFace=.FALSE.
+isInterFace=.FALSE.
+printInfo=.FALSE.
+
+! Check each element for being part of the, e.g. PML, region: set each of the 6 sides to be .TRUE.
+!DO iElem=1,PP_nElems
+  !IF(.NOT.isElem(iElem))CYCLE
+  !DO ilocSide =1,6
+    !SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    !isFace(SideID)=.TRUE.
+  !END DO ! ilocSide=1,6
+!END DO ! iElem=1,PP_nElems
+
+! ---------------------------------------------
+! For MPI sides send the info to all other procs
+isFace_Plus=0.
+isFace_Minus=0.
+isFace_combined=0.
+CALL ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.FALSE.)
+#ifdef MPI
+CALL ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.TRUE.)
+
+! send my info to neighbor 
+CALL StartReceiveMPIData(1,isFace_Plus,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,isFace_Plus,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+
+CALL StartReceiveMPIData(1,isFace_Minus,1,nSides ,RecRequest_U,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   1,isFace_Minus,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
+
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
+CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U,SendID=1) !Send MINE -receive YOUR
+#endif /*MPI*/
+
+! add isFace_Minus to isFace_Plus and send
+isFace_combined=2*isFace_Plus+isFace_Minus
+! use numbering:    2*isFace_Plus+isFace_Minus  = 1: Minus side is PML
+!                                                 2: Plus  side is PML
+!                                                 3: both sides are PML sides
+!                                                 0: normal face in physical region
+
+DO iSide=1,nSides
+  IF(isFace_combined(1,0,0,iSide).GT.0)THEN
+    isFace(iSide)=.TRUE. ! mixed or pure PML face:  when my side is not PML but neighbor is PML
+    IF((isFace_combined(1,0,0,iSide).EQ.1).OR.&
+       (isFace_combined(1,0,0,iSide).EQ.2))THEN
+        isInterFace(iSide)=.TRUE. ! set all mixed faces as InterFaces, exclude BCs later on
+    END IF
+  END IF
+END DO
+isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
+
+!SideCounterUnity=0
+!DO iSide=1,nSides
+  !IF(isFace_combined(1,0,0,iSide).GT.0)THEN
+    !SideCounterUnity=SideCounterUnity+1
+  !END IF
+!END DO
+!print*,SideCounterUnity
+!CALL MPI_REDUCE(SideCounterUnity,SideCounterUnityGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!DO I=0,PMLprintInfoProcs-1
+  !IF(I.EQ.myrank)THEN
+    !WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    !' myrank=',myrank,' Found ',SideCounterUnityGlobal,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+  !END IF
+  !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!END DO
+
+! test
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+    DO iSide=nSides,nSides
+      WRITE(UNIT_stdOut,'(A8,I5,A15,I5,A2,L5,A15,I5,A8,I5,A2,L5,A12,I5)')&
+              "myrank=",myrank,&
+       ": isInterFace(",iSide,")=",isInterFace(iSide),&
+       " of total= ",COUNT(isInterFace),&
+       " isFace(",iSide,")=",isFace(iSide),"  of total= ",COUNT(isFace)
+    END DO
+  END IF
+#ifdef MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+#endif /*MPI*/
+END DO
+
+!print*,"should be total 16 (PML-interfaces) and total 100 (PML-faces)"
+!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+END SUBROUTINE  FindInterFaces
+
+
+SUBROUTINE CountAndCreateMappings(TypeName,&
+                                  isElem,isFace,isInterFace,&
+                                  nElems,nFaces, nInterFaces,&
+                                  ElemToX,XToElem,&
+                                  FaceToX,XToFace,&
+                                  FaceToXInter,XInterToFace)
+!===================================================================================================================================
+! 1.) Count the number of Elements, Faces and Interfaces of the PML/BGK/... region
+! 2.) Create mappings from general element to PML/BGK/... element and vice versa
+!                                  face    to PML/BGK/... face or interface and vice vesa
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars,     ONLY: nSides
+USE MOD_PML_vars,      ONLY: PMLprintInfoProcs
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)                :: isElem(:),isFace(:),isInterFace(:)
+CHARACTER(LEN=*),INTENT(IN)       :: TypeName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)             :: nFaces,nInterFaces,nElems
+INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:),FaceToXInter(:),XInterToFace(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iElem,iFace,nGlobalElems,nGlobalFaces,nGlobalInterFaces
+INTEGER                           :: iXElem,iXFace,iXInterFace
+INTEGER                           :: I
+!===================================================================================================================================
+! Get number of Elems
+nFaces = 0
+nInterFaces = 0
+nElems = 0
+DO iFace=1,nSides
+  IF(isFace(iFace))THEN
+    nFaces=nFaces+1
+  END IF
+END DO ! iFace
+DO iFace=1,nSides
+  IF(isInterFace(iFace))THEN
+    nInterFaces=nInterFaces+1
+  END IF
+END DO ! iFace
+DO iElem=1,PP_nElems
+  IF(isElem(iElem))THEN
+    nElems=nElems+1
+  END IF
+END DO ! iElem
+!IF(1.EQ.2)THEN
+!===================================================================================================================================
+! print face number infos
+!===================================================================================================================================
+#ifdef MPI
+nGlobalElems=0     
+nGlobalFaces=0     
+nGlobalInterfaces=0
+IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," PP_nElems=",PP_nElems," nElems=",nElems," nGlobalElems=",nGlobalElems
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," nSides=",nSides," nFaces=",nFaces," nGlobalFaces=",nGlobalFaces
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," nSides=",nSides," nFaces=",nInterFaces," nGlobalFaces=",nGlobalInterFaces
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+!=======================================================================================================================
+! only send info to root
+CALL MPI_REDUCE(nElems     ,nGlobalElems     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_REDUCE(nFaces     ,nGlobalFaces     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_REDUCE(nInterFaces,nGlobalInterFaces,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "============================================================================================"
+IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "CALL MPI_REDUCE(nElems,nGlobalElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)" !testing 
+IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "============================================================================================"
+CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!=======================================================================================================================
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
+#else
+nGlobalElems=nElems
+nGlobalFaces=nFaces
+nGlobalInterFaces=nInterFaces
+WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+      ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
+WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+      ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+      ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
+#endif /*MPI*/
+
+!===================================================================================================================================
+! create  mappings: element<->pml-element
+!                      face<->pml-face
+!                      face<->interface
+!===================================================================================================================================
+ALLOCATE(ElemToX(PP_nElems)&
+        ,XToElem(nElems))
+ALLOCATE(FaceToX(nSides)&
+        ,XToFace(nFaces))
+ALLOCATE(FaceToXInter(nSides)&
+        ,XInterToFace(nInterFaces))
+ElemToX=0
+XToElem=0
+FaceToX=0
+XToFace=0
+FaceToXInter=0
+XInterToFace=0
+! Create array with mapping
+iXElem=0
+DO iElem=1,PP_nElems
+  IF(isElem(iElem))THEN
+    iXElem=iXElem+1
+    ElemToX(iElem) = iXElem
+    XToElem(iXElem) = iElem
+  END IF
+END DO
+iXFace=0
+DO iFace=1,nSides
+  IF(isFace(iFace))THEN
+    iXFace=iXFace+1
+    FaceToX(iFace) = iXFace
+    XToFace(iXFace) = iFace
+  END IF
+END DO
+iXInterFace=0
+DO iFace=1,nSides
+  IF(isInterFace(iFace))THEN
+    iXInterFace=iXInterFace+1
+    FaceToXInter(iFace) = iXInterFace
+    XInterToFace(iXInterFace) = iFace
+  END IF
+END DO
+
+END SUBROUTINE CountAndCreateMappings
+
+
+SUBROUTINE SetPMLdampingProfile()
+!===================================================================================================================================
+! Determine the local PML damping factor in x,y and z-direction using a constant/linear/polynomial/... function
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars,     ONLY: Elem_xGP,Face_xGP,nBCSides!,Face_xGP
+USE MOD_PML_Vars,      ONLY: PMLzeta,PMLzetaEff,PMLalpha,usePMLMinMax,xyzPMLzetaShapeBase!,xyPMLMinMax,PMLRamp
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLprintInfoProcs
+USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape!,PMLRampLength!,PMLwriteFields
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -386,179 +633,252 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iPMLElem
+REAL                :: xyzMinMax(6),xi,XiN!,delta(2),x,y
+REAL                :: xyzMinMaxloc(6)
+REAL                :: function_type
+INTEGER             :: DOFcount,iDir
+REAL                :: L_vec(6)
 !===================================================================================================================================
-DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      Ut(1,i,j,k,PMLtoElem(iPMLElem)) = Ut(1,i,j,k,PMLtoElem(iPMLElem)) - &
-((PMLzeta(2,i,j,k,iPMLElem)+PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(1,i,j,k,iPMLElem))*U(1,i,j,k,PMLtoElem(iPMLElem))+&
-(PMLzeta(1,i,j,k,iPMLElem)-PMLzeta(2,i,j,k,iPMLElem))*(PMLzeta(1,i,j,k,iPMLElem)-PMLzeta(3,i,j,k,iPMLElem))*U2(1,i,j,k,iPMLElem))
-                         
-      Ut(2,i,j,k,PMLtoElem(iPMLElem)) = Ut(2,i,j,k,PMLtoElem(iPMLElem)) - &
-((PMLzeta(1,i,j,k,iPMLElem)+PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(2,i,j,k,iPMLElem))*U(2,i,j,k,PMLtoElem(iPMLElem))+&
-(PMLzeta(2,i,j,k,iPMLElem)-PMLzeta(1,i,j,k,iPMLElem))*(PMLzeta(2,i,j,k,iPMLElem)-PMLzeta(3,i,j,k,iPMLElem))*U2(2,i,j,k,iPMLElem))
-                         
-      Ut(3,i,j,k,PMLtoElem(iPMLElem)) = Ut(3,i,j,k,PMLtoElem(iPMLElem)) - &
-((PMLzeta(1,i,j,k,iPMLElem)+PMLzeta(2,i,j,k,iPMLElem)-PMLzeta(3,i,j,k,iPMLElem))*U(3,i,j,k,PMLtoElem(iPMLElem))+&
-(PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(1,i,j,k,iPMLElem))*(PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(2,i,j,k,iPMLElem))*U2(3,i,j,k,iPMLElem))
-                         
-      Ut(4,i,j,k,PMLtoElem(iPMLElem)) = Ut(4,i,j,k,PMLtoElem(iPMLElem)) - &
-((PMLzeta(2,i,j,k,iPMLElem)+PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(1,i,j,k,iPMLElem))*U(4,i,j,k,PMLtoElem(iPMLElem))+&
-(PMLzeta(1,i,j,k,iPMLElem)-PMLzeta(2,i,j,k,iPMLElem))*(PMLzeta(1,i,j,k,iPMLElem)-PMLzeta(3,i,j,k,iPMLElem))*U2(4,i,j,k,iPMLElem))
-                         
-      Ut(5,i,j,k,PMLtoElem(iPMLElem)) = Ut(5,i,j,k,PMLtoElem(iPMLElem)) - &
-((PMLzeta(1,i,j,k,iPMLElem)+PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(2,i,j,k,iPMLElem))*U(5,i,j,k,PMLtoElem(iPMLElem))+&
-(PMLzeta(2,i,j,k,iPMLElem)-PMLzeta(1,i,j,k,iPMLElem))*(PMLzeta(2,i,j,k,iPMLElem)-PMLzeta(3,i,j,k,iPMLElem))*U2(5,i,j,k,iPMLElem))
-                         
-      Ut(6,i,j,k,PMLtoElem(iPMLElem)) = Ut(6,i,j,k,PMLtoElem(iPMLElem)) - &
-((PMLzeta(1,i,j,k,iPMLElem)+PMLzeta(2,i,j,k,iPMLElem)-PMLzeta(3,i,j,k,iPMLElem))*U(6,i,j,k,PMLtoElem(iPMLElem))+&
-(PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(1,i,j,k,iPMLElem))*(PMLzeta(3,i,j,k,iPMLElem)-PMLzeta(2,i,j,k,iPMLElem))*U2(6,i,j,k,iPMLElem))
-END DO; END DO; END DO; END DO !nPMLElems,k,j,i
-END SUBROUTINE CalcPMLSource
+!ALLOCATE(PMLRamp          (0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
+ALLOCATE(PMLzeta      (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
+ALLOCATE(PMLzetaEff   (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
+ALLOCATE(PMLalpha     (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
+PMLzeta=0.
+!PMLRamp=1. ! goes from 1 to 0
+PMLzetaEff=0.
+PMLalpha=PMLalpha0 ! currently only constant a alpha distribution in the PML region is used
+DOFcount=0
+! get processor local bounding box of faces for damping value ramp
+xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:nBCSides)),&
+                    MINVAL(Face_xGP(2,:,:,1:nBCSides)),MAXVAL(Face_xGP(2,:,:,1:nBCSides)),&
+                    MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
+! get global bounding box of faces for damping value ramp
+#ifdef MPI
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(3),xyzMinMax(3), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(4),xyzMinMax(4), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(5),xyzMinMax(5), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(6),xyzMinMax(6), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+#else
+   xyzMinMax=xyzMinMaxloc
+#endif /*MPI*/
+
+#ifdef MPI
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+#endif /*MPI*/
+  print*,"xyzMinMax - X",xyzMinMax(1:2)
+  print*,"xyzMinMax - Y",xyzMinMax(3:4)
+  print*,"xyzMinMax - Z",xyzMinMax(5:6)
+#ifdef MPI
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+#endif /*MPI*/
+
+#ifdef MPI
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+#endif /*MPI*/
+  print*,"xyzPhysicalMinMax - X",xyzPhysicalMinMax(1:2)
+  print*,"xyzPhysicalMinMax - Y",xyzPhysicalMinMax(3:4)
+  print*,"xyzPhysicalMinMax - Z",xyzPhysicalMinMax(5:6)
+#ifdef MPI
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+#endif /*MPI*/
+
+! ----------------------------------------------------------------------------------------------------------------------------------
+!determine PMLzeta values for each interpolation point according to ramping function (const., linear, sinusoidal, polynomial)
+IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
+  DO I=1,6
+    IF( ALMOSTEQUAL(ABS(xyzMinMax(I)),ABS(xyzPMLzetaShapeBase(I))) )THEN
+      L_vec(I)=HUGE(1.)
+    ELSE 
+      L_vec(I)=ABS(xyzMinMax(I)-xyzPMLzetaShapeBase(I))
+    END IF
+    print*,"L_vec   =", NINT(L_vec(I))
+  END DO
+  DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iDir=1,3 !1=x, 2=y, 3=z
+      IF       (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .LT.xyzPMLzetaShapeBase(2*iDir-1)) THEN ! 1,3,5
+        xi =ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))    -xyzPMLzetaShapeBase(2*iDir-1))      ! 1,3,5
+        PMLzeta(iDir,i,j,k,iPMLElem) = PMLzeta0*function_type(xi/L_vec(2*iDir-1),PMLzetashape)   ! 1,3,5
+      ELSEIF   (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .GT. xyzPMLzetaShapeBase(2*iDir )) THEN ! 2,4,6
+        xi =ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))     -xyzPMLzetaShapeBase(2*iDir ))      ! 2,4,6
+        PMLzeta(iDir,i,j,k,iPMLElem) = PMLzeta0*function_type(xi/L_vec(2*iDir ),PMLzetashape)    ! 2,4,6
+      END IF
+    END DO
+  END DO; END DO; END DO; END DO !iPMLElem,k,j,i
+! ----------------------------------------------------------------------------------------------------------------------------------
+ELSE ! use xyzPhysicalMinMax -> define the physical region
+  !SELECT CASE (PMLzetaShape)
+  !CASE(0) !Constant Distribution of the Damping Coefficient
+    !DO iPMLElem=1,nPMLElems
+          !!IF (isPMLElem(iElem)) THEN
+            !PMLzeta( 1:3,:,:,:,iPMLElem) = PMLzeta0
+            !PMLalpha(1:3,:,:,:,iPMLElem) = PMLalpha0
+          !!END IF
+    !END DO
+  !CASE(1,2,3) ! Linear/Sinusoidal/POlynomial Distribution of the Damping Coefficient
+    DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      DO iDir=1,3 !1=x, 2=y, 3=z
+        IF          (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .LT. xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part of the domain
+          XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)))-ABS(xyzPhysicalMinMax(2*iDir-1)))/&
+                                                        (ABS(xyzMinMax(2*iDir-1))-ABS(xyzPhysicalMinMax(2*iDir-1)))
+                      PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+        ELSEIF      (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .GT. xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part of the domain
+          XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)))-ABS(xyzPhysicalMinMax(2*iDir)))/&
+                                                        (ABS(xyzMinMax(2*iDir))-ABS(xyzPhysicalMinMax(2*iDir)))
+                      PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+        END IF
+      END DO
+    END DO; END DO; END DO; END DO !iElem,k,j,i
+  !CASE DEFAULT
+    !CALL abort(&
+    !__STAMP__&
+    !,'Shape function for damping coefficient in PML region not specified!',999,999.)
+  !END SELECT ! PMLzetaShape
 
 
 
-SUBROUTINE PMLTimeDerivative()
-!===================================================================================================================================
-! 
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals,       ONLY : abort
-USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : U
-USE MOD_PML_Vars,      ONLY : PMLzeta,U2,U2t
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: iPMLElem
-!===================================================================================================================================
-! Add Source Terms
-DO iPMLElem=1,nPMLElems; 
-U2t(1,:,:,:,iPMLElem)=U(1,:,:,:,PMLtoElem(iPMLElem))-PMLzeta(1,:,:,:,iPMLElem)*U2(1,:,:,:,iPMLElem)
-U2t(2,:,:,:,iPMLElem)=U(2,:,:,:,PMLtoElem(iPMLElem))-PMLzeta(2,:,:,:,iPMLElem)*U2(2,:,:,:,iPMLElem)
-U2t(3,:,:,:,iPMLElem)=U(3,:,:,:,PMLtoElem(iPMLElem))-PMLzeta(3,:,:,:,iPMLElem)*U2(3,:,:,:,iPMLElem)
-U2t(4,:,:,:,iPMLElem)=U(4,:,:,:,PMLtoElem(iPMLElem))-PMLzeta(1,:,:,:,iPMLElem)*U2(4,:,:,:,iPMLElem)
-U2t(5,:,:,:,iPMLElem)=U(5,:,:,:,PMLtoElem(iPMLElem))-PMLzeta(2,:,:,:,iPMLElem)*U2(5,:,:,:,iPMLElem)
-U2t(6,:,:,:,iPMLElem)=U(6,:,:,:,PMLtoElem(iPMLElem))-PMLzeta(3,:,:,:,iPMLElem)*U2(6,:,:,:,iPMLElem)
-END DO ! iElem=1,PP_nElems,k,j,i
-END SUBROUTINE PMLTimeDerivative
 
 
-
-SUBROUTINE TransformPMLVars()
-!===================================================================================================================================
-! Transform E to E_tilde by adding the auxiliary PML fields to the State Vector
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY: U
-USE MOD_PML_Vars,      ONLY: PMLzeta,U2
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iPMLElem
-!===================================================================================================================================
-
+!    FIX this   ! determine Elem_xGP distance to PML interface for PMLRamp
+!    FIX this   DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N
+!    FIX this     ! x-PML region
+!    FIX this     x = Elem_xGP(1,j,k,PMLToElem(iPMLElem))
+!    FIX this     y = Elem_xGP(2,j,k,PMLToElem(iPMLElem))
+!    FIX this     delta=0.
+!    FIX this     ! x-PML region --------------------------------------------------------------
+!    FIX this     IF (x .LT. xyzPhysicalMinMax(1)) THEN
+!    FIX this       xi                  = ABS(x)          -ABS(xyzPhysicalMinMax(1))
+!    FIX this       L                   = ABS(xyzMinMax(1))-ABS(xyzPhysicalMinMax(1))
+!    FIX this     ELSEIF (x .GT. xyzPhysicalMinMax(2)) THEN
+!    FIX this       xi                  = ABS(x)          -ABS(xyzPhysicalMinMax(2))
+!    FIX this       L                   = ABS(xyzMinMax(2))-ABS(xyzPhysicalMinMax(2))
+!    FIX this     ELSE
+!    FIX this       xi=0
+!    FIX this       L=1
+!    FIX this     END IF
+!    FIX this     delta(1)=MAXVAL((/0.,xi/L/))
+!    FIX this     ! y-PML region --------------------------------------------------------------
+!    FIX this     IF (y .LT. xyzPhysicalMinMax(3)) THEN
+!    FIX this       xi                  = ABS(y)          -ABS(xyzPhysicalMinMax(3))
+!    FIX this       L                   = ABS(xyzMinMax(3))-ABS(xyzPhysicalMinMax(3))
+!    FIX this     ELSEIF (y .GT. xyzPhysicalMinMax(4)) THEN
+!    FIX this       xi                  = ABS(y)          -ABS(xyzPhysicalMinMax(4))
+!    FIX this       L                   = ABS(xyzMinMax(4))-ABS(xyzPhysicalMinMax(4))
+!    FIX this     ELSE
+!    FIX this       xi=0
+!    FIX this       L=1
+!    FIX this     END IF
+!    FIX this     delta(2)=MAXVAL((/0.,xi/L/))
+!    FIX this     ! set the ramp value from 1 down to 0: use the larged value of "delta"
+!    FIX this     PMLRamp(j,k,iPMLElem) = 1. - function_type(MAXVAL(delta),PMLzetaShape)
+!    FIX this   END DO; END DO; END DO !iPMLElem,k,j
+END IF ! usePMLMinMax
+! ----------------------------------------------------------------------------------------------------------------------------------
+! CFS-PML formulation: calculate zeta eff using the complex frequency shift PMLalpha
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        U(1,i,j,k,PMLtoElem(iPMLElem))=U(1,i,j,k,PMLtoElem(iPMLElem))+PMLzeta(1,i,j,k,iPMLElem)*U2(1,i,j,k,iPMLElem)
-        U(2,i,j,k,PMLtoElem(iPMLElem))=U(2,i,j,k,PMLtoElem(iPMLElem))+PMLzeta(2,i,j,k,iPMLElem)*U2(2,i,j,k,iPMLElem)
-        U(3,i,j,k,PMLtoElem(iPMLElem))=U(3,i,j,k,PMLtoElem(iPMLElem))+PMLzeta(3,i,j,k,iPMLElem)*U2(3,i,j,k,iPMLElem)
-        U(4,i,j,k,PMLtoElem(iPMLElem))=U(4,i,j,k,PMLtoElem(iPMLElem))+PMLzeta(1,i,j,k,iPMLElem)*U2(4,i,j,k,iPMLElem)
-        U(5,i,j,k,PMLtoElem(iPMLElem))=U(5,i,j,k,PMLtoElem(iPMLElem))+PMLzeta(2,i,j,k,iPMLElem)*U2(5,i,j,k,iPMLElem)
-        U(6,i,j,k,PMLtoElem(iPMLElem))=U(6,i,j,k,PMLtoElem(iPMLElem))+PMLzeta(3,i,j,k,iPMLElem)*U2(6,i,j,k,iPMLElem)
-END DO; END DO; END DO; END DO ! iElem=1,PP_nElems,k,j,i
-END SUBROUTINE TransformPMLVars
-
-SUBROUTINE BacktransformPMLVars()
-!===================================================================================================================================
-! Transform E_tilde to E by subtracting the auxiliary PML fields from the State Vector
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY: U
-USE MOD_PML_Vars,      ONLY: PMLzeta,U2
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iPMLElem
-!===================================================================================================================================
-
-DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        U(1,i,j,k,PMLtoElem(iPMLElem))=U(1,i,j,k,PMLtoElem(iPMLElem))-PMLzeta(1,i,j,k,iPMLElem)*U2(1,i,j,k,iPMLElem)
-        U(2,i,j,k,PMLtoElem(iPMLElem))=U(2,i,j,k,PMLtoElem(iPMLElem))-PMLzeta(2,i,j,k,iPMLElem)*U2(2,i,j,k,iPMLElem)
-        U(3,i,j,k,PMLtoElem(iPMLElem))=U(3,i,j,k,PMLtoElem(iPMLElem))-PMLzeta(3,i,j,k,iPMLElem)*U2(3,i,j,k,iPMLElem)
-        U(4,i,j,k,PMLtoElem(iPMLElem))=U(4,i,j,k,PMLtoElem(iPMLElem))-PMLzeta(1,i,j,k,iPMLElem)*U2(4,i,j,k,iPMLElem)
-        U(5,i,j,k,PMLtoElem(iPMLElem))=U(5,i,j,k,PMLtoElem(iPMLElem))-PMLzeta(2,i,j,k,iPMLElem)*U2(5,i,j,k,iPMLElem)
-        U(6,i,j,k,PMLtoElem(iPMLElem))=U(6,i,j,k,PMLtoElem(iPMLElem))-PMLzeta(3,i,j,k,iPMLElem)*U2(6,i,j,k,iPMLElem)
-END DO; END DO; END DO; END DO ! iElem=1,PP_nElems,k,j,i
-END SUBROUTINE BacktransformPMLVars
+  PMLzetaEff(:,i,j,k,iPMLElem) = ( PMLalpha(:,i,j,k,iPMLElem)+PMLzeta(:,i,j,k,iPMLElem) )
+END DO; END DO; END DO; END DO !iPMLElem,k,j,i
+DEALLOCATE(PMLalpha)
 
 
 
-SUBROUTINE ProbePML(t)
-!===================================================================================================================================
-!  write E,B-field at probe points
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-!USE MOD_DG_Vars,            ONLY : U
-!USE MOD_PML_Vars,           ONLY : Probes
-!#ifdef PARTICLES
-!USE MOD_Eval_xyz,           ONLY : eval_xyz
-!#endif /*PARTICLES*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!REAL                            :: field2(3,6)
-!INTEGER                         :: iProbe
-REAL  :: tt
-!===================================================================================================================================
-! calc Probe interpolation field
-!===================================================================================================================================
-!DO iProbe=1,3;
-  !!CALL eval_xyz(Probes%Coordinates(iProbe,:),6,PP_N,U(1:6,:,:,:,Probes%Element(iProbe)),field(:),Probes%Element(iProbe))
-  !field2(iProbe,:)=U(1:6,Probes%iElemMinLoc(iProbe,1),& ! i
-                         !Probes%iElemMinLoc(iProbe,2),& ! j
-                         !Probes%iElemMinLoc(iProbe,3),& ! k
-                         !Probes%iElemMinLoc(iProbe,4))  ! iElem
-!END DO !iProbe
-!OPEN(unit=111,FILE='probes.dat',ACCESS='APPEND',STATUS='UNKNOWN')
-!write(111,'(ES15.7,A,&
-           !& ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
-           !& ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
-           !& ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7)') &
-!t,'  ',&
-!field2(1,1),'  ',field2(1,2),'  ',field2(1,3),'  ',field2(1,4),'  ',field2(1,5),'  ',field2(1,6),'  ',&
-!field2(2,1),'  ',field2(2,2),'  ',field2(2,3),'  ',field2(2,4),'  ',field2(2,5),'  ',field2(2,6),'  ',&
-!field2(3,1),'  ',field2(3,2),'  ',field2(3,3),'  ',field2(3,4),'  ',field2(3,5),'  ',field2(3,6)
-!CLOSE(111)
-IF(1.EQ.2)THEN
-  tt=t
-END IF
-END SUBROUTINE ProbePML
 
+
+
+
+
+
+
+
+
+! OLD!!!!!!!!!!!!!!!!!!
+!===================================================================================================================================
+! Modification to zeta values
+!===================================================================================================================================
+!PMLzetaNorm=.TRUE.
+! Normalizing: recalculate zeta if multiple direction
+!       IF (PMLzetaNorm) THEN
+!         DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+!               zetaVecABS=SQRT(PMLzeta(1,i,j,k,iPMLElem)**2 &
+!                              +PMLzeta(2,i,j,k,iPMLElem)**2 &
+!                              +PMLzeta(3,i,j,k,iPMLElem)**2 )
+!               zetaVec=MAX(PMLzeta(1,i,j,k,iPMLElem),0.)
+!               zetaVec=MAX(PMLzeta(2,i,j,k,iPMLElem),zetaVec)
+!               zetaVec=MAX(PMLzeta(3,i,j,k,iPMLElem),zetaVec)
+!               PMLzeta(:,i,j,k,iPMLElem) = PMLzeta(:,i,j,k,iPMLElem)/zetaVecABS*zetaVec
+!         END DO; END DO; END DO; END DO !iPMLElem,k,i,j
+!       END IF
+
+
+
+!===================================================================================================================================
+! determine Elem_xGP distance to PML interface for PMLRamp
+!===================================================================================================================================
+!         !DO iPMLElem=1,nPMLElems; DO p=0,PP_N; DO q=0,PP_N
+!         DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+!           ! x-PML region
+!           !x = Face_xGP(1,p,q,PMLToFace(iPMLFace))
+!           !y = Face_xGP(2,p,q,PMLToFace(iPMLFace))
+!           !z = Face_xGP(3,p,q,PMLToFace(iPMLFace))
+!           x = Elem_xGP(1,i,j,k,PMLToElem(iPMLElem))
+!           y = Elem_xGP(2,i,j,k,PMLToElem(iPMLElem))
+!           z = Elem_xGP(3,i,j,k,PMLToElem(iPMLElem))
+!           delta=0.
+!         
+!           ! x-PML region
+!           IF (x .LT. xyzPhysicalMinMax(1)) THEN
+!             xi                  = ABS(x)-ABS(xyzPhysicalMinMax(1))
+!             L                   = ABS(xyzMinMax(1))-ABS(xyzPhysicalMinMax(1))
+!           ELSEIF (x .GT. xyzPhysicalMinMax(2)) THEN
+!             xi                  = ABS(x)-ABS(xyzPhysicalMinMax(2))
+!             L                   = ABS(xyzMinMax(2))-ABS(xyzPhysicalMinMax(2))
+!           ELSE
+!             xi=0
+!             L=1
+!           END IF
+!           delta(1)=MAXVAL((/0.,xi/L/))
+!           ! y-PML region
+!           IF (y .LT. xyzPhysicalMinMax(3)) THEN
+!             xi                  = ABS(y)-ABS(xyzPhysicalMinMax(3))
+!             L                   = ABS(xyzMinMax(3))-ABS(xyzPhysicalMinMax(3))
+!           ELSEIF (y .GT. xyzPhysicalMinMax(4)) THEN
+!             xi                  = ABS(y)-ABS(xyzPhysicalMinMax(4))
+!             L                   = ABS(xyzMinMax(4))-ABS(xyzPhysicalMinMax(4))
+!           ELSE
+!             xi=0
+!             L=1
+!           END IF
+!           delta(2)=MAXVAL((/0.,xi/L/))
+!           ! x-PML region
+!           IF (z .LT. xyzPhysicalMinMax(5)) THEN
+!             xi                  = ABS(z)-ABS(xyzPhysicalMinMax(5))
+!             L                   = ABS(xyzMinMax(5))-ABS(xyzPhysicalMinMax(5))
+!           ELSEIF (z .GT. xyzPhysicalMinMax(6)) THEN
+!             xi                  = ABS(z)-ABS(xyzPhysicalMinMax(6))
+!             L                   = ABS(xyzMinMax(6))-ABS(xyzPhysicalMinMax(6))
+!           ELSE
+!             xi=0
+!             L=1
+!           END IF
+!           delta(3)=MAXVAL((/0.,xi/L/))
+!           ! set the ramp value from 1 down to 0
+!           !PMLRamp(p,q,iPMLFace)=1.-( MAXVAL(delta)-SIN(2*ACOS(-1.)*MAXVAL(delta))/(2*ACOS(-1.)) )
+!           PMLRamp(i,j,k,iPMLElem) = 1. - fLinear(MAXVAL(delta))
+!         
+!           ! set the ramp value from 1 down to 0.82 (measured power loss)
+!           ! add ramp from 0 to 0.82 (power drain 30GHz Gyrotron over 2mm PML)
+!           !PMLRamp(i,j,k,iPMLElem) = PMLRamp(i,j,k,iPMLElem) + 0.82*fLinear(MAXVAL(delta))
+!         !END DO; END DO; END DO !iFace,p,q
+!         END DO; END DO; END DO; END DO !iPMLElem,k,i,j
+
+END SUBROUTINE SetPMLdampingProfile
 
 
 SUBROUTINE FinalizePML()
@@ -567,7 +887,8 @@ SUBROUTINE FinalizePML()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t
-USE MOD_PML_Vars,            ONLY: ElemtoPML,PMLtoElem,DoPML
+USE MOD_PML_Vars,            ONLY: ElemToPML,PMLToElem,DoPML,isPMLElem,isPMLFace,PMLToFace,FaceToPML
+USE MOD_PML_Vars,            ONLY: PMLRamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -577,16 +898,218 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+!RETURN
 IF(.NOT.DoPML) RETURN
 SDEALLOCATE(PMLzeta)
 SDEALLOCATE(U2)
 SDEALLOCATE(U2t)
-SDEALLOCATE(PMLtoElem)
-SDEALLOCATE(ElemtoPML)
+SDEALLOCATE(PMLToElem)
+SDEALLOCATE(ElemToPML)
+SDEALLOCATE(PMLToFace)
+SDEALLOCATE(FaceToPML)
+SDEALLOCATE(PMLRamp)
+SDEALLOCATE(isPMLElem)
+SDEALLOCATE(isPMLFace)
 END SUBROUTINE FinalizePML
 
 
-
-
+SUBROUTINE ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides)
+!===================================================================================================================================
+! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
+! integration points, using fast 1D Interpolation and store in global side structure
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+!USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_PreProc
+USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
+USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+!USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
+!USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
+LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems) 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: isFace_Minus(1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: isFace_Plus( 1,0:PP_N,0:PP_N,1:nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
+!===================================================================================================================================
+IF(doMPISides)THEN
+  ! only YOUR MPI Sides are filled
+  firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
+  lastSideID  = firstSideID-1+nMPISides_YOUR 
+  flip(1)     = -1
+ELSE
+  ! BCSides, InnerSides and MINE MPISides are filled
+  firstSideID = 1
+  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+  flip(1)     = 0
+END IF
+DO SideID=firstSideID,lastSideID
+  ! master side, flip=0
+  ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
+  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
+  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+  ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
+  locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+  flip(2)      = SideToElem(S2E_FLIP,SideID)
+  DO i=1,2 !first maste then slave side
+    SELECT CASE(Flip(i))
+      CASE(0) ! master side
+        isFace_Minus(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+      CASE(1:4) ! slave side
+        isFace_Plus( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+    END SELECT
+  END DO !i=1,2, masterside & slave side 
+END DO !SideID
+END SUBROUTINE ProlongToFace_PMLInfo
 END MODULE MOD_PML
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+!===================================================================================================================================
+! local SUBROUTINES and FUNCTIONS
+
+
+REAL FUNCTION function_type(x,PMLzetaShape)
+!===================================================================================================================================
+! switch between different types of ramping functions for the calculation of the local zeta damping value field 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,       ONLY: abort
+! IMPLICIT VARIABLE HANDLING 
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,    INTENT(IN) :: x
+INTEGER, INTENT(IN) :: PMLzetaShape ! linear, polynomial, const., sinusoidal ramping function
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: fLinear,fSinus,fPolynomial
+!===================================================================================================================================
+SELECT CASE (PMLzetaShape)
+CASE(0) !Constant Distribution of the Damping Coefficient
+  function_type=1.
+CASE(1) ! Linear Distribution of the Damping Coefficient
+  function_type=fLinear(x)
+CASE(2) ! Sinusoidal  Distribution of the Damping Coefficient
+  function_type=fSinus(x)
+CASE(3) ! polynomial
+  function_type=fPolynomial(x)
+CASE DEFAULT
+  CALL abort(&
+  __STAMP__&
+  ,'Shape function for damping coefficient in PML region not specified!',999,999.)
+END SELECT ! PMLzetaShape
+
+END FUNCTION function_type
+
+
+REAL FUNCTION fLinear(x)
+!===================================================================================================================================
+!  
+!===================================================================================================================================
+! MODULES
+USE MOD_PML_Vars,            ONLY: PMLRampLength 
+! IMPLICIT VARIABLE HANDLING 
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN) :: x
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: x_temp ![0,1] -> [0,1] sinusodial distribution
+!===================================================================================================================================
+IF (x.LE.PMLRampLength) THEN
+  x_temp = x/PMLRampLength
+  fLinear = x_temp
+ELSE
+  fLinear = 1.
+END IF
+END FUNCTION fLinear
+
+
+REAL FUNCTION fSinus(x)
+!===================================================================================================================================
+!  
+!===================================================================================================================================
+! MODULES
+USE MOD_PML_Vars,            ONLY: PMLRampLength
+! IMPLICIT VARIABLE HANDLING 
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN) :: x
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: x_temp ![0,1] -> [0,1] sinusodial distribution
+!===================================================================================================================================
+IF (x.LE.PMLRampLength) THEN
+  x_temp = x/PMLRampLength
+  fSinus = x_temp-SIN(2*ACOS(-1.)*x_temp)/(2*ACOS(-1.))
+ELSE
+  fSinus = 1.
+END IF
+END FUNCTION fSinus
+
+
+
+REAL FUNCTION fPolynomial(x)
+!===================================================================================================================================
+!  
+!===================================================================================================================================
+! MODULES
+USE MOD_PML_Vars,            ONLY: PMLRampLength
+! IMPLICIT VARIABLE HANDLING 
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN) :: x
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: x_temp ![0,1] -> [0,1] sinusodial distribution
+!===================================================================================================================================
+IF (x.LE.PMLRampLength) THEN
+  x_temp = x/PMLRampLength
+  fPolynomial = -3*x_temp**4+4*x_temp**3
+ELSE
+  fPolynomial = 1.
+END IF
+END FUNCTION fPolynomial
+
 

@@ -26,7 +26,7 @@ PUBLIC::SingleStepOptimalPartition
 CONTAINS
 
 #ifdef MPI
-SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemWeight) 
+SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemTime) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! calculate the optimal load partiton, subroutine taken from sparta.f90 of HALO
 ! modification for performance on root
@@ -43,7 +43,7 @@ USE MOD_LoadBalance_Vars,   ONLY:TargetWeight
 IMPLICIT NONE
 ! INPUT VARIABLES 
 INTEGER,INTENT(IN)                :: OldElems
-REAL,INTENT(IN)                   :: ElemWeight(1:OldElems)
+REAL,INTENT(IN)                   :: ElemTime(1:OldElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 INTEGER,INTENT(OUT)               :: NewElems
@@ -64,9 +64,9 @@ ALLOCATE(PreSum(1:OldElems)           &
         ,split(0:nProcessors-1)       &
         ,recv_count(0:nProcessors-1)  )
 
-PreSum(1)=ElemWeight(1)
+PreSum(1)=ElemTime(1)
 DO iElem=2,OldElems
-  PreSum(iElem)=Presum(iElem-1)+ElemWeight(iElem)
+  PreSum(iElem)=Presum(iElem-1)+ElemTime(iElem)
 END DO ! iElem
 
 LoadSend=PreSum(OldElems)
@@ -102,12 +102,12 @@ DO iRank=minRank,maxRank
         ! EXIT IF a single element was found, need to DO this
         !                    here, to have mid and wsplit set.
     END DO
-    IF(ABS(WeightSplit - Opt_Split) .GT. ABS(WeightSplit-Opt_Split-ElemWeight(mid)))THEN
+    IF(ABS(WeightSplit - Opt_Split) .GT. ABS(WeightSplit-Opt_Split-ElemTime(mid)))THEN
       ! return 0 IF the splitter is left of the lower boundary
       mid = mid - 1 
     ELSE
       IF (mid+1 .LE. OldElems) THEN
-        IF (ABS(WeightSplit - opt_split) .GT. ABS(WeightSplit - opt_split + ElemWeight(mid+1))) THEN
+        IF (ABS(WeightSplit - opt_split) .GT. ABS(WeightSplit - opt_split + ElemTime(mid+1))) THEN
           ! return myElems at most
           mid = mid + 1 
         END IF

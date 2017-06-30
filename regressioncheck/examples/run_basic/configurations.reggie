@@ -1,12 +1,12 @@
 ! fixed compiler flags
 CMAKE_BUILD_TYPE=DEBUG
-BOLTZPLATZ_BUILD_HDF5=OFF
+BOLTZPLATZ_BUILD_HDF5=ON
 BOLTZPLATZ_POLYNOMIAL_DEGREE=N
 
 ! include combinations
 BOLTZPLATZ_EQNSYSNAME=maxwell,poisson
 BOLTZPLATZ_TIMEDISCMETHOD=DSMC,RK3,RK4,ImplicitO3,ImplicitO4 !,IPEF3,IPEF4
-BOLTZPLATZ_MPI=ON                        !,OFF ! MPI=OFF is not supported on pre-compiled runner HDF5: fix and remove this info!
+BOLTZPLATZ_MPI=ON,OFF
 BOLTZPLATZ_NODETYPE=GAUSS,GAUSS-LOBATTO
 
 ! exclude combinations

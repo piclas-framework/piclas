@@ -158,7 +158,7 @@ LOGICAL               :: exitTrue,IsIMDSpecies
 #endif
 !===================================================================================================================================
 ! Read print flags
-printRandomSeeds = GETLOGICAL('printRandomSeeds','.TRUE.')
+printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -433,6 +433,15 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
+    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'tangential_constant')THEN
+      Species(iSpec)%Init(iInit)%Rotation        = GETINT('Part-Species'//TRIM(hilf2)//'-rotation','1')
+      Species(iSpec)%Init(iInit)%VelocitySpread  = GETREAL('Part-Species'//TRIM(hilf2)//'-velocityspread','0.')
+      IF(Species(iSpec)%Init(iInit)%VelocitySpread.LT.0. .OR. Species(iSpec)%Init(iInit)%VelocitySpread.GT.1.) CALL abort(&
+__STAMP__&
+          ,' Wrong input parameter for VelocitySpread in [0;1].')
+      Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
+    END IF
+    Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
@@ -480,8 +489,8 @@ DO iSpec = 1, nSpecies
     !--- Check if Initial ParticleInserting is really used
     IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
       .AND.(Species(iSpec)%Init(iInit)%UseForInit) ) THEN
-      IF (  (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
-            .AND. AlmostEqual(Species(iSpec)%Init(iInit)%PartDensity,0.) ) THEN
+      IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
+      .AND. (ABS(Species(iSpec)%Init(iInit)%PartDensity).LE.0.) ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
         SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
         SWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit
@@ -490,12 +499,12 @@ DO iSpec = 1, nSpecies
     !--- cuboid-/cylinder-height calculation from v and dt
     IF (.NOT.Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
       IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
-        IF (AlmostEqual(Species(iSpec)%Init(iInit)%CuboidHeightIC,-1.)) THEN ! flag is initialized with -1, compatibility issue 
+        IF (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%CuboidHeightIC,-1.)) THEN ! flag is initialized with -1, compatibility issue 
           Species(iSpec)%Init(iInit)%CalcHeightFromDt=.TRUE.                 
           SWRITE(*,*) "WARNING: Cuboid height will be calculated from v and dt!"
         END IF
       ELSE IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') THEN
-        IF (AlmostEqual(Species(iSpec)%Init(iInit)%CylinderHeightIC,-1.)) THEN !flag is initialized with -1, compatibility issue 
+        IF (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%CylinderHeightIC,-1.)) THEN !flag is initialized with -1, compatibility issue 
           Species(iSpec)%Init(iInit)%CalcHeightFromDt=.TRUE.                   
           SWRITE(*,*) "WARNING: Cylinder height will be calculated from v and dt!"
         END IF
@@ -633,15 +642,15 @@ __STAMP__&
             = GETREAL('Part-Species'//TRIM(hilf3)//'-CylinderHeightIC','1.')
           !--normalize and stuff
           IF ((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid') .OR. &
-               ((((.NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
-            .OR. ((.NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1),0.) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2),1.)) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3),0.))) &
-            .AND. (((AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1),0.)) &
-              .AND. (AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2),0.))) &
-              .AND. (AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3),1.))))) THEN
+               ((((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
+            .OR. ((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1),0.) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2),1.)) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3),0.))) &
+            .AND. (((ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1),0.)) &
+              .AND. (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2),0.))) &
+              .AND. (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3),1.))))) THEN
             !-- cuboid; or BV are non-default and NormalIC is default: calc. NormalIC for ExcludeRegions from BV1/2
             !   (for def. BV and non-def. NormalIC; or all def. or non-def.: Use User-defined NormalIC when ExclRegion is cylinder)
             Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1) &
@@ -990,7 +999,7 @@ END IF
   dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
   overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
 #if (PP_TimeDiscMethod==200)
-IF ( AlmostEqual(overrelax_factor,1.0) .AND. .NOT.AlmostEqual(dt_part_ratio,3.8) ) THEN
+IF ( ALMOSTEQUAL(overrelax_factor,1.0) .AND. .NOT.ALMOSTEQUAL(dt_part_ratio,3.8) ) THEN
   overrelax_factor = dt_part_ratio !compatibility
 END IF
 #endif
@@ -1053,6 +1062,18 @@ END IF
 DEALLOCATE(iseeds)
 !DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
+DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
+
+DO iSpec = 1, nSpecies
+  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+    IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
+      IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(&
+__STAMP__, &
+' Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow!')
+    END IF      
+  END DO ! iInit = 0, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1, nSpecies
+
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
@@ -1231,6 +1252,7 @@ SDEALLOCATE(PartBound%AmbientDens)
 SDEALLOCATE(PartBound%AmbientDynamicVisc)
 SDEALLOCATE(PartBound%AmbientThermalCond)
 SDEALLOCATE(PartBound%Voltage)
+SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)

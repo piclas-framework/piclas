@@ -131,6 +131,11 @@ TYPE tInit                                                                   ! P
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
+  INTEGER                                :: Rotation                         ! direction of rotation, similar to TE-mode
+  INTEGER                                :: VelocitySpreadMethod             ! method to compute the velocity spread
+  REAL                                   :: InflowRiseTime                   ! time to ramp the number of inflow particles 
+                                                                             ! linearly from zero to unity
+  REAL                                   :: VelocitySpread                   ! velocity spread in percent
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
   REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
   REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
@@ -171,6 +176,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
+  INTEGER(KIND=4)                        :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
   REAL                                   :: Nsigma                           ! sigma multiple of maxwell for virtual insert length
   LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapted SetPos/Velo)?
   CHARACTER(40)                          :: vpiDomainType                    ! specifying Keyword for virtual Pre-Inserting region
@@ -217,13 +223,14 @@ TYPE tSurfaceflux
   INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
+  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
   LOGICAL                                :: SimpleRadialVeloFit !fit of veloR/veloTot=-r*(A*exp(B*r)+C)
   REAL                                   :: preFac !A
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
-  REAL                                   :: rmin, rmax                       ! min and max radius of to-be inserted particles
+  REAL                                   :: rmax                             ! max radius of to-be inserted particles
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -336,7 +343,8 @@ LOGICAL                                  :: useVTKFileBGG                     ! 
 REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
-LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson samling instead of random rounding
+LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
+LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 LOGICAL                                  :: FindNeighbourElems=.FALSE.
 
