@@ -942,6 +942,9 @@ IF(ColumnNumber.GT.0)THEN
   SWRITE(UNIT_stdOut,'(A)') ''
   DO J=1,ColumnNumber
     ValuesAreEqual(J)=ALMOSTEQUALRELATIVE(Values(J),ValuesRef(J),Examples(iExample)%CompareDatafileRowTolerance)
+    IF((ABS(ValuesRef(J)).LE.0.0).OR.(ABS(Values(J)).LE.0.0))THEN ! if the one value is zero -> absolute comparison with tolerance
+      IF(MAX(ABS(ValuesRef(J)),ABS(Values(J))).LT.Examples(iExample)%CompareDatafileRowTolerance)ValuesAreEqual(J)=.TRUE.
+    END IF
     IF(ValuesAreEqual(J).EQV..FALSE.)THEN
       SWRITE(UNIT_stdOut,'(A)')             ' CompareDatafileRows mismatch for ['//TRIM(ColumnHeaders(J))//']'
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')      ' Value in Reference              = ',ValuesRef(J)
