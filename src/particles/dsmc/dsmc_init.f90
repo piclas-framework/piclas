@@ -52,7 +52,7 @@ USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
 USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars,     ONLY: nAdaptiveBC
+USE MOD_Particle_Boundary_Vars,     ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 USE MOD_Particle_Surfaces_Vars,     ONLY: BCdata_auxSF
 ! IMPLICIT VARIABLE HANDLING
@@ -450,8 +450,10 @@ __STAMP__&
         DO iInit = (Species(iSpec)%nSurfacefluxBCs+1),(Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC)
           ! read rot and vib temperatures
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = SpecDSMC(iSpec)%Init(0)%TVib
-            SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = SpecDSMC(iSpec)%Init(0)%TRot
+            SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = Partbound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iInit)%BC)
+            !SpecDSMC(iSpec)%Init(0)%TVib
+            SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = Partbound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iInit)%BC)
+            !SpecDSMC(iSpec)%Init(0)%TRot
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot*SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib.EQ.0.) THEN
               CALL Abort(&
 __STAMP__&
@@ -477,7 +479,8 @@ __STAMP__&
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
             WRITE(UNIT=hilf,FMT='(I2)') iSpec
-            SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = SpecDSMC(iSpec)%Init(0)%Telec
+            SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   =  Partbound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iInit)%BC)
+            !SpecDSMC(iSpec)%Init(0)%Telec
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
 __STAMP__&
@@ -866,6 +869,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   REAL                        :: TRot                       ! rotational temperature
   INTEGER                     :: iInitTemp, init_or_sfTemp
   INTEGER                     :: ElemID
+  REAL                        :: pressure
 !===================================================================================================================================
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
@@ -884,8 +888,11 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
           TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
         CASE(2) ! adaptive Outlet/freestream
           ElemID = PEM%Element(iPart)
-          TVib=Adaptive_MacroVal(8,ElemID,iSpecies)
-          TRot=Adaptive_MacroVal(9,ElemID,iSpecies)
+          pressure = PartBound%AdaptivePressure(Species(iSpecies)%Surfaceflux(iInit)%BC)
+          TVib = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+          TRot = TVib
+          !TVib=Adaptive_MacroVal(8,ElemID,iSpecies)
+          !TRot=Adaptive_MacroVal(9,ElemID,iSpecies)
         CASE(3) ! pressure outlet (pressure defined)
         CASE DEFAULT
           CALL abort(&

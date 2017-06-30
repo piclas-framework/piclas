@@ -104,6 +104,8 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
   LOGICAL , ALLOCATABLE                  :: Adaptive(:)
   INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
+  REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
+  REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
   LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
 END TYPE

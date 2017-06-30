@@ -830,9 +830,13 @@ ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
+ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
 nAdaptiveBC = 0
 PartBound%Adaptive(:) = .FALSE.
 PartBound%AdaptiveType(:) = -1
+PartBound%AdaptiveTemp(:) = -1.
+PartBound%AdaptivePressure(:) = -1.
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -873,6 +877,13 @@ DO iPartBound=1,nPartBound
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
        PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
+       PartBound%AdaptiveTemp(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+       PartBound%AdaptivePressure(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
+       IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
+         CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp or -AdaptivePressure not defined')
+       END IF
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
@@ -1231,6 +1242,8 @@ SDEALLOCATE(PartBound%AmbientDynamicVisc)
 SDEALLOCATE(PartBound%AmbientThermalCond)
 SDEALLOCATE(PartBound%Adaptive)
 SDEALLOCATE(PartBound%AdaptiveType)
+SDEALLOCATE(PartBound%AdaptiveTemp)
+SDEALLOCATE(PartBound%AdaptivePressure)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)

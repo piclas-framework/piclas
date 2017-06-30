@@ -207,6 +207,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
   REAL                          :: TVib                       ! vibrational temperature
   REAL                          :: TRot                       ! rotational temperature
   INTEGER                       :: ElemID
+  REAL                          :: pressure
 !===================================================================================================================================
 
   SELECT CASE (init_or_sf)
@@ -222,8 +223,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
           TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
         CASE(2) ! adaptive Outlet/freestream
           ElemID = PEM%Element(iPart)
-          TVib=Adaptive_MacroVal(8,ElemID,iSpecies)
-          TRot=Adaptive_MacroVal(9,ElemID,iSpecies)
+          pressure = PartBound%AdaptivePressure(Species(iSpecies)%Surfaceflux(iInit)%BC)
+          TVib = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+          TRot = TVib
         CASE(3) ! pressure outlet (pressure defined)
         CASE DEFAULT
           CALL abort(&

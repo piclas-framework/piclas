@@ -3306,6 +3306,7 @@ REAL,DIMENSION(1:3,1:8)                             :: BoundingBox
 INTEGER,ALLOCATABLE   :: Adaptive_BC_Map(:), tmp_Surfaceflux_BCs(:)
 LOGICAL,ALLOCATABLE   :: Adaptive_Found_Flag(:)
 INTEGER               :: nAdaptive_Found, iSS, nSurffluxBCs_old, nSurffluxBCs_new, iSFx
+REAL,ALLOCATABLE      :: sum_pressurefraction(:)
 !===================================================================================================================================
 ! global calculations for sampling the bezier faces for area and vector calculations (checks the integration with CODE_ANALYZE)
 ALLOCATE(SurfMeshSubSideData(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
@@ -3365,6 +3366,8 @@ DO iPartBound=1,nPartBound
   END IF
 END DO
 Adaptive_Found_Flag(:) = .FALSE.
+ALLOCATE(sum_pressurefraction(1:nAdaptiveBC))
+sum_pressurefraction(:) = 0.
 
 !-- 1.: read/prepare parameters and determine nec. BCs
 DO iSpec=1,nSpecies
@@ -3527,8 +3530,17 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%VeloVecIC = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
         /SQRT(DOT_PRODUCT(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC))
     END IF
-    Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
-    Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Init(0)%PartDensity
+    !Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
+    Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
+    WRITE(UNIT=hilf2,FMT='(I2)') iSF
+    hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
+    Species(iSpec)%Surfaceflux(iSF)%PressureFraction      = GETREAL('Part-Species'//TRIM(hilf2)//'-Pressurefraction','0.')
+    sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
+      + Species(iSpec)%Surfaceflux(iSF)%PressureFraction
+    Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Surfaceflux(iSF)%PressureFraction &
+      * PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC) &
+      / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)    
+    !Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Init(0)%PartDensity
     Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = .FALSE.
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.GT.1) THEN
       SWRITE(*,*)'WARNING: BezierSampleN > 0 may not be necessary as ARM is used for SurfaceFlux!'
@@ -3541,6 +3553,9 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = 0
     END IF
   END DO
+  IF( (MINVAL(sum_pressurefraction(:)).LT.0.99).OR.(MAXVAL(sum_pressurefraction(:)).GT.1.01) ) CALL abort( &
+__STAMP__&
+, 'Sum of all pressurefractions .NE. 1')
 END DO ! iSpec
 
 SDEALLOCATE(Adaptive_BC_Map)
@@ -4547,7 +4562,7 @@ REAL                        :: point(2),origin(2),veloR,vTot,phi,radius,preFac,p
 INTEGER                     :: dir(3), nReject, allowedRejections
 LOGICAL                     :: AcceptPos
 REAL                        :: ElemPartDensity, VeloVec(1:3), VeloIC
-REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3) 
+REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -4583,8 +4598,10 @@ __STAMP__&
           T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
         CASE(2) ! adaptive Outlet/freestream
           ElemPartDensity = Adaptive_MacroVal(7,ElemID,iSpec)
-          T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
-            + Adaptive_MacroVal(6,ElemID,iSpec)**2)
+          pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
+          T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+          !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
+          !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
         CASE(3) ! pressure outlet (pressure defined)
         CASE DEFAULT
           CALL abort(&
@@ -4871,7 +4888,7 @@ REAL                             :: Velo_t1                          ! Velo comp
 REAL                             :: Velo_t2                          ! Velo comp. of second orth. vector in tria
 REAL                             :: VeloIC
 REAL                             :: VeloVec(1:3)
-REAL                             :: VeloVecIC(1:3),v_thermal
+REAL                             :: VeloVecIC(1:3),v_thermal, pressure
 !===================================================================================================================================
 
 IF(PartIns.lt.1) RETURN
@@ -4901,8 +4918,10 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
   CASE(1) ! Pressure inlet (pressure, temperature const)
     T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
-    T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
-      + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
+    pressure = PartBound%AdaptivePressure(Species(FractNbr)%Surfaceflux(iSF)%BC)
+    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+    !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
+    !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
   CASE(3) ! pressure outlet (pressure defined)
   CASE DEFAULT
     CALL abort(&

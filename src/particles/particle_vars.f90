@@ -216,6 +216,7 @@ TYPE tSurfaceflux
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
+  REAL                                   :: PressureFraction
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -228,7 +229,6 @@ TYPE tSpecies                                                                ! P
   INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
   TYPE(tSurfaceflux),ALLOCATABLE         :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
-  TYPE(tSurfaceflux),ALLOCATABLE         :: AdaptiveBound(:)                   ! Particle Data for each SurfaceFlux emission
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   LOGICAL                                :: IsImplicit
 #endif
