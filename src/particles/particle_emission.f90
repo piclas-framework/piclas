@@ -3374,27 +3374,39 @@ DO iSpec=1,nSpecies
   Adaptive_Found_Flag(:) = .FALSE.
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs','0')
-  IF ((Species(iSpec)%nSurfacefluxBCs.EQ.0) .AND. (nAdaptiveBC.GT.0))   Species(iSpec)%nSurfacefluxBCs=nAdaptiveBC
-  IF (Species(iSpec)%nSurfacefluxBCs .EQ. 0) CYCLE
-  ALLOCATE(Species(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
-  ! Initialize Surfaceflux to BC mapping and check if defined Surfacefluxes from init overlap with Adaptive BCs
-  Species(iSpec)%Surfaceflux(:)%BC=-1
-  DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-    WRITE(UNIT=hilf2,FMT='(I2)') iSF
-    hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
-    Species(iSpec)%Surfaceflux(iSF)%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC','0')
-    IF (nAdaptiveBC.GT.0) THEN
-      DO iSS=1,nAdaptiveBC
-        IF (Adaptive_BC_Map(iSS).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN
-          Adaptive_Found_Flag(iSS) = .TRUE.
-        END IF
-      END DO
-    END IF
-  END DO
-  nAdaptive_Found = 0
-  DO iSS=1,nAdaptiveBC
-    IF(Adaptive_Found_Flag(iSS)) nAdaptive_Found = nAdaptive_Found + 1
-  END DO
+  ! if no surfacefluxes defined and only adaptive boundaries then first allocation with adaptive
+  IF ((Species(iSpec)%nSurfacefluxBCs.EQ.0) .AND. (nAdaptiveBC.GT.0)) THEN
+    Species(iSpec)%nSurfacefluxBCs = nAdaptiveBC
+    ALLOCATE(Species(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
+    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+      Species(iSpec)%Surfaceflux(iSF)%BC = Adaptive_BC_Map(iSF)
+    END DO
+    nAdaptive_Found = nAdaptiveBC
+    Adaptive_Found_Flag(:) = .TRUE.
+  ! if no surfaceflux needed
+  ELSE IF ((Species(iSpec)%nSurfacefluxBCs.EQ.0) .AND. (nAdaptiveBC.EQ.0)) THEN
+    CYCLE
+  ELSE
+    ALLOCATE(Species(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
+    ! Initialize Surfaceflux to BC mapping and check if defined Surfacefluxes from init overlap with Adaptive BCs
+    Species(iSpec)%Surfaceflux(:)%BC=-1
+    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+      WRITE(UNIT=hilf2,FMT='(I2)') iSF
+      hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
+      Species(iSpec)%Surfaceflux(iSF)%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC','0')
+      IF (nAdaptiveBC.GT.0) THEN
+        DO iSS=1,nAdaptiveBC
+          IF (Adaptive_BC_Map(iSS).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN
+            Adaptive_Found_Flag(iSS) = .TRUE.
+          END IF
+        END DO
+      END IF
+    END DO
+    nAdaptive_Found = 0
+    DO iSS=1,nAdaptiveBC
+      IF(Adaptive_Found_Flag(iSS)) nAdaptive_Found = nAdaptive_Found + 1
+    END DO
+  END IF
   ! add missing Adaptive BCs at end of Surfaceflux array and reduce number of constant surfacefluxBC
   ! additionally rearrange surfaceflux array for Adaptive BC being the last entries
   IF (nAdaptiveBC.GT.0) THEN
@@ -3515,7 +3527,7 @@ __STAMP__&
     IF (Species(iSpec)%Surfaceflux(iSF)%BC.LT.1 .OR. Species(iSpec)%Surfaceflux(iSF)%BC.GT.nPartBound) THEN
       CALL abort(&
 __STAMP__&
-, 'SurfacefluxBCs must be between 1 and nPartBound!')
+, 'SurfacefluxBCs (adaptive) must be between 1 and nPartBound!')
     ELSE IF (BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber.EQ. -1) THEN !not set yet
       BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber=0
       nDataBC=nDataBC+1
@@ -3532,8 +3544,8 @@ __STAMP__&
     END IF
     !Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
     Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
-    WRITE(UNIT=hilf2,FMT='(I2)') iSF
-    hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
+    WRITE(UNIT=hilf2,FMT='(I2)') iSF-Species(iSpec)%nSurfacefluxBCs
+    hilf2=TRIM(hilf)//'-Adaptiveflux'//TRIM(hilf2)
     Species(iSpec)%Surfaceflux(iSF)%PressureFraction      = GETREAL('Part-Species'//TRIM(hilf2)//'-Pressurefraction','0.')
     sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
       + Species(iSpec)%Surfaceflux(iSF)%PressureFraction
