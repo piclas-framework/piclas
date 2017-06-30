@@ -482,6 +482,17 @@ DO ! extract reggie information
     IF(TRIM(readRHS(1)).EQ.'H5diffToleranceType')          Example%H5diffToleranceType   =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'H5diffTolerance')   CALL str2real(readRHS(2),Example%H5diffTolerance,iSTATUS)
     IF(TRIM(readRHS(1)).EQ.'RestartFileName')              Example%RestartFileName       =TRIM(ADJUSTL(readRHS(2)))
+    ! test if restart file exists
+    IF(TRIM(Example%RestartFileName).NE.'')THEN
+      FileName=TRIM(FilePath)//TRIM(Example%RestartFileName)
+      INQUIRE(File=FileName,EXIST=ExistFile)
+      IF(.NOT.ExistFile) THEN
+        SkipExample=.TRUE.
+        SWRITE(UNIT_stdOut,'(A16,A,A1)') '   FileName  : [', TRIM(FileName),']'
+        SWRITE(UNIT_stdOut,'(A16,L,A1)') '   ExistFile : [', ExistFile,']'
+        ERROR STOP 'Restart file supplied, but not found.'
+      END IF
+    END IF
     ! SubExamples - currently one subexample class is allowed with multiple options
     IF(TRIM(readRHS(1)).EQ.'SubExample') CALL GetParameterList(ParameterName   = Example%SubExample,       &
                                                                ParameterList   = Example%SubExampleOption, &
