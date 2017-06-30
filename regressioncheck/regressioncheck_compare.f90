@@ -455,7 +455,7 @@ IF(PRESENT(ReferenceNorm))THEN ! use user-defined norm if present, else use 0.00
       SWRITE(UNIT_stdOut,'(A)') ''
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' L2Norm                =',L2(iVar)
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' ReferenceNorm(iVar,1) =',ReferenceNorm(iVar,1)
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
       RETURN ! fail
     END IF
   END DO ! iVar=1,Examples(iExample)%nVar
@@ -465,7 +465,7 @@ IF(PRESENT(ReferenceNorm))THEN ! use user-defined norm if present, else use 0.00
       SWRITE(UNIT_stdOut,'(A)') ''
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' LInfNorm              =',LInf(iVar)
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' ReferenceNorm(iVar,1) =',ReferenceNorm(iVar,2)
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
       RETURN ! fail
     END IF
   END DO ! iVar=1,Examples(iExample)%nVar
@@ -480,14 +480,14 @@ ELSE ! use user-defined norm if present, else use 100.*PP_RealTolerance
     L2Compare=.FALSE.
     SWRITE(UNIT_stdOut,'(A)') ''
     SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' L2Norm                =',MAXVAL(L2)
-    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
     RETURN ! fail
   END IF
   IF(ANY(LInf.GT.eps))THEN
     LInfCompare=.FALSE.
     SWRITE(UNIT_stdOut,'(A)') ''
     SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' LInfNorm              =',MAXVAL(LInf)
-    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
     RETURN ! fail
   END IF
 END IF
