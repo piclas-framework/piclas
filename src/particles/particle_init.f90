@@ -877,8 +877,8 @@ DO iPartBound=1,nPartBound
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
        PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       PartBound%AdaptiveTemp(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-       PartBound%AdaptivePressure(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
+       PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+       PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
        IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
          CALL abort(&
 __STAMP__&
