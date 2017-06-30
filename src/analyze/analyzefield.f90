@@ -387,21 +387,22 @@ IF (DoRestart) THEN
 END IF
 
 filename_PI  = 'Power.csv'
+ioUni=273
 
 #ifdef MPI
 IF(MPIRoot)THEN
 #endif    /* MPI */
 
-INQUIRE(NEWUNIT=ioUnit , OPENED = isOpen)
-IF (.NOT.isOpen) THEN
+INQUIRE(UNIT=ioUnit,OPENED=isOpen)
+IF(.NOT.isOpen)THEN
   INQUIRE(file=TRIM(filename_PI),EXIST=FileExists)
-  IF (isRestart .and. FileExists) THEN
+  IF(isRestart.AND.FileExists)THEN
     OPEN(ioUnit,file=TRIM(filename_PI),position="APPEND",status="OLD")
   ELSE
     OPEN(ioUnit,file=TRIM(filename_PI))
     ! --- insert header
     WRITE(ioUnit,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
-    DO iPlane = 1, nPoyntingIntPlanes
+    DO iPlane=1,nPoyntingIntPlanes
       WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
       WRITE(ioUnit,'(A14,I0.3,A1,E13.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
     END DO              
@@ -410,7 +411,7 @@ IF (.NOT.isOpen) THEN
 END IF
 ! write data to file
 WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') t
-DO iPlane = 1, nPoyntingIntPlanes
+DO iPlane=1,nPoyntingIntPlanes
   WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
   WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
 END DO
