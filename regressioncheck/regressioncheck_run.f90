@@ -826,11 +826,12 @@ ELSE ! standard flexi or PIC related simulation
     CALL str2logical(TempStr,UseDSMC,iSTATUS)
   END IF
   IF(UseDSMC)THEN ! if UseDSMC is true, a parameter file for DSMC info needs to bespecified (must be located where the mesh is)
+                  ! and must be named 'parameter_DSMC.ini'
     CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),'MeshFile',TempStr) ! find mesh file lcoation
     IndNum=INDEX(TempStr,'/',BACK = .TRUE.) ! get path without mesh file name (*.h5)
     IF(IndNum.GT.0)THEN
-      TempStr=TempStr(1:IndNum)                   ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
-      IF(TRIM(ADJUSTL(TempStr)).EQ.'./')TempStr='' ! e.g. "./turner2013_mesh.h5" -> "./"
+      TempStr=TempStr(1:IndNum)                    ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      IF(TRIM(ADJUSTL(TempStr)).EQ.'./')TempStr='' ! e.g. "./turner2013_mesh.h5"         -> "./"
     ELSE ! parameter file not located within a different directory
       TempStr=''
     END IF
@@ -840,15 +841,15 @@ ELSE ! standard flexi or PIC related simulation
 END IF
 INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
-  SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-  SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini:      ',TRIM(parameter_ini)
+  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no parameter file found under : ['//TRIM(Examples(iExample)%PATH)//']'
+  SWRITE(UNIT_stdOut,'(A)')   ' parameter_ini                        : ['//TRIM(parameter_ini)//']'
   ERROR STOP 1
 END IF
 IF(parameter_ini2.NE.'')THEN
   INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini2),EXIST=ExistFile)
   IF(.NOT.ExistFile) THEN
-    SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-    SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini2:     ',TRIM(parameter_ini2)
+    SWRITE(UNIT_stdOut,'(A)') ' ERROR: no parameter file found under : ['//TRIM(Examples(iExample)%PATH)//']'
+    SWRITE(UNIT_stdOut,'(A)') ' parameter_ini2                       : ['//TRIM(parameter_ini2)//']'
     ERROR STOP 1
   END IF
 END IF

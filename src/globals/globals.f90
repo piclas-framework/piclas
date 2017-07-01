@@ -478,14 +478,14 @@ LOGICAL,OPTIONAL,INTENT(IN)          :: DoDisplayInfo     !> default is: TRUE
                                                           !> display DefMsg or errors if the parameter or the file is not found 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: ExistFile               !> file exists=.true., file does not exist=.false.
-INTEGER                        :: iSTATUS                 !> status
-CHARACTER(LEN=255)             :: temp,temp2,temp3        !> temp variables for read in of file lines
-CHARACTER(LEN=255)             :: DelimiterSymbol         !> symbol for commenting out code, e.g., "#" or "!"
-CHARACTER(LEN=255)             :: CommentSymbol           !> symbol for commenting out code, e.g., "#" or "!"
-INTEGER                        :: ioUnit                  !> field handler unit and ??
-INTEGER                        :: IndNum                  !> Index Number
-CHARACTER(LEN=8)               :: DefMsg                  !> additional flag like "DEFAULT" or "*CUSTOM"
+LOGICAL                              :: ExistFile         !> file exists=.true., file does not exist=.false.
+INTEGER                              :: iSTATUS           !> status
+CHARACTER(LEN=255)                   :: temp,temp2,temp3  !> temp variables for read in of file lines
+CHARACTER(LEN=255)                   :: DelimiterSymbol   !> symbol for commenting out code, e.g., "#" or "!"
+CHARACTER(LEN=255)                   :: CommentSymbol     !> symbol for commenting out code, e.g., "#" or "!"
+INTEGER                              :: ioUnit            !> field handler unit and ??
+INTEGER                              :: IndNum            !> Index Number
+CHARACTER(LEN=8)                     :: DefMsg            !> additional flag like "DEFAULT" or "*CUSTOM"
 !===================================================================================================================================
 IF(PRESENT(DelimiterSymbolIN))THEN
   DelimiterSymbol=TRIM(ADJUSTL(DelimiterSymbolIN))
@@ -504,7 +504,7 @@ IF(ExistFile) THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
   DO
     READ(ioUnit,'(A)',iostat=iSTATUS)temp
-    IF(ADJUSTL(temp).EQ.TRIM(CommentSymbol)) CYCLE  ! complete line is commented out
+    IF(ADJUSTL(temp(1:LEN(TRIM(CommentSymbol)))).EQ.TRIM(CommentSymbol)) CYCLE  ! complete line is commented out
     IF(iSTATUS.EQ.-1)EXIT                           ! end of file is reached
     IF(LEN(trim(temp)).GT.1)THEN                    ! exclude empty lines
       IndNum=INDEX(temp,TRIM(ParameterName))        ! e.g. 'timestep'
@@ -514,11 +514,13 @@ IF(ExistFile) THEN
         END IF
         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
         IF(DelimiterSymbol.NE.'')THEN               ! demiliting symbol must not be empty
-          IndNum=INDEX(temp2,TRIM(DelimiterSymbol)) ! only use string FROM delimiting symbol
-          IF(IndNum.EQ.0)THEN
+          IndNum=INDEX(temp2,TRIM(DelimiterSymbol)) ! only use string FROM delimiting symbol +1
+          IF(IndNum.GT.0)THEN
             temp3=TRIM(ADJUSTL(temp2(IndNum+1:LEN(temp2))))
             temp2=temp3
           END IF
+        ELSE
+          ! no nothing?
         END IF
         IndNum=INDEX(temp2,TRIM(CommentSymbol)) ! only use string UP TO commenting symbol
         IF(IndNum.EQ.0)IndNum=LEN(TRIM(temp2))+1
