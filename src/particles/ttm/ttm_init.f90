@@ -118,7 +118,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ALLOCATE( ElemBaryFD(3,FD_nElems) )
         ElemBaryFD=0.0
         ALLOCATE( ElemIndexFD(3,FD_nElems) )
-        ElemIndexFD=0.0
+        ElemIndexFD=0
         ALLOCATE( ElemIsDone(FD_nElems) )
         ElemIsDone=.FALSE.
         !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("Reading TTM data from"),' | ', TRIM(TTMFile),&

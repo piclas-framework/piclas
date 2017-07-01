@@ -280,14 +280,7 @@ DO I=1,nReggieBuilds
   END DO
   SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") '    '
   SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildValidInfo(I)))
-  SWRITE(UNIT_stdOut,*)
-  
-  
-  
-  
-  ! get next build
-  !write(*,*),''
-  !read*
+  SWRITE(UNIT_stdOut,*) ''
   DO J=1,N_compile_flags
     BuildCounter(J)=BuildCounter(J)+1
     IF(BuildCounter(J).GT.BuildIndex(J))THEN
@@ -298,22 +291,35 @@ DO I=1,nReggieBuilds
   END DO
 END DO
 
-SWRITE(UNIT_stdOut, '(A)')"  "
+SWRITE(UNIT_stdOut, '(A)') ''
 SWRITE(UNIT_stdOut, '(I5,A4,I5,A12)')COUNT(BuildValid),' of ', nReggieBuilds,' are valid'
 IF(BuildContinue)THEN
-  SWRITE(UNIT_stdOut, '(A,I5,A1)') 'BuildContinue=.TRUE.    : Skipping builds [1] to [',BuildContinueNumber,']'
+  SWRITE(UNIT_stdOut, '(A,I5,A1)') ' Read: BuildContinue=.TRUE.    : Skipping builds [1] to [',BuildContinueNumber-1,']'
+  !SWRITE(UNIT_stdOut, '(A,I5,A)') ' Setting the first builds to false in order to skip them'
   IF(BuildContinueNumber.GT.nReggieBuilds)THEN
-    SWRITE(UNIT_stdOut,'(A22,A)')          ' ERROR: ','The number of skipped builds exceeds the maxmum number of allocated builds.'
-    SWRITE(UNIT_stdOut,'(A22,I5)') ' BuildContinueNumber: ',BuildContinueNumber 
-    SWRITE(UNIT_stdOut,'(A22,I5)') '       nReggieBuilds: ', nReggieBuilds
+    SWRITE(UNIT_stdOut,'(A)')    ' ERROR              : The number of skipped builds exceeds the maxmum number of allocated builds.'
+    SWRITE(UNIT_stdOut,'(A,I5)') ' BuildContinueNumber: ',BuildContinueNumber 
+    SWRITE(UNIT_stdOut,'(A,I5)') '       nReggieBuilds: ', nReggieBuilds
     ERROR STOP 1
   END IF
-  BuildValid(1:BuildContinueNumber)=.FALSE.
-  SWRITE(UNIT_stdOut, '(I5,A4,I5,A12)')COUNT(BuildValid),' of ', nReggieBuilds,' are valid'
+
+  !print*,"BuildContinueNumber=",BuildContinueNumber
+  !print*,"remove builds?"
+  !read*
+  DO K=1,nReggieBuilds
+    print*,"K=",K,BuildValid(K)
+    IF(COUNT(BuildValid(1:K)).EQ.BuildContinueNumber)THEN
+      !BuildValid(1:K)=.FALSE.
+      EXIT
+    END IF
+  END DO
+  !print*,"continuing..."
+  !read*
+  !SWRITE(UNIT_stdOut, '(I5,A4,I5,A12)')COUNT(BuildValid),' of ', nReggieBuilds,' are valid'
 END IF
 
 IF(COUNT(BuildValid).GT.MaxBuildConfigurations)THEN
-  SWRITE(UNIT_stdOut,'(A)') ' ERROR: The number of builds exceeds the maxmum number allowed.'
+  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: The number of builds exceeds the maxmum number allowed.'
   SWRITE(UNIT_stdOut,'(A,A)') ' COUNT(BuildValid)     :  ', COUNT(BuildValid)
   SWRITE(UNIT_stdOut,'(A,L)') ' MaxBuildConfigurations: ', MaxBuildConfigurations
   ERROR STOP 1
@@ -356,7 +362,8 @@ IF(BuildValid(iReggieBuild))THEN
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   SYSCOMMAND='cd '//TRIM(BuildDir)//' && mkdir build_reggie'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-  SWRITE(tempStr,*)iReggieBuild-1 ! previously completed build to file for continuation possibility
+  !SWRITE(tempStr,*)iReggieBuild-1 ! previously completed build to file for continuation possibility
+  SWRITE(tempStr,*)COUNT(BuildValid(1:iReggieBuild)) ! previously completed build to file for continuation possibility
   SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.reggie'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(BuildDir)//'build_reggie/configurationX.cmake',STATUS="NEW",ACTION='WRITE',IOSTAT=iSTATUS)
@@ -463,7 +470,8 @@ IF(BuildValid(iReggieBuild))THEN
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 ELSE
   IF(BuildContinue)THEN
-    SWRITE(UNIT_stdOut, '(A,I5,A1)') 'BuildContinue=.TRUE.    : Skipping build [1] to [',BuildContinueNumber,']... skipping...'
+    SWRITE(UNIT_stdOut, '(A,I5,A1)') 'Build: BuildContinue=.TRUE.    : Skipping build [1] to [',BuildContinueNumber-1,&
+                                      ']... skipping...'
   ELSE
     SWRITE(UNIT_stdOut,'(A)')"invalid setup... skipping..."
   END IF
