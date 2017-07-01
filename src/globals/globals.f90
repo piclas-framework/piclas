@@ -484,7 +484,7 @@ CHARACTER(LEN=255)             :: temp,temp2,temp3        !> temp variables for 
 CHARACTER(LEN=255)             :: DelimiterSymbol         !> symbol for commenting out code, e.g., "#" or "!"
 CHARACTER(LEN=255)             :: CommentSymbol           !> symbol for commenting out code, e.g., "#" or "!"
 INTEGER                        :: ioUnit                  !> field handler unit and ??
-INTEGER                        :: IndNum,IndNum2          !> Index Number
+INTEGER                        :: IndNum                  !> Index Number
 CHARACTER(LEN=8)               :: DefMsg                  !> additional flag like "DEFAULT" or "*CUSTOM"
 !===================================================================================================================================
 IF(PRESENT(DelimiterSymbolIN))THEN
