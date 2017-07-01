@@ -119,9 +119,10 @@ ParticlesInitIsDone=.FALSE.
 #ifdef MPI
 ParticleMPIInitIsDone=.FALSE.
 #endif /*MPI*/
-#endif /*PARTICLES*/
 
 CALL FinalizeTTM() ! FG grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+#endif /*PARTICLES*/
+
 
 END SUBROUTINE FinalizeBoltzplatz
 
@@ -216,7 +217,7 @@ CALL InitParticleSurfaces()
 #endif /*PARTICLES*/
 CALL InitEquation()
 CALL InitBC()
-!1#ifdef PARTICLES
+!#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
 #ifndef PP_HDG
@@ -249,10 +250,13 @@ CALL IgnoredStrings()
 CALL InitHDG()
 #endif
 
+#ifdef PARTICLES
   CALL InitTTM() ! FG grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
+#endif /*PARTICLES*/
+
 END SUBROUTINE InitBoltzplatz
 
 

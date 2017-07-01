@@ -1,5 +1,6 @@
 #include "boltzplatz.h"
 
+#ifdef PARTICLES
 MODULE MOD_TTMInit
 !===================================================================================================================================
 ! Add comments please!
@@ -516,6 +517,6 @@ SDEALLOCATE(ElemBaryFD)
 SDEALLOCATE(ElemIndexFD)
 SDEALLOCATE(ElemIsDone)
 END SUBROUTINE FinalizeTTM
-
+#endif /*PARTICLES*/
 
 END MODULE MOD_TTMInit
