@@ -900,7 +900,7 @@ ELSE
   END DO
   IF(BuildSolver.AND.(nErrors.GT.0))THEN
     SWRITE(UNIT_stdOut,'(A)') ' '
-    SWRITE(UNIT_stdOut,'(A)') ' Run [./regressioncheck build] with the flag [buid-continue] in order to skip the successful builds'
+    SWRITE(UNIT_stdOut,'(A)') ' Run [./regressioncheck build] with the flag [build-continue] in order to skip the successful builds'
     SWRITE(UNIT_stdOut,'(A)') ' and continue with the failed one. The building process can be started at an arbitrary position by'
     SWRITE(UNIT_stdOut,'(A)') ' modifying the file ['//TRIM(BuildDir)//'build_reggie/BuildContinue.reggie] '
     SWRITE(UNIT_stdOut,'(A)') ' where the number corresponds to the build executable'
