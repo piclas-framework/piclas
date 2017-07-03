@@ -44,8 +44,8 @@ CHARACTER(LEN=255)             :: FileName            ! filename
 !==================================================================================================================================
 ! errorcodes
 ALLOCATE(firstError)
-firstError%ErrorCode=-1
 NULLIFY(aError)
+firstError%ErrorCode=-1
 nReggieBuilds=0
 SYSCOMMAND=''
 FileName=''

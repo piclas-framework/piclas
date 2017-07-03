@@ -174,6 +174,7 @@ INTEGER                       :: IndNum1,IndNum2,Ind1,Ind2          !> index num
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)') ' Performing FULL regressioncheck ...'
 nReggie=0
+iSTATUS=0 ! nullify
 
 ! check for the '.gitlab-ci.yml' file
 FileName=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'../.gitlab-ci.yml'
@@ -345,6 +346,7 @@ LOGICAL                        :: ExistFile                         ! file exist
 INTEGER                        :: iSTATUS                           ! status
 INTEGER                        :: ioUnit                            ! IO channel
 !===================================================================================================================================
+iSTATUS=0 ! nullify
 IndNum=INDEX(EXECPATH, '/')
 IF(IndNum.GT.0)THEN
   IndNum=INDEX(EXECPATH,'/',BACK = .TRUE.) ! get path without binary
@@ -466,6 +468,7 @@ INTEGER,INTENT(INOUT)          :: nReggieBuilds,N_compile_flags
 CHARACTER(LEN=500)             :: SYSCOMMAND                        !> string to fit the system command
 INTEGER                        :: iSTATUS                           !> status
 !===================================================================================================================================
+iSTATUS=0 ! nullify
 ! if "BuildSolver" is true, the complete (valid) compiler-flag parameter combination
 ! is tested (specified in "configuration.reggie", default example is "run_basic")
 IF(BuildSolver)THEN
@@ -521,6 +524,7 @@ CHARACTER(LEN=500)             :: SYSCOMMAND                        !> string to
 !===================================================================================================================================
 SkipBuild=.FALSE.
 ExitBuild=.FALSE.
+iSTATUS=0 ! nullify
 ! Get code binary (build or find it)
 IF(BuildSolver)THEN
 !print*,""
@@ -839,6 +843,7 @@ LOGICAL                        :: UseDSMC
 CHARACTER(LEN=255)             :: TempStr
 INTEGER                        :: iSTATUS,IndNum
 !===================================================================================================================================
+iSTATUS=0 ! nullify
 ! get list of parameter files for running the simulation
 parameter_ini2=''
 IF(TRIM(TIMEDISCMETHOD).EQ.'DSMC')THEN
@@ -1095,6 +1100,7 @@ INTEGER                              :: MODE              !> 1: change SubExampl
                                                           !> 2: change specific parameter in parameter.ini
 !===================================================================================================================================
 MODE=0 ! default
+iSTATUS=0 ! nullify
 IF(iSubExample.GT.0)MODE=1
 IF(PRESENT(ChangeOption).AND.PRESENT(ChangeParameter))MODE=2
 
@@ -1184,6 +1190,7 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: tmp
 INTEGER                        :: iSTATUS,ioUnit
 !==================================================================================================================================
+iSTATUS=0 ! nullify
 SELECT CASE(MODE)
   CASE(0) ! MODE=0: INITIAL -> delete pre-existing files and folders
     ! delete "std_files_*" folder
@@ -1285,6 +1292,8 @@ CHARACTER(LEN=255)             :: ComputationResult                             
 !===================================================================================================================================
 SkipComparison=.FALSE.
 MPIthreadsInteger=1 ! default: single run
+iSTATUS=0 ! nullify
+ComputationSTATUS=0 ! nullify
 ! -----------------------------------------------------------------------------------------------------------------------
 ! Run the Code
 ! -----------------------------------------------------------------------------------------------------------------------

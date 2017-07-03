@@ -212,6 +212,7 @@ INTEGER                       :: iExample             ! loop index for example
 CHARACTER(len=255)            :: cwd                  ! current cworking directory CALL getcwd(cwd)
 LOGICAL                       :: ExistFile            ! T=file exists, F=file does not exist
 !==================================================================================================================================
+iSTATUS=0 ! nullify
 ! check if regressioncheck is executed von /bin/regressioncheck directory, otherwise use the current working directory
 CALL getcwd(cwd)                                      ! get path of current directory
 FileName=cwd(INDEX(cwd,'/',BACK = .TRUE.)+1:LEN(cwd)) ! cut the last folder name from current diectory path
@@ -333,7 +334,7 @@ ELSE
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
 END IF
 
-! init
+! init ALWAYS
 Example%MPIrun                  = .FALSE. ! don't use "mpirun" n default
 Example%MPIcommand              = 'mpirun'! use mpirun for running parallel simulations as default
 Example%MPIthreadsStr           = '1'     ! run with 1 MPI thread on default
@@ -344,8 +345,12 @@ Example%ReferenceTolerance      = -1.
 Example%SubExample              = '-'     ! init
 Example%SubExampleNumber        = 0       ! init total number of subexamples
 Example%SubExampleOption(1:100) = '-'     ! default option is nothing
+Example%IntegrateLine           = .FALSE. ! nullify
 Example%IntegrateLineMultiplier = 1.0     ! default option for IntegrateLine
 Example%IntegrateLineOption     = 'default' ! default value is "default"
+Example%ConvergenceTest         = .FALSE. ! nullify
+Example%CompareDatafileRow      = .FALSE. ! nullify
+Example%CompareHDF5ArrayBounds  = .FALSE. ! nullify
 DO ! extract reggie information
   READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1 ! get first line assuming it is something like "nVar= 5"
   IF(iSTATUS.EQ.-1) EXIT ! end of file (EOF) reached
@@ -869,7 +874,7 @@ nErrors=0
 IF(.NOT.ASSOCIATED(aError))THEN
   SWRITE(UNIT_stdOut,'(A)') ' No Examples were executed'
 ELSE
-  NULLIFY(aError%nextError) ! nullyfy unused next error pointer
+  NULLIFY(aError%nextError) ! nullify unused next error pointer
   SWRITE(UNIT_stdOut,'(A)') ' Summary of Errors (0=no Error): '
   SWRITE(UNIT_stdOut,'(A)') ' '
   aError=>firstError ! set aError to first error in list
@@ -956,7 +961,7 @@ IF(firstError%ErrorCode.EQ.-1)THEN ! first error pointer
   firstError%Info                   =TRIM(Info)
   firstError%MPIthreadsStr          =TRIM(MPIthreadsStr)
   firstError%Build                  =TRIM(EXECPATH(INDEX(EXECPATH,'/',BACK=.TRUE.)+1:LEN(EXECPATH)))
-  ALLOCATE(aError)
+  !ALLOCATE(aError) WRONG
   aError=>firstError
 ELSE ! next error pointer
   ALLOCATE(aError%nextError)
