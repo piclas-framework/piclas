@@ -576,13 +576,13 @@ FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
                               ./src/linearsolver/particlesolver.f90
                               ./src/linearsolver/predictor.f90
                               ./src/linearsolver/linearoperator/linearoperator.f90
-                              ./src/linearsolver/linearoperator/sparse_ilu.f90
                               ./src/linearsolver/newton.f90)
 
 IF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell_pois")
   FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
                                ./src/precond/precond_vars.f90
                                ./src/precond/applypreconditioner.f90
+                               ./src/linearsolver/linearoperator/sparse_ilu.f90
                                ./src/precond/csr/*.f90
                                ./src/precond/ilu/*.f90
                                ./src/precond/jacdg/*.f90
@@ -592,6 +592,7 @@ ELSE()
   FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
                                ./src/precond/precond_vars.f90
                                ./src/precond/applypreconditioner.f90
+                               ./src/linearsolver/linearoperator/sparse_ilu.f90
                                ./src/precond/csr/*.f90
                                ./src/precond/ilu/*.f90
                                ./src/precond/jacdg/*.f90
