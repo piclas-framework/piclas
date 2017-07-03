@@ -45,7 +45,7 @@ CONTAINS
 SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
+! first get xi,eta,zeta from x,y,z...then do tensor product interpolation
 ! xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
 ! MODULES

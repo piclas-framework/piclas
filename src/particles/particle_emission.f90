@@ -41,10 +41,13 @@ INTERFACE ParticleSurfaceflux
   MODULE PROCEDURE ParticleSurfaceflux
 END INTERFACE
 
+INTERFACE CalcVelocity_maxwell_lpn
+  MODULE PROCEDURE CalcVelocity_maxwell_lpn
+END INTERFACE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, ParticleSurfaceflux, ParticleInserting &
-                , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF                              
+                , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF,CalcVelocity_maxwell_lpn
 !===================================================================================================================================
                                                                                                   
 CONTAINS                                                                                           
@@ -560,6 +563,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
+USE MOD_Particle_Vars,         ONLY:IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_Particle_Vars,         ONLY:DoPoissonRounding,DoTimeDepInflow
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
@@ -586,34 +590,37 @@ USE MOD_LD,                    ONLY:LD_SetParticlePosition
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                       :: FractNbr, iInit                                                    
+INTEGER,INTENT(IN)                       :: FractNbr, iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)                    :: NbrOfParticle                                               
+INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef MPI
 INTEGER                                  :: mode
-INTEGER                                  :: iProc,tProc, CellX, CellY, CellZ                                  
-INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)                               
+INTEGER                                  :: iProc,tProc, CellX, CellY, CellZ
+INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)
 INTEGER                                  :: MessageSize
-LOGICAL                                  :: InsideMyBGM                                                 
+LOGICAL                                  :: InsideMyBGM
 #endif
 REAL,ALLOCATABLE                         :: particle_positions(:)
-INTEGER                                  :: allocStat                                           
-INTEGER                                  :: i,j,k,ParticleIndexNbr                                      
+INTEGER                                  :: allocStat
+INTEGER                                  :: i,j,k,ParticleIndexNbr
 INTEGER                                  :: mySumOfMatchedParticles, sumOfMatchedParticles              
-INTEGER                                  :: nChunks, chunkSize, chunkSize2                                        
+INTEGER                                  :: nChunks, chunkSize, chunkSize2
 REAL                                     :: lineVector(3),VectorGap(3)         
 REAL                                     :: RandVal(3), Particle_pos(3),lineVector2(3)                  
-REAL                                     :: n(3) , radius_vec(3)                                        
-REAL                                     :: II(3,3),JJ(3,3),NN(3,3)                                     
-REAL                                     :: RandVal1                              
+REAL                                     :: n(3) , radius_vec(3)
+REAL                                     :: II(3,3),JJ(3,3),NN(3,3)
+REAL                                     :: RandVal1
 REAL                                     :: radius, argumentTheta                    
 REAL                                     :: rgyrate, Bintpol, pilen                    
-REAL                                     :: x_step, y_step, z_step,  x_pos , y_pos                      
-REAL                                     :: xlen, ylen, zlen                                            
-INTEGER                                  :: iPart                                             
+REAL                                     :: x_step, y_step, z_step,  x_pos , y_pos
+REAL                                     :: xlen, ylen, zlen
+REAL                                     :: IMD_array(12),xMin,xMax,yMin,yMax,zMin,zMax
+INTEGER                                  :: Nshift,ioUnit,io_error,IndNum
+CHARACTER(LEN=255)                       :: StrTmp
+INTEGER                                  :: iPart
 REAL,ALLOCATABLE                         :: particle_positions_Temp(:) 
 REAL                                     :: Vec3D(3), l_ins, v_line, delta_l, v_drift_line, A_ins, PartIns
 REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_lengths(2), v_BV(2), delta_lBV(2)
@@ -1244,7 +1251,7 @@ __STAMP__&
       chunkSize2=0
       DO WHILE (i .LE. chunkSize)          
         ! Check if particle would reach comp. domain in one timestep
-        CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
+        CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
         CALL RANDOM_NUMBER(RandVal)
         v_line = Vec3D(1)*lineVector(1) + Vec3D(2)*lineVector(2) + Vec3D(3)*lineVector(3) !lineVector component of velocity
         delta_l = dt*RKdtFrac * v_line - l_ins * RandVal(3)
@@ -1356,7 +1363,7 @@ __STAMP__&
       chunkSize2=0
       DO WHILE (i .LE. chunkSize)        
         ! Check if particle would reach comp. domain in one timestep
-        CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
+        CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
         CALL RANDOM_NUMBER(RandVal)
         v_line = Vec3D(1)*lineVector(1) + Vec3D(2)*lineVector(2) + Vec3D(3)*lineVector(3) !lineVector component of velocity
         delta_l = dt*RKdtFrac * v_line - l_ins * RandVal(3)
@@ -1548,8 +1555,8 @@ __STAMP__&
             * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
          CALL abort(&
-__STAMP__&
-,'ERROR: Number of particles in init / emission region',iInit)
+         __STAMP__&
+         ,'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = abs(GEO%xmaxglob  - GEO%xminglob)  
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
@@ -1574,6 +1581,130 @@ __STAMP__&
             END DO
           END DO
        END DO
+    CASE('IMD') ! read IMD particle position from *.chkpt file
+      ! set velocity distribution to read external data
+      SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(IMDAtomFile)
+      !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("Reading IMD data from"),' | ', TRIM(IMDAtomFile),&
+                                                    !' | ',TRIM("OUTPUT"),' | '
+      IF(TRIM(IMDAtomFile).NE.'no file found')THEN
+        Species(FractNbr)%Init(iInit)%velocityDistribution='IMD'
+#ifdef MPI
+        IF(.NOT.PartMPI%InitGroup(InitGroup)%MPIROOT)THEN
+          CALL abort(__STAMP__&
+          ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
+        END IF
+#endif /*MPI*/
+        ! Read particle data from file
+        ioUnit=GETFREEUNIT()
+        OPEN(UNIT=ioUnit,FILE=TRIM(IMDAtomFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
+        IF(io_error.NE.0)THEN
+          CALL abort(__STAMP__&
+          ,'ERROR in particle_emission.f90: Cannot open specified File (particle position) for SpaceIC=IMD!')
+        END IF
+        ! IMD Data Format (ASCII)
+        !   1      2    3         4           5         6         7         8         9         10       11     12
+        !#C number type mass      x           y         z         vx        vy        vz        Epot     Z      eam_rho
+        !   2294   0    26.981538 3589.254381 46.066405 91.985804 -1.576543 -0.168184 -0.163417 0.000000 2.4332 0.000000
+        IndNum=INDEX(IMDAtomFile, '/',BACK = .TRUE.)
+        IF(IndNum.GT.0)THEN
+          !IndNum=INDEX(IMDAtomFile,'/',BACK = .TRUE.) ! get path without binary
+          StrTmp=TRIM(IMDAtomFile(IndNum+1:LEN(IMDAtomFile)))
+          IndNum=INDEX(StrTmp,'.',BACK = .TRUE.)
+          IF(IndNum.GT.0)THEN
+            StrTmp=StrTmp(1:IndNum-1)
+            IndNum=INDEX(StrTmp,'.')
+            IF(IndNum.GT.0)THEN
+              StrTmp=StrTmp(IndNum+1:LEN(StrTmp))
+            END IF
+          END IF
+        END IF
+        read(StrTmp,*,iostat=io_error)  IMDNumber
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("IMD *.chkpt file"),' | ', TRIM(StrTmp),' | ',TRIM("OUTPUT"),' | '
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("IMDNumber")       ,' | ', IMDNumber   ,' | ',TRIM("OUTPUT"),' | '
+        !SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
+        !SWRITE(UNIT_stdOut,'(A68,L,A)') ' |               IMD *.chkpt file |                                 ',DoRefMapping,&
+  !' | OUTPUT |'
+        !SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.chkpt file          : ",TRIM(StrTmp)
+        !SWRITE(UNIT_stdOut,'(A,I15)') " IMDNumber                 : ",IMDNumber
+        Nshift=0
+        xMin=HUGE(1.)
+        yMin=HUGE(1.)
+        zMin=HUGE(1.)
+        xMax=-HUGE(1.)
+        yMax=-HUGE(1.)
+        zMax=-HUGE(1.)
+        DO i=1,9
+          READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
+          IF(io_error.NE.0)THEN
+             SWRITE(UNIT_stdOut,'(A,I5,A3,A)') 'Error in line ',i,' : ',TRIM(StrTmp)
+          END IF
+        END DO
+        DO i=1,chunkSize
+          READ(ioUnit,*,IOSTAT=io_error) IMD_array(1:12)
+          IF(io_error>0)THEN
+            CALL abort(__STAMP__&
+            ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')
+          ELSE IF(io_error<0)THEN
+            EXIT
+          ELSE
+            IF(1.EQ.2)THEN ! transformation
+              ! 0.) multiply by unit system factor (1e-10)
+              ! 1.) switch X and Z axis and invert Z
+              ! 2.) shift origin in X- and Y-direction by -10nm
+              Particle_pos = (/  IMD_array(6)       *1.E-10-10.13E-9,&
+                                 IMD_array(5)       *1.E-10-10.13E-9,&
+                               -(IMD_array(4)-10500)*1.E-10/)
+            ELSE ! no transformation
+              Particle_pos = (/  IMD_array(4)*IMDLengthScale,&
+                                 IMD_array(5)*IMDLengthScale,&
+                                 IMD_array(6)*IMDLengthScale/)
+            END IF
+            particle_positions((i-Nshift)*3-2) = Particle_pos(1)
+            particle_positions((i-Nshift)*3-1) = Particle_pos(2)
+            particle_positions((i-Nshift)*3  ) = Particle_pos(3)
+
+            PartState(i-Nshift,4:6) =&
+            (/IMD_array(7)*IMDLengthScale/IMDTimeScale,&
+              IMD_array(8)*IMDLengthScale/IMDTimeScale,&
+              IMD_array(9)*IMDLengthScale/IMDTimeScale/)
+
+            xMin=MIN(Particle_pos(1),xMin)
+            yMin=MIN(Particle_pos(2),yMin)
+            zMin=MIN(Particle_pos(3),zMin)
+            xMax=MAX(Particle_pos(1),xMax)
+            yMax=MAX(Particle_pos(2),yMax)
+            zMax=MAX(Particle_pos(3),zMax)
+            ! check cutoff
+            SELECT CASE(TRIM(IMDCutOff))
+            CASE('no_cutoff') ! nothing to do
+            CASE('Epot') ! kill particles that have Epot (i.e. they are in the solid body)
+              IF(ABS(IMD_array(10)).GT.0.0)THEN ! IMD_array(10) is Epot
+                Nshift=Nshift+1
+              END IF
+            CASE('coordinates') ! kill particles that are below a certain threshold in z-direction
+              IF(IMD_array(4)*IMDLengthScale.GT.IMDCutOffxValue)THEN
+                Nshift=Nshift+1
+              END IF
+            CASE('velocity') ! kill particles that are below a certain velocity threshold
+              CALL abort(__STAMP__&
+              ,'ERROR in particle_emission.f90: Error reading specified File (particle position) for SpaceIC=IMD!')
+            END SELECT
+          END IF
+        END DO
+        CLOSE(ioUnit)
+        SWRITE(UNIT_stdOut,'(A25,A25)')  "x-Min [nm]","x-Max [nm]"
+        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') xMin*1.e9,xMax*1.e9
+        SWRITE(UNIT_stdOut,'(A25,A25)')  "y-Min [nm]","y-Max [nm]"
+        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') yMin*1.e9,yMax*1.e9
+        SWRITE(UNIT_stdOut,'(A25,A25)')  "z-Min [nm]","z-Max [nm]"
+        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') zMin*1.e9,zMax*1.e9
+        SWRITE(UNIT_stdOut,'(A)') ""
+        SWRITE(UNIT_stdOut,'(A,I15)')  "Particles Read: chunkSize/NbrOfParticle = ",(i-Nshift)-1
+        chunkSize     = (i-Nshift)-1 ! don't change here, change at velocity
+        NbrOfParticle = (i-Nshift)-1 ! don't change here, change at velocity
+      ELSE ! TRIM(IMDAtomFile) = 'no file found' -> exit
+        Species(FractNbr)%Init(iInit)%velocityDistribution=''
+      END IF
     END SELECT
     !------------------SpaceIC-cases: end-----------------------------------------------------------!
     chunkSize=chunkSize2
@@ -1936,21 +2067,24 @@ LOGICAL                          :: Is_BGGas
 REAL                             :: sigma(3), ftl, PartVelo 
 REAL                             :: RandN_save
 LOGICAL                          :: RandN_in_Mem
-CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-REAL                                   :: RadiusIC                         ! Radius for IC circle
-REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
-REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
-REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
-REAL                                   :: VeloIC                           ! velocity for inital Data
-REAL                                   :: VeloIC2                          ! square of velocity for inital Data
-REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
-REAL                                   :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
-REAL                                   :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
-REAL                                   :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
-REAL                                   :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
-REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
-REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
-REAL                                   :: MJRatio(3)                       ! momentum to temperature ratio
+CHARACTER(30)                    :: velocityDistribution             ! specifying keyword for velocity distribution
+REAL                             :: RadiusIC                         ! Radius for IC circle
+REAL                             :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
+REAL                             :: NormalIC(3)                      ! Normal / Orientation of circle
+REAL                             :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
+REAL                             :: VeloIC                           ! velocity for inital Data
+REAL                             :: VeloIC2                          ! square of velocity for inital Data
+REAL                             :: VeloVecIC(3)                     ! normalized velocity vector
+REAL                             :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
+REAL                             :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
+REAL                             :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
+REAL                             :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
+REAL                             :: Alpha                            ! WaveNumber for sin-deviation initiation.
+REAL                             :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
+REAL                             :: MJRatio(3)                       ! momentum to temperature ratio
+REAL                             :: IMD_array(12)!,Vabs,Ekin
+INTEGER                          :: Nshift,ioUnit,io_error
+CHARACTER(LEN=255)               :: StrTmp
 ! Maxwell-Juettner
 REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
 REAL                             :: VelocitySpread                         ! widening of init velocity
@@ -2278,9 +2412,9 @@ CASE('maxwell_lpn')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
        IF (useVTKFileBGG .AND. Is_BGGas) THEN
-         CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D, PEM%Element(PositionNbr))
+         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
        ELSE
-         CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
+         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
        END IF
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
@@ -2582,6 +2716,8 @@ CASE('OneD-twostreaminstabilty')
     END IF  
   END DO
 
+CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
+  ! do nothing
 CASE DEFAULT
   CALL abort(&
 __STAMP__&
@@ -2992,19 +3128,22 @@ END IF
 END SUBROUTINE ParticleInsertingPressureOut_Sampling
 
 
-SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D, Element)
+SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
 !===================================================================================================================================
 ! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species, BGGdataAtElem!, DoZigguratSampling
 !USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr, iInit
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
 INTEGER, OPTIONAL                :: Element !for BGG from VTK
+REAL,INTENT(IN), OPTIONAL        :: Temperature
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                 :: Vec3D(3)
@@ -3014,17 +3153,28 @@ REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz
 REAL                             :: RandN_save
 LOGICAL                          :: RandN_in_Mem
 !===================================================================================================================================
-
-IF (PRESENT(Element)) THEN
-  Tx=BGGdataAtElem(1,Element)
-  Ty=BGGdataAtElem(2,Element)
-  Tz=BGGdataAtElem(3,Element)
-  v_drift=BGGdataAtElem(4:6,Element)
-ELSE
+IF(PRESENT(iInit).AND.PRESENT(Temperature))CALL abort(&
+__STAMP__&
+,'CalcVelocity_maxwell_lpn. iInit and Temperature cannot both be input arguments!')
+IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
   Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+ELSEIF (PRESENT(Element)) THEN
+  Tx=BGGdataAtElem(1,Element)
+  Ty=BGGdataAtElem(2,Element)
+  Tz=BGGdataAtElem(3,Element)
+  v_drift=BGGdataAtElem(4:6,Element)
+ELSEIF(PRESENT(Temperature))THEN
+  Tx=Temperature
+  Ty=Temperature
+  Tz=Temperature
+  v_drift=0.0
+ELSE 
+CALL abort(&
+__STAMP__&
+,'PO: force temperature!!')
 END IF
 
 RandN_in_Mem=.FALSE.
@@ -4695,6 +4845,7 @@ END IF
 !IPWRITE(*,*)'Error=',Error
 
 END SUBROUTINE IntegerDivide
+
 
 FUNCTION SYNGE(velabs, temp, mass, BK2)
 !===================================================================================================================================

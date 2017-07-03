@@ -155,7 +155,7 @@ SUBROUTINE CompareConvergence(iExample)
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples
-USE MOD_RegressionCheck_tools,   ONLY: str2int,CalcOrder
+USE MOD_RegressionCheck_tools,   ONLY: CalcOrder
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -171,7 +171,7 @@ INTEGER                        :: iSubExample,p
 REAL,ALLOCATABLE               :: Order(:,:),OrderAvg(:)
 INTEGER,ALLOCATABLE            :: OrderIncrease(:,:)
 LOGICAL,ALLOCATABLE            :: OrderReached(:)
-REAL                           :: DummyReal
+REAL                           :: SuccessRuns,SuccessRate
 LOGICAL                        :: DoDebugOutput
 !==================================================================================================================================
 DoDebugOutput=.TRUE. ! change to ".TRUE." if problems with this routine occur for info written to screen
@@ -339,16 +339,22 @@ IF(DoDebugOutput)THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
 END IF
 
-! 50% of nVar Convergence tests must succeed
-DummyReal=0.
+! The Success Rate (default if 50%) of nVar Convergence tests must succeed
+SuccessRuns=0.
 DO J=1,Examples(iExample)%nVar
-  IF(OrderReached(J))DummyReal=DummyReal+1.
+  IF(OrderReached(J))SuccessRuns=SuccessRuns+1.
 END DO
-IF(DummyReal/REAL(Examples(iExample)%nVar).LT.0.5)THEN
-  Examples(iExample)%ErrorStatus=3
-ELSE
+SuccessRate=SuccessRuns/REAL(Examples(iExample)%nVar)
+IF((SuccessRate.GT.Examples(iExample)%ConvergenceTestSuccessRate).OR.&
+   (ALMOSTEQUALRELATIVE(SuccessRate,Examples(iExample)%ConvergenceTestSuccessRate,1e-3)))THEN
   Examples(iExample)%ErrorStatus=0
+  SWRITE(UNIT_stdOut,'(A)')' Convergence successful ...'
+ELSE
+  Examples(iExample)%ErrorStatus=3
+  SWRITE(UNIT_stdOut,'(A)')' Failed convergence test because the success rate could no be met'
 END IF
+SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Success Rate = ',SuccessRate
+SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Tolerance    = ',Examples(iExample)%ConvergenceTestSuccessRate
 
 END SUBROUTINE CompareConvergence
 
@@ -455,7 +461,7 @@ IF(PRESENT(ReferenceNorm))THEN ! use user-defined norm if present, else use 0.00
       SWRITE(UNIT_stdOut,'(A)') ''
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' L2Norm                =',L2(iVar)
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' ReferenceNorm(iVar,1) =',ReferenceNorm(iVar,1)
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
       RETURN ! fail
     END IF
   END DO ! iVar=1,Examples(iExample)%nVar
@@ -465,7 +471,7 @@ IF(PRESENT(ReferenceNorm))THEN ! use user-defined norm if present, else use 0.00
       SWRITE(UNIT_stdOut,'(A)') ''
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' LInfNorm              =',LInf(iVar)
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' ReferenceNorm(iVar,1) =',ReferenceNorm(iVar,2)
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
       RETURN ! fail
     END IF
   END DO ! iVar=1,Examples(iExample)%nVar
@@ -480,14 +486,14 @@ ELSE ! use user-defined norm if present, else use 100.*PP_RealTolerance
     L2Compare=.FALSE.
     SWRITE(UNIT_stdOut,'(A)') ''
     SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' L2Norm                =',MAXVAL(L2)
-    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
     RETURN ! fail
   END IF
   IF(ANY(LInf.GT.eps))THEN
     LInfCompare=.FALSE.
     SWRITE(UNIT_stdOut,'(A)') ''
     SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' LInfNorm              =',MAXVAL(LInf)
-    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps                   =',eps
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' eps (tolerance)       =',eps
     RETURN ! fail
   END IF
 END IF
@@ -691,7 +697,6 @@ SUBROUTINE IntegrateLine(IntegralCompare,iExample)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_RegressionCheck_Vars,  ONLY: Examples
-USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -842,7 +847,6 @@ SUBROUTINE CompareDatafileRow(DataCompare,iExample)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_RegressionCheck_Vars,  ONLY: Examples
-USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -942,6 +946,9 @@ IF(ColumnNumber.GT.0)THEN
   SWRITE(UNIT_stdOut,'(A)') ''
   DO J=1,ColumnNumber
     ValuesAreEqual(J)=ALMOSTEQUALRELATIVE(Values(J),ValuesRef(J),Examples(iExample)%CompareDatafileRowTolerance)
+    IF((ABS(ValuesRef(J)).LE.0.0).OR.(ABS(Values(J)).LE.0.0))THEN ! if the one value is zero -> absolute comparison with tolerance
+      IF(MAX(ABS(ValuesRef(J)),ABS(Values(J))).LT.Examples(iExample)%CompareDatafileRowTolerance)ValuesAreEqual(J)=.TRUE.
+    END IF
     IF(ValuesAreEqual(J).EQV..FALSE.)THEN
       SWRITE(UNIT_stdOut,'(A)')             ' CompareDatafileRows mismatch for ['//TRIM(ColumnHeaders(J))//']'
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')      ' Value in Reference              = ',ValuesRef(J)
@@ -973,7 +980,6 @@ SUBROUTINE GetColumns(InputString,Delimiter,ColumnString,ColumnReal,Column)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_RegressionCheck_tools, ONLY: str2real
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES

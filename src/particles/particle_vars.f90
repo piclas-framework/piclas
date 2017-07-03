@@ -16,6 +16,21 @@ LOGICAL               :: useManualTimeStep                                   ! L
                                                                              ! with IAG programming style
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
+! IMD: Molecular Dynamics Model - ion distribution info
+LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
+REAL                  :: IMDTimeScale                                        ! Time unit of input file
+REAL                  :: IMDLengthScale                                      ! global IMD length scale
+INTEGER               :: IMDNumber                                           ! Output number IMD Data file
+CHARACTER(255)        :: IMDInputFile                                        ! Laser data file name containing PartState(1:6)
+INTEGER               :: IMDnSpecies                                         ! number of IMD species
+INTEGER , ALLOCATABLE :: IMDSpeciesID(:)                                     ! species ID for distributing the IMD atoms/ions
+INTEGER , ALLOCATABLE :: IMDSpeciesCharge(:)                                 ! charge number of IMD atoms/ions
+CHARACTER(255)        :: IMDAtomFile                                         ! Laser data file name containing PartState(1:6)
+REAL                  :: IMDCutOffxValue                                     ! cut-off coordinate for IMDCutOff='coordiantes'
+CHARACTER(255)        :: IMDCutOff                                           ! cut-off type for IMD data reduction: 1.) no_cutoff
+                                                                             !                                      2.) Epot
+                                                                             !                                      3.) coordinates
+                                                                             !                                      4.) velocity
 REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  

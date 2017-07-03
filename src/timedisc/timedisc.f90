@@ -180,6 +180,7 @@ USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
@@ -193,7 +194,7 @@ USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
@@ -286,6 +287,9 @@ tFuture=MIN(time+Analyze_dt,tEnd)
 IF(DoRestart) CALL EvalGradient()
 #endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
+#ifdef PARTICLES
+IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
+#endif /*PARTICLES*/
 IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 
 ! if measurement of particle tracking time
@@ -337,6 +341,9 @@ iter_loc=0
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
 
 ! fill initial analyze stuff
+tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+tEndDiff=tEnd-time            ! dito for end time
+dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroValues=T)
 CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 !-----------------------------------------------------------------------------------------------------------------------------------

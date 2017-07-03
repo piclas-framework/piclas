@@ -2728,7 +2728,7 @@ END SUBROUTINE InitElemBoundingBox
 
 SUBROUTINE InsideElemBoundingBox(ParticlePosition,ElemID,InSide)
 !================================================================================================================================
-! check is the particles is inside the bounding box, return TRUE/FALSE
+! check if the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemSlabNormals,ElemSlabIntervals

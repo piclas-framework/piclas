@@ -53,6 +53,7 @@ USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
 USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
 USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
+USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 #ifdef MPI
@@ -118,7 +119,10 @@ ParticlesInitIsDone=.FALSE.
 #ifdef MPI
 ParticleMPIInitIsDone=.FALSE.
 #endif /*MPI*/
+
+CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 #endif /*PARTICLES*/
+
 
 END SUBROUTINE FinalizeBoltzplatz
 
@@ -161,6 +165,8 @@ USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
 USE MOD_ParticleInit,       ONLY:InitParticles
+USE MOD_TTMInit,            ONLY:InitTTM,InitIMD_TTM_Coupling
+USE MOD_TTM_Vars,           ONLY:DoImportTTMFile
 USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
 USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
@@ -211,11 +217,11 @@ CALL InitParticleSurfaces()
 #endif /*PARTICLES*/
 CALL InitEquation()
 CALL InitBC()
-!1#ifdef PARTICLES
+!#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
 #ifndef PP_HDG
-CALL InitPML()
+CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #endif /*PP_HDG*/
 CALL InitDG()
 CALL InitFilter()
@@ -243,6 +249,13 @@ CALL IgnoredStrings()
 #ifdef PP_HDG
 CALL InitHDG()
 #endif
+
+#ifdef PARTICLES
+  CALL InitTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+IF(DoImportTTMFile)THEN
+  CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
+END IF
+#endif /*PARTICLES*/
 
 END SUBROUTINE InitBoltzplatz
 

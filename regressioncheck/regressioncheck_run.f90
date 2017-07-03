@@ -150,7 +150,6 @@ SUBROUTINE PerformFullRegressionCheck()
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Compare, ONLY: CompareResults,CompareConvergence
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -443,8 +442,8 @@ END SUBROUTINE CheckExampleName
 
 
 !===================================================================================================================================
-!> IF build-mode: read the configurations.reggie and determine the number of builds
-!> ELSE         : nReggieBuilds=1
+!> IF BuildSolver=T: read the configurations.reggie and determine the number of builds
+!> ELSE            : nReggieBuilds=1
 !===================================================================================================================================
 SUBROUTINE GetnReggieBuilds(iExample,ReggieBuildExe,N_compile_flags,nReggieBuilds)
 !===================================================================================================================================
@@ -452,8 +451,7 @@ SUBROUTINE GetnReggieBuilds(iExample,ReggieBuildExe,N_compile_flags,nReggieBuild
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Build,   ONLY: ReadConfiguration
-USE MOD_RegressionCheck_Vars,    ONLY: BuildDir
-USE MOD_RegressionCheck_Vars,    ONLY: BuildCounter,BuildSolver
+USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,BuildCounter,BuildSolver,BuildContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -474,10 +472,12 @@ IF(BuildSolver)THEN
   IF(ReggieBuildExe.EQ.'')THEN
     CALL ReadConfiguration(iExample,nReggieBuilds,N_compile_flags)
     BuildCounter=1 ! reset the counter between read and build (used for selecting the build configuration for compilation)
-    SYSCOMMAND='rm -rf '//TRIM(BuildDir)//'build_reggie_bin > /dev/null 2>&1'
-    CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-    SYSCOMMAND= 'mkdir '//TRIM(BuildDir)//'build_reggie_bin'
-    CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+    IF(.NOT.BuildContinue)THEN ! only delete the executables folder if reggie starts at the beginning
+      SYSCOMMAND='rm -rf '//TRIM(BuildDir)//'build_reggie_bin > /dev/null 2>&1'
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      SYSCOMMAND= 'mkdir '//TRIM(BuildDir)//'build_reggie_bin'
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+    END IF
   ELSE
     SWRITE(UNIT_stdOut,'(A)')'regressioncheck_run.f90: CALL ReadConfiguration() has already been performed, skipping...'
   END IF
@@ -502,6 +502,7 @@ USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,CodeNameLowCase,EXECPATH
 USE MOD_RegressionCheck_Vars,    ONLY: BuildValid,BuildSolver
 USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable
 USE MOD_RegressionCheck_Build,   ONLY: BuildConfiguration
+USE MOD_RegressionCheck_Vars,    ONLY: BuildContinue,BuildContinueNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -522,15 +523,28 @@ SkipBuild=.FALSE.
 ExitBuild=.FALSE.
 ! Get code binary (build or find it)
 IF(BuildSolver)THEN
+!print*,""
+!print*,"iReggieBuild=[",iReggieBuild,"]"
+!print*,"BuildValid(iReggieBuild)=[",BuildValid(iReggieBuild),"]"
+
   ! if build is not valid no binary has been built and the lopp can cycle here
   IF(.NOT.BuildValid(iReggieBuild))THEN ! invalid reggie build 
-    WRITE (ReggieBuildExe, '(a, i4.4)') "invalid"
+    WRITE (ReggieBuildExe, '(a, i4.4)') "[BUILD_is_invalid]"
   ELSE
     WRITE (ReggieBuildExe, '(a, i4.4)') CodeNameLowCase, COUNT(BuildValid(1:iReggieBuild)) ! e.g. XXXXX0001
   END IF
   ! check if build exists -> if it does, don't build a new executable with cmake
   FileName=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
+!print*,"FileName=["//TRIM(FileName)//"]"
   INQUIRE(File=FileName,EXIST=ExistFile)
+
+  IF(BuildContinue)THEN ! even if the executable exists, re-build it when it equels BuildContinueNumber
+    IF(COUNT(BuildValid(1:iReggieBuild)).EQ.BuildContinueNumber)THEN
+      ExistFile=.FALSE.
+    END IF
+  END IF
+
+
   IF(ExistFile) THEN ! 1. build already exists (e.g. XXXX0001 located in ../build_reggie_bin/)
     EXECPATH=TRIM(FileName)
   ELSE ! 2. build does not exists -> create it
@@ -541,6 +555,9 @@ IF(BuildSolver)THEN
       EXECPATH=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
     END IF
   END IF
+
+
+
   ! if build is not valid no exe has been built and the lopp can cycle here
   IF((.NOT.BuildValid(iReggieBuild)).AND.(iReggieBuild.NE.nReggieBuilds))THEN ! invalid reggie build but not last reggie build
     SkipBuild=.TRUE. ! -> does a CYLCE
@@ -548,6 +565,19 @@ IF(BuildSolver)THEN
                                                                                   ! ("cycle" would start an infinite loop)
     ExitBuild=.TRUE. ! -> does an EXIT
   END IF
+
+
+  IF(BuildContinue)THEN ! skip build if the build is smaller than BuildContinueNumber
+    IF(COUNT(BuildValid(1:iReggieBuild)).LT.BuildContinueNumber)THEN ! skip the first N builds when BuildContinue is used
+    !IF(iReggieBuild.LT.BuildContinueNumber)THEN ! skip the first N builds when BuildContinue is used
+!print*,"COUNT(BuildValid(1:iReggieBuild))",COUNT(BuildValid(1:iReggieBuild))
+!print*,"BuildContinueNumber              ",BuildContinueNumber,"----> RETURN"
+!read*
+      SkipBuild=.TRUE.
+      !RETURN
+    END IF
+  END IF
+
   CALL CheckForExecutable(Mode=2) ! check if executable was created correctly
 END IF
 END SUBROUTINE GetCodeBinary
@@ -792,7 +822,7 @@ SUBROUTINE GetParameterFiles(iExample,TIMEDISCMETHOD,parameter_ini,parameter_ini
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: CodeNameLowCase,Examples
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile,str2logical
+!USE MOD_RegressionCheck_tools,   ONLY: GetParameterStrFromFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -827,11 +857,12 @@ ELSE ! standard flexi or PIC related simulation
     CALL str2logical(TempStr,UseDSMC,iSTATUS)
   END IF
   IF(UseDSMC)THEN ! if UseDSMC is true, a parameter file for DSMC info needs to bespecified (must be located where the mesh is)
+                  ! and must be named 'parameter_DSMC.ini'
     CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),'MeshFile',TempStr) ! find mesh file lcoation
     IndNum=INDEX(TempStr,'/',BACK = .TRUE.) ! get path without mesh file name (*.h5)
     IF(IndNum.GT.0)THEN
-      TempStr=TempStr(1:IndNum)                   ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
-      IF(TRIM(ADJUSTL(TempStr)).EQ.'./')TempStr='' ! e.g. "./turner2013_mesh.h5" -> "./"
+      TempStr=TempStr(1:IndNum)                    ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      IF(TRIM(ADJUSTL(TempStr)).EQ.'./')TempStr='' ! e.g. "./turner2013_mesh.h5"         -> "./"
     ELSE ! parameter file not located within a different directory
       TempStr=''
     END IF
@@ -841,15 +872,15 @@ ELSE ! standard flexi or PIC related simulation
 END IF
 INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
-  SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-  SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini:      ',TRIM(parameter_ini)
+  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no parameter file found under : ['//TRIM(Examples(iExample)%PATH)//']'
+  SWRITE(UNIT_stdOut,'(A)')   ' parameter_ini                        : ['//TRIM(parameter_ini)//']'
   ERROR STOP 1
 END IF
 IF(parameter_ini2.NE.'')THEN
   INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini2),EXIST=ExistFile)
   IF(.NOT.ExistFile) THEN
-    SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-    SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini2:     ',TRIM(parameter_ini2)
+    SWRITE(UNIT_stdOut,'(A)') ' ERROR: no parameter file found under : ['//TRIM(Examples(iExample)%PATH)//']'
+    SWRITE(UNIT_stdOut,'(A)') ' parameter_ini2                       : ['//TRIM(parameter_ini2)//']'
     ERROR STOP 1
   END IF
 END IF
@@ -908,7 +939,6 @@ SUBROUTINE SetParameters(iExample,parameter_ini,UseFV,Use2D,UsePARABOLIC,SkipFol
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,CodeNameUppCase
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile
 USE MOD_RegressionCheck_Vars,    ONLY: ExampleNames
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1231,8 +1261,7 @@ SUBROUTINE RunTheCode(iExample,iSubExample,iScaling,iRun,MPIthreadsStr,EXECPATH,
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,GlobalRunNumber
-USE MOD_RegressionCheck_tools,   ONLY: AddError,str2int
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile
+USE MOD_RegressionCheck_tools,   ONLY: AddError
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

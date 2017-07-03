@@ -152,8 +152,8 @@ LOGICAL               :: TrueRandom, PartDens_OnlyInit                          
 INTEGER,ALLOCATABLE   :: iSeeds(:)
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins
-INTEGER               :: iVec, MaxNbrOfSpeciesSwaps
-LOGICAL                       :: exitTrue
+INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
+LOGICAL               :: exitTrue,IsIMDSpecies
 #ifdef MPI
 #endif
 !===================================================================================================================================
@@ -334,6 +334,23 @@ KeepWallParticles = .FALSE.
 
 nSpecies = GETINT('Part-nSpecies','1')
 
+! IMD data import from *.chkpt file
+DoImportIMDFile=.FALSE. ! default
+IMDLengthScale=0.0
+
+IMDTimeScale          = GETREAL('IMDTimeScale','10.18e-15')
+IMDLengthScale        = GETREAL('IMDLengthScale','1.0E-10')
+IMDAtomFile           = GETSTR( 'IMDAtomFile','no file found')         
+IMDCutOff             = GETSTR( 'IMDCutOff','no_cutoff')
+IMDCutOffxValue       = GETREAL('IMDCutOffxValue','-999.9')
+
+IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
+IF(DoImportIMDFile)THEN
+  DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
+  SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
+  ' | *CUSTOM |'
+END IF
+
 
 ! init varibale MPF per particle
 IF (usevMPF) THEN
@@ -412,8 +429,8 @@ DO iSpec = 1, nSpecies
 #endif
     END IF ! iInit
     ! get emission and init data
-    Species(iSpec)%Init(iInit)%UseForInit           = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
-    Species(iSpec)%Init(iInit)%UseForEmission       = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
+    Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
+    Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
     IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'tangential_constant')THEN
@@ -799,6 +816,23 @@ __STAMP__&
 
   END DO ! iInit
 END DO ! iSpec 
+
+! get information for IMD atom/ion charge determination and distribution
+IMDnSpecies         = GETINT('IMDnSpecies','1')
+IMDInputFile        = GETSTR('IMDInputFile','no file found')
+ALLOCATE(IMDSpeciesID(IMDnSpecies))
+ALLOCATE(IMDSpeciesCharge(IMDnSpecies))
+iIMDSpec=1
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
+  IF(IsIMDSpecies)THEN
+    IMDSpeciesID(iIMDSpec)=iSpec
+    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/1.60217653E-19)
+    iIMDSpec=iIMDSpec+1
+  END IF
+END DO
+
 
 ! Which Lorentz boost method should be used?
 PartLorentzType = GETINT('Part-LorentzType','3')

@@ -106,6 +106,7 @@ TYPE tExample                                                       !> examples 
   REAL                             :: ConvergenceTestDomainSize     !> length of simulation domain, needed for grid step size
   REAL                             :: ConvergenceTestValue          !> single value for comparison
   REAL                             :: ConvergenceTestTolerance      !> relative tolerance when comparing the "ConvergenceTestValue"
+  REAL                             :: ConvergenceTestSuccessRate    !> The Success Rate (default if 50%) of nVar Convergence tests 
   REAL, ALLOCATABLE                :: ConvergenceTestGridSize(:)    !> array for grid step size: cell length / ( p + 1 )
   REAL, ALLOCATABLE                :: ConvergenceTestError(:,:)     !> array for L2 errors over iteration or polynomial degree
                                                                     !> dimension for "array" will be: [SubExampleNumber]x[nVar]x[2]

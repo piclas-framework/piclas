@@ -38,9 +38,9 @@ INTERFACE AddError
   MODULE PROCEDURE AddError
 END INTERFACE
 
-INTERFACE GetParameterFromFile
-  MODULE PROCEDURE GetParameterFromFile
-END INTERFACE
+!INTERFACE GetParameterFromFile
+  !MODULE PROCEDURE GetParameterFromFile
+!END INTERFACE
 
 INTERFACE CheckFileForString
   MODULE PROCEDURE CheckFileForString
@@ -54,26 +54,14 @@ INTERFACE CalcOrder
   MODULE PROCEDURE CalcOrder
 END INTERFACE
 
-INTERFACE str2real
-  MODULE PROCEDURE str2real
-END INTERFACE
-
-INTERFACE str2int
-  MODULE PROCEDURE str2int
-END INTERFACE
-
-INTERFACE str2logical
-  MODULE PROCEDURE str2logical
-END INTERFACE
 
 PUBLIC::GetExampleList,InitExample,CheckForExecutable,GetCommandLineOption
 PUBLIC::SummaryOfErrors
 PUBLIC::AddError
-PUBLIC::GetParameterFromFile
+!PUBLIC::GetParameterFromFile
 PUBLIC::CheckFileForString
 PUBLIC::REGGIETIME
 PUBLIC::CalcOrder
-PUBLIC::str2real,str2int,str2logical
 !==================================================================================================================================
 
 CONTAINS
@@ -193,100 +181,12 @@ SWRITE(UNIT_stdOut,'(A,4(A1,A,A1),A21,I3,A20)')' Running with arguments: ',&
 '[',TRIM(RuntimeOption(3)),']',&
 '[',TRIM(RuntimeOption(4)),']',   ' and compiling with [',NumberOfProcs,'] threads (-1 is -j)'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildSolver  :  [',BuildSolver,']'
+SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildContinue:  [',BuildContinue,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildDebug   :  [',BuildDebug,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildNoDebug :  [',BuildNoDebug,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' DoFullReggie :  [',DoFullReggie,']'
 
-
 END SUBROUTINE GetCommandLineOption
-
-
-! !==================================================================================================================================
-! !> reads the command line options for the regressioncheck
-! !> options are:
-! !> run [default]:  - runs only the regressioncheck
-! !> build           - builds all valid compiler flag combinations (default uses the configuration.reggie from run_basic) and
-! !>                   performs the tests
-! !>
-! !> ./regressioncheck [RuntimeOption] [RuntimeOptionType]
-! !>
-! !> ./regressioncheck                -> uses default "run" and runs the current compiler build and all "run_" examples
-! !> ./regressioncheck
-! !> ./regressioncheck build          -> runs "run_basic" for numerous builds
-! !> ./regressioncheck build convtest -> runs "feature_convtest" for numerous builds def. "feature_convtest/configuration.reggie"
-! !> ./regressioncheck build all      -> runs all examples for numerous builds defined in "run_basic/configuration.reggie"
-! !==================================================================================================================================
-! SUBROUTINE GetCommandLineOptionOLD()
-! ! MODULES
-! USE MOD_Globals
-! USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption,RuntimeOptionType,BuildNoDebug,BuildDebug,RuntimeOptionTypeII
-! USE MOD_RegressionCheck_Vars, ONLY: RuntimeOptionTypeIII,BuildContinue,BuildSolver
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT/OUTPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! INTEGER                        :: nArgs                             ! Number of supplied command line arguments
-! !===================================================================================================================================
-! RuntimeOption='run'           ! only run pre-built executable (no building of new cmake compiler flag combinations)
-! RuntimeOptionType='run_basic' ! set to standard case folder 'run_basic'
-! RuntimeOptionTypeII=''        ! default
-! RuntimeOptionTypeIII=''       ! default
-! BuildDebug=.FALSE.            ! default
-! BuildNoDebug=.FALSE.          ! default
-! ! Get number of command line arguments and read in runtime option of regressioncheck
-! nArgs=COMMAND_ARGUMENT_COUNT()
-! IF(nArgs.EQ.0)THEN
-!   BuildSolver=.FALSE.
-! ELSE
-!   CALL GET_COMMAND_ARGUMENT(1,RuntimeOption)
-!   IF(nArgs.GE.2)CALL GET_COMMAND_ARGUMENT(2,RuntimeOptionType)
-!   IF(nArgs.GE.3)CALL GET_COMMAND_ARGUMENT(3,RuntimeOptionTypeII)
-!   IF(nArgs.GE.4)CALL GET_COMMAND_ARGUMENT(4,RuntimeOptionTypeIII)
-!   IF(nArgs.GE.5)THEN
-!     SWRITE(UNIT_stdOut,'(A)') ' ERROR: too many arguments for regressioncheck!'
-!     ERROR STOP 2
-!   END IF
-! 
-!   ! get number of threads/procs for parallel building
-!   CALL GetNumberOfProcs(nArgs)
-! 
-!   IF(TRIM(RuntimeOption).EQ.'run') THEN
-!     BuildSolver=.FALSE.
-!   ELSE IF(TRIM(RuntimeOption(1:5)).EQ.'build') THEN
-!     IF(TRIM(RuntimeOption).EQ.'build-continue')BuildContinue=.TRUE.
-!     BuildSolver=.TRUE.
-!     IF(TRIM(RuntimeOptionType).EQ.'debug')THEN
-!       BuildDebug=.TRUE.
-!       RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays the complete
-!                                     ! compilation process for debugging
-!     ELSEIF(TRIM(RuntimeOptionType).EQ.'no-debug')THEN
-!       BuildNoDebug=.TRUE.
-!       RuntimeOptionType='run_basic' ! debug uses "configuration.reggie" from "run_basic" and displays no putput
-!     END IF
-!     IF(TRIM(RuntimeOptionTypeII).EQ.'debug')THEN
-!       BuildDebug=.TRUE. ! e.g. ./regressioncheck build feature_convtest debug
-!     ELSEIF(TRIM(RuntimeOptionTypeII).EQ.'no-debug')THEN
-!       BuildNoDebug=.TRUE. ! redirect std- and err-output channels to "/build_reggie/build_reggie.out"
-!     END IF
-!   ELSE IF((TRIM(RuntimeOption).EQ.'--help').OR.(TRIM(RuntimeOption).EQ.'help').OR.(TRIM(RuntimeOption).EQ.'HELP')) THEN
-!     CALL Print_Help_Information()
-!     STOP 0
-!   ELSE
-!     SWRITE(UNIT_stdOut,'(A)') ' ERROR: wrong argument for regressioncheck!'
-!     ERROR STOP 2
-!   END IF
-! 
-!   ! [RuntimeOptionType] = all: run all example folders
-!   IF((TRIM(RuntimeOptionType).EQ.'all').OR.(TRIM(RuntimeOptionType).EQ.'ALL'))RuntimeOptionType=''
-! END IF
-! 
-! SWRITE(UNIT_stdOut,'(A,4(A1,A,A1))')' Running with arguments: ',&
-! '[',TRIM(RuntimeOption)       ,']',&
-! '[',TRIM(RuntimeOptionType)   ,']',&
-! '[',TRIM(RuntimeOptionTypeII) ,']',&
-! '[',TRIM(RuntimeOptionTypeIII),']'
-! END SUBROUTINE GetCommandLineOptionOLD
 
 
 !==================================================================================================================================
@@ -482,6 +382,17 @@ DO ! extract reggie information
     IF(TRIM(readRHS(1)).EQ.'H5diffToleranceType')          Example%H5diffToleranceType   =TRIM(ADJUSTL(readRHS(2)))
     IF(TRIM(readRHS(1)).EQ.'H5diffTolerance')   CALL str2real(readRHS(2),Example%H5diffTolerance,iSTATUS)
     IF(TRIM(readRHS(1)).EQ.'RestartFileName')              Example%RestartFileName       =TRIM(ADJUSTL(readRHS(2)))
+    ! test if restart file exists
+    IF(TRIM(Example%RestartFileName).NE.'')THEN
+      FileName=TRIM(FilePath)//TRIM(Example%RestartFileName)
+      INQUIRE(File=FileName,EXIST=ExistFile)
+      IF(.NOT.ExistFile) THEN
+        SkipExample=.TRUE.
+        SWRITE(UNIT_stdOut,'(A16,A,A1)') '   FileName  : [', TRIM(FileName),']'
+        SWRITE(UNIT_stdOut,'(A16,L,A1)') '   ExistFile : [', ExistFile,']'
+        ERROR STOP 'Restart file supplied, but not found.'
+      END IF
+    END IF
     ! SubExamples - currently one subexample class is allowed with multiple options
     IF(TRIM(readRHS(1)).EQ.'SubExample') CALL GetParameterList(ParameterName   = Example%SubExample,       &
                                                                ParameterList   = Example%SubExampleOption, &
@@ -630,22 +541,28 @@ DO ! extract reggie information
       Example%ConvergenceTestDomainSize = -999.0 ! init
       Example%ConvergenceTestValue      = -999.0 ! init
       Example%ConvergenceTestTolerance  = -1.     ! init
+      Example%ConvergenceTestSuccessRate= 0.5    ! default: 50 % of tests of all nVar must hold
       IndNum2=INDEX(readRHS(2),',')
       IF(IndNum2.GT.0)THEN ! get the type of the convergence test (h- or p-convergence)
-        temp2                     = readRHS(2)
+        temp2 = readRHS(2)
         Example%ConvergenceTestType= TRIM(ADJUSTL(temp2(1:IndNum2-1))) ! type
-        temp2                     = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-        IndNum2                   = INDEX(temp2,',')
+        temp2 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+        IndNum2 = INDEX(temp2,',')
         IF(IndNum2.GT.0)THEN ! get the size of the domain
           CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestDomainSize,iSTATUS)
-          temp2                          = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
-          IndNum2                        = INDEX(temp2,',')
+          temp2 = temp2(IndNum2+1:LEN(TRIM(temp2))) ! next
+          IndNum2 = INDEX(temp2,',')
           IF((IndNum2.GT.0).AND.(iSTATUS.EQ.0))THEN ! get value for comparison
             CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestValue,iSTATUS)
-            temp2                  = TRIM(ADJUSTL(temp2(IndNum2+1:LEN(TRIM(temp2))))) ! next
-            IndNum2               = LEN(temp2)
+            temp2 = TRIM(ADJUSTL(temp2(IndNum2+1:LEN(TRIM(temp2))))) ! next
+            IndNum2 = INDEX(temp2,',')
+            IF(IndNum2.LE.0) IndNum2 = LEN(temp2)+1 ! no SuccessRate given -> use default
             IF((IndNum2.GT.0).AND.(iSTATUS.EQ.0))THEN ! get tolerance value for comparison
               CALL str2real(temp2(1:IndNum2-1),Example%ConvergenceTestTolerance,iSTATUS)
+              IF((IndNum2.LT.LEN(TRIM(temp2))).AND.(iSTATUS.EQ.0))THEN
+                temp2 = TRIM(ADJUSTL(temp2(IndNum2+1:LEN(TRIM(temp2))))) ! next
+                CALL str2real(TRIM(ADJUSTL(temp2)),Example%ConvergenceTestSuccessRate,iSTATUS)
+              END IF
             END IF ! get tolerance value for comparison
           END IF ! get value for comparison
         END IF ! get the comparison type
@@ -655,13 +572,17 @@ DO ! extract reggie information
                 Example%ConvergenceTestType.EQ.''        ,&
                 Example%ConvergenceTestDomainSize.LT.-1. ,&
                 Example%ConvergenceTestValue.LT.-1.      ,&
-                Example%ConvergenceTestTolerance.EQ.-1.     &
+                Example%ConvergenceTestTolerance.EQ.-1.  ,&
+                Example%ConvergenceTestSuccessRate.LT.0. ,&
+                Example%ConvergenceTestSuccessRate.GT.1.  &
                 /) )) Example%ConvergenceTest=.FALSE.
+      SWRITE(UNIT_stdOut,'(A)') ' ERROR in Convergence-Test Read-in. Deactivating Convergence-Test!'
       IF(Example%ConvergenceTest.EQV..FALSE.)THEN
-        SWRITE(UNIT_stdOut,'(A,A)')      'Example%ConvergenceTestType       : ',Example%ConvergenceTestType
-        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestDomainSize : ',Example%ConvergenceTestDomainSize
-        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestValue      : ',Example%ConvergenceTestValue
-        SWRITE(UNIT_stdOut,'(A,E25.14)') 'Example%ConvergenceTestTolerance  : ',Example%ConvergenceTestTolerance
+        SWRITE(UNIT_stdOut,'(A,A)')        ' Example%ConvergenceTestType       : ',Example%ConvergenceTestType
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestDomainSize : ',Example%ConvergenceTestDomainSize
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestValue      : ',Example%ConvergenceTestValue
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestTolerance  : ',Example%ConvergenceTestTolerance
+        SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Example%ConvergenceTestSuccessRate: ',Example%ConvergenceTestSuccessRate
       END IF
     END IF ! 'ConvergenceTest'
     ! Check the bounds of an array in a HDF5 file, if they are outside the supplied ranges -> fail
@@ -928,7 +849,7 @@ END SUBROUTINE GetNumberOfProcs
 SUBROUTINE SummaryOfErrors(EndTime)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars, ONLY: firstError,aError,nErrors
+USE MOD_RegressionCheck_Vars, ONLY: firstError,aError,nErrors,BuildDir,BuildSolver
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -939,9 +860,9 @@ REAL                           :: Time
 CHARACTER(LEN=255)             :: SpacingBetweenExamples(2) ! set row spacing between examples in table
 !===================================================================================================================================
 IF(.NOT.PRESENT(EndTime))THEN
-  Time=REGGIETIME() ! Measure processing duration
+  Time=REGGIETIME() ! Measure processing duration -> when e.g. failed to compile occurs
 ELSE
-  Time=EndTime
+  Time=EndTime ! when reggie terminates normally
 END IF
 SWRITE(UNIT_stdOut,'(132("="))')
 nErrors=0
@@ -977,6 +898,14 @@ ELSE
     IF(aError%ErrorCode.NE.0) nErrors=nErrors+1
     aError=>aError%nextError
   END DO
+  IF(BuildSolver.AND.(nErrors.GT.0))THEN
+    SWRITE(UNIT_stdOut,'(A)') ' '
+    SWRITE(UNIT_stdOut,'(A)') ' Run [./regressioncheck build] with the flag [buid-continue] in order to skip the successful builds'
+    SWRITE(UNIT_stdOut,'(A)') ' and continue with the failed one. The building process can be started at an arbitrary position by'
+    SWRITE(UNIT_stdOut,'(A)') ' modifying the file ['//TRIM(BuildDir)//'build_reggie/BuildContinue.reggie] '
+    SWRITE(UNIT_stdOut,'(A)') ' where the number corresponds to the build executable'
+    SWRITE(UNIT_stdOut,'(A)') ' '
+  END IF
   SWRITE(UNIT_stdOut,'(A,I4)') ' Number of errors:  ', nErrors
 END IF
 
@@ -1045,75 +974,136 @@ END IF
 END SUBROUTINE AddError
 
 
-!==================================================================================================================================
-!> read parameter values from a specified file
-!==================================================================================================================================
-SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DoDisplayInfo)
-! MODULES
-USE MOD_Globals
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)     :: FileName      ! e.g. './../build_reggie/bin/configuration.cmake'
-CHARACTER(LEN=*),INTENT(IN)     :: ParameterName ! e.g. 'XX_EQNSYSNAME'
-CHARACTER(LEN=*),INTENT(INOUT)  :: output        ! e.g. 'navierstokes'
-LOGICAL, INTENT(IN),OPTIONAL    :: DoDisplayInfo ! display error output if the parameter or the file is not found
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-LOGICAL                         :: ExistFile    ! file exists=.true., file does not exist=.false.
-INTEGER                         :: iSTATUS      ! status
-CHARACTER(LEN=255)              :: temp,temp2   ! temp variables for read in of file lines
-INTEGER                         :: ioUnit       ! field handler unit and ??
-INTEGER                         :: IndNum       ! Index Number
-!===================================================================================================================================
-output=''
-INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
-IF(ExistFile) THEN
-  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
-  DO
-    READ(ioUnit,'(A)',iostat=iSTATUS)temp
-    temp2=ADJUSTL(temp)
-    IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
-    IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
-    IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
-      IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
-      IF(IndNum.GT.0)THEN
-        temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
-        IndNum=INDEX(temp2, '=')
-        IF(IndNum.GT.0)THEN
-          temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
-          IndNum=INDEX(temp2, '!')
-          IF(IndNum.GT.0)THEN
-            temp2=temp2(1:IndNum-1)
-          END IF
-        END IF
-        output=TRIM(ADJUSTL(temp2))
-        EXIT
-      END IF
-    END IF
-  END DO
-  CLOSE(ioUnit)
-  IF(output.EQ.'')THEN
-    IF(PRESENT(DoDisplayInfo))THEN
-      IF(DoDisplayInfo)THEN
-        SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
-      END IF
-    ELSE
-      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
-    END IF
-    output='ParameterName does not exist'
-  END IF
-ELSE
-    IF(PRESENT(DoDisplayInfo))THEN
-      IF(DoDisplayInfo)THEN
-        SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
-      END IF
-    ELSE
-      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
-    END IF
-  output='file does not exist'
-END IF
-END SUBROUTINE GetParameterFromFile
+!!!!!!!!! OLD
+!!!!!!!!! OLD
+!!!!!!!!! OLD
+
+! !==================================================================================================================================
+! !> read parameter values from a specified file
+! !==================================================================================================================================
+! SUBROUTINE GetParameterFromFile(FileName,ParameterName,output)
+! ! MODULES
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT/OUTPUT VARIABLES
+! CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
+! CHARACTER(LEN=*),INTENT(IN)  :: ParameterName     ! e.g. 'XX_EQNSYSNAME'
+! CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
+! INTEGER                        :: iSTATUS      ! status
+! CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
+! INTEGER                        :: ioUnit       ! field handler unit and ??
+! INTEGER                        :: IndNum       ! Index Number
+! !===================================================================================================================================
+! output=''
+! INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+! IF(ExistFile) THEN
+!   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
+!   DO
+!     READ(ioUnit,'(A)',iostat=iSTATUS)temp
+!     temp2=ADJUSTL(temp)
+!     IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
+!     IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
+!     IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
+!       IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
+!       IF(IndNum.GT.0)THEN
+!         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+!         IndNum=INDEX(temp2, '=')
+!         IF(IndNum.GT.0)THEN
+!           temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
+!           IndNum=INDEX(temp2, '!')
+!           IF(IndNum.GT.0)THEN
+!             temp2=temp2(1:IndNum-1)
+!           END IF
+!         END IF
+!         output=TRIM(ADJUSTL(temp2))
+!         EXIT
+!       END IF
+!     END IF
+!   END DO
+!   CLOSE(ioUnit)
+!   IF(output.EQ.'')output='ParameterName does not exist'
+! ELSE
+!   output='file does not exist'
+! END IF
+! END SUBROUTINE GetParameterFromFile
+
+
+
+!!!!!!!!! NEW
+!!!!!!!!! NEW
+!!!!!!!!! NEW
+! !==================================================================================================================================
+! !> read parameter values from a specified file
+! !==================================================================================================================================
+! SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DoDisplayInfo)
+! ! MODULES
+! USE MOD_Globals
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT/OUTPUT VARIABLES
+! CHARACTER(LEN=*),INTENT(IN)     :: FileName      ! e.g. './../build_reggie/bin/configuration.cmake'
+! CHARACTER(LEN=*),INTENT(IN)     :: ParameterName ! e.g. 'XX_EQNSYSNAME'
+! CHARACTER(LEN=*),INTENT(INOUT)  :: output        ! e.g. 'navierstokes'
+! LOGICAL, INTENT(IN),OPTIONAL    :: DoDisplayInfo ! display error output if the parameter or the file is not found
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! LOGICAL                         :: ExistFile    ! file exists=.true., file does not exist=.false.
+! INTEGER                         :: iSTATUS      ! status
+! CHARACTER(LEN=255)              :: temp,temp2   ! temp variables for read in of file lines
+! INTEGER                         :: ioUnit       ! field handler unit and ??
+! INTEGER                         :: IndNum       ! Index Number
+! !===================================================================================================================================
+! output=''
+! INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+! IF(ExistFile) THEN
+!   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
+!   DO
+!     READ(ioUnit,'(A)',iostat=iSTATUS)temp
+!     temp2=ADJUSTL(temp)
+!     IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
+!     IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
+!     IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
+!       IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
+!       IF(IndNum.GT.0)THEN
+!         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+!         IndNum=INDEX(temp2, '=')
+!         IF(IndNum.GT.0)THEN
+!           temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
+!           IndNum=INDEX(temp2, '!')
+!           IF(IndNum.GT.0)THEN
+!             temp2=temp2(1:IndNum-1)
+!           END IF
+!         END IF
+!         output=TRIM(ADJUSTL(temp2))
+!         EXIT
+!       END IF
+!     END IF
+!   END DO
+!   CLOSE(ioUnit)
+!   IF(output.EQ.'')THEN
+!     IF(PRESENT(DoDisplayInfo))THEN
+!       IF(DoDisplayInfo)THEN
+!         SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+!       END IF
+!     ELSE
+!       SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+!     END IF
+!     output='ParameterName does not exist'
+!   END IF
+! ELSE
+!     IF(PRESENT(DoDisplayInfo))THEN
+!       IF(DoDisplayInfo)THEN
+!         SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+!       END IF
+!     ELSE
+!       SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+!     END IF
+!   output='file does not exist'
+! END IF
+! END SUBROUTINE GetParameterFromFile
 
 
 !==================================================================================================================================
@@ -1176,7 +1166,7 @@ END SUBROUTINE CheckFileForString
 !==================================================================================================================================
 !> Calculates current time (own function because of a laterMPI implementation)
 !==================================================================================================================================
-#if MPI
+#ifdef MPI
 FUNCTION REGGIETIME(Comm)
 USE MOD_Globals, ONLY:iError,MPI_COMM_WORLD
 USE mpi
@@ -1187,7 +1177,7 @@ FUNCTION REGGIETIME()
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if MPI
+#ifdef MPI
 INTEGER, INTENT(IN),OPTIONAL    :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1196,7 +1186,7 @@ REAL                            :: REGGIETIME
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#if MPI
+#ifdef MPI
 IF(PRESENT(Comm))THEN
   CALL MPI_BARRIER(Comm,iError)
 ELSE
@@ -1246,60 +1236,6 @@ order=order/(DimOfVectors-1)
 !print*,"order=",order
 !read*
 END SUBROUTINE CalcOrder
-
-
-!==================================================================================================================================
-!> Convert a String to an Integer
-!==================================================================================================================================
-SUBROUTINE str2int(str,int_number,stat)
-! MODULES
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(len=*),INTENT(IN) :: str
-INTEGER,INTENT(OUT)         :: int_number
-INTEGER,INTENT(OUT)         :: stat
-!===================================================================================================================================
-READ(str,*,IOSTAT=stat)  int_number
-END SUBROUTINE str2int
-
-
-!==================================================================================================================================
-!> Convert a String to a REAL
-!==================================================================================================================================
-SUBROUTINE str2real(str,real_number,stat)
-! MODULES
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(len=*),INTENT(IN) :: str
-REAL,INTENT(OUT)            :: real_number
-INTEGER,INTENT(OUT)         :: stat
-!===================================================================================================================================
-READ(str,*,IOSTAT=stat)  real_number
-END SUBROUTINE str2real
-
-
-!==================================================================================================================================
-!> Convert a String to a LOGICAL
-!==================================================================================================================================
-SUBROUTINE str2logical(str,logical_number,stat)
-! MODULES
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(len=*),INTENT(IN) :: str
-LOGICAL,INTENT(OUT)         :: logical_number
-INTEGER,INTENT(OUT)         :: stat
-!===================================================================================================================================
-READ(str,*,IOSTAT=stat)  logical_number
-END SUBROUTINE str2logical
 
 
 !==================================================================================================================================

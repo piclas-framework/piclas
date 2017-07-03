@@ -991,12 +991,14 @@ REAL                     :: InterpolateVariableExternalField  ! Bz
 INTEGER                  :: iPos
 !===================================================================================================================================
 iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField) + 1
-IF (iPos.GE.nIntPoints) THEN ! particle outside of range (greater -> use constant value)
+IF(iPos.GE.nIntPoints)THEN ! particle outside of range (greater -> use constant value)
   InterpolateVariableExternalField = VariableExternalField(2,nIntPoints)
-ELSE!  Linear Interpolation between iPos and iPos+1 B point
-  InterpolateVariableExternalField = (VariableExternalField(2,iPos+1) - VariableExternalField(2,iPos)) &
-                                   / (VariableExternalField(1,iPos+1) - VariableExternalField(1,iPos)) &
-                             * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)
+ELSEIF(iPos.LT.1)THEN ! particle outside of range (lower -> use constant value)
+  InterpolateVariableExternalField = VariableExternalField(2,1)
+ELSE ! Linear Interpolation between iPos and iPos+1 B point
+  InterpolateVariableExternalField = (VariableExternalField(2,iPos+1) - VariableExternalField(2,iPos)) & !  dy
+                                   / (VariableExternalField(1,iPos+1) - VariableExternalField(1,iPos)) & ! /dx
+                             * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
 END FUNCTION InterpolateVariableExternalField 
 
