@@ -824,11 +824,15 @@ IntegralValuesAreEqual=ALMOSTEQUALRELATIVE(Q,Examples(iExample)%IntegrateLineVal
 
 IF(.NOT.IntegralValuesAreEqual)THEN
   IntegralCompare=1
-  SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLines do not match! Error in computation!'
-  SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLineOption                   =  '//TRIM(Examples(iExample)%IntegrateLineOption)
+  SWRITE(UNIT_stdOut,'(A)')           ' IntegrateLines do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A)')           ' IntegrateLineOption                   = '//TRIM(Examples(iExample)%IntegrateLineOption)
   SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' IntegrateLineValue                    = ',Q
   SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
-  SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Error                                 = ',ABS(Q/Examples(iExample)%IntegrateLineValue-1)
+  IF(ABS(Examples(iExample)%IntegrateLineValue).GT.0.0)THEN
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')' relative Error                        = ',ABS(Q/Examples(iExample)%IntegrateLineValue-1)
+  ELSE
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')' absolute Error (compare with 0)       = ',ABS(Q)
+  END IF
   SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Tolerance                             = ',Examples(iExample)%IntegrateLineTolerance
   !SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5

@@ -456,6 +456,8 @@ DO ! extract reggie information
                          CALL str2real(temp2(IndNum2+1:LEN(TRIM(temp2))),Example%IntegrateLineMultiplier,iSTATUS)
                        END IF ! get multiplier
                      END IF ! get option
+                   ELSE ! try and get tolerance
+                     CALL str2real(temp2(1:LEN(TRIM(temp2))),Example%IntegrateLineTolerance,iSTATUS)
                    END IF ! get tolerance
                  END IF ! get integral value
                END IF ! check range
@@ -463,10 +465,24 @@ DO ! extract reggie information
            END IF ! get delimiter
          END IF !  get number of header lines
        END IF ! get file name
-      IF(ANY(Example%IntegrateLineRange(1:2).EQ.0))   Example%IntegrateLine=.FALSE.
-      IF(Example%IntegrateLineFile.EQ.'')             Example%IntegrateLine=.FALSE.
-      IF(Example%IntegrateLineHeaderLines.EQ.0)       Example%IntegrateLine=.FALSE.
-      IF(Example%IntegrateLineDelimiter(1:3).EQ.'999')Example%IntegrateLine=.FALSE.
+      IF(ANY( (/iSTATUS.NE.0                                       ,&
+                Example%IntegrateLineRange(1:2).EQ.0               ,&
+                Example%IntegrateLineFile.EQ.''                    ,&
+                Example%IntegrateLineDelimiter(1:3).EQ.'999' /)     &
+       )) THEN
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' iSTATUS                         : ',iSTATUS
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' Example%IntegrateLineRange(1)   : ',Example%IntegrateLineRange(1)
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' Example%IntegrateLineRange(2)   : ',Example%IntegrateLineRange(2)
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%IntegrateLineFile       : ',TRIM(Example%IntegrateLineFile)
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%IntegrateLineDelimiter  : ',TRIM(Example%IntegrateLineDelimiter)
+         SWRITE(UNIT_stdOut,'(A,I5)')      ' Example%IntegrateLineHeaderLines: ',Example%IntegrateLineHeaderLines
+         SWRITE(UNIT_stdOut,'(A,E25.14E3)')' Example%IntegrateLineTolerance  : ',Example%IntegrateLineTolerance
+         SWRITE(UNIT_stdOut,'(A,E25.14E3)')' Example%IntegrateLineValue      : ',Example%IntegrateLineValue
+         SWRITE(UNIT_stdOut,'(A,A)')       ' Example%IntegrateLineOption     : ',TRIM(Example%IntegrateLineOption)
+         SWRITE(UNIT_stdOut,'(A,E25.14E3)')' Example%IntegrateLineMultiplier : ',Example%IntegrateLineMultiplier
+         SWRITE(UNIT_stdOut,'(A)')         ' Setting Example%IntegrateLine=.FALSE.'
+         Example%IntegrateLine=.FALSE.
+       END IF
     END IF ! 'IntegrateLine'
     ! Line comparison (compare one complete line in, e.g., a *.csv or *.dat file)
     ! in parameter_reggie.ini define:
