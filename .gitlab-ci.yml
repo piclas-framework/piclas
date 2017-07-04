@@ -205,9 +205,7 @@ intel_TWT:
   tags:
     - withmodules
   script:
-    - echo "nothing to do";
-    # fix h5diff on runner -> libs may be wrongly set in the binary file
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_TWT_recordpoints -j no-debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_TWT_recordpoints -j no-debug ; fi
 
 intel_convtest:
   stage: reggie_long
