@@ -615,6 +615,7 @@ ELSE ! useVariableExternalField
 END IF ! use constant external field
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
+  field(1:6)=0.
   ElemID=PEM%Element(PartID)
 #ifdef MPI
   IF(ElemID.GT.PP_nElems) RETURN
