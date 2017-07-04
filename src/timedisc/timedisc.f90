@@ -2647,7 +2647,7 @@ tRatio = 1.
 
 #ifdef PARTICLES
 ! Partilce locating
-IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+IF (t.GE.DelayTime) THEN
   CALL ParticleInserting() ! do not forget to communicate the emmitted particles ... for shape function
 END IF
 ! select, if particles are treated implicitly or explicitly
@@ -2663,27 +2663,29 @@ CALL SelectImplicitParticles()
 tStage=t
 
 #ifdef PARTICLES
+IF((t.GE.DelayTime).OR.(iter.EQ.0))THEN
 ! communicate shape function particles
 #ifdef MPI
-PartMPIExchange%nMPIParticles=0
-IF(DoExternalParts)THEN
-  ! as we do not have the shape function here, we have to deallocate something
-  SDEALLOCATE(ExtPartState)
-  SDEALLOCATE(ExtPartSpecies)
-  SDEALLOCATE(ExtPartToFIBGM)
-  SDEALLOCATE(ExtPartMPF)
-  ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
-  ! send number of particles
-  CALL SendNbOfParticles()
-  ! finish communication of number of particles and send particles
-  CALL MPIParticleSend()
-  ! finish communication
-  CALL MPIParticleRecv()
-  ! set exchanged number of particles to zero
   PartMPIExchange%nMPIParticles=0
-END IF
+  IF(DoExternalParts)THEN
+    ! as we do not have the shape function here, we have to deallocate something
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+    ! send number of particles
+    CALL SendNbOfParticles()
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+    ! set exchanged number of particles to zero
+    PartMPIExchange%nMPIParticles=0
+  END IF
 #endif /*MPI*/
+END IF
 
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
