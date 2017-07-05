@@ -350,7 +350,7 @@ USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
 USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D
 USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC
-USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError!,ConfigurationCounter
+USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError,GetConfigurationFile!,ConfigurationCounter
 USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH,configuration_cmake
 USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurationsCombined
 IMPLICIT NONE
@@ -416,7 +416,9 @@ IF(BuildValid(iReggieBuild))THEN
   ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
   ! can be executed with the compiled executable or not
   ! check MPI: single or parallel version
-  !configuration_cmake=TRIM(BuildDir)//'build_reggie/bin/configuration.cmake'  -> moved to GetConfigurationCmake
+  !configuration_cmake=TRIM(BuildDir)//'build_reggie/bin/configuration.cmake'  -> moved to GetConfigurationFile
+  !EXECPATH=TRIM(BuildDir)//'build_reggie/bin/'//CodeNameLowCase
+  CALL GetConfigurationFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake') ! use proposal
   CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_MPI'        ,BuildMPI(iReggieBuild),BACK=.TRUE.)
   IF(iSTATUS.EQ.0)THEN ! -> succeeded to compile cmake configuration build
     ! check TESTCASE: e.g. taylor green vortex
@@ -481,7 +483,7 @@ IF(BuildValid(iReggieBuild))THEN
   SWRITE(UNIT_stdOut,'(A)')"Build2D(iReggieBuild))             = ["//TRIM(Build2D(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildPARABOLIC(iReggieBuild))      = ["//TRIM(BuildPARABOLIC(iReggieBuild))//"]"
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
-  IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out'
+  IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out' ! add [tail -n 1] to display output
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 ELSE
   IF(BuildContinue)THEN

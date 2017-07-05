@@ -798,23 +798,28 @@ END SUBROUTINE CheckForExecutable
 !==================================================================================================================================
 !>  Check if configuration.cmake exists and set path
 !==================================================================================================================================
-SUBROUTINE GetConfigurationFile()
+SUBROUTINE GetConfigurationFile(Proposal)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,  ONLY: EXECPATH,CodeNameLowCase
+USE MOD_RegressionCheck_Vars,  ONLY: EXECPATH,CodeNameLowCase,RunContinue
 USE MOD_RegressionCheck_Vars,  ONLY: BuildSolver,configuration_cmake
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL  :: Proposal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                       :: ExistFile      ! logical to flag file
 !===================================================================================================================================
-IF(BuildSolver)THEN
+IF(PRESENT(Proposal))THEN ! use path supplied by user
   !configuration_cmake=TRIM(BuildDir)//'build_reggie/bin/configuration.cmake'
-  configuration_cmake=TRIM(EXECPATH)//'_configuration.cmake'
+  configuration_cmake=TRIM(Proposal)
 ELSE
-  configuration_cmake=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
+  IF(BuildSolver)THEN ! use pre-existing executables and cmake configrations files which are labelled 0001, 0002, etc.
+    configuration_cmake=TRIM(EXECPATH)//'_configuration.cmake'
+  ELSE
+    configuration_cmake=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
+  END IF
 END IF
 
 ! 'configuration_cmake' has been set, inquire the existence of the configuration.cmake file
@@ -1256,11 +1261,18 @@ SWRITE(UNIT_stdOut,'(A)') '                            | ("no-debug") after poss
 SWRITE(UNIT_stdOut,'(A)') '                            | Multi-processor compilation is supported by adding "XX"  after possible  '
 SWRITE(UNIT_stdOut,'(A)') '                            | [RuntimeOptionType] commands, where "XX" is the number of processors     '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------------------------'
-SWRITE(UNIT_stdOut,'(A)') ' build-continue             | does the same as "build", but starts the process at the last failed      '
+SWRITE(UNIT_stdOut,'(A)') ' build-continue             | run ./regressioncheck build build-continue in order to continue the      '
+SWRITE(UNIT_stdOut,'(A)') '                            | building process at the last possibly failed compilation step            '
+SWRITE(UNIT_stdOut,'(A)') '                            | does the same as "build", but starts the process at the last failed      '
 SWRITE(UNIT_stdOut,'(A)') '                            | building position of a previous run, hence, all previously successful    '
 SWRITE(UNIT_stdOut,'(A)') '                            | builds are skipped (-> debugging purposes)                               '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------------------------'
-SWRITE(UNIT_stdOut,'(A)') ' conv_test (ToDo!)          | specific feature test: runs the "conv_test" example                      '
+SWRITE(UNIT_stdOut,'(A)') ' run-continue               | run ./regressioncheck build run-continue in order to skip already built  '
+SWRITE(UNIT_stdOut,'(A)') '                            | executables and simply run the regression check tests. Continue building '
+SWRITE(UNIT_stdOut,'(A)') '                            | as soon as the corresponding executables are missing in the              '
+SWRITE(UNIT_stdOut,'(A)') '                            | /build_reggie_bin directory                                              '
+SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------------------------'
+SWRITE(UNIT_stdOut,'(A)') ' conv_test                  | specific feature test: runs the "conv_test" example                      '
 SWRITE(UNIT_stdOut,'(A)') '                            | runs two modes: p-convergence and h-convergence                          '
 SWRITE(UNIT_stdOut,'(A)') '                            | e.g. used for weekly tests                                               '
 SWRITE(UNIT_stdOut,'(A)') ' ------------------------------------------------------------------------------------------------------'
