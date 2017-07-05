@@ -291,7 +291,7 @@ DO I=1,nReggieBuilds
   SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") '    '
   SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildValidInfo(I)))
   SWRITE(UNIT_stdOut,*) ''
-  ! Configuration Counter
+  ! Configuration Counter: set the compile flag permutation to the next build combination
   CALL ConfigurationCounter(N_compile_flags)
   ! OLD !     DO J=1,N_compile_flags
   ! OLD !       BuildCounter(J)=BuildCounter(J)+1
@@ -301,7 +301,6 @@ DO I=1,nReggieBuilds
   ! OLD !         EXIT
   ! OLD !       END IF
   ! OLD !     END DO
-read*
 END DO
 
 SWRITE(UNIT_stdOut, '(A)') ''
@@ -351,8 +350,9 @@ USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
 USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D
 USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC
-USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError,ConfigurationCounter
+USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError!,ConfigurationCounter
 USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH,configuration_cmake
+USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurationsCombined
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -381,12 +381,13 @@ IF(BuildValid(iReggieBuild))THEN
   SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.reggie'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(BuildDir)//'build_reggie/configurationX.cmake',STATUS="NEW",ACTION='WRITE',IOSTAT=iSTATUS)
-  DO K=1,N_compile_flags ! the compiler flag command line to "configurationX.cmake"
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' -D'
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") '='
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
-  END DO
+!  DO K=1,N_compile_flags ! the compiler flag command line to "configurationX.cmake"
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' -D'
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") '='
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
+!  END DO
+  SWRITE(ioUnit, '(A)') TRIM(BuildConfigurationsCombined(iReggieBuild))
   CLOSE(ioUnit)
   ! display the compile flag options
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
@@ -494,7 +495,9 @@ END IF
 
 ! Configuration Counter
 ! get next build -> always use this counter !!!
-CALL ConfigurationCounter(N_compile_flags)
+
+! NEW -> NOT USED ANY MORE ! CALL ConfigurationCounter(N_compile_flags)
+
 ! OLD !     DO J=1,N_compile_flags
 ! OLD !       BuildCounter(J)=BuildCounter(J)+1
 ! OLD !       IF(BuildCounter(J).GT.BuildIndex(J))THEN

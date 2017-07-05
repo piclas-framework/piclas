@@ -504,7 +504,7 @@ SUBROUTINE GetCodeBinary(iExample,iReggieBuild,nReggieBuilds,N_compile_flags,Reg
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,CodeNameLowCase,EXECPATH
 USE MOD_RegressionCheck_Vars,    ONLY: BuildValid,BuildSolver
-USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,GetConfigurationFile,ConfigurationCounter
+USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,GetConfigurationFile!,ConfigurationCounter
 USE MOD_RegressionCheck_Build,   ONLY: BuildConfiguration
 USE MOD_RegressionCheck_Vars,    ONLY: BuildContinue,BuildContinueNumber,RunContinue
 ! IMPLICIT VARIABLE HANDLING
@@ -553,7 +553,7 @@ IF(BuildSolver)THEN
     SWRITE(UNIT_stdOut,'(132("="))')
     SWRITE(UNIT_stdOut,'(A)') TRIM(FileName)
     SWRITE(UNIT_stdOut,'(A,L)')'Binary exists: ',ExistFile
-    CALL ConfigurationCounter(N_compile_flags) ! call here because below BuildConfiguration(...) will be skipped
+    ! NEW -> NOT USED ANY MORE !  CALL ConfigurationCounter(N_compile_flags) ! call here because below BuildConfiguration(...) will be skipped
   END IF
 
   IF(ExistFile) THEN ! 1. build already exists (e.g. XXXX0001 located in ../build_reggie_bin/)
