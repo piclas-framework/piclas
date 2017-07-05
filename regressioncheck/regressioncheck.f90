@@ -113,5 +113,6 @@ IF(iError .NE. 0) ERROR STOP 'MPI finalize error'
 CALL FinalizeMPI()
 #endif /*MPI*/
 
-IF(nErrors.GT.0) ERROR STOP 999
+IF(nErrors.GT.0) STOP 999
+STOP 0
 END PROGRAM RegressionCheck
