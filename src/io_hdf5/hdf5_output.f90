@@ -1752,6 +1752,9 @@ USE MOD_Particle_Vars,         ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IM
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_TTM_Vars,              ONLY: DoImportTTMFile,TTMLogFile
+#ifdef MPI
+USE MOD_MPI,                   ONLY:FinalizeMPI
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1763,7 +1766,7 @@ REAL,INTENT(IN)                  :: time
 ! LOCAL VARIABLES
 CHARACTER(LEN=255) :: tempStr
 REAL               :: t,tFuture,IMDtimestep
-INTEGER            :: I,iSTATUS,IMDanalyzeIter 
+INTEGER            :: I,iSTATUS,IMDanalyzeIter
 !===================================================================================================================================
 IF(DoRestart)THEN
   IF(DoImportTTMFile)THEN
@@ -1811,6 +1814,9 @@ ELSE
     ELSE 
       SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating successfully!"
     END IF
+#ifdef MPI
+    CALL MPI_FINALIZE(iError)
+#endif /*MPI*/
     STOP 0 ! terminate successfully
   ELSE
     CALL abort(&
