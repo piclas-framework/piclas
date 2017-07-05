@@ -82,6 +82,15 @@ gnu_PIC_single_particle_PML:
   script:
     - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_single_particle_PML/
     
+gnu__PIC_IMD_coupling:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck run feature_PIC_IMD_coupling/
+
+
+    
 intel_PIC_gyrotron_variable_Bz:
   stage: reggie_feature_checkin
   tags:
@@ -95,6 +104,13 @@ intel_PIC_single_particle_PML:
     - withmodules
   script:
     - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_PIC_single_particle_PML/
+    
+intel__PIC_IMD_coupling:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel/bin/ ; ./regressioncheck run feature_PIC_IMD_coupling/
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
