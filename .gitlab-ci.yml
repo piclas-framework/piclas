@@ -110,10 +110,10 @@ intel_tracking:
   tags:
     - withmodules
   script:
-    - echo "nothing to do";
+    #- echo "nothing to do";
     # fix h5diff on runner -> libs may be wrongly set in the binary file
     # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC -j no-debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC -j no-debug ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_long": Build and run
@@ -188,10 +188,10 @@ intel_PIC:
   tags:
     - withmodules
   script:
-    - echo "nothing to do";
+    #- echo "nothing to do";
     # fix h5diff on runner -> libs may be wrongly set in the binary file
     # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC_single_particle/ -j no-debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC_single_particle/ -j no-debug ; fi
 
 intel_emission_gyro:
   stage: reggie_long
