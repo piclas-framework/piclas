@@ -247,6 +247,15 @@ gnu_DSMC_surfflux/:
   script:
     - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_DSMC_surfflux/ -j no-debug ; fi
 
+gnu_DSMC_cylinder/:
+  stage: reggie_weekly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_DSMC_cylinder/ -j no-debug ; fi
+
+
+
 intel_plasma_wave_maxwell:
   stage: reggie_weekly
   tags:
@@ -260,4 +269,11 @@ intel_DSMC_surfflux/:
     - withmodules
   script:
     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_DSMC_surfflux/ -j no-debug ; fi
+
+intel_DSMC_cylinder/:
+  stage: reggie_weekly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_DSMC_cylinder/ -j no-debug ; fi
 
