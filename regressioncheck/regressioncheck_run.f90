@@ -216,7 +216,7 @@ IF(ExistFile) THEN
     END IF
   END DO
   CLOSE(ioUnit)
-ELSE ! could not find 'configuration.cmake' at location of execution binary
+ELSE ! could not find '.gitlab-ci.yml'
   SWRITE(UNIT_stdOut,'(A13,A)') ' ERROR     : ','no ".gitlab-ci.yml" found.'
   SWRITE(UNIT_stdOut,'(A13,A)') ' FileName  : ', TRIM(FileName)
   SWRITE(UNIT_stdOut,'(A13,L)') ' ExistFile : ', ExistFile
@@ -329,7 +329,8 @@ SUBROUTINE GetNvar(iExample,iReggieBuild)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: Examples,EXECPATH,BuildEQNSYS,BuildSolver,CodeNameUppCase,CodeNameLowCase
+USE MOD_RegressionCheck_Vars,    ONLY: Examples,EXECPATH,BuildEQNSYS,BuildSolver,CodeNameUppCase,CodeNameLowCase,configuration_cmake
+USE MOD_RegressionCheck_Vars,    ONLY: RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -340,7 +341,6 @@ INTEGER,INTENT(IN)             :: iExample,iReggieBuild
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: IndNum
-CHARACTER(LEN=255)             :: FileName                          ! path to a file or its name
 CHARACTER(LEN=255)             :: temp,temp2                        ! temp variables for read in of file lines
 LOGICAL                        :: ExistFile                         ! file exists=.true., file does not exist=.false.
 INTEGER                        :: iSTATUS                           ! status
@@ -350,10 +350,10 @@ iSTATUS=0 ! nullify
 IndNum=INDEX(EXECPATH, '/')
 IF(IndNum.GT.0)THEN
   IndNum=INDEX(EXECPATH,'/',BACK = .TRUE.) ! get path without binary
-  FileName=EXECPATH(1:IndNum)//'configuration.cmake'
-  INQUIRE(File=FileName,EXIST=ExistFile)
+  !configuration_cmake=EXECPATH(1:IndNum)//'configuration.cmake'
+  INQUIRE(File=configuration_cmake,EXIST=ExistFile)
   IF(ExistFile) THEN
-    OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
+    OPEN(NEWUNIT=ioUnit,FILE=TRIM(configuration_cmake),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
     DO
       READ(ioUnit,'(A)',iostat=iSTATUS)temp
       IF(ADJUSTL(temp).EQ.'!') CYCLE
@@ -376,17 +376,18 @@ IF(IndNum.GT.0)THEN
     END DO
     CLOSE(ioUnit)
   ELSE ! could not find 'configuration.cmake' at location of execution binary
-    IF(BuildSolver)THEN ! get EQNSYSNAME from cmake build configuration settings
+    IF((BuildSolver).AND.(.NOT.RunContinue))THEN ! get EQNSYSNAME from cmake build configuration settings
       Examples(iExample)%EQNSYSNAME=BuildEQNSYS(iReggieBuild)
     ELSE ! stop 
-      SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the '&
+      SWRITE(UNIT_stdOut,'(A24,A)') ' ERROR: ','no "configuration.cmake" found at the location of the '&
                                                                                                    //CodeNameLowCase//' binary.'
-      SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
-      SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
+      SWRITE(UNIT_stdOut,'(A24,A)') ' configuration_cmake: ', TRIM(configuration_cmake)
+      SWRITE(UNIT_stdOut,'(A24,L)') ' ExistFile: ', ExistFile
       ERROR STOP 1
     END IF
   END IF
 END IF
+! select the correct equation system: ADD NEW SYSTEMS WHEN NEEDED!!!
 SELECT CASE (TRIM(Examples(iExample)%EQNSYSNAME))
   CASE ('navierstokes')  
     Examples(iExample)%Nvar=5
@@ -398,10 +399,10 @@ SELECT CASE (TRIM(Examples(iExample)%EQNSYSNAME))
     Examples(iExample)%Nvar=1
   CASE DEFAULT
     Examples(iExample)%Nvar=-1
-    SWRITE(UNIT_stdOut,'(A)')   ' ERROR: missing case select for this '&
+    SWRITE(UNIT_stdOut,'(A)') ' ERROR: missing case select for this '&
                                                                    //CodeNameUppCase//'_EQNSYSNAME with appropriate Nvar. Fix it by'
-    SWRITE(UNIT_stdOut,'(A)')   '        adding the correct line of code to ../regressioncheck/regressioncheck_run.f90'
-    SWRITE(UNIT_stdOut,'(A,A)') '        Examples(iExample)%EQNSYSNAME=',Examples(iExample)%EQNSYSNAME
+    SWRITE(UNIT_stdOut,'(A)') '        adding the correct line of code to ../regressioncheck/regressioncheck_run.f90'
+    SWRITE(UNIT_stdOut,'(A)') '        Examples(iExample)%EQNSYSNAME=['//TRIM(Examples(iExample)%EQNSYSNAME)//']'
     ERROR STOP 77
 END SELECT
 END SUBROUTINE GetNvar
@@ -453,7 +454,7 @@ SUBROUTINE GetnReggieBuilds(iExample,ReggieBuildExe,N_compile_flags,nReggieBuild
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Build,   ONLY: ReadConfiguration
-USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,BuildCounter,BuildSolver,BuildContinue
+USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,BuildCounter,BuildSolver,BuildContinue,RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -475,7 +476,7 @@ IF(BuildSolver)THEN
   IF(ReggieBuildExe.EQ.'')THEN
     CALL ReadConfiguration(iExample,nReggieBuilds,N_compile_flags)
     BuildCounter=1 ! reset the counter between read and build (used for selecting the build configuration for compilation)
-    IF(.NOT.BuildContinue)THEN ! only delete the executables folder if reggie starts at the beginning
+    IF((.NOT.BuildContinue).AND.(.NOT.RunContinue))THEN ! only delete the executables folder if reggie starts at the beginning
       SYSCOMMAND='rm -rf '//TRIM(BuildDir)//'build_reggie_bin > /dev/null 2>&1'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       SYSCOMMAND= 'mkdir '//TRIM(BuildDir)//'build_reggie_bin'
@@ -503,9 +504,9 @@ SUBROUTINE GetCodeBinary(iExample,iReggieBuild,nReggieBuilds,N_compile_flags,Reg
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,CodeNameLowCase,EXECPATH
 USE MOD_RegressionCheck_Vars,    ONLY: BuildValid,BuildSolver
-USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable
+USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,GetConfigurationFile,ConfigurationCounter
 USE MOD_RegressionCheck_Build,   ONLY: BuildConfiguration
-USE MOD_RegressionCheck_Vars,    ONLY: BuildContinue,BuildContinueNumber
+USE MOD_RegressionCheck_Vars,    ONLY: BuildContinue,BuildContinueNumber,RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -539,28 +540,35 @@ IF(BuildSolver)THEN
   END IF
   ! check if build exists -> if it does, don't build a new executable with cmake
   FileName=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
-!print*,"FileName=["//TRIM(FileName)//"]"
   INQUIRE(File=FileName,EXIST=ExistFile)
 
   IF(BuildContinue)THEN ! even if the executable exists, re-build it when it equels BuildContinueNumber
     IF(COUNT(BuildValid(1:iReggieBuild)).EQ.BuildContinueNumber)THEN
-      ExistFile=.FALSE.
+      ExistFile=.FALSE. ! set in order to skip building
     END IF
   END IF
 
+  IF(RunContinue)THEN ! info when re-using the built binaries
+    SWRITE(UNIT_stdOut,'(A)') ' '
+    SWRITE(UNIT_stdOut,'(132("="))')
+    SWRITE(UNIT_stdOut,'(A)') TRIM(FileName)
+    SWRITE(UNIT_stdOut,'(A,L)')'Binary exists: ',ExistFile
+    CALL ConfigurationCounter(N_compile_flags) ! call here because below BuildConfiguration(...) will be skipped
+  END IF
 
   IF(ExistFile) THEN ! 1. build already exists (e.g. XXXX0001 located in ../build_reggie_bin/)
     EXECPATH=TRIM(FileName)
   ELSE ! 2. build does not exists -> create it
     CALL BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,N_compile_flags)
     IF(BuildValid(iReggieBuild))THEN ! only move binary if it has been created (only for valid builds)
-      SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/'//CodeNameLowCase//' build_reggie_bin/'//ReggieBuildExe
+      SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/'//CodeNameLowCase//' build_reggie_bin/'//TRIM(ReggieBuildExe)
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      SYSCOMMAND='cd '//TRIM(BuildDir)//' && cp build_reggie/bin/configuration.cmake build_reggie_bin/'//TRIM(ReggieBuildExe)//&
+                 '_configuration.cmake'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       EXECPATH=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
     END IF
   END IF
-
-
 
   ! if build is not valid no exe has been built and the lopp can cycle here
   IF((.NOT.BuildValid(iReggieBuild)).AND.(iReggieBuild.NE.nReggieBuilds))THEN ! invalid reggie build but not last reggie build
@@ -577,13 +585,19 @@ IF(BuildSolver)THEN
 !print*,"COUNT(BuildValid(1:iReggieBuild))",COUNT(BuildValid(1:iReggieBuild))
 !print*,"BuildContinueNumber              ",BuildContinueNumber,"----> RETURN"
 !read*
-      SkipBuild=.TRUE.
+      SkipBuild=.TRUE. ! set in order to skip running
       !RETURN
     END IF
   END IF
 
   CALL CheckForExecutable(Mode=2) ! check if executable was created correctly
 END IF
+
+! set the configuration file path info depending on reggie build/run setting
+IF(.NOT.SkipBuild)THEN ! only set the path when the build is not to be skipped
+  CALL GetConfigurationFile()
+END IF
+
 END SUBROUTINE GetCodeBinary
 
 
@@ -599,8 +613,9 @@ USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: CodeNameLowCase,EXECPATH,Examples,BuildFV,Build2D,BuildPARABOLIC
 USE MOD_RegressionCheck_Vars,    ONLY: BuildSolver
 USE MOD_RegressionCheck_Build,   ONLY: BuildConfiguration
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildMPI,CodeNameUppCase
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildMPI,CodeNameUppCase,configuration_cmake
 USE MOD_RegressionCheck_Build,   ONLY: GetFlagFromFile
+USE MOD_RegressionCheck_Vars,    ONLY: RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -613,7 +628,6 @@ LOGICAL,INTENT(INOUT)          :: UseFV,Use2D,UsePARABOLIC      !> compiler flag
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                        :: ExistFile                         !> file exists=.true., file does not exist=.false.
-CHARACTER(LEN=255)             :: FileName                          !> path to a file or its name
 CHARACTER(LEN=255)             :: tempStr
 LOGICAL                        :: UseMPI
 !===================================================================================================================================
@@ -621,7 +635,7 @@ UseMPI       = .FALSE. ! default
 UseFV        = .FALSE. ! default
 Use2D    = .FALSE. ! default
 UsePARABOLIC = .FALSE. ! default
-IF(BuildSolver)THEN
+IF((BuildSolver).AND.(.NOT.RunContinue))THEN ! only when freshly built files and folders are present
   TESTCASE       = BuildTESTCASE(iReggieBuild)
   TIMEDISCMETHOD = BuildTIMEDISCMETHOD(iReggieBuild)
   IF(ADJUSTL(TRIM(BuildMPI(       iReggieBuild))).EQ.'ON')UseMPI      =.TRUE.
@@ -630,44 +644,44 @@ IF(BuildSolver)THEN
   IF(ADJUSTL(TRIM(BuildPARABOLIC( iReggieBuild))).EQ.'ON')UsePARABOLIC=.TRUE.
 ELSE ! pre-compiled binary
   ! check if "configuration.cmake" exists and read specific flags from it
-  FileName=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
-  INQUIRE(File=FileName,EXIST=ExistFile)
+  !configuration_cmake=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
+  !print*,"configuration_cmake=["//TRIM(configuration_cmake)//"]"
+  INQUIRE(File=configuration_cmake,EXIST=ExistFile)
   IF(ExistFile) THEN
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled with MPI
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_MPI',tempStr,BACK=.TRUE.)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_MPI',tempStr,BACK=.TRUE.)
     IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')UseMPI=.TRUE.
     IF(TRIM(tempStr).EQ.'flag does not exist')CALL abort(&
       __STAMP__&
       ,CodeNameUppCase//'_MPI flag not found in configuration.cmake!',999,999.)
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled for a certain testcase
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_TESTCASE',TESTCASE)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_TESTCASE',TESTCASE)
     IF(CodeNameLowCase.EQ.'boltzplatz')TESTCASE='default'! set default for boltzplatz (currently no testcases are implemented)
     IF(TRIM(TESTCASE).EQ.'flag does not exist')CALL abort(&
       __STAMP__&
       ,CodeNameUppCase//'_TESTCASE flag not found in configuration.cmake!',999,999.)
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled with a certain time integration method
-    CALL GetFlagFromFile(FileName,CodeNameUppCase//'_TIMEDISCMETHOD',TIMEDISCMETHOD)
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_TIMEDISCMETHOD',TIMEDISCMETHOD)
     IF(CodeNameLowCase.EQ.'flexi')TIMEDISCMETHOD='default'! set default for flexi (TIMEDISCMETHOD is not a compile flag)
     IF(TRIM(TIMEDISCMETHOD).EQ.'flag does not exist')CALL abort(&
       __STAMP__&
       ,CodeNameUppCase//'_TIMEDISCMETHOD flag not found in configuration.cmake!',999,999.)
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled for specific convergence tests
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_FV',tempStr,BACK=.TRUE.)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_FV',tempStr,BACK=.TRUE.)
     IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')UseFV=.TRUE.
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_2D',tempStr,BACK=.TRUE.)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_2D',tempStr,BACK=.TRUE.)
     IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')Use2D=.TRUE.
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_PARABOLIC',tempStr,BACK=.TRUE.)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_PARABOLIC',tempStr,BACK=.TRUE.)
     IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')UsePARABOLIC=.TRUE.
     ! -----------------------------------------------------------------------------------------------------------------------------
   ELSE
-    SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the'//CodeNameLowCase//&
-                                                                                                                      ' binary.'
-    SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
-    SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
+    SWRITE(UNIT_stdOut,'(A24,A)') ' ERROR: ','no "configuration.cmake" found at the location of the'//CodeNameLowCase//' binary.'
+    SWRITE(UNIT_stdOut,'(A24,A)') ' configuration_cmake: ', TRIM(configuration_cmake)
+    SWRITE(UNIT_stdOut,'(A24,L)') ' ExistFile            : ', ExistFile
     ERROR STOP 1
   END IF
 END IF
@@ -1117,6 +1131,7 @@ ELSE
   RETURN ! do nothing
 END IF
 
+! use 'sed' to replace a parameter in the *.ini file with specific settings
 IF(ExistStringInFile)THEN
   IF(MODE.EQ.1)THEN
     SYSCOMMAND=      'cd '//TRIM(Examples(iExample)%PATH)//& ! write the current SubExampleOption(iSubExample) to parameter_ini

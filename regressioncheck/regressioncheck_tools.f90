@@ -54,6 +54,14 @@ INTERFACE CalcOrder
   MODULE PROCEDURE CalcOrder
 END INTERFACE
 
+INTERFACE GetConfigurationFile
+  MODULE PROCEDURE GetConfigurationFile
+END INTERFACE
+
+INTERFACE ConfigurationCounter
+  MODULE PROCEDURE ConfigurationCounter
+END INTERFACE
+
 
 PUBLIC::GetExampleList,InitExample,CheckForExecutable,GetCommandLineOption
 PUBLIC::SummaryOfErrors
@@ -62,6 +70,8 @@ PUBLIC::AddError
 PUBLIC::CheckFileForString
 PUBLIC::REGGIETIME
 PUBLIC::CalcOrder
+PUBLIC::GetConfigurationFile
+PUBLIC::ConfigurationCounter
 !==================================================================================================================================
 
 CONTAINS
@@ -86,7 +96,7 @@ SUBROUTINE GetCommandLineOption()
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars, ONLY: RuntimeOption,BuildNoDebug,BuildDebug,DoFullReggie
-USE MOD_RegressionCheck_Vars, ONLY: BuildContinue,BuildSolver,NumberOfProcs
+USE MOD_RegressionCheck_Vars, ONLY: BuildContinue,BuildSolver,NumberOfProcs,RunContinue
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -148,6 +158,7 @@ DO I=1,nArgs
   CASE DEFAULT ! RuntimeOption 2 - 4
     IF(BuildSolver.EQV..TRUE.)THEN
       IF(TRIM(RuntimeOption(I)).EQ.'build-continue') BuildContinue=.TRUE.
+      IF(TRIM(RuntimeOption(I)).EQ.'run-continue') RunContinue=.TRUE.
       IF(TRIM(RuntimeOption(I)).EQ.'debug')THEN
         BuildDebug=.TRUE.             ! e.g. "./regressioncheck debug" or "./regressioncheck build feature_convtest debug"
       ELSEIF(TRIM(RuntimeOption(I)).EQ.'no-debug')THEN
@@ -182,6 +193,7 @@ SWRITE(UNIT_stdOut,'(A,4(A1,A,A1),A21,I3,A20)')' Running with arguments: ',&
 '[',TRIM(RuntimeOption(4)),']',   ' and compiling with [',NumberOfProcs,'] threads (-1 is -j)'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildSolver  :  [',BuildSolver,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildContinue:  [',BuildContinue,']'
+SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' RunContinue  :  [',RunContinue,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildDebug   :  [',BuildDebug,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' BuildNoDebug :  [',BuildNoDebug,']'
 SWRITE(UNIT_stdOut,'(A,L1,A1)')      ' DoFullReggie :  [',DoFullReggie,']'
@@ -784,6 +796,70 @@ END SUBROUTINE CheckForExecutable
 
 
 !==================================================================================================================================
+!>  Check if configuration.cmake exists and set path
+!==================================================================================================================================
+SUBROUTINE GetConfigurationFile()
+! MODULES
+USE MOD_Globals
+USE MOD_RegressionCheck_Vars,  ONLY: EXECPATH,CodeNameLowCase
+USE MOD_RegressionCheck_Vars,  ONLY: BuildSolver,configuration_cmake
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                       :: ExistFile      ! logical to flag file
+!===================================================================================================================================
+IF(BuildSolver)THEN
+  !configuration_cmake=TRIM(BuildDir)//'build_reggie/bin/configuration.cmake'
+  configuration_cmake=TRIM(EXECPATH)//'_configuration.cmake'
+ELSE
+  configuration_cmake=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
+END IF
+
+! 'configuration_cmake' has been set, inquire the existence of the configuration.cmake file
+INQUIRE(File=configuration_cmake,EXIST=ExistFile)
+IF(.NOT.ExistFile) THEN
+  SWRITE(UNIT_stdOut,'(A)')   ' CALL GetConfigurationFile() : configuration.cmake not found.'
+  SWRITE(UNIT_stdOut,'(A,A)') ' configuration_cmake         : ', TRIM(configuration_cmake)
+  SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile                   : ', ExistFile
+  ERROR STOP 77
+ELSE
+  SWRITE(UNIT_stdOut,'(A)')'configuration_cmake=['//TRIM(configuration_cmake)//']'
+END IF
+SWRITE(UNIT_stdOut,'(A)') ' '
+!SWRITE(UNIT_stdOut,'(A)') '...    Continue running?'
+!read*
+END SUBROUTINE GetConfigurationFile
+
+
+!==================================================================================================================================
+!> Iterate the Configuration permutation counter 
+!==================================================================================================================================
+SUBROUTINE ConfigurationCounter(N_compile_flags)
+! MODULES
+USE MOD_RegressionCheck_Vars,  ONLY: BuildCounter,BuildIndex
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)                 :: N_compile_flags
+! LOCAL VARIABLES
+LOGICAL                            :: ExistSolver      ! logical to flag solver
+INTEGER                            :: J
+!===================================================================================================================================
+DO J=1,N_compile_flags
+  BuildCounter(J)=BuildCounter(J)+1
+  IF(BuildCounter(J).GT.BuildIndex(J))THEN
+    BuildCounter(J)=1
+  ELSE
+    EXIT
+  END IF
+END DO
+END SUBROUTINE ConfigurationCounter
+
+
+!==================================================================================================================================
 !> Get the number of threads/procs for a parallel compilation
 !> Check each input argument for being an integer and use it for the number of mpi ranks when compiling the code
 !==================================================================================================================================
@@ -994,137 +1070,6 @@ END IF
 
 END SUBROUTINE AddError
 
-
-!!!!!!!!! OLD
-!!!!!!!!! OLD
-!!!!!!!!! OLD
-
-! !==================================================================================================================================
-! !> read parameter values from a specified file
-! !==================================================================================================================================
-! SUBROUTINE GetParameterFromFile(FileName,ParameterName,output)
-! ! MODULES
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT/OUTPUT VARIABLES
-! CHARACTER(LEN=*),INTENT(IN)  :: FileName ! e.g. './../build_reggie/bin/configuration.cmake'
-! CHARACTER(LEN=*),INTENT(IN)  :: ParameterName     ! e.g. 'XX_EQNSYSNAME'
-! CHARACTER(LEN=*),INTENT(INOUT) :: output ! e.g. 'navierstokes'
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! LOGICAL                        :: ExistFile    ! file exists=.true., file does not exist=.false.
-! INTEGER                        :: iSTATUS      ! status
-! CHARACTER(LEN=255)             :: temp,temp2   ! temp variables for read in of file lines
-! INTEGER                        :: ioUnit       ! field handler unit and ??
-! INTEGER                        :: IndNum       ! Index Number
-! !===================================================================================================================================
-! output=''
-! INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
-! IF(ExistFile) THEN
-!   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
-!   DO
-!     READ(ioUnit,'(A)',iostat=iSTATUS)temp
-!     temp2=ADJUSTL(temp)
-!     IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
-!     IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
-!     IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
-!       IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
-!       IF(IndNum.GT.0)THEN
-!         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
-!         IndNum=INDEX(temp2, '=')
-!         IF(IndNum.GT.0)THEN
-!           temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
-!           IndNum=INDEX(temp2, '!')
-!           IF(IndNum.GT.0)THEN
-!             temp2=temp2(1:IndNum-1)
-!           END IF
-!         END IF
-!         output=TRIM(ADJUSTL(temp2))
-!         EXIT
-!       END IF
-!     END IF
-!   END DO
-!   CLOSE(ioUnit)
-!   IF(output.EQ.'')output='ParameterName does not exist'
-! ELSE
-!   output='file does not exist'
-! END IF
-! END SUBROUTINE GetParameterFromFile
-
-
-
-!!!!!!!!! NEW
-!!!!!!!!! NEW
-!!!!!!!!! NEW
-! !==================================================================================================================================
-! !> read parameter values from a specified file
-! !==================================================================================================================================
-! SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DoDisplayInfo)
-! ! MODULES
-! USE MOD_Globals
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT/OUTPUT VARIABLES
-! CHARACTER(LEN=*),INTENT(IN)     :: FileName      ! e.g. './../build_reggie/bin/configuration.cmake'
-! CHARACTER(LEN=*),INTENT(IN)     :: ParameterName ! e.g. 'XX_EQNSYSNAME'
-! CHARACTER(LEN=*),INTENT(INOUT)  :: output        ! e.g. 'navierstokes'
-! LOGICAL, INTENT(IN),OPTIONAL    :: DoDisplayInfo ! display error output if the parameter or the file is not found
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! LOGICAL                         :: ExistFile    ! file exists=.true., file does not exist=.false.
-! INTEGER                         :: iSTATUS      ! status
-! CHARACTER(LEN=255)              :: temp,temp2   ! temp variables for read in of file lines
-! INTEGER                         :: ioUnit       ! field handler unit and ??
-! INTEGER                         :: IndNum       ! Index Number
-! !===================================================================================================================================
-! output=''
-! INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
-! IF(ExistFile) THEN
-!   OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
-!   DO
-!     READ(ioUnit,'(A)',iostat=iSTATUS)temp
-!     temp2=ADJUSTL(temp)
-!     IF(ADJUSTL(temp2(1:1)).EQ.'!') CYCLE  ! complete line is commented out
-!     IF(iSTATUS.EQ.-1)EXIT           ! end of file is reached
-!     IF(LEN(trim(temp)).GT.1)THEN    ! exclude empty lines
-!       IndNum=INDEX(temp,TRIM(ParameterName)) ! e.g. 'XX_EQNSYSNAME'
-!       IF(IndNum.GT.0)THEN
-!         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
-!         IndNum=INDEX(temp2, '=')
-!         IF(IndNum.GT.0)THEN
-!           temp2=temp2(IndNum+1:LEN(TRIM(temp2)))
-!           IndNum=INDEX(temp2, '!')
-!           IF(IndNum.GT.0)THEN
-!             temp2=temp2(1:IndNum-1)
-!           END IF
-!         END IF
-!         output=TRIM(ADJUSTL(temp2))
-!         EXIT
-!       END IF
-!     END IF
-!   END DO
-!   CLOSE(ioUnit)
-!   IF(output.EQ.'')THEN
-!     IF(PRESENT(DoDisplayInfo))THEN
-!       IF(DoDisplayInfo)THEN
-!         SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
-!       END IF
-!     ELSE
-!       SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
-!     END IF
-!     output='ParameterName does not exist'
-!   END IF
-! ELSE
-!     IF(PRESENT(DoDisplayInfo))THEN
-!       IF(DoDisplayInfo)THEN
-!         SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
-!       END IF
-!     ELSE
-!       SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
-!     END IF
-!   output='file does not exist'
-! END IF
-! END SUBROUTINE GetParameterFromFile
 
 
 !==================================================================================================================================
