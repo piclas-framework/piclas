@@ -3026,6 +3026,9 @@ PURE FUNCTION ComputeXi(A1,A2,eta)
 ! compute the xi value with algorithm 3.3 of Ramsey paper
 !================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
+#ifdef CODE_ANALYZE
+USE MOD_Globals, ONLY: abort
+#endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3045,7 +3048,7 @@ b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
 IF(ABS(B).GE.ABS(A))THEN
 #ifdef CODE_ANALYZE
   IF(ABS(B).LE.0.)THEN
-    CALL abort(
+    CALL abort(&
     __STAMP__&
     ,' Division by zero. Invalid b')
   END IF
@@ -3054,7 +3057,7 @@ IF(ABS(B).GE.ABS(A))THEN
 ELSE
 #ifdef CODE_ANALYZE
   IF(ABS(A).LE.0.)THEN
-    CALL abort(
+    CALL abort(&
     __STAMP__&
     ,' Division by zero. Invalid a')
   END IF
