@@ -128,7 +128,7 @@ END SUBROUTINE DSMC_Update_Wall_Vars
 
 SUBROUTINE Calc_PartNum_Wall_Desorb()
 !===================================================================================================================================
-! calculation of desorbing particle number when particles deleted at adsorption and inserted at desorption
+! calculation of desorbing particle number when mean desorption probabilities are used (wallmodel 1)
 !===================================================================================================================================
 USE MOD_Particle_Vars,          ONLY : nSpecies, Species
 USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
@@ -343,7 +343,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   REAL   ,INTENT(OUT)              :: AdsorptionEnthalpie
   REAL   ,INTENT(IN)               :: Norm_Velo
 ! LOCAL VARIABLES
-  INTEGER                          :: iSpec, globSide
+  INTEGER                          :: iSpec, globSide, PartBoundID
   INTEGER                          :: Coord, Coord2, i, AdsorbID, IDRearrange
   INTEGER                          :: nSites, nSitesRemain
   REAL                             :: WallTemp, RanNum
@@ -367,15 +367,16 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 !===================================================================================================================================
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
+  PartBoundID = PartBound%MapToPartBC(BC(globSide))
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
-    WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide))) + (Adsorption%TPD_beta * iter * dt)
+    WallTemp = PartBound%WallTemp(PartBoundID) + (Adsorption%TPD_beta * iter * dt)
     Adsorption%TPD_Temp = Walltemp
   ELSE
-    WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+    WallTemp = PartBound%WallTemp(PartBoundID)
   END IF
 #else
-  WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+  WallTemp = PartBound%WallTemp(PartBoundID)
 #endif
   ! calculate number of adsorbates for each species (already on surface)
   adsorbates(:) = 0
@@ -403,7 +404,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   ! Choose Random surface site with species coordination
   CALL RANDOM_NUMBER(RanNum)
   iSpec = PartSpecies(PartID)
-  Coord = Adsorption%Coordination(iSpec)
+  Coord = Adsorption%Coordination(PartBoundID,iSpec)
   AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)*RanNum)
   Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
   SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos)
@@ -437,7 +438,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   a_const = (Species(iSpec)%MassIC/(2*BoltzmannConst*WallTemp))**(0.5)
   IF (SiteSpec.EQ.0) THEN
     IF (nNeigh_trap.EQ.0) THEN
-      surfmass = Adsorption%SurfMassIC
+      surfmass = PartBound%SolidMassIC(PartBoundID) !Adsorption%SurfMassIC(SurfSideID)
     ELSE
       surfmass = 0.
       DO i = 1,nNeigh_trap
@@ -528,8 +529,6 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         END IF
       END IF
 #endif
-    ELSE
-      Prob_ads = 0.
     END IF
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -561,8 +560,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     jSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
     kSpec = Adsorption%DissocReact(2,ReactNum,iSpec)
     IF ((jSpec.NE.0) .AND. (kSpec.NE.0)) THEN !if 2 resulting species, dissociation possible
-      jCoord = Adsorption%Coordination(jSpec)
-      kCoord = Adsorption%Coordination(kSpec)
+      jCoord = Adsorption%Coordination(PartBoundID,jSpec)
+      kCoord = Adsorption%Coordination(PartBoundID,kSpec)
       Neighpos_j = 0
       Neighpos_k = 0
       !At least one of resulting species has same coordination as surfaceposition of impact
@@ -633,7 +632,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%Species(Neighpos_j).EQ.0) .AND. &
           (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(kCoord)%Species(Neighpos_k).EQ.0) ) THEN
         Cell_Occupied = .FALSE.
-        ! check if both cells are not occupied
+        ! check for occupation with neirest Neighbours of both cells
         DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%nNeighbours
           IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%IsNearestNeigh(Neighpos_j,i)) CYCLE
           IF ((jCoord.EQ.1) .AND. (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%NeighSite(Neighpos_j,i).EQ.1)) CYCLE
@@ -735,6 +734,11 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
             ELSE
               InfoProbAds = InfoProbAds + Prob_diss(ReactNum)
             END IF
+            IF ((InfoProbDiss + Prob_diss(ReactNum)).GT.1.) THEN
+              InfoProbDiss = 1.
+            ELSE
+              InfoProbDiss = InfoProbDiss + Prob_diss(ReactNum)
+            END IF
           END IF
 #endif
         END IF
@@ -753,7 +757,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 !     IF (jSpec.EQ.0) CYCLE
 !     ! reaction results
 !     kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
-!     jCoord = Adsorption%Coordination(jSpec)
+!     jCoord = Adsorption%Coordination(PartBoundID,jSpec)
 !     IF (jCoord.EQ.Coord) THEN
 !       Neighpos_j = Surfpos
 !     ELSE
@@ -864,7 +868,7 @@ SUBROUTINE CalcBackgndPartDesorb()
    IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
-  INTEGER                           :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
+  INTEGER                           :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi, PartBoundID
   INTEGER                           :: Coord, Coord3, i, j, AdsorbID, numSites
   REAL                              :: WallTemp, RanNum
   REAL                              :: Heat_A, Heat_B, nu_des, rate, P_actual_des
@@ -930,17 +934,17 @@ Adsorption%AdsorpInfo(:)%NumOfAds = 0
 
 DO SurfSideID = 1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
-  
+  PartBoundID = PartBound%MapToPartBC(BC(globSide))
 ! special TPD (temperature programmed desorption) temperature adjustment part
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
-    WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide))) + (Adsorption%TPD_beta * iter * dt)
+    WallTemp = PartBound%WallTemp(PartBoundID) + (Adsorption%TPD_beta * iter * dt)
     Adsorption%TPD_Temp = Walltemp
   ELSE
-    WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+    WallTemp = PartBound%WallTemp(PartBoundId)
   END IF
 #else
-  WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+  WallTemp = PartBound%WallTemp(PartBoundID)
 #endif
 
 DO subsurfeta = 1,nSurfSample
@@ -1030,7 +1034,7 @@ DO subsurfxi = 1,nSurfSample
     ! product of associative reactions desorb after reaction as in most cases exothermic (LH-reaction)
     DO iReact = 1,(Adsorption%ReactNum-Adsorption%DissNum)
       IF (Adsorption%AssocReact(1,iReact,iSpec).LT.1) CYCLE ! no partner for this associative reaction
-      Coord_ReactP(iReact) = Adsorption%Coordination(Adsorption%AssocReact(1,iReact,iSpec))
+      Coord_ReactP(iReact) = Adsorption%Coordination(PartBoundID,Adsorption%AssocReact(1,iReact,iSpec))
       CALL RANDOM_NUMBER(RanNum)
       IF (Coord.EQ.Coord_ReactP(iReact)) THEN
         NeighID = 1 + INT((nSites(Coord_ReactP(iReact))-remainNum(Coord_ReactP(iReact))-1)*RanNum)
@@ -1042,7 +1046,7 @@ DO subsurfxi = 1,nSurfSample
       
       IF ( jSpec.EQ.Adsorption%AssocReact(1,iReact,iSpec) .AND. (jSpec.GT.0)) THEN
         Prod_Spec1 = Adsorption%AssocReact(2,iReact,iSpec)
-!         Coord_Product(1,iReact) = Adsorption%Coordination(Prod_Spec1)
+!         Coord_Product(1,iReact) = Adsorption%Coordination(PartBoundID,Prod_Spec1)
 !         CALL RANDOM_NUMBER(RanNum)
 !         NeighID = 1 + INT((REAL(nSitesRemain(Coord_Product(1,iReact))))*RanNum)
 !         Pos_Product(1,iReact) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(&
@@ -1069,22 +1073,22 @@ DO subsurfxi = 1,nSurfSample
         IF (E_Diff.GT.E_d) E_d = E_diff
         ! estimate vibrational temperatures of surface-particle bond
         IF (Coord.EQ.1) THEN
-          CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx)
+          CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
         ELSE
           CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom)
         END IF
         ! calculate partition function of first particle bound on surface
-        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp)
+        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
         IF (Coord_ReactP(iReact).EQ.1) THEN
-          CharaTemp = Heat_B / 200. / (2 - 1./Adsorption%CrystalIndx)
+          CharaTemp = Heat_B / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
         ELSE
           CharaTemp = Heat_B / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord_ReactP(iReact))%nInterAtom)
         END IF
         ! calculate partition function of second particle bound on surface
-        CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp)
+        CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp,PartBoundID)
         ! estimate partition function of activated complex
         CALL PartitionFuncAct_recomb(iSpec,jSpec,Prod_Spec1, WallTemp, VarPartitionFuncAct, &
-                    Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
+                    Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease(SurfSideID))
         ! transition state theory to estimate pre-exponential factor
         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct)/(VarPartitionFuncWall1*VarPartitionFuncWall2)
         rate = nu_react * exp(-E_d/(WallTemp))
@@ -1134,8 +1138,8 @@ DO subsurfxi = 1,nSurfSample
 !       Prod_Spec1 = Adsorption%DissocReact(1,iReact,iSpec)
 !       Prod_Spec2 = Adsorption%DissocReact(2,iReact,iSpec)
 !       IF ((Prod_Spec1.NE.0) .AND. (Prod_Spec2.NE.0)) THEN !if 2 resulting species, dissociation possible
-!         Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
-!         Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec2)
+!         Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec1)
+!         Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec2)
 !         IF ((Coord_Product(1,iReact+ReactNum_run).EQ.Coord_Product(2,iReact+ReactNum_run))&
 !               .AND.(nSitesRemain(Coord_Product(1,iReact+ReactNum_run)).LT.2)) CYCLE
 !         IF ((Coord_Product(1,iReact+ReactNum_run).NE.Coord_Product(2,iReact+ReactNum_run))&
@@ -1170,15 +1174,15 @@ DO subsurfxi = 1,nSurfSample
 !         E_d = Calc_E_Act(Heat_Product1,Heat_Product2,Heat_A,0.,D_Product1,D_Product2,D_A,0.)
 !         ! estimate vibrational temperatures of surface-particle bond
 !         IF (Coord.EQ.1) THEN
-!           CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx)
+!           CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
 !         ELSE
 !           CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom)
 !         END IF
 !         ! calculate partition function of particles bound on surface
-!         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp)
+!         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
 !         ! estimate partition function of activated complex
 !         CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, &
-!                               Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
+!                               Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease(SurfSideID))
 !         ! transition state theory to estimate pre-exponential factor
 !         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/VarPartitionFuncWall1)
 !         rate = nu_react * exp(-E_d/(WallTemp))
@@ -1199,15 +1203,15 @@ DO subsurfxi = 1,nSurfSample
       Prod_Spec1 = Adsorption%DissocReact(1,iReact,iSpec)
       Prod_Spec2 = Adsorption%DissocReact(2,iReact,iSpec)
       IF ((Prod_Spec1.NE.0) .AND. (Prod_Spec2.NE.0)) THEN !if 2 resulting species, dissociation possible
-        Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
-        Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec2)
+        Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec1)
+        Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec2)
         IF ((Coord_Product(1,iReact+ReactNum_run).EQ.Coord_Product(2,iReact+ReactNum_run))&
               .AND.(nSitesRemain(Coord_Product(1,iReact+ReactNum_run)).LT.2)) CYCLE
         IF ((Coord_Product(1,iReact+ReactNum_run).NE.Coord_Product(2,iReact+ReactNum_run))&
               .AND.((nSitesRemain(Coord_Product(1,iReact+ReactNum_run)).LT.1)&
               .OR.(nSitesRemain(Coord_Product(2,iReact+ReactNum_run)).LT.1))) CYCLE
-        jCoord = Adsorption%Coordination(Prod_Spec1)
-        kCoord = Adsorption%Coordination(Prod_Spec2)
+        jCoord = Adsorption%Coordination(PartBoundID,Prod_Spec1)
+        kCoord = Adsorption%Coordination(PartBoundID,Prod_Spec2)
         Neighpos_j = 0
         Neighpos_k = 0
         !At least one of resulting species has same coordination as surfaceposition of dissociating particle
@@ -1286,15 +1290,15 @@ DO subsurfxi = 1,nSurfSample
           E_d = Calc_E_Act(Heat_Product1,Heat_Product2,Heat_A,0.,D_Product1,D_Product2,D_A,0.)
           ! estimate vibrational temperatures of surface-particle bond
           IF (Coord.EQ.1) THEN
-            CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx)
+            CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
           ELSE
             CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom)
           END IF
           ! calculate partition function of particles bound on surface
-          CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp)
+          CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
           ! estimate partition function of activated complex
           CALL PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct, &
-                                Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
+                                Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease(SurfSideID))
           ! transition state theory to estimate pre-exponential factor
           nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/VarPartitionFuncWall1)
           rate = nu_react * exp(-E_d/(WallTemp))
@@ -1329,7 +1333,8 @@ DO subsurfxi = 1,nSurfSample
       IF (Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions).EQ.iSpec) THEN ! -> first forward
       ! ----------------------------------------------------------------------------------------------------------------------------
         ReactDirForward = .TRUE.
-        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions))
+        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,&
+            Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
         IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
@@ -1344,9 +1349,9 @@ DO subsurfxi = 1,nSurfSample
         IF ((jSpec.EQ.Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
           exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions)
-          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
+          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions)
-          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec2)
+          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec2)
           IF ((Coord_Product(1,iReact+ReactNum_run).EQ.Coord_Product(2,iReact+ReactNum_run))&
                .AND.(nSitesRemain(Coord_Product(1,iReact+ReactNum_run)).LT.2)) CYCLE
           IF ((Coord_Product(1,iReact+ReactNum_run).NE.Coord_Product(2,iReact+ReactNum_run))&
@@ -1382,7 +1387,8 @@ DO subsurfxi = 1,nSurfSample
       ELSE IF (Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions).EQ.iSpec) THEN ! -> second forward
       ! ----------------------------------------------------------------------------------------------------------------------------
         ReactDirForward = .TRUE.
-        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions))
+        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,&
+            Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
         IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
@@ -1397,9 +1403,9 @@ DO subsurfxi = 1,nSurfSample
         IF ((jSpec.EQ.Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
           exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions)
-          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
+          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions)
-          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec2)
+          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec2)
           IF ((Coord_Product(1,iReact+ReactNum_run).EQ.Coord_Product(2,iReact+ReactNum_run))&
                .AND.(nSitesRemain(Coord_Product(1,iReact+ReactNum_run)).LT.2)) CYCLE
           IF ((Coord_Product(1,iReact+ReactNum_run).NE.Coord_Product(2,iReact+ReactNum_run))&
@@ -1435,7 +1441,8 @@ DO subsurfxi = 1,nSurfSample
       ELSE IF (Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions).EQ.iSpec) THEN ! -> first reverse
       ! ----------------------------------------------------------------------------------------------------------------------------
         ReactDirForward = .FALSE.
-        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions))
+        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,&
+            Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
         IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
@@ -1450,9 +1457,9 @@ DO subsurfxi = 1,nSurfSample
         IF ((jSpec.EQ.Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
           exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions)
-          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
+          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions)
-          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec2)
+          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec2)
           IF ((Coord_Product(1,iReact+ReactNum_run).EQ.Coord_Product(2,iReact+ReactNum_run))&
                .AND.(nSitesRemain(Coord_Product(1,iReact+ReactNum_run)).LT.2)) CYCLE
           IF ((Coord_Product(1,iReact+ReactNum_run).NE.Coord_Product(2,iReact+ReactNum_run))&
@@ -1488,7 +1495,8 @@ DO subsurfxi = 1,nSurfSample
       ELSE IF (Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions).EQ.iSpec) THEN ! -> second reverse
       ! ----------------------------------------------------------------------------------------------------------------------------
         ReactDirForward = .FALSE.
-        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions))
+        Coord_ReactP(iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,&
+            Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions))
         CALL RANDOM_NUMBER(RanNum)
         IF (Coord.EQ.Coord_ReactP(iReact+ReactNum_run)) THEN
           NeighID = 1 + INT((nSites(Coord_ReactP(iReact+ReactNum_run))-remainNum(Coord_ReactP(iReact+ReactNum_run))-1)*RanNum)
@@ -1503,9 +1511,9 @@ DO subsurfxi = 1,nSurfSample
         IF ((jSpec.EQ.Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions)).AND.(jSpec.GT.0)) THEN
           exch_react_possible = .TRUE.
           Prod_Spec1 = Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions)
-          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec1)
+          Coord_Product(1,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec1)
           Prod_Spec2 = Adsorption%ChemReactant(2,iReact+Adsorption%nDissocReactions)
-          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(Prod_Spec2)
+          Coord_Product(2,iReact+ReactNum_run) = Adsorption%Coordination(PartBoundID,Prod_Spec2)
           IF ((Coord_Product(1,iReact+ReactNum_run).EQ.Coord_Product(2,iReact+ReactNum_run))&
                .AND.(nSitesRemain(Coord_Product(1,iReact+ReactNum_run)).LT.2)) CYCLE
           IF ((Coord_Product(1,iReact+ReactNum_run).NE.Coord_Product(2,iReact+ReactNum_run))&
@@ -1562,23 +1570,23 @@ DO subsurfxi = 1,nSurfSample
         IF (E_Diff.GT.E_d) E_d = E_diff
         ! estimate vibrational temperatures of surface-particle bond
         IF (Coord.EQ.1) THEN
-          CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx)
+          CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
         ELSE
           CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom)
         END IF
         ! calculate partition function of first particle bound on surface
-        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp)
+        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
         IF (Coord_ReactP(iReact+ReactNum_run).EQ.1) THEN
-          CharaTemp = Heat_ReactP / 200. / (2 - 1./Adsorption%CrystalIndx)
+          CharaTemp = Heat_ReactP / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
         ELSE
           CharaTemp = Heat_ReactP / 200. &
                     / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord_ReactP(iReact+ReactNum_run))%nInterAtom)
         END IF
         ! calculate partition function of second particle bound on surface
-        CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp)
+        CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp,PartBoundID)
         ! estimate partition function of activated complex
         CALL PartitionFuncAct_exch(iSpec,jSpec, WallTemp, VarPartitionFuncAct, &
-                    Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
+                    Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease(SurfSideID))
         ! transition state theory to estimate pre-exponential factor
         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/(VarPartitionFuncWall1*VarPartitionFuncWall2))
         rate = nu_react * exp(-E_d/(WallTemp))
@@ -1640,14 +1648,15 @@ DO subsurfxi = 1,nSurfSample
     !-------------------------------------------------------------------------------------------------------------------------------
     ! estimate vibrational temperature of surface-particle bond
     IF (Coord.EQ.1) THEN
-      CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx)
+      CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
     ELSE
       CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom)
     END IF
     ! calculate partition function of particles bound on surface
-    CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp)
+    CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
     ! estimate partition function of activated complex
-    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease)
+    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID) &
+        /Adsorption%AreaIncrease(SurfSideID))
     ! transition state theory to estimate pre-exponential factor
     nu_des = ((BoltzmannConst*Walltemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall1)
     E_d = Calc_E_Act(0.,0.,Heat_A,0.,0.,0.,0.,0.)
@@ -2200,6 +2209,8 @@ SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iS
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Globals,                ONLY : abort
+  USE MOD_Mesh_Vars,              ONLY : BC
+  USE MOD_Particle_Boundary_Vars, ONLY : PartBound
   USE MOD_Particle_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
 !===================================================================================================================================
@@ -2208,21 +2219,23 @@ SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iS
 ! Local variable declaration
   INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec
 ! LOCAL VARIABLES
-  INTEGER                          :: dist
+  INTEGER                          :: dist, PartBoundID
   INTEGER                          :: Coord, Surfnum, Surfpos, UsedSiteMapPos, nSites, nSitesRemain
   INTEGER                          :: iInterAtom, xpos, ypos
   REAL                             :: RanNum
   
 !===================================================================================================================================
+  PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSideID)))
   IF (adsorbates_num.GT.0) THEN
     ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
     dist = 1
-    Coord = Adsorption%Coordination(iSpec)
+    Coord = Adsorption%Coordination(PartBoundID,iSpec)
     Surfnum = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
     IF ((SurfNum - adsorbates_num).LT.0) THEN
       CALL abort(&
 __STAMP__&
-,'Error in AdjustBackgndAdsNum: Too many new Adsorbates! not enough Sites for Coordination:',Adsorption%Coordination(iSpec))
+,'Error in AdjustBackgndAdsNum: Too many new Adsorbates! not enough Sites for Coordination:' &
+,Adsorption%Coordination(PartBoundID,iSpec))
     END IF
     DO WHILE (dist.LE.adsorbates_num) 
       CALL RANDOM_NUMBER(RanNum)
@@ -2247,7 +2260,7 @@ __STAMP__&
   ELSE IF (adsorbates_num.LT.0) THEN
     ! remove adsorbates randomly on the surface on the correct site and assign surface atom bond order
     dist = -1
-    Coord = Adsorption%Coordination(iSpec)
+    Coord = Adsorption%Coordination(PartBoundID,iSpec)
     nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
     nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
     Surfnum = nSites - nSitesRemain
@@ -3049,7 +3062,7 @@ REAL                          :: Qtra, Qrot, Qvib
 
 END SUBROUTINE PartitionFuncAct_exch
 
-SUBROUTINE PartitionFuncSurf(iSpec, Temp, VarPartitionFuncSurf, CharaTemp)
+SUBROUTINE PartitionFuncSurf(iSpec, Temp, VarPartitionFuncSurf, CharaTemp, PartBoundID)
 !===================================================================================================================================
 ! partition function of adsorbates
 !===================================================================================================================================
@@ -3064,6 +3077,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)           :: iSpec
 REAL, INTENT(IN)              :: Temp
 REAL, INTENT(IN)              :: CharaTemp
+INTEGER, INTENT(IN)           :: PartBoundID
 !===================================================================================================================================
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: VarPartitionFuncSurf
@@ -3087,10 +3101,10 @@ REAL                          :: Qtra, Qrot, Qvib
   ELSE
     Qvib = 1.
   END IF
-  IF (Adsorption%Coordination(iSpec).EQ.1) THEN
+  IF (Adsorption%Coordination(PartBoundID,iSpec).EQ.1) THEN
   Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
-  ELSE IF (Adsorption%Coordination(iSpec).EQ.2) THEN
-    IF ((Adsorption%DiCoord(iSpec).EQ.1) .OR. (Adsorption%DiCoord(iSpec).EQ.2)) THEN
+  ELSE IF (Adsorption%Coordination(PartBoundID,iSpec).EQ.2) THEN
+    IF ((Adsorption%DiCoord(PartBoundID,iSpec).EQ.1) .OR. (Adsorption%DiCoord(PartBoundID,iSpec).EQ.2)) THEN
       Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))** 2.
     ELSE
       Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
@@ -3172,6 +3186,8 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Mesh_Vars,          ONLY : BC
+  USE MOD_Particle_Boundary_vars,ONLY: PartBound
   USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst, nSpecies
   USE MOD_DSMC_Vars,          ONLY : Adsorption, SurfDistInfo, SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -3185,7 +3201,7 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                        :: Coordination, i, j, Indx, Indy
+  INTEGER                        :: Coordination, i, j, Indx, Indy, PartBoundID
   REAL , ALLOCATABLE             :: x(:)!, D_AL(:), delta(:)
   INTEGER , ALLOCATABLE          :: m(:)!, Neigh_bondorder(:)
   INTEGER                        :: bondorder
@@ -3195,7 +3211,8 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
 !   REAL                           :: Heat_D_AL
 !   INTEGER                        :: neighSpec, neighSpec2, Coord2, Coord3, ReactNum, nNeigh_interactions
 !===================================================================================================================================
-  Coordination = Adsorption%Coordination(iSpec)
+  PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSideID)))
+  Coordination = Adsorption%Coordination(PartBoundID,iSpec)
   ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 !   ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
   ALLOCATE( m(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
@@ -3236,7 +3253,7 @@ __STAMP__,&
                     / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
   END DO
   IF (Coordination.EQ.1) THEN
-    sigma = (2 - 1. / REAL(Adsorption%CrystalIndx) )
+    sigma = (2 - 1. / REAL(Adsorption%CrystalIndx(SurfSideID)) )
   ELSE
     sigma = (2 - 1. / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
   END IF
@@ -3248,19 +3265,19 @@ __STAMP__,&
       D_AB = Adsorption%EDissBond(0,iSpec)
       SELECT CASE(Coordination)
       CASE(1) ! hollow (radical with localized electron like NH2)
-        Heat_A = Adsorption%HeatOfAdsZero(iSpec)
-        Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A/REAL(Adsorption%CrystalIndx)) * sigma_m
+        Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
+        Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A/REAL(Adsorption%CrystalIndx(SurfSideID))) * sigma_m
       CASE(2) ! bridge
-        IF (Adsorption%DiCoord(iSpec).EQ.1) THEN ! dicoordination (HCOOH --> M--(HC)O-O(H)--M) (M--O bond)
+        IF (Adsorption%DiCoord(PartBoundID,iSpec).EQ.1) THEN ! dicoordination (HCOOH --> M--(HC)O-O(H)--M) (M--O bond)
           D_AX = Adsorption%EDissBondAdsorbPoly(0,iSpec) ! Bond HC--O
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*(1./REAL(m(1))) - (1./REAL(m(1)))**2.)
+          Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec) * (2.*(1./REAL(m(1))) - (1./REAL(m(1)))**2.)
           A = Heat_A**2./(D_AX+Heat_A)
           D_BX = Adsorption%EDissBondAdsorbPoly(1,iSpec) ! Bond O--H
-          Heat_B = Adsorption%HeatOfAdsZero(iSpec) * (2.*(1./REAL(m(2))) - (1./REAL(m(2)))**2.)
+          Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,iSpec) * (2.*(1./REAL(m(2))) - (1./REAL(m(2)))**2.)
           B = Heat_B**2./(D_BX+Heat_B)
           Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
         
-!           Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*x(1) - x(1)**2)
+!           Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec) * (2.*x(1) - x(1)**2)
 !           Heat_M = Adsorption%HeatOfAdsZeroM(iSpec) * (2.*x(1) - x(1)**2)
 !           A = Heat_A * (1- ( (m*Heat_B/( m*Heat_A + Heat_B ))**2) )
 !           
@@ -3268,54 +3285,54 @@ __STAMP__,&
 !           Heat_M = Adsorption%HeatOfAdsZeroR(iSpec) * (2.*x(2) - x(2)**2)
 !           B = Heat_A * (1- ( (mtilde*Heat_B/( mtilde*Heat_A + Heat_B ))**2) )
           
-        ELSE IF (Adsorption%DiCoord(iSpec).EQ.2) THEN ! chelate binding (NO2 --> M--O-N-O--M)
+        ELSE IF (Adsorption%DiCoord(PartBoundID,iSpec).EQ.2) THEN ! chelate binding (NO2 --> M--O-N-O--M)
           D_AX = Adsorption%EDissBondAdsorbPoly(0,iSpec) ! Bond O--N
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec)
+          Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
           Heat_A = Heat_A**2/(D_AX+Heat_A)
           D_BX = Adsorption%EDissBondAdsorbPoly(1,iSpec) ! Bond N--O
-          Heat_B = Adsorption%HeatOfAdsZero(iSpec)
+          Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
           Heat_B = Heat_B**2/(D_BX+Heat_B)
           A = Heat_A**2. * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2.
           B = Heat_B**2. * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2.
           Calc_Adsorb_Heat = (A + B) * sigma_m
-        ELSE IF (Adsorption%DiCoord(iSpec).EQ.3) THEN !weak binding
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec)
+        ELSE IF (Adsorption%DiCoord(PartBoundID,iSpec).EQ.3) THEN !weak binding
+          Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
           Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A/2.) * sigma_m
         ELSE
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma * sigma_m
+          Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec) * sigma * sigma_m
           Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A)
         END IF
       CASE(3) ! on-top (closed shell or open shell with unlocalized electron like CO)
-        Heat_A = Adsorption%HeatOfAdsZero(iSpec)
+        Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
         Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A) * sigma_m
       END SELECT
     ELSE 
       D_AB = Adsorption%EDissBond(0,iSpec)
       SELECT CASE(Coordination)
       CASE(1) ! hollow (radical with localized electron like C-H)
-        Heat_A = Adsorption%HeatOfAdsZero(iSpec)
-        Calc_Adsorb_Heat = (Heat_A**2)/(D_AB+Heat_A/Adsorption%CrystalIndx) * sigma_m
+        Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
+        Calc_Adsorb_Heat = (Heat_A**2)/(D_AB+Heat_A/Adsorption%CrystalIndx(SurfSideID)) * sigma_m
       CASE(2) ! bridge (closed shell like O2)
-        IF (Adsorption%DiCoord(iSpec).EQ.1) THEN
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec)
-          Heat_B = Adsorption%HeatOfAdsZero(iSpec)
+        IF (Adsorption%DiCoord(PartBoundID,iSpec).EQ.1) THEN
+          Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
+          Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
           A = Heat_A**2. * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2. 
           B = Heat_B**2. * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2.
           Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
-        ELSE IF (Adsorption%DiCoord(iSpec).EQ.3) THEN !weak binding
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec)
+        ELSE IF (Adsorption%DiCoord(PartBoundID,iSpec).EQ.3) THEN !weak binding
+          Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
           Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A/2.) * sigma_m
         ELSE
-          Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma * sigma_m
+          Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec) * sigma * sigma_m
           Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A)
         END IF
       CASE(3) ! on-top (closed shell or open shell with unlocalized electron like CO)
-        Heat_A = Adsorption%HeatOfAdsZero(iSpec)
+        Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,iSpec)
         Calc_Adsorb_Heat = Heat_A**2./(D_AB+Heat_A) * sigma * sigma_m
       END SELECT
     END IF
   ELSE
-    Calc_Adsorb_Heat = Adsorption%HeatOfAdsZero(iSpec) * sigma * sigma_m
+    Calc_Adsorb_Heat = Adsorption%HeatOfAdsZero(PartBoundID,iSpec) * sigma * sigma_m
   END IF
   
   ! routine wird nicht benutz, da höheres Rauschen und größerer Rechenaufwand aber aufgehoben für spätere Einsicht

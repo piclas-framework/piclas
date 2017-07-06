@@ -245,6 +245,7 @@ TYPE tAdsorptionInfo
 END TYPE
 
 TYPE tAdsorption
+  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 #if (PP_TimeDiscMethod==42)
   LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
@@ -263,8 +264,9 @@ TYPE tAdsorption
   INTEGER , ALLOCATABLE                  :: SumReactPart(:,:,:,:)   ! Number of Particles desorbed through reaction
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
-  REAL                                   :: AreaIncrease            ! Factor for increasing surface density
-  INTEGER                                :: CrystalIndx             ! Number of binding atoms in hollow site
+  REAL    , ALLOCATABLE                  :: AreaIncrease(:)         ! Factor for increasing surface density
+  INTEGER , ALLOCATABLE                  :: CrystalIndx(:)          ! Number of binding atoms in hollow site
+  !REAL                                   :: SurfMassIC(:)           ! Mass of the surface coordination for hard cube model
   INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption
   ! parameters for Kisliuk and Polanyi Wigner model (wallmodel=1)
@@ -277,7 +279,7 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
   REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
   ! parameters for UBI-QEP model (wallmodel=3)
-  REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:)        ! heat of adsorption (K) on clear surfaces for surface n
+  REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:,:)        ! heat of adsorption (K) on clear surfaces for surface n
   INTEGER                                :: DissNum                 ! Number of dissociative surface reactions for one species
   INTEGER                                :: ReactNum                ! Number of all surface reactions for one species
   INTEGER , ALLOCATABLE                  :: DissocReact(:,:,:)      ! Resulting species for given dissoc (2,MaxDissNum,nSpecies)
@@ -294,17 +296,13 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Product_DissBond_K(:,:)
   INTEGER                                :: nDissocReactions
   INTEGER                                :: nDisPropReactions
-  INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
-  INTEGER , ALLOCATABLE                  :: DiCoord(:)              ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
+  INTEGER , ALLOCATABLE                  :: Coordination(:,:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
+  INTEGER , ALLOCATABLE                  :: DiCoord(:,:)              ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
   REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
   REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
-  REAL                                   :: SurfMassIC              ! Mass of the surface coordination for hard cube model
-  
   INTEGER                                :: NumOfDissocReact
   INTEGER                                :: NumOfAssocReact
   INTEGER                                :: NumOfExchReact
-  
-  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 

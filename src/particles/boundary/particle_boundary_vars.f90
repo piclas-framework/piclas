@@ -106,6 +106,11 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
   LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
   LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
+  INTEGER , ALLOCATABLE                  :: SolidSpec(:)
+  REAL    , ALLOCATABLE                  :: SolidPartDens(:)
+  REAL    , ALLOCATABLE                  :: SolidMassIC(:)
+  REAL    , ALLOCATABLE                  :: SolidAreaIncrease(:)
+  INTEGER , ALLOCATABLE                  :: SolidCrystalIndx(:)
   INTEGER , ALLOCATABLE                  :: LiquidSpec(:)                 ! Species of Liquid Boundary
   REAL    , ALLOCATABLE                  :: ParamAntoine(:,:)       ! Parameters for Antoine Eq (vapor pressure) [3,nPartBound]
   REAL    , ALLOCATABLE                  :: AmbientTemp(:)
