@@ -271,20 +271,20 @@ CriticalParallelInSide=.FALSE.
 
 IF(DoRefMapping)THEN
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
-  IF(coeffA.LT.0.)RETURN
+  IF(coeffA.LE.0.)RETURN
   locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
-  locSideDistance=locSideDistance/(coeffA*lengthPartTrajectory)-epsilonTol
-  IF(locSideDistance.GT.1.0) RETURN
+  locSideDistance=locSideDistance/coeffA
+  IF(locSideDistance.GT.lengthPartTrajectory) RETURN
 ELSE
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
   IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
   IF(flip.EQ.0)THEN
-    IF(coeffA.LT.0.)RETURN
+    IF(coeffA.LE.0.)RETURN
     locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
     locSideDistance=locSideDistance/coeffA
     IF(locSideDistance.GT.lengthPartTrajectory) RETURN
   ELSE
-    IF(coeffA.GT.0.)RETURN
+    IF(coeffA.GE.0.)RETURN
     locSideDistance=-SideDistance(SideID)+DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
     locSideDistance=locSideDistance/coeffA
     IF(locSideDistance.GT.lengthPartTrajectory) RETURN
