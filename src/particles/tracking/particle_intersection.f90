@@ -601,19 +601,20 @@ IF (nRoot.EQ.1) THEN
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
-  xi(1)=ComputeXi(a1,a2,eta(1))
-  t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
 
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
+    ! check for Xi only, if eta is possible
+    xi(1)=ComputeXi(a1,a2,eta(1))
     IF(ABS(xi(1)).LT.BezierClipHit)THEN
+      ! compute alpha only with valid xi and eta
+      t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
@@ -649,23 +650,23 @@ ELSE
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
-  ! compute Xi and alpha
-  xi(1)=ComputeXi(a1,a2,eta(1))
-  t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(1),' | t: ',t(1)
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
 
   ! check if intersection is possible
   ! t(1) has to be nullified if intersection is NOT possible
   ! else, the selection scheme is WRONG
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
-    ! as paper ramsay
+    ! check for Xi only, if eta is possible
+    xi(1)=ComputeXi(a1,a2,eta(1))
     IF(ABS(xi(1)).LT.BezierCliphit)THEN
+      ! compute alpha only with valid xi and eta
+      t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
@@ -683,23 +684,23 @@ ELSE
     END IF
   END IF ! eta(1)
 
-  ! compute Xi and alpha for second intersection
-  xi(2)=ComputeXi(a1,a2,eta(2))
-  t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(2),' | t: ',t(2)
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
 
   ! check if intersection is possible
   ! t(2) has to be nullified if intersection is NOT possible
   ! else, the selection scheme is WRONG
   IF(ABS(eta(2)).LT.BezierClipHit)THEN
+    ! check for Xi only, if eta is possible
+    xi(2)=ComputeXi(a1,a2,eta(2))
     IF(ABS(xi(2)).LT.BezierClipHit)THEN
+      ! compute alpha only with valid xi and eta
+      t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(2),' | t: ',t(2)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       alphaNorm=t(2)/lengthPartTrajectory
       IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
         ! Two solutions can be correspond to one unique intersection (?!)
@@ -3038,6 +3039,7 @@ a=eta*A2(1)+A2(2)
 b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
 
 IF(ABS(B).GE.ABS(A))THEN
+  IF(B.EQ.0) print*,'eta',eta
   ComputeXi=(-eta*(A2(3)-A1(3))-(A2(4)-A1(4)))/b
 ELSE
   ComputeXi=(-eta*A2(3)-A2(4))/a
