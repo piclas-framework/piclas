@@ -3039,9 +3039,22 @@ a=eta*A2(1)+A2(2)
 b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
 
 IF(ABS(B).GE.ABS(A))THEN
-  IF(B.EQ.0) print*,'eta',eta
+#ifdef CODE_ANALYZE
+  IF(ABS(B).LE.0.)THEN
+    CALL abort(
+    __STAMP__&
+    ,' Division by zero. Invalid b')
+  END IF
+#endif /*CODE_ANALYZE*/
   ComputeXi=(-eta*(A2(3)-A1(3))-(A2(4)-A1(4)))/b
 ELSE
+#ifdef CODE_ANALYZE
+  IF(ABS(A).LE.0.)THEN
+    CALL abort(
+    __STAMP__&
+    ,' Division by zero. Invalid a')
+  END IF
+#endif /*CODE_ANALYZE*/
   ComputeXi=(-eta*A2(3)-A2(4))/a
 END IF
 
