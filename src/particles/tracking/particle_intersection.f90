@@ -3017,7 +3017,11 @@ ComputeSurfaceDistance2=t
 END FUNCTION ComputeSurfaceDistance2
 
 
+#ifdef CODE_ANALYZE
 FUNCTION ComputeXi(A1,A2,eta)
+#else
+PURE FUNCTION ComputeXi(A1,A2,eta)
+#endif
 !================================================================================================================================
 ! compute the xi value with algorithm 3.3 of Ramsey paper
 !================================================================================================================================
