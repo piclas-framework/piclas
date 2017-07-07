@@ -11,6 +11,7 @@ SAVE
 !----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=10),PARAMETER    :: CodeNameUppCase='BOLTZPLATZ'      !> Code name in upper case letters. IMPORTANT: set its length!
 CHARACTER(LEN=10),PARAMETER    :: CodeNameLowCase='boltzplatz'      !> Code name in lower case letters. IMPORTANT: set its length!
+CHARACTER(LEN=500)             :: configuration_cmake               !> path to configuration.cmake
 INTEGER                        :: nErrors                           !> number of errors encountered during reggie execution
 INTEGER                        :: GlobalRunNumber                   !> count the number of separate runs for listing in summary
 INTEGER                        :: NumberOfProcs                     !> number of processors for parallel build
@@ -37,9 +38,11 @@ LOGICAL                        :: BuildDebug                        !> Prints th
                                                                     !> BuildSolver is true 
 LOGICAL                        :: BuildNoDebug                      !> Don't print any compiler output (if BuildSolver is true) 
 LOGICAL                        :: BuildContinue                     !> allow the building sequence to begin at the last failure
+LOGICAL                        :: RunContinue                       !> use all previously built executables before further compiling
 INTEGER                        :: BuildContinueNumber               !> start building sequence from this point
 
 CHARACTER(LEN=255),ALLOCATABLE :: BuildConfigurations(:,:)          !> CMAKE complie flag and value
+CHARACTER(LEN=2000),ALLOCATABLE :: BuildConfigurationsCombined(:)   !> CMAKE complie flags combinations for valid and invalid builds
 LOGICAL,ALLOCATABLE            :: BuildValid(:)                     !> use the configuration or don't
 INTEGER,ALLOCATABLE            :: BuildCounter(:)                   !> register for creaating all possible cmake configurations
 INTEGER,ALLOCATABLE            :: BuildIndex(:)                     !> number of different flag settings for each specified cmake 

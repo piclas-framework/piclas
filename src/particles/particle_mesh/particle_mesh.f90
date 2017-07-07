@@ -163,7 +163,7 @@ IF(UseCurveds)THEN ! don't use RefMappingGuess=1, because RefMappingGuess is onl
   RefMappingGuessProposal=2
   IF(PP_N.GT.NGeo)THEN ! there are more Gauss points within an element then CL-points
                        ! Gauss points sample the element finer
-                       ! Note: the Gauss points does not exist for HALO elements, here, the trivial guess is used.
+                       ! Note: the Gauss points does not exist for HALO elements, here, the closest CL point is used
     RefMappingGuessProposal=2
   ELSE ! more CL-points than Gauss points, hence, better sampling of the element
     RefMappingGuessProposal=3

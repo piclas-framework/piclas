@@ -826,10 +826,17 @@ REAL                          :: epsOne
 INTEGER                       :: iDir
 INTEGER                       :: i,j,k
 REAL                          :: dX,dY,dZ
+INTEGER                       :: RefMappingGuessLoc
 !===================================================================================================================================
 
 epsOne=1.0+RefMappingEps
-SELECT CASE(RefMappingGuess)
+RefMappingGuessLoc=RefMappingGuess
+! the location of the Gauss-points within halo elements is not communicated. Instead of looking for the closest Gauss-point, the
+! closest CL-point is used
+IF(ElemID.GT.PP_nElems)THEN
+  IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=3
+END IF
+SELECT CASE(RefMappingGuessLoc)
 CASE(1)
   Ptild=X_in - ElemBaryNGeo(:,ElemID)
   ! plus coord system (1-3) and minus coord system (4-6)
@@ -842,10 +849,6 @@ CASE(1)
   END DO 
   IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
 CASE(2) 
-  IF(ElemID.GT.PP_nElems) THEN
-    Xi(:)=(/0.,0.,0./)
-    RETURN
-  END IF
   ! compute distance on Gauss Points
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value

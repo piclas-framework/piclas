@@ -41,7 +41,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
@@ -107,7 +107,8 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
                              +PartTrajectory(3)*PartTrajectory(3) )
-    IF(ALMOSTZERO(lengthPartTrajectory))THEN
+    
+    IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)))THEN
       PEM%Element(iPart)=ElemID
       PartisDone=.TRUE.
       CYCLE
@@ -810,7 +811,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO,PartElemToSide
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO,PartElemToSide,ElemRadiusNGeo
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -846,9 +847,9 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 
-IF(ALMOSTZERO(lengthPartTrajectory))THEN
+IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)))THEN
   PEM%Element(PartID)=ElemID
-  PartIsDone=.TRUE.
+  PartisDone=.TRUE.
   RETURN
 END IF
 
@@ -1687,6 +1688,29 @@ __STAMP__,&
 END IF !ChargeCollecting
 
 END SUBROUTINE ParticleCollectCharges
+
+PURE FUNCTION PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo)
+!================================================================================================================================
+! check if particle has moved significantly within an element
+!================================================================================================================================
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: lengthPartTrajectory
+REAL,INTENT(IN)                      :: ElemRadiusNGeo
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL                              :: PARTHASMOVED
+!================================================================================================================================
+
+IF(ALMOSTZERO(lengthPartTrajectory/ElemRadiusNGeo))THEN
+  PARTHASMOVED=.FALSE.
+ELSE
+  PARTHASMOVED=.TRUE.
+END IF
+
+END FUNCTION PARTHASMOVED
 
 
 END MODULE MOD_Particle_Tracking

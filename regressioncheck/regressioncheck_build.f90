@@ -38,9 +38,10 @@ CONTAINS
 SUBROUTINE ReadConfiguration(iExample,nReggieBuilds,N_compile_flags)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: Examples,RuntimeOption,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D,BuildPARABOLIC
-USE MOD_RegressionCheck_Vars,    ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex
+USE MOD_RegressionCheck_Vars,  ONLY: Examples,RuntimeOption,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
+USE MOD_RegressionCheck_Vars,  ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D,BuildPARABOLIC
+USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,BuildConfigurationsCombined
+USE MOD_RegressionCheck_tools, ONLY: ConfigurationCounter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -181,31 +182,36 @@ DO I=1,2
     SWRITE(UNIT_stdOut,'(A)') ' Fortran runtime error: Attempting to allocate already allocated variable "BuildConfigurations"'
     ERROR STOP 1
   END IF
-  IF(I.EQ.1)ALLOCATE(BuildConfigurations(N_compile_flags,N_subinclude_max+1))
-  IF(I.EQ.1)BuildConfigurations=''
-  IF(I.EQ.1)ALLOCATE(BuildIndex(N_compile_flags))
-  IF(I.EQ.1)BuildIndex=1
-  IF(I.EQ.1)ALLOCATE(BuildCounter(N_compile_flags))
-  IF(I.EQ.1)BuildIndex=1
-  IF(I.EQ.1)ALLOCATE(ExcludeConfigurations(N_exclude,3))
-  IF(I.EQ.1)ALLOCATE(BuildValid(nReggieBuilds))
-  IF(I.EQ.1)BuildValid=.TRUE.
-  IF(I.EQ.1)ALLOCATE(BuildValidInfo(nReggieBuilds))
-  IF(I.EQ.1)BuildValidInfo=''
-  IF(I.EQ.1)ALLOCATE(BuildEQNSYS(nReggieBuilds))
-  IF(I.EQ.1)BuildEQNSYS=''
-  IF(I.EQ.1)ALLOCATE(BuildTESTCASE(nReggieBuilds))
-  IF(I.EQ.1)BuildTESTCASE='default'
-  IF(I.EQ.1)ALLOCATE(BuildTIMEDISCMETHOD(nReggieBuilds))
-  IF(I.EQ.1)BuildTIMEDISCMETHOD='default'
-  IF(I.EQ.1)ALLOCATE(BuildMPI(nReggieBuilds))
-  IF(I.EQ.1)BuildMPI='OFF'
-  IF(I.EQ.1)ALLOCATE(BuildFV(nReggieBuilds))
-  IF(I.EQ.1)BuildFV='OFF'
-  IF(I.EQ.1)ALLOCATE(Build2D(nReggieBuilds))
-  IF(I.EQ.1)Build2D='OFF'
-  IF(I.EQ.1)ALLOCATE(BuildPARABOLIC(nReggieBuilds))
-  IF(I.EQ.1)BuildPARABOLIC='OFF'
+  IF(I.EQ.1)THEN ! on first loop, allocate the fields, on second loop fill them
+    ALLOCATE(BuildConfigurations(N_compile_flags,N_subinclude_max+1))
+    BuildConfigurations=''
+    ALLOCATE(BuildConfigurationsCombined(nReggieBuilds))
+    BuildConfigurationsCombined=''
+    ALLOCATE(BuildIndex(N_compile_flags))
+    BuildIndex=1
+    ALLOCATE(BuildCounter(N_compile_flags))
+    BuildIndex=1
+    ALLOCATE(ExcludeConfigurations(N_exclude,3))
+    ExcludeConfigurations=''
+    ALLOCATE(BuildValid(nReggieBuilds))
+    BuildValid=.TRUE.
+    ALLOCATE(BuildValidInfo(nReggieBuilds))
+    BuildValidInfo=''
+    ALLOCATE(BuildEQNSYS(nReggieBuilds))
+    BuildEQNSYS=''
+    ALLOCATE(BuildTESTCASE(nReggieBuilds))
+    BuildTESTCASE='default'
+    ALLOCATE(BuildTIMEDISCMETHOD(nReggieBuilds))
+    BuildTIMEDISCMETHOD='default'
+    ALLOCATE(BuildMPI(nReggieBuilds))
+    BuildMPI='OFF'
+    ALLOCATE(BuildFV(nReggieBuilds))
+    BuildFV='OFF'
+    ALLOCATE(Build2D(nReggieBuilds))
+    Build2D='OFF'
+    ALLOCATE(BuildPARABOLIC(nReggieBuilds))
+    BuildPARABOLIC='OFF'
+  END IF
 END DO
 
 
@@ -232,7 +238,7 @@ END DO
 CLOSE(ioUnit)
 
 
-
+! check if builds are valid by comparing the combinations with the excluded combinations of specific flags
 BuildCounter=1
 DO I=1,nReggieBuilds
   DO J=1,N_exclude
@@ -270,25 +276,31 @@ DO I=1,nReggieBuilds
 ! deprecated  END DO
   
   ! display cmake compiler flags
-  SWRITE(UNIT_stdOut, '(L)', ADVANCE = "NO") BuildValid(I)
+  SWRITE(UNIT_stdOut, '(I5,A1)', ADVANCE = "NO") I,': '
+  SWRITE(UNIT_stdOut, '(L,A1)', ADVANCE = "NO") BuildValid(I),' '
   DO K=1,N_compile_flags
     !write(*, '(A)', ADVANCE = "NO") ' '//TRIM(BuildEQNSYS(I))
-    SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") ' -D'
-    SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
-    SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") '='
-    SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
+  ! OLD !     SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") ' -D'
+  ! OLD !     SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
+  ! OLD !     SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") '='
+  ! OLD !     SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
+    BuildConfigurationsCombined(I)=TRIM(BuildConfigurationsCombined(I))//&
+                     ' -D'//TRIM(ADJUSTL(BuildConfigurations(K,1)))//'='//TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
   END DO
+  SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO")'['//TRIM(BuildConfigurationsCombined(I))//']'
   SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") '    '
   SWRITE(UNIT_stdOut, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildValidInfo(I)))
   SWRITE(UNIT_stdOut,*) ''
-  DO J=1,N_compile_flags
-    BuildCounter(J)=BuildCounter(J)+1
-    IF(BuildCounter(J).GT.BuildIndex(J))THEN
-      BuildCounter(J)=1
-    ELSE
-      EXIT
-    END IF
-  END DO
+  ! Configuration Counter: set the compile flag permutation to the next build combination
+  CALL ConfigurationCounter(N_compile_flags)
+  ! OLD !     DO J=1,N_compile_flags
+  ! OLD !       BuildCounter(J)=BuildCounter(J)+1
+  ! OLD !       IF(BuildCounter(J).GT.BuildIndex(J))THEN
+  ! OLD !         BuildCounter(J)=1
+  ! OLD !       ELSE
+  ! OLD !         EXIT
+  ! OLD !       END IF
+  ! OLD !     END DO
 END DO
 
 SWRITE(UNIT_stdOut, '(A)') ''
@@ -338,8 +350,9 @@ USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
 USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D
 USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC
-USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError
-USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH
+USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError,GetConfigurationFile!,ConfigurationCounter
+USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH,configuration_cmake
+USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurationsCombined
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -349,9 +362,10 @@ INTEGER,INTENT(IN)                        :: iExample,iReggieBuild,N_compile_fla
 INTEGER                                   :: ioUnit,iSTATUS,iSTATUS2,J,K
 CHARACTER(LEN=255)                        :: FileName
 LOGICAL                                   :: ExistFile
-CHARACTER(LEN=500)                        :: SYSCOMMAND,configuration_cmake
+CHARACTER(LEN=500)                        :: SYSCOMMAND
 CHARACTER(LEN=15)                         :: tempStr
 !===================================================================================================================================
+iStatus=0 ! nullify
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,I5,A4,I5,A,I5,A,I5,A)') &
 "  Regression Check: Build Cmake Configurations",COUNT(BuildValid(1:iReggieBuild)),' of ',COUNT(BuildValid)&
@@ -367,12 +381,13 @@ IF(BuildValid(iReggieBuild))THEN
   SYSCOMMAND='echo '//TRIM(tempStr)//' > '//TRIM(BuildDir)//'build_reggie/BuildContinue.reggie'
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(BuildDir)//'build_reggie/configurationX.cmake',STATUS="NEW",ACTION='WRITE',IOSTAT=iSTATUS)
-  DO K=1,N_compile_flags ! the compiler flag command line to "configurationX.cmake"
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' -D'
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") '='
-    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
-  END DO
+!  DO K=1,N_compile_flags ! the compiler flag command line to "configurationX.cmake"
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") ' -D'
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,1)))
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") '='
+!    SWRITE(ioUnit, '(A)', ADVANCE = "NO") TRIM(ADJUSTL(BuildConfigurations(K,BuildCounter(K)+1)))
+!  END DO
+  SWRITE(ioUnit, '(A)') TRIM(BuildConfigurationsCombined(iReggieBuild))
   CLOSE(ioUnit)
   ! display the compile flag options
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie && echo  `cat configurationX.cmake` '
@@ -401,7 +416,9 @@ IF(BuildValid(iReggieBuild))THEN
   ! save compilation flags (even those that are not explicitly selected by the user) for deciding whether a supplied example folder 
   ! can be executed with the compiled executable or not
   ! check MPI: single or parallel version
-  configuration_cmake=TRIM(BuildDir)//'build_reggie/bin/configuration.cmake'
+  !configuration_cmake=TRIM(BuildDir)//'build_reggie/bin/configuration.cmake'  -> moved to GetConfigurationFile
+  !EXECPATH=TRIM(BuildDir)//'build_reggie/bin/'//CodeNameLowCase
+  CALL GetConfigurationFile(TRIM(BuildDir)//'build_reggie/bin/configuration.cmake') ! use proposal
   CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_MPI'        ,BuildMPI(iReggieBuild),BACK=.TRUE.)
   IF(iSTATUS.EQ.0)THEN ! -> succeeded to compile cmake configuration build
     ! check TESTCASE: e.g. taylor green vortex
@@ -466,7 +483,7 @@ IF(BuildValid(iReggieBuild))THEN
   SWRITE(UNIT_stdOut,'(A)')"Build2D(iReggieBuild))             = ["//TRIM(Build2D(iReggieBuild))//"]"
   SWRITE(UNIT_stdOut,'(A)')"BuildPARABOLIC(iReggieBuild))      = ["//TRIM(BuildPARABOLIC(iReggieBuild))//"]"
   SYSCOMMAND='cd '//TRIM(BuildDir)//'build_reggie'
-  IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out'
+  IF(.NOT.BuildDebug)SYSCOMMAND=TRIM(SYSCOMMAND)//' && tail -n 1 build_reggie.out' ! add [tail -n 1] to display output
   CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
 ELSE
   IF(BuildContinue)THEN
@@ -478,15 +495,19 @@ ELSE
 END IF
 
 
-! get next build
-DO J=1,N_compile_flags
-  BuildCounter(J)=BuildCounter(J)+1
-  IF(BuildCounter(J).GT.BuildIndex(J))THEN
-    BuildCounter(J)=1
-  ELSE
-    EXIT
-  END IF
-END DO
+! Configuration Counter
+! get next build -> always use this counter !!!
+
+! NEW -> NOT USED ANY MORE ! CALL ConfigurationCounter(N_compile_flags)
+
+! OLD !     DO J=1,N_compile_flags
+! OLD !       BuildCounter(J)=BuildCounter(J)+1
+! OLD !       IF(BuildCounter(J).GT.BuildIndex(J))THEN
+! OLD !         BuildCounter(J)=1
+! OLD !       ELSE
+! OLD !         EXIT
+! OLD !       END IF
+! OLD !     END DO
 
 SWRITE(UNIT_stdOut,'(132("="))')
 
