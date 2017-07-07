@@ -135,7 +135,8 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE
         WallModeltype = 0
       END IF
-      IF (WallModeltype.EQ.0) THEN ! simple reflection (previously used wall interaction model, maxwellian scattering)
+      IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
           ! perfectly reflecting, specular re-emission
@@ -145,7 +146,8 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
             IsSpeciesSwap,opt_Reflected=crossedBC)
         END IF
-      ELSE IF (WallModeltype.GT.0) THEN ! chemical surface interaction (adsorption)
+      ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
         CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
@@ -349,7 +351,8 @@ CASE(2) !PartBound%ReflectiveBC)
       WallModeltype = 0
     END IF
     BCSideID=PartBCSideList(SideID)
-    IF (WallModeltype.EQ.0) THEN ! simple reflection (previously used wall interaction model)
+    IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+    ! simple reflection (previously used wall interaction model, maxwellian scattering)
       CALL RANDOM_NUMBER(RanNum)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
@@ -359,7 +362,8 @@ CASE(2) !PartBound%ReflectiveBC)
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                               ,BCSideID=BCSideID,opt_reflected=crossedBC)
       END IF
-    ELSE IF (WallModeltype.GT.0) THEN ! chemical surface interaction (adsorption)
+    ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+    ! chemical surface interaction (adsorption)
       adsorbindex = 0
       ! Decide which interaction (reflection, reaction, adsorption)
       CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)

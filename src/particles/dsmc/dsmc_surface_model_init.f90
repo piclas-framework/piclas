@@ -115,11 +115,19 @@ DO iSpec = 1,nSpecies
     Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
   ELSE IF (DSMC%WallModel.EQ.3) THEN 
     DO iPartBound=1,nPartBound
-      WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
-      hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-      Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
-      Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
-      Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
+      IF(PartBound%SolidCatalytic(iPartBound))THEN
+        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+        hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
+        Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
+        Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
+        Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
+        IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
+        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          CALL abort(&
+__STAMP__,&
+'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
+        END IF
+      END IF
     END DO
   END IF
 END DO
