@@ -1816,6 +1816,12 @@ ELSE
     END IF
 #ifdef MPI
     CALL FinalizeMPI()
+    CALL MPI_FINALIZE(iERROR)
+    IF(iERROR.NE.0)THEN
+      CALL abort(&
+      __STAMP__&
+      , " MPI_FINALIZE(iERROR) returned non-zero integer value",iERROR)
+    END IF
 #endif /*MPI*/
     STOP 0 ! terminate successfully
   ELSE
