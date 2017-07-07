@@ -1815,7 +1815,7 @@ ELSE
       SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating successfully!"
     END IF
 #ifdef MPI
-    CALL MPI_FINALIZE(iError)
+    CALL FinalizeMPI()
 #endif /*MPI*/
     STOP 0 ! terminate successfully
   ELSE
