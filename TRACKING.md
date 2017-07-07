@@ -21,6 +21,9 @@ for Cartesian meshes. The particle position is used for periodic displacements.
 
 | Option                 | Values     |  Notes                                                  |
 |:----------------------:|:----------:|:-------------------------------------------------------:|
+| CartesianPeriodic      | T/F        | If a fully periodic box (all 6 sides) is computed, the  |
+|                        |            | intersections do not have to be computed. Instead, each |
+|                        |            | particle can be simply shifted by the periodic vector.  |
 | FastPeriodic           | T/F        | Moves particle the whole periodic distance once, which  |
 |                        |            | can be several times the mesh size in this direction.   |
 

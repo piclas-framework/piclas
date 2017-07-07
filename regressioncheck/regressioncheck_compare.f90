@@ -401,7 +401,7 @@ INTEGER,INTENT(OUT)          :: LNormCompare
 INTEGER                      :: iSTATUS2,iSTATUS,iVar
 INTEGER                      :: ioUnit
 CHARACTER(LEN=255)           :: FileName,temp1,temp2,temp3
-LOGICAL                      :: ExistFile,L2Compare,LInfCompare
+LOGICAL                      :: ExistFile,L2Compare,LInfCompare,L2Found,LInfFound
 REAL                         :: LNorm(Examples(iExample)%nVar),L2(Examples(iExample)%nVar),LInf(Examples(iExample)%nVar)
 REAL                         :: eps
 !==================================================================================================================================
@@ -423,6 +423,8 @@ LNorm=-1.
 L2Compare=.TRUE.
 LInfCompare=.TRUE.
 LNormCompare=1
+L2Found=.FALSE.
+LInfFound=.FALSE.
 DO 
   READ(ioUnit,'(A)',IOSTAT=iSTATUS) temp1!,temp2,LNorm(1),LNorm(2),LNorm(3),LNorm(4),LNorm(5)
   IF(iSTATUS.EQ.-1) EXIT ! End Of File (EOF) reached: exit the loop
@@ -430,13 +432,23 @@ DO
   READ(temp1,*,IOSTAT=iSTATUS2) temp2,temp3,LNorm
   IF(STRICMP(temp2,'L_2')) THEN
     L2=LNorm
+    L2Found=.TRUE.
   END IF
   IF(STRICMP(temp2,'L_inf')) THEN
     LInf=LNorm
+    LInfFound=.TRUE.
   END IF
 END DO
 ! close the file
 CLOSE(ioUnit)
+
+! check if L_2 or L_inf was found in *.out file
+IF(.NOT.L2Found)THEN
+  L2=0.
+END IF
+IF(.NOT.LInfFound)THEN
+  LInf=0.
+END IF
 
 ! when NaN is encountered set the values to HUGE
 IF(ANY(ISNAN(L2)))   L2  =HUGE(1.)
@@ -824,11 +836,15 @@ IntegralValuesAreEqual=ALMOSTEQUALRELATIVE(Q,Examples(iExample)%IntegrateLineVal
 
 IF(.NOT.IntegralValuesAreEqual)THEN
   IntegralCompare=1
-  SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLines do not match! Error in computation!'
-  SWRITE(UNIT_stdOut,'(A)')         ' IntegrateLineOption                   =  '//TRIM(Examples(iExample)%IntegrateLineOption)
+  SWRITE(UNIT_stdOut,'(A)')           ' IntegrateLines do not match! Error in computation!'
+  SWRITE(UNIT_stdOut,'(A)')           ' IntegrateLineOption                   = '//TRIM(Examples(iExample)%IntegrateLineOption)
   SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' IntegrateLineValue                    = ',Q
   SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Examples(iExample)%IntegrateLineValue = ',Examples(iExample)%IntegrateLineValue
-  SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Error                                 = ',ABS(Q/Examples(iExample)%IntegrateLineValue-1)
+  IF(ABS(Examples(iExample)%IntegrateLineValue).GT.0.0)THEN
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')' relative Error                        = ',ABS(Q/Examples(iExample)%IntegrateLineValue-1)
+  ELSE
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')' absolute Error (compare with 0)       = ',ABS(Q)
+  END IF
   SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' Tolerance                             = ',Examples(iExample)%IntegrateLineTolerance
   !SWRITE(UNIT_stdOut,'(A,E25.14E3)')  ' 0.1*SQRT(PP_RealTolerance)            = ',0.1*SQRT(PP_RealTolerance)
   Examples(iExample)%ErrorStatus=5
