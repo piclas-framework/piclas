@@ -41,7 +41,7 @@ USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: Examples,RuntimeOption,BuildEQNSYS,BuildTESTCASE,BuildContinue,BuildContinueNumber
 USE MOD_RegressionCheck_Vars,  ONLY: BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D,BuildPARABOLIC
 USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,BuildConfigurationsCombined
-USE MOD_RegressionCheck_tools, ONLY: ConfigurationCounter
+USE MOD_RegressionCheck_Tools, ONLY: ConfigurationCounter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -319,7 +319,7 @@ IF(BuildContinue)THEN
   !print*,"remove builds?"
   !read*
   DO K=1,nReggieBuilds
-    print*,"K=",K,BuildValid(K)
+    !print*,"K=",K,BuildValid(K)
     IF(COUNT(BuildValid(1:K)).EQ.BuildContinueNumber)THEN
       !BuildValid(1:K)=.FALSE.
       EXIT
@@ -349,10 +349,9 @@ SUBROUTINE BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,N_compile_flag
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
 USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D
-USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC
+USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC,BuildConfigurationsCombined
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError,GetConfigurationFile!,ConfigurationCounter
 USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH,configuration_cmake
-USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurationsCombined
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES

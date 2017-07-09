@@ -38,9 +38,6 @@ INTERFACE AddError
   MODULE PROCEDURE AddError
 END INTERFACE
 
-!INTERFACE GetParameterFromFile
-  !MODULE PROCEDURE GetParameterFromFile
-!END INTERFACE
 
 INTERFACE CheckFileForString
   MODULE PROCEDURE CheckFileForString
@@ -66,7 +63,6 @@ END INTERFACE
 PUBLIC::GetExampleList,InitExample,CheckForExecutable,GetCommandLineOption
 PUBLIC::SummaryOfErrors
 PUBLIC::AddError
-!PUBLIC::GetParameterFromFile
 PUBLIC::CheckFileForString
 PUBLIC::REGGIETIME
 PUBLIC::CalcOrder
