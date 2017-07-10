@@ -81,7 +81,7 @@ END IF
 ! Define variables to be averaged
 nMaxVarAvg=5
 #ifdef PARTICLES
-nMaxVarAvg=nMaxVarAvg+5*nSpecies
+nMaxVarAvg=nMaxVarAvg+9*nSpecies
 #endif /*PARTICLES*/
 ALLOCATE(VarNamesAvgList(nMaxVarAvg))
 
@@ -99,13 +99,17 @@ DO iSpec=1,nSpecies
   VarnamesAvgList(iCounter+3)=TRIM('PowerDensityZ-Spec')//TRIM(strhelp)
   VarnamesAvgList(iCounter+4)=TRIM('PowerDensity-Spec')//TRIM(strhelp)
   VarnamesAvgList(iCounter+5)=TRIM('ChargeDensity-Spec')//TRIM(strhelp)
-  iCounter=iCounter+5
+  VarnamesAvgList(iCounter+6)=TRIM('CurrentDensityX-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+7)=TRIM('CurrentDensityY-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+8)=TRIM('CurrentDensityZ-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+9)=TRIM('CurrentDensity-Spec')//TRIM(strhelp)
+  iCounter=iCounter+9
 END DO
 #endif /*PARTICLES*/
 
 nMaxVarFluc=5
 #ifdef PARTICLES
-nMaxVarFluc=nMaxVarFluc+5*nSpecies
+nMaxVarFluc=nMaxVarFluc+9*nSpecies
 #endif /*PARTICLES*/
 ALLOCATE(VarNamesFlucList(nMaxVarFluc),hasAvgVars(nMaxVarFluc))
 hasAvgVars=.TRUE.
@@ -124,7 +128,11 @@ DO iSpec=1,nSpecies
   VarnamesFlucList(iCounter+3)=TRIM('PowerDensityZ-Spec')//TRIM(strhelp)
   VarnamesFlucList(iCounter+4)=TRIM('PowerDensity-Spec')//TRIM(strhelp)
   VarnamesFlucList(iCounter+5)=TRIM('ChargeDensity-Spec')//TRIM(strhelp)
-  iCounter=iCounter+5
+  VarnamesFlucList(iCounter+6)=TRIM('CurrentDensityX-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+7)=TRIM('CurrentDensityY-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+8)=TRIM('CurrentDensityZ-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+9)=TRIM('CurrentDensity-Spec')//TRIM(strhelp)
+  iCounter=iCounter+9
 END DO
 #endif /*PARTICLES*/
 
@@ -183,9 +191,9 @@ IF(DoDeposition)THEN ! compute powerdensity only if particles are deposited
       DoPowerDensity(iSpec)=.TRUE.
       nSpecPowerDensity=nSpecPowerDensity+1
     END IF
-    iCounter=iCounter+5
+    iCounter=iCounter+9
   END DO
-  IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
+  IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:7,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
 END IF
 #endif /*PARTICELS*/
 
@@ -246,7 +254,6 @@ DO iVar=1,nMaxVarFluc
     IF(iVar2.GT.0) FlucAvgMap(:,iFluc(iVar))=iAvg(iVar2)
   END IF
 END DO
-
 
 ! Allocate arrays
 ALLOCATE(UAvg(nVarAvg,0:PP_N,0:PP_N,0:PP_N,nElems),UFluc(nVarFluc,0:PP_N,0:PP_N,0:PP_N,nElems))
@@ -355,17 +362,29 @@ DO iElem=1,nElems
     iVar=iCounter
     IF(DoPowerDensity(iSpec))THEN
       iSpec2=iSpec2+1
+      ! PowerDensity 1:3
       IF(CalcAvg(iCounter+1)) tmpVars(iAvg(iVar+1),:,:,:) = PowerDensity(1,:,:,:,iElem,iSpec2)
       IF(CalcAvg(iCounter+2)) tmpVars(iAvg(iVar+2),:,:,:) = PowerDensity(2,:,:,:,iElem,iSpec2)
       IF(CalcAvg(iCounter+3)) tmpVars(iAvg(iVar+3),:,:,:) = PowerDensity(3,:,:,:,iElem,iSpec2)
+      ! Mag(PowerDensity)
       IF(CalcAvg(iCounter+4))THEN
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          tmpVars(iAvg(iVar+4),i,j,k) = SUM(PowerDensity(1:3,i,j,k,iElem,iSpec2))
+          tmpVars(iAvg(iVar+4),i,j,k) = SQRT(DOT_PRODUCT(PowerDensity(1:3,i,j,k,iElem,iSpec2),PowerDensity(1:3,i,j,k,iElem,iSpec2)))
         END DO; END DO; END DO
       END IF
       IF(CalcAvg(iCounter+5)) tmpVars(iAvg(iVar+5),:,:,:) = PowerDensity(4,:,:,:,iElem,iSpec2)
+      ! CurrentDensity 1:3
+      IF(CalcAvg(iCounter+6)) tmpVars(iAvg(iVar+6),:,:,:) = PowerDensity(5,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+7)) tmpVars(iAvg(iVar+7),:,:,:) = PowerDensity(6,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+8)) tmpVars(iAvg(iVar+8),:,:,:) = PowerDensity(7,:,:,:,iElem,iSpec2)
+      ! Mag(CurrentDensity)
+      IF(CalcAvg(iCounter+9))THEN
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+          tmpVars(iAvg(iVar+9),i,j,k) = SQRT(DOT_PRODUCT(PowerDensity(5:7,i,j,k,iElem,iSpec2),PowerDensity(5:7,i,j,k,iElem,iSpec2)))
+        END DO; END DO; END DO
+      END IF
     END IF
-    iCounter=iCounter+5
+    iCounter=iCounter+9
   END DO ! iSpec=1,nSpecies
 #endif /*Particles*/
 
@@ -410,6 +429,10 @@ SDEALLOCATE(UAvg)
 SDEALLOCATE(UFluc)
 SDEALLOCATE(VarNamesAvgOut)
 SDEALLOCATE(VarNamesFlucOut)
+#ifdef PARTICLES
+SDEALLOCATE(DoPowerDensity)
+SDEALLOCATE(PowerDensity)
+#endif /*PARTICLES*/
 END SUBROUTINE FinalizeTimeAverage
 
 END MODULE MOD_TimeAverage

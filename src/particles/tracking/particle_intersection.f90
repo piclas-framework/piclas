@@ -563,11 +563,13 @@ C = a1(4)*a2(2)-a1(2)*a2(4)
 
 !scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
 scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
-scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
-scaleFac = 1./scaleFac
-A = A * scaleFac
-B = B * scaleFac
-C = C * scaleFac
+IF(scaleFac.NE.0.)THEN
+  scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
+  scaleFac = 1./scaleFac
+  A = A * scaleFac
+  B = B * scaleFac
+  C = C * scaleFac
+END IF
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
