@@ -374,9 +374,9 @@ DO iElem=1,nElems
       END IF
       IF(CalcAvg(iCounter+5)) tmpVars(iAvg(iVar+5),:,:,:) = PowerDensity(4,:,:,:,iElem,iSpec2)
       ! CurrentDensity 1:3
-      IF(CalcAvg(iCounter+6)) tmpVars(iAvg(iVar+1),:,:,:) = PowerDensity(5,:,:,:,iElem,iSpec2)
-      IF(CalcAvg(iCounter+7)) tmpVars(iAvg(iVar+2),:,:,:) = PowerDensity(6,:,:,:,iElem,iSpec2)
-      IF(CalcAvg(iCounter+8)) tmpVars(iAvg(iVar+3),:,:,:) = PowerDensity(7,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+6)) tmpVars(iAvg(iVar+6),:,:,:) = PowerDensity(5,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+7)) tmpVars(iAvg(iVar+7),:,:,:) = PowerDensity(6,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+8)) tmpVars(iAvg(iVar+8),:,:,:) = PowerDensity(7,:,:,:,iElem,iSpec2)
       ! Mag(CurrentDensity)
       IF(CalcAvg(iCounter+9))THEN
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
