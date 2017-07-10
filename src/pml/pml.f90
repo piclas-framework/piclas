@@ -428,7 +428,7 @@ isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
 !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 !DO I=0,PMLprintInfoProcs-1
   !IF(I.EQ.myrank)THEN
-    !WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    !WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
     !' myrank=',myrank,' Found ',SideCounterUnityGlobal,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
   !END IF
   !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
@@ -438,7 +438,7 @@ isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
     DO iSide=nSides,nSides
-      WRITE(UNIT_stdOut,'(A8,I5,A15,I5,A2,L5,A15,I5,A8,I5,A2,L5,A12,I5)')&
+      WRITE(UNIT_stdOut,'(A8,I10,A15,I10,A2,L5,A15,I10,A8,I10,A2,L5,A12,I10)')&
               "myrank=",myrank,&
        ": isInterFace(",iSide,")=",isInterFace(iSide),&
        " of total= ",COUNT(isInterFace),&
@@ -517,17 +517,17 @@ nGlobalInterfaces=0
 IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
     !" myrank=",myrank," PP_nElems=",PP_nElems," nElems=",nElems," nGlobalElems=",nGlobalElems
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
     !" myrank=",myrank," nSides=",nSides," nFaces=",nFaces," nGlobalFaces=",nGlobalFaces
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
     !" myrank=",myrank," nSides=",nSides," nFaces=",nInterFaces," nGlobalFaces=",nGlobalInterFaces
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
@@ -545,11 +545,11 @@ CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 !=======================================================================================================================
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
@@ -559,11 +559,11 @@ IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "======================================
 nGlobalElems=nElems
 nGlobalFaces=nFaces
 nGlobalInterFaces=nInterFaces
-WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
       ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
       ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
       ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
 #endif /*MPI*/
 
