@@ -2313,8 +2313,11 @@ END FUNCTION CalcEkinPart
 
 SUBROUTINE CalcPowerDensity() 
 !===================================================================================================================================
-! compute the power density of the species
-! scalar product of < j, E >, with j- current density and E - electric field
+! Used to average the source terms per species
+!   * compute the power density of the considered species
+!     scalar product of < j, E >, with j- current density and E - electric field
+!   * compute the charge density of the considered species
+!   * compute the current density of the considered species
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Timeaverage_Vars,    ONLY:DoPowerDensity,PowerDensity
@@ -2363,6 +2366,10 @@ DO iSpec=1,nSpecies
       END IF
     END IF ! ParticleInside
   END DO ! iPart
+
+
+  ! map particle from gamma v to v
+  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
     
   ! communicate shape function particles
 #ifdef MPI
@@ -2387,9 +2394,7 @@ DO iSpec=1,nSpecies
 #endif /*MPI*/
 
   ! compute source terms
-  ! map particle from gamma v to v
-  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-  ! compute particle source terms on field solver of implicit particles :)
+  ! compute particle source terms on field solver of considered species
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
@@ -2400,6 +2405,7 @@ DO iSpec=1,nSpecies
     DO k=0,PP_N
       DO j=0,PP_N
         DO i=0,PP_N
+          ! 1:3 PowerDensity, 4 charge density
 #ifndef PP_HDG
           PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*U(1,i,j,k,iElem)
           PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*U(2,i,j,k,iElem)
@@ -2415,6 +2421,10 @@ DO iSpec=1,nSpecies
 #endif
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif
+          ! 5:7 current density
+          PowerDensity(5,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)
+          PowerDensity(6,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)
+          PowerDensity(7,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N
