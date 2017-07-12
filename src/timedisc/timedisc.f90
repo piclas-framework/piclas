@@ -164,13 +164,13 @@ SUBROUTINE TimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
-                                     ,IterDisplayStep,DoDisplayIter
-USE MOD_TimeDisc_Vars,      ONLY: dt_Min
-USE MOD_TimeAverage_vars,   ONLY: doCalcTimeAverage
-USE MOD_TimeAverage,        ONLY: CalcTimeAverage
+USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
+USE MOD_PML_Vars,              ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
+USE MOD_PML,                   ONLY: PMLTimeRamping
+USE MOD_TimeAverage_vars,      ONLY: doCalcTimeAverage
+USE MOD_TimeAverage,           ONLY: CalcTimeAverage
 #if (PP_TimeDiscMethod==201)                                                                                                         
-USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
+USE MOD_TimeDisc_Vars,         ONLY: dt_temp, MaximumIterNum 
 #endif
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 #ifndef PP_HDG
@@ -191,11 +191,11 @@ USE MOD_Filter,                ONLY: Filter
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 #ifdef PARTICLES
-USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
+USE MOD_PICDepo,               ONLY: Deposition
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime,DoImportIMDFile
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
+USE MOD_Particle_Tracking_vars,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Particle_Mesh_Vars,    ONLY: Geo
@@ -218,17 +218,17 @@ USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 #ifdef MPI
 USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
-!USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
+!USE MOD_Particle_MPI_Vars,    ONLY: PartMPI
 #endif /*MPI*/
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
+USE MOD_LinearSolver_Vars,     ONLY:totalIterLinearSolver
 #endif /*IMEX*/
 #ifdef IMPA
-USE MOD_LinearSolver_vars, ONLY:nPartNewton
-USE MOD_LinearSolver_Vars, ONLY:TotalPartIterLinearSolver
+USE MOD_LinearSolver_vars,     ONLY:nPartNewton
+USE MOD_LinearSolver_Vars,     ONLY:TotalPartIterLinearSolver
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120)||(PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
-USE MOD_LinearSolver_Vars,       ONLY: totalFullNewtonIter
+USE MOD_LinearSolver_Vars,    ONLY: totalFullNewtonIter
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -434,6 +434,12 @@ DO !iter_t=0,MaxIter
   END IF
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tFuture)
+
+  IF(DoPML)THEN
+    IF(DoPMLTimeRamp)THEN
+      CALL PMLTimeRamping(time,PMLTimeRamp)
+    END IF
+  END IF
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
