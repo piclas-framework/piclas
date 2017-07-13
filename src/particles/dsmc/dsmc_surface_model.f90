@@ -361,6 +361,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   REAL                             :: vel_norm, vel_coll, potential_pot, a_const, mu, surfmass, trapping_prob,Norm_Ec2
   INTEGER                          :: iInteratom, xpos, ypos
   LOGICAL                          :: Cell_Occupied
+  REAL                             :: SurfPartIntE, SurfPartVibE, CharaTemp
+  INTEGER                          :: iDOF, DissocReactID, iPolyatMole, iQuant, AssocReactID
 #if (PP_TimeDiscMethod==42)
   REAL                             :: InfoProbAds, InfoProbDiss
 #endif
@@ -750,31 +752,140 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !---------------------------------------------------------------------------------------------------------------------------------
   ! calculate probability for Eley-Rideal reaction (not ready yet)
   !---------------------------------------------------------------------------------------------------------------------------------
-!   DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-!     ! reaction partner
-!     jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
-!     Neighpos_j = 0
-!     IF (jSpec.EQ.0) CYCLE
-!     ! reaction results
-!     kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
-!     jCoord = Adsorption%Coordination(PartBoundID,jSpec)
-!     IF (jCoord.EQ.Coord) THEN
-!       Neighpos_j = Surfpos
-!     ELSE
-!       IF ( n_Neigh(jCoord)-n_empty_Neigh(jCoord).GT.0 ) THEN
-!         CALL RANDOM_NUMBER(RanNum)
-!         chosen_Neigh_j = 1 + INT(n_Neigh(jCoord)*RanNum)
-!         Neighpos_j = &
-!                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%NeighPos(Surfpos,NeighbourID(jCoord,chosen_Neigh_j))
-!       END IF
-!     END IF
-!     IF ( (Neighpos_j.GT.0) ) THEN
-!     IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%Species(Neighpos_j).EQ.jSpec) ) THEN
-!       ! calculation of activation energy
-!       ! calculation of reaction probability with TCE
-!     END IF
-!     END IF
-!   END DO
+  DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
+    ! reaction partner
+    jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
+    Neighpos_j = 0
+    IF (jSpec.EQ.0) CYCLE
+    ! reaction results
+    kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
+    jCoord = Adsorption%Coordination(PartBoundID,jSpec)
+    ! Choose Random surface site with reactionpartner coordination
+    CALL RANDOM_NUMBER(RanNum)
+    AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(jCoord)*RanNum)
+    Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%UsedSiteMap(AdsorbID)
+    !IF ( n_Neigh(jCoord)-n_empty_Neigh(jCoord).GT.0 ) THEN
+    !  CALL RANDOM_NUMBER(RanNum)
+    !  chosen_Neigh_j = 1 + INT(n_Neigh(jCoord)*RanNum)
+    !  Neighpos_j = &
+    !          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%NeighPos(Surfpos,NeighbourID(jCoord,chosen_Neigh_j))
+    !END IF
+    IF ( (Neighpos_j.GT.0) ) THEN
+    IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(jCoord)%Species(Neighpos_j).EQ.jSpec) ) THEN
+      ! calculation of activation energy
+      Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,Neighpos_j,.TRUE.)
+      Heat_B = 0. !Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,kSpec,Neighpos_k,.TRUE.)
+      Heat_AB = 0. ! direct associative desorption
+      D_AB = Adsorption%EDissBond(ReactNum+Adsorption%DissNum,iSpec)
+      D_A = 0.
+      D_B = 0.
+      E_a = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
+      ! calculation of ER-reaction probability with TCE
+      EZeroPoint_Educt = 0.
+      c_f = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3)/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
+          /( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
+      ! Testing if the gas particle is an atom or molecule, if molecule: is it polyatomic?
+      Xi_Rot = 0.0
+      Xi_Vib = 0.0
+      IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iSpec)%EZeroPoint
+          ! Calculation of the vibrational degree of freedom for the particle 
+          IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iSpec)%EZeroPoint) THEN
+            Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iSpec)%EZeroPoint) &
+                    / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
+          END IF
+          IF(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%LinearMolec) THEN
+            Xi_Rot = 3
+          ELSE
+            Xi_Rot = 2
+          END IF
+        ELSE
+          EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
+          IF((PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).GT.0.0) THEN
+            Xi_vib = 2.*(PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) &
+                    / (BoltzmannConst*CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartStateIntEn(PartID,1), SpecDSMC(iSpec)%MaxVibQuant))
+          END IF
+          Xi_Rot = 2
+        END IF
+      END IF
+      ! estimate vibrational temperature of surface-particle bond
+      IF (Coord.EQ.1) THEN
+        CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
+      ELSE
+        CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom)
+      END IF
+      EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*CharaTemp
+      SurfPartIntE = 0.
+      SurfPartVibE = 0.
+
+      ! Set surface2particle vibrational energy
+      CALL RANDOM_NUMBER(RanNum)
+      iQuant = INT(-LOG(RanNum)*WallTemp/CharaTemp)
+      DO WHILE (iQuant.GE.200)
+        CALL RANDOM_NUMBER(RanNum)
+        iQuant = INT(-LOG(RanNum)*WallTemp/CharaTemp)
+      END DO
+      IF (Coord.EQ.1) THEN
+        SurfPartIntE = SurfPartIntE + (iQuant + DSMC%GammaQuant)*CharaTemp*BoltzmannConst*Adsorption%CrystalIndx(SurfSideID)
+      ELSE
+        SurfPartIntE = SurfPartIntE + (iQuant + DSMC%GammaQuant)*CharaTemp*BoltzmannConst &
+          * SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+      END IF
+
+      ! set vibrational energy of particle
+      IF(SpecDSMC(jSpec)%InterID.EQ.2) THEN
+        IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(jSpec)%SpecToPolyArray
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            CALL RANDOM_NUMBER(RanNum)
+            iQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+            DO WHILE (iQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
+              CALL RANDOM_NUMBER(RanNum)
+              iQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+            END DO
+            SurfPartVibE = SurfPartVibE + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+          END DO
+        ELSE
+          CALL RANDOM_NUMBER(RanNum)
+          iQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(jSpec)%CharaTVib)
+          DO WHILE (iQuant.GE.SpecDSMC(jSpec)%MaxVibQuant)
+            CALL RANDOM_NUMBER(RanNum)
+            iQuant = INT(-LOG(RanNum)*Walltemp/SpecDSMC(jSpec)%CharaTVib)
+          END DO
+          SurfPartVibE = SurfPartVibE + (iQuant + DSMC%GammaQuant)*SpecDSMC(jSpec)%CharaTVib*BoltzmannConst
+        END IF
+      END IF
+
+      IF(SpecDSMC(jSpec)%InterID.EQ.2) THEN
+        IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
+          EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(jSpec)%EZeroPoint
+          ! Calculation of the vibrational degree of freedom for the particle 
+          IF (SurfPartVibE.GT.SpecDSMC(jSpec)%EZeroPoint) THEN
+            Xi_vib = Xi_vib + 2.*(SurfPartVibE-SpecDSMC(jSpec)%EZeroPoint) &
+                    / (BoltzmannConst*CalcTVibPoly(SurfPartVibE, jSpec))
+          END IF
+        ELSE
+          EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(jSpec)%CharaTVib
+          IF((SurfPartVibE-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(jSpec)%CharaTVib).GT.0.0) THEN
+            Xi_vib = 2.*(SurfPartVibE-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(jSpec)%CharaTVib) &
+                    / (BoltzmannConst*CalcTVib(SpecDSMC(jSpec)%CharaTVib, SurfPartIntE, SpecDSMC(jSpec)%MaxVibQuant))
+          END IF
+        END IF
+      END IF
+      Norm_Ec2 = Norm_velo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
+              - EZeroPoint_Educt &
+              + SurfPartIntE + SurfPartVibE!+ potential_pot
+      IF ((Norm_Ec2).GE.E_a) THEN
+        Xi_Total = Xi_vib + Xi_rot + 3
+        phi_1 = Adsorption%Diss_Powerfactor(ReactNum,iSpec) - 3./2. + Xi_Total
+        phi_2 = 1 - Xi_Total
+        P_Eley_rideal(ReactNum) = Calc_Beta_Diss(ReactNum,iSpec,Xi_Total,c_f) * ((Norm_Ec2) - E_a)**phi_1 * (Norm_Ec2) ** phi_2 &
+                            * Species(iSpec)%MacroParticleFactor
+      END IF
+    END IF
+    END IF
+  END DO
   !---------------------------------------------------------------------------------------------------------------------------------
   
   sum_probabilities = Prob_ads
@@ -797,8 +908,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       IF ((P_Eley_Rideal(ReactNum)/sum_probabilities).GT.RanNum) THEN
         ! if ER-reaction set output parameters
         adsorption_case = 3
-        outSpec(1) = Adsorption%AssocReact(1,ReactNum,iSpec)
-        outSpec(2) = Adsorption%AssocReact(2,ReactNum,iSpec)
+        AssocReactID = ReactNum - (Adsorption%ReactNum - Adsorption%DissNum)
+        outSpec(1) = Adsorption%AssocReact(1,AssocReactID,iSpec)
+        outSpec(2) = Adsorption%AssocReact(2,AssocReactID,iSpec)
         ! calculate adsorption Enthalpie
         Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,outSpec(1),-1,.TRUE.)
         Heat_B = 0.
@@ -806,7 +918,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         D_AB = Adsorption%EDissBond(ReactNum,iSpec)
         D_A = 0.
         D_B = 0.
-        AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        AdsorptionEnthalpie = (-( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
         EXIT
       END IF
       sum_probabilities = sum_probabilities - P_Eley_Rideal(ReactNum)
@@ -814,8 +926,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       IF ((Prob_diss(ReactNum)/sum_probabilities).GT.RanNum) THEN
         ! if dissocciative adsorption set output parameters
         adsorption_case = 2
-        outSpec(1) = Adsorption%DissocReact(1,ReactNum,iSpec)
-        outSpec(2) = Adsorption%DissocReact(2,ReactNum,iSpec)
+        DissocReactID = ReactNum
+        outSpec(1) = Adsorption%DissocReact(1,DissocReactID,iSpec)
+        outSpec(2) = Adsorption%DissocReact(2,DissocReactID,iSpec)
         ! calculate adsorption Enthalpie
         Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,outSpec(1),-1,.TRUE.)
         Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,outSpec(2),-1,.TRUE.)
