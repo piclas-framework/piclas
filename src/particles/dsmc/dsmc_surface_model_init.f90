@@ -810,8 +810,8 @@ __STAMP__&
         Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
         IF (( MAXVAL(Adsorption%DiCoord(:,iSpec)).NE.0) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
           CALL abort(&
-          __STAMP__&
-          ,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
+__STAMP__&
+,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
         END IF
       END IF
       IF ((.NOT.SpecDSMC(iSpec)%PolyatomicMol).AND.(MAXVAL(Adsorption%DiCoord(:,iSpec)).EQ.0) &
@@ -849,8 +849,8 @@ __STAMP__&
   nDissoc = GETINT('Part-SurfChem-Nbr-DissocReactions','0')
   IF ((nDissoc.GT.0) .AND. (nDissoc.NE.nSpecies)) THEN
     CALL abort(&
-    __STAMP__&
-    ,'Error in Init_SurfChem: given number of dissociation reactions in INI-File differs of number from given parameters!')
+__STAMP__&
+,'Error in Init_SurfChem: given number of dissociation reactions in INI-File differs of number from given parameters!')
   END IF
   DO iSpec=1,nSpecies
     DO iReactNum=1,MaxDissNum
@@ -925,14 +925,14 @@ __STAMP__&
         (Adsorption%ChemProduct(1,iReactNum+nDissoc).GT.nSpecies).OR.&
         (Adsorption%ChemProduct(2,iReactNum+nDissoc).GT.nSpecies) ) THEN
       CALL abort(&
-      __STAMP__&
-      ,'Error in Init_SurfChem: one reaction species for disproportionation reaction '//TRIM(hilf)//' not defined!')
+__STAMP__&
+,'Error in Init_SurfChem: one reaction species for disproportionation reaction '//TRIM(hilf)//' not defined!')
     END IF
     IF ((Adsorption%ChemProduct(1,iReactNum+nDissoc).EQ.0).OR.&
         (Adsorption%ChemProduct(2,iReactNum+nDissoc).EQ.0) ) THEN
       CALL abort(&
-      __STAMP__&
-      ,'Error in Init_SurfChem: Incorrect definition of disproportionation reaction '//TRIM(hilf)//'!')
+__STAMP__&
+,'Error in Init_SurfChem: Incorrect definition of disproportionation reaction '//TRIM(hilf)//'!')
     END IF
     ! Check if diatomic / polyatomic species in reactants and products have dissociation defined
     ! if not exit with error
@@ -941,17 +941,15 @@ __STAMP__&
             (Adsorption%DissocReact(1,1,Adsorption%ChemReactant(iReactant,iReactNum+nDissoc)).EQ.0) ) THEN
       WRITE(UNIT=hilf2,FMT='(I2)') Adsorption%ChemReactant(iReactant,iReactNum+nDissoc)
         CALL abort(&
-        __STAMP__&
-        ,'Error in Init_SurfChem Disproportionation: Dissociation for reactant species ' &
-         //TRIM(hilf2)//' not defined!')
+__STAMP__&
+,'Error in Init_SurfChem Disproportionation: Dissociation for reactant species '//TRIM(hilf2)//' not defined!')
       END IF
       IF (SpecDSMC(Adsorption%ChemProduct(iReactant,iReactNum+nDissoc))%InterID.EQ.2 .AND. &
             (Adsorption%DissocReact(1,1,Adsorption%ChemProduct(iReactant,iReactNum+nDissoc)).EQ.0) ) THEN
       WRITE(UNIT=hilf2,FMT='(I2)') Adsorption%ChemProduct(iReactant,iReactNum+nDissoc)
         CALL abort(&
-        __STAMP__&
-        ,'Error in Init_SurfChem Disproportionation: Dissociation for product species ' &
-         //TRIM(hilf2)//' not defined!')
+__STAMP__&
+,'Error in Init_SurfChem Disproportionation: Dissociation for product species '//TRIM(hilf2)//' not defined!')
       END IF
     END DO
     ! Read dissociation bond energies of reactants and products
@@ -1027,8 +1025,8 @@ ELSE !MaxDissNum = 0
         Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
         IF (( MAXVAL(Adsorption%DiCoord(:,iSpec)).NE.0) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
           CALL abort(&
-          __STAMP__&
-          ,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
+__STAMP__&
+,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
         END IF
       END IF
       IF ((.NOT.SpecDSMC(iSpec)%PolyatomicMol).AND.(MAXVAL(Adsorption%DiCoord(:,iSpec)).EQ.0) &
