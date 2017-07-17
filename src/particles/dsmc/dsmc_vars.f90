@@ -303,6 +303,11 @@ TYPE tAdsorption
   INTEGER                                :: NumOfDissocReact
   INTEGER                                :: NumOfAssocReact
   INTEGER                                :: NumOfExchReact
+  ! TST Factor calculation variables
+  LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)
+  REAL                                   :: PartitionMaxTemp
+  REAL                                   :: PartitionInterval
+  REAL    , ALLOCATABLE                  :: PartitionTemp(:,:)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 

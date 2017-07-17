@@ -724,6 +724,7 @@ USE MOD_ReadInTools
   INTEGER                          :: MaxDissNum, MaxReactNum, MaxAssocNum
   INTEGER , ALLOCATABLE            :: nAssocReact(:)
   INTEGER                          :: nDissoc, nDisProp
+  INTEGER                          :: CalcTST_Case
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
 
@@ -740,8 +741,8 @@ DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Adsorption%Ads_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor','0.')
   Adsorption%Ads_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor','0.')
-!   Adsorption%ER_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Powerfactor','0.')
-!   Adsorption%ER_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Prefactor','0.')
+  !Adsorption%ER_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Powerfactor','0.') 
+  !Adsorption%ER_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Prefactor','0.')
 END DO
 
 MaxDissNum = GETINT('Part-Species-MaxDissNum','0')
@@ -1045,9 +1046,84 @@ Adsorption%nDissocReactions = nDissoc
 Adsorption%nDisPropReactions = nDisProp
 Adsorption%NumOfExchReact = nDisProp
 
+CalcTST_Case = GETINT('Particles-DSMC-Adsorption-CalcTST','0')
+IF (CalcTST_Case.GT.0) CALL Init_TST_Coeff(CalcTST_Case)
+
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
 END SUBROUTINE Init_SurfChem
+
+
+SUBROUTINE Init_TST_Coeff(TST_Case)
+!===================================================================================================================================
+! Initializing surface reaction variables
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
+USE MOD_Mesh_Vars,              ONLY : nElems
+USE MOD_DSMC_Vars,              ONLY : Adsorption, SpecDSMC
+USE MOD_PARTICLE_Vars,          ONLY : nSpecies
+USE MOD_ReadInTools
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER , INTENT(IN)            :: TST_Case
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: PartitionArraySize, iSpec, iReactNum
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'
+
+Adsorption%PartitionMaxTemp = GETREAL('Particles-DSMC-AdsorptionTST-PartitionMaxTemp','10000.')
+Adsorption%PartitionInterval = GETREAL('Particles-DSMC-AdsorptionTST-PartitionInterval','20.')
+ALLOCATE(Adsorption%PartitionTemp(1:nElems,1:nSpecies))
+
+ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
+Adsorption%TST_Calc(:,:) = .FALSE.
+IF (TST_Case.EQ.1) THEN
+  DO iSpec=1,nSpecies
+    DO iReactNum=0,Adsorption%ReactNum
+      IF ((iReactNum.EQ.0) .AND. (Adsorption%Ads_Prefactor(iSpec).EQ.0.) .AND. (Adsorption%Ads_Powerfactor(iSpec).EQ.0.)) THEN
+        Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.LT.Adsorption%DissNum)) THEN
+        IF ((Adsorption%Diss_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%Diss_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
+          Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+        END IF
+      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.GT.Adsorption%DissNum)) THEN
+        !IF ((Adsorption%ER_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%ER_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
+          Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+        !END IF
+      END IF
+    END DO
+  END DO
+ELSE
+  Adsorption%TST_Calc(:,:) = .TRUE. 
+END IF
+
+!IF(MOD(Adsorption%PartitionMaxTemp,Adsorption%PartitionInterval).EQ.0.0) THEN
+!  PartitionArraySize = INT(Adsorption%PartitionMaxTemp / Adsorption%PartitionInterval)
+!ELSE
+!  CALL abort(&
+!__STAMP__&
+!,'ERROR INIT_TST_FACTORS: Partition temperature limit must be multiple of partition interval!')
+!END IF  
+!
+!! calculate array of partitionfunction values
+!ALLOCATE(Adsorption%TST_Factors(1:2,0:Adsorption%ReactNum,1:nSpecies)
+!DO iSpec=1,nSpecies
+!  DO iReactNum=0,Adsorption%ReactNum
+!    IF(Adsorption%TST_Calc(iReactNum,iSpec))THEN
+!      
+!    END IF
+!  END DO
+!END DO
+
+SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS DONE!'
+END SUBROUTINE Init_TST_Coeff
+
 
 SUBROUTINE FinalizeDSMCSurfModel()
 !===================================================================================================================================
