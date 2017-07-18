@@ -1246,7 +1246,7 @@ USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_Liquid_Boundary,  ONLY: Evaporation
-USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, AnalyzePartitionTemp
+USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb !, AnalyzePartitionTemp
 USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -1270,7 +1270,7 @@ REAL    :: RandVal, dtFrac
     END IF
     IF (DSMC%WallModel.EQ.3) THEN
       CALL CalcBackgndPartDesorb()
-      CALL AnalyzePartitionTemp()
+      !CALL AnalyzePartitionTemp()
     END IF
     CALL Evaporation()
     CALL ParticleSurfaceflux()
@@ -1589,7 +1589,7 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
   END IF
   IF (DSMC%WallModel.EQ.3) THEN
     CALL CalcBackgndPartDesorb()
-    CALL AnalyzePartitionTemp()
+    !CALL AnalyzePartitionTemp()
   END IF
   CALL DSMC_Update_Wall_Vars()
   CALL Evaporation()
@@ -1637,7 +1637,7 @@ ELSE
     END IF
     IF (DSMC%WallModel.EQ.3) THEN
       CALL CalcBackgndPartDesorb()
-      CALL AnalyzePartitionTemp()
+      !CALL AnalyzePartitionTemp()
     END IF
     ! Calculate number of evaporating particles
     CALL Evaporation()

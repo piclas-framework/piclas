@@ -95,6 +95,7 @@ END IF
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanEads = 0.
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
@@ -180,7 +181,7 @@ DO iSide=1,SurfMesh%nSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   DO iSpec=1,nSpecies
-    Adsorption%Coverage(:,:,iSide,iSpec) = Coverage_tmp(iPartBound,iSpec)
+    Adsorption%Coverage(:,:,iSide,iSpec) = Coverage_tmp(PartBoundID,iSpec)
   END DO
 END DO
 SDEALLOCATE(Coverage_tmp)
@@ -1047,6 +1048,8 @@ Adsorption%nDisPropReactions = nDisProp
 Adsorption%NumOfExchReact = nDisProp
 
 CalcTST_Case = GETINT('Particles-DSMC-Adsorption-CalcTST','0')
+ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
+Adsorption%TST_Calc(:,:) = .FALSE.
 IF (CalcTST_Case.GT.0) CALL Init_TST_Coeff(CalcTST_Case)
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
@@ -1081,8 +1084,8 @@ Adsorption%PartitionMaxTemp = GETREAL('Particles-DSMC-AdsorptionTST-PartitionMax
 Adsorption%PartitionInterval = GETREAL('Particles-DSMC-AdsorptionTST-PartitionInterval','20.')
 ALLOCATE(Adsorption%PartitionTemp(1:nElems,1:nSpecies))
 
-ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
-Adsorption%TST_Calc(:,:) = .FALSE.
+!ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
+!Adsorption%TST_Calc(:,:) = .FALSE.
 IF (TST_Case.EQ.1) THEN
   DO iSpec=1,nSpecies
     DO iReactNum=0,Adsorption%ReactNum

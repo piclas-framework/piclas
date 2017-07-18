@@ -234,6 +234,7 @@ TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision 
 TYPE tAdsorptionInfo
 #if (PP_TimeDiscMethod==42)
   REAL                                   :: MeanProbAds             ! mean adsorption probability
+  REAL                                   :: MeanProbDiss
   REAL                                   :: MeanProbDes             ! mean adsorption probability
   REAL                                   :: MeanEAds                ! mean heat of adsorption
   INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
