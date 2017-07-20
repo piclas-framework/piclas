@@ -525,9 +525,17 @@ IF (DoAnalyze)  THEN
     CALL AnalyzeParticles(t)
   ELSE
     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-      .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
-       CALL AnalyzeParticles(t)
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeParticles(t)
+      END IF
+    ELSE
+      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeParticles(t)
+   END IF
   END IF
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
@@ -544,10 +552,19 @@ IF (DoAnalyze)  THEN
     ! initial analysis is only performed for NO restart
     CALL AnalyzeField(t)
   ELSE
-    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
-    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-      .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
-       CALL AnalyzeField(t)
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
+        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeField(t)
+      END IF
+    ELSE
+      ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
+      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeField(t)
+    END IF
   END IF
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
