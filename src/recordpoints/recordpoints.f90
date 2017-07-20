@@ -47,6 +47,9 @@ USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize,RP_SamplingOffset
 USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples,RP_fileExists
+#ifdef LSERK
+USE MOD_RecordPoints_Vars   ,ONLY: RPSkip
+#endif /*LSERK*/
 #ifdef MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 #endif
@@ -93,6 +96,9 @@ IF(RP_onProc)THEN
   ALLOCATE(lastSample(0:PP_nVar,nRP))
 END IF
 RP_fileExists=.FALSE.
+#ifdef LSERK
+RPSkip=.FALSE.
+#endif /*LSERK*/
 
 RecordPointsInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT RECORDPOINTS DONE!'
@@ -287,6 +293,7 @@ DO iRP=1,nRP
 END DO
 END SUBROUTINE InitRPBasis
 
+
 SUBROUTINE RecordPoints(iter,t,forceSampling,Output)
 !===================================================================================================================================
 ! Interpolate solution at time t to recordpoint positions and fill output buffer 
@@ -378,6 +385,9 @@ USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples
 USE MOD_Recordpoints_Vars ,ONLY: offsetRP,nRP,nGlobalRP,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists,chunkSamples
+#ifdef LSERK
+USE MOD_Recordpoints_Vars ,ONLY: RPSkip
+#endif /*LSERK*/
 #ifdef MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM,nRP_Procs
 #endif
@@ -475,17 +485,13 @@ IF(finalizeFile)THEN
     ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
   END IF
   RP_fileExists=.FALSE.
-#ifdef LSERK
-  iSample=0
-  nSamples=0
   ! last sample of previous file = first sample of next file
-  !RP_Data(:,:,1)=lastSample
-#else
   iSample=1
   nSamples=0
-  ! last sample of previous file = first sample of next file
   RP_Data(:,:,1)=lastSample
-#endif
+#ifdef LSERK
+  RPSkip=.TRUE.
+#endif /*LSERK*/
 END IF
 
 #ifdef MPI
