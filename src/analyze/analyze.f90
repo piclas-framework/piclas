@@ -357,6 +357,9 @@ USE MOD_RecordPoints,          ONLY: RecordPoints
 #if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 #endif
+#ifdef LSERK
+USE MOD_Recordpoints_Vars,     ONLY: RPSkip
+#endif /*LSERK*/
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars,         ONLY: dt
@@ -506,7 +509,15 @@ IF(RP_onProc) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+#ifdef LSERK
+  IF(RPSkip)THEN
+    RPSkip=.FALSE.
+  ELSE
+    CALL RecordPoints(iter,t,forceAnalyze,Output)
+  END IF
+#else
   CALL RecordPoints(iter,t,forceAnalyze,Output)
+#endif /*LSERK*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
