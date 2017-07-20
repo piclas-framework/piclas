@@ -108,9 +108,10 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
           C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
           ! Use Antoine Eq. to calculate pressure vapor
           pressure_vapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
+          ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
           PartEvap = pressure_vapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
                    * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt
-          CALL RANDOM_NUMBER(RanNum)            
+          CALL RANDOM_NUMBER(RanNum)
           IF (EXP(-PartEvap).LE.TINY(PartEvap)) THEN
             Liquid%SumEvapPart(p,q,iSurfSide,iSpec) = Liquid%SumEvapPart(p,q,iSurfSide,iSpec)&
             +INT(PartEvap + RanNum)
