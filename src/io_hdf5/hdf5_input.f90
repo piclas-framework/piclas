@@ -30,7 +30,7 @@ INTERFACE DatasetExists
 END INTERFACE
 
 INTERFACE GetDataSize
-  MODULE PROCEDURE GetHDF5DataSize
+  MODULE PROCEDURE GetDataSize
 END INTERFACE
 
 INTERFACE GetDataProps
@@ -46,12 +46,12 @@ INTERFACE ReadAttribute
 END INTERFACE
 
 
-PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataSize,GetDataProps,GetHDF5NextFileName
+PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 PUBLIC :: DatasetExists
-PUBLIC :: GetHDF5DataSize
+PUBLIC :: GetDataSize
 !===================================================================================================================================
 
 CONTAINS
@@ -185,7 +185,7 @@ END IF
 END FUNCTION ISVALIDMESHFILE
 
 
-SUBROUTINE GetHDF5DataSize(Loc_ID,DSetName,nDims,IntSize)
+SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,IntSize)
 !===================================================================================================================================
 ! Subroutine to determine HDF5 datasize
 !===================================================================================================================================
@@ -217,7 +217,7 @@ CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, IntSize, SizeMax, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 CALL H5DCLOSE_F(DSet_ID, iError)
 DEALLOCATE(SizeMax)
-END SUBROUTINE GetHDF5DataSize
+END SUBROUTINE GetDataSize
 
 
 SUBROUTINE DatasetExists(Loc_ID,DSetName,Exists,attrib)

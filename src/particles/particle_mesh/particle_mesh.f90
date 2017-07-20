@@ -105,6 +105,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
+USE MOD_Mesh_Vars,              ONLY:useCurveds
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -114,7 +115,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: ALLOCSTAT
+INTEGER           :: ALLOCSTAT,RefMappingGuessProposal
 INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob
 CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
@@ -154,7 +155,27 @@ CartesianPeriodic = GETLOGICAL('CartesianPeriodic','.FALSE.')
 IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
-RefMappingGuess = GETINT('RefMappingGuess','3')
+
+IF(UseCurveds)THEN ! don't use RefMappingGuess=1, because RefMappingGuess is only best for linear cubical elements
+  ! curved elements can be stronger deformed, hence, a better guess can be used
+  ! RefMappingGuess 2,3 searches the closest Gauss/CL points of the considered element. This point is used as the initial value for
+  ! the mapping. Note, that the position of the CL points can still be advantageous for the initial guess.
+  RefMappingGuessProposal=2
+  IF(PP_N.GT.NGeo)THEN ! there are more Gauss points within an element then CL-points
+                       ! Gauss points sample the element finer
+                       ! Note: the Gauss points does not exist for HALO elements, here, the closest CL point is used
+    RefMappingGuessProposal=2
+  ELSE ! more CL-points than Gauss points, hence, better sampling of the element
+    RefMappingGuessProposal=3
+  END IF
+ELSE
+  RefMappingGuessProposal=1 ! default for linear meshes. Guess is exact for cubical, non-twisted elements
+END IF
+WRITE(hilf,'(I2.2)') RefMappingGuessProposal
+RefMappingGuess = GETINT('RefMappingGuess',hilf)
+IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! this might cause problems
+  SWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
+END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 
 epsInCell       = SQRT(3.0*RefMappingEps)
@@ -184,7 +205,7 @@ __STAMP__&
 BezierControlPoints3DElevated=0.
 
 ! BezierAreaSample stuff:
-WRITE( hilf, '(I2.2)') NGeo
+WRITE(hilf,'(I2.2)') NGeo
 BezierSampleN = GETINT('BezierSampleN',hilf)
 ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
 DO iSample=0,BezierSampleN
@@ -574,7 +595,7 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY:Almostzero,MyRank,UNIT_stdout
+USE MOD_Globals,                ONLY:MyRank,UNIT_stdout
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,BezierControlPoints3d
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
@@ -800,7 +821,7 @@ StartT=BOLTZPLATZTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
-printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
+printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.FALSE.')
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
@@ -2602,7 +2623,6 @@ SUBROUTINE CheckIfCurvedElem(IsCurved,XCL_NGeo)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Mesh_Vars,             ONLY:NGeo,Vdm_CLNGeo1_CLNGeo
 USE MOD_ChangeBasis,           ONLY:changeBasis3D
-USE MOD_Globals,               ONLY:ALMOSTEQUAL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2648,7 +2668,6 @@ SUBROUTINE PointsEqual(N,Points1,Points2,IsNotEqual)
 ! compute the distance between two data sets
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-!USE MOD_Globals,    ONLY:AlmostEqual
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -2709,7 +2728,7 @@ END SUBROUTINE InitElemBoundingBox
 
 SUBROUTINE InsideElemBoundingBox(ParticlePosition,ElemID,InSide)
 !================================================================================================================================
-! check is the particles is inside the bounding box, return TRUE/FALSE
+! check if the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemSlabNormals,ElemSlabIntervals

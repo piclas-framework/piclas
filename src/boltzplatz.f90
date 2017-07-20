@@ -129,6 +129,8 @@ CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
 !CALL IgnoredStrings()
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
+  ! Measure init duration
+  Time=BOLTZPLATZTIME()
   IF(MPIroot)THEN
     Call SwapMesh()
     SWRITE(UNIT_stdOut,'(132("="))')

@@ -56,9 +56,10 @@ SUBROUTINE InitParticleAnalyze()
   USE MOD_Globals
   USE MOD_Preproc
   USE MOD_Analyze_Vars            ,ONLY: DoAnalyze
-  USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot 
+  USE MOD_Particle_Analyze_Vars 
   USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
   USE MOD_Particle_Vars           ,ONLY: nSpecies
+  USE MOD_PICDepo_Vars            ,ONLY: DoDeposition
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars               ,ONLY: Adsorption
 #endif
@@ -84,9 +85,16 @@ CALL abort(__STAMP__,&
   DoAnalyze = .FALSE.
   CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
   IF(CalcEpot) DoAnalyze = .TRUE.
-  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
-  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
-  IF(CalcCharge) DoAnalyze = .TRUE. 
+  ! only verifycharge and CalcCharge if particles are deposited onto the grid
+  DoVerifyCharge= .FALSE.
+  CalcCharge = .FALSE.
+  IF(DoDeposition) THEN
+    DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
+    CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+    IF(CalcCharge) DoAnalyze = .TRUE. 
+  ELSE
+    SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+  END IF
   CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
   CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
   CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
@@ -2674,12 +2682,16 @@ END FUNCTION CalcEkinPart
 
 SUBROUTINE CalcPowerDensity() 
 !===================================================================================================================================
-! compute the power density of the species
+! Used to average the source terms per species
+!   * compute the power density of the considered species
+!     scalar product of < j, E >, with j- current density and E - electric field
+!   * compute the charge density of the considered species
+!   * compute the current density of the considered species
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Timeaverage_Vars,    ONLY:DoPowerDensity,PowerDensity
 USE MOD_Particle_Vars,       ONLY:nSpecies,PartSpecies,PDM
-USE MOD_PICDepo_Vars,        ONLY:Source
+USE MOD_PICDepo_Vars,        ONLY:PartSource
 USE MOD_Part_RHS,            ONLY:PartVeloToImp
 USE MOD_Preproc
 USE MOD_PICDepo,             ONLY:Deposition
@@ -2723,6 +2735,10 @@ DO iSpec=1,nSpecies
       END IF
     END IF ! ParticleInside
   END DO ! iPart
+
+
+  ! map particle from gamma v to v
+  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
     
   ! communicate shape function particles
 #ifdef MPI
@@ -2747,9 +2763,7 @@ DO iSpec=1,nSpecies
 #endif /*MPI*/
 
   ! compute source terms
-  ! map particle from gamma v to v
-  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-  ! compute particle source terms on field solver of implicit particles :)
+  ! compute particle source terms on field solver of considered species
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
@@ -2760,21 +2774,26 @@ DO iSpec=1,nSpecies
     DO k=0,PP_N
       DO j=0,PP_N
         DO i=0,PP_N
+          ! 1:3 PowerDensity, 4 charge density
 #ifndef PP_HDG
-          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*U(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*U(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*U(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*U(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
           PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #else
-          PowerDensity(1,i,j,k,iElem,iSpec2)=source(1,i,j,k,iElem)*E(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=source(2,i,j,k,iElem)*E(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=source(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #endif
-          PowerDensity(4,i,j,k,iElem,iSpec2)=source(4,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif
+          ! 5:7 current density
+          PowerDensity(5,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)
+          PowerDensity(6,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)
+          PowerDensity(7,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N

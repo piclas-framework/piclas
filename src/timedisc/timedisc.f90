@@ -180,6 +180,7 @@ USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
@@ -193,7 +194,7 @@ USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
@@ -286,6 +287,9 @@ tFuture=MIN(time+Analyze_dt,tEnd)
 IF(DoRestart) CALL EvalGradient()
 #endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
+#ifdef PARTICLES
+IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
+#endif /*PARTICLES*/
 IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 
 ! if measurement of particle tracking time
@@ -337,6 +341,9 @@ iter_loc=0
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
 
 ! fill initial analyze stuff
+tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+tEndDiff=tEnd-time            ! dito for end time
+dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroValues=T)
 CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -572,7 +579,7 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA*/
       ! Analyze for output
-      CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
+      CALL PerformAnalyze(tAnalyze,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter_In=finalIter)
 #ifndef PP_HDG
 #endif /*PP_HDG*/
       ! Write state to file
@@ -599,9 +606,9 @@ DO !iter_t=0,MaxIter
 !#ifndef PP_HDG
 !      dt_Min=CALCTIMESTEP()
 !#endif /*PP_HDG*/
-      IF (PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
+      IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
+      IF(PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
 !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
-      CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
     END IF
 #endif /*MPI*/
@@ -788,6 +795,8 @@ CALL DivCleaningDamping_Pois()
 
 
 ! calling the analyze routines
+! Analysis is called in first RK-stage of NEXT iteration, however, the iteration count is performed AFTER the time step,
+! hence, this is the correct iteration for calling the analysis routines.
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 ! first RK step
@@ -2658,7 +2667,7 @@ tRatio = 1.
 
 #ifdef PARTICLES
 ! Partilce locating
-IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+IF (t.GE.DelayTime) THEN
   CALL ParticleInserting() ! do not forget to communicate the emmitted particles ... for shape function
 END IF
 ! select, if particles are treated implicitly or explicitly
@@ -2674,27 +2683,29 @@ CALL SelectImplicitParticles()
 tStage=t
 
 #ifdef PARTICLES
+IF((t.GE.DelayTime).OR.(iter.EQ.0))THEN
 ! communicate shape function particles
 #ifdef MPI
-PartMPIExchange%nMPIParticles=0
-IF(DoExternalParts)THEN
-  ! as we do not have the shape function here, we have to deallocate something
-  SDEALLOCATE(ExtPartState)
-  SDEALLOCATE(ExtPartSpecies)
-  SDEALLOCATE(ExtPartToFIBGM)
-  SDEALLOCATE(ExtPartMPF)
-  ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
-  ! send number of particles
-  CALL SendNbOfParticles()
-  ! finish communication of number of particles and send particles
-  CALL MPIParticleSend()
-  ! finish communication
-  CALL MPIParticleRecv()
-  ! set exchanged number of particles to zero
   PartMPIExchange%nMPIParticles=0
-END IF
+  IF(DoExternalParts)THEN
+    ! as we do not have the shape function here, we have to deallocate something
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+    ! send number of particles
+    CALL SendNbOfParticles()
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+    ! set exchanged number of particles to zero
+    PartMPIExchange%nMPIParticles=0
+  END IF
 #endif /*MPI*/
+END IF
 
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN

@@ -291,8 +291,8 @@ CASE(0) ! Particles
 !  DO iElem=1,PP_nElems
 !    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
 !      !  Get source from Particles
-!      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
-!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
+!      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * PartSource(1:3,i,j,k,iElem)
+!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * PartSource(  4,i,j,k,iElem) * c_corr 
 !    END DO; END DO; END DO
 !  END DO
 #endif /*PARTICLES*/
@@ -359,7 +359,7 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 ! MODULES
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
-USE MOD_PICDepo_Vars,ONLY:source,DoDeposition
+USE MOD_PICDepo_Vars,ONLY:PartSource,DoDeposition
 USE MOD_Equation_Vars,ONLY: eps0
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
@@ -401,7 +401,7 @@ IF(DoDeposition)THEN
         !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
       END IF
   END IF
-  resu(1)= - (source(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
 END IF
 #endif /*PARTICLES*/
 

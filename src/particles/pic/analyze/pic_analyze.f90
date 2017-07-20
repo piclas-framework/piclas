@@ -37,7 +37,7 @@ USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
 #else
-USE MOD_PICDepo_Vars,         ONLY:Source
+USE MOD_PICDepo_Vars,         ONLY:PartSource
 #endif
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
@@ -68,7 +68,7 @@ DO iElem=1,nElems
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #else
-    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * source(4,i,j,k,iElem) * J_N(1,i,j,k)
+    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
   END DO; END DO; END DO
   Charge = Charge + ChargeLoc
@@ -118,7 +118,7 @@ USE MOD_TimeDisc_Vars,          ONLY:iter
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
 #else
-USE MOD_PICDepo_Vars,           ONLY:Source
+USE MOD_PICDepo_Vars,           ONLY:PartSource
 #endif
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
@@ -152,7 +152,7 @@ DO iElem=1,PP_nElems
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
 #else
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * source(4,i,j,k,iElem) * J_N(1,i,j,k)
+    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
   END DO; END DO; END DO
 END DO

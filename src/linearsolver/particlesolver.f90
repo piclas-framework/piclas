@@ -628,15 +628,17 @@ DO iPart=1,PDM%ParticleVecLength
     IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
       ! bad search direction!
       ! new search direction
-      DeltaX=0.
+      DeltaX=PartDeltaX(:,iPart)*2.
       CALL PartMatrixVector(t,Coeff,iPart,DeltaX(:),Xtilde) ! coeff*Ut+Source^n+1 ! only output
       XTilde=XTilde+F_PartXK(1:6,iPart)
       CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
       IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
         Norm2_PartX = Norm2_PartX/Norm2_F_PartXk(iPart)
-        CALL abort(&
-  __STAMP__&
-  ,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
+        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', deltaX
+        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', PartDeltaX(1:6,iPart)
+!        CALL abort(&
+!  __STAMP__&
+!  ,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
       END IF
     END IF
     ! update position

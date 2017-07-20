@@ -31,6 +31,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: VarNamesAvgOut(:)       !< time averaged varia
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesFlucOut(:)      !< fluctuation variable names
 REAL                 :: dtAvg                             !< sum of timesteps
 REAL                 :: dtOld                             !< dt from previous iteration
+LOGICAL              :: DoPoyntingVectorAvg               !< logical if PoyntingVector is sampled
 #ifdef PARTICLES
 LOGICAL,ALLOCATABLE  :: DoPowerDensity(:)                 !> Sample Power-Density of species
 REAL,ALLOCATABLE     :: PowerDensity(:,:,:,:,:,:)         !> Power-Density of species

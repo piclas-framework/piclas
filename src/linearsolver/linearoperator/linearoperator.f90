@@ -354,7 +354,11 @@ REAL               :: LorentzFacInv
 !===================================================================================================================================
 
 CALL PartVectorDotProduct(X,X,X_abs)
-EpsFD= rEps0/SQRT(X_abs)
+IF(X_abs.NE.0.)THEN
+  EpsFD= rEps0/SQRT(X_abs)
+ELSE
+  EpsFD= rEps0*0.1
+END IF
 
 !CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
 !CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)

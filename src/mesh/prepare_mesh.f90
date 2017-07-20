@@ -834,7 +834,7 @@ DO iElem=1,nElems
     IF(aSide%nMortars.GT.0)THEN !mortar side
       LOGWRITE(*,*)'   --- Mortars ---'
       DO iMortar=1,aSide%nMortars
-        LOGWRITE(*,'(I4,4(A,I4))'),iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
+        LOGWRITE(*,'(I4,4(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
                      ', flip= ',aSide%MortarSide(iMortar)%sp%Flip, &
                      ', SideID= ',aSide%MortarSide(iMortar)%sp%SideID, &
                      ', nbProc= ',aSide%MortarSide(iMortar)%sp%nbProc

@@ -203,6 +203,8 @@ USE MOD_HDG,                     ONLY: RestartHDG
 USE MOD_TimeDisc_Vars,           ONLY: dt
 #endif /*PP_HDG*/
 USE MOD_Particle_Tracking,       ONLY: ParticleCollectCharges
+USE MOD_TTM_Vars,                ONLY: DoImportTTMFile,TTM_DG
+USE MOD_HDF5_Input,           ONLY: File_ID,DatasetExists
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -242,6 +244,9 @@ INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nP
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 #endif /*MPI*/
 REAL                     :: VFR_total
+INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
+CHARACTER(255)           :: TTMRestartFile !> TTM Data file for restart
+LOGICAL                  :: TTM_DG_SolutionExists
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -249,6 +254,38 @@ IF(DoRestart)THEN
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
+
+#ifdef PARTICLES
+  IF(DoImportTTMFile)THEN ! read TTM data from "XXXXX_TTM_000.0XXXXXXXXXXX.h5"
+    IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+      IndNum=INDEX(RestartFile,'State')
+      IF(IndNum.LE.0)CALL abort(&
+        __STAMP__&
+        ,' Restart file does not contain "State" character string?! Supply restart file for reading TTM data')
+      TTMRestartFile=TRIM(RestartFile(1:IndNum-1))//'TTM'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
+#ifdef MPI
+      CALL OpenDataFile(TTMRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+#else
+      CALL OpenDataFile(TTMRestartFile,create=.FALSE.,readOnly=.TRUE.)
+#endif
+      ALLOCATE( TTM_DG(1:11,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
+      CALL DatasetExists(File_ID,'DG_Solution',TTM_DG_SolutionExists)
+      IF(TTM_DG_SolutionExists)THEN
+        CALL ReadArray('DG_Solution',5,(/11,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=TTM_DG)
+      ELSE
+        CALL abort(&
+          __STAMP__&
+          ,' Restart file does not contain "DG_Solution" in restart file for reading TTM data')
+      END IF
+      CALL CloseDataFile() 
+    ELSE! We need to interpolate the solution to the new computational grid
+      CALL abort(&
+        __STAMP__&
+        ,' Restart with changed polynomial degree not implemented for TTM!')
+    END IF
+  END IF
+#endif /*PARTICLES*/
+
 #ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
@@ -257,8 +294,7 @@ IF(DoRestart)THEN
   ! Read in time from restart file
   !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   ! Read in state
-  IF(.NOT. InterpolateSolution)THEN
-    ! No interpolation needed, read solution directly from file
+  IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
 #ifdef PP_POIS
 #if (PP_nVar==8)
     CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
@@ -296,8 +332,7 @@ IF(DoRestart)THEN
     END IF ! DoPML
 #endif
     !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
-  ELSE
-    ! We need to interpolate the solution to the new computational grid
+  ELSE! We need to interpolate the solution to the new computational grid
     SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
 #ifdef PP_POIS
 #if (PP_nVar==8)
