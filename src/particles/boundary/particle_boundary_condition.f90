@@ -180,7 +180,7 @@ __STAMP__,&
       END IF
     ELSE
       IF (PartSpecies(iPart).EQ.PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID)))) THEN
-        CALL ParticleCondensation(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
+        CALL ParticleCondensationCase(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
           IF (adsorbindex.EQ.1) THEN ! condensation (particle is removed)
             IF(CalcPartBalance) THEN
               nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
@@ -344,54 +344,83 @@ CASE(2) !PartBound%ReflectiveBC)
     CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
-    ! Decide which WallModel is used
-    IF (useDSMC) THEN
-      WallModeltype = DSMC%WallModel
-    ELSE
-      WallModeltype = 0
-    END IF
-    BCSideID=PartBCSideList(SideID)
-    IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
-    ! simple reflection (previously used wall interaction model, maxwellian scattering)
-      CALL RANDOM_NUMBER(RanNum)
-      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
-        ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
+    ! Decide if liquid or solid
+    IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
+      ! Decide which WallModel is used
+      IF (useDSMC) THEN
+        WallModeltype = DSMC%WallModel
       ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
+        WallModeltype = 0
       END IF
-    ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
-    ! chemical surface interaction (adsorption)
-      adsorbindex = 0
-      ! Decide which interaction (reflection, reaction, adsorption)
-      CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)
-      ! assign right treatment
-      IF (adsorbindex.EQ.1) THEN ! adsorption (is either removed or set to be on surface)
-        IF (KeepWallParticles) THEN
-          PDM%ParticleAtWall(iPart) = .TRUE.
+      BCSideID=PartBCSideList(SideID)
+      IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ! simple reflection (previously used wall interaction model, maxwellian scattering)
+        CALL RANDOM_NUMBER(RanNum)
+        IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
+          ! perfectly reflecting, specular re-emission
+          CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
         ELSE
-          IF(CalcPartBalance) THEN
-            nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-            PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-          END IF ! CalcPartBalance
-          PDM%ParticleInside(iPart) = .FALSE.
-          alpha=-1.
+          CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
         END IF
-      ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change)
-!         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
-      ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
-      ELSE IF (adsorbindex.EQ.-1) THEN ! elastic reflection
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
-      ELSE ! should not happen
-        WRITE(*,*)'Boundary_PIC: Adsorption error.'
-        CALL Abort(&
+      ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ! chemical surface interaction (adsorption)
+        adsorbindex = 0
+        ! Decide which interaction (reflection, reaction, adsorption)
+        CALL DecisionAdsCase(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)
+        ! assign right treatment
+        IF (adsorbindex.EQ.1) THEN ! adsorption (is either removed or set to be on surface)
+          IF (KeepWallParticles) THEN
+            PDM%ParticleAtWall(iPart) = .TRUE.
+          ELSE
+            IF(CalcPartBalance) THEN
+              nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+              PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+            END IF ! CalcPartBalance
+            PDM%ParticleInside(iPart) = .FALSE.
+            alpha=-1.
+          END IF
+        ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change)
+          !CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+          !                            ,BCSideID=BCSideID)
+        ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
+          CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
+        ELSE IF (adsorbindex.EQ.-1) THEN ! elastic reflection
+          CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
+        ELSE ! should not happen
+          WRITE(*,*)'Boundary_PIC: Adsorption error.'
+          CALL Abort(&
 __STAMP__,&
 'Boundary_Error: Adsorptionindex switched to unknown value.')
+        END IF
+      END IF
+    ELSE
+      IF (PartSpecies(iPart).EQ.PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID)))) THEN
+        CALL ParticleCondensationCase(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID=BCSideID)
+          IF (adsorbindex.EQ.1) THEN ! condensation (particle is removed)
+            IF(CalcPartBalance) THEN
+              nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+              PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+            END IF ! CalcPartBalance
+            PDM%ParticleInside(iPart) = .FALSE.
+            alpha=-1.
+          ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
+          CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
+          END IF
+      ELSE
+        CALL RANDOM_NUMBER(RanNum)
+        IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
+          ! perfectly reflecting, specular re-emission
+          CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
+        ELSE
+          CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
+        END IF
       END IF
     END IF
   END IF
@@ -1960,7 +1989,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   
 END SUBROUTINE Particle_Wall_Adsorb
 
-SUBROUTINE ParticleCondensation(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID)
+SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID)
 !===================================================================================================================================
 ! Routine for Selection of Liquid interaction (Condensation or Reflection)
 !===================================================================================================================================
