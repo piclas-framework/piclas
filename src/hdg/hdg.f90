@@ -239,7 +239,7 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
-  CALL Elem_Mat()
+  CALL Elem_Mat(INT(0,8))
 END IF
 
 ALLOCATE(Fdiag(nGP_face,nSides))
@@ -1012,7 +1012,7 @@ IF(AdaptNewtonStartValue) THEN
         END IF
       END DO; END DO; END DO !i,j,k
     END DO !iElem
-    CALL Elem_Mat()
+    CALL Elem_Mat(td_iter)
     CALL BuildPrecond()
   END IF
 END IF
@@ -1033,7 +1033,7 @@ DO iter=1,MaxIterFixPoint
           NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
         END DO; END DO; END DO !i,j,k
       END DO !iElem
-      CALL Elem_Mat()
+      CALL Elem_Mat(td_iter)
       CALL BuildPrecond()
       AdaptIterNewton = 0
       beLinear=.true.
@@ -1054,7 +1054,7 @@ DO iter=1,MaxIterFixPoint
           END IF
         END DO; END DO; END DO !i,j,k
       END DO !iElem
-      CALL Elem_Mat()
+      CALL Elem_Mat(td_iter)
       CALL BuildPrecond()
     END IF
   END IF
