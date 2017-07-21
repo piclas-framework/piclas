@@ -198,6 +198,7 @@ TYPE tAnalyzeSurfCollis
   INTEGER, ALLOCATABLE          :: Spec(:)                ! Species of Particle in Data-array
   INTEGER, ALLOCATABLE          :: Number(:)              ! collided/swaped particles per Species during Sampling period
   !REAL, ALLOCATABLE             :: Rate(:)                ! collided/swaped particles/s per Species during Sampling period
+  INTEGER                       :: BC                     ! BC to be analyzed (def.: 0 = all)
 
 END TYPE tAnalyzeSurfCollis
 

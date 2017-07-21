@@ -468,7 +468,7 @@ REAL                                 :: PartDiff(3)
 !REAL                                 :: oneMinus!=0.99999999
 REAL                                  :: epsLength
 REAL                                 :: Xitild,EtaTild
-INTEGER                              :: p,q, SurfSideID
+INTEGER                              :: p,q, SurfSideID, locBCID
 LOGICAL                              :: Symmetry
 #ifdef IMPA
 INTEGER                              :: iCounter
@@ -479,6 +479,7 @@ REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
 !OneMinus=1.0-MAX(epsInCell,epsilontol)
 epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
 WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
+locBCID=PartBound%MapToPartBC(BC(SideID))
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
@@ -563,7 +564,7 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
 !       IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps) THEN
       IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
         SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-        IF (DSMC%AnalyzeSurfCollis) THEN
+        IF (DSMC%AnalyzeSurfCollis .AND. (AnalyzeSurfCollis%BC.EQ.0 .OR. AnalyzeSurfCollis%BC.EQ.locBCID)) THEN
           AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
           AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
           IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
@@ -1090,7 +1091,7 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Cal
  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) +1
-    IF (DSMC%AnalyzeSurfCollis) THEN
+    IF (DSMC%AnalyzeSurfCollis .AND. (AnalyzeSurfCollis%BC.EQ.0 .OR. AnalyzeSurfCollis%BC.EQ.locBCID)) THEN
       AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
       AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
       IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
@@ -1165,10 +1166,10 @@ LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap
 INTEGER                           :: targetSpecies, iSwaps
 REAL                              :: RanNum
 REAL                              :: Xitild,EtaTild
-INTEGER                           :: p,q,SurfSideID
+INTEGER                           :: p,q,SurfSideID,locBCID
 INTEGER                           :: iCC
 !===================================================================================================================================
-
+locBCID = PartBound%MapToPartBC(BC(GlobSideID))
 CALL RANDOM_NUMBER(RanNum)
 IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))) THEN
   targetSpecies=-1 !dummy init value
@@ -1190,7 +1191,7 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))
       p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
       q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
       SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-      IF (DSMC%AnalyzeSurfCollis) THEN
+      IF (DSMC%AnalyzeSurfCollis .AND. (AnalyzeSurfCollis%BC.EQ.0 .OR. AnalyzeSurfCollis%BC.EQ.locBCID)) THEN
         AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
         AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
         IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN

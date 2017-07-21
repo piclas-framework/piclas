@@ -53,6 +53,9 @@ USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
+USE MOD_PICDepo_Vars,       ONLY:SFResampleAnalyzeSurfCollis
+USE MOD_DSMC_Analyze,       ONLY:ReadAnalyzeSurfCollisToHDF5
+USE MOD_PICDepo_Vars,       ONLY:LastAnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -725,11 +728,20 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
     DSMC%CalcSurfCollis_Output = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Output','.FALSE.')
     IF (DSMC%CalcSurfCollis_Only0Swaps) DSMC%CalcSurfCollis_OnlySwaps=.TRUE.
     DSMC%AnalyzeSurfCollis = GETLOGICAL('Particles-DSMC-AnalyzeSurfCollis','.FALSE.')
+    AnalyzeSurfCollis%BC = 0 !initialize for ifs
+    IF (.NOT.DSMC%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) THEN
+      CALL abort(__STAMP__,&
+        'ERROR: SFResampleAnalyzeSurfCollis was set without DSMC%AnalyzeSurfCollis!')
+    END IF
     IF (DSMC%AnalyzeSurfCollis) THEN
       AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
+      AnalyzeSurfCollis%BC = GETINT('Particles-DSMC-SurfCollisBC','0')
       ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
       ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
       ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
+      IF (LastAnalyzeSurfCollis%Restart) THEN
+        CALL ReadAnalyzeSurfCollisToHDF5()
+      END IF
       !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0

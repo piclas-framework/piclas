@@ -76,6 +76,23 @@ REAL    , ALLOCATABLE                 :: SFdepoLayersBaseVector(:,:,:)     !1:nF
 INTEGER , ALLOCATABLE                 :: SFdepoLayersSpec(:)               !species of particles for respective layer
 REAL    , ALLOCATABLE                 :: SFdepoLayersPartNum(:)            !number of particles in volume
 REAL    , ALLOCATABLE                 :: SFdepoLayersRadius(:)             !radius for cylinder-space
+LOGICAL                               :: SFResampleAnalyzeSurfCollis
+TYPE tLastAnalyzeSurfCollis
+  INTEGER                             :: PartNumberSamp                    !number of parts from last sampling
+  INTEGER                             :: PartNumberReduced                 !max. allowed number of parts to be saved
+  LOGICAL                             :: ReducePartNumber                  !reduce PartNumberSamp to PartNumberReduced
+  INTEGER                             :: PartNumberDepo                    !number of parts to be inserted in depo
+  REAL, ALLOCATABLE                   :: WallState(:,:)                    !Pos at wall and velocities from last sampling
+  INTEGER, ALLOCATABLE                :: Species(:)                        !Spec of parts
+  REAL                                :: pushTimeStep                      !timestep for (fractional) euler push from wall into ghost domain
+  INTEGER                             :: PartNumThreshold                  !Threshold for checking inserted parts per depo (otherwise abort)
+  REAL                                :: NormVecOfWall(3)                  !normVec for pushTimeStep
+  REAL                                :: Bounds(1:2,1:3)                   !bounds after push for preventing parts outside of...
+                                                                           !...extruded domain 1:2(min,max);1:3(x,y,z)
+  LOGICAL                             :: Restart                           !read-in old DSMCSurfCollis-file for restart
+  CHARACTER(LEN=256)                  :: DSMCSurfCollisRestartFile
+END TYPE
+TYPE(tLastAnalyzeSurfCollis)          :: LastAnalyzeSurfCollis
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================

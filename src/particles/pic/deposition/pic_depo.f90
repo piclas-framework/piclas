@@ -390,6 +390,36 @@ CASE('shape_function','shape_function_simple')
     END DO
   END IF !NbrOfSFdepoLayers>0
 
+  !-- ResampleAnalyzeSurfCollis
+  SFResampleAnalyzeSurfCollis = GETLOGICAL('PIC-SFResampleAnalyzeSurfCollis','.FALSE.')
+  IF (SFResampleAnalyzeSurfCollis) THEN
+    LastAnalyzeSurfCollis%PartNumberSamp = 0
+    LastAnalyzeSurfCollis%PartNumberDepo = 0
+    LastAnalyzeSurfCollis%ReducePartNumber = GETLOGICAL('PIC-SFResampleReducePartNumber','.FALSE.')
+    LastAnalyzeSurfCollis%PartNumThreshold = GETINT('PIC-PartNumThreshold','0')
+    IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN
+      WRITE(UNIT=hilf,FMT='(I0)') LastAnalyzeSurfCollis%PartNumThreshold
+      LastAnalyzeSurfCollis%PartNumberReduced = GETINT('PIC-SFResamplePartNumberReduced',TRIM(hilf)) !def. PartNumThreshold
+    END IF
+    WRITE(UNIT=hilf,FMT='(E16.8)') -HUGE(1.0)
+    LastAnalyzeSurfCollis%Bounds(1,1)   = GETREAL('PIC-SFResample-xmin',TRIM(hilf))
+    LastAnalyzeSurfCollis%Bounds(1,2)   = GETREAL('PIC-SFResample-ymin',TRIM(hilf))
+    LastAnalyzeSurfCollis%Bounds(1,3)   = GETREAL('PIC-SFResample-zmin',TRIM(hilf))
+    WRITE(UNIT=hilf,FMT='(E16.8)') HUGE(1.0)
+    LastAnalyzeSurfCollis%Bounds(2,1)   = GETREAL('PIC-SFResample-xmax',TRIM(hilf))
+    LastAnalyzeSurfCollis%Bounds(2,2)   = GETREAL('PIC-SFResample-ymax',TRIM(hilf))
+    LastAnalyzeSurfCollis%Bounds(2,3)   = GETREAL('PIC-SFResample-zmax',TRIM(hilf))
+    LastAnalyzeSurfCollis%NormVecOfWall = GETREALARRAY('PIC-NormVecOfWall',3,'1. , 0. , 0.')  !directed outwards
+    IF (DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%NormVecOfWall).GT.0.) THEN
+      LastAnalyzeSurfCollis%NormVecOfWall = LastAnalyzeSurfCollis%NormVecOfWall &
+        / SQRT( DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%NormVecOfWall) )
+    END IF
+    LastAnalyzeSurfCollis%Restart = GETLOGICAL('PIC-SFResampleRestart','.FALSE.')
+    IF (LastAnalyzeSurfCollis%Restart) THEN
+      LastAnalyzeSurfCollis%DSMCSurfCollisRestartFile = GETSTR('PIC-SFResampleRestartFile','dummy')
+    END IF
+  END IF
+
   VolumeShapeFunction=4./3.*PI*r_sf*r2_sf
   nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
   IF(MPIRoot)THEN
@@ -953,7 +983,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                          :: firstPart,lastPart
-INTEGER                          :: i,j, k, l, m, iElem, iPart
+INTEGER                          :: i,j, k, l, m, iElem, iPart, iPart2
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
 LOGICAL                          :: SAVE_GAUSS
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
@@ -974,7 +1004,7 @@ INTEGER                          :: iLayer, layerParts
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
 REAL                             :: DeltaIntCoeff,prefac!, SFfixDistance
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
-REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius
+REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3)
 #ifdef MPI
 ! load balance
 REAL                             :: tLBStart,tLBEnd
@@ -1359,6 +1389,41 @@ CASE('shape_function','shape_function_simple')
         END SELECT
       END DO ! iPart
     END DO ! iLayer=1,NbrOfSFdepoLayers
+
+    !--SFResampleAnalyzeSurfCollis 
+    IF (SFResampleAnalyzeSurfCollis) THEN
+      iPart=0
+      DO iPart2=1,LastAnalyzeSurfCollis%PartNumberDepo
+        !get random (equal!) position between [1,PartNumberSamp]
+        CALL RANDOM_NUMBER(RandVal)
+        iPart=MIN(1+INT(RandVal*REAL(LastAnalyzeSurfCollis%PartNumberSamp)),LastAnalyzeSurfCollis%PartNumberSamp)
+        !perform surfaceflux-like push into sf-layer outside of mesh
+        CALL RANDOM_NUMBER(RandVal)
+        FractPush = RandVal*LastAnalyzeSurfCollis%pushTimeStep*LastAnalyzeSurfCollis%WallState(4:6,iPart)
+        IF ( DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,FractPush).LE.r_SF  ) THEN
+          layerPartPos = LastAnalyzeSurfCollis%WallState(1:3,iPart) + FractPush
+          IF ( LastAnalyzeSurfCollis%Bounds(1,1).GT.layerPartPos(1) .OR. layerPartPos(1).GT.LastAnalyzeSurfCollis%Bounds(2,1) .OR. &
+            LastAnalyzeSurfCollis%Bounds(1,2).GT.layerPartPos(2) .OR. layerPartPos(2).GT.LastAnalyzeSurfCollis%Bounds(2,2) .OR. &
+            LastAnalyzeSurfCollis%Bounds(1,3).GT.layerPartPos(3) .OR. layerPartPos(3).GT.LastAnalyzeSurfCollis%Bounds(2,3) ) THEN
+            CYCLE !outside of bounds
+          END IF
+        ELSE
+          CYCLE !outside of r_SF
+        END IF
+        SELECT CASE(TRIM(DepositionType))
+        CASE('shape_function')
+          CALL calcSfSource(4 &
+            ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
+            *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
+            ,Vec1,Vec2,Vec3,layerPartPos,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
+        CASE('shape_function_simple')
+          CALL calcSfSource_simple(4 &
+            ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
+            *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
+            ,Vec1,Vec2,Vec3,layerPartPos,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
+        END SELECT
+      END DO ! iPart2
+    END IF !SFResampleAnalyzeSurfCollis
 
     !-- external particles
 #ifdef MPI     
