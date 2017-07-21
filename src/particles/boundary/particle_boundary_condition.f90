@@ -54,7 +54,6 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartA
 USE MOD_Mesh_Vars,              ONLY:BC
 ! USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
-! USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
@@ -150,7 +149,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
-        CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
+        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
         ! assign right treatment
         IF (adsorbindex.EQ.1) THEN ! adsorption (is either removed or set to be on surface)
           IF (KeepWallParticles) THEN
@@ -272,7 +271,6 @@ USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
-! USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
@@ -368,7 +366,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)
-        CALL DecisionAdsCase(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)
+        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)
         ! assign right treatment
         IF (adsorbindex.EQ.1) THEN ! adsorption (is either removed or set to be on surface)
           IF (KeepWallParticles) THEN
@@ -799,11 +797,11 @@ INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:),
 ! additional states
 locBCID=PartBound%MapToPartBC(BC(SideID))
 ! get BC values
-WallVelo     = PartBound%WallVelo(1:3,locBCID)
-WallTemp     = PartBound%WallTemp(locBCID)
-TransACC = PartBound%TransACC(locBCID)
-VibACC       = PartBound%VibACC(locBCID)
-RotACC       = PartBound%RotACC(locBCID)
+WallVelo   = PartBound%WallVelo(1:3,locBCID)
+WallTemp   = PartBound%WallTemp(locBCID)
+TransACC   = PartBound%TransACC(locBCID)
+VibACC     = PartBound%VibACC(locBCID)
+RotACC     = PartBound%RotACC(locBCID)
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
@@ -1549,7 +1547,7 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID) 
+SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID) 
 !===================================================================================================================================
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
@@ -1662,7 +1660,6 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
     IF (DSMC%WallModel.GT.2) THEN
       CALL CalcBackgndPartAdsorb(p,q,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
     ELSE
-!       CALL CalcPartAdsorb(p,qSurfSideID,PartID,Norm_Ec,adsorption_case,outSpec)
       AdsorptionEnthalpie = 0.
     END IF
   ELSE
@@ -1987,7 +1984,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
     adsindex = 0
   END SELECT
   
-END SUBROUTINE Particle_Wall_Adsorb
+END SUBROUTINE CatalyticTreatment
 
 SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID)
 !===================================================================================================================================
