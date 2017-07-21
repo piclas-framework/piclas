@@ -2227,6 +2227,6 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
     condensindex = 0
   END SELECT
   
-END SUBROUTINE ParticleCondensation
+END SUBROUTINE ParticleCondensationCase
 
 END MODULE MOD_Particle_Boundary_Condition
