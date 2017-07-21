@@ -58,13 +58,15 @@ USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
 REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t, iSFfix
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t, iSFfix, iPoint, iVec
 REAL                      :: MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction, r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
-REAL                      :: SFdepoLayersCross(3),BaseVector(3),BaseVector2(3),SFdepoLayersChargedens
+REAL                      :: SFdepoLayersCross(3),BaseVector(3),BaseVector2(3),SFdepoLayersChargedens,n1(3),n2(3),nhalf
+REAL                      :: NormVecCheck(3),eps,diff,BoundPoints(3,8),BVlengths(2),DistVec(3),Dist(3)
 CHARACTER(32)             :: hilf, hilf2
+LOGICAL                   :: LayerOutsideOfBounds, ChangeOccured
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -199,6 +201,12 @@ CASE('shape_function','shape_function_simple')
       __STAMP__&
       ,'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesChargeMult!')
     END IF
+    ALLOCATE(SFdepoFixesPartOfLink(0:NbrOfSFdepoFixes),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesPartOfLink!')
+    END IF
+    SFdepoFixesPartOfLink=.FALSE.
     ALLOCATE(SFdepoFixesBounds(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(min,max);1:3(x,y,z)
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(&
@@ -232,7 +240,7 @@ CASE('shape_function','shape_function_simple')
     END DO
     NbrOfSFdepoFixLinks = GETINT('PIC-NbrOfSFdepoFixLinks','0')
     IF (NbrOfSFdepoFixLinks.GT.0) THEN
-      ALLOCATE(SFdepoFixLinks(1:NbrOfSFdepoFixLinks,1:2),STAT=ALLOCSTAT)
+      ALLOCATE(SFdepoFixLinks(1:NbrOfSFdepoFixLinks,1:3),STAT=ALLOCSTAT)
       IF (ALLOCSTAT.NE.0) THEN
         CALL abort(&
           __STAMP__&
@@ -249,9 +257,35 @@ CASE('shape_function','shape_function_simple')
           CALL abort(&
             __STAMP__&
             ,' SFdepoFixes not defined for Link ',iSFfix)
+        ELSE
+          SFdepoFixesPartOfLink(SFdepoFixLinks(iSFfix,1))=.TRUE.
+          n1=SFdepoFixesGeo(SFdepoFixLinks(iSFfix,1),2,1:3)
+          SFdepoFixesPartOfLink(SFdepoFixLinks(iSFfix,2))=.TRUE.
+          n2=SFdepoFixesGeo(SFdepoFixLinks(iSFfix,2),2,1:3)
+          nhalf=ACOS(-(DOT_PRODUCT(n1,n2))) !n already normalized
+          IF (nhalf.EQ.0.) THEN
+            CALL abort(__STAMP__, &
+              'ERROR in pic_depo.f90: angle between vectors of SFdepoFixLinks is zero!')
+          ELSE
+            nhalf=PI/nhalf
+          END IF
+          IF ( ABS(nhalf-1.5).LT.SFdepoFixesEps ) THEN !120 deg
+            SFdepoFixLinks(iSFfix,3)=-2 !negative as flag for special case (120 deg), 2 since abs(-2) is needed for respective loop
+            SWRITE(*,*) 'SFdepoFixLink ',iSFfix,' was determined to have an angle of 120 deg...'
+          ELSE IF ( ABS(nhalf-NINT(nhalf)).GT.SFdepoFixesEps .OR. NINT(nhalf).LT.2 ) THEN !check if integer fraction (>2) of 180 deg
+            CALL abort(__STAMP__, &
+              'ERROR in pic_depo.f90: angle between vectors of SFdepoFixLink is neither 120 deg nor a fraction of 180 deg!', &
+              NINT(nhalf),ABS(nhalf-NINT(nhalf)))
+          ELSE !integer fraction of 180 deg
+            SFdepoFixLinks(iSFfix,3) = NINT(nhalf)
+            SWRITE(*,*) 'SFdepoFixLink ',iSFfix,' was determined to divide 180 deg into ',NINT(nhalf),' parts...'
+          END IF
         END IF
       END DO
     END IF !NbrOfSFdepoFixLinks>0
+    DO iSFfix=0,NbrOfSFdepoFixes
+      SWRITE(*,*) 'SFdepoFix ',iSFfix,' is part of link: ',SFdepoFixesPartOfLink(iSFfix)
+    END DO
   END IF !NbrOfSFdepoFixes>0
 
   !-- const. PartSource layer for shape func depo at planar BCs
@@ -259,6 +293,7 @@ CASE('shape_function','shape_function_simple')
   IF (NbrOfSFdepoLayers.GT.0) THEN
     SDEALLOCATE(SFdepoLayersGeo)
     SDEALLOCATE(SFdepoLayersBounds)
+    SDEALLOCATE(SFdepoLayersUseFixBounds)
     SDEALLOCATE(SFdepoLayersSpace)
     SDEALLOCATE(SFdepoLayersBaseVector)
     SDEALLOCATE(SFdepoLayersSpec)
@@ -273,6 +308,11 @@ CASE('shape_function','shape_function_simple')
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(__STAMP__, &
         'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersBounds!')
+    END IF
+    ALLOCATE(SFdepoLayersUseFixBounds(1:NbrOfSFdepoLayers),STAT=ALLOCSTAT)  !1:nLayers;1:2(min,max);1:3(x,y,z)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersUseFixBounds!')
     END IF
     ALLOCATE(SFdepoLayersSpace(1:NbrOfSFdepoLayers),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
@@ -318,26 +358,123 @@ CASE('shape_function','shape_function_simple')
           ,' SFdepoLayersXX-Normal is zero for Layer ',iSFfix)
       END IF
       WRITE(UNIT=hilf2,FMT='(E16.8)') -HUGE(1.0)
-      SFdepoLayersBounds(iSFfix,1,1)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-xmin',TRIM(hilf2))
-      SFdepoLayersBounds(iSFfix,1,2)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-ymin',TRIM(hilf2))
-      SFdepoLayersBounds(iSFfix,1,3)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-zmin',TRIM(hilf2))
+      SFdepoLayersBounds(iSFfix,1,1)   = MAX(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-xmin',TRIM(hilf2)),GEO%xmin-r_sf)
+      SFdepoLayersBounds(iSFfix,1,2)   = MAX(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-ymin',TRIM(hilf2)),GEO%ymin-r_sf)
+      SFdepoLayersBounds(iSFfix,1,3)   = MAX(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-zmin',TRIM(hilf2)),GEO%zmin-r_sf)
       WRITE(UNIT=hilf2,FMT='(E16.8)') HUGE(1.0)
-      SFdepoLayersBounds(iSFfix,2,1)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-xmax',TRIM(hilf2))
-      SFdepoLayersBounds(iSFfix,2,2)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-ymax',TRIM(hilf2))
-      SFdepoLayersBounds(iSFfix,2,3)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-zmax',TRIM(hilf2))
+      SFdepoLayersBounds(iSFfix,2,1)   = MIN(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-xmax',TRIM(hilf2)),GEO%xmax+r_sf)
+      SFdepoLayersBounds(iSFfix,2,2)   = MIN(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-ymax',TRIM(hilf2)),GEO%ymax+r_sf)
+      SFdepoLayersBounds(iSFfix,2,3)   = MIN(GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-zmax',TRIM(hilf2)),GEO%zmax+r_sf)
+      IF (NbrOfSFdepoFixes.EQ.0) THEN
+        SFdepoLayersUseFixBounds(iSFfix) = .FALSE.
+          ELSE
+        SFdepoLayersUseFixBounds(iSFfix) = GETLOGICAL('PIC-SFdepoLayers'//TRIM(hilf)//'-UseFixBounds','.TRUE.')
+      END IF
       SFdepoLayersSpace(iSFfix) = &
         GETSTR('PIC-SFdepoLayers'//TRIM(hilf)//'-Space','cuboid')
+      LayerOutsideOfBounds = .FALSE.
+      ChangeOccured = .FALSE.
       SELECT CASE (TRIM(SFdepoLayersSpace(iSFfix)))
       CASE('cuboid')
         SFdepoLayersBaseVector(iSFfix,1,1:3)   = GETREALARRAY('PIC-SFdepoLayers'//TRIM(hilf)//'-BaseVector1',3,'0. , 1. , 0.')
         SFdepoLayersBaseVector(iSFfix,2,1:3)   = GETREALARRAY('PIC-SFdepoLayers'//TRIM(hilf)//'-BaseVector2',3,'0. , 0. , 1.')
+        !--check if BV1/2 are perpendicular to NormalVec (need to be for domain reduction with BoundPoints, otherwise should not matter)
+        eps=1.0E-10
+        NormVecCheck=CROSS(SFdepoLayersBaseVector(iSFfix,1,1:3),SFdepoLayersBaseVector(iSFfix,2,1:3))
+        IF (NormVecCheck(1)**2 + NormVecCheck(2)**2 + NormVecCheck(3)**2 .GT. 0.) THEN
+          NormVecCheck(1:3) = NormVecCheck(1:3) / SQRT(NormVecCheck(1)**2 + NormVecCheck(2)**2 + NormVecCheck(3)**2)
+          diff = SQRT(DOT_PRODUCT(NormVecCheck-SFdepoLayersGeo(iSFfix,2,:),NormVecCheck-SFdepoLayersGeo(iSFfix,2,:))) !NormVecCheck - SFdepoLayersGeo(iSFfix,2,1) should be (/0,0,0/) when identical with same sign
+          IF (diff.GT.eps) THEN
+            diff = MIN(diff,SQRT(DOT_PRODUCT(NormVecCheck+SFdepoLayersGeo(iSFfix,2,:),NormVecCheck+SFdepoLayersGeo(iSFfix,2,:)))) !NormVecCheck + SFdepoLayersGeo(iSFfix,2,1) should be (/0,0,0/) when identical with opposite sign
+            IF (diff.GT.eps) THEN !yes, the first diff could be checked again...
+              CALL abort(__STAMP__&
+                ,' SFdepoLayersBaseVectors are not perpendicular to Normal for Layer ',iSFfix,diff)
+            END IF
+          END IF
+        ELSE
+          CALL abort(__STAMP__&
+            ,' SFdepoLayersBaseVectors are parallel for Layer ',iSFfix)
+        END IF
+        !--calculate area and check if BV1/2 are orthgonal (need to be for domain reduction with BoundPoints, otherwise should not matter)
         SFdepoLayersCross(1) = SFdepoLayersBaseVector(iSFfix,1,2)*SFdepoLayersBaseVector(iSFfix,2,3) &
                              - SFdepoLayersBaseVector(iSFfix,1,3)*SFdepoLayersBaseVector(iSFfix,2,2)
         SFdepoLayersCross(2) = SFdepoLayersBaseVector(iSFfix,1,3)*SFdepoLayersBaseVector(iSFfix,2,1) &
                              - SFdepoLayersBaseVector(iSFfix,1,1)*SFdepoLayersBaseVector(iSFfix,2,3)
         SFdepoLayersCross(3) = SFdepoLayersBaseVector(iSFfix,1,1)*SFdepoLayersBaseVector(iSFfix,2,2) &
                              - SFdepoLayersBaseVector(iSFfix,1,2)*SFdepoLayersBaseVector(iSFfix,2,1)
-        SFdepoLayersPartNum(iSFfix)=ABS(DOT_PRODUCT(SFdepoLayersCross,SFdepoLayersGeo(iSFfix,2,1:3))) !volume scaled with height
+        SFdepoLayersPartNum(iSFfix)=ABS(DOT_PRODUCT(SFdepoLayersCross,SFdepoLayersGeo(iSFfix,2,1:3))) !area of parallelogram
+        BVlengths(1)=SQRT(DOT_PRODUCT(SFdepoLayersBaseVector(iSFfix,1,:),SFdepoLayersBaseVector(iSFfix,1,:)))
+        BVlengths(2)=SQRT(DOT_PRODUCT(SFdepoLayersBaseVector(iSFfix,2,:),SFdepoLayersBaseVector(iSFfix,2,:)))
+        IF (.NOT.ALMOSTEQUAL( SFdepoLayersPartNum(iSFfix),BVlengths(1)*BVlengths(2) )) THEN !area of assumed rectangle
+          CALL abort(__STAMP__&
+            ,' SFdepoLayersBaseVectors are not orthogonal for Layer ',iSFfix)
+        END IF
+        !--domain reduction based on BoundPoints
+        BoundPoints(:,1) = (/SFdepoLayersBounds(iSFfix,1,1),SFdepoLayersBounds(iSFfix,1,2),SFdepoLayersBounds(iSFfix,1,3)/)
+        BoundPoints(:,2) = (/SFdepoLayersBounds(iSFfix,2,1),SFdepoLayersBounds(iSFfix,1,2),SFdepoLayersBounds(iSFfix,1,3)/)
+        BoundPoints(:,3) = (/SFdepoLayersBounds(iSFfix,1,1),SFdepoLayersBounds(iSFfix,2,2),SFdepoLayersBounds(iSFfix,1,3)/)
+        BoundPoints(:,4) = (/SFdepoLayersBounds(iSFfix,2,1),SFdepoLayersBounds(iSFfix,2,2),SFdepoLayersBounds(iSFfix,1,3)/)
+        BoundPoints(:,5) = (/SFdepoLayersBounds(iSFfix,1,1),SFdepoLayersBounds(iSFfix,1,2),SFdepoLayersBounds(iSFfix,2,3)/)
+        BoundPoints(:,6) = (/SFdepoLayersBounds(iSFfix,2,1),SFdepoLayersBounds(iSFfix,1,2),SFdepoLayersBounds(iSFfix,2,3)/)
+        BoundPoints(:,7) = (/SFdepoLayersBounds(iSFfix,1,1),SFdepoLayersBounds(iSFfix,2,2),SFdepoLayersBounds(iSFfix,2,3)/)
+        BoundPoints(:,8) = (/SFdepoLayersBounds(iSFfix,2,1),SFdepoLayersBounds(iSFfix,2,2),SFdepoLayersBounds(iSFfix,2,3)/)
+        !-1: shift BasePoint if applicable
+        Dist=HUGE(1.)
+        DO iPoint=1,8
+          DistVec = BoundPoints(:,iPoint) - SFdepoLayersGeo(iSFfix,1,:) !vec from Basepoint to BoundPoint
+          DO iVec=1,2
+            Dist(iVec) = MIN(Dist(iVec),MAX(0.,DOT_PRODUCT(DistVec,SFdepoLayersBaseVector(iSFfix,iVec,:))/BVlengths(iVec))) !DistVec projected on BaseVec, if > 0
+          END DO
+          iVec=3
+          Dist(iVec) = MIN(Dist(iVec),MAX(0.,DOT_PRODUCT(DistVec,SFdepoLayersGeo(iSFfix,2,:)))) !smallest DistVec projected on (already normalized) NormVec, if > 0
+        END DO
+        DO iVec=1,3 !shift of BP is independently for the 3 vectors possible because they are orthogonal!
+          IF ( Dist(iVec).LT.HUGE(1.) .AND. Dist(iVec).GT.0. ) THEN !not-initial and positive dist was found (negative would not be reduction of domain)
+            ChangeOccured = .TRUE.
+            IF (iVec.NE.3) THEN
+              IF (Dist(iVec).GE.BVlengths(iVec)) THEN !new BVlength would be < 0
+                LayerOutsideOfBounds = .TRUE.
+                EXIT
+              ELSE !shift BP and reduce BVlength so that end of domain is at same position
+                SFdepoLayersGeo(iSFfix,1,:) &
+                  = SFdepoLayersGeo(iSFfix,1,:) + Dist(iVec)/BVlengths(iVec)*SFdepoLayersBaseVector(iSFfix,iVec,:)
+                SFdepoLayersBaseVector(iSFfix,iVec,:) &
+                  = SFdepoLayersBaseVector(iSFfix,iVec,:) * (BVlengths(iVec)-Dist(iVec))/BVlengths(iVec)
+                BVlengths(iVec)=BVlengths(iVec)-Dist(iVec)
+              END IF
+            ELSE !NormalVec (r_SF is fix)
+              IF (Dist(iVec).GE.r_SF) THEN
+                LayerOutsideOfBounds = .TRUE.
+                EXIT
+              END IF
+            END IF
+          END IF
+        END DO
+        !-2: shorten BaseVectors if applicable (r_SF is fix)
+        IF (.NOT.LayerOutsideOfBounds) THEN
+          Dist=-HUGE(1.)
+          DO iPoint=1,8
+            DistVec = BoundPoints(:,iPoint) - SFdepoLayersGeo(iSFfix,1,:) !vec from Basepoint to BoundPoint
+            DO iVec=1,2
+              Dist(iVec) = MAX(Dist(iVec),DOT_PRODUCT(DistVec,SFdepoLayersBaseVector(iSFfix,iVec,:))/BVlengths(iVec)) !largest DistVec projected on BaseVec
+            END DO
+            iVec=3
+            Dist(iVec) = MAX(Dist(iVec),DOT_PRODUCT(DistVec,SFdepoLayersGeo(iSFfix,2,:)))
+          END DO
+          DO iVec=1,3
+            IF ( Dist(iVec).LE.0.) THEN !completely outside
+              LayerOutsideOfBounds = .TRUE.
+              EXIT
+            ELSE IF ( iVec.NE.3 ) THEN
+              IF (Dist(iVec).LT.BVlengths(iVec)) THEN !positive dist < BVlength was found (> BVlength would not be reduction of domain)
+                ChangeOccured = .TRUE.
+                SFdepoLayersBaseVector(iSFfix,iVec,:) = SFdepoLayersBaseVector(iSFfix,iVec,:) * (Dist(iVec))/BVlengths(iVec)
+                BVlengths(iVec)=Dist(iVec)
+              END IF
+            END IF
+          END DO
+        END IF
+        SFdepoLayersPartNum(iSFfix)=BVlengths(1)*BVlengths(2)
       CASE('cylinder')
         !calc BaseVectors from Normalvector
         IF (SFdepoLayersGeo(iSFfix,2,3).NE.0) THEN
@@ -379,14 +516,30 @@ CASE('shape_function','shape_function_simple')
         CALL abort(__STAMP__, &
           ' Wrong Space for SFdepoLayer: only cuboid and cylinder implemented!')
       END SELECT
-      SFdepoLayersGeo(iSFfix,2,:) = SFdepoLayersGeo(iSFfix,2,:)*r_sf
-      IF (SFdepoLayersPartNum(iSFfix).LE.0.) CALL abort(__STAMP__&
-        ,' Volume of SFdepoLayersXX is zero for Layer ',iSFfix)
-      SFdepoLayersChargedens = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-Chargedens','1.')
-      SFdepoLayersSpec(iSFFix) = GETINT('PIC-SFdepoLayers'//TRIM(hilf)//'-Spec','1')
-      SFdepoLayersPartNum(iSFfix) = SFdepoLayersPartNum(iSFfix)*r_sf &
-        * SFdepoLayersChargedens/Species(SFdepoLayersSpec(iSFFix))%MacroParticleFactor
-      SWRITE(*,'(E12.5,A,I0)') SFdepoLayersPartNum(iSFfix),' additional particles will be inserted for SFdepoLayer ',iSFfix
+      IF (.NOT.LayerOutsideOfBounds) THEN
+        SFdepoLayersGeo(iSFfix,2,:) = SFdepoLayersGeo(iSFfix,2,:)*r_sf
+        IF (SFdepoLayersPartNum(iSFfix).LE.0.) CALL abort(__STAMP__&
+          ,' Volume of SFdepoLayersXX is zero for Layer ',iSFfix)
+        SFdepoLayersChargedens = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-Chargedens','1.')
+        SFdepoLayersSpec(iSFFix) = GETINT('PIC-SFdepoLayers'//TRIM(hilf)//'-Spec','1')
+        SFdepoLayersPartNum(iSFfix) = SFdepoLayersPartNum(iSFfix)*r_sf &
+          * SFdepoLayersChargedens/Species(SFdepoLayersSpec(iSFFix))%MacroParticleFactor
+        SWRITE(*,'(E12.5,A,I0)') SFdepoLayersPartNum(iSFfix), &
+          ' additional particles will be inserted for SFdepoLayer ',iSFfix
+        IF (ChangeOccured) THEN
+          IPWRITE(*,'(I4,A,I0,A)') ' WARNING: SFdepoLayer ',iSFfix,' was changed!'
+          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz minBounds:',SFdepoLayersBounds(iSFfix,1,:)
+          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz maxBounds:',SFdepoLayersBounds(iSFfix,2,:)
+          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New Basepoint:',SFdepoLayersGeo(iSFfix,1,:)
+          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New BaseVec01:',SFdepoLayersBaseVector(iSFfix,1,:)
+          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New BaseVec02:',SFdepoLayersBaseVector(iSFfix,2,:)
+        END IF
+      ELSE !LayerOutsideOfBounds
+        SFdepoLayersPartNum(iSFfix)=0
+        IPWRITE(*,'(I4,A,I0,A)') ' WARNING: SFdepoLayer ',iSFfix,' was disabled!'
+        IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz minBounds:',SFdepoLayersBounds(iSFfix,1,:)
+        IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz maxBounds:',SFdepoLayersBounds(iSFfix,2,:)
+      END IF
     END DO
   END IF !NbrOfSFdepoLayers>0
 
@@ -402,13 +555,18 @@ CASE('shape_function','shape_function_simple')
       LastAnalyzeSurfCollis%PartNumberReduced = GETINT('PIC-SFResamplePartNumberReduced',TRIM(hilf)) !def. PartNumThreshold
     END IF
     WRITE(UNIT=hilf,FMT='(E16.8)') -HUGE(1.0)
-    LastAnalyzeSurfCollis%Bounds(1,1)   = GETREAL('PIC-SFResample-xmin',TRIM(hilf))
-    LastAnalyzeSurfCollis%Bounds(1,2)   = GETREAL('PIC-SFResample-ymin',TRIM(hilf))
-    LastAnalyzeSurfCollis%Bounds(1,3)   = GETREAL('PIC-SFResample-zmin',TRIM(hilf))
+    LastAnalyzeSurfCollis%Bounds(1,1)   = MAX(GETREAL('PIC-SFResample-xmin',TRIM(hilf)),GEO%xmin-r_sf)
+    LastAnalyzeSurfCollis%Bounds(1,2)   = MAX(GETREAL('PIC-SFResample-ymin',TRIM(hilf)),GEO%ymin-r_sf)
+    LastAnalyzeSurfCollis%Bounds(1,3)   = MAX(GETREAL('PIC-SFResample-zmin',TRIM(hilf)),GEO%zmin-r_sf)
     WRITE(UNIT=hilf,FMT='(E16.8)') HUGE(1.0)
-    LastAnalyzeSurfCollis%Bounds(2,1)   = GETREAL('PIC-SFResample-xmax',TRIM(hilf))
-    LastAnalyzeSurfCollis%Bounds(2,2)   = GETREAL('PIC-SFResample-ymax',TRIM(hilf))
-    LastAnalyzeSurfCollis%Bounds(2,3)   = GETREAL('PIC-SFResample-zmax',TRIM(hilf))
+    LastAnalyzeSurfCollis%Bounds(2,1)   = MIN(GETREAL('PIC-SFResample-xmax',TRIM(hilf)),GEO%xmax+r_sf)
+    LastAnalyzeSurfCollis%Bounds(2,2)   = MIN(GETREAL('PIC-SFResample-ymax',TRIM(hilf)),GEO%ymax+r_sf)
+    LastAnalyzeSurfCollis%Bounds(2,3)   = MIN(GETREAL('PIC-SFResample-zmax',TRIM(hilf)),GEO%zmax+r_sf)
+    IF (NbrOfSFdepoFixes.EQ.0) THEN
+      LastAnalyzeSurfCollis%UseFixBounds = .FALSE.
+    ELSE
+      LastAnalyzeSurfCollis%UseFixBounds = GETLOGICAL('PIC-SFResample-UseFixBounds','.TRUE.')
+    END IF
     LastAnalyzeSurfCollis%NormVecOfWall = GETREALARRAY('PIC-NormVecOfWall',3,'1. , 0. , 0.')  !directed outwards
     IF (DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%NormVecOfWall).GT.0.) THEN
       LastAnalyzeSurfCollis%NormVecOfWall = LastAnalyzeSurfCollis%NormVecOfWall &
@@ -1005,6 +1163,7 @@ REAL,DIMENSION(3,0:NDepo)        :: L_xi
 REAL                             :: DeltaIntCoeff,prefac!, SFfixDistance
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3)
+LOGICAL                          :: DoCycle
 #ifdef MPI
 ! load balance
 REAL                             :: tLBStart,tLBEnd
@@ -1292,14 +1451,14 @@ CASE('shape_function','shape_function_simple')
       DO iPart=firstPart,LastPart
         IF (DoParticle(iPart)) THEN
           CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)*w_sf &
-            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),PartVelo=PartState(iPart,4:6))
+            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
         END IF ! DoParticle
       END DO ! iPart
     ELSE
       DO iPart=firstPart,LastPart
         IF (DoParticle(iPart)) THEN
           CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),PartVelo=PartState(iPart,4:6))
+            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
         END IF ! DoParticle
       END DO ! iPart
     END IF ! usevMPF
@@ -1345,7 +1504,11 @@ CASE('shape_function','shape_function_simple')
     !-- layer particles (only once, i.e., during call with .NOT.DoInnerParts)
     DO iLayer=1,NbrOfSFdepoLayers
       CALL RANDOM_NUMBER(RandVal)
-      layerParts=INT(SFdepoLayersPartNum(iLayer)+RandVal)
+      IF (SFdepoLayersPartNum(iLayer).GT.0.) THEN
+        layerParts=INT(SFdepoLayersPartNum(iLayer)+RandVal)
+      ELSE
+        layerParts=0
+      END IF
       DO iPart=1,layerParts
         SELECT CASE (TRIM(SFdepoLayersSpace(iLayer)))
         CASE('cuboid')
@@ -1372,7 +1535,19 @@ CASE('shape_function','shape_function_simple')
         END SELECT
         CALL RANDOM_NUMBER(RandVal)
         layerPartPos = layerPartPos + RandVal*SFdepoLayersGeo(iLayer,2,:)
-        IF ( SFdepoLayersBounds(iLayer,1,1).GT.layerPartPos(1) .OR. layerPartPos(1).GT.SFdepoLayersBounds(iLayer,2,1) .OR. &
+        IF ( SFdepoLayersUseFixBounds(iLayer) ) THEN
+          DoCycle=.FALSE.
+          DO iSFfix=1,NbrOfSFdepoFixes
+            SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(layerPartPos(1)-SFdepoFixesGeo(iSFfix,1,1)) &
+              + SFdepoFixesGeo(iSFfix,2,2)*(layerPartPos(2)-SFdepoFixesGeo(iSFfix,1,2)) &
+              + SFdepoFixesGeo(iSFfix,2,3)*(layerPartPos(3)-SFdepoFixesGeo(iSFfix,1,3))
+            IF (SFfixDistance .GT. 0.) THEN !outside of plane
+              DoCycle=.TRUE.
+              EXIT
+            END IF
+          END DO
+          IF (DoCycle) CYCLE
+        ELSE IF ( SFdepoLayersBounds(iLayer,1,1).GT.layerPartPos(1) .OR. layerPartPos(1).GT.SFdepoLayersBounds(iLayer,2,1) .OR. &
           SFdepoLayersBounds(iLayer,1,2).GT.layerPartPos(2) .OR. layerPartPos(2).GT.SFdepoLayersBounds(iLayer,2,2) .OR. &
           SFdepoLayersBounds(iLayer,1,3).GT.layerPartPos(3) .OR. layerPartPos(3).GT.SFdepoLayersBounds(iLayer,2,3) ) THEN
           CYCLE !outside of bounds
@@ -1381,7 +1556,7 @@ CASE('shape_function','shape_function_simple')
         CASE('shape_function')
           CALL calcSfSource(1 &
             ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*Species(SFdepoLayersSpec(iLayer))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,layerPartPos)
+            ,Vec1,Vec2,Vec3,layerPartPos,iPart)
         CASE('shape_function_simple')
           CALL calcSfSource_simple(1 &
             ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*Species(SFdepoLayersSpec(iLayer))%MacroParticleFactor*w_sf &
@@ -1402,9 +1577,24 @@ CASE('shape_function','shape_function_simple')
         FractPush = RandVal*LastAnalyzeSurfCollis%pushTimeStep*LastAnalyzeSurfCollis%WallState(4:6,iPart)
         IF ( DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,FractPush).LE.r_SF  ) THEN
           layerPartPos = LastAnalyzeSurfCollis%WallState(1:3,iPart) + FractPush
-          IF ( LastAnalyzeSurfCollis%Bounds(1,1).GT.layerPartPos(1) .OR. layerPartPos(1).GT.LastAnalyzeSurfCollis%Bounds(2,1) .OR. &
-            LastAnalyzeSurfCollis%Bounds(1,2).GT.layerPartPos(2) .OR. layerPartPos(2).GT.LastAnalyzeSurfCollis%Bounds(2,2) .OR. &
-            LastAnalyzeSurfCollis%Bounds(1,3).GT.layerPartPos(3) .OR. layerPartPos(3).GT.LastAnalyzeSurfCollis%Bounds(2,3) ) THEN
+          IF ( LastAnalyzeSurfCollis%UseFixBounds ) THEN
+            DoCycle=.FALSE.
+            DO iSFfix=1,NbrOfSFdepoFixes
+              SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(layerPartPos(1)-SFdepoFixesGeo(iSFfix,1,1)) &
+                + SFdepoFixesGeo(iSFfix,2,2)*(layerPartPos(2)-SFdepoFixesGeo(iSFfix,1,2)) &
+                + SFdepoFixesGeo(iSFfix,2,3)*(layerPartPos(3)-SFdepoFixesGeo(iSFfix,1,3))
+              IF (SFfixDistance .GT. 0.) THEN !outside of plane
+                DoCycle=.TRUE.
+                EXIT
+              END IF
+            END DO
+            IF (DoCycle) CYCLE
+          ELSE IF ( LastAnalyzeSurfCollis%Bounds(1,1).GT.layerPartPos(1) .OR. &
+            layerPartPos(1).GT.LastAnalyzeSurfCollis%Bounds(2,1) .OR. &
+            LastAnalyzeSurfCollis%Bounds(1,2).GT.layerPartPos(2) .OR. &
+            layerPartPos(2).GT.LastAnalyzeSurfCollis%Bounds(2,2) .OR. &
+            LastAnalyzeSurfCollis%Bounds(1,3).GT.layerPartPos(3) .OR. &
+            layerPartPos(3).GT.LastAnalyzeSurfCollis%Bounds(2,3) ) THEN
             CYCLE !outside of bounds
           END IF
         ELSE
@@ -1415,7 +1605,7 @@ CASE('shape_function','shape_function_simple')
           CALL calcSfSource(4 &
             ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
             *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,layerPartPos,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
+            ,Vec1,Vec2,Vec3,layerPartPos,iPart2,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
         CASE('shape_function_simple')
           CALL calcSfSource_simple(4 &
             ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
@@ -1432,7 +1622,7 @@ CASE('shape_function','shape_function_simple')
       IF (usevMPF) THEN
         DO iPart=1,NbrOfextParticles  !external Particles
           CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
-            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),PartVelo=ExtPartState(iPart,4:6))
+            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
         END DO
       ELSE
         DO iPart=1,NbrOfextParticles  !external Particles

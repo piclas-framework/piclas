@@ -65,12 +65,15 @@ INTEGER                               :: NbrOfSFdepoFixes                  !Numb
 REAL    , ALLOCATABLE                 :: SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
 REAL    , ALLOCATABLE                 :: SFdepoFixesChargeMult(:)          !multiplier for mirrored charges (wall: -1.0, sym: 1.0)
+LOGICAL , ALLOCATABLE                 :: SFdepoFixesPartOfLink(:)          !this fix is part of a link
 REAL                                  :: SFdepoFixesEps                    !epsilon for defined planes
 INTEGER                               :: NbrOfSFdepoFixLinks               !Number of linked SFdepoFixes
-INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:2 (2 Fixes are linked with each other!)
+INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:3 (2 fixes are linked with each other!)
+                                                                           !             (:,3 is fraction of 180 deg)
 INTEGER                               :: NbrOfSFdepoLayers                 !Number of const. source layer for sf-depo at planar BCs
 REAL    , ALLOCATABLE                 :: SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
+LOGICAL , ALLOCATABLE                 :: SFdepoLayersUseFixBounds(:)       !use alls planes of SFdepoFixes as additional bounds?
 CHARACTER(LEN=256),ALLOCATABLE        :: SFdepoLayersSpace(:)              !name of space (cuboid or cylinder)
 REAL    , ALLOCATABLE                 :: SFdepoLayersBaseVector(:,:,:)     !1:nFixes;1:2;1:3(x,y,z)
 INTEGER , ALLOCATABLE                 :: SFdepoLayersSpec(:)               !species of particles for respective layer
@@ -89,6 +92,7 @@ TYPE tLastAnalyzeSurfCollis
   REAL                                :: NormVecOfWall(3)                  !normVec for pushTimeStep
   REAL                                :: Bounds(1:2,1:3)                   !bounds after push for preventing parts outside of...
                                                                            !...extruded domain 1:2(min,max);1:3(x,y,z)
+  LOGICAL                             :: UseFixBounds                      !use alls planes of SFdepoFixes as additional bounds?
   LOGICAL                             :: Restart                           !read-in old DSMCSurfCollis-file for restart
   CHARACTER(LEN=256)                  :: DSMCSurfCollisRestartFile
 END TYPE
