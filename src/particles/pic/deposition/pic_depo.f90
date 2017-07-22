@@ -516,12 +516,12 @@ CASE('shape_function','shape_function_simple')
         CALL abort(__STAMP__, &
           ' Wrong Space for SFdepoLayer: only cuboid and cylinder implemented!')
       END SELECT
+      SFdepoLayersChargedens = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-Chargedens','1.')
+      SFdepoLayersSpec(iSFFix) = GETINT('PIC-SFdepoLayers'//TRIM(hilf)//'-Spec','1')
       IF (.NOT.LayerOutsideOfBounds) THEN
         SFdepoLayersGeo(iSFfix,2,:) = SFdepoLayersGeo(iSFfix,2,:)*r_sf
         IF (SFdepoLayersPartNum(iSFfix).LE.0.) CALL abort(__STAMP__&
           ,' Volume of SFdepoLayersXX is zero for Layer ',iSFfix)
-        SFdepoLayersChargedens = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-Chargedens','1.')
-        SFdepoLayersSpec(iSFFix) = GETINT('PIC-SFdepoLayers'//TRIM(hilf)//'-Spec','1')
         SFdepoLayersPartNum(iSFfix) = SFdepoLayersPartNum(iSFfix)*r_sf &
           * SFdepoLayersChargedens/Species(SFdepoLayersSpec(iSFFix))%MacroParticleFactor
         SWRITE(*,'(E12.5,A,I0)') SFdepoLayersPartNum(iSFfix), &
