@@ -1445,41 +1445,21 @@ CASE('shape_function','shape_function_simple')
     Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
-  SELECT CASE(TRIM(DepositionType))
-  CASE('shape_function')
-    IF (usevMPF) THEN
-      DO iPart=firstPart,LastPart
-        IF (DoParticle(iPart)) THEN
-          CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)*w_sf &
-            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
-        END IF ! DoParticle
-      END DO ! iPart
-    ELSE
-      DO iPart=firstPart,LastPart
-        IF (DoParticle(iPart)) THEN
-          CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
-        END IF ! DoParticle
-      END DO ! iPart
-    END IF ! usevMPF
-  CASE('shape_function_simple')
-    IF (usevMPF) THEN
-      DO iPart=firstPart,LastPart
-        IF (DoParticle(iPart)) THEN
-          CALL calcSfSource_simple(4,Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)*w_sf &
-            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),PartVelo=PartState(iPart,4:6))
-        END IF ! DoParticle
-      END DO ! iPart
-    ELSE
-      DO iPart=firstPart,LastPart
-        IF (DoParticle(iPart)) THEN
-          CALL calcSfSource_simple(4,Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,PartState(iPart,1:3),PartVelo=PartState(iPart,4:6))
-        END IF ! DoParticle
-      END DO ! iPart
-    END IF ! usevMPF
-  END SELECT
-      
+  IF (usevMPF) THEN
+    DO iPart=firstPart,LastPart
+      IF (DoParticle(iPart)) THEN
+        CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)*w_sf &
+          ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
+      END IF ! DoParticle
+    END DO ! iPart
+  ELSE
+    DO iPart=firstPart,LastPart
+      IF (DoParticle(iPart)) THEN
+        CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor*w_sf &
+          ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
+      END IF ! DoParticle
+    END DO ! iPart
+  END IF ! usevMPF
   IF(.NOT.DoInnerParts)THEN
     Vec1(1:3) = 0.
     Vec2(1:3) = 0.
@@ -1552,16 +1532,9 @@ CASE('shape_function','shape_function_simple')
           SFdepoLayersBounds(iLayer,1,3).GT.layerPartPos(3) .OR. layerPartPos(3).GT.SFdepoLayersBounds(iLayer,2,3) ) THEN
           CYCLE !outside of bounds
         END IF
-        SELECT CASE(TRIM(DepositionType))
-        CASE('shape_function')
-          CALL calcSfSource(1 &
-            ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*Species(SFdepoLayersSpec(iLayer))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,layerPartPos,iPart)
-        CASE('shape_function_simple')
-          CALL calcSfSource_simple(1 &
-            ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*Species(SFdepoLayersSpec(iLayer))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,layerPartPos)
-        END SELECT
+        CALL calcSfSource(1 &
+          ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*Species(SFdepoLayersSpec(iLayer))%MacroParticleFactor*w_sf &
+          ,Vec1,Vec2,Vec3,layerPartPos,iPart)
       END DO ! iPart
     END DO ! iLayer=1,NbrOfSFdepoLayers
 
@@ -1600,51 +1573,27 @@ CASE('shape_function','shape_function_simple')
         ELSE
           CYCLE !outside of r_SF
         END IF
-        SELECT CASE(TRIM(DepositionType))
-        CASE('shape_function')
-          CALL calcSfSource(4 &
-            ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
-            *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,layerPartPos,iPart2,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
-        CASE('shape_function_simple')
-          CALL calcSfSource_simple(4 &
-            ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
-            *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,layerPartPos,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
-        END SELECT
+        CALL calcSfSource(4 &
+          ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
+          *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
+          ,Vec1,Vec2,Vec3,layerPartPos,iPart2,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
       END DO ! iPart2
     END IF !SFResampleAnalyzeSurfCollis
 
     !-- external particles
 #ifdef MPI     
-    SELECT CASE(TRIM(DepositionType))
-    CASE('shape_function')
-      IF (usevMPF) THEN
-        DO iPart=1,NbrOfextParticles  !external Particles
-          CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
-            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
-        END DO
-      ELSE
-        DO iPart=1,NbrOfextParticles  !external Particles
-          CALL calcSfSource(4 &
-            ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
-        END DO
-      END IF ! usevMPF
-    CASE('shape_function_simple')
-      IF (usevMPF) THEN
-        DO iPart=1,NbrOfextParticles  !external Particles
-          CALL calcSfSource_simple(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
-            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),PartVelo=ExtPartState(iPart,4:6))
-        END DO
-      ELSE
-        DO iPart=1,NbrOfextParticles  !external Particles
-          CALL calcSfSource_simple(4 &
-            ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),PartVelo=ExtPartState(iPart,4:6))
-        END DO
-      END IF ! usevMPF
-    END SELECT
+    IF (usevMPF) THEN
+      DO iPart=1,NbrOfextParticles  !external Particles
+        CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
+          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
+      END DO
+    ELSE
+      DO iPart=1,NbrOfextParticles  !external Particles
+        CALL calcSfSource(4 &
+          ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
+          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
+      END DO
+    END IF ! usevMPF
     ! deallocate external state
     SDEALLOCATE(ExtPartState)
     SDEALLOCATE(ExtPartSpecies)
@@ -3283,7 +3232,7 @@ SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,P
 ! deposit charges on DOFs via shapefunction including periodic displacements and mirroring with SFdepoFixes
 !============================================================================================================================
 ! use MODULES                                                                                               
-USE MOD_PICDepo_Vars,           ONLY:r_sf
+USE MOD_PICDepo_Vars,           ONLY:r_sf,DepositionType
 USE MOD_PICDepo_Vars,           ONLY:NbrOfSFdepoFixes,SFdepoFixesGeo,SFdepoFixesBounds,SFdepoFixesChargeMult
 USE MOD_PICDepo_Vars,           ONLY:SFdepoFixesPartOfLink,SFdepoFixesEps,NbrOfSFdepoFixLinks,SFdepoFixLinks
 USE MOD_Globals
@@ -3337,7 +3286,12 @@ IF (NbrOfSFdepoFixes.EQ.0) THEN
         casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
     END DO
     Fac = Fac2
-    CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+    SELECT CASE(TRIM(DepositionType))
+    CASE('shape_function')
+      CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+    CASE('shape_function_simple')
+      CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac)
+    END SELECT
   END DO ! iCase (periodicity)
 ELSE ! NbrOfSFdepoFixes.NE.0
   ALLOCATE(SFdepoFixDone(0:NbrOfSFdepoFixes))
@@ -3433,7 +3387,12 @@ ELSE ! NbrOfSFdepoFixes.NE.0
             END IF
             IF (DoNotDeposit) CYCLE !(-> do not deposit but save position for possible further recursive mirroring)
             !------------- actual deposition:
-            CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+            SELECT CASE(TRIM(DepositionType))
+            CASE('shape_function')
+              CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+            CASE('shape_function_simple')
+              CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac)
+            END SELECT
           END DO ! iLinkRecursive
           IF (DoCycle) EXIT
         END DO ! iTwin
@@ -3453,7 +3412,7 @@ SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac)
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_PreProc,                ONLY:N
+USE MOD_PreProc,                ONLY:PP_N
 #ifdef MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*MPI*/
@@ -3545,16 +3504,14 @@ END DO ! kk
 END SUBROUTINE depoChargeOnDOFs_sf
 
 
-SUBROUTINE calcSfSource_simple(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartVelo)
+SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac)
 !============================================================================================================================
-! deposit charges on DOFs via simple sf (i.e. loop through all elems instead of part-dependency: efficient for small elem-nbr!)
+! actual deposition of single charge on DOFs via shapefunction_simple (i.e. loop through all elems instead of part-dependency: efficient for small elem-nbr!)
 !============================================================================================================================
 ! use MODULES                                                                                               
-USE MOD_PICDepo_Vars
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
+USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_PreProc,                ONLY:PP_N, PP_nElems
 #ifdef MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*MPI*/
@@ -3563,151 +3520,64 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)              :: SourceSize_in
-REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3),Vec1(3),Vec2(3),Vec3(3)
-REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
+REAL, INTENT(IN)                 :: Position(3)
+INTEGER, INTENT(IN)              :: SourceSize
+#if (defined (PP_HDG) && (PP_nVar==1))
+REAL, INTENT(IN)                 :: Fac(1:1)
+#else
+REAL, INTENT(IN)                 :: Fac(1:SourceSize)
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES                                                    
-#if (defined (PP_HDG) && (PP_nVar==1))
-!yes, PartVelo and SourceSize_in are not used, but the subroutine-call and -head would be ugly with the preproc-flags...
-INTEGER, PARAMETER               :: SourceSize=1
-REAL                             :: Fac(1:1), Fac2(1:1)
-#else
-INTEGER                          :: SourceSize
-REAL                             :: Fac(1:SourceSize_in), Fac2(1:SourceSize_in)
-#endif
-INTEGER                          :: k, l, m                                                                   
-INTEGER                          :: ElemID, iCase, ind
+INTEGER                          :: k, l, m                                             
+INTEGER                          :: ElemID
 REAL                             :: radius2, S, S1
 REAL                             :: dx,dy,dz
-REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3)
 INTEGER                          :: expo
-INTEGER                          :: iSFfix, iSFfixLink
-LOGICAL                          :: DoCycle
-REAL                             :: SFfixDistance
 !----------------------------------------------------------------------------------------------------------------------------------
-#if !(defined (PP_HDG) && (PP_nVar==1))
-SourceSize=SourceSize_in
-#endif
-IF (SourceSize.EQ.1) THEN
-  Fac2= ChargeMPF
-#if !(defined (PP_HDG) && (PP_nVar==1))
-ELSE IF (SourceSize.EQ.4) THEN
-  Fac2(1:3) = PartVelo*ChargeMPF
-  Fac2(4)= ChargeMPF
-#endif
-ELSE
-  CALL abort(&
-__STAMP__ &
-,'SourceSize has to be either 1 or 4!',SourceSize)
-END IF
-!-- determine which background mesh cells (and interpolation points within) need to be considered
-DO iCase = 1, NbrOfCases
-  DO ind = 1,3
-    ShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
-      casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-  END DO
-  caseShiftedPart=ShiftedPart
-  DO iSFfix = 0,NbrOfSFdepoFixes+NbrOfSFdepoFixLinks
-    DoCycle=.FALSE.
-    IF (iSFfix.GT.0 .AND. iSFfix.LE.NbrOfSFdepoFixes) THEN !SFdepoFixes
-      ShiftedPart=caseShiftedPart
-      SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
-        + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
-        + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
-      IF ( SFdepoFixesBounds(iSFfix,1,1).GT.ShiftedPart(1) .OR. ShiftedPart(1).GT.SFdepoFixesBounds(iSFfix,2,1) .OR. &
-        SFdepoFixesBounds(iSFfix,1,2).GT.ShiftedPart(2) .OR. ShiftedPart(2).GT.SFdepoFixesBounds(iSFfix,2,2) .OR. &
-        SFdepoFixesBounds(iSFfix,1,3).GT.ShiftedPart(3) .OR. ShiftedPart(3).GT.SFdepoFixesBounds(iSFfix,2,3) ) THEN
-        SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
-      END IF
-      IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
-        ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
-      ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
-        CALL abort(&
-__STAMP__ &
-,'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
-      ELSE
-        CYCLE !SF of mirrored particle would not reach any DOF
-      END IF
-      Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
-    ELSE IF (iSFfix.GT.0 .AND. iSFfix.GT.NbrOfSFdepoFixes) THEN !SFdepoFixLinks
-      ShiftedPart=caseShiftedPart
-      DO iSFfixLink = SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) &
-        ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2) &
-        ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2)-SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) !fancy: 1.,then 2.
-        SFfixDistance = SFdepoFixesGeo(iSFfixLink,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfixLink,1,1)) &
-          + SFdepoFixesGeo(iSFfixLink,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfixLink,1,2)) &
-          + SFdepoFixesGeo(iSFfixLink,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfixLink,1,3))
-        IF (SFdepoFixesBounds(iSFfixLink,1,1).GT.ShiftedPart(1).OR.ShiftedPart(1).GT.SFdepoFixesBounds(iSFfixLink,2,1).OR. &
-          SFdepoFixesBounds(iSFfixLink,1,2).GT.ShiftedPart(2).OR.ShiftedPart(2).GT.SFdepoFixesBounds(iSFfixLink,2,2).OR. &
-          SFdepoFixesBounds(iSFfixLink,1,3).GT.ShiftedPart(3).OR.ShiftedPart(3).GT.SFdepoFixesBounds(iSFfixLink,2,3)) THEN
-          SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
-        END IF
-        IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
-          ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfixLink,2,1:3)
-        ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
-          IPWRITE(*,*)'Link:',SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1),SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2),iSFfixLink
-          CALL abort(&
-__STAMP__ &
-,'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
-        ELSE
-          DoCycle=.TRUE. !CYCLE !SF of mirrored particle would not reach any DOF
-        END IF
-      END DO !iSFfixLink
-      IF (DoCycle) THEN
-        CYCLE
-      END IF
-      Fac = Fac2 * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1)) &
-        * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2))
-    ELSE IF (iSFfix.LE.0) THEN
-      Fac = Fac2
-    END IF
-    DO ElemID=1,PP_nElems
-      dX = ABS(ShiftedPart(1) - ElemBaryNgeo(1,ElemID))
-      IF(dX.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
-      dY = ABS(ShiftedPart(2) - ElemBaryNgeo(2,ElemID))
-      IF(dY.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
-      dZ = ABS(ShiftedPart(3) - ElemBaryNgeo(3,ElemID))
-      IF(dZ.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
-      radius2 = dX*dX+dY*dY+dZ*dZ
-      IF(radius2.GT.ElemRadius2_sf(ElemID)) CYCLE
+
+DO ElemID=1,PP_nElems
+  dX = ABS(Position(1) - ElemBaryNgeo(1,ElemID))
+  IF(dX.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
+  dY = ABS(Position(2) - ElemBaryNgeo(2,ElemID))
+  IF(dY.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
+  dZ = ABS(Position(3) - ElemBaryNgeo(3,ElemID))
+  IF(dZ.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
+  radius2 = dX*dX+dY*dY+dZ*dZ
+  IF(radius2.GT.ElemRadius2_sf(ElemID)) CYCLE
 #ifdef MPI
-      nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+  nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
 #endif /*MPI*/
-      DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-        !-- calculate distance between gauss and particle
-        dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
-        IF(dX.GT.r_sf) CYCLE
-        dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID))
-        IF(dY.GT.r_sf) CYCLE
-        dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
-        IF(dZ.GT.r_sf) CYCLE
-        radius2 = dX*dX+dY*dY+dZ*dZ
-        !-- calculate charge and current density at ip point using a shape function
-        !-- currently only one shapefunction available, more to follow (including structure change)
-        IF (radius2 .GT. r2_sf) CYCLE
-        S = 1. - r2_sf_inv * radius2
-        !radius2=GaussDistance(k,l,m)
-        !IF (radius2 .LT. 1.0) THEN
-        !  S = 1 -  radius2
-        S1 = S*S
-        DO expo = 3, alpha_sf
-          S1 = S*S1
-        END DO
-        IF (SourceSize.EQ.1) THEN
-          PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+    !-- calculate distance between gauss and particle
+    dX = ABS(Position(1) - ElemDepo_xGP(1,k,l,m,ElemID))
+    IF(dX.GT.r_sf) CYCLE
+    dY = ABS(Position(2) - ElemDepo_xGP(2,k,l,m,ElemID))
+    IF(dY.GT.r_sf) CYCLE
+    dZ = ABS(Position(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+    IF(dZ.GT.r_sf) CYCLE
+    radius2 = dX*dX+dY*dY+dZ*dZ
+    !-- calculate charge and current density at ip point using a shape function
+    !-- currently only one shapefunction available, more to follow (including structure change)
+    IF (radius2 .GT. r2_sf) CYCLE
+    S = 1. - r2_sf_inv * radius2
+    S1 = S*S
+    DO expo = 3, alpha_sf
+      S1 = S*S1
+    END DO
+    IF (SourceSize.EQ.1) THEN
+      PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
-        ELSE IF (SourceSize.EQ.4) THEN
-          PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+    ELSE IF (SourceSize.EQ.4) THEN
+      PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
-        END IF
-      END DO; END DO; END DO
-    END DO !ElemID=1,PP_nElems
-  END DO !iSFfix
-END DO ! iCase (periodicity)
-END SUBROUTINE calcSfSource_simple
+    END IF
+  END DO; END DO; END DO
+END DO !ElemID=1,PP_nElems
+  
+END SUBROUTINE depoChargeOnDOFs_sf_simple
 
 
 SUBROUTINE FinalizeDeposition() 
