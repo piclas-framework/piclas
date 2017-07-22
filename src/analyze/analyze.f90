@@ -357,6 +357,9 @@ USE MOD_RecordPoints,          ONLY: RecordPoints
 #if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 #endif
+#ifdef LSERK
+USE MOD_Recordpoints_Vars,     ONLY: RPSkip
+#endif /*LSERK*/
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars,         ONLY: dt
@@ -464,13 +467,22 @@ IF (CalcPoyntingInt) THEN
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
-   ELSE
+  ELSE
      ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
 #if defined(LSERK)
-    ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
-    ! is triggered with prolong-to-face, which would else be missing    
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
-    IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+        ! is triggered with prolong-to-face, which would else be missing    
+        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
+        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+      END IF
+    ELSE
+      ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+      ! is triggered with prolong-to-face, which would else be missing    
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    END IF
 #else
     IF(.NOT.LastIter)THEN
       IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
@@ -497,7 +509,15 @@ IF(RP_onProc) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+#ifdef LSERK
+  IF(RPSkip)THEN
+    RPSkip=.FALSE.
+  ELSE
+    CALL RecordPoints(iter,t,forceAnalyze,Output)
+  END IF
+#else
   CALL RecordPoints(iter,t,forceAnalyze,Output)
+#endif /*LSERK*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
@@ -516,9 +536,17 @@ IF (DoAnalyze)  THEN
     CALL AnalyzeParticles(t)
   ELSE
     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-      .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
-       CALL AnalyzeParticles(t)
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeParticles(t)
+      END IF
+    ELSE
+      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeParticles(t)
+   END IF
   END IF
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
@@ -535,10 +563,19 @@ IF (DoAnalyze)  THEN
     ! initial analysis is only performed for NO restart
     CALL AnalyzeField(t)
   ELSE
-    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
-    IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-      .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
-       CALL AnalyzeField(t)
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
+        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeField(t)
+      END IF
+    ELSE
+      ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
+      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeField(t)
+    END IF
   END IF
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
