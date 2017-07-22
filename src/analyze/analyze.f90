@@ -373,6 +373,7 @@ USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall
 USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
+USE MOD_DSMC_Vars,             ONLY: AnalyzeSurfCollis
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
@@ -620,6 +621,12 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
       DO iSide=1,SurfMesh%nTotalSides 
         SampWall(iSide)%State=0.
       END DO
+      IF (DSMC%AnalyzeSurfCollis) THEN
+        AnalyzeSurfCollis%Data=0.
+        AnalyzeSurfCollis%Spec=0
+        AnalyzeSurfCollis%Number=0
+        !AnalyzeSurfCollis%Rate=0.
+      END IF
     END IF
 #endif
     iter_macvalout = 0
