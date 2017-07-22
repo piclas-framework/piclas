@@ -1141,7 +1141,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                          :: firstPart,lastPart
-INTEGER                          :: i,j, k, l, m, iElem, iPart, iPart2
+INTEGER                          :: i,j, k, l, m, iElem, iPart, iPart2, iSFfix
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
 LOGICAL                          :: SAVE_GAUSS
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
@@ -1162,7 +1162,7 @@ INTEGER                          :: iLayer, layerParts
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
 REAL                             :: DeltaIntCoeff,prefac!, SFfixDistance
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
-REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3)
+REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
 LOGICAL                          :: DoCycle
 #ifdef MPI
 ! load balance
@@ -1628,7 +1628,7 @@ CASE('shape_function','shape_function_simple')
         DO iPart=1,NbrOfextParticles  !external Particles
           CALL calcSfSource(4 &
             ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
-            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),PartVelo=ExtPartState(iPart,4:6))
+            ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
         END DO
       END IF ! usevMPF
     CASE('shape_function_simple')
@@ -3278,25 +3278,22 @@ END SUBROUTINE ComputeGaussDistance
 #endif
 
 
-SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartVelo)
+SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo)
 !============================================================================================================================
-! deposit charges on DOFs via shapefunction
+! deposit charges on DOFs via shapefunction including periodic displacements and mirroring with SFdepoFixes
 !============================================================================================================================
 ! use MODULES                                                                                               
-USE MOD_PICDepo_Vars
+USE MOD_PICDepo_Vars,           ONLY:r_sf
+USE MOD_PICDepo_Vars,           ONLY:NbrOfSFdepoFixes,SFdepoFixesGeo,SFdepoFixesBounds,SFdepoFixesChargeMult
+USE MOD_PICDepo_Vars,           ONLY:SFdepoFixesPartOfLink,SFdepoFixesEps,NbrOfSFdepoFixLinks,SFdepoFixLinks
 USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Mesh_Vars,              ONLY:nElems
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix,NbrOfCases
-#ifdef MPI
-USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*MPI*/
+USE MOD_Particle_Mesh_Vars,     ONLY:casematrix,NbrOfCases
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)              :: SourceSize_in
+INTEGER, INTENT(IN)              :: SourceSize_in,PartIdx
 REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3),Vec1(3),Vec2(3),Vec3(3)
 REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3311,18 +3308,12 @@ REAL                             :: Fac(1:1), Fac2(1:1)
 INTEGER                          :: SourceSize
 REAL                             :: Fac(1:SourceSize_in), Fac2(1:SourceSize_in)
 #endif
-INTEGER                          :: k, l, m
-LOGICAL                          :: chargedone(1:nElems)
-INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
-INTEGER                          :: kk, ll, mm, ppp                                              
-INTEGER                          :: ElemID, iCase, ind
-REAL                             :: radius2, S, S1
-REAL                             :: dx,dy,dz
+INTEGER                          :: iCase, ind
 REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3)
-INTEGER                          :: expo
-INTEGER                          :: iSFfix, iSFfixLink
-LOGICAL                          :: DoCycle
-REAL                             :: SFfixDistance
+INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
+LOGICAL                          :: DoCycle, DoNotDeposit
+REAL                             :: SFfixDistance, SFfixDistance2
+LOGICAL , ALLOCATABLE            :: SFdepoFixDone(:)
 !----------------------------------------------------------------------------------------------------------------------------------
 #if !(defined (PP_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
@@ -3339,132 +3330,219 @@ ELSE
 __STAMP__ &
 ,'SourceSize has to be either 1 or 4!',SourceSize)
 END IF
-!-- determine which background mesh cells (and interpolation points within) need to be considered
-DO iCase = 1, NbrOfCases
-  DO ind = 1,3
-    ShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
-      casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-  END DO
-  caseShiftedPart=ShiftedPart
-  DO iSFfix = 0,NbrOfSFdepoFixes+NbrOfSFdepoFixLinks
-    DoCycle=.FALSE.
-    chargedone(:) = .FALSE.
-    IF (iSFfix.GT.0 .AND. iSFfix.LE.NbrOfSFdepoFixes) THEN !SFdepoFixes
-      ShiftedPart=caseShiftedPart
-      SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
-        + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
-        + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
-      IF ( SFdepoFixesBounds(iSFfix,1,1).GT.ShiftedPart(1) .OR. ShiftedPart(1).GT.SFdepoFixesBounds(iSFfix,2,1) .OR. &
-        SFdepoFixesBounds(iSFfix,1,2).GT.ShiftedPart(2) .OR. ShiftedPart(2).GT.SFdepoFixesBounds(iSFfix,2,2) .OR. &
-        SFdepoFixesBounds(iSFfix,1,3).GT.ShiftedPart(3) .OR. ShiftedPart(3).GT.SFdepoFixesBounds(iSFfix,2,3) ) THEN
-        SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
-      END IF
-      IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
-        ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
-      ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
-        CALL abort(&
-__STAMP__ &
-,'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
+IF (NbrOfSFdepoFixes.EQ.0) THEN
+  DO iCase = 1, NbrOfCases
+    DO ind = 1,3
+      ShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
+        casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+    END DO
+    Fac = Fac2
+    CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+  END DO ! iCase (periodicity)
+ELSE ! NbrOfSFdepoFixes.NE.0
+  ALLOCATE(SFdepoFixDone(0:NbrOfSFdepoFixes))
+  DO iCase = 1, NbrOfCases
+    DO ind = 1,3
+      caseShiftedPart(ind) = PartPos(ind) + casematrix(iCase,1)*Vec1(ind) + &
+        casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+    END DO
+    SFdepoFixDone=.FALSE.
+    DO iSFfix=0,NbrOfSFdepoFixes
+      IF (SFdepoFixesPartOfLink(iSFfix)) CYCLE !this SFfix will be already covered as part of a FixLink
+      IF (iSFfix.EQ.0) THEN
+        LinkLoopEnd(1)=NbrOfSFdepoFixLinks !non-mirrored position: consider FixLinks
       ELSE
-        CYCLE !SF of mirrored particle would not reach any DOF
+        LinkLoopEnd(1)=0
       END IF
-      Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
-    ELSE IF (iSFfix.GT.0 .AND. iSFfix.GT.NbrOfSFdepoFixes) THEN !SFdepoFixLinks
-      ShiftedPart=caseShiftedPart
-      DO iSFfixLink = SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) &
-        ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2) &
-        ,SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2)-SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1) !fancy: 1.,then 2.
-        SFfixDistance = SFdepoFixesGeo(iSFfixLink,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfixLink,1,1)) &
-          + SFdepoFixesGeo(iSFfixLink,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfixLink,1,2)) &
-          + SFdepoFixesGeo(iSFfixLink,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfixLink,1,3))
-        IF (SFdepoFixesBounds(iSFfixLink,1,1).GT.ShiftedPart(1).OR.ShiftedPart(1).GT.SFdepoFixesBounds(iSFfixLink,2,1).OR. &
-          SFdepoFixesBounds(iSFfixLink,1,2).GT.ShiftedPart(2).OR.ShiftedPart(2).GT.SFdepoFixesBounds(iSFfixLink,2,2).OR. &
-          SFdepoFixesBounds(iSFfixLink,1,3).GT.ShiftedPart(3).OR.ShiftedPart(3).GT.SFdepoFixesBounds(iSFfixLink,2,3)) THEN
-          SFfixDistance = -HUGE(SFfixDistance) !do not shift this particle...
-        END IF
-        IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
-          ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfixLink,2,1:3)
-        ELSE IF (SFfixDistance .GT. SFdepoFixesEps) THEN
-          IPWRITE(*,*)'Link:',SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1),SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2),iSFfixLink
-          CALL abort(&
-__STAMP__ &
-,'Particle is outside of SF-Fix-Plane!',iSFfix,SFfixDistance)
-        ELSE
-          DoCycle=.TRUE. !CYCLE !SF of mirrored particle would not reach any DOF
-        END IF
-      END DO !iSFfixLink
-      IF (DoCycle) THEN
-        CYCLE
-      END IF
-      Fac = Fac2 * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,1)) &
-        * SFdepoFixesChargeMult(SFdepoFixLinks(iSFfix-NbrOfSFdepoFixes,2))
-    ELSE IF (iSFfix.LE.0) THEN
-      Fac = Fac2
-    END IF
-    kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    kmax = MIN(kmax,GEO%FIBGMimax)
-    kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-    kmin = MAX(kmin,GEO%FIBGMimin)
-    lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    lmax = MIN(lmax,GEO%FIBGMjmax)
-    lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-    lmin = MAX(lmin,GEO%FIBGMjmin)
-    mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    mmax = MIN(mmax,GEO%FIBGMkmax)
-    mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-    mmin = MAX(mmin,GEO%FIBGMkmin)
-    !-- go through all these cells (should go through non for ExtP. if periodic and shiftedpart not in my domain)
-    DO kk = kmin,kmax
-      DO ll = lmin, lmax
-        DO mm = mmin, mmax
-          !--- go through all mapped elements not done yet
-          DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-            ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-            IF(ElemID.GT.nElems) CYCLE
-            IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
-              nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
-              !--- go through all gauss points
-              !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
-              DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                !-- calculate distance between gauss and particle
-                dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
-                IF(dX.GT.r_sf) CYCLE
-                dY = ABS(ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID))
-                IF(dY.GT.r_sf) CYCLE
-                dZ = ABS(ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
-                IF(dZ.GT.r_sf) CYCLE
-                radius2 = dX*dX+dY*dY+dZ*dZ
-                !-- calculate charge and current density at ip point using a shape function
-                !-- currently only one shapefunction available, more to follow (including structure change)
-                IF (radius2 .LT. r2_sf) THEN
-                  S = 1. - r2_sf_inv * radius2
-                  !radius2=GaussDistance(k,l,m)
-                  !IF (radius2 .LT. 1.0) THEN
-                  !  S = 1 -  radius2
-                  S1 = S*S
-                  DO expo = 3, alpha_sf
-                    S1 = S*S1
-                  END DO
-                  IF (SourceSize.EQ.1) THEN
-                    PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
-#if !(defined (PP_HDG) && (PP_nVar==1))
-                  ELSE IF (SourceSize.EQ.4) THEN
-                    PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
-#endif
-                  END IF
-                END IF
-              END DO; END DO; END DO
-              chargedone(ElemID) = .TRUE.
+      DO iSFfixLink=0,LinkLoopEnd(1)
+        DoCycle=.FALSE.
+        !-- strategy for SFdepoFixLink:
+        !-- 1.: create 2 identities by iTwin for iLinkRecursive=0 (non-mirror and mirror at SFdepoFixLinks(*,1))
+        !-- 2.: mirror recursevely further for iLinkRecursive>0 (alternating at SFdepoFixLinks(*,2) and SFdepoFixLinks(*,1))
+        DO iTwin=1,2
+          IF (iSFfixLink.EQ.0 .AND. iTwin.EQ.2) EXIT !no SFdepoFixLink
+          Fac = Fac2
+          ShiftedPart=caseShiftedPart
+          IF (iSFfixLink.EQ.0) THEN
+            LinkLoopEnd(2)=0 !no SFdepoFixLink
+          ELSE
+            LinkLoopEnd(2)=ABS(SFdepoFixLinks(iSFfixLink,3))-1 !might be negative as flag for special case
+          END IF
+          DO iLinkRecursive=0,LinkLoopEnd(2)
+            IF (iLinkRecursive.EQ.0) THEN !(first!)
+              IF (iTwin.EQ.1) THEN
+                SFfixIdx = iSFfix
+              ELSE
+                SFfixIdx =SFdepoFixLinks(iSFfixLink,1)
+              END IF
+            ELSE
+              IF (MOD(iLinkRecursive,2).NE.0) THEN !uneven (second and later: 1, 3, ...)
+                SFfixIdx =SFdepoFixLinks(iSFfixLink,2)
+              ELSE !even (third and later: 2, 4, ...)
+                SFfixIdx =SFdepoFixLinks(iSFfixLink,1)
+              END IF
             END IF
-          END DO ! ppp
-        END DO ! mm
-      END DO ! ll
-    END DO ! kk
-  END DO !iSFfix
-END DO ! iCase (periodicity)
+            DoNotDeposit=.FALSE.
+            IF (iLinkRecursive.EQ.0 .OR. (iLinkRecursive.EQ.1 .AND. iTwin.EQ.1)) THEN !single or one-time-mirrored identity
+              IF (SFdepoFixDone(SFfixIdx)) DoNotDeposit=.TRUE. !do not deposit this charge (but save position for further mirroring)
+              SFdepoFixDone(SFfixIdx) = .TRUE.
+            ELSE IF (iSFfixLink.GT.0) THEN
+              IF (SFdepoFixLinks(iSFfixLink,3).LT.0) EXIT !skip double mirroring for 120 deg case
+            END IF
+            IF (SFfixIdx.GT.0) THEN
+              IF ( SFdepoFixesBounds(SFfixIdx,1,1).GT.ShiftedPart(1) .OR. ShiftedPart(1).GT.SFdepoFixesBounds(SFfixIdx,2,1) .OR. &
+                SFdepoFixesBounds(SFfixIdx,1,2).GT.ShiftedPart(2) .OR. ShiftedPart(2).GT.SFdepoFixesBounds(SFfixIdx,2,2) .OR. &
+                SFdepoFixesBounds(SFfixIdx,1,3).GT.ShiftedPart(3) .OR. ShiftedPart(3).GT.SFdepoFixesBounds(SFfixIdx,2,3) ) THEN
+                DoCycle=.TRUE.
+                EXIT !do not shift this particle (-> go to next single SFfixIdx -> iSFfixLink-loop)
+              END IF
+              SFfixDistance = SFdepoFixesGeo(SFfixIdx,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(SFfixIdx,1,1)) &
+                + SFdepoFixesGeo(SFfixIdx,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(SFfixIdx,1,2)) &
+                + SFdepoFixesGeo(SFfixIdx,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(SFfixIdx,1,3))
+              SFfixIdx2=0 !init
+              IF (SFfixDistance .GT. SFdepoFixesEps) THEN
+                IPWRITE(*,'(I4,A,3(x,E12.5))')' original case-pos:',caseShiftedPart
+                IPWRITE(*,'(I4,A,3(x,E12.5))')' current pos:',ShiftedPart
+                IPWRITE(*,'(I4,7(A,I0))') &
+                  ' iCase: ',iCase,', iSFfix:',iSFfix,', iSFfixLink:',iSFfixLink,', iTwin:',iTwin,', iLinkRec:',iLinkRecursive,&
+                  ', SFfixIdx:',SFfixIdx,', PartIdx:',PartIdx
+                CALL abort(&
+                  __STAMP__ &
+                  ,'Particle is outside of SF-Fix-Plane! (For Layer-/Resample-Parts: try -UseFixBounds)',SFfixIdx,SFfixDistance)
+              ELSE IF ( (SFfixDistance.LT.-r_sf) ) THEN !.OR. (SFfixDistance.GT.0.) ) THEN !SFfixDistance>0 are particle within eps
+                DoNotDeposit=.TRUE. !too far inside so that mirrored SF would not reach any DOF
+              ELSE IF (iSFfixLink.GT.0) THEN !check which is the other SFfixIdx of current link
+                IF (SFfixIdx.EQ.SFdepoFixLinks(iSFfixLink,1)) THEN
+                  SFfixIdx2=SFdepoFixLinks(iSFfixLink,2)
+                ELSE IF (SFfixIdx.EQ.SFdepoFixLinks(iSFfixLink,2)) THEN
+                  SFfixIdx2=SFdepoFixLinks(iSFfixLink,1)
+                ELSE
+                  CALL abort(&
+                    __STAMP__ &
+                    ,'Something is wrong with iSFfixLink',iSFfixLink)
+                END IF
+              END IF
+              ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(SFfixIdx,2,1:3)
+              Fac = Fac * SFdepoFixesChargeMult(SFfixIdx)
+              IF (SFfixIdx2.NE.0) THEN !check if new position would not reach a dof because of the other plane
+                SFfixDistance2 = SFdepoFixesGeo(SFfixIdx2,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(SFfixIdx2,1,1)) &
+                  + SFdepoFixesGeo(SFfixIdx2,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(SFfixIdx2,1,2)) &
+                  + SFdepoFixesGeo(SFfixIdx2,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(SFfixIdx2,1,3))
+                IF (SFfixDistance2 .GT. r_sf) DoNotDeposit=.TRUE. !too far outside of plane
+              END IF
+            END IF
+            IF (DoNotDeposit) CYCLE !(-> do not deposit but save position for possible further recursive mirroring)
+            !------------- actual deposition:
+            CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+          END DO ! iLinkRecursive
+          IF (DoCycle) EXIT
+        END DO ! iTwin
+      END DO ! iSFfixLink
+    END DO ! iSFfix
+  END DO ! iCase (periodicity)
+END IF !NbrOfSFdepoFixes
+
 END SUBROUTINE calcSfSource
+
+
+SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac)
+!============================================================================================================================
+! actual deposition of single charge on DOFs via shapefunction
+!============================================================================================================================
+! use MODULES                                                                                               
+USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP
+USE MOD_Mesh_Vars,              ONLY:nElems
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_PreProc,                ONLY:N
+#ifdef MPI
+USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
+#endif  /*MPI*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                 :: Position(3)
+INTEGER, INTENT(IN)              :: SourceSize
+#if (defined (PP_HDG) && (PP_nVar==1))
+REAL, INTENT(IN)                 :: Fac(1:1)
+#else
+REAL, INTENT(IN)                 :: Fac(1:SourceSize)
+#endif
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES                                                    
+INTEGER                          :: k, l, m
+LOGICAL                          :: chargedone(1:nElems)
+INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
+INTEGER                          :: kk, ll, mm, ppp                                              
+INTEGER                          :: ElemID
+REAL                             :: radius2, S, S1
+REAL                             :: dx,dy,dz
+INTEGER                          :: expo
+!----------------------------------------------------------------------------------------------------------------------------------
+
+chargedone(:) = .FALSE.
+!-- determine which background mesh cells (and interpolation points within) need to be considered
+kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
+mmax = MIN(mmax,GEO%FIBGMkmax)
+mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+mmin = MAX(mmin,GEO%FIBGMkmin)
+DO kk = kmin,kmax
+  DO ll = lmin, lmax
+    DO mm = mmin, mmax
+      !--- go through all mapped elements not done yet
+      DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
+        ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
+        IF(ElemID.GT.nElems) CYCLE
+        IF (.NOT.chargedone(ElemID)) THEN
+#ifdef MPI
+          nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+#endif /*MPI*/
+          !--- go through all gauss points
+          DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+            !-- calculate distance between gauss and particle
+            dX = ABS(Position(1) - ElemDepo_xGP(1,k,l,m,ElemID))
+            IF(dX.GT.r_sf) CYCLE
+            dY = ABS(Position(2) - ElemDepo_xGP(2,k,l,m,ElemID))
+            IF(dY.GT.r_sf) CYCLE
+            dZ = ABS(Position(3) - ElemDepo_xGP(3,k,l,m,ElemID))
+            IF(dZ.GT.r_sf) CYCLE
+            radius2 = dX*dX+dY*dY+dZ*dZ
+            !-- calculate charge and current density at ip point using a shape function
+            !-- currently only one shapefunction available, more to follow (including structure change)
+            IF (radius2 .LT. r2_sf) THEN
+              S = 1. - r2_sf_inv * radius2
+              S1 = S*S
+              DO expo = 3, alpha_sf
+                S1 = S*S1
+              END DO
+              IF (SourceSize.EQ.1) THEN
+                PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+#if !(defined (PP_HDG) && (PP_nVar==1))
+              ELSE IF (SourceSize.EQ.4) THEN
+                PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+#endif
+              END IF
+            END IF
+          END DO; END DO; END DO
+          chargedone(ElemID) = .TRUE.
+        END IF
+      END DO ! ppp
+    END DO ! mm
+  END DO ! ll
+END DO ! kk
+  
+END SUBROUTINE depoChargeOnDOFs_sf
 
 
 SUBROUTINE calcSfSource_simple(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartVelo)
