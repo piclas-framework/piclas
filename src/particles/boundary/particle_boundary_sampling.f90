@@ -55,6 +55,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
 USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
+USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
 USE MOD_Particle_Vars           ,ONLY:nSpecies
 USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC
@@ -66,7 +67,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide,SurfCOMM
+USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
 #endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -255,7 +256,7 @@ DO iSide=1,nBCSides
 END DO ! iSide=1,nTotalSides
 
 #ifdef MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COMM,iError)
 #endif /*MPI*/
 
 SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Surface-Area: ', Area
