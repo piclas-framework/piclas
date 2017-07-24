@@ -956,7 +956,7 @@ REAL                                :: tstart,tend
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 IF(SurfMesh%nSides.EQ.0) RETURN
 #endif /*MPI*/
-IF(SurfCOMM%MPIROOT)THEN
+IF(SurfCOMM%MPIOutputRoot)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
   tstart=LOCALTIME()
 END IF
