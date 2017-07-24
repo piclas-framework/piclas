@@ -259,10 +259,6 @@ INTEGER                      :: nLostPartsTot
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
-#ifdef PARTICLES
-iter_macvalout=0
-IF (WriteMacroValues) MacroValSampTime = Time
-#endif /*PARTICLES*/
 IF(.NOT.DoRestart)THEN
   time=0.
   SWRITE(UNIT_StdOut,*)'INITIAL PROJECTION:'
@@ -270,6 +266,10 @@ ELSE
   time=RestartTime
   SWRITE(UNIT_StdOut,*)'REWRITING SOLUTION:'
 END IF
+#ifdef PARTICLES
+iter_macvalout=0
+IF (WriteMacroValues) MacroValSampTime = Time
+#endif /*PARTICLES*/
 tZero=time
 nAnalyze=1
 iAnalyze=1
