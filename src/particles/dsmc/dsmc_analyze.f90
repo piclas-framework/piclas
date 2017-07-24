@@ -2609,6 +2609,9 @@ USE MOD_io_HDF5
 USE MOD_HDF5_Output,        ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
 USE MOD_ReadInTools,        ONLY: GetParameters
 USE MOD_PICDepo_Vars,       ONLY: SFResampleAnalyzeSurfCollis, LastAnalyzeSurfCollis, r_SF
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2625,7 +2628,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:),params(:)
 INTEGER,ALLOCATABLE            :: sendbuf(:),recvbuf(:)
 REAL,ALLOCATABLE               :: sendbuf2(:),recvbuf2(:)
 INTEGER                        :: iProc
-INTEGER                        :: globalNum(0:nProcessors-1), Displace(0:nProcessors-1), RecCount(0:nProcessors-1)
+INTEGER                        :: globalNum(0:SurfCOMM%nProcs-1), Displace(0:SurfCOMM%nProcs-1), RecCount(0:SurfCOMM%nProcs-1)
 #endif
 INTEGER                        :: TotalNumberMPF, counter2
 INTEGER,ALLOCATABLE            :: locnPart(:),offsetnPart(:),nPart_glob(:),minnParts(:), iPartCount(:)
@@ -2682,21 +2685,21 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 #ifdef MPI
   sendbuf(:)=locnPart(:)
   recvbuf(:)=0
-  CALL MPI_EXSCAN(sendbuf,recvbuf,nSpecies,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_EXSCAN(sendbuf,recvbuf,nSpecies,MPI_INTEGER,MPI_SUM,SurfCOMM%COMM,iError)
   offsetnPart(:)=recvbuf(:)
   sendbuf(:)=recvbuf(:)+locnPart(:)
-  CALL MPI_BCAST(sendbuf(:),nSpecies,MPI_INTEGER,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
+  CALL MPI_BCAST(sendbuf(:),nSpecies,MPI_INTEGER,SurfCOMM%nProcs-1,SurfCOMM%COMM,iError) !last proc knows global number
   !global numbers
   nPart_glob(:)=sendbuf(:)
   DEALLOCATE(sendbuf &
             ,recvbuf )
   !LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-  CALL MPI_ALLREDUCE(locnPart(:),minnParts(:),nSpecies,MPI_INTEGER,MPI_MIN,MPI_COMM_WORLD,IERROR)
+  CALL MPI_ALLREDUCE(locnPart(:),minnParts(:),nSpecies,MPI_INTEGER,MPI_MIN,SurfCOMM%COMM,IERROR)
   IF (SFResampleAnalyzeSurfCollis) THEN
-    CALL MPI_ALLGATHER(AnalyzeSurfCollis%Number(nSpecies+1), 1, MPI_INTEGER, globalNum, 1, MPI_INTEGER, MPI_COMM_WORLD, IERROR)
+    CALL MPI_ALLGATHER(AnalyzeSurfCollis%Number(nSpecies+1), 1, MPI_INTEGER, globalNum, 1, MPI_INTEGER, SurfCOMM%COMM, IERROR)
     TotalNumberMPF = SUM(globalNum)
   ELSE
-    CALL MPI_ALLREDUCE(AnalyzeSurfCollis%Number(nSpecies+1),TotalNumberMPF,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
+    CALL MPI_ALLREDUCE(AnalyzeSurfCollis%Number(nSpecies+1),TotalNumberMPF,1,MPI_INTEGER,MPI_SUM,SurfCOMM%COMM,IERROR)
   END IF
 #else
   offsetnPart(:)=0
@@ -2706,7 +2709,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 #endif
   TotalFlowrateMPF=REAL(TotalNumberMPF)/TimeSample
 
-  IF(MPIRoot) THEN !create File-Skeleton
+  IF(SurfCOMM%MPIRoot) THEN !create File-Skeleton
     ! Create file
 #ifdef MPI
     CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
@@ -2733,8 +2736,8 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   END IF
   
 #ifdef MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+  CALL MPI_BARRIER(SurfCOMM%COMM,iError)
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%COMM)
 #else
   CALL OpenDataFile(TRIM(FileName),create=.FALSE.,readOnly=.FALSE.)
 #endif
@@ -2766,13 +2769,13 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       END DO
       ! Distribute particles to all procs
       counter2 = 0
-      DO iProc = 0, nProcessors-1
+      DO iProc = 0, SurfCOMM%nProcs-1
         RecCount(iProc) = globalNum(iProc) * 7
         Displace(iProc) = counter2
         counter2 = counter2 + globalNum(iProc)*7
       END DO
-      CALL MPI_ALLGATHERV(sendbuf2, 7*globalNum(myRank), MPI_DOUBLE_PRECISION, &
-        recvbuf2, RecCount, Displace, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, IERROR)
+      CALL MPI_ALLGATHERV(sendbuf2, 7*globalNum(SurfCOMM%MyRank), MPI_DOUBLE_PRECISION, &
+        recvbuf2, RecCount, Displace, MPI_DOUBLE_PRECISION, SurfCOMM%COMM, IERROR)
       ! Add them to particle list
       counter2 = -7 !moved increment before usage, thus: -7 instead of 0
       DO counter = 1, LastAnalyzeSurfCollis%PartNumberSamp
