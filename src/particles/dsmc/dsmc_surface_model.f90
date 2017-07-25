@@ -219,19 +219,19 @@ SUBROUTINE CalcDiffusion()
 !===================================================================================================================================
 ! Model for diffusion calculation
 !===================================================================================================================================
-  USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
-  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+USE MOD_Mesh_Vars,              ONLY : BC
+USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 !===================================================================================================================================
-   IMPLICIT NONE
+IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
-   INTEGER                          :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
-   INTEGER                          :: Coord, nSites, nSitesRemain, i, j, AdsorbID
-   REAL                             :: WallTemp, Prob_diff, RanNum
-   REAL                             :: Heat_i, Heat_j, Heat_temp
-   INTEGER                          :: n_equal_site_Neigh, Indx, Indy, Surfpos, newpos
-   INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
+INTEGER                          :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
+INTEGER                          :: Coord, nSites, nSitesRemain, i, j, AdsorbID
+REAL                             :: WallTemp, Prob_diff, RanNum
+REAL                             :: Heat_i, Heat_j, Heat_temp
+INTEGER                          :: n_equal_site_Neigh, Indx, Indy, Surfpos, newpos
+INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 !===================================================================================================================================
 
 DO SurfSideID = 1,SurfMesh%nSides
@@ -314,9 +314,10 @@ DO subsurfxi = 1,nSurfSample
     
   END DO
   
-END DO
-END DO
-END DO
+END DO  !subsurfxi = 1,nSurfSample
+END DO  !subsurfeta = 1,nSurfSample
+END DO  !SurfSideID = 1,SurfMesh%nSides
+
 
 END SUBROUTINE CalcDiffusion
 
