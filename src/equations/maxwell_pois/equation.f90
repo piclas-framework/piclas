@@ -470,7 +470,7 @@ USE MOD_PreProc
 USE MOD_Equation_Vars, ONLY : eps0,IniExactFunc
 #ifdef PARTICLES
 USE MOD_Equation_Vars, ONLY : c_corr
-USE MOD_PICDepo_Vars,  ONLY : Source,DoDeposition
+USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
@@ -500,9 +500,9 @@ eps0inv = 1./eps0
 IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      !  Get source from Particles
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * source(1:3,i,j,k,iElem)
-      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + coeff*eps0inv * source(  4,i,j,k,iElem) * c_corr 
+      !  Get PartSource from Particles
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * PartSource(1:3,i,j,k,iElem)
+      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + coeff*eps0inv * PartSource(  4,i,j,k,iElem) * c_corr 
     END DO; END DO; END DO
   END DO
 END IF
@@ -551,7 +551,7 @@ USE MOD_Equation_Vars, ONLY : Phit,Phi
 USE MOD_DG_Vars,       ONLY: U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,  ONLY : Source,DoDeposition
+USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
 #endif /*PARTICLES*/
 !USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #ifdef LSERK

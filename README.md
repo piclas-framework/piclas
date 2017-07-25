@@ -34,6 +34,10 @@ For informations about the different particle tracking routines see [Tracking.md
 
 For informations about the regressioncheck see [REGGIE.md](REGGIE.md).
 
+## Compiler Flag
+
+For informations about the compiler-flag see [COMPILER.md](COMPILER.md).
+
 ## Used libraries
 
 Boltzplatz uses several external libraries as well as auxilliary functions from open source projects, including:

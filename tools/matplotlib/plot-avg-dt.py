@@ -78,12 +78,12 @@ def readingcsv( filename, ncolumn):
         row_count = sum(1 for row in reader)
         print( ' Number of rows:    ', row_count)
         #n=int(np.log(row_count)/np.log(2))
-        data=np.zeros((row_count-2,ncolumn)) # default is numpy.float64
+        data=np.zeros((row_count-1,ncolumn)) # default is numpy.float64
         ii=-1
         jj=0
         csvfile.seek(0)
         for row in reader:
-            if(ii==row_count-2):
+            if(ii==row_count-1):
                 break 
             if(ii>=0):
                 for iCol in column:

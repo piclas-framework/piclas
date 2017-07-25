@@ -37,5 +37,8 @@ CHARACTER(LEN=255) :: StrVarNames(PP_nVar)
 INTEGER            :: myRPrank
 INTEGER            :: RP_COMM
 INTEGER            :: nRP_Procs
+#ifdef LSERK
+LOGICAL            :: RPSkip
+#endif /*LSERK*/
 
 END MODULE MOD_recordPoints_Vars

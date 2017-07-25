@@ -271,20 +271,20 @@ CriticalParallelInSide=.FALSE.
 
 IF(DoRefMapping)THEN
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
-  IF(coeffA.LT.0.)RETURN
+  IF(coeffA.LE.0.)RETURN
   locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
-  locSideDistance=locSideDistance/(coeffA*lengthPartTrajectory)-epsilonTol
-  IF(locSideDistance.GT.1.0) RETURN
+  locSideDistance=locSideDistance/coeffA
+  IF(locSideDistance.GT.lengthPartTrajectory) RETURN
 ELSE
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
   IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
   IF(flip.EQ.0)THEN
-    IF(coeffA.LT.0.)RETURN
+    IF(coeffA.LE.0.)RETURN
     locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
     locSideDistance=locSideDistance/coeffA
     IF(locSideDistance.GT.lengthPartTrajectory) RETURN
   ELSE
-    IF(coeffA.GT.0.)RETURN
+    IF(coeffA.GE.0.)RETURN
     locSideDistance=-SideDistance(SideID)+DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(1:3,SideID))
     locSideDistance=locSideDistance/coeffA
     IF(locSideDistance.GT.lengthPartTrajectory) RETURN
@@ -563,11 +563,13 @@ C = a1(4)*a2(2)-a1(2)*a2(4)
 
 !scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
 scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
-scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
-scaleFac = 1./scaleFac
-A = A * scaleFac
-B = B * scaleFac
-C = C * scaleFac
+IF(scaleFac.NE.0.)THEN
+  scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
+  scaleFac = 1./scaleFac
+  A = A * scaleFac
+  B = B * scaleFac
+  C = C * scaleFac
+END IF
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -601,19 +603,20 @@ IF (nRoot.EQ.1) THEN
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
-  xi(1)=ComputeXi(a1,a2,eta(1))
-  t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
 
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
+    ! check for Xi only, if eta is possible
+    xi(1)=ComputeXi(a1,a2,eta(1))
     IF(ABS(xi(1)).LT.BezierClipHit)THEN
+      ! compute alpha only with valid xi and eta
+      t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
@@ -649,23 +652,23 @@ ELSE
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
-  ! compute Xi and alpha
-  xi(1)=ComputeXi(a1,a2,eta(1))
-  t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(1),' | t: ',t(1)
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
 
   ! check if intersection is possible
   ! t(1) has to be nullified if intersection is NOT possible
   ! else, the selection scheme is WRONG
   IF(ABS(eta(1)).LT.BezierClipHit)THEN
-    ! as paper ramsay
+    ! check for Xi only, if eta is possible
+    xi(1)=ComputeXi(a1,a2,eta(1))
     IF(ABS(xi(1)).LT.BezierCliphit)THEN
+      ! compute alpha only with valid xi and eta
+      t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
@@ -679,33 +682,27 @@ ELSE
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      ELSE
-        t(1)=-1.0
       END IF
-    ELSE
-      t(1)=-1.0
     END IF
-  ELSE
-    t(1)=-1.0
   END IF ! eta(1)
 
-  ! compute Xi and alpha for second intersection
-  xi(2)=ComputeXi(a1,a2,eta(2))
-  t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(iPart.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(2),' | t: ',t(2)
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
 
   ! check if intersection is possible
   ! t(2) has to be nullified if intersection is NOT possible
   ! else, the selection scheme is WRONG
   IF(ABS(eta(2)).LT.BezierClipHit)THEN
+    ! check for Xi only, if eta is possible
+    xi(2)=ComputeXi(a1,a2,eta(2))
     IF(ABS(xi(2)).LT.BezierClipHit)THEN
+      ! compute alpha only with valid xi and eta
+      t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(2),' | t: ',t(2)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       alphaNorm=t(2)/lengthPartTrajectory
       IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
         ! Two solutions can be correspond to one unique intersection (?!)
@@ -725,14 +722,8 @@ ELSE
           END IF
         END IF
 #endif /*CODE_ANALYZE*/
-      ELSE
-        t(2)=-1.0
       END IF
-    ELSE
-      t(2)=-1.0
     END IF
-  ELSE
-    t(2)=-1.0
   END IF
 
   IF(InterType.EQ.0) THEN
@@ -3028,11 +3019,18 @@ ComputeSurfaceDistance2=t
 END FUNCTION ComputeSurfaceDistance2
 
 
+#ifdef CODE_ANALYZE
 FUNCTION ComputeXi(A1,A2,eta)
+#else
+PURE FUNCTION ComputeXi(A1,A2,eta)
+#endif
 !================================================================================================================================
 ! compute the xi value with algorithm 3.3 of Ramsey paper
 !================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
+#ifdef CODE_ANALYZE
+USE MOD_Globals, ONLY: abort
+#endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -3050,8 +3048,22 @@ a=eta*A2(1)+A2(2)
 b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
 
 IF(ABS(B).GE.ABS(A))THEN
+#ifdef CODE_ANALYZE
+  IF(ABS(B).LE.0.)THEN
+    CALL abort(&
+    __STAMP__&
+    ,' Division by zero. Invalid b')
+  END IF
+#endif /*CODE_ANALYZE*/
   ComputeXi=(-eta*(A2(3)-A1(3))-(A2(4)-A1(4)))/b
 ELSE
+#ifdef CODE_ANALYZE
+  IF(ABS(A).LE.0.)THEN
+    CALL abort(&
+    __STAMP__&
+    ,' Division by zero. Invalid a')
+  END IF
+#endif /*CODE_ANALYZE*/
   ComputeXi=(-eta*A2(3)-A2(4))/a
 END IF
 

@@ -291,7 +291,7 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative vari
 ! LOCAL VARIABLES 
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
-REAL                            :: Cent(3),r,r2,zlen, r_inv
+REAL                            :: Cent(3),r,r2,zlen
 REAL                            :: a, b, d, l, m, nn, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
@@ -305,6 +305,7 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez           ! aux. Variab
 !REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
 REAL                            :: MuMN,SqrtN
 REAL                            :: omegaG,g,h,k,B0G
+REAL                            :: Bess_mG_R_R_inv,r_inv
 REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,sin2,cos2,costz2,sintz2,dBess_mG_R
 INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
@@ -439,14 +440,6 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
-  IF(ALMOSTZERO(r))THEN
-    resu(1:8)=0.
-    RETURN
-    CALL abort(&
-        __STAMP__&
-        ,' DOF located at axis. devision by zero! Change polynomial degree... ')
-  END IF
-  r_inv=1.0/r
   phi = ATAN2(X(2),X(1))
   z=x(3)
   omegaG=2*PI*TEFrequency
@@ -471,14 +464,28 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   SINTZ      = SIN(kz*z-omegaG*t)
   sin1       = SIN(REAL(mG)*phi)
   cos1       = COS(REAL(mG)*phi)
+  ! barrier for small radii
+  IF(r/RadiusMax.LT.1e-4)THEN
+    SELECT CASE(mG)
+    CASE(0) ! arbitary
+      Bess_mG_R_R_inv=1e6
+    CASE(1)
+      Bess_mG_R_R_inv=0.5
+    CASE DEFAULT
+      Bess_mG_R_R_inv=0.
+    END SELECT
+  ELSE
+    r_inv=1./r
+    Bess_mG_R_R_inv=Bess_mG_R*r_inv
+  END IF
   IF(.NOT.TEPolarization)THEN ! no polarization, e.g. linear polarization along the a-axis
     ! electric field
-    Er   =  omegaG*REAL(mG)* Bess_mG_R*sin1*r_inv*SINTZ
-    Ephi =  omegaG*SqrtN*0.5*dBess_mG_R*cos1*SINTZ
+    Er   =  omegaG*REAL(mG)* Bess_mG_R_R_inv*sin1*SINTZ
+    Ephi =  omegaG*SqrtN*dBess_mG_R*cos1*SINTZ
     Ez   =  0.
     ! magnetic field
     Br   = -kz*SqrtN*dBess_mG_R*cos1*SINTZ
-    Bphi =  kz*REAL(mG)*Bess_mG_R*sin1*r_inv*SINTZ
+    Bphi =  kz*REAL(mG)*Bess_mG_R_R_inv*sin1*SINTZ
     Bz   =  (SqrtN**2)*Bess_mG_R*cos1*COSTZ
   ELSE ! cirular polarization
     ! polarisation if superposition of two fields
@@ -494,12 +501,12 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
       SINTZ2     = SIN(kz*z-omegaG*t+0.5*PI)
     END IF
     ! electric field
-    Er   =  omegaG*REAL(mG)* Bess_mG_R*(sin1*SINTZ+sin2*SINTZ2)*r_inv
+    Er   =  omegaG*REAL(mG)* Bess_mG_R_R_inv*(sin1*SINTZ+sin2*SINTZ2)
     Ephi =  omegaG*SqrtN*dBess_mG_R*(cos1*SINTZ+cos2*SINTZ2)
     Ez   =  0.
     ! magnetic field
     Br   = -kz*SqrtN*dBess_mG_R*(cos1*SINTZ+cos2*SINTZ2)
-    Bphi =  kz*REAL(mG)*Bess_mG_R*(sin1*SINTZ+sin2*SINTZ2)*r_inv
+    Bphi =  kz*REAL(mG)*Bess_mG_R_R_inv*(sin1*SINTZ+sin2*SINTZ2)
     ! caution: does we have to modify the z entry? yes
     Bz   =  (SqrtN**2)*Bess_mG_R*(cos1*COSTZ+cos2*COSTZ2)
   END IF
@@ -729,7 +736,7 @@ USE MOD_PreProc
 !USE MOD_DG_Vars,       ONLY : U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega,tPulse
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,  ONLY : Source,DoDeposition
+USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
@@ -758,9 +765,9 @@ eps0inv = 1./eps0
 IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      !  Get source from Particles
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* source(1:3,i,j,k,iElem)
-      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* source(  4,i,j,k,iElem) * c_corr 
+      !  Get PartSource from Particles
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem)
+      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr 
     END DO; END DO; END DO
   END DO
 END IF

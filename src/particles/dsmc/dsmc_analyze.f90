@@ -66,6 +66,7 @@ SUBROUTINE CalcSurfaceValues
 #ifdef MPI
   USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
   USE MOD_Particle_Boundary_Sampling, ONLY:ExchangeSurfData
+  USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
 #endif
   USE MOD_Particle_Vars,              ONLY:WriteMacroValues, nSpecies, MacroValSampTime
   USE MOD_TimeDisc_Vars,              ONLY:TEnd
@@ -135,7 +136,7 @@ SUBROUTINE CalcSurfaceValues
 
   IF (DSMC%CalcSurfCollis_Output) THEN
 #ifdef MPI
-    CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
 #else
     SumCounterTotal=CounterTotal
 #endif

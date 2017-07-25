@@ -51,12 +51,7 @@ USE MOD_HDF5_output,   ONLY: WritePMLzetaGlobalToHDF5
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER             :: i,j,k,iElem,iPMLElem,m
-!REAL                :: xyzMinMax(6)!,xi,L,XiN,delta(3),x,y,z
-!REAL                :: xyzMinMaxLoc(6)
-!REAL                :: zetaVec,zetaVecABS
-!INTEGER             :: nGlobalPMLElems,nGlobalPMLFaces,nGlobalPMLInterFaces
-!INTEGER             :: DOFcount
+INTEGER              :: I
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
@@ -68,17 +63,51 @@ PMLzeta0               = GETREAL('PMLzeta0','0.')
 PMLalpha0              = GETREAL('PMLalpha0','0.')
 xyzPhysicalMinMax(1:6) = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzPMLMinMax(1:6)      = GETREALARRAY('xyzPMLMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMax),MINVAL(xyzPhysicalMinMax)))THEN
+! use xyzPhysicalMinMax before xyzPMLMinMax: 1.) check for xyzPhysicalMinMax 2.) check for xyzPMLMinMax
+IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMax),MINVAL(xyzPhysicalMinMax)))THEN ! if still the initialized values
   xyzPhysicalMinMax(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
-  IF(ALMOSTEQUAL(MAXVAL(xyzPMLMinMax),MINVAL(xyzPMLMinMax)))THEN
+  IF(ALMOSTEQUAL(MAXVAL(xyzPMLMinMax),MINVAL(xyzPMLMinMax)))THEN ! if still the initialized values
     xyzPMLMinMax(1:4)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
-    usePMLMinMax=.FALSE.
-    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPhysicalMinMax =",xyzPhysicalMinMax
-    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPMLMinMax      =",xyzPMLMinMax
+    usePMLMinMax=.FALSE. ! ! xyzPhysicalMinMax and xyzPMLMinMax are undefined -> use HUGE for both
+    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPhysicalMinMax(1:6): Setting [+-HUGE]"
+    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPMLMinMax(1:6)     : Setting [+-HUGE]"
   ELSE
-    usePMLMinMax=.FALSE.
+    SWRITE(UNIT_stdOut,'(A)')"PML region supplied via xyzPMLMinMax(1:6)"
+    usePMLMinMax=.TRUE. ! xyzPhysicalMinMax is undefined but xyzPMLMinMax is not
   END IF
+ELSE
+  SWRITE(UNIT_stdOut,'(A)')"PML region supplied via xyzPhysicalMinMax(1:6)"
 END IF
+! display ranges of PML region depending on usePMLMinMax
+SWRITE(UNIT_stdOut,'(A,L)') 'usePMLMinMax=',usePMLMinMax
+IF(.NOT.usePMLMinMax)THEN
+  SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMax(1:6) are'
+  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I-1)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+ELSE
+  SWRITE(UNIT_stdOut,'(A)') 'Ranges for xyzPMLMinMax(1:6) are'
+  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPMLMinMax(2*I-1)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
+  DO I=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPMLMinMax(2*I)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ''
+END IF
+
 PMLzetaShape           = GETINT('PMLzetaShape','0')
 PMLRampLength          = GETREAL('PMLRampLength','1.')
 PMLspread              = GETINT('PMLspread','0')
@@ -96,6 +125,10 @@ END IF
 
 IF(.NOT.DoPML) THEN
   SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
+  PMLnVar=0
+  nPMLElems=0
+  RETURN
+ELSE
 #if PP_nVar == 1
   CALL abort(__STAMP__,&
       'Equation system does not support a PML!',999,999.)
@@ -104,10 +137,6 @@ IF(.NOT.DoPML) THEN
   CALL abort(__STAMP__,&
       'Equation system does not support a PML!',999,999.)
 #endif
-  PMLnVar=0
-  nPMLElems=0
-  RETURN
-ELSE
   PMLnVar=24
 END IF
 

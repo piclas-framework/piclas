@@ -31,7 +31,7 @@ USE MOD_RegressionCheck_Vars,  ONLY: CodeNameUppCase,CodeNameLowCase,DoFullReggi
 USE MOD_MPI,                   ONLY: InitMPI
 USE MOD_Mesh,                  ONLY: FinalizeMesh
 USE MOD_RegressionCheck_tools, ONLY: REGGIETIME
-#if MPI
+#ifdef MPI
 USE MOD_MPI,                     ONLY: FinalizeMPI
 #endif /*MPI*/
 IMPLICIT NONE
@@ -44,8 +44,8 @@ CHARACTER(LEN=255)             :: FileName            ! filename
 !==================================================================================================================================
 ! errorcodes
 ALLOCATE(firstError)
-firstError%ErrorCode=-1
 NULLIFY(aError)
+firstError%ErrorCode=-1
 nReggieBuilds=0
 SYSCOMMAND=''
 FileName=''
@@ -97,7 +97,7 @@ END IF
 EndTime=REGGIETIME()
 
 ! remove the following if never used again
-!   #if MPI
+!   #ifdef MPI
 !   CALL MPI_FINALIZE(iError)
 !   IF(iError .NE. 0) CALL abort(&
 !     __STAMP__&
@@ -107,11 +107,11 @@ EndTime=REGGIETIME()
 ! Print the summary or examples and error codes (if they exist)
 CALL SummaryOfErrors(EndTime)
 
-#if MPI
+#ifdef MPI
 CALL MPI_FINALIZE(iError)
-IF(iError .NE. 0) STOP 'MPI finalize error'
+IF(iError .NE. 0) ERROR STOP 'MPI finalize error'
 CALL FinalizeMPI()
 #endif /*MPI*/
 
-IF(nErrors.GT.0) ERROR STOP '999'
+IF(nErrors.GT.0) STOP 999
 END PROGRAM RegressionCheck

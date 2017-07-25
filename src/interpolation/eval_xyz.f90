@@ -45,7 +45,7 @@ CONTAINS
 SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
+! first get xi,eta,zeta from x,y,z...then do tensor product interpolation
 ! xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
 ! MODULES
@@ -414,7 +414,7 @@ SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
+USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps
 USE MOD_Mesh_Vars,               ONLY:offsetElem
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,LastPartPos
@@ -826,10 +826,17 @@ REAL                          :: epsOne
 INTEGER                       :: iDir
 INTEGER                       :: i,j,k
 REAL                          :: dX,dY,dZ
+INTEGER                       :: RefMappingGuessLoc
 !===================================================================================================================================
 
 epsOne=1.0+RefMappingEps
-SELECT CASE(RefMappingGuess)
+RefMappingGuessLoc=RefMappingGuess
+! the location of the Gauss-points within halo elements is not communicated. Instead of looking for the closest Gauss-point, the
+! closest CL-point is used
+IF(ElemID.GT.PP_nElems)THEN
+  IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=3
+END IF
+SELECT CASE(RefMappingGuessLoc)
 CASE(1)
   Ptild=X_in - ElemBaryNGeo(:,ElemID)
   ! plus coord system (1-3) and minus coord system (4-6)
@@ -842,7 +849,6 @@ CASE(1)
   END DO 
   IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
 CASE(2) 
-  IF(ElemID.GT.PP_nElems) Xi(:)=(/0.,0.,0./)
   ! compute distance on Gauss Points
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
@@ -877,7 +883,7 @@ CASE(3)
     END IF
   END DO; END DO; END DO
 CASE(4)
-  ! trival guess 
+  ! trivial guess 
   xi=0.
 END SELECT
 
