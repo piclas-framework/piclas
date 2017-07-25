@@ -15,6 +15,8 @@ REAL                  :: ManualTimeStep                                      ! M
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
+LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
+LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file

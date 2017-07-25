@@ -47,6 +47,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
   INTEGER                          :: iSpec
   REAL                             :: PartAds, PartEvap, RanNum, Tpois
 !===================================================================================================================================
+IF (.NOT.SurfMesh%SurfOnProc) RETURN
 ! allocate info and constants
 ALLOCATE( Liquid%Info(1:nSpecies))
 ! initialize info and constants
@@ -92,6 +93,8 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
    REAL                             :: LiquidSurfTemp
    REAL                             :: pressure_vapor, A, B, C
 !===================================================================================================================================
+
+IF (.NOT.SurfMesh%SurfOnProc) RETURN
 #if (PP_TimeDiscMethod==42)
   Liquid%Info(:)%NumOfDes = 0
 #endif

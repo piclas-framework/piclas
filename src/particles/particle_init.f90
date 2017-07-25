@@ -870,6 +870,8 @@ ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
 ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
 ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
 ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
+SolidSimFlag = .FALSE.
+LiquidSimFlag = .FALSE.
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -920,6 +922,7 @@ DO iPartBound=1,nPartBound
      PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState','.TRUE.')
      PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
      IF(PartBound%SolidState(iPartBound))THEN
+       SolidSimFlag = .TRUE.
        PartBound%SolidCatalytic(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidCatalytic','.FALSE.')
        PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec','0')
        PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens','1.0E+19')
@@ -938,6 +941,7 @@ __STAMP__&
 __STAMP__&
        ,'Antoine Parameters not defined for Liquid Particle Boundary: ',iPartBound)
      END IF
+     IF (.NOT.PartBound%SolidState(iPartBound)) LiquidSimFlag = .TRUE.
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')

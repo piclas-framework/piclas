@@ -44,6 +44,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
 USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG
+USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, SolidSimFlag
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
@@ -114,7 +115,12 @@ USE MOD_Liquid_Boundary,            ONLY: Init_Liquid_Boundary
   DSMC%ReservoirRateStatistic = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%DoTEVRRelaxation = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
-  DSMC%WallModel = GETINT('Particles-DSMC-WallModel','0') !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
+  IF (SolidSimFlag) THEN
+    !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
+    DSMC%WallModel = GETINT('Particles-DSMC-WallModel','0')
+  ELSE
+    DSMC%WallModel = 0
+  END IF
   LD_MultiTemperaturMod=GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
   DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
@@ -814,7 +820,13 @@ USE MOD_Liquid_Boundary,            ONLY: Init_Liquid_Boundary
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Initialize liquid surfaces (Evaporation/Condensation) variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL Init_Liquid_Boundary()
+  IF (LiquidSimFlag) THEN
+    IF (.NOT.DSMC%CalcSurfaceVal) THEN
+      CALL InitParticleBoundarySampling()
+      SWRITE(UNIT_stdOut,'(A)')'WARNING: Particles-DSMC-CalcSurfaceVal == FALSE!'
+    END IF
+    CALL Init_Liquid_Boundary()
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
   
   SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'

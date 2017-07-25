@@ -1246,7 +1246,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY : KeepWallParticles
+USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1281,7 +1281,7 @@ REAL    :: RandVal, dtFrac
       CALL CalcBackgndPartDesorb()
       !CALL AnalyzePartitionTemp()
     END IF
-    CALL Evaporation()
+    IF (LiquidSimFlag) CALL Evaporation()
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -1387,6 +1387,7 @@ USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
+USE MOD_Particle_Vars,    ONLY : LiquidSimFlag
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1601,7 +1602,7 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
     !CALL AnalyzePartitionTemp()
   END IF
   CALL DSMC_Update_Wall_Vars()
-  CALL Evaporation()
+  IF (LiquidSimFlag) CALL Evaporation()
   CALL UpdateNextFreePosition()
 
 !  Debug_Energy=0.0
@@ -1649,7 +1650,7 @@ ELSE
       !CALL AnalyzePartitionTemp()
     END IF
     ! Calculate number of evaporating particles
-    CALL Evaporation()
+    IF (LiquidSimFlag) CALL Evaporation()
     
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
