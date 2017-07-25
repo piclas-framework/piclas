@@ -68,6 +68,9 @@ USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
   INTEGER                          :: iProc
 #endif
 !===================================================================================================================================
+! do not initialize variables if processor does not have any surfaces on in domain
+IF(.NOT.SurfMesh%SurfOnProc) RETURN
+! initialize surface chemistry
 KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
 IF (KeepWallParticles) THEN
   ALLOCATE(PDM%ParticleAtWall(1:PDM%maxParticleNumber)  , &
@@ -669,7 +672,6 @@ WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites o
   ' | own: ',Max_Surfsites_own,' | halo: ',Max_Surfsites_halo
 #endif /*CODE_ANALYZE*/
   
-IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
         ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &

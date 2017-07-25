@@ -1265,13 +1265,14 @@ INTEGER                         :: Coord, AdsorbID, Surfpos, SpecID
 INTEGER                         :: adsorbates(nSpecies)
 REAL                            :: SubWallNumSpec(nSpecies), WallNumSpec_tmp(2*nSpecies)
 !===================================================================================================================================
-  WallNumSpec = 0
-  WallNumSpec_SurfDist = 0 
-  SurfPart = 0.
-  Coverage(:) = 0.
-  WallNumSpec_tmp = 0.
-  SubWallNumSpec = 0.
+WallNumSpec = 0
+WallNumSpec_SurfDist = 0 
+SurfPart = 0.
+Coverage(:) = 0.
+WallNumSpec_tmp = 0.
+SubWallNumSpec = 0.
   
+IF(SurfMesh%SurfOnProc)THEN
   DO iSpec=1,nSpecies
   DO iSurfSide=1,SurfMesh%nSides
     DO q = 1,nSurfSample
@@ -1310,6 +1311,9 @@ REAL                            :: SubWallNumSpec(nSpecies), WallNumSpec_tmp(2*n
   IF (CalcSurfCoverage) THEN
   WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
   END IF
+ELSE
+  WallCoverage(:) = 0.
+END IF
   
 #ifdef MPI
   IF (PartMPI%MPIRoot) THEN
@@ -1383,48 +1387,52 @@ REAL                            :: RD(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
 
-IF (DSMC%ReservoirRateStatistic) THEN
-  DO iSpec = 1,nSpecies
-    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-      AdsorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfAds) / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-    ELSE
-      AdsorbRate(iSpec) = 0.
-      Accomodation(iSpec) = 0.
-    END IF
-    IF (Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount.GT.0) THEN
-      DesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
-      MolecDesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
-    ELSE
-      DesorbRate(iSpec) = 0.
-      MolecDesorbRate(iSpec) = 0.
-    END IF
-  END DO
-ELSE
-  IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(DSMC%WallModel.EQ.3)) THEN
+IF(SurfMesh%SurfOnProc)THEN
+  IF (DSMC%ReservoirRateStatistic) THEN
     DO iSpec = 1,nSpecies
       IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-        Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds &
-                                              / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-        Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss &
-                                              / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+        AdsorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfAds) / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
         Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
       ELSE
-        Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+        AdsorbRate(iSpec) = 0.
         Accomodation(iSpec) = 0.
       END IF
+      IF (Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount.GT.0) THEN
+        DesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
+        MolecDesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
+      ELSE
+        DesorbRate(iSpec) = 0.
+        MolecDesorbRate(iSpec) = 0.
+      END IF
+    END DO
+  ELSE
+    IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(DSMC%WallModel.EQ.3)) THEN
+      DO iSpec = 1,nSpecies
+        IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+          Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds &
+                                                / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+          Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss &
+                                                / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+          Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+        ELSE
+          Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+          Accomodation(iSpec) = 0.
+        END IF
+      END DO
+    END IF
+    DO iSpec = 1,nSpecies
+      AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
+      DissocRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss
+      DesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
+      MolecDesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
     END DO
   END IF
   DO iSpec = 1,nSpecies
-    AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
-    DissocRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss
-    DesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
-    MolecDesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
+    SurfCollNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%WallCollCount
   END DO
+ELSE
+  Accomodation(:) = 0.
 END IF
-DO iSpec = 1,nSpecies
-  SurfCollNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%WallCollCount
-END DO
 
 #ifdef MPI
 IF (PartMPI%MPIRoot) THEN
@@ -1435,16 +1443,18 @@ ELSE
 END IF
 #endif /*MPI*/
 
-DO iSpec = 1,nSpecies
-  Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
-  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = 0.
-  IF (KeepWallParticles) THEN
-    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
-    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-  END IF
-END DO
+IF(SurfMesh%SurfOnProc)THEN
+  DO iSpec = 1,nSpecies
+    Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+    Adsorption%AdsorpInfo(iSpec)%Accomodation = 0.
+    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+    Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = 0.
+    IF (KeepWallParticles) THEN
+      Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+      Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+    END IF
+  END DO
+END IF
 
 END SUBROUTINE GetAdsRates
 
