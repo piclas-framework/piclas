@@ -204,6 +204,9 @@ CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
                                        ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC)
+CASE(100) !PartBound%AnalyzeBC
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,flip,IsSpeciesSwap,opt_crossed=crossedBC)
 
 CASE DEFAULT
 CALL abort(&
@@ -1414,6 +1417,124 @@ IF(1.EQ.2)THEN
 END IF
 
 END SUBROUTINE PeriodicBC
+
+
+SUBROUTINE SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,flip,IsSpeciesSwap,BCSideID &
+  ,opt_crossed)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Analyze particle crossing (inner) side
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
+USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
+USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species
+USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
+USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_DSMC_Vars,              ONLY:DSMC
+USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis
+USE MOD_LD_Vars,                ONLY: useLD
+USE MOD_Particle_Vars,          ONLY:WriteMacroValues
+USE MOD_TImeDisc_Vars,          ONLY:tend,time
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES 
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(IN)                   :: xi, eta
+INTEGER,INTENT(IN)                :: PartID, SideID, flip!,ElemID
+LOGICAL,INTENT(IN)                :: IsSpeciesSwap
+INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT),OPTIONAL      :: opt_crossed
+INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), WallVelo(3)
+REAL                                  :: epsLength
+REAL                                 :: Xitild,EtaTild
+INTEGER                              :: p,q, SurfSideID, locBCID
+INTEGER                              :: moved(2),locSideID
+!===================================================================================================================================
+
+epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
+WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
+locBCID=PartBound%MapToPartBC(BC(SideID))
+
+IF(PRESENT(BCSideID))THEN
+  SELECT CASE(SideType(BCSideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,BCSideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+  END SELECT 
+ELSE
+  SELECT CASE(SideType(SideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,SideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  END SELECT 
+END IF
+IF(flip.NE.0) n_loc=-n_loc
+
+IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
+  IF(PRESENT(opt_crossed)) opt_crossed=.FALSE.
+  RETURN
+ELSE
+  IF(PRESENT(opt_crossed)) opt_crossed=.TRUE.
+END IF
+  
+! Wall sampling Macrovalues
+!IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+    !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
+    IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+      IF (DSMC%AnalyzeSurfCollis .AND. (AnalyzeSurfCollis%BC.EQ.0 .OR. AnalyzeSurfCollis%BC.EQ.locBCID)) THEN
+        AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+        AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+        IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+CALL Abort(&
+__STAMP__&
+,'maxSurfCollisNumber reached!')
+        END IF
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
+          = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+          = PartState(PartID,4)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+          = PartState(PartID,5)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+          = PartState(PartID,6)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+          = LastPartPos(PartID,1)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+          = LastPartPos(PartID,2)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+          = LastPartPos(PartID,3)
+        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+          = PartSpecies(PartID)
+      END IF
+    END IF
+  END IF
+!END IF
+
+! refmapping and tracing
+! move particle from old element to new element
+locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+ElemID    = Moved(1)
+  
+END SUBROUTINE SideAnalysis
 
 
 FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)

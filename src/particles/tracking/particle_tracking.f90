@@ -381,8 +381,8 @@ DO iPart=1,PDM%ParticleVecLength
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', InElem+offSetElem
             ELSE
-              WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+              WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ' &
+                , offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
             END IF
 #else
             WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID         ', PEM%LastElement(iPart)+offSetElem
@@ -392,8 +392,8 @@ DO iPart=1,PDM%ParticleVecLength
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', InElem+offSetElem
             ELSE
-              WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+              WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ' &
+                , offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
             END IF
 #else
             WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID         ', ElemID+offSetElem
