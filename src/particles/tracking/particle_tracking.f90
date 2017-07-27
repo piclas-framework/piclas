@@ -977,7 +977,7 @@ REAL                              :: n_loc(3)
 IF(BC(SideID).GT.0)THEN
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                  ,xi    &
-                                                                 ,eta   ,PartID,SideID,flip,ElemID,crossedBC)
+                                                                 ,eta   ,PartID,SideID,flip,hitlocSide,ElemID,crossedBC)
 
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.

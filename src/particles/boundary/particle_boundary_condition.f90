@@ -31,7 +31,7 @@ PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
 
 CONTAINS
 
-SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC)
+SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -67,7 +67,7 @@ USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                   :: iPart,SideID,flip
+INTEGER,INTENT(IN)                   :: iPart,SideID,flip,locSideID
 REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -206,7 +206,8 @@ CASE(10) !PartBound%SymmetryBC
                                        ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC)
 CASE(100) !PartBound%AnalyzeBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,flip,IsSpeciesSwap,opt_crossed=crossedBC)
+  CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID &
+                    ,IsSpeciesSwap,opt_crossed=crossedBC)
 
 CASE DEFAULT
 CALL abort(&
@@ -1419,8 +1420,9 @@ END IF
 END SUBROUTINE PeriodicBC
 
 
-SUBROUTINE SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,flip,IsSpeciesSwap,BCSideID &
-  ,opt_crossed)
+SUBROUTINE SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,locSideID,ElemID &
+  , IsSpeciesSwap,BCSideID &
+  , opt_crossed)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Analyze particle crossing (inner) side
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1446,7 +1448,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
-INTEGER,INTENT(IN)                :: PartID, SideID, flip!,ElemID
+INTEGER,INTENT(IN)                :: PartID, SideID, flip,locSideID
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1459,7 +1461,7 @@ REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3
 REAL                                  :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
-INTEGER                              :: moved(2),locSideID
+INTEGER                              :: moved(2)
 !===================================================================================================================================
 
 epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
@@ -1531,7 +1533,6 @@ __STAMP__&
 
 ! refmapping and tracing
 ! move particle from old element to new element
-locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
 #ifdef MPI
