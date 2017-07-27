@@ -1494,6 +1494,7 @@ ELSE
   IF(PRESENT(opt_crossed)) opt_crossed=.TRUE.
 END IF
   
+
 ! Wall sampling Macrovalues
 !IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
   IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
@@ -1533,6 +1534,13 @@ __STAMP__&
 locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
+#ifdef MPI
+IF(ElemID.EQ.-1)THEN
+  CALL abort(&
+__STAMP__&
+,' Mesh-connectivity broken or halo region to small. Neighbor element is missing!')
+END IF
+#endif /*MPI*/
   
 END SUBROUTINE SideAnalysis
 
