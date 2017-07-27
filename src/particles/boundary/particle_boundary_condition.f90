@@ -1625,6 +1625,10 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 #if (PP_TimeDiscMethod==42)  
   ! Update wallcollision counter
   Adsorption%AdsorpInfo(SpecID)%WallCollCount = Adsorption%AdsorpInfo(SpecID)%WallCollCount + 1
+  IF (DSMC%WallModel.EQ.1) THEN
+    Adsorption%AdsorpInfo(SpecID)%Accomodation = Adsorption%AdsorpInfo(SpecID)%Accomodation &
+        + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
+  END IF
 #endif
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!

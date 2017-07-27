@@ -79,7 +79,9 @@ IF (KeepWallParticles) THEN
   ALLOCATE(PEM%wNumber(1:nElems))
 END IF
 ! allocate info and constants
+#if (PP_TimeDiscMethod==42)
 ALLOCATE( Adsorption%AdsorpInfo(1:nSpecies))
+#endif
 IF (DSMC%WallModel.EQ.1) THEN 
   ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),& 
             Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),& 
@@ -97,9 +99,13 @@ ELSE IF (DSMC%WallModel.EQ.3) THEN
 END IF
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
-  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanProbAds  = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanProbDes  = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanProbER   = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanProbReactDiss = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanProbReactExch = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanProbReactLH   = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanEads = 0.
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
   Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = 0

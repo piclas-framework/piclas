@@ -259,6 +259,7 @@ SUBROUTINE AnalyzeParticles(Time)
   CHARACTER(LEN=350)  :: hilf
   REAL                :: NumSpecTmp(nSpeciesAnalyze)
   REAL                :: Adsorptionrate(nSpecies), AdsDissocrate(nSpecies), Desorptionrate(nSpecies), MolecDesorbRate(nSpecies)
+  REAL                :: AdsorptionHeat(nSpecies)
   REAL,ALLOCATABLE    :: SurfDissocRate(:), SurfAssocRate(:), SurfExchRate(:)
 #endif
 #if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4)
@@ -266,7 +267,7 @@ SUBROUTINE AnalyzeParticles(Time)
   INTEGER             :: iCov
   REAL                :: WallCoverage(nSpecies), Accomodation(nSpecies)
   REAL                :: EvaporationRate(nSpecies)
-  INTEGER             :: SurfCollNum(nSpecies)
+  INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 #endif
   REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
   REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -751,8 +752,9 @@ tLBStart = LOCALTIME() ! LB Time Start
   END IF
 IF (DSMC%WallModel.GE.1) THEN
   IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
-  IF (CalcAdsorbRates.OR.CalcAccomodation) THEN
-    CALL GetAdsRates(Accomodation,Adsorptionrate,AdsDissocRate,Desorptionrate,MolecDesorbRate,SurfCollNum)
+  IF (CalcAdsorbRates.OR.CalcAccomodation) THEN 
+    CALL GetAdsRates(Accomodation,Adsorptionrate,AdsorptionHeat,AdsDissocRate,Desorptionrate,MolecDesorbRate,SurfCollNum&
+      ,AdsorptionNum,DesorptionNum)
   END IF
   IF (CalcSurfReacRates) THEN
     SDEALLOCATE(SurfDissocRate)
@@ -956,11 +958,11 @@ IF (PartMPI%MPIROOT) THEN
         END DO
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfAds
+          WRITE(unit_index,'(I18.1)',ADVANCE='NO') AdsorptionNum(iSpec)
         END DO
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfDes
+          WRITE(unit_index,'(I18.1)',ADVANCE='NO') DesorptionNum(iSpec)
         END DO
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -996,7 +998,7 @@ IF (PartMPI%MPIROOT) THEN
       IF (Adsorption%TPD) THEN
         DO iSpec = 1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%MeanEads
+          WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') AdsorptionHeat(iSpec)
         END DO
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Adsorption%TPD_Temp
@@ -1356,7 +1358,7 @@ END IF
 END SUBROUTINE GetWallNumSpec
 
 #if (PP_TimeDiscMethod==42)
-SUBROUTINE GetAdsRates(Accomodation,AdsorbRate,DissocRate,DesorbRate,MolecDesorbRate,SurfCollNum)
+SUBROUTINE GetAdsRates(Accomodation,AdsorbRate,AdsorbHeat,DissocRate,DesorbRate,MolecDesorbRate,SurfCollNum,AdsorbNum,DesorbNum)
 !===================================================================================================================================
 ! Calculate adsorption, desorption and accomodation rates for all species
 !===================================================================================================================================
@@ -1377,13 +1379,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL   , INTENT(OUT)            :: AdsorbRate(nSpecies), DesorbRate(nSpecies), Accomodation(nSpecies), MolecDesorbRate(nSpecies)
-REAL   , INTENT(OUT)            :: DissocRate(nSpecies)
-INTEGER, INTENT(OUT)            :: SurfCollNum(nSpecies)
+REAL   , INTENT(OUT)            :: DissocRate(nSpecies), AdsorbHeat(nSpecies)
+INTEGER, INTENT(OUT)            :: SurfCollNum(nSpecies), AdsorbNum(nSpecies), DesorbNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec
 #ifdef MPI
-REAL                            :: RD(nSpecies)
+REAL                            :: AC(nSpecies),AD(nSpecies),DE(nSpecies),DI(nSpecies),HE(nSpecies),CO(nSpecies)
+INTEGER                         :: ADN(nSpecies),DEN(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -1405,41 +1408,72 @@ IF(SurfMesh%SurfOnProc)THEN
         MolecDesorbRate(iSpec) = 0.
       END IF
     END DO
-  ELSE
-    IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(DSMC%WallModel.EQ.3)) THEN
-      DO iSpec = 1,nSpecies
-        IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-          Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds &
-                                                / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-          Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss &
-                                                / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-          Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-        ELSE
-          Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
-          Accomodation(iSpec) = 0.
-        END IF
-      END DO
-    END IF
+  ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
     DO iSpec = 1,nSpecies
-      AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
-      DissocRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss
-      DesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
-      MolecDesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
+      IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+        IF (DSMC%WallModel.EQ.1) THEN
+          AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
+          DissocRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
+        ELSE IF (DSMC%WallModel.EQ.3) THEN
+          AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+          DissocRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDiss / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+          !ERRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbER / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+        END IF
+        Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+      ELSE
+        AdsorbRate(iSpec)= 0.
+        DissocRate(iSpec) = 0.
+        Accomodation(iSpec) = 0.
+        !ERRate(iSpec) = 0.
+      END IF
+      DesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
+      MolecDesorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
+      IF (Adsorption%TPD) AdsorbHeat(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanEAds &
+            / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
     END DO
   END IF
   DO iSpec = 1,nSpecies
     SurfCollNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%WallCollCount
+    AdsorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds
+    DesorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes
   END DO
 ELSE
+  SurfCollNum(:) = 0
   Accomodation(:) = 0.
+  AdsorbRate(:) = 0.
+  AdsorbHeat(:) = 0.
+  DissocRate(:) = 0.
+  DesorbRate(:) = 0.
+  MolecDesorbRate(:) = 0.
 END IF
 
 #ifdef MPI
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,Accomodation,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  Accomodation = Accomodation / SurfCOMM%nProcs
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbHeat  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,DissocRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  Accomodation= Accomodation/ REAL(SurfCOMM%nProcs)
+  AdsorbRate  = AdsorbRate  / REAL(SurfCOMM%nProcs)
+  AdsorbHeat  = AdsorbHeat  / REAL(SurfCOMM%nProcs)
+  DissocRate  = DissocRate  / REAL(SurfCOMM%nProcs)
+  DesorbRate  = DesorbRate  / REAL(SurfCOMM%nProcs)
+  SurfCollNum = SurfCollNum / REAL(SurfCOMM%nProcs)
+  AdsorbNum   = AdsorbNum   / REAL(SurfCOMM%nProcs)
+  DesorbNum   = DesorbNum   / REAL(SurfCOMM%nProcs)
 ELSE
-  CALL MPI_REDUCE(Accomodation,RD          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(Accomodation,AC          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(AdsorbRate  ,AD          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(AdsorbHeat  ,HE          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(DissocRate  ,DI          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(DesorbRate  ,DE          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(SurfCollNum ,CO          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(AdsorbNum   ,ADN         ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*MPI*/
 
@@ -1449,10 +1483,10 @@ IF(SurfMesh%SurfOnProc)THEN
     Adsorption%AdsorpInfo(iSpec)%Accomodation = 0.
     Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
     Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = 0.
-    IF (KeepWallParticles) THEN
-      Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
-      Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-    END IF
+    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+    Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
+    Adsorption%AdsorpInfo(iSpec)%MeanEAds = 0.
   END DO
 END IF
 

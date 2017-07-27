@@ -879,11 +879,7 @@ ALLOCATE (desorbnum(1:nSpecies),&
 #if (PP_TimeDiscMethod==42)
 IF (Adsorption%TPD) THEN
   ALLOCATE(Energy(1:nSpecies))
-  Adsorption%AdsorpInfo(:)%MeanEAds = 0.
 END IF
-! Adsorption%AdsorpInfo(:)%MeanProbDes = 0.
-Adsorption%AdsorpInfo(:)%NumOfDes = 0
-Adsorption%AdsorpInfo(:)%NumOfAds = 0
 #endif
 
 DO SurfSideID = 1,SurfMesh%nSides
@@ -2183,11 +2179,6 @@ END DO ! nSurfSample
 END DO ! nSurfSample
 END DO ! SurfMesh%nSides
 #if (PP_TimeDiscMethod==42)
-IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-  Adsorption%AdsorpInfo(:)%MeanProbDes = Adsorption%AdsorpInfo(:)%MeanProbDes / (nSurfSample * nSurfSample * SurfMesh%nSides)
-  IF (Adsorption%TPD) Adsorption%AdsorpInfo(:)%MeanEAds = Adsorption%AdsorpInfo(:)%MeanEAds &
-                                                        / (nSurfSample * nSurfSample * SurfMesh%nSides)
-END IF
 IF (Adsorption%TPD) DEALLOCATE(Energy)
 #endif
 
@@ -2688,11 +2679,6 @@ SUBROUTINE CalcAdsorbProb()
   END DO
   END DO
   END DO
-#if (PP_TimeDiscMethod==42)
-IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-  Adsorption%AdsorpInfo(:)%MeanProbAds = Adsorption%AdsorpInfo(:)%MeanProbAds / (nSurfSample * nSurfSample * SurfMesh%nSides)
-END IF
-#endif
 END SUBROUTINE CalcAdsorbProb
 
 SUBROUTINE CalcDesorbProb()
@@ -2767,11 +2753,6 @@ DO SurfSide=1,SurfMesh%nSides
   END DO
   END DO
 END DO
-#if (PP_TimeDiscMethod==42)
-IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-  Adsorption%AdsorpInfo(:)%MeanProbDes = Adsorption%AdsorpInfo(:)%MeanProbDes / (nSurfSample * nSurfSample * SurfMesh%nSides)
-END IF
-#endif
 END SUBROUTINE CalcDesorbProb
 
 SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)

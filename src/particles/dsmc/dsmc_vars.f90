@@ -230,24 +230,28 @@ END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision pairs into a cell (nPair)
 
+#if (PP_TimeDiscMethod==42)
 ! defintion of Adsorbation variables
 TYPE tAdsorptionInfo
-#if (PP_TimeDiscMethod==42)
   REAL                                   :: MeanProbAds             ! mean adsorption probability
-  REAL                                   :: MeanProbDiss
-  REAL                                   :: MeanProbDes             ! mean adsorption probability
+  REAL                                   :: MeanProbDiss            ! mean dissociation probability during adsorption
+  REAL                                   :: MeanProbER              ! mean probability for ER reaction at surface collision
+  REAL                                   :: MeanProbDes             ! mean desorption probability
+  REAL                                   :: MeanProbReactDiss       ! mean probability for dissociation reaction on surface
+  REAL                                   :: MeanProbReactExch       ! mean probability for exchange reaction on surface
+  REAL                                   :: MeanProbReactLH         ! mean probability for LH reaction on surface
   REAL                                   :: MeanEAds                ! mean heat of adsorption
   INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
-  INTEGER                                :: NumOfDes                ! Number of Desorptions on Surfaces
-#endif
+  INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
   REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
   INTEGER                                :: WallCollCount           ! counter of wallcollisions
 END TYPE
+#endif
 
 TYPE tAdsorption
-  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 #if (PP_TimeDiscMethod==42)
+  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
   LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
