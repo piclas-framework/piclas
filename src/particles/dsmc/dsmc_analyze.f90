@@ -2625,6 +2625,7 @@ USE MOD_io_HDF5
 USE MOD_HDF5_Output,        ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
 USE MOD_ReadInTools,        ONLY: GetParameters
 USE MOD_PICDepo_Vars,       ONLY: SFResampleAnalyzeSurfCollis, LastAnalyzeSurfCollis, r_SF
+USE MOD_Particle_Boundary_Vars,ONLY: nPartBound
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
 #endif
@@ -2646,7 +2647,7 @@ REAL,ALLOCATABLE               :: sendbuf2(:),recvbuf2(:)
 INTEGER                        :: iProc
 INTEGER                        :: globalNum(0:SurfCOMM%nProcs-1), Displace(0:SurfCOMM%nProcs-1), RecCount(0:SurfCOMM%nProcs-1)
 #endif
-INTEGER                        :: TotalNumberMPF, counter2
+INTEGER                        :: TotalNumberMPF, counter2, BCTotalNumberMPF
 INTEGER,ALLOCATABLE            :: locnPart(:),offsetnPart(:),nPart_glob(:),minnParts(:), iPartCount(:)
 INTEGER                        :: iPart, iSpec, counter
 REAL,ALLOCATABLE               :: PartData(:,:)
@@ -2725,6 +2726,22 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   TotalNumberMPF=AnalyzeSurfCollis%Number(nSpecies+1)
 #endif
   TotalFlowrateMPF=REAL(TotalNumberMPF)/TimeSample
+  ! determine number of parts at BC of interest
+  BCTotalNumberMPF=0
+  IF (SFResampleAnalyzeSurfCollis) THEN
+    DO iPart=1,AnalyzeSurfCollis%Number(nSpecies+1)
+      IF (AnalyzeSurfCollis%BCid(iPart).LT.1 .OR. AnalyzeSurfCollis%BCid(iPart).GT.nPartBound) THEN
+        CALL Abort(&
+          __STAMP__,&
+          'Error 3 in AnalyzeSurfCollis!')
+      ELSE IF ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.AnalyzeSurfCollis%BCid(iPart)) ) THEN
+        BCTotalNumberMPF = BCTotalNumberMPF + 1
+      END IF
+    END DO
+#ifdef MPI
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,BCTotalNumberMPF,1,MPI_INTEGER,MPI_SUM,SurfCOMM%COMM,iError)
+#endif
+  END IF
 
   IF(SurfCOMM%MPIRoot) THEN !create File-Skeleton
     ! Create file
@@ -2761,11 +2778,11 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 
   IF (SFResampleAnalyzeSurfCollis) THEN
     IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts to MaxPartNumber
-      LastAnalyzeSurfCollis%PartNumberSamp=MIN(TotalNumberMPF,LastAnalyzeSurfCollis%PartNumberReduced)
+      LastAnalyzeSurfCollis%PartNumberSamp=MIN(BCTotalNumberMPF,LastAnalyzeSurfCollis%PartNumberReduced)
       ALLOCATE(PartDone(1:TotalNumberMPF))
       PartDone(:)=.FALSE.
     ELSE
-      LastAnalyzeSurfCollis%PartNumberSamp=TotalNumberMPF
+      LastAnalyzeSurfCollis%PartNumberSamp=BCTotalNumberMPF
     END IF
     SWRITE(*,*) 'Number of saved particles for SFResampleAnalyzeSurfCollis: ',LastAnalyzeSurfCollis%PartNumberSamp
     SDEALLOCATE(LastAnalyzeSurfCollis%WallState)
@@ -2774,40 +2791,42 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
     ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
     LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
 #ifdef MPI
-    IF (TotalNumberMPF.GT.0) THEN
-      ALLOCATE(sendbuf2(1:AnalyzeSurfCollis%Number(nSpecies+1)*7))
-      ALLOCATE(recvbuf2(1:TotalNumberMPF*7))
+    IF (BCTotalNumberMPF.GT.0) THEN
+      ALLOCATE(sendbuf2(1:AnalyzeSurfCollis%Number(nSpecies+1)*8))
+      ALLOCATE(recvbuf2(1:TotalNumberMPF*8))
       ! Fill sendbufer
       counter2 = 0
       DO iPart=1,AnalyzeSurfCollis%Number(nSpecies+1)
         sendbuf2(counter2+1:counter2+6) = AnalyzeSurfCollis%Data(iPart,1:6)
         sendbuf2(counter2+7)           = REAL(AnalyzeSurfCollis%Spec(iPart))
-        counter2 = counter2 + 7
+        sendbuf2(counter2+8)           = REAL(AnalyzeSurfCollis%BCid(iPart))
+        counter2 = counter2 + 8
       END DO
       ! Distribute particles to all procs
       counter2 = 0
       DO iProc = 0, SurfCOMM%nProcs-1
-        RecCount(iProc) = globalNum(iProc) * 7
+        RecCount(iProc) = globalNum(iProc) * 8
         Displace(iProc) = counter2
-        counter2 = counter2 + globalNum(iProc)*7
+        counter2 = counter2 + globalNum(iProc)*8
       END DO
-      CALL MPI_ALLGATHERV(sendbuf2, 7*globalNum(SurfCOMM%MyRank), MPI_DOUBLE_PRECISION, &
+      CALL MPI_ALLGATHERV(sendbuf2, 8*globalNum(SurfCOMM%MyRank), MPI_DOUBLE_PRECISION, &
         recvbuf2, RecCount, Displace, MPI_DOUBLE_PRECISION, SurfCOMM%COMM, IERROR)
       ! Add them to particle list
-      counter2 = -7 !moved increment before usage, thus: -7 instead of 0
+      counter2 = -8 !moved increment before usage, thus: -8 instead of 0
       DO counter = 1, LastAnalyzeSurfCollis%PartNumberSamp
         IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts (differently in each proc. Could be changed)
-          DO !get random (equal!) position between 7*[0,TotalNumberMPF-1] and accept if .NOT.PartDone
+          DO !get random (equal!) position between 8*[0,TotalNumberMPF-1] and accept if .NOT.PartDone and with right BC
             CALL RANDOM_NUMBER(RandVal)
-            counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) !( MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) - 1) *7
-            IF (.NOT.PartDone(counter2)) THEN
+            counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) !( MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) - 1) *8
+            IF (.NOT.PartDone(counter2) .AND. &
+              ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.INT(recvbuf2(8*counter2))) )) THEN
               PartDone(counter2)=.TRUE.
-              counter2 = 7*(counter2-1)
+              counter2 = 8*(counter2-1)
               EXIT
             END IF
           END DO
         ELSE
-          counter2 = counter2 + 7
+          counter2 = counter2 + 8
         END IF
         LastAnalyzeSurfCollis%WallState(:,counter) = recvbuf2(counter2+1:counter2+6)
         LastAnalyzeSurfCollis%Species(counter) = INT(recvbuf2(counter2+7))
@@ -2822,10 +2841,11 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
     counter2 = 0
     DO counter = 1, LastAnalyzeSurfCollis%PartNumberSamp
       IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts (differently for each proc. Could be changed)
-        DO !get random (equal!) position between [1,TotalNumberMPF] and accept if .NOT.PartDone
+        DO !get random (equal!) position between [1,TotalNumberMPF] and accept if .NOT.PartDone and with right BC
           CALL RANDOM_NUMBER(RandVal)
           counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF)
-          IF (.NOT.PartDone(counter2)) THEN
+          IF (.NOT.PartDone(counter2) .AND. &
+            ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.AnalyzeSurfCollis%BCid(counter2)) )) THEN
             PartDone(counter2)=.TRUE.
             EXIT
           END IF
