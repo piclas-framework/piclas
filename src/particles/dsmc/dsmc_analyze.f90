@@ -871,7 +871,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
   !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-    IF (DSMC%AnalyzeSurfCollis .AND. (AnalyzeSurfCollis%BC.EQ.0 .OR. AnalyzeSurfCollis%BC.EQ.locBCID)) THEN
+    IF (DSMC%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
       AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
       AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
       IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
