@@ -36,8 +36,7 @@ USE MOD_PreProc
 USE MOD_Equation_Vars, ONLY: eps0,mu0
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
-!USE MOD_HDF5_output,   ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
-!USE MOD_HDF5_output,   ONLY: WritePMLzetaGlobalToHDF5
+USE MOD_HDF5_output,   ONLY: WriteDielectricGlobalToHDF5
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -58,34 +57,34 @@ DielectricEps0                   = GETREAL('DielectricEps0','0.')
 DielectricMu0                    = GETREAL('DielectricMu0','0.')
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-! use xyzPhysicalMinMax before xyzDielectricMinMax: 1.) check for xyzPhysicalMinMax 2.) check for xyzDielectricMinMax
-IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMax),MINVAL(xyzPhysicalMinMax)))THEN ! if still the initialized values
-  xyzPhysicalMinMax(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax: 1.) check for xyzPhysicalMinMaxDielectric 2.) check for xyzDielectricMinMax
+IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMaxDielectric),MINVAL(xyzPhysicalMinMaxDielectric)))THEN ! if still the initialized values
+  xyzPhysicalMinMaxDielectric(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
   IF(ALMOSTEQUAL(MAXVAL(xyzDielectricMinMax),MINVAL(xyzDielectricMinMax)))THEN ! if still the initialized values
     xyzDielectricMinMax(1:4)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
-    useDielectricMinMax=.FALSE. ! ! xyzPhysicalMinMax and xyzDielectricMinMax are undefined -> use HUGE for both
-    SWRITE(UNIT_stdOut,'(A)')"no Dielectric region supplied, setting xyzPhysicalMinMax(1:6): Setting [+-HUGE]"
+    useDielectricMinMax=.FALSE. ! ! xyzPhysicalMinMaxDielectric and xyzDielectricMinMax are undefined -> use HUGE for both
+    SWRITE(UNIT_stdOut,'(A)')"no Dielectric region supplied, setting xyzPhysicalMinMaxDielectric(1:6): Setting [+-HUGE]"
     SWRITE(UNIT_stdOut,'(A)')"no Dielectric region supplied, setting xyzDielectricMinMax(1:6)     : Setting [+-HUGE]"
   ELSE
     SWRITE(UNIT_stdOut,'(A)')"Dielectric region supplied via xyzDielectricMinMax(1:6)"
-    useDielectricMinMax=.TRUE. ! xyzPhysicalMinMax is undefined but xyzDielectricMinMax is not
+    useDielectricMinMax=.TRUE. ! xyzPhysicalMinMaxDielectric is undefined but xyzDielectricMinMax is not
   END IF
 ELSE
-  SWRITE(UNIT_stdOut,'(A)')"Dielectric region supplied via xyzPhysicalMinMax(1:6)"
+  SWRITE(UNIT_stdOut,'(A)')"Dielectric region supplied via xyzPhysicalMinMaxDielectric(1:6)"
 END IF
 ! display ranges of Dielectric region depending on useDielectricMinMax
 SWRITE(UNIT_stdOut,'(A,L)') 'useDielectricMinMax=',useDielectricMinMax
 IF(.NOT.useDielectricMinMax)THEN
-  SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMax(1:6) are'
+  SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMaxDielectric(1:6) are'
   SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
   DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I-1)
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*I-1)
   END DO
   SWRITE(UNIT_stdOut,'(A)') ''
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
   DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I)
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*I)
   END DO
   SWRITE(UNIT_stdOut,'(A)') ''
 ELSE
@@ -128,8 +127,9 @@ ELSE
   !DielectricnVar=24
 END IF
 
-! find all elements in the Dielectric region. Here: find all elements located outside of 'xyzPhysicalMinMax' 
-CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.)
+
+! find all elements in the Dielectric region. Here: find all elements located outside of 'xyzPhysicalMinMaxDielectric' 
+CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,ElementIsInside=.FALSE.)
 
 ! find all faces in the Dielectric region
 CALL FindInterfaces(isDielectricFace,isDielectricInterFace,isDielectricElem)
@@ -149,14 +149,17 @@ CALL CountAndCreateMappings('Dielectric',&
 !U2t=0.
 
 ! Set the damping profile function zeta=f(x,y) in the Dielectric region
-CALL SetDielectricdampingProfile()
+!CALL SetDielectricdampingProfile()
+ALLOCATE(DielectricEps      (1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+ALLOCATE(DielectricMu       (1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 
 ! create a HDF5 file containing the DielectriczetaGlobal field
-CALL WriteDielectriczetaGlobalToHDF5()
+CALL WriteDielectricGlobalToHDF5()
 
 DielectricInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT Dielectric DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
+stop
 END SUBROUTINE InitDielectric
 
 
@@ -518,9 +521,10 @@ SUBROUTINE FinalizeDielectric()
 !  
 !===================================================================================================================================
 ! MODULES
-USE MOD_Dielectric_Vars,            ONLY: Dielectriczeta,U2,U2t
-USE MOD_Dielectric_Vars,            ONLY: ElemToDielectric,DielectricToElem,DoDielectric,isDielectricElem,isDielectricFace,DielectricToFace,FaceToDielectric
-USE MOD_Dielectric_Vars,            ONLY: DielectricRamp
+USE MOD_Dielectric_Vars,            ONLY: DoDielectric,DielectricEps,DielectricMu
+USE MOD_Dielectric_Vars,            ONLY: ElemToDielectric,DielectricToElem,isDielectricElem
+USE MOD_Dielectric_Vars,            ONLY: FaceToDielectric,DielectricToFace,isDielectricFace
+!USE MOD_Dielectric_Vars,            ONLY: DielectricRamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -532,14 +536,12 @@ IMPLICIT NONE
 !===================================================================================================================================
 !RETURN
 IF(.NOT.DoDielectric) RETURN
-SDEALLOCATE(Dielectriczeta)
-SDEALLOCATE(U2)
-SDEALLOCATE(U2t)
+SDEALLOCATE(DielectricEps)
+SDEALLOCATE(DielectricMu)
 SDEALLOCATE(DielectricToElem)
 SDEALLOCATE(ElemToDielectric)
 SDEALLOCATE(DielectricToFace)
 SDEALLOCATE(FaceToDielectric)
-SDEALLOCATE(DielectricRamp)
 SDEALLOCATE(isDielectricElem)
 SDEALLOCATE(isDielectricFace)
 END SUBROUTINE FinalizeDielectric

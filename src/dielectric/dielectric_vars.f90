@@ -22,8 +22,8 @@ INTEGER             :: DielectricwriteFields          ! output Eps field for deb
 INTEGER             :: Dielectricspread               ! if true Eps_x=Eps_y=Eps_z for all Dielectric cells
 INTEGER             :: DielectricprintInfo            ! 0=only root prints Dielectric info, 1=all procs print Dielectric info
 INTEGER             :: DielectricprintInfoProcs       ! number of procs taking part in Dielectric info printing
-REAL,DIMENSION(6)   :: xyzPhysicalMinMax              ! physical boundary coordinates, outside = Dielectric region
-REAL,DIMENSION(6)   :: xyzDielectricMinMax            ! Dielectric boundary coordinates, outside = Dielectric region
+REAL,DIMENSION(6)   :: xyzPhysicalMinMaxDielectric    ! physical   boundary coordinates, outside = Dielectric region
+REAL,DIMENSION(6)   :: xyzDielectricMinMax            ! Dielectric boundary coordinates, outside = physical region
 LOGICAL             :: useDielectricMinMax            ! switch between 'xyzPhysicalMinMax' and 'xyzDielectricMinMax'
 REAL                :: DielectricEps0                 ! damping constant for Dielectric region shift
 REAL                :: DielectricMu0                  ! CFS-Dielectric aplha factor for complex frequency shift
@@ -35,8 +35,7 @@ INTEGER,ALLOCATABLE :: ElemToDielectric(:),FaceToDielectric(:),FaceTODielectricI
 !
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricEps
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricMu
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricEpsGlobal
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricMuGlobal
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricGlobal
 ! gradients
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars

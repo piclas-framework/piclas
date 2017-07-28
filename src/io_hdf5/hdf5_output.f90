@@ -57,9 +57,14 @@ INTERFACE WritePMLzetaGlobalToHDF5
 END INTERFACE
 #endif /*PP_HDG*/
 
+INTERFACE WriteDielectricGlobalToHDF5
+  MODULE PROCEDURE WriteDielectricGlobalToHDF5
+END INTERFACE
+
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage
+PUBLIC :: WriteDielectricGlobalToHDF5
 #ifndef PP_HDG
 PUBLIC :: WritePMLzetaGlobalToHDF5
 #endif /*PP_HDG*/
@@ -2002,6 +2007,91 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*PP_HDG*/
 
 
+SUBROUTINE WriteDielectricGlobalToHDF5()
+!===================================================================================================================================
+! write DielectricGlobal field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEps0,DielectricEps,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY: DielectricMu0,DielectricMu,isDielectricElem,ElemToDielectric
+USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_io_HDF5
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: N_variables
+CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
+CHARACTER(LEN=255)  :: FileName
+#ifdef MPI
+REAL                :: StartT,EndT
+#endif
+REAL                :: OutputTime!,FutureTime
+!REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+INTEGER             :: iElem
+!===================================================================================================================================
+N_variables=6
+! create global Eps field for parallel output of Eps distribution
+ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ALLOCATE(StrVarNames(1:N_variables))
+StrVarNames(1)='DielectricEpsGlobalX'
+StrVarNames(2)='DielectricEpsGlobalY'
+StrVarNames(3)='DielectricEpsGlobalZ'
+StrVarNames(4)='DielectricMuGlobalX'
+StrVarNames(5)='DielectricMuGlobalY'
+StrVarNames(6)='DielectricMuGlobalZ'
+DielectricGlobal=0.
+DO iElem=1,PP_nElems
+  IF(isDielectricElem(iElem))THEN
+    DielectricEps(:,:,:,:,ElemToDielectric(iElem))=DielectricEps0
+    DielectricMu(:,:,:,:,ElemToDielectric(iElem))=DielectricMu0
+    DielectricGlobal(1:3,:,:,:,iElem)=DielectricEps(:,:,:,:,ElemToDielectric(iElem))
+    DielectricGlobal(4:6,:,:,:,iElem)=DielectricMu(:,:,:,:,ElemToDielectric(iElem))
+  END IF
+END DO!iElem
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+OutputTime=0.0
+!FutureTime=0.0
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DielectricGlobal',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+#ifdef MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
+#endif
+CALL WriteAttributeToHDF5(File_ID,'VarNamesDielectricGlobal',N_variables,StrArray=StrVarNames)
+CALL CloseDataFile()
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName='DG_Solution', rank=5,&
+                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
+                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
+                        collective=.TRUE.,RealArray=DielectricGlobal)
+#ifdef MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+SDEALLOCATE(DielectricGlobal)
+SDEALLOCATE(StrVarNames)
+END SUBROUTINE WriteDielectricGlobalToHDF5
 
 
 END MODULE MOD_HDF5_output

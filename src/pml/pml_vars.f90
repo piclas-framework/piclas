@@ -27,7 +27,7 @@ INTEGER             :: PMLspread                ! if true zeta_x=zeta_y=zeta_z f
 INTEGER             :: PMLprintInfo             ! 0=only root prints PML info, 1=all procs print PML info
 INTEGER             :: PMLprintInfoProcs        ! number of procs taking part in PML info printing
 REAL,DIMENSION(6)   :: xyzPhysicalMinMax        ! physical boundary coordinates, outside = PML region
-REAL,DIMENSION(6)   :: xyzPMLMinMax             ! PML boundary coordinates, outside = PML region
+REAL,DIMENSION(6)   :: xyzPMLMinMax             ! PML      boundary coordinates, outside = physical region
 REAL,DIMENSION(6)   :: xyzPMLzetaShapeBase      ! used for manipulating the PML zeta profile in the PML region
 LOGICAL             :: usePMLMinMax             ! set and inner PML region
 REAL                :: PMLzeta0                 ! damping constant for PML region shift
