@@ -196,9 +196,9 @@ DO iRefState=1,nTmp
     ELSE IF((sigma_t.EQ.0).AND.(tFWHM.GT.0))THEN
       sigma_t=tFWHM/(2.*SQRT(2.*LOG(2.)))
     ELSE
-    CALL abort(&
-    __STAMP__&
-    ,' Input of pulse length is wrong.')
+      CALL abort(&
+      __STAMP__&
+      ,' Input of pulse length is wrong.')
     END IF
     ! in 15: scaling by a_0 or intensity
     Beam_a0 = GETREAL ('Beam_a0','-1.0')
@@ -212,6 +212,7 @@ DO iRefState=1,nTmp
     END IF
     omega_0 = GETREAL ('omega_0','1.')
     omega_0_2inv =2.0/(omega_0**2)
+    somega_0_2 =1.0/(omega_0**2)
   
     IF(ALMOSTEQUAL(ABS(WaveVector(1)),1.))THEN ! wave in x-direction
       BeamIdir1=2
@@ -273,7 +274,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
                                      ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,omega_0,&
-                                      TERadius
+                                      TERadius,somega_0_2
 USE MOD_TimeDisc_Vars,    ONLY: dt
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
@@ -601,14 +602,18 @@ CASE(15) ! 2 of 3: Gauß-shape with perfect focus (w(z)=w_0): boundary condition
   IF (t.LE.8*sigma_t) THEN
     tShift=t-4*sigma_t
     ! intensity * Gaussian filter in transversal and longitudinal direction
-    spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
-                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)
+    spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&                                   ! new
+                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*somega_0_2) ! (x^2+y^2)/(w_0^2)    ! new
+    !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&               ! old
+                          !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)  ! old
     ! build final coefficients
-    WaveBasePoint(BeamIdir3)=0.
+    !WaveBasePoint(BeamIdir3)=0.  ! was set to zero, why?
     ! pulse displacement is arbitrarily set to 4 (no beam initially in domain)
     timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(tShift))
     ! temporal window
-    temporalWindow=EXP(-0.5*(tShift/sigma_t)**2)
+    !temporalWindow=EXP(-(tShift/sigma_t)**2) ! new
+    temporalWindow=EXP(-0.25*(tShift/sigma_t)**2) ! new3
+    !temporalWindow=EXP(-0.5*(tShift/sigma_t)**2) ! old
     resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac*temporalWindow
     resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
     resu(7:8)=0.

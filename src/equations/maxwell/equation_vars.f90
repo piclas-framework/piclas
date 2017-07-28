@@ -49,7 +49,7 @@ REAL              :: BeamAmpFac                             !> decide if pulse m
 REAL              :: tDelay                                 !> delay time filter for gaussian beam
 REAL              :: I_0                                    !> max. intensity
 REAL              :: sigma_t                                !> sigma_t can be used instead of tFWHM
-REAL              :: omega_0, omega_0_2inv                  !> spot size and inv of spot size
+REAL              :: omega_0,omega_0_2inv,somega_0_2        !> spot size and inv of spot size
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
