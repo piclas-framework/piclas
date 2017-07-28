@@ -624,6 +624,7 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
       IF (DSMC%AnalyzeSurfCollis) THEN
         AnalyzeSurfCollis%Data=0.
         AnalyzeSurfCollis%Spec=0
+        AnalyzeSurfCollis%BCid=0
         AnalyzeSurfCollis%Number=0
         !AnalyzeSurfCollis%Rate=0.
       END IF
@@ -654,6 +655,7 @@ IF(OutPut)THEN
         IF (DSMC%AnalyzeSurfCollis) THEN
           AnalyzeSurfCollis%Data=0.
           AnalyzeSurfCollis%Spec=0
+          AnalyzeSurfCollis%BCid=0
           AnalyzeSurfCollis%Number=0
           !AnalyzeSurfCollis%Rate=0.
         END IF

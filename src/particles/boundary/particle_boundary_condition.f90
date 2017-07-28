@@ -527,7 +527,6 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   ! particle position is exact at face
   ! LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
   !  particle is located eps in interior
-  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
   PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
   v_old = PartState(PartID,4:6)
 
@@ -536,14 +535,7 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
   PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
                            (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
-  
-  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                           +PartTrajectory(2)*PartTrajectory(2) &
-                           +PartTrajectory(3)*PartTrajectory(3) )
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
-  lengthPartTrajectory=lengthPartTrajectory!+epsilontol
-  
+
   ! Wall sampling Macrovalues
   IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
@@ -578,12 +570,13 @@ __STAMP__&
           END IF
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
             = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+          !-- caution: for consistency with diffuse refl. v_old is used!
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-            = PartState(PartID,4)
+            = v_old(1)
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-            = PartState(PartID,5)
+            = v_old(2)
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-            = PartState(PartID,6)
+            = v_old(3)
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
             = LastPartPos(PartID,1)
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
@@ -592,10 +585,20 @@ __STAMP__&
             = LastPartPos(PartID,3)
           AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
             = PartSpecies(PartID)
+          AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
+            = locBCID
         END IF
       END IF
     END IF
   END IF
+
+  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+  lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -832,18 +835,6 @@ END IF
 
 !NewVelo = VeloCx*tang1+CROSS(-n_loc,tang1)*VeloCy-VeloCz*n_loc
 NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
-
-! intersection point with surface
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
-
-! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-!TildPos       =PartState(PartID,1:3)-dt*RKdtFrac*PartState(PartID,4:6)
-TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)
-POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-! travel rest of particle vector
-!PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
-IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
 
 !---- Internal energy accommodation
 IF (useDSMC) THEN
@@ -1119,9 +1110,24 @@ __STAMP__&
         = LastPartPos(PartID,3)
       AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
         = PartSpecies(PartID)
+      AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
+        = locBCID
     END IF
   END IF
 END IF
+
+! intersection point with surface
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+
+! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+!TildPos       =PartState(PartID,1:3)-dt*RKdtFrac*PartState(PartID,4:6)
+TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)
+POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+! travel rest of particle vector
+!PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
+IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
+
 !----  saving new particle velocity
 PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
 
@@ -1219,6 +1225,8 @@ __STAMP__&
           = LastPartPos(PartID,3)
         AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
           = PartSpecies(PartID)
+        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
+          = locBCID
       END IF
     END IF
   END IF
@@ -1526,6 +1534,8 @@ __STAMP__&
           = LastPartPos(PartID,3)
         AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
           = PartSpecies(PartID)
+        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
+          = locBCID
       END IF
     END IF
   END IF

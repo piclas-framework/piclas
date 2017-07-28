@@ -895,6 +895,8 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
         = LastPartPos(PartID,3)
       AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
         = PartSpecies(PartID)
+      AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
+        = locBCID
     END IF
   END IF   
 
@@ -2656,7 +2658,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 
   TypeString='DSMCSurfCollis'
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-  PartDataSize=9
+  PartDataSize=10
   ALLOCATE(StrVarNames(PartDataSize))
   StrVarNames(1)='ParticlePositionX'
   StrVarNames(2)='ParticlePositionY'
@@ -2667,6 +2669,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   StrVarNames(7)='OldParticlePositionX'
   StrVarNames(8)='OldParticlePositionY'
   StrVarNames(9)='OldParticlePositionZ'
+  StrVarNames(10)='BCid'
   ALLOCATE(locnPart(1:nSpecies) &
           ,offsetnPart(1:nSpecies) &
           ,nPart_glob(1:nSpecies) &
@@ -2868,6 +2871,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       PartData(offsetnPart(iSpec)+iPart,7)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),7)
       PartData(offsetnPart(iSpec)+iPart,8)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),8)
       PartData(offsetnPart(iSpec)+iPart,9)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),9)
+      PartData(offsetnPart(iSpec)+iPart,10)=REAL(AnalyzeSurfCollis%BCid(SpeciesPositions(iSpec,iPart)))
     END DO
     WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
     IF(minnParts(iSpec).EQ.0)THEN

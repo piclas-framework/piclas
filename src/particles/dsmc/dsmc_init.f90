@@ -753,6 +753,7 @@ USE MOD_PICDepo_Vars,       ONLY:LastAnalyzeSurfCollis
       END IF
       ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
       ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
+      ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
       ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
       IF (LastAnalyzeSurfCollis%Restart) THEN
         CALL ReadAnalyzeSurfCollisToHDF5()
@@ -760,6 +761,7 @@ USE MOD_PICDepo_Vars,       ONLY:LastAnalyzeSurfCollis
       !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0
+      AnalyzeSurfCollis%BCid=0
       AnalyzeSurfCollis%Number=0
       !AnalyzeSurfCollis%Rate=0.
     END IF
