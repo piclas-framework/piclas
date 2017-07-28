@@ -124,7 +124,7 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap)
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide which WallModel is used
@@ -314,8 +314,9 @@ CASE(1) !PartBound%OpenBC)
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- swap species?
+  BCSideID=PartBCSideList(SideID)
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap,BCSideID=BCSideID)
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide which WallModel is used
@@ -326,7 +327,6 @@ CASE(2) !PartBound%ReflectiveBC)
     END IF
     IF (WallModeltype.EQ.0) THEN !previously used wall interaction model
       CALL RANDOM_NUMBER(RanNum)
-      BCSideID=PartBCSideList(SideID)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
         CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
@@ -1145,7 +1145,7 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 
 END SUBROUTINE DiffuseReflection
 
-SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap)
+SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1155,6 +1155,8 @@ USE MOD_Globals,                ONLY:abort
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
 USE MOD_Particle_Vars,          ONLY:WriteMacroValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
+USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
@@ -1167,7 +1169,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                   :: xi, eta
-INTEGER,INTENT(IN)                :: PartID, GlobSideID
+INTEGER,INTENT(IN)                :: PartID, SideID, flip
+INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap
@@ -1178,14 +1181,42 @@ REAL                              :: RanNum
 REAL                              :: Xitild,EtaTild
 INTEGER                           :: p,q,SurfSideID,locBCID
 INTEGER                           :: iCC
+REAL                              :: n_loc(1:3)
 !===================================================================================================================================
-locBCID = PartBound%MapToPartBC(BC(GlobSideID))
+IF(PRESENT(BCSideID))THEN
+  SELECT CASE(SideType(BCSideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,BCSideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+  END SELECT 
+ELSE
+  SELECT CASE(SideType(SideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,SideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  END SELECT 
+END IF
+IF(flip.NE.0) n_loc=-n_loc
+
+IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
+  CALL Abort(&
+    __STAMP__&
+    ,'SpeciesSwap was called for an particle coming from outside of the mesh!')
+END IF
+
+locBCID = PartBound%MapToPartBC(BC(SideID))
 CALL RANDOM_NUMBER(RanNum)
-IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))) THEN
+IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) THEN
   targetSpecies=-1 !dummy init value
-  DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))
-  IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(BC(GlobSideID)))) &
-    targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(BC(GlobSideID)))
+  DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))
+  IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(BC(SideID)))) &
+    targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(BC(SideID)))
   END DO
   !swap species
   IF (targetSpecies.ge.0) IsSpeciesSwap=.TRUE.
@@ -1193,7 +1224,7 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)) &
       .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       !---- Counter for swap species collisions
-      SurfSideID=SurfMesh%SideIDToSurfID(GlobSideID)
+      SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
       ! correction of xi and eta, can only be applied if xi & eta are not used later!
       Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -1232,7 +1263,7 @@ __STAMP__&
   END IF
   IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
     DO iCC=1,nCollectChargesBCs !-chargeCollect
-      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(GlobSideID))) THEN
+      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
         CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
           + Species(PartSpecies(PartID))%ChargeIC &
           * Species(PartSpecies(PartID))%MacroParticleFactor
@@ -1247,7 +1278,7 @@ __STAMP__&
     alpha=-1.
   ELSEIF (targetSpecies.gt.0) THEN !swap species
     DO iCC=1,nCollectChargesBCs !-chargeCollect
-      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(GlobSideID))) THEN
+      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
         CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
           + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) &
           * Species(PartSpecies(PartID))%MacroParticleFactor
