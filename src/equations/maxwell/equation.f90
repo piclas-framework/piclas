@@ -89,7 +89,7 @@ CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 !scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
 
 c_test = 1./SQRT(eps0*mu0)
-IF ( ABS(c-c_test)/c.GT.10E-8) THEN
+IF(.NOT.ALMOSTEQUALRELATIVE(c_test,c,10E-8))THEN
   SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
   SWRITE(*,*) "c:", c
   SWRITE(*,*) "mu:", mu0
