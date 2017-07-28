@@ -2652,7 +2652,7 @@ INTEGER,ALLOCATABLE            :: locnPart(:),offsetnPart(:),nPart_glob(:),minnP
 INTEGER                        :: iPart, iSpec, counter
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-REAL                           :: TotalFlowrateMPF, RandVal
+REAL                           :: TotalFlowrateMPF, RandVal, BCTotalFlowrateMPF
 LOGICAL,ALLOCATABLE            :: PartDone(:)
 !=============================================
   SWRITE(*,*) ' WRITE DSMCSurfCollis TO FILE...'
@@ -2725,7 +2725,6 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   minnParts(:)=locnPart(:)
   TotalNumberMPF=AnalyzeSurfCollis%Number(nSpecies+1)
 #endif
-  TotalFlowrateMPF=REAL(TotalNumberMPF)/TimeSample
   ! determine number of parts at BC of interest
   BCTotalNumberMPF=0
   IF (SFResampleAnalyzeSurfCollis) THEN
@@ -2741,7 +2740,9 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 #ifdef MPI
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,BCTotalNumberMPF,1,MPI_INTEGER,MPI_SUM,SurfCOMM%COMM,iError)
 #endif
+    BCTotalFlowrateMPF=REAL(BCTotalNumberMPF)/TimeSample
   END IF
+  TotalFlowrateMPF=REAL(TotalNumberMPF)/TimeSample
 
   IF(SurfCOMM%MPIRoot) THEN !create File-Skeleton
     ! Create file
@@ -2865,9 +2866,9 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
         'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!')
     ELSE
       LastAnalyzeSurfCollis%pushTimeStep = r_SF / LastAnalyzeSurfCollis%pushTimeStep !dt required for smallest projected velo to cross r_SF
-      LastAnalyzeSurfCollis%PartNumberDepo = NINT(TotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)
+      LastAnalyzeSurfCollis%PartNumberDepo = NINT(BCTotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)
       SWRITE(*,'(A,E12.5,x,I0)') 'Total Flowrate and to be inserted number of MP for SFResampleAnalyzeSurfCollis: ' &
-        ,TotalFlowrateMPF, LastAnalyzeSurfCollis%PartNumberDepo
+        ,BCTotalFlowrateMPF, LastAnalyzeSurfCollis%PartNumberDepo
       IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumberSamp) THEN
         SWRITE(*,*) 'WARNING: PartNumberDepo .GT. PartNumberSamp!'
       END IF
