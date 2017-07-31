@@ -165,8 +165,6 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
-USE MOD_PML_Vars,              ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
-USE MOD_PML,                   ONLY: PMLTimeRamping
 USE MOD_TimeAverage_vars,      ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,           ONLY: CalcTimeAverage
 #if (PP_TimeDiscMethod==201)                                                                                                         
@@ -175,6 +173,8 @@ USE MOD_TimeDisc_Vars,         ONLY: dt_temp, MaximumIterNum
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
+USE MOD_PML_Vars,              ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
+USE MOD_PML,                   ONLY: PMLTimeRamping
 #endif /*PP_HDG*/
 USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
@@ -435,11 +435,13 @@ DO !iter_t=0,MaxIter
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tFuture)
 
+#ifndef PP_HDG
   IF(DoPML)THEN
     IF(DoPMLTimeRamp)THEN
       CALL PMLTimeRamping(time,PMLTimeRamp)
     END IF
   END IF
+#endif /*NOT PP_HDG*/
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
