@@ -33,7 +33,6 @@ SUBROUTINE InitDielectric()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY: eps0,mu0
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
 USE MOD_HDF5_output,   ONLY: WriteDielectricGlobalToHDF5
@@ -53,8 +52,10 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
 ! Readin
 !===================================================================================================================================
 DoDielectric                     = GETLOGICAL('DoDielectric','.FALSE.')
-DielectricEps0                   = GETREAL('DielectricEps0','0.')
-DielectricMu0                    = GETREAL('DielectricMu0','0.')
+DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
+DielectricEpsR_inv               = 1./(DielectricEpsR)
+DielectricMuR                    = GETREAL('DielectricMuR','1.')
+DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 ! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax: 1.) check for xyzPhysicalMinMaxDielectric 2.) check for xyzDielectricMinMax

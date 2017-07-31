@@ -750,6 +750,7 @@ USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars, ONLY : sdtCFLOne!, RK_B, iStage  
 USE MOD_DG_Vars,       ONLY : U
 #endif /*LSERK*/
+USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem,DielectricEpsR_inv
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -768,13 +769,31 @@ REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1    ! for Dip
 eps0inv = 1./eps0
 #ifdef PARTICLES
 IF(DoDeposition)THEN
-  DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      !  Get PartSource from Particles
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem)
-      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr 
-    END DO; END DO; END DO
-  END DO
+  IF(DoDielectric)THEN
+    DO iElem=1,PP_nElems
+      IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+          !  Get PartSource from Particles
+          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
+          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr * DielectricEpsR_inv
+        END DO; END DO; END DO
+      ELSE
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+          !  Get PartSource from Particles
+          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem)
+          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr 
+        END DO; END DO; END DO
+      END IF
+    END DO
+  ELSE
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+        !  Get PartSource from Particles
+        Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem)
+        Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr 
+      END DO; END DO; END DO
+    END DO
+  END IF
 END IF
 #endif /*PARTICLES*/
 SELECT CASE (IniExactFunc)

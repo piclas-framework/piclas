@@ -25,8 +25,10 @@ INTEGER             :: DielectricprintInfoProcs       ! number of procs taking p
 REAL,DIMENSION(6)   :: xyzPhysicalMinMaxDielectric    ! physical   boundary coordinates, outside = Dielectric region
 REAL,DIMENSION(6)   :: xyzDielectricMinMax            ! Dielectric boundary coordinates, outside = physical region
 LOGICAL             :: useDielectricMinMax            ! switch between 'xyzPhysicalMinMax' and 'xyzDielectricMinMax'
-REAL                :: DielectricEps0                 ! damping constant for Dielectric region shift
-REAL                :: DielectricMu0                  ! CFS-Dielectric aplha factor for complex frequency shift
+REAL                :: DielectricEpsR                 ! for Dielectric region shift
+REAL                :: DielectricEpsR_inv
+REAL                :: DielectricMuR                  ! 
+REAL                :: DielectricConstant_inv         ! 1./(EpsR*MuR)
 ! mapping variables
 INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces          ! number of Dielectric elements and faces
 !                                                                                       ! (mapping)

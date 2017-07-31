@@ -2014,8 +2014,8 @@ SUBROUTINE WriteDielectricGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEps0,DielectricEps,isDielectricElem,ElemToDielectric
-USE MOD_Dielectric_Vars, ONLY: DielectricMu0,DielectricMu,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEpsR,DielectricEps,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY: DielectricMuR,DielectricMu,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
 USE MOD_io_HDF5
@@ -2050,8 +2050,8 @@ StrVarNames(6)='DielectricMuGlobalZ'
 DielectricGlobal=0.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
-    DielectricEps(:,:,:,:,ElemToDielectric(iElem))=DielectricEps0
-    DielectricMu(:,:,:,:,ElemToDielectric(iElem))=DielectricMu0
+    DielectricEps(:,:,:,:,ElemToDielectric(iElem))=DielectricEpsR
+    DielectricMu(:,:,:,:,ElemToDielectric(iElem))=DielectricMuR
     DielectricGlobal(1:3,:,:,:,iElem)=DielectricEps(:,:,:,:,ElemToDielectric(iElem))
     DielectricGlobal(4:6,:,:,:,iElem)=DielectricMu(:,:,:,:,ElemToDielectric(iElem))
   END IF
