@@ -2703,8 +2703,8 @@ END DO!i
 ! 2.) Get smallest subspace interval
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-maxvalue=MAXVAL(alpha(1,:))
-minvalue=MINVAL(alpha(2,:))
+maxvalue=MAXVAL(alpha(1,:)) ! taken the maxvalue of the minima
+minvalue=MINVAL(alpha(2,:)) ! taken the minvalue of the maxima
 
 IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
 !  IF((maxvalue.LT.0).AND.(minvalue.GT.0))THEN
