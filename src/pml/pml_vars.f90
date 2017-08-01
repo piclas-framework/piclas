@@ -30,8 +30,14 @@ REAL,DIMENSION(6)   :: xyzPhysicalMinMax        ! physical boundary coordinates,
 REAL,DIMENSION(6)   :: xyzPMLMinMax             ! PML      boundary coordinates, outside = physical region
 REAL,DIMENSION(6)   :: xyzPMLzetaShapeBase      ! used for manipulating the PML zeta profile in the PML region
 LOGICAL             :: usePMLMinMax             ! set and inner PML region
-REAL                :: PMLzeta0                 ! damping constant for PML region shift
-REAL                :: PMLalpha0                ! CFS-PML aplha factor for complex frequency shift
+LOGICAL             :: DoPMLTimeRamp            ! use scaling factor which ramps the damping factor over time
+REAL                :: PMLTimeRamp              ! [0,1] scaling factor which ramps the damping factor over time
+REAL                :: PMLTimeRamptStart        ! PMLTimeRamp is 0 for t < PMLTimeRamptStart
+REAL                :: PMLTimeRamptEnd          ! PMLTimeRamp is 1 for t > PMLTimeRamptEnd
+REAL                :: PMLsDeltaT               ! ramping factor     : PMLTimeRamp = t/(tEnd-tStart) = PMLsDeltaT * t + c_1
+REAL                :: PMLTimeRampCoeff         ! ramping coefficient: c_1
+REAL                :: PMLzeta0                 ! [0,inf] damping constant for PML region shift
+REAL                :: PMLalpha0                ! [0,inf] CFS-PML aplha factor for complex frequency shift
 LOGICAL             :: PMLzetaNorm              ! normalize zeta_x,y,z in overlapping regions to zeta0
 REAL                :: PMLRampLength            ! ramping length in percent (%) of PML region
 ! mapping variables
