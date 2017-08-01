@@ -97,7 +97,7 @@ DO SideID=firstSideID,lastSideID
       !CALL Riemann(Flux_Master(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
     END IF
   !ELSE ! 3.) no PML, standard flux
-    !CALL Riemann(Flux_Master(:,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
+    !CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
     !CYCLE
   END IF ! DoPML
 
@@ -130,9 +130,9 @@ DO SideID=firstSideID,lastSideID
       END IF
     ELSE ! 2.) no Dielectric, standard flux
       CALL Riemann(Flux_Master(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
-    END IF
+    END IF ! IF(isDielectricFace(SideID))
   ELSE ! 3.) no Dielectric, standard flux
-    CALL Riemann(Flux_Master(:,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
+    CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
   END IF ! DoDielectric
 END DO ! SideID
   
