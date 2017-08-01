@@ -169,7 +169,11 @@ ELSE
 END IF
 
 ! find all elements in the PML region. Here: find all elements located outside of 'xyzPhysicalMinMax' 
-CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.)
+IF(usePMLMinMax)THEN
+  CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,ElementIsInside=.TRUE.)
+ELSE
+  CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.)
+END IF
 
 ! find all faces in the PML region
 CALL FindInterfaces(isPMLFace,isPMLInterFace,isPMLElem)

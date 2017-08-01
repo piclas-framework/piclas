@@ -37,6 +37,7 @@ USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
 USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Equation_Vars,   ONLY: c_corr,c
+USE MOD_Mesh_Vars,       ONLY: Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -45,7 +46,8 @@ USE MOD_Equation_Vars,   ONLY: c_corr,c
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: I
+REAL                 :: r
+INTEGER              :: i,j,k,iDielectricElem
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
@@ -55,6 +57,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
 DoDielectric                     = GETLOGICAL('DoDielectric','.FALSE.')
 DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
 DielectricMuR                    = GETREAL('DielectricMuR','1.')
+DielectricTestCase               = GETSTR('DielectricTestCase','default')
+DielectricRmax                   = GETREAL('DielectricRmax','1.')
 IF((DielectricEpsR.LT.0.0).OR.(DielectricMuR.LT.0.0))THEN
   CALL abort(&
   __STAMP__&
@@ -90,26 +94,26 @@ IF(.NOT.useDielectricMinMax)THEN
   SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMaxDielectric(1:6) are'
   SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*I-1)
+  DO i=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*i-1)
   END DO
   SWRITE(UNIT_stdOut,'(A)') ''
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*I)
+  DO i=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*i)
   END DO
   SWRITE(UNIT_stdOut,'(A)') ''
 ELSE
   SWRITE(UNIT_stdOut,'(A)') 'Ranges for xyzDielectricMinMax(1:6) are'
   SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzDielectricMinMax(2*I-1)
+  DO i=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzDielectricMinMax(2*i-1)
   END DO
   SWRITE(UNIT_stdOut,'(A)') ''
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzDielectricMinMax(2*I)
+  DO i=1,3
+    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzDielectricMinMax(2*i)
   END DO
   SWRITE(UNIT_stdOut,'(A)') ''
 END IF
@@ -141,7 +145,11 @@ END IF
 
 
 ! find all elements in the Dielectric region. Here: find all elements located outside of 'xyzPhysicalMinMaxDielectric' 
-CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,ElementIsInside=.FALSE.)
+IF(useDielectricMinMax)THEN
+  CALL FindElementInRegion(isDielectricElem,xyzDielectricMinMax,ElementIsInside=.TRUE.)
+ELSE
+  CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,ElementIsInside=.FALSE.)
+END IF
 
 ! find all faces in the Dielectric region
 CALL FindInterfaces(isDielectricFace,isDielectricInterFace,isDielectricElem)
@@ -162,8 +170,29 @@ CALL CountAndCreateMappings('Dielectric',&
 
 ! Set the damping profile function zeta=f(x,y) in the Dielectric region
 !CALL SetDielectricdampingProfile()
-ALLOCATE(DielectricEps      (1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
-ALLOCATE(DielectricMu       (1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+ALLOCATE(DielectricEps(1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+ALLOCATE(DielectricMu( 1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
+  ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
+  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    !DO iDir=1,3 !1=x, 2=y, 3=z
+      r = SQRT(Elem_xGP(1,i,j,k,DielectricToElem(iDielectricElem))**2+&
+               Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
+               Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
+
+      DielectricEps(1:3,i,j,k,iDielectricElem) = 4./((1+(r/DielectricRmax)**2)**2)
+
+        !xi =ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))     -xyzPMLzetaShapeBase(2*iDir ))      ! 2,4,6
+        !PMLzeta(iDir,i,j,k,iPMLElem) = PMLzeta0*function_type(xi/L_vec(2*iDir ),PMLzetashape)    ! 2,4,6
+
+
+    !END DO
+  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
+  DielectricMu(1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+ELSE
+  DielectricEps(1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricEpsR
+  DielectricMu( 1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+END IF
 
 ! create a HDF5 file containing the DielectriczetaGlobal field
 CALL WriteDielectricGlobalToHDF5()
@@ -176,7 +205,7 @@ END SUBROUTINE InitDielectric
 
 SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside)
 !===================================================================================================================================
-! Check 
+! As soon as only one DOF is not inside/outside of the region, the complete element is excluded 
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc

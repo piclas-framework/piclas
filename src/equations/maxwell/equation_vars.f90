@@ -29,7 +29,8 @@ REAL              :: c2_inv
 REAL              :: eps0 
 REAL              :: mu0 
 REAL              :: smu0
-REAL              :: DipoleOmega ! electric dipole angular frequency
+REAL              :: DipoleOmega  ! electric dipole angular frequency
+REAL              :: xDipole(1:3) ! base point of electromagnetic dipole
 REAL              :: tPulse
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix

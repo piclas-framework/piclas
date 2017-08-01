@@ -139,8 +139,9 @@ END IF
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
   CASE(4,41)
-    DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
-    tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
+    xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point
+    DipoleOmega        = GETREAL('omega','6.28318E08')        ! f=100 MHz default
+    tPulse             = GETREAL('tPulse','30e-9')            ! half length of pulse
   CASE(5)
     TEFrequency        = GETREAL('TEFrequency','35e9') 
     TEScale            = GETREAL('TEScale','1.') 
@@ -274,7 +275,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
                                      ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,omega_0,&
-                                      TERadius,somega_0_2
+                                      TERadius,somega_0_2,xDipole
 USE MOD_TimeDisc_Vars,    ONLY: dt
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
@@ -296,7 +297,6 @@ REAL                            :: Cent(3),r,r2,zlen
 REAL                            :: a, b, d, l, m, nn, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/)          ! aux. Constants for Dipole
 REAL,PARAMETER                  :: Q=1, dD=1, omegaD=6.28318E8     ! aux. Constants for Dipole
 REAL                            :: cos1,sin1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron
@@ -404,7 +404,7 @@ CASE(4) ! Dipole
   END IF
   IF (xrel(1).GT.eps)      THEN
     phi = ATAN(xrel(2)/xrel(1))
-  ELSE IF (xrel(1).LT.eps) THEN
+  ELSE IF (xrel(1).LT.eps) THEN ! THIS DIVIDES BY ZERO ?!
     phi = ATAN(xrel(2)/xrel(1)) + pi
   ELSE IF (xrel(2).GT.eps) THEN
     phi = 0.5*pi
@@ -741,7 +741,7 @@ USE MOD_Globals,       ONLY : abort
 USE MOD_Globals_Vars,  ONLY : PI
 USE MOD_PreProc
 !USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega,tPulse
+USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
 #endif /*PARTICLES*/
@@ -766,7 +766,7 @@ REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r                                                 ! for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1    ! for Dipole
+REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
 !===================================================================================================================================
 eps0inv = 1./eps0
 #ifdef PARTICLES
@@ -776,8 +776,12 @@ IF(DoDeposition)THEN
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
           !  Get PartSource from Particles
-          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr * DielectricEpsR_inv
+          !Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
+          !Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr * DielectricEpsR_inv
+          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) &
+                                                      / DielectricEps(1,i,j,k,ElemToDielectric(iElem)) ! only use x
+          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr &
+                                                      / DielectricEps(1,i,j,k,ElemToDielectric(iElem)) ! only use x
         END DO; END DO; END DO
       ELSE
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 

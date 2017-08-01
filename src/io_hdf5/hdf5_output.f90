@@ -2050,10 +2050,10 @@ StrVarNames(6)='DielectricMuGlobalZ'
 DielectricGlobal=0.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
-    DielectricEps(:,:,:,:,ElemToDielectric(iElem))=DielectricEpsR
-    DielectricMu(:,:,:,:,ElemToDielectric(iElem))=DielectricMuR
+    !DielectricEps(:,:,:,:,ElemToDielectric(iElem))=DielectricEpsR
+    !DielectricMu(:,:,:,:,ElemToDielectric(iElem))=DielectricMuR
     DielectricGlobal(1:3,:,:,:,iElem)=DielectricEps(:,:,:,:,ElemToDielectric(iElem))
-    DielectricGlobal(4:6,:,:,:,iElem)=DielectricMu(:,:,:,:,ElemToDielectric(iElem))
+    DielectricGlobal(4:6,:,:,:,iElem)=DielectricMu( :,:,:,:,ElemToDielectric(iElem))
   END IF
 END DO!iElem
 IF(MPIROOT)THEN

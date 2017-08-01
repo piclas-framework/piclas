@@ -25,9 +25,11 @@ INTEGER             :: DielectricprintInfoProcs       ! number of procs taking p
 REAL,DIMENSION(6)   :: xyzPhysicalMinMaxDielectric    ! physical   boundary coordinates, outside = Dielectric region
 REAL,DIMENSION(6)   :: xyzDielectricMinMax            ! Dielectric boundary coordinates, outside = physical region
 LOGICAL             :: useDielectricMinMax            ! switch between 'xyzPhysicalMinMax' and 'xyzDielectricMinMax'
+CHARACTER(255)      :: DielectricTestCase             ! special test cases, e.g., "fish eye lens" Maxwell 1860
 REAL                :: DielectricEpsR                 ! for Dielectric region shift
-REAL                :: DielectricEpsR_inv
-REAL                :: DielectricMuR                  ! 
+REAL                :: DielectricEpsR_inv             ! 1./EpsR
+REAL                :: DielectricMuR                  ! MuR
+REAL                :: DielectricRmax                 ! maximum radius for dielectric material distribution
 REAL                :: DielectricConstant_inv         ! 1./(EpsR*MuR)
 REAL                :: DielectricConstant_RootInv     ! 1./sqrt(EpsR*MuR)
 REAL                :: eta_c_dielectric               ! ( chi - 1./sqrt(EpsR*MuR) ) * c
