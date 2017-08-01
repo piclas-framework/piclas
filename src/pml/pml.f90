@@ -21,6 +21,9 @@ END INTERFACE
 INTERFACE FinalizePML
   MODULE PROCEDURE FinalizePML
 END INTERFACE
+INTERFACE PMLTimeRamping
+  MODULE PROCEDURE PMLTimeRamping
+END INTERFACE
 INTERFACE CalcPMLSource
   MODULE PROCEDURE CalcPMLSource
 END INTERFACE
@@ -28,7 +31,7 @@ INTERFACE PMLTimeDerivative
   MODULE PROCEDURE PMLTimeDerivative
 END INTERFACE
 
-PUBLIC::InitPML,FinalizePML,CalcPMLSource,PMLTimeDerivative
+PUBLIC::InitPML,FinalizePML,PMLTimeRamping,CalcPMLSource,PMLTimeDerivative
 !===================================================================================================================================
 CONTAINS
 
@@ -123,6 +126,31 @@ END IF
 ! caution, in current version read in in mesh
 ! only for Maxwell, PP_nVar=8
 
+DoPMLTimeRamp          = GETLOGICAL('DoPMLTimeRamp','.FALSE.')
+PMLTimeRamptStart      = GETREAL('PMLTimeRamptStart','-1.')
+PMLTimeRamptEnd        = GETREAL('PMLTimeRamptEnd','-1.')
+PMLsDeltaT             = 0.0 ! init
+PMLTimeRampCoeff       = 0.0 ! init
+IF(ANY((/PMLTimeRamptStart,PMLTimeRamptEnd/).LT.0.0))THEN
+  PMLTimeRamptStart    = 0.0
+  PMLTimeRamptEnd      = 0.0
+  DoPMLTimeRamp        = .FALSE.
+ELSE
+  IF(ALMOSTEQUALRELATIVE(PMLTimeRamptStart,PMLTimeRamptEnd,1E-3))THEN
+    SWRITE(UNIT_stdOut,'(A)') ' WARNING: PML time ramp uses the same times for tStart and tEnd. Relative difference is < 1E-3'
+    PMLsDeltaT         = 1e12 ! set no a very high value
+  ELSE  
+    IF(PMLTimeRamptStart.GT.PMLTimeRamptEnd)THEN
+      CALL abort(&
+      __STAMP__,&
+      ' PMLTimeRamptStart must be smaller than PMLTimeRamptEnd.')
+    END IF
+    PMLsDeltaT         = 1/(PMLTimeRamptEnd-PMLTimeRamptStart)
+    PMLTimeRampCoeff   = -PMLTimeRamptStart * PMLsDeltaT
+  END IF
+END IF
+PMLTimeRamp            = 1.0 ! init
+
 IF(.NOT.DoPML) THEN
   SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
   PMLnVar=0
@@ -173,6 +201,35 @@ END SUBROUTINE InitPML
 
 
 
+PURE SUBROUTINE PMLTimeRamping(t,RampingFactor)
+!===================================================================================================================================
+! set the scaling factor which ramps the damping factor over time
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_PML_Vars,      ONLY: PMLTimeRamptStart,PMLTimeRamptEnd,PMLsDeltaT,PMLTimeRampCoeff
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: t
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)   :: RampingFactor
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!INTEGER             :: i,j,k,iPMLElem,m
+!===================================================================================================================================
+IF(t.LT.PMLTimeRamptStart)THEN
+  RampingFactor = 0.0                             ! set PMLTimeRamp to 0.0
+ELSEIF(t.GT.PMLTimeRamptEnd)THEN
+  RampingFactor = 1.0                             ! set PMLTimeRamp to 1.0
+ELSE
+  RampingFactor = PMLsDeltaT*t + PMLTimeRampCoeff ! set PMLTimeRamp to [0,1]
+END IF
+END SUBROUTINE PMLTimeRamping
+
+
 SUBROUTINE CalcPMLSource()
 !===================================================================================================================================
 ! 
@@ -181,7 +238,7 @@ SUBROUTINE CalcPMLSource()
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY: Ut
 USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
-USE MOD_PML_Vars,      ONLY: PMLzeta,U2
+USE MOD_PML_Vars,      ONLY: PMLzeta,U2,PMLTimeRamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -196,9 +253,10 @@ INTEGER             :: i,j,k,iPMLElem,m
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
   DO m=1,8
     Ut(m,i,j,k,PMLToElem(iPMLElem)) = Ut(m,i,j,k,PMLToElem(iPMLElem))  &
-                                     -PMLzeta(1,i,j,k,iPMLElem)*U2(m*3-2,i,j,k,iPMLElem) &   ! = 1,4,7,10,13,16,19,22
-                                     -PMLzeta(2,i,j,k,iPMLElem)*U2(m*3-1,i,j,k,iPMLElem) &   ! = 2,5,8,11,12,17,20,23
-                                     -PMLzeta(3,i,j,k,iPMLElem)*U2(m*3  ,i,j,k,iPMLElem)     ! = 3,6,9,12,15,18,21,24
+                                     -PMLTimeRamp*(&
+                                        PMLzeta(1,i,j,k,iPMLElem)*U2(m*3-2,i,j,k,iPMLElem) +&   ! = 1,4,7,10,13,16,19,22
+                                        PMLzeta(2,i,j,k,iPMLElem)*U2(m*3-1,i,j,k,iPMLElem) +&   ! = 2,5,8,11,12,17,20,23
+                                        PMLzeta(3,i,j,k,iPMLElem)*U2(m*3  ,i,j,k,iPMLElem) )    ! = 3,6,9,12,15,18,21,24
   END DO
 END DO; END DO; END DO !nPMLElems,k,j,i
 END DO
@@ -215,7 +273,7 @@ USE MOD_PreProc
 USE MOD_PML_Vars,      ONLY: U2,U2t
 USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLnVar
 USE MOD_Mesh_Vars,     ONLY: sJ
-USE MOD_PML_Vars,      ONLY: PMLzetaEff
+USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLTimeRamp
 USE MOD_Equation_Vars, ONLY: fDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -238,14 +296,14 @@ END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 
 ! Add Source Terms
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  U2t(1 : 3,i,j,k,iPMLElem) = U2t(1 : 3,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(1 : 3,i,j,k,iPMLElem)
-  U2t(4 : 6,i,j,k,iPMLElem) = U2t(4 : 6,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(4 : 6,i,j,k,iPMLElem)
-  U2t(7 : 9,i,j,k,iPMLElem) = U2t(7 : 9,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(7 : 9,i,j,k,iPMLElem)
-  U2t(10:12,i,j,k,iPMLElem) = U2t(10:12,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(10:12,i,j,k,iPMLElem)
-  U2t(13:15,i,j,k,iPMLElem) = U2t(13:15,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(13:15,i,j,k,iPMLElem)
-  U2t(16:18,i,j,k,iPMLElem) = U2t(16:18,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(16:18,i,j,k,iPMLElem)
-  U2t(19:21,i,j,k,iPMLElem) = U2t(19:21,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(19:21,i,j,k,iPMLElem)
-  U2t(22:24,i,j,k,iPMLElem) = U2t(22:24,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(22:24,i,j,k,iPMLElem)
+  U2t(1 : 3,i,j,k,iPMLElem) = U2t(1 : 3,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(1 : 3,i,j,k,iPMLElem) * PMLTimeRamp 
+  U2t(4 : 6,i,j,k,iPMLElem) = U2t(4 : 6,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(4 : 6,i,j,k,iPMLElem) * PMLTimeRamp
+  U2t(7 : 9,i,j,k,iPMLElem) = U2t(7 : 9,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(7 : 9,i,j,k,iPMLElem) * PMLTimeRamp
+  U2t(10:12,i,j,k,iPMLElem) = U2t(10:12,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(10:12,i,j,k,iPMLElem) * PMLTimeRamp
+  U2t(13:15,i,j,k,iPMLElem) = U2t(13:15,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(13:15,i,j,k,iPMLElem) * PMLTimeRamp
+  U2t(16:18,i,j,k,iPMLElem) = U2t(16:18,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(16:18,i,j,k,iPMLElem) * PMLTimeRamp
+  U2t(19:21,i,j,k,iPMLElem) = U2t(19:21,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(19:21,i,j,k,iPMLElem) * PMLTimeRamp
+  U2t(22:24,i,j,k,iPMLElem) = U2t(22:24,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(22:24,i,j,k,iPMLElem) * PMLTimeRamp
 END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 
 
@@ -428,7 +486,7 @@ isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
 !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 !DO I=0,PMLprintInfoProcs-1
   !IF(I.EQ.myrank)THEN
-    !WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    !WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
     !' myrank=',myrank,' Found ',SideCounterUnityGlobal,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
   !END IF
   !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
@@ -438,7 +496,7 @@ isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
     DO iSide=nSides,nSides
-      WRITE(UNIT_stdOut,'(A8,I5,A15,I5,A2,L5,A15,I5,A8,I5,A2,L5,A12,I5)')&
+      WRITE(UNIT_stdOut,'(A8,I10,A15,I10,A2,L5,A15,I10,A8,I10,A2,L5,A12,I10)')&
               "myrank=",myrank,&
        ": isInterFace(",iSide,")=",isInterFace(iSide),&
        " of total= ",COUNT(isInterFace),&
@@ -517,17 +575,17 @@ nGlobalInterfaces=0
 IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
     !" myrank=",myrank," PP_nElems=",PP_nElems," nElems=",nElems," nGlobalElems=",nGlobalElems
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
     !" myrank=",myrank," nSides=",nSides," nFaces=",nFaces," nGlobalFaces=",nGlobalFaces
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
     !" myrank=",myrank," nSides=",nSides," nFaces=",nInterFaces," nGlobalFaces=",nGlobalInterFaces
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
@@ -545,11 +603,11 @@ CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 !=======================================================================================================================
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
           ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
@@ -559,11 +617,11 @@ IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "======================================
 nGlobalElems=nElems
 nGlobalFaces=nFaces
 nGlobalInterFaces=nInterFaces
-WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
       ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
       ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
       ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
 #endif /*MPI*/
 
