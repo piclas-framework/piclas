@@ -33,7 +33,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,       ONLY:NormVec,SurfElem
 USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides
 USE MOD_Riemann,         ONLY:Riemann,RiemannPML
-USE MOD_Riemann,         ONLY:RiemannDielectric,RiemannDielectricInterFace
+USE MOD_Riemann,         ONLY:RiemannDielectric,RiemannDielectricInterFace,RiemannDielectricInterFace2
 USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
@@ -105,12 +105,24 @@ DO SideID=firstSideID,lastSideID
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN     ! a) physical <-> dielectric region: in Riemann: A+(EpsR,MuR) and A-(Eps0,Mu0)
+        !ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
+        !IF(isDielectricElem(ElemID))THEN        ! check if master is DIELECTRIC and slave PHYSICAL
+        !  ! CAUTION: switch U_Master and U_Slave
+        !  CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Slave(:,:,:,SideID),U_Master(:,:,:,SideID),&
+        !                                                                                                      NormVec(:,:,:,SideID))
+        !                                                                                 !NormVec(:,:,:,SideID),SwapNormal=.TRUE.))
+        !ELSE ! check if master is PHYSICAL and slave DIELECTRIC
+        !  CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+        !                                                                                                      NormVec(:,:,:,SideID))
+        !END IF
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(isDielectricElem(ElemID))THEN        ! check if master DIELECTRIC and slave PHYSICAL
-          CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+        IF(isDielectricElem(ElemID))THEN        ! check if master is DIELECTRIC and slave PHYSICAL
+          ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+          CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                                                                                               NormVec(:,:,:,SideID))
-        ELSE ! check if master slave PHYSICAL and slave DIELECTRIC: switch U_Master and U_Slave in Riemann-Solver
-          CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Slave(:,:,:,SideID),U_Master(:,:,:,SideID),&
+        ELSE ! check if master is PHYSICAL and slave DIELECTRIC
+          ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+          CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                                                                                               NormVec(:,:,:,SideID))
         END IF
       ELSE ! b) dielectric region <-> dielectric region
