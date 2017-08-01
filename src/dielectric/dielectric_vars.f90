@@ -29,6 +29,10 @@ REAL                :: DielectricEpsR                 ! for Dielectric region sh
 REAL                :: DielectricEpsR_inv
 REAL                :: DielectricMuR                  ! 
 REAL                :: DielectricConstant_inv         ! 1./(EpsR*MuR)
+REAL                :: DielectricConstant_RootInv     ! 1./sqrt(EpsR*MuR)
+REAL                :: eta_c_dielectric               ! ( chi - 1./sqrt(EpsR*MuR) ) * c
+REAL                :: c_dielectric                   ! c/sqrt(EpsR*MuR)
+REAL                :: c2_dielectric                  ! c**2/(EpsR*MuR)
 ! mapping variables
 INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces          ! number of Dielectric elements and faces
 !                                                                                       ! (mapping)

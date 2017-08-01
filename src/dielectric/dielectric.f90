@@ -35,7 +35,8 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
-USE MOD_HDF5_output,   ONLY: WriteDielectricGlobalToHDF5
+USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
+USE MOD_Equation_Vars,   ONLY: c_corr,c
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -53,9 +54,19 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
 !===================================================================================================================================
 DoDielectric                     = GETLOGICAL('DoDielectric','.FALSE.')
 DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
-DielectricEpsR_inv               = 1./(DielectricEpsR)
 DielectricMuR                    = GETREAL('DielectricMuR','1.')
-DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)
+IF((DielectricEpsR.LT.0.0).OR.(DielectricMuR.LT.0.0))THEN
+  CALL abort(&
+  __STAMP__&
+  ,'Dielectric: MuR or EpsR cannot be negative.')
+END IF
+DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
+DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     ! 1./(EpsR*MuR)
+DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) ! 1./sqrt(EpsR*MuR)
+eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
+c_dielectric                     = c*DielectricConstant_RootInv          ! c/sqrt(EpsR*MuR)
+c2_dielectric                    = c*c*DielectricConstant_Inv            ! c**2/(EpsR*MuR)
+
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 ! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax: 1.) check for xyzPhysicalMinMaxDielectric 2.) check for xyzDielectricMinMax
@@ -160,7 +171,6 @@ CALL WriteDielectricGlobalToHDF5()
 DielectricInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT Dielectric DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-stop
 END SUBROUTINE InitDielectric
 
 
@@ -242,46 +252,33 @@ SUBROUTINE FindInterfaces(isFace,isInterFace,isElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-!USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD!,nProcessors
-USE MOD_Globals!,       ONLY: UNIT_stdOut,iError
-USE MOD_Mesh_Vars,     ONLY: nSides,nBCSides
-USE MOD_Dielectric_vars,      ONLY: DielectricprintInfoProcs
+USE MOD_Globals
+USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
+USE MOD_Dielectric_vars, ONLY: DielectricprintInfoProcs
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-!USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
+USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems)
-!CHARACTER(LEN=*),INTENT(IN)       :: TypeName
+LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems) ! True/False element: special region
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)           ! True/False face: special region <-> special region
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: special region <-> physical region (or vice versa)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Plus,isFace_Minus,isFace_combined
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Plus,isFace_Minus,isFace_combined ! the dimension is only used because of
+                                                                                    ! the prolong to face routine and MPI logic
 INTEGER                                 :: iSide
-INTEGER                                 :: I!,SideCounterUnity,SideCounterUnityGlobal
-LOGICAL                                 :: printInfo
+INTEGER                                 :: I
 !===================================================================================================================================
 ALLOCATE(isFace(1:nSides))
 ALLOCATE(isInterFace(1:nSides))
 isFace=.FALSE.
 isInterFace=.FALSE.
-printInfo=.FALSE.
-
-! Check each element for being part of the, e.g. Dielectric, region: set each of the 6 sides to be .TRUE.
-!DO iElem=1,PP_nElems
-  !IF(.NOT.isElem(iElem))CYCLE
-  !DO ilocSide =1,6
-    !SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    !isFace(SideID)=.TRUE.
-  !END DO ! ilocSide=1,6
-!END DO ! iElem=1,PP_nElems
 
 ! ---------------------------------------------
 ! For MPI sides send the info to all other procs
@@ -308,7 +305,7 @@ isFace_combined=2*isFace_Plus+isFace_Minus
 ! use numbering:    2*isFace_Plus+isFace_Minus  = 1: Minus side is Dielectric
 !                                                 2: Plus  side is Dielectric
 !                                                 3: both sides are Dielectric sides
-!                                                 0: normal face in physical region
+!                                                 0: normal face in physical region (no dielectric involved)
 
 DO iSide=1,nSides
   IF(isFace_combined(1,0,0,iSide).GT.0)THEN
@@ -320,23 +317,6 @@ DO iSide=1,nSides
   END IF
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
-
-!SideCounterUnity=0
-!DO iSide=1,nSides
-  !IF(isFace_combined(1,0,0,iSide).GT.0)THEN
-    !SideCounterUnity=SideCounterUnity+1
-  !END IF
-!END DO
-!print*,SideCounterUnity
-!CALL MPI_REDUCE(SideCounterUnity,SideCounterUnityGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-!DO I=0,DielectricprintInfoProcs-1
-  !IF(I.EQ.myrank)THEN
-    !WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
-    !' myrank=',myrank,' Found ',SideCounterUnityGlobal,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-  !END IF
-  !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-!END DO
 
 ! test
 DO I=0,DielectricprintInfoProcs-1
@@ -354,8 +334,6 @@ DO I=0,DielectricprintInfoProcs-1
 #endif /*MPI*/
 END DO
 
-!print*,"should be total 16 (Dielectric-interfaces) and total 100 (Dielectric-faces)"
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END SUBROUTINE  FindInterFaces
 
 
@@ -604,4 +582,6 @@ DO SideID=firstSideID,lastSideID
   END DO !i=1,2, masterside & slave side 
 END DO !SideID
 END SUBROUTINE ProlongToFace_DielectricInfo
+
+
 END MODULE MOD_Dielectric
