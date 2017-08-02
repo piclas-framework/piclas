@@ -39,6 +39,7 @@ USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 USE MOD_PML_vars,        ONLY:isPMLFace,DoPML,isPMLFace,isPMLInterFace,PMLnVar
 USE MOD_Dielectric_vars, ONLY:isDielectricFace,DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
+USE MOD_Dielectric_vars, ONLY:Dielectric_Master
 USE MOD_Mesh_Vars,       ONLY: SideToElem
 #ifdef maxwell
 USE MOD_Riemann,         ONLY:ExactFlux
@@ -119,14 +120,15 @@ DO SideID=firstSideID,lastSideID
         IF(isDielectricElem(ElemID))THEN        ! check if master is DIELECTRIC and slave PHYSICAL
           ! A+(Eps0,Mu0) and A-(EpsR,MuR)
           CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
-                                                                                                              NormVec(:,:,:,SideID))
+                                                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
         ELSE ! check if master is PHYSICAL and slave DIELECTRIC
           ! A+(EpsR,MuR) and A-(Eps0,Mu0)
           CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
-                                                                                                              NormVec(:,:,:,SideID))
+                                                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
         END IF
       ELSE ! b) dielectric region <-> dielectric region
-        CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
+        CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+                                                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
       END IF
     ELSE ! 2.) no Dielectric, standard flux
       CALL Riemann(Flux_Master(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))

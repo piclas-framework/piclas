@@ -46,8 +46,7 @@ USE MOD_Mesh_Vars,       ONLY: Elem_xGP
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                 :: r
-INTEGER              :: i,j,k,iDielectricElem
+INTEGER              :: i
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
@@ -65,11 +64,11 @@ IF((DielectricEpsR.LT.0.0).OR.(DielectricMuR.LT.0.0))THEN
   ,'Dielectric: MuR or EpsR cannot be negative.')
 END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
-DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     ! 1./(EpsR*MuR)
-DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) ! 1./sqrt(EpsR*MuR)
+!DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     !             1./(EpsR*MuR)
+DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !         1./sqrt(EpsR*MuR)
 eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
-c_dielectric                     = c*DielectricConstant_RootInv          ! c/sqrt(EpsR*MuR)
-c2_dielectric                    = c*c*DielectricConstant_Inv            ! c**2/(EpsR*MuR)
+c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
+c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
 
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
@@ -118,12 +117,6 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)') ''
 END IF
 
-!DielectriczetaShape           = GETINT('DielectriczetaShape','0')
-!DielectricRampLength          = GETREAL('DielectricRampLength','1.')
-!Dielectricspread              = GETINT('Dielectricspread','0')
-!DielectricwriteFields         = GETINT('DielectricwriteFields','0')
-!DielectriczetaNorm            = GETLOGICAL('DielectriczetaNorm','.FALSE.')
-
 DielectricprintInfo           = GETINT('DielectricprintInfo','0') ! 0=only root prints Dielectric info
 !                                                                 ! 1=all ranks print Dielectric info
 IF(DielectricprintInfo.EQ.0)THEN
@@ -131,18 +124,12 @@ IF(DielectricprintInfo.EQ.0)THEN
 ELSE
   DielectricprintInfoProcs=nProcessors ! all procs print their infos
 END IF
-! caution, in current version read in in mesh
-! only for Maxwell, PP_nVar=8
 
 IF(.NOT.DoDielectric) THEN
   SWRITE(UNIT_stdOut,'(A)') ' Dielectric region deactivated. '
-  !DielectricnVar=0
   nDielectricElems=0
   RETURN
-ELSE
-  !DielectricnVar=24
 END IF
-
 
 ! find all elements in the Dielectric region. Here: find all elements located outside of 'xyzPhysicalMinMaxDielectric' 
 IF(useDielectricMinMax)THEN
@@ -162,37 +149,11 @@ CALL CountAndCreateMappings('Dielectric',&
                             FaceToDielectric,DielectricToFace,&
                             FaceToDielectricInter,DielectricInterToFace)
 
-! nDielectricElems is determined, now allocate the Dielectric field correnspondingly
-!ALLOCATE(U2       (1:DielectricnVar,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))        
-!ALLOCATE(U2t      (1:DielectricnVar,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
-!U2=0.
-!U2t=0.
+! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region
+CALL SetDielectricVolumeProfile()
 
-! Set the damping profile function zeta=f(x,y) in the Dielectric region
-!CALL SetDielectricdampingProfile()
-ALLOCATE(DielectricEps(1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
-ALLOCATE(DielectricMu( 1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
-IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
-  ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
-  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    !DO iDir=1,3 !1=x, 2=y, 3=z
-      r = SQRT(Elem_xGP(1,i,j,k,DielectricToElem(iDielectricElem))**2+&
-               Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
-               Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
-
-      DielectricEps(1:3,i,j,k,iDielectricElem) = 4./((1+(r/DielectricRmax)**2)**2)
-
-        !xi =ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))     -xyzPMLzetaShapeBase(2*iDir ))      ! 2,4,6
-        !PMLzeta(iDir,i,j,k,iPMLElem) = PMLzeta0*function_type(xi/L_vec(2*iDir ),PMLzetashape)    ! 2,4,6
-
-
-    !END DO
-  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
-  DielectricMu(1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
-ELSE
-  DielectricEps(1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricEpsR
-  DielectricMu( 1:3,0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
-END IF
+! Determine dielectric Values on faces and communicate them
+CALL SetDielectricFaceProfile()
 
 ! create a HDF5 file containing the DielectriczetaGlobal field
 CALL WriteDielectricGlobalToHDF5()
@@ -299,7 +260,7 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)           ! True/False face: speci
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: special region <-> physical region (or vice versa)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Plus,isFace_Minus,isFace_combined ! the dimension is only used because of
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
                                                                                     ! the prolong to face routine and MPI logic
 INTEGER                                 :: iSide
 INTEGER                                 :: I
@@ -311,28 +272,28 @@ isInterFace=.FALSE.
 
 ! ---------------------------------------------
 ! For MPI sides send the info to all other procs
-isFace_Plus=0.
-isFace_Minus=0.
+isFace_Slave=0.
+isFace_Master=0.
 isFace_combined=0.
-CALL ProlongToFace_DielectricInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.FALSE.)
+CALL ProlongToFace_DielectricInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 #ifdef MPI
-CALL ProlongToFace_DielectricInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.TRUE.)
+CALL ProlongToFace_DielectricInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 
 ! send my info to neighbor 
-CALL StartReceiveMPIData(1,isFace_Plus,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIData(   1,isFace_Plus,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+CALL StartReceiveMPIData(1,isFace_Slave,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,isFace_Slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 
-CALL StartReceiveMPIData(1,isFace_Minus,1,nSides ,RecRequest_U,SendID=1) ! Receive MINE
-CALL StartSendMPIData(   1,isFace_Minus,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
+CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
 
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
 CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U,SendID=1) !Send MINE -receive YOUR
 #endif /*MPI*/
 
-! add isFace_Minus to isFace_Plus and send
-isFace_combined=2*isFace_Plus+isFace_Minus
-! use numbering:    2*isFace_Plus+isFace_Minus  = 1: Minus side is Dielectric
-!                                                 2: Plus  side is Dielectric
+! add isFace_Master to isFace_Slave and send
+isFace_combined=2*isFace_Slave+isFace_Master
+! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is Dielectric
+!                                                 2: Slave  side is Dielectric
 !                                                 3: both sides are Dielectric sides
 !                                                 0: normal face in physical region (no dielectric involved)
 
@@ -524,6 +485,122 @@ END DO
 END SUBROUTINE CountAndCreateMappings
 
 
+SUBROUTINE SetDielectricVolumeProfile()
+!===================================================================================================================================
+! Determine the local Dielectric damping factor in x,y and z-direction using a constant/linear/polynomial/... function
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars,            ONLY: Elem_xGP
+USE MOD_Dielectric_Vars,      ONLY: DielectricEps,DielectricMu,DielectricConstant_inv
+USE MOD_Dielectric_Vars,      ONLY: nDielectricElems,DielectricToElem
+USE MOD_Dielectric_Vars,      ONLY: DielectricRmax,DielectricEpsR,DielectricMuR,DielectricTestCase
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: i,j,k,iDielectricElem
+REAL                :: r
+!===================================================================================================================================
+ALLOCATE(         DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+ALLOCATE(          DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+ALLOCATE(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+DielectricEps=0.
+DielectricMu=0.
+DielectricConstant_inv=0.
+IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
+  ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
+  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    r = SQRT(Elem_xGP(1,i,j,k,DielectricToElem(iDielectricElem))**2+&
+             Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
+             Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
+    DielectricEps(i,j,k,iDielectricElem) = 4./((1+(r/DielectricRmax)**2)**2)
+  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
+  DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+ELSE
+  DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricEpsR
+  DielectricMu( 0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+END IF
+DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(EpsR*MuR)
+                                                                 (DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems)*&
+                                                                  DielectricMu( 0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+END SUBROUTINE SetDielectricVolumeProfile
+
+
+SUBROUTINE SetDielectricFaceProfile()
+!===================================================================================================================================
+! set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master"
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Dielectric_Vars,      ONLY: DielectricConstant_inv,dielectric_Master,dielectric_Slave,isDielectricElem,ElemToDielectric
+USE MOD_Mesh_Vars,            ONLY: nSides
+USE MOD_ProlongToFace,        ONLY: ProlongToFace
+#ifdef MPI
+USE MOD_MPI_Vars
+USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Master ! deallocate at the end of this routine
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Slave  ! deallocate at the end of this routine
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: Dielectric_dummy ! deallocate at the end of this routine
+INTEGER                               :: iElem
+!===================================================================================================================================
+ALLOCATE(Dielectric_dummy(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+Dielectric_dummy=0. ! default is an invalid number
+ALLOCATE(Dielectric_dummy_Master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Dielectric_dummy_Slave( PP_nVar,0:PP_N,0:PP_N,1:nSides))
+Dielectric_dummy_Master=0.
+Dielectric_dummy_Slave =0.
+
+! fill dummy values for non-Dielectric sides
+DO iElem=1,PP_nElems
+  IF(isDielectricElem(iElem))THEN
+    ! set only the first dimension to 1./SQRT(EpsR*MuR) (the rest are dummies)
+    Dielectric_dummy(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=SQRT(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,ElemToDielectric(iElem)))
+  ELSE
+    Dielectric_dummy(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0
+  END IF
+END DO
+
+CALL ProlongToFace(Dielectric_dummy,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
+#ifdef MPI
+CALL ProlongToFace(Dielectric_dummy,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+! send my info to neighbor 
+CALL StartReceiveMPIData(1,Dielectric_dummy_Slave, 1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,Dielectric_dummy_Slave, 1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+
+CALL StartReceiveMPIData(1,Dielectric_dummy_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   1,Dielectric_dummy_Master,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
+
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
+CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U,SendID=1) !Send MINE -receive YOUR
+#endif /*MPI*/
+
+ALLOCATE(Dielectric_Master(0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
+Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
+Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
+
+SDEALLOCATE(Dielectric_dummy_Slave)
+SDEALLOCATE(Dielectric_dummy_Master)
+SDEALLOCATE(Dielectric_dummy)
+END SUBROUTINE SetDielectricFaceProfile
+
+
 SUBROUTINE FinalizeDielectric()
 !===================================================================================================================================
 !  
@@ -555,19 +632,16 @@ SDEALLOCATE(isDielectricFace)
 END SUBROUTINE FinalizeDielectric
 
 
-SUBROUTINE ProlongToFace_DielectricInfo(isElem,isFace_Minus,isFace_Plus,doMPISides)
+SUBROUTINE ProlongToFace_DielectricInfo(isElem,isFace_Master,isFace_Slave,doMPISides)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and store in global side structure
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-!USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
 USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-!USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
-!USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -576,8 +650,8 @@ LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are 
 LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems) 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: isFace_Minus(1,0:PP_N,0:PP_N,1:nSides)
-REAL,INTENT(INOUT)              :: isFace_Plus( 1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
@@ -604,9 +678,9 @@ DO SideID=firstSideID,lastSideID
   DO i=1,2 !first maste then slave side
     SELECT CASE(Flip(i))
       CASE(0) ! master side
-        isFace_Minus(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+        isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
       CASE(1:4) ! slave side
-        isFace_Plus( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+        isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
     END SELECT
   END DO !i=1,2, masterside & slave side 
 END DO !SideID

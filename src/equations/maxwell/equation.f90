@@ -402,17 +402,18 @@ CASE(4) ! Dipole
   ELSE
     theta = 0.5*pi
   END IF
-  IF (xrel(1).GT.eps)      THEN
-    phi = ATAN(xrel(2)/xrel(1))
-  ELSE IF (xrel(1).LT.eps) THEN ! THIS DIVIDES BY ZERO ?!
-    phi = ATAN(xrel(2)/xrel(1)) + pi
-  ELSE IF (xrel(2).GT.eps) THEN
-    phi = 0.5*pi
-  ELSE IF (xrel(2).LT.eps) THEN
-    phi = 1.5*pi
-  ELSE
-    phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
-  END IF
+  phi = ATAN2(xrel(2),xrel(1))
+  !IF (xrel(1).GT.eps)      THEN
+  !  phi = ATAN(xrel(2)/xrel(1))
+  !ELSE IF (xrel(1).LT.eps) THEN ! THIS DIVIDES BY ZERO ?!
+  !  phi = ATAN(xrel(2)/xrel(1)) + pi
+  !ELSE IF (xrel(2).GT.eps) THEN
+  !  phi = 0.5*pi
+  !ELSE IF (xrel(2).LT.eps) THEN
+  !  phi = 1.5*pi
+  !ELSE
+  !  phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
+  !END IF
 
   Er = 2.*cos(theta)*Q*dD/(4.*pi*eps0) * ( 1./r**3*sin(omegaD*t-omegaD*r/c) + (omegaD/(c*r**2)*cos(omegaD*t-omegaD*r/c) ) )
   Etheta = sin(theta)*Q*dD/(4.*pi*eps0) * ( (1./r**3-omegaD**2/(c**2*r))*sin(omegaD*t-omegaD*r/c) &
@@ -437,7 +438,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   ! polarization: 
   ! false - linear polarization
   ! true  - cirular polarization
-  eps=1e-10
+  !eps=1e-10
   !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
@@ -777,9 +778,9 @@ IF(DoDeposition)THEN
           !Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
           !Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr * DielectricEpsR_inv
           Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) &
-                                                      / DielectricEps(1,i,j,k,ElemToDielectric(iElem)) ! only use x
+                                                      / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
           Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr &
-                                                      / DielectricEps(1,i,j,k,ElemToDielectric(iElem)) ! only use x
+                                                      / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
         END DO; END DO; END DO
       ELSE
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 

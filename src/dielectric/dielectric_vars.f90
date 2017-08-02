@@ -30,7 +30,6 @@ REAL                :: DielectricEpsR                 ! for Dielectric region sh
 REAL                :: DielectricEpsR_inv             ! 1./EpsR
 REAL                :: DielectricMuR                  ! MuR
 REAL                :: DielectricRmax                 ! maximum radius for dielectric material distribution
-REAL                :: DielectricConstant_inv         ! 1./(EpsR*MuR)
 REAL                :: DielectricConstant_RootInv     ! 1./sqrt(EpsR*MuR)
 REAL                :: eta_c_dielectric               ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 REAL                :: c_dielectric                   ! c/sqrt(EpsR*MuR)
@@ -41,9 +40,12 @@ INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces  
 INTEGER,ALLOCATABLE :: DielectricToElem(:),DielectricToFace(:),DielectricInterToFace(:) ! mapping to total element/face list
 INTEGER,ALLOCATABLE :: ElemToDielectric(:),FaceToDielectric(:),FaceTODielectricInter(:) ! mapping to Dielectric element/face list
 !
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricEps
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricMu
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricGlobal
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricEps
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricMu
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricConstant_inv         ! 1./(EpsR*MuR)
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricGlobal               ! contains DielectricEps and DielectricMu for HDF5 output
+REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Master ! face array containing 1./SQRT(EpsR*MuR) for each DOF
+REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Slave
 ! gradients
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars

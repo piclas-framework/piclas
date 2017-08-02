@@ -396,18 +396,16 @@ END SUBROUTINE  FindElementInRegion
 
 SUBROUTINE FindInterfaces(isFace,isInterFace,isElem)
 !===================================================================================================================================
-! Check if a face is in a special region (e.g. PML) and/or connects a special region (e.g. PML) to the physical region
+! Check if a face is in a special region (e.g. PML or dielectric) and/or connects a special region to the physical region
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-!USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD!,nProcessors
-USE MOD_Globals!,       ONLY: UNIT_stdOut,iError
+USE MOD_Globals
 USE MOD_Mesh_Vars,     ONLY: nSides,nBCSides
 USE MOD_PML_vars,      ONLY: PMLprintInfoProcs
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-!USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -421,7 +419,7 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Plus,isFace_Minus,isFace_combined
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined
 INTEGER                                 :: iSide
 INTEGER                                 :: I!,SideCounterUnity,SideCounterUnityGlobal
 LOGICAL                                 :: printInfo
@@ -432,39 +430,29 @@ isFace=.FALSE.
 isInterFace=.FALSE.
 printInfo=.FALSE.
 
-! Check each element for being part of the, e.g. PML, region: set each of the 6 sides to be .TRUE.
-!DO iElem=1,PP_nElems
-  !IF(.NOT.isElem(iElem))CYCLE
-  !DO ilocSide =1,6
-    !SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    !isFace(SideID)=.TRUE.
-  !END DO ! ilocSide=1,6
-!END DO ! iElem=1,PP_nElems
-
-! ---------------------------------------------
 ! For MPI sides send the info to all other procs
-isFace_Plus=0.
-isFace_Minus=0.
+isFace_Slave=0.
+isFace_Master=0.
 isFace_combined=0.
-CALL ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.FALSE.)
+CALL ProlongToFace_PMLInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 #ifdef MPI
-CALL ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.TRUE.)
+CALL ProlongToFace_PMLInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 
 ! send my info to neighbor 
-CALL StartReceiveMPIData(1,isFace_Plus,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIData(   1,isFace_Plus,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+CALL StartReceiveMPIData(1,isFace_Slave ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,isFace_Slave ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 
-CALL StartReceiveMPIData(1,isFace_Minus,1,nSides ,RecRequest_U,SendID=1) ! Receive MINE
-CALL StartSendMPIData(   1,isFace_Minus,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
+CALL StartReceiveMPIData(1,isFace_Master,1,nSides, RecRequest_U ,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
 
-CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
-CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U,SendID=1) !Send MINE -receive YOUR
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
+CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR - receive MINE
 #endif /*MPI*/
 
-! add isFace_Minus to isFace_Plus and send
-isFace_combined=2*isFace_Plus+isFace_Minus
-! use numbering:    2*isFace_Plus+isFace_Minus  = 1: Minus side is PML
-!                                                 2: Plus  side is PML
+! after the values have been exchanged, combine them in order to distinguish the sides
+isFace_combined=2*isFace_Slave+isFace_Master
+! use numbering: 2*isFace_Slave+isFace_Master  =  1: Master side is PML
+!                                                 2: Slave  side is PML
 !                                                 3: both sides are PML sides
 !                                                 0: normal face in physical region
 
@@ -479,24 +467,7 @@ DO iSide=1,nSides
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
 
-!SideCounterUnity=0
-!DO iSide=1,nSides
-  !IF(isFace_combined(1,0,0,iSide).GT.0)THEN
-    !SideCounterUnity=SideCounterUnity+1
-  !END IF
-!END DO
-!print*,SideCounterUnity
-!CALL MPI_REDUCE(SideCounterUnity,SideCounterUnityGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-!DO I=0,PMLprintInfoProcs-1
-  !IF(I.EQ.myrank)THEN
-    !WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-    !' myrank=',myrank,' Found ',SideCounterUnityGlobal,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-  !END IF
-  !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-!END DO
-
-! test
+! display side info
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
     DO iSide=nSides,nSides
@@ -512,8 +483,6 @@ DO I=0,PMLprintInfoProcs-1
 #endif /*MPI*/
 END DO
 
-!print*,"should be total 16 (PML-interfaces) and total 100 (PML-faces)"
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END SUBROUTINE  FindInterFaces
 
 
@@ -975,19 +944,16 @@ SDEALLOCATE(isPMLFace)
 END SUBROUTINE FinalizePML
 
 
-SUBROUTINE ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides)
+SUBROUTINE ProlongToFace_PMLInfo(isElem,isFace_Master,isFace_Slave,doMPISides)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and store in global side structure
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-!USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
 USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-!USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
-!USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -996,8 +962,8 @@ LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are 
 LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems) 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: isFace_Minus(1,0:PP_N,0:PP_N,1:nSides)
-REAL,INTENT(INOUT)              :: isFace_Plus( 1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
@@ -1024,9 +990,9 @@ DO SideID=firstSideID,lastSideID
   DO i=1,2 !first maste then slave side
     SELECT CASE(Flip(i))
       CASE(0) ! master side
-        isFace_Minus(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+        isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
       CASE(1:4) ! slave side
-        isFace_Plus( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+        isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
     END SELECT
   END DO !i=1,2, masterside & slave side 
 END DO !SideID

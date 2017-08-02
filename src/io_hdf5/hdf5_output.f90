@@ -2037,23 +2037,17 @@ REAL                :: OutputTime!,FutureTime
 !REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 INTEGER             :: iElem
 !===================================================================================================================================
-N_variables=6
+N_variables=2
 ! create global Eps field for parallel output of Eps distribution
 ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
-StrVarNames(1)='DielectricEpsGlobalX'
-StrVarNames(2)='DielectricEpsGlobalY'
-StrVarNames(3)='DielectricEpsGlobalZ'
-StrVarNames(4)='DielectricMuGlobalX'
-StrVarNames(5)='DielectricMuGlobalY'
-StrVarNames(6)='DielectricMuGlobalZ'
+StrVarNames(1)='DielectricEpsGlobal'
+StrVarNames(2)='DielectricMuGlobal'
 DielectricGlobal=0.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
-    !DielectricEps(:,:,:,:,ElemToDielectric(iElem))=DielectricEpsR
-    !DielectricMu(:,:,:,:,ElemToDielectric(iElem))=DielectricMuR
-    DielectricGlobal(1:3,:,:,:,iElem)=DielectricEps(:,:,:,:,ElemToDielectric(iElem))
-    DielectricGlobal(4:6,:,:,:,iElem)=DielectricMu( :,:,:,:,ElemToDielectric(iElem))
+    DielectricGlobal(1,:,:,:,iElem)=DielectricEps(:,:,:,ElemToDielectric(iElem))
+    DielectricGlobal(2,:,:,:,iElem)=DielectricMu( :,:,:,ElemToDielectric(iElem))
   END IF
 END DO!iElem
 IF(MPIROOT)THEN

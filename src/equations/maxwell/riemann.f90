@@ -674,7 +674,7 @@ END IF
 END SUBROUTINE ExactFlux
 
 
-SUBROUTINE RiemannDielectric(F,U_L,U_R,nv)
+SUBROUTINE RiemannDielectric(F,U_L,U_R,nv,Dielectric_Master)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -683,7 +683,6 @@ SUBROUTINE RiemannDielectric(F,U_L,U_R,nv)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Equation_Vars,   ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_Dielectric_Vars, ONLY:eta_c_dielectric,c_dielectric,c2_dielectric
 USE MOD_Equation_Vars,   ONLY:CentralFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -691,6 +690,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
 REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)                                  :: Dielectric_Master(0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
@@ -700,8 +700,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8), A(8,8)
 INTEGER                                          :: Count_1,Count_2
-!REAL                                             :: D(3,3)                  ! auxiliary matrices used 
-!REAL                                             :: E(3,3), E_trans(3,3)    ! auxiliary matrices used
+REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================
 
 IF(CentralFlux)THEN
@@ -714,7 +713,10 @@ ELSE
     DO Count_1=0,PP_N
       n_loc(:)=nv(:,Count_1,Count_2)
   
-  !--- for original version see below (easier to understand)
+      ! set dielectric values
+      c_dielectric     = c*Dielectric_Master(Count_1,Count_2)            !         c/sqrt(EpsR*MuR)
+      eta_c_dielectric = c_corr_c - c_dielectric                         ! (chi - 1./sqrt(EpsR*MuR))*c
+      c2_dielectric    = c_dielectric*c_dielectric                       !          c**2/(EpsR*MuR)
   
       A_p(7,1:3)=0.
       A_p(1:3,7)=0.
@@ -783,7 +785,7 @@ END IF
 END SUBROUTINE RiemannDielectric
 
 
-SUBROUTINE RiemannDielectricInterFace(F,U_L,U_R,nv)
+SUBROUTINE RiemannDielectricInterFace(F,U_L,U_R,nv,Dielectric_Master)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -792,7 +794,6 @@ SUBROUTINE RiemannDielectricInterFace(F,U_L,U_R,nv)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Equation_Vars,   ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_Dielectric_Vars, ONLY:eta_c_dielectric,c_dielectric,c2_dielectric
 USE MOD_Equation_Vars,   ONLY:CentralFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -800,6 +801,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
 REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)                                  :: Dielectric_Master(0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
@@ -809,8 +811,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8), A(8,8)
 INTEGER                                          :: Count_1,Count_2
-!REAL                                             :: D(3,3)                  ! auxiliary matrices used 
-!REAL                                             :: E(3,3), E_trans(3,3)    ! auxiliary matrices used
+REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================
 
 IF(CentralFlux)THEN
@@ -823,7 +824,10 @@ ELSE
     DO Count_1=0,PP_N
       n_loc(:)=nv(:,Count_1,Count_2)
   
-  !--- for original version see below (easier to understand)
+      ! set dielectric values
+      c_dielectric     = c*Dielectric_Master(Count_1,Count_2)            !         c/sqrt(EpsR*MuR)
+      eta_c_dielectric = c_corr_c - c_dielectric                         ! (chi - 1./sqrt(EpsR*MuR))*c
+      c2_dielectric    = c_dielectric*c_dielectric                       !          c**2/(EpsR*MuR)
   
       A_p(7,1:3)=0.
       A_p(1:3,7)=0.
@@ -912,7 +916,7 @@ END IF
 END SUBROUTINE RiemannDielectricInterFace
 
 
-SUBROUTINE RiemannDielectricInterFace2(F,U_L,U_R,nv)
+SUBROUTINE RiemannDielectricInterFace2(F,U_L,U_R,nv,Dielectric_Master)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -921,7 +925,6 @@ SUBROUTINE RiemannDielectricInterFace2(F,U_L,U_R,nv)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Equation_Vars,   ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_Dielectric_Vars, ONLY:eta_c_dielectric,c_dielectric,c2_dielectric
 USE MOD_Equation_Vars,   ONLY:CentralFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -929,6 +932,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
 REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)                                  :: Dielectric_Master(0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
@@ -938,8 +942,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8), A(8,8)
 INTEGER                                          :: Count_1,Count_2
-!REAL                                             :: D(3,3)                  ! auxiliary matrices used 
-!REAL                                             :: E(3,3), E_trans(3,3)    ! auxiliary matrices used
+REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================
 
 IF(CentralFlux)THEN
@@ -952,7 +955,10 @@ ELSE
     DO Count_1=0,PP_N
       n_loc(:)=nv(:,Count_1,Count_2)
   
-  !--- for original version see below (easier to understand)
+      ! set dielectric values
+      c_dielectric     = c*Dielectric_Master(Count_1,Count_2)            !         c/sqrt(EpsR*MuR)
+      eta_c_dielectric = c_corr_c - c_dielectric                         ! (chi - 1./sqrt(EpsR*MuR))*c
+      c2_dielectric    = c_dielectric*c_dielectric                       !          c**2/(EpsR*MuR)
   
       A_p(7,1:3)=0.
       A_p(1:3,7)=0.
