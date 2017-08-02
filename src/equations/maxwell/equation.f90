@@ -752,7 +752,7 @@ USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars, ONLY : sdtCFLOne!, RK_B, iStage  
 USE MOD_DG_Vars,       ONLY : U
 #endif /*LSERK*/
-USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem,DielectricEpsR_inv
+USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem,DielectricEpsR_inv,ElemToDielectric
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
