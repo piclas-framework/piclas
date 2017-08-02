@@ -234,24 +234,28 @@ TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision 
 ! defintion of Adsorbation variables
 TYPE tAdsorptionInfo
   REAL                                   :: MeanProbAds             ! mean adsorption probability
-  REAL                                   :: MeanProbDiss            ! mean dissociation probability during adsorption
-  REAL                                   :: MeanProbER              ! mean probability for ER reaction at surface collision
   REAL                                   :: MeanProbDes             ! mean desorption probability
-  REAL                                   :: MeanProbReactDiss       ! mean probability for dissociation reaction on surface
-  REAL                                   :: MeanProbReactExch       ! mean probability for exchange reaction on surface
-  REAL                                   :: MeanProbReactLH         ! mean probability for LH reaction on surface
-  REAL                                   :: MeanEAds                ! mean heat of adsorption
   INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
   INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
   REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
   INTEGER                                :: WallCollCount           ! counter of wallcollisions
 END TYPE
+
+TYPE tAdsorpReactInfo
+  REAL     , ALLOCATABLE                 :: NumAdsReact(:)          ! mean probability for reaction at surface collision
+  REAL     , ALLOCATABLE                 :: NumSurfReact(:)         ! mean probability for reaction on surface
+  REAL     , ALLOCATABLE                 :: MeanAdsActE(:)          ! mean activation energy of adsorption reaction
+  REAL     , ALLOCATABLE                 :: MeanSurfActE(:)          ! mean activation energy of desorption reaction
+  INTEGER  , ALLOCATABLE                 :: AdsReactCount(:)        ! Number of reactive adsorption probability calculations
+  INTEGER  , ALLOCATABLE                 :: SurfReactCount(:)       ! Number of reactive desorption probability caluclations
+END TYPE
 #endif
 
 TYPE tAdsorption
 #if (PP_TimeDiscMethod==42)
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
+  TYPE(tAdsorpReactInfo), ALLOCATABLE    :: AdsorpReactInfo(:)      ! Adsorption info for species n (nSpecies)
   LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
@@ -363,7 +367,9 @@ TYPE tLiquid
   REAL    , ALLOCATABLE                  :: ProbEvap(:,:,:,:)       ! Evaporation probability of surface n
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   
+#if (PP_TimeDiscMethod==42)
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: Info(:)                 ! Info for species n (nSpecies)
+#endif
 END TYPE
 TYPE(tLiquid)                            :: Liquid
 

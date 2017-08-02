@@ -26,8 +26,8 @@ LOGICAL                       :: CalcSurfNumSpec                       ! Calcula
 LOGICAL                       :: CalcEvaporation                       ! Calculate rate of evaporation [kg/s]
 LOGICAL                       :: CalcSurfCoverage                      ! Calculate the surface coverages for each species
 LOGICAL                       :: CalcAccomodation                      ! Calculate the surface accomodation coefficient
-LOGICAL                       :: CalcAdsorbRates                       ! Calcualte the adsorption/desorb probabilities of species
-LOGICAL                       :: CalcSurfReacRates                     ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcAdsorbRates                       ! Calcualte the adsorption probabilities of species
+LOGICAL                       :: CalcSurfRates                         ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcVelos                             ! Computes the drift and thermal velocity of each species
 LOGICAL                       :: VeloDirs(4)                           ! select the direction for velo computation
 LOGICAL                       :: TrackParticlePosition                 ! track the particle movement

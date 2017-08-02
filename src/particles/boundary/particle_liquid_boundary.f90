@@ -49,13 +49,14 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 ! allocate info and constants
+#if (PP_TimeDiscMethod==42)
 ALLOCATE( Liquid%Info(1:nSpecies))
+#endif
 ! initialize info and constants
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
   Liquid%Info(iSpec)%MeanProbAds = 0.
   Liquid%Info(iSpec)%MeanProbDes = 0.
-  Liquid%Info(iSpec)%MeanEads = 0.
   Liquid%Info(iSpec)%WallCollCount = 0
   Liquid%Info(iSpec)%NumOfAds = 0
   Liquid%Info(iSpec)%NumOfDes = 0
@@ -285,7 +286,9 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! INTEGER                      :: iProc
 ! #endif /*MPI*/
 !===================================================================================================================================
+#if (PP_TimeDiscMethod==42)
 SDEALLOCATE(Liquid%Info)
+#endif
 
 SDEALLOCATE(Liquid%ProbCondens)
 SDEALLOCATE(Liquid%ProbEvap)

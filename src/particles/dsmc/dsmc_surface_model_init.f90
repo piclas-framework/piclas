@@ -100,13 +100,7 @@ END IF
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%MeanProbAds  = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbDiss = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanProbDes  = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbER   = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbReactDiss = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbReactExch = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanProbReactLH   = 0.
-  Adsorption%AdsorpInfo(iSpec)%MeanEads = 0.
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
   Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = 0
   Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
@@ -754,6 +748,10 @@ DO iSpec = 1,nSpecies
   !Adsorption%ER_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Prefactor','0.')
 END DO
 
+#if (PP_TimeDiscMethod==42)
+ALLOCATE( Adsorption%AdsorpReactInfo(1:nSpecies))
+#endif
+
 MaxDissNum = GETINT('Part-Species-MaxDissNum','0')
 MaxAssocNum = MaxDissNum
 
@@ -1055,6 +1053,23 @@ Adsorption%nDissocReactions = nDissoc
 Adsorption%nDisPropReactions = nDisProp
 Adsorption%NumOfExchReact = nDisProp
 
+#if (PP_TimeDiscMethod==42)
+DO iSpec=1,nSpecies
+  ALLOCATE( Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(1:Adsorption%ReactNum+1),&
+            Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
+            Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(1:Adsorption%ReactNum),&
+            Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
+            Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(1:Adsorption%ReactNum+1),&
+            Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1))
+  Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0
+  Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(:) = 0
+END DO
+#endif
+
 CalcTST_Case = GETINT('Particles-DSMC-Adsorption-CalcTST','0')
 ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
 Adsorption%TST_Calc(:,:) = .FALSE.
@@ -1167,7 +1182,10 @@ SDEALLOCATE(PDM%ParticleAtWall)
 SDEALLOCATE(PDM%PartAdsorbSideIndx)
 SDEALLOCATE(PEM%wNumber)
 ! generaly used adsorption variables
+#if (PP_TimeDiscMethod==42)
 SDEALLOCATE(Adsorption%AdsorpInfo)
+SDEALLOCATE(Adsorption%AdsorpReactInfo)
+#endif
 SDEALLOCATE(Adsorption%Coverage)
 SDEALLOCATE(Adsorption%ProbAds)
 SDEALLOCATE(Adsorption%ProbDes)
