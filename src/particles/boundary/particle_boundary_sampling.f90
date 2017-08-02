@@ -58,7 +58,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiE
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
 USE MOD_Particle_Vars           ,ONLY:nSpecies
-USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC
+USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC,Adsorption
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
@@ -207,6 +207,8 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   SampWall(iSide)%Adsorption=0.
   ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Accomodation=0.
+  ALLOCATE(SampWall(iSide)%Reaction(1:Adsorption%NumOfAssocReact,1:nSpecies,1:nSurfSample,1:nSurfSample))
+  SampWall(iSide)%Reaction=0.
   !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
   !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
   !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
@@ -836,6 +838,7 @@ SUBROUTINE ExchangeSurfData()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies
+USE MOD_DSMC_Vars                   ,ONLY:Adsorption
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -847,11 +850,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
-INTEGER                         :: iPos,p,q,iProc
+INTEGER                         :: iPos,p,q,iProc,iReact
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
-nValues=(SurfMesh%SampSize+(nSpecies+1)+nSpecies)*(nSurfSample)**2
+nValues=(SurfMesh%SampSize+(nSpecies+1)+nSpecies+(Adsorption%NumOfAssocReact*nSpecies))*(nSurfSample)**2
 !
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -881,11 +884,16 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         iPos=iPos+nSpecies+1
         SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
         iPos=iPos+nSpecies
+        DO iReact=1,Adsorption%NumOfAssocReact
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Reaction(iReact,:,p,q)
+          iPos=iPos+nSpecies
+        END DO
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
     SampWall(SurfSideID)%Adsorption(:,:,:)=0.
     SampWall(SurfSideID)%Accomodation(:,:,:)=0.
+    SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
 
@@ -936,6 +944,11 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                 +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
         iPos=iPos+nSpecies
+        DO iReact=1,Adsorption%NumOfAssocReact
+          SampWall(SurfSideID)%Reaction(iReact,:,p,q)=SampWall(SurfSideID)%Reaction(iReact,:,p,q) &
+                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies
+        END DO
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
@@ -1112,6 +1125,8 @@ SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
 DO iSurfSide=1,SurfMesh%nSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
   SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
+  SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
+  SDEALLOCATE(SampWall(iSurfSide)%Reaction)
 END DO
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)

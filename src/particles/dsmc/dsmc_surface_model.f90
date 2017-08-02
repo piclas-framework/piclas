@@ -96,6 +96,20 @@ IF (DSMC%WallModel.GT.0) THEN
                                                                     - new_adsorbates
                   CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
                 END IF
+              ELSE IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).LT.0) THEN
+                ! calculate number of desorbed particles on background for each species due to ER-reaction
+                numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
+                SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                      + (REAL(Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
+                      / maxPart) * REAL(numSites)
+                ! convert to integer adsorbates
+                new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
+                IF (new_adsorbates.LT.0) THEN
+                  ! Adjust tracking of adsorbing background particles
+                  SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                                                                    + new_adsorbates
+                  CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
+                END IF
               END IF
             END IF
             ! sample adsorption coverage
@@ -895,6 +909,7 @@ SUBROUTINE CalcBackgndPartDesorb()
 ! reservoir sample variables
   INTEGER                           :: iSampleReact
 #endif
+  INTEGER                           :: NumDesorbLH(1:nSpecies,1:Adsorption%NumOfAssocReact)
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
@@ -939,6 +954,8 @@ DO subsurfxi = 1,nSurfSample
   nSitesRemain(:) = 0
   remainNum(:) = 0
   P_react_back(:) = 0.
+
+  NumDesorbLH(:,:) = 0
 
   DO Coord=1,3
     nSites(Coord) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
@@ -1780,6 +1797,8 @@ DO subsurfxi = 1,nSurfSample
           IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
             SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
                                                                   + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
+            NumDesorbLH(Adsorption%AssocReact(2,iReact,iSpec),iReact) = &
+                NumDesorbLH(Adsorption%AssocReact(2,iReact,iSpec),iReact) + 1
           END IF
         END IF
         ! remove adsorbate and update map
@@ -2225,6 +2244,14 @@ DO subsurfxi = 1,nSurfSample
         SDEALLOCATE(RanNumPoly)
         SDEALLOCATE(VibQuantWallPoly)
       END IF
+      DO iReact = 1,Adsorption%NumOfAssocReact
+        IF (NumDesorbLH(iSpec,iReact).GT.0) THEN
+          SampWall(SurfSideID)%Reaction(iReact,iSpec,subsurfxi,subsurfeta) = &
+              SampWall(SurfSideID)%Reaction(iReact,iSpec,subsurfxi,subsurfeta) &
+              + ((REAL(NumDesorbLH(iSpec,iReact)) / REAL(numSites)) * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+              * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(iSpec)%MacroParticleFactor)
+        END IF
+      END DO
     END IF
     !-------------------------------------------------------------------------------------------------------------------------------
     ! analyze rate data

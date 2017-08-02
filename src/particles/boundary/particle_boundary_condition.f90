@@ -162,7 +162,7 @@ CASE(2) !PartBound%ReflectiveBC)
             PDM%ParticleInside(iPart) = .FALSE.
             alpha=-1.
           END IF
-        ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change)
+        ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change and reflection)
   !         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
         ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
@@ -379,7 +379,7 @@ CASE(2) !PartBound%ReflectiveBC)
             PDM%ParticleInside(iPart) = .FALSE.
             alpha=-1.
           END IF
-        ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change)
+        ELSE IF (adsorbindex.EQ.2) THEN ! Eley-Rideal reaction (species change and reflection)
           !CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
           !                            ,BCSideID=BCSideID)
         ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
@@ -1558,7 +1558,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : CollisMode, Adsorption, PolyatomMolDSMC
   USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
-  USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound
+  USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
   USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
   USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -1606,6 +1606,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
 !   REAL, ALLOCATABLE                :: VibQuantNewRPoly(:)
 !   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
+  INTEGER                          :: iReact
 !===================================================================================================================================
 
   ! additional states
@@ -1977,11 +1978,19 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   !---------------------------------------------------------------------------------------------------------------------------------
   CASE(3) ! Eley-Rideal reaction (reflecting particle species change at contact and reaction partner removed from surface)
   !---------------------------------------------------------------------------------------------------------------------------------
-    Adsorption%SumDesorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumDesorbPart(p,q,SurfSideID,outSpec(1)) + 1
+    !Adsorption%SumDesorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumDesorbPart(p,q,SurfSideID,outSpec(1)) + 1
+    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) - 1
     adsindex = 2
 #if (PP_TimeDiscMethod==42)
     Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
 #endif
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+      DO iReact = 1,Adsorption%NumOfAssocReact
+        IF (Adsorption%AssocReact(2,iReact,SpecID).EQ.outSpec(1))THEN
+          SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
+        END IF
+      END DO
+    END IF
   !---------------------------------------------------------------------------------------------------------------------------------
   CASE DEFAULT ! diffuse reflection
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1995,7 +2004,7 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
 ! Routine for Selection of Liquid interaction (Condensation or Reflection)
 !===================================================================================================================================
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
-  USE MOD_Particle_Vars,          ONLY : WriteMacroValues, KeepWallParticles
+  USE MOD_Particle_Vars,          ONLY : WriteMacroValues!, KeepWallParticles
   USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
 !   USE MOD_Particle_Vars,          ONLY : PDM, LastPartPos
   USE MOD_Mesh_Vars,              ONLY : BC
