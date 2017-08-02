@@ -737,22 +737,20 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,       ONLY : abort
-USE MOD_Globals_Vars,  ONLY : PI
+USE MOD_Globals,        ONLY: abort
+USE MOD_Globals_Vars,   ONLY: PI
 USE MOD_PreProc
-!USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
+USE MOD_Equation_Vars,  ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
+USE MOD_PICDepo_Vars,   ONLY: PartSource,DoDeposition
+USE MOD_Dielectric_Vars,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric!DielectricEpsR_inv
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
-!USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
+USE MOD_Mesh_Vars,      ONLY: Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
-USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars, ONLY : sdtCFLOne!, RK_B, iStage  
-USE MOD_DG_Vars,       ONLY : U
+USE MOD_Equation_Vars,  ONLY: DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars,  ONLY: sdtCFLOne!, RK_B, iStage  
+USE MOD_DG_Vars,        ONLY: U
 #endif /*LSERK*/
-USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem,DielectricEpsR_inv,ElemToDielectric
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
