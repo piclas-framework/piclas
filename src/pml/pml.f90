@@ -438,10 +438,11 @@ CALL ProlongToFace_PMLInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 #ifdef MPI
 CALL ProlongToFace_PMLInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 
-! send my info to neighbor 
+! send Slave PML info (real with [0=no PML] or [1=PML] as (N+1)*(N+1) array) to Master procs
 CALL StartReceiveMPIData(1,isFace_Slave ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIData(   1,isFace_Slave ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 
+! send Master PML info (real with [0=no PML] or [1=PML] as (N+1)*(N+1) array) to Slave procs
 CALL StartReceiveMPIData(1,isFace_Master,1,nSides, RecRequest_U ,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
 

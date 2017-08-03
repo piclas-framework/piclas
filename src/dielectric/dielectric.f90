@@ -539,9 +539,9 @@ SUBROUTINE SetDielectricFaceProfile()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars,      ONLY: DielectricConstant_inv,dielectric_Master,dielectric_Slave,isDielectricElem,ElemToDielectric
-USE MOD_Mesh_Vars,            ONLY: nSides
-USE MOD_ProlongToFace,        ONLY: ProlongToFace
+USE MOD_Dielectric_Vars, ONLY:DielectricConstant_inv,dielectric_Master,dielectric_Slave,isDielectricElem,ElemToDielectric
+USE MOD_Mesh_Vars,       ONLY:nSides
+USE MOD_ProlongToFace,   ONLY:ProlongToFace
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -556,11 +556,11 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Master ! deallocate at the end of this routine
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Slave  ! deallocate at the end of this routine
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: Dielectric_dummy ! deallocate at the end of this routine
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: Dielectric_dummy_elem   ! deallocate at the end of this routine
 INTEGER                               :: iElem
 !===================================================================================================================================
-ALLOCATE(Dielectric_dummy(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
-Dielectric_dummy=0. ! default is an invalid number
+ALLOCATE(Dielectric_dummy_elem(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+Dielectric_dummy_elem=0. ! default is an invalid number
 ALLOCATE(Dielectric_dummy_Master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Dielectric_dummy_Slave( PP_nVar,0:PP_N,0:PP_N,1:nSides))
 Dielectric_dummy_Master=0.
@@ -570,24 +570,26 @@ Dielectric_dummy_Slave =0.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
     ! set only the first dimension to 1./SQRT(EpsR*MuR) (the rest are dummies)
-    Dielectric_dummy(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=SQRT(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,ElemToDielectric(iElem)))
+    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=SQRT(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,ElemToDielectric(iElem)))
   ELSE
-    Dielectric_dummy(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0
+    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0
   END IF
 END DO
 
-CALL ProlongToFace(Dielectric_dummy,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
+CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 #ifdef MPI
-CALL ProlongToFace(Dielectric_dummy,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
-! send my info to neighbor 
-CALL StartReceiveMPIData(1,Dielectric_dummy_Slave, 1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIData(   1,Dielectric_dummy_Slave, 1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
 
-CALL StartReceiveMPIData(1,Dielectric_dummy_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive MINE
-CALL StartSendMPIData(   1,Dielectric_dummy_Master,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
+! send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
+CALL StartReceiveMPIData(1,Dielectric_dummy_Slave(1,0:PP_N,0:PP_N,1:nSides) ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,Dielectric_dummy_Slave(1,0:PP_N,0:PP_N,1:nSides) ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 
-CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
-CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U,SendID=1) !Send MINE -receive YOUR
+! send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
+CALL StartReceiveMPIData(1,Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides),1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(   1,Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides),1,nSides,SendRequest_U ,SendID=1) ! Send MINE
+
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
+CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE 
 #endif /*MPI*/
 
 ALLOCATE(Dielectric_Master(0:PP_N,0:PP_N,1:nSides))
@@ -597,7 +599,7 @@ Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 
 SDEALLOCATE(Dielectric_dummy_Slave)
 SDEALLOCATE(Dielectric_dummy_Master)
-SDEALLOCATE(Dielectric_dummy)
+SDEALLOCATE(Dielectric_dummy_elem)
 END SUBROUTINE SetDielectricFaceProfile
 
 
