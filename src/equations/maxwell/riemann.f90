@@ -52,7 +52,6 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 USE MOD_PreProc ! PP_N
 USE MOD_Equation_Vars,ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
 USE MOD_Equation_Vars,ONLY:CentralFlux
-USE MOD_TimeDisc_Vars,         ONLY : iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -457,7 +456,7 @@ SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,F
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir,c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir
 USE MOD_Equation,      ONLY: ExactFunc
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 USE MOD_PML_vars,      ONLY: PMLnVar
@@ -682,7 +681,7 @@ SUBROUTINE RiemannDielectric(F,U_L,U_R,nv,Dielectric_Master)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars,   ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_Equation_Vars,   ONLY:eta_c,c,c_corr,c_corr_c,c_corr_c2
 USE MOD_Equation_Vars,   ONLY:CentralFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -698,7 +697,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8), A(8,8)
+REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8)
 INTEGER                                          :: Count_1,Count_2
 REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================
@@ -809,7 +808,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8), A(8,8)
+REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8)
 INTEGER                                          :: Count_1,Count_2
 REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================
@@ -940,7 +939,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8), A(8,8)
+REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8)
 INTEGER                                          :: Count_1,Count_2
 REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================
