@@ -28,7 +28,7 @@ INTEGER             :: PMLprintInfo             ! 0=only root prints PML info, 1
 INTEGER             :: PMLprintInfoProcs        ! number of procs taking part in PML info printing
 REAL,DIMENSION(6)   :: xyzPhysicalMinMax        ! physical boundary coordinates, outside = PML region
 REAL,DIMENSION(6)   :: xyzPMLMinMax             ! PML      boundary coordinates, outside = physical region
-REAL,DIMENSION(6)   :: xyzPMLzetaShapeBase      ! used for manipulating the PML zeta profile in the PML region
+REAL,DIMENSION(3)   :: xyzPMLzetaShapeOrigin    ! coordinate origin for PML ramp: used for manipulating the PML zeta profile
 LOGICAL             :: usePMLMinMax             ! set and inner PML region
 LOGICAL             :: DoPMLTimeRamp            ! use scaling factor which ramps the damping factor over time
 REAL                :: PMLTimeRamp              ! [0,1] scaling factor which ramps the damping factor over time

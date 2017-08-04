@@ -403,7 +403,7 @@ CASE(4) ! Dipole
     theta = 0.5*pi
   END IF
   phi = ATAN2(xrel(2),xrel(1))
-  !IF (xrel(1).GT.eps)      THEN
+  !IF (xrel(1).GT.eps)      THEN  ! <-------------- OLD stuff, simply replaced with ATAN2() ... but not validated 
   !  phi = ATAN(xrel(2)/xrel(1))
   !ELSE IF (xrel(1).LT.eps) THEN ! THIS DIVIDES BY ZERO ?!
   !  phi = ATAN(xrel(2)/xrel(1)) + pi

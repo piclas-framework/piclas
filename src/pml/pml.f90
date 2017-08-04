@@ -61,11 +61,12 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
-DoPML                  = GETLOGICAL('DoPML','.FALSE.')
-PMLzeta0               = GETREAL('PMLzeta0','0.')
-PMLalpha0              = GETREAL('PMLalpha0','0.')
-xyzPhysicalMinMax(1:6) = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-xyzPMLMinMax(1:6)      = GETREALARRAY('xyzPMLMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+DoPML                      = GETLOGICAL('DoPML','.FALSE.')
+PMLzeta0                   = GETREAL('PMLzeta0','0.')
+PMLalpha0                  = GETREAL('PMLalpha0','0.')
+xyzPhysicalMinMax(1:6)     = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+xyzPMLzetaShapeOrigin(1:3) = GETREALARRAY('xyzPMLzetaShapeOrigin',3,'0.0,0.0,0.0')
+xyzPMLMinMax(1:6)          = GETREALARRAY('xyzPMLMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 ! use xyzPhysicalMinMax before xyzPMLMinMax: 1.) check for xyzPhysicalMinMax 2.) check for xyzPMLMinMax
 IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMax),MINVAL(xyzPhysicalMinMax)))THEN ! if still the initialized values
   xyzPhysicalMinMax(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
@@ -653,7 +654,7 @@ SUBROUTINE SetPMLdampingProfile()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,     ONLY: Elem_xGP,Face_xGP,nBCSides!,Face_xGP
-USE MOD_PML_Vars,      ONLY: PMLzeta,PMLzetaEff,PMLalpha,usePMLMinMax,xyzPMLzetaShapeBase!,xyPMLMinMax,PMLRamp
+USE MOD_PML_Vars,      ONLY: PMLzeta,PMLzetaEff,PMLalpha,usePMLMinMax,xyzPMLzetaShapeOrigin,xyzPMLMinMax!,PMLRamp
 USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLprintInfoProcs
 USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape!,PMLRampLength!,PMLwriteFields
 ! IMPLICIT VARIABLE HANDLING
@@ -668,8 +669,9 @@ INTEGER             :: i,j,k,iPMLElem
 REAL                :: xyzMinMax(6),xi,XiN!,delta(2),x,y
 REAL                :: xyzMinMaxloc(6)
 REAL                :: function_type
-INTEGER             :: DOFcount,iDir
-REAL                :: L_vec(6)
+INTEGER             :: DOFcount,iDir,PMLDir
+!REAL                :: L_vec(6)
+REAL                :: xMin,xMax!,xGP
 !===================================================================================================================================
 !ALLOCATE(PMLRamp          (0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(PMLzeta      (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
@@ -700,9 +702,9 @@ xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:n
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
 #endif /*MPI*/
-  print*,"xyzMinMax - X",xyzMinMax(1:2)
-  print*,"xyzMinMax - Y",xyzMinMax(3:4)
-  print*,"xyzMinMax - Z",xyzMinMax(5:6)
+  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'          xyzMinMax - X',xyzMinMax(1),xyzMinMax(2)
+  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'          xyzMinMax - Y',xyzMinMax(3),xyzMinMax(4)
+  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'          xyzMinMax - Z',xyzMinMax(5),xyzMinMax(6)
 #ifdef MPI
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
@@ -713,70 +715,82 @@ END DO
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
 #endif /*MPI*/
-  print*,"xyzPhysicalMinMax - X",xyzPhysicalMinMax(1:2)
-  print*,"xyzPhysicalMinMax - Y",xyzPhysicalMinMax(3:4)
-  print*,"xyzPhysicalMinMax - Z",xyzPhysicalMinMax(5:6)
+  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'  xyzPhysicalMinMax - X',xyzPhysicalMinMax(1),xyzPhysicalMinMax(2)
+  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'  xyzPhysicalMinMax - Y',xyzPhysicalMinMax(3),xyzPhysicalMinMax(4)
+  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'  xyzPhysicalMinMax - Z',xyzPhysicalMinMax(5),xyzPhysicalMinMax(6)
 #ifdef MPI
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 END DO
 #endif /*MPI*/
 
-! ----------------------------------------------------------------------------------------------------------------------------------
 !determine PMLzeta values for each interpolation point according to ramping function (const., linear, sinusoidal, polynomial)
 IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
-  DO I=1,6
-    IF( ALMOSTEQUAL(ABS(xyzMinMax(I)),ABS(xyzPMLzetaShapeBase(I))) )THEN
-      L_vec(I)=HUGE(1.)
-    ELSE 
-      L_vec(I)=ABS(xyzMinMax(I)-xyzPMLzetaShapeBase(I))
+  ! --------------------------------------------------------------------------------------------------------------------------------
+  ! CURRENTLY ONLY SUPPORT ONE DIRECTION, EITHER X- Y- or Z-DIRECTION
+  ! --------------------------------------------------------------------------------------------------------------------------------
+  ! the PML ramp is oriented via "xyzPMLzetaShapeOrigin" which is used as the origin for defining a rising of declining slope 
+  ! of the PML ramping profile: below are two examples with a linear profile where the PML region is defined by the same values
+  ! the only differens is that the origin "xyzPMLzetaShapeOrigin" located at "P(x_PML)" in the two examples is moved in the domain
+  ! to a larger x-value (in this example)
+  !
+  !                     /                        \                                              !
+  !   example 1        /                          \       example 2                             !
+  !                   /                            \                                            !
+  !                  /                              \                                           !
+  !     origin      /  PML                      PML  \    origin                                !
+  !                /  ramp                      ramp  \                                         !
+  !    P(x_PML)   /                                    \    P(x_PML)                            !
+  !              /                                      \                                       !
+  !  ___________/                                        \___________                           !
+  !                                                                                             !
+  !  ---------------------->                     ---------------------->                        !
+  !      x_PML              x                                 x_PML      x                      !
+  !                                                                                             !
+  ! --------------------------------------------------------------------------------------------------------------------------------
+  DO iDir=1,3 !1=x, 2=y, 3=z
+    IF((xyzPMLzetaShapeOrigin(iDir).GT.xyzPMLMinMax(2*iDir-1)).AND.(xyzPMLzetaShapeOrigin(iDir).LT.xyzPMLMinMax(2*iDir)))THEN
+      IF(iDir.LT.3) CYCLE ! if all directions are true, the the point must be indisde the region
+    ELSE
+      PMLDir=iDir
+      EXIT ! if one direction is outside, the point must be outside of the region
     END IF
-    print*,"L_vec   =", NINT(L_vec(I))
+    SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3,E25.14E3)') xyzPMLzetaShapeOrigin(1),xyzPMLzetaShapeOrigin(2),xyzPMLzetaShapeOrigin(3)
+    CALL abort(&
+    __STAMP__&
+    ,'The origin reference point "xyzPMLzetaShapeOrigin" cannot lie within the PML region defined by "xyzPMLMinMax"')
   END DO
+    
+  ! set new values for minimum and maximum to the domain boundary values
+  xyzPMLMinMax(2*PMLDir-1) = MAX(xyzPMLMinMax(2*PMLDir-1),xyzMinMax(2*PMLDir-1)) ! minimum
+  xyzPMLMinMax(2*PMLDir  ) = MIN(xyzPMLMinMax(2*PMLDir  ),xyzMinMax(2*PMLDir  )) ! maximum
+  SWRITE(UNIT_stdOut,'(A,I2)') 'Setting xyzPMLMinMax to <=xyzMinMax for iDir=',PMLDir
   DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    DO iDir=1,3 !1=x, 2=y, 3=z
-      IF       (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .LT.xyzPMLzetaShapeBase(2*iDir-1)) THEN ! 1,3,5
-        xi =ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))    -xyzPMLzetaShapeBase(2*iDir-1))      ! 1,3,5
-        PMLzeta(iDir,i,j,k,iPMLElem) = PMLzeta0*function_type(xi/L_vec(2*iDir-1),PMLzetashape)   ! 1,3,5
-      ELSEIF   (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .GT. xyzPMLzetaShapeBase(2*iDir )) THEN ! 2,4,6
-        xi =ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))     -xyzPMLzetaShapeBase(2*iDir ))      ! 2,4,6
-        PMLzeta(iDir,i,j,k,iPMLElem) = PMLzeta0*function_type(xi/L_vec(2*iDir ),PMLzetashape)    ! 2,4,6
+      IF((Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem)).GE.xyzPMLMinMax(2*PMLDir-1)).AND.&
+         (Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem)).LE.xyzPMLMinMax(2*PMLDir)))THEN ! point is in [PMLDir]-direction region
+        xMin = xyzPMLMinMax(2*PMLDir-1)-xyzPMLzetaShapeOrigin(PMLDir)               ! min of region defined for PML region
+        xMax = xyzPMLMinMax(2*PMLDir  )-xyzPMLzetaShapeOrigin(PMLDir)               ! max of region defined for PML region
+        PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*function_type(&
+                                       ( Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem))-xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
+                                       ( MAX(xMin,xMax)                                                          -MIN(xMin,xMax) ),&
+                                       PMLzetashape)
       END IF
-    END DO
   END DO; END DO; END DO; END DO !iPMLElem,k,j,i
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ELSE ! use xyzPhysicalMinMax -> define the physical region
-  !SELECT CASE (PMLzetaShape)
-  !CASE(0) !Constant Distribution of the Damping Coefficient
-    !DO iPMLElem=1,nPMLElems
-          !!IF (isPMLElem(iElem)) THEN
-            !PMLzeta( 1:3,:,:,:,iPMLElem) = PMLzeta0
-            !PMLalpha(1:3,:,:,:,iPMLElem) = PMLalpha0
-          !!END IF
-    !END DO
-  !CASE(1,2,3) ! Linear/Sinusoidal/POlynomial Distribution of the Damping Coefficient
-    DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      DO iDir=1,3 !1=x, 2=y, 3=z
-        IF          (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .LT. xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part of the domain
-          XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)))-ABS(xyzPhysicalMinMax(2*iDir-1)))/&
-                                                        (ABS(xyzMinMax(2*iDir-1))-ABS(xyzPhysicalMinMax(2*iDir-1)))
-                      PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
-        ELSEIF      (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .GT. xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part of the domain
-          XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)))-ABS(xyzPhysicalMinMax(2*iDir)))/&
-                                                        (ABS(xyzMinMax(2*iDir))-ABS(xyzPhysicalMinMax(2*iDir)))
-                      PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
-        END IF
-      END DO
-    END DO; END DO; END DO; END DO !iElem,k,j,i
-  !CASE DEFAULT
-    !CALL abort(&
-    !__STAMP__&
-    !,'Shape function for damping coefficient in PML region not specified!',999,999.)
-  !END SELECT ! PMLzetaShape
-
-
-
-
+  DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iDir=1,3 !1=x, 2=y, 3=z
+      IF          (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .LT.   xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part
+        XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))) - ABS(xyzPhysicalMinMax(2*iDir-1)))/&   ! of the domain
+              (ABS(xyzMinMax(2*iDir-1))                      - ABS(xyzPhysicalMinMax(2*iDir-1)))
+                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+      ELSEIF      (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .GT.   xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part
+        XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))) - ABS(xyzPhysicalMinMax(2*iDir)))/&   ! of the domain
+              (ABS(xyzMinMax(2*iDir))                        - ABS(xyzPhysicalMinMax(2*iDir)))
+                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+      END IF
+    END DO
+  END DO; END DO; END DO; END DO !iElem,k,j,i
 
 !    FIX this   ! determine Elem_xGP distance to PML interface for PMLRamp
 !    FIX this   DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N
