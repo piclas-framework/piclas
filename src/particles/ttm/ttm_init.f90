@@ -279,7 +279,6 @@ SUBROUTINE GetFDGridCellSize(fd_hx,fd_hy,fd_hz)
 USE MOD_Globals
 USE MOD_TTM_Vars
 USE MOD_Particle_Vars, ONLY:IMDLengthScale
-!USE MOD_RegressionCheck_tools, ONLY: str2real
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -288,11 +287,11 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)   :: fd_hx,fd_hy,fd_hz
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER        :: ioUnit
-INTEGER        :: IndNum,IndNum2
-INTEGER        :: iLine
-INTEGER        :: io_error
-CHARACTER(255) :: StrTmp,StrTmp2
+INTEGER              :: ioUnit
+INTEGER              :: IndNum
+INTEGER              :: iLine
+INTEGER              :: io_error
+CHARACTER(255)       :: StrTmp
 !===================================================================================================================================
 fd_hx = -1.0
 fd_hy = -1.0
@@ -410,11 +409,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: ChargeLower,ChargeUpper    ! 
-INTEGER :: ElemCharge(1:PP_nElems)      !
+INTEGER :: ChargeLower,ChargeUpper
+INTEGER :: ElemCharge(1:PP_nElems)
 INTEGER :: ElecSpecIndx,iSpec,location,iElem,iPart,ParticleIndexNbr
-REAL    :: ChargeProbability          ! 
-REAL    :: iRan, RandVal(2)           !
+REAL    :: ChargeProbability
+REAL    :: iRan
 REAL    :: PartPosRef(1:3)
 REAL    :: CellElectronTemperature
 REAL    :: MaxElectronTemp_eV

@@ -64,7 +64,6 @@ SUBROUTINE CalcSurfaceValues
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI
-  USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
   USE MOD_Particle_Boundary_Sampling, ONLY:ExchangeSurfData
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
 #endif
@@ -1621,8 +1620,6 @@ SUBROUTINE PeriodicSourceExchangeDSMCHO(BGMSource, alphasum)
 ! Exchange sources in periodic case
 !============================================================================================================================
 ! use MODULES                                                    
-  !USE MOD_Particle_MPI_Vars, ONLY:PartMPI
-  !USE MOD_PICDepo_Vars
   USE MOD_Particle_Mesh_Vars, ONLY:Geo
   USE MOD_Particle_Vars
   USE MOD_DSMC_Vars

@@ -160,7 +160,7 @@ SUBROUTINE Restart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_HDF5_Input,              ONLY: File_ID,DatasetExists
+USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
 #ifdef PP_HDG
@@ -180,11 +180,9 @@ USE MOD_Equation_Vars,           ONLY:Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
 USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF,PartPosRef
-USE MOD_part_tools,              ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars,               ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
-!USE MOD_BoundaryTools,           ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
-!USE MOD_BoundaryTools,           ONLY: ParticleInsideQuad3D
-USE MOD_Eval_XYZ,                ONLY: EVal_xyz_ElemCheck
+USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+USE MOD_DSMC_Vars,               ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC
+USE MOD_Eval_XYZ,                ONLY:EVal_xyz_ElemCheck
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
@@ -192,19 +190,12 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #endif /*MPI*/
 #ifdef PP_HDG
-USE MOD_HDG_Vars,                ONLY: lambda, nGP_face
-USE MOD_HDG,                     ONLY: RestartHDG
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-!USE MOD_TimeDisc,             ONLY: TimeStepPoissonByLSERK
-#endif
-#if (PP_TimeDiscMethod==500)
-!USE MOD_TimeDisc,             ONLY:  TimeStepPoisson
-#endif
-USE MOD_TimeDisc_Vars,           ONLY: dt
+USE MOD_HDG_Vars,                ONLY:lambda, nGP_face
+USE MOD_HDG,                     ONLY:RestartHDG
 #endif /*PP_HDG*/
-USE MOD_Particle_Tracking,       ONLY: ParticleCollectCharges
-USE MOD_TTM_Vars,                ONLY: DoImportTTMFile,TTM_DG
-USE MOD_HDF5_Input,           ONLY: File_ID,DatasetExists
+USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
+USE MOD_TTM_Vars,                ONLY:DoImportTTMFile,TTM_DG
+USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -236,7 +227,7 @@ INTEGER,PARAMETER        :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER        :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE         :: PartData(:,:)
 REAL                     :: xi(3)
-LOGICAL                  :: InElementCheck,PartIntExists,PartDataExists
+LOGICAL                  :: InElementCheck,PartIntExists
 INTEGER                  :: COUNTER, COUNTER2
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
@@ -648,7 +639,7 @@ __STAMP__&
     CALL UpdateNextFreePosition()
   ELSE
       SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
-  END IF ! PartDataExists
+  END IF ! PartIntExists
 #endif /*PARTICLES*/
 
   CALL CloseDataFile() 

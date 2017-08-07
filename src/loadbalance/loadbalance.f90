@@ -296,9 +296,8 @@ SUBROUTINE LoadBalance(CurrentImbalance,PerformLoadBalance)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Restart,               ONLY:Restart
-!USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
-USE MOD_LoadBalance_Vars,      ONLY:DeviationThreshold,ElemTime,nLoadBalanceSteps
+USE MOD_LoadBalance_Vars,      ONLY:ElemTime,nLoadBalanceSteps
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,          ONLY:DepositionType
 USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles

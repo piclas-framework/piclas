@@ -222,8 +222,6 @@ USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-USE MOD_Timedisc_Vars         , ONLY : iter
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
@@ -2082,9 +2080,6 @@ REAL                             :: OneDTwoStreamTransRatio          ! Ratio bet
 REAL                             :: Alpha                            ! WaveNumber for sin-deviation initiation.
 REAL                             :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
 REAL                             :: MJRatio(3)                       ! momentum to temperature ratio
-REAL                             :: IMD_array(12)!,Vabs,Ekin
-INTEGER                          :: Nshift,ioUnit,io_error
-CHARACTER(LEN=255)               :: StrTmp
 ! Maxwell-Juettner
 REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
 REAL                             :: VelocitySpread                         ! widening of init velocity

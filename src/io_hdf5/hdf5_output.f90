@@ -1756,7 +1756,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Restart_Vars,          ONLY: DoRestart
-USE MOD_TTM_Vars,              ONLY: DoImportTTMFile,TTMLogFile
+USE MOD_TTM_Vars,              ONLY: DoImportTTMFile
 #ifdef MPI
 USE MOD_MPI,                   ONLY:FinalizeMPI
 #endif /*MPI*/
@@ -1771,7 +1771,7 @@ REAL,INTENT(IN)                  :: time
 ! LOCAL VARIABLES
 CHARACTER(LEN=255) :: tempStr
 REAL               :: t,tFuture,IMDtimestep
-INTEGER            :: I,iSTATUS,IMDanalyzeIter
+INTEGER            :: iSTATUS,IMDanalyzeIter
 !===================================================================================================================================
 IF(DoRestart)THEN
   IF(DoImportTTMFile)THEN
@@ -1853,19 +1853,17 @@ USE MOD_io_HDF5
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: OutputTime!,FutureTime
+REAL,INTENT(IN)                 :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: N_variables
+INTEGER                         :: N_variables
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
-CHARACTER(LEN=255)  :: FileName
+CHARACTER(LEN=255)              :: FileName
 #ifdef MPI
-REAL                :: StartT,EndT
+REAL                            :: StartT,EndT
 #endif
-!REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-INTEGER             :: iElem
 !===================================================================================================================================
 N_variables=11
 ALLOCATE(StrVarNames(1:N_variables))
@@ -1893,7 +1891,6 @@ IF(MPIRoot) CALL GenerateFileSkeleton('TTM',N_variables,StrVarNames,TRIM(MeshFil
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #else
-  !CALL OpenDataFile(FileName,create=.FALSE.)
   CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
 CALL WriteAttributeToHDF5(File_ID,'VarNamesTTM',N_variables,StrArray=StrVarNames)

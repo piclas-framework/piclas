@@ -2329,7 +2329,10 @@ USE MOD_PICDepo,             ONLY:Deposition
 #ifndef PP_HDG
 USE MOD_DG_Vars,             ONLY:U
 #else
+#if PP_nVar==1
+#else
 USE MOD_Equation_Vars,       ONLY:E
+#endif
 #endif
 #ifdef MPI
 USE MOD_Particle_MPI,        ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
