@@ -60,11 +60,10 @@ SUBROUTINE CalcSurfaceValues
 ! MODULES
   USE MOD_Globals
   USE MOD_Timedisc_Vars,              ONLY:time,dt
-  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal !MacroSurfaceCounter
+  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal,Adsorption !MacroSurfaceCounter
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI
-  USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
   USE MOD_Particle_Boundary_Sampling, ONLY:ExchangeSurfData
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
 #endif
@@ -80,7 +79,7 @@ SUBROUTINE CalcSurfaceValues
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                            :: iSpec,iSurfSide,p,q
+  INTEGER                            :: iSpec,iSurfSide,p,q, iReact
   REAL                               :: TimeSample
   INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 !===================================================================================================================================
@@ -134,12 +133,16 @@ SUBROUTINE CalcSurfaceValues
           END IF
           MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
           IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
-            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Accomodation(iSpec,p,q)
+            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0. !SampWall(iSurfSide)%Accomodation(iSpec,p,q)
           ELSE
             MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
                                                       / SampWall(iSurfSide)%State(12+iSpec,p,q))
           END IF
           MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
+          DO iReact=1,Adsorption%NumOfAssocReact
+            MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) &
+                + SampWall(iSurfSide)%Reaction(iReact,iSpec,p,q) * 2. / SampWall(iSurfSide)%State(12+iSpec,p,q)
+          END DO
         END DO ! iSpec=1,nSpecies
       END DO ! q=1,nSurfSample
     END DO ! p=1,nSurfSample 

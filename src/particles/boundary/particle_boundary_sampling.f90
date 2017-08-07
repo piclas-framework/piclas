@@ -1039,11 +1039,12 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   
 !   ! Create dataset attribute "Species_Varnames" and write to file
 !   IF (DSMC%WallModel.GT.0) THEN
-    Species_nOut=3
+    Species_nOut=4
     ALLOCATE(StrOutNames(1:Species_nOut))
     StrOutNames(1)='Spec_Counter'
     StrOutNames(2)='Accomodation'
     StrOutNames(3)='Coverage'
+    StrOutNames(4)='Recomb_Coeff'
 !   ELSE
 !     Species_nOut=1
 !     ALLOCATE(StrOutNames(1:Species_nOut))
@@ -1079,8 +1080,8 @@ CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
 DO iSpec = 1,nSpecies
     WRITE(H5_Name,'(A,I3.3,A)') 'DSMC_Spec',iSpec,'_SurfaceSampling'
     CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
-                    nValGlobal=(/3,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                    nVal=      (/3,nSurfSample,nSurfSample,SurfMesh%nSides/),&
+                    nValGlobal=(/4,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
+                    nVal=      (/4,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/0,          0,          0,offsetSurfSide/),&
                     collective=.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
 END DO

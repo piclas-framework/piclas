@@ -621,6 +621,7 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
         SampWall(iSide)%State=0.
         SampWall(iSide)%Adsorption=0.
         SampWall(iSide)%Accomodation=0.
+        SampWall(iSide)%Reaction=0.
       END DO
     END IF
 #endif

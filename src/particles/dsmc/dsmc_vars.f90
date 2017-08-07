@@ -275,7 +275,6 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
   REAL    , ALLOCATABLE                  :: AreaIncrease(:)         ! Factor for increasing surface density
   INTEGER , ALLOCATABLE                  :: CrystalIndx(:)          ! Number of binding atoms in hollow site
-  !REAL                                   :: SurfMassIC(:)           ! Mass of the surface coordination for hard cube model
   INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption
   ! parameters for Kisliuk and Polanyi Wigner model (wallmodel=1)
@@ -527,10 +526,11 @@ TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)  ! variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
-                                                                   ! (3,p,q,nSurfSides,nSpecies)
+                                                                   ! (4,p,q,nSurfSides,nSpecies)
                                                                    ! 1: Surface Collision Counter
                                                                    ! 2: Accomodation
                                                                    ! 3: Coverage
+                                                                   ! 4: Recombination Coefficient
 
 ! some variables redefined
 !TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
