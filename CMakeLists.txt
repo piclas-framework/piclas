@@ -548,7 +548,6 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/io_hdf5/*.f90
                                 ./src/loadbalance/*.f90
                                 ./src/mesh/*.f90
-                                ./src/dielectric/*.f90
                                 ./src/mpi/*.f90
                                 ./src/output/*.f90
                                 ./src/readintools/*.f90
@@ -560,6 +559,7 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
 FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
                         ./src/interpolation/prolongtoface.f90
                         ./src/pml/*.f90
+                        ./src/dielectric/*.f90
                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/*.f90)
 
 FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
