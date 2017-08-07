@@ -687,17 +687,18 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
   IF ((ExactFunction.EQ.51).AND.(x(3).GT.eps)) RETURN
   r=SQRT(x(1)**2+x(2)**2)
-  IF (x(1).GT.eps)      THEN
-    phi = ATAN(x(2)/x(1))
-  ELSE IF (x(1).LT.(-eps)) THEN
-    phi = ATAN(x(2)/x(1)) + pi
-  ELSE IF (x(2).GT.eps) THEN
-    phi = 0.5*pi
-  ELSE IF (x(2).LT.(-eps)) THEN
-    phi = 1.5*pi
-  ELSE
-    phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
-  END IF
+  phi = ATAN2(x(2),x(1))
+ !    IF (x(1).GT.eps)      THEN ! <-------------- OLD stuff, simply replaced with ATAN2() ... but not validated
+ !      phi = ATAN(x(2)/x(1))
+ !    ELSE IF (x(1).LT.(-eps)) THEN
+ !      phi = ATAN(x(2)/x(1)) + pi
+ !    ELSE IF (x(2).GT.eps) THEN
+ !      phi = 0.5*pi
+ !    ELSE IF (x(2).LT.(-eps)) THEN
+ !      phi = 1.5*pi
+ !    ELSE
+ !      phi = 0.0         ! Vorsicht: phi ist hier undef!
+ !    END IF
   z = x(3)
   a = h*z+mG*phi
   b0 = BESSEL_JN(mG,REAL(g*r))
