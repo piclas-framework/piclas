@@ -90,10 +90,12 @@ SUBROUTINE CalcSurfaceValues
 #endif
 
   ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  ALLOCATE(MacroSurfaceSpecVal(3,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
 !   ALLOCATE(MacroSurfaceCounter(1:nSpecies,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
-  MacroSurfaceSpecVal=0.
+  IF (DSMC%WallModel.GT.0) THEN
+    ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+    MacroSurfaceSpecVal=0.
+  END IF
 !   MacroSurfaceCounter=0
   IF (DSMC%CalcSurfCollis_Output) THEN
     ALLOCATE(CounterTotal(1:nSpecies+1))
@@ -117,14 +119,24 @@ SUBROUTINE CalcSurfaceValues
         MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
-                                           +SampWall(iSurfSide)%State(4,p,q) &
-                                           +SampWall(iSurfSide)%State(7,p,q) &
-                                           -SampWall(iSurfSide)%State(3,p,q) & 
-                                           -SampWall(iSurfSide)%State(6,p,q) &
-                                           -SampWall(iSurfSide)%State(9,p,q) &
-                                           -SampWall(iSurfSide)%Adsorption(1,p,q))&
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        IF (DSMC%WallModel.GT.0) THEN
+          MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
+                                             +SampWall(iSurfSide)%State(4,p,q) &
+                                             +SampWall(iSurfSide)%State(7,p,q) &
+                                             -SampWall(iSurfSide)%State(3,p,q) & 
+                                             -SampWall(iSurfSide)%State(6,p,q) &
+                                             -SampWall(iSurfSide)%State(9,p,q) &
+                                             -SampWall(iSurfSide)%Adsorption(1,p,q))&
+                                             /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        ELSE
+          MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
+                                             +SampWall(iSurfSide)%State(4,p,q) &
+                                             +SampWall(iSurfSide)%State(7,p,q) &
+                                             -SampWall(iSurfSide)%State(3,p,q) & 
+                                             -SampWall(iSurfSide)%State(6,p,q) &
+                                             -SampWall(iSurfSide)%State(9,p,q)) &
+                                             /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        END IF
         DO iSpec=1,nSpecies
 !           MacroSurfaceCounter(iSpec,p,q,iSurfSide) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
           IF (DSMC%CalcSurfCollis_Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
@@ -132,17 +144,23 @@ SUBROUTINE CalcSurfaceValues
             MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + SampWall(iSurfSide)%State(12+iSpec,p,q)/TimeSample
           END IF
           MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
-          IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
-            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0. !SampWall(iSurfSide)%Accomodation(iSpec,p,q)
-          ELSE
-            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
-                                                      / SampWall(iSurfSide)%State(12+iSpec,p,q))
+          IF (DSMC%WallModel.GT.0) THEN
+            IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
+              MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0. !SampWall(iSurfSide)%Accomodation(iSpec,p,q)
+            ELSE
+              MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
+                                                        / SampWall(iSurfSide)%State(12+iSpec,p,q))
+            END IF
+            MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
+            DO iReact=1,Adsorption%NumOfAssocReact
+              IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
+                MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec)
+              ELSE
+                MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) &
+                    + SampWall(iSurfSide)%Reaction(iReact,iSpec,p,q) * 2. / SampWall(iSurfSide)%State(12+iSpec,p,q)
+              END IF
+            END DO
           END IF
-          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
-          DO iReact=1,Adsorption%NumOfAssocReact
-            MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) &
-                + SampWall(iSurfSide)%Reaction(iReact,iSpec,p,q) * 2. / SampWall(iSurfSide)%State(12+iSpec,p,q)
-          END DO
         END DO ! iSpec=1,nSpecies
       END DO ! q=1,nSurfSample
     END DO ! p=1,nSurfSample 

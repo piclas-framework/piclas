@@ -619,9 +619,11 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
       CALL CalcSurfaceValues
       DO iSide=1,SurfMesh%nTotalSides 
         SampWall(iSide)%State=0.
-        SampWall(iSide)%Adsorption=0.
-        SampWall(iSide)%Accomodation=0.
-        SampWall(iSide)%Reaction=0.
+        IF (DSMC%WallModel.GT.0) THEN
+          SampWall(iSide)%Adsorption=0.
+          SampWall(iSide)%Accomodation=0.
+          SampWall(iSide)%Reaction=0.
+        END IF
       END DO
     END IF
 #endif

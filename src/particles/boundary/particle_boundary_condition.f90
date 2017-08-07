@@ -149,7 +149,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
-        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
+        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,opt_Reflected=crossedBC)
         ! assign right treatment
         IF (adsorbindex.EQ.1) THEN ! adsorption (is either removed or set to be on surface)
           IF (KeepWallParticles) THEN
@@ -366,7 +366,8 @@ CASE(2) !PartBound%ReflectiveBC)
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)
-        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)
+        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex&
+                                ,BCSideID=BCSideID,opt_reflected=crossedBC)
         ! assign right treatment
         IF (adsorbindex.EQ.1) THEN ! adsorption (is either removed or set to be on surface)
           IF (KeepWallParticles) THEN
@@ -1547,7 +1548,7 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID) 
+SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected) 
 !===================================================================================================================================
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
@@ -1576,6 +1577,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+  LOGICAL,INTENT(OUT),OPTIONAL     :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                             :: RanNum
@@ -1609,18 +1611,50 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   INTEGER                          :: iReact
 !===================================================================================================================================
 
+  IF(PRESENT(BCSideID))THEN
+    SELECT CASE(SideType(BCSideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,BCSideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
+    END SELECT 
+  ELSE
+    SELECT CASE(SideType(GlobSideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,GlobSideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
+    END SELECT 
+  END IF
+  ! check if BC was already crossed
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    RETURN
+  ELSE
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+  END IF
+
   ! additional states
   locBCID=PartBound%MapToPartBC(BC(GlobSideID))
   ! get BC values
   WallVelo     = PartBound%WallVelo(1:3,locBCID)
   WallTemp     = PartBound%WallTemp(locBCID)
-!   TransACC     = PartBound%TransACC(locBCID)
-!   VibACC       = PartBound%VibACC(locBCID)
-!   RotACC       = PartBound%RotACC(locBCID)
-
+  
+  ! initialize sampling arrays
   TransArray(:) = 0.0
   IntArray(:) = 0.0
-  
+
+  ! compute p and q
+  ! correction of xi and eta, can only be applied if xi & eta are not used later!
+  Xitild =MIN(MAX(-1.,xi ),0.99)
+  Etatild=MIN(MAX(-1.,eta),0.99)
+  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
+
   SurfSideID = SurfMesh%SideIDToSurfID(GlobSideID)
   SpecID = PartSpecies(PartID)
 #if (PP_TimeDiscMethod==42)  
@@ -1631,34 +1665,8 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
         + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
   END IF
 #endif
-  ! compute p and q
-  ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  Xitild =MIN(MAX(-1.,xi ),0.99)
-  Etatild=MIN(MAX(-1.,eta),0.99)
-  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
   
   IF (DSMC%WallModel.GE.2) THEN
-    IF(PRESENT(BCSideID))THEN
-      SELECT CASE(SideType(BCSideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        n_loc=SideNormVec(1:3,BCSideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-      END SELECT 
-    ELSE
-      SELECT CASE(SideType(GlobSideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        n_loc=SideNormVec(1:3,GlobSideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      END SELECT 
-    END IF
-    
     Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
     Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
     

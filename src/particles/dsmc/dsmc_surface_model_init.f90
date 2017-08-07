@@ -217,6 +217,7 @@ IF (DSMC%WallModel.EQ.3) THEN
   END DO
 #endif
 END IF
+CALL Init_ChemistrySampling()
 
 END SUBROUTINE InitDSMCSurfModel
 
@@ -1079,6 +1080,58 @@ SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
 END SUBROUTINE Init_SurfChem
 
+SUBROUTINE Init_ChemistrySampling()
+!===================================================================================================================================
+! Initializing of additional surface sampling if catalysis is enabled
+!===================================================================================================================================
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Mesh_Vars,              ONLY : BC
+USE MOD_Particle_Vars,          ONLY : nSpecies, Species
+USE MOD_DSMC_Vars,              ONLY : Adsorption
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM, SampWall
+USE MOD_Particle_MPI_Vars,      ONLY : SurfSendBuf,SurfRecvBuf,SurfExchange
+USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo, ExchangeSurfDistSize
+#endif /*MPI*/
+!===================================================================================================================================
+IMPLICIT NONE
+!=================================================================================================================================== 
+! Local variable declaration
+INTEGER                          :: iSide
+#ifdef MPI
+INTEGER                          :: iProc
+#endif
+!===================================================================================================================================
+
+DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
+  ALLOCATE(SampWall(iSide)%Adsorption(1:(nSpecies+1),1:nSurfSample,1:nSurfSample))
+  SampWall(iSide)%Adsorption=0.
+  ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
+  SampWall(iSide)%Accomodation=0.
+  ALLOCATE(SampWall(iSide)%Reaction(1:Adsorption%NumOfAssocReact,1:nSpecies,1:nSurfSample,1:nSurfSample))
+  SampWall(iSide)%Reaction=0.
+END DO
+#ifdef MPI
+! Reallocate buffer for mpi communication of sampling
+DO iProc=1,SurfCOMM%nMPINeighbors
+  SDEALLOCATE(SurfSendBuf(iProc)%content)
+  SDEALLOCATE(SurfRecvBuf(iProc)%content)
+  IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
+    ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%NumOfAssocReact*nSpecies))&
+                                        *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+    SurfSendBuf(iProc)%content=0.
+  END IF
+  IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
+    ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%NumOfAssocReact*nSpecies))&
+                                        *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+    SurfRecvBuf(iProc)%content=0.
+  END IF
+END DO ! iProc
+#endif
+
+END SUBROUTINE Init_ChemistrySampling
 
 SUBROUTINE Init_TST_Coeff(TST_Case)
 !===================================================================================================================================
