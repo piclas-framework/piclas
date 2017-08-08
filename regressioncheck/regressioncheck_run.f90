@@ -433,7 +433,7 @@ dummystr=TRIM(ADJUSTL(ExampleName)) ! e.g. "run_basic"
 IF(dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType)))).EQ.RuntimeOptionType)THEN ! e.g. "run[_basic]" = "run"
   SWRITE(UNIT_stdOut,'(A)') ''
 END IF
-SWRITE(UNIT_stdOut,'(A,2x,A50)',ADVANCE='no') ' Example-Name: ',  TRIM(ExampleName)
+SWRITE(UNIT_stdOut,'(A65)',ADVANCE='no') ' Example-Name: '//dummystr
 IF(dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType)))).NE.RuntimeOptionType)THEN
   SWRITE(UNIT_stdOut,'(A,2x,A)') '  ...skipping'
   SkipExample=.TRUE.
