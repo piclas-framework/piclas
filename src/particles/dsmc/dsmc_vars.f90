@@ -524,7 +524,6 @@ END TYPE
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
-REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)  ! variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
                                                                    ! (4,p,q,nSurfSides,nSpecies)
                                                                    ! 1: Surface Collision Counter
