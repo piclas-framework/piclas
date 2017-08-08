@@ -157,8 +157,8 @@ REAL ,INTENT(OUT)             :: Currentimbalance
 ! LOCAL VARIABLES
 INTEGER               :: iElem,ioUnit
 REAL                  :: tDG, tPML
-INTEGER(KIND=8)       :: HelpSum
 #ifdef PARTICLES
+INTEGER(KIND=8)       :: HelpSum
 REAL                  :: stotalDepos,stotalParts,sTotalTracks
 REAL                  :: tParts
 #endif /*PARTICLES*/
@@ -379,8 +379,9 @@ SUBROUTINE LoadMeasure()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter,nTotalParts
+USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter
 #ifdef PARTICLES
+USE MOD_LoadBalance_Vars,       ONLY:nTotalParts
 USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
 #endif /*PARTICLES*/
 #ifndef PP_HDG

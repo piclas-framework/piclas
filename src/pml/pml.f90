@@ -654,7 +654,7 @@ SUBROUTINE SetPMLdampingProfile()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh,          ONLY: GetMeshMinMaxBoundaries
-USE MOD_Mesh_Vars,     ONLY: Elem_xGP,Face_xGP,nBCSides,xyzMinMax
+USE MOD_Mesh_Vars,     ONLY: Elem_xGP,xyzMinMax
 USE MOD_PML_Vars,      ONLY: PMLzeta,PMLzetaEff,PMLalpha,usePMLMinMax,xyzPMLzetaShapeOrigin,xyzPMLMinMax
 USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLprintInfoProcs
 USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape
@@ -667,12 +667,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iPMLElem
-REAL                :: xi,XiN!,delta(2),x,y
-
+REAL                :: XiN
 REAL                :: function_type
 INTEGER             :: iDir,PMLDir
-!REAL                :: L_vec(6)
-REAL                :: xMin,xMax!,xGP
+REAL                :: xMin,xMax
 !===================================================================================================================================
 !ALLOCATE(PMLRamp          (0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(PMLzeta      (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))

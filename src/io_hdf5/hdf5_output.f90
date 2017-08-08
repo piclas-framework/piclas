@@ -1658,6 +1658,7 @@ END IF
 
 END SUBROUTINE GatheredWriteArray
 
+#ifdef PARTICLES
 #ifdef MPI
 SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray)
@@ -1744,6 +1745,7 @@ END IF
 
 END SUBROUTINE DistributedWriteArray
 #endif /*MPI*/
+#endif /*PARTICLES*/
 
 
 #ifdef PARTICLES
@@ -2012,8 +2014,8 @@ SUBROUTINE WriteDielectricGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEpsR,DielectricEps,isDielectricElem,ElemToDielectric
-USE MOD_Dielectric_Vars, ONLY: DielectricMuR,DielectricMu,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEps,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY: DielectricMu,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
 USE MOD_io_HDF5

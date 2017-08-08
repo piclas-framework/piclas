@@ -160,7 +160,7 @@ SUBROUTINE Restart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
+USE MOD_HDF5_Input,              ONLY:DatasetExists
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
 #ifdef PP_HDG

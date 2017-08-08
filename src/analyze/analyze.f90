@@ -347,7 +347,6 @@ SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
 USE MOD_Restart_Vars,          ONLY: DoRestart
 #if (PP_nVar>=6)
@@ -361,12 +360,9 @@ USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_Recordpoints_Vars,     ONLY: RPSkip
 #endif /*LSERK*/
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
-#if (PP_TimeDiscMethod==42)
-USE MOD_TimeDisc_Vars,         ONLY: dt
-#else
-USE MOD_TimeDisc_Vars,         ONLY: dt
-#endif
 #ifdef PARTICLES
+USE MOD_Mesh_Vars,             ONLY: MeshFile
+USE MOD_TimeDisc_Vars,         ONLY: dt
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
