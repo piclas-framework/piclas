@@ -93,35 +93,21 @@ DO SideID=firstSideID,lastSideID
     IF (isPMLFace(SideID))THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
                                  !     (flux-splitting!)
       CALL RiemannPML(Flux_Master(1:32,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
-      CYCLE
-    !ELSE ! 2.) no PML, standard flux
-      !CALL Riemann(Flux_Master(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
+      CYCLE ! don't check the following if the flux has already been calculated here -> continue with next side
     END IF
-  !ELSE ! 3.) no PML, standard flux
-    !CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
-    !CYCLE
   END IF ! DoPML
 
   ! 2.) Check Dielectric Medium
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
-      IF(isDielectricInterFace(SideID))THEN     ! a) physical <-> dielectric region: in Riemann: A+(EpsR,MuR) and A-(Eps0,Mu0)
-        !ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        !IF(isDielectricElem(ElemID))THEN        ! check if master is DIELECTRIC and slave PHYSICAL
-        !  ! CAUTION: switch U_Master and U_Slave
-        !  CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Slave(:,:,:,SideID),U_Master(:,:,:,SideID),&
-        !                                                                                                      NormVec(:,:,:,SideID))
-        !                                                                                 !NormVec(:,:,:,SideID),SwapNormal=.TRUE.))
-        !ELSE ! check if master is PHYSICAL and slave DIELECTRIC
-        !  CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
-        !                                                                                                      NormVec(:,:,:,SideID))
-        !END IF
+      IF(isDielectricInterFace(SideID))THEN
+        ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(isDielectricElem(ElemID))THEN        ! check if master is DIELECTRIC and slave PHYSICAL
+        IF(isDielectricElem(ElemID))THEN !  master is DIELECTRIC and slave PHYSICAL
           ! A+(Eps0,Mu0) and A-(EpsR,MuR)
           CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                                                       NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        ELSE ! check if master is PHYSICAL and slave DIELECTRIC
+        ELSE ! master is PHYSICAL and slave DIELECTRIC
           ! A+(EpsR,MuR) and A-(Eps0,Mu0)
           CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                                                       NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
@@ -130,10 +116,10 @@ DO SideID=firstSideID,lastSideID
         CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                                                       NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
       END IF
-    ELSE ! 2.) no Dielectric, standard flux
+    ELSE ! c) no Dielectric, standard flux
       CALL Riemann(Flux_Master(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
     END IF ! IF(isDielectricFace(SideID))
-  ELSE ! 3.) no Dielectric, standard flux
+  ELSE ! d) no Dielectric, standard flux
     CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
   END IF ! DoDielectric
 END DO ! SideID
