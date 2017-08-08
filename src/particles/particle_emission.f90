@@ -4479,7 +4479,7 @@ __STAMP__&
             IntArray(5) = EvibWall
             IntArray(6) = EvibNew
         
-            CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,(/0.,0.,0./),0.,.False.,0.)
+            CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,(/0.,0.,0./),0.,.False.,0.,emission_opt=.TRUE.)
           END DO
         END IF
       END IF

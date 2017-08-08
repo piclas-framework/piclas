@@ -687,8 +687,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
             Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + Prob_diss(ReactNum)
           END IF
         END IF
-        Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact) = &
-            Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact) + E_a
+        Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a
         Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) = &
             Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) + 1
 #endif
@@ -750,8 +750,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
               Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + P_Eley_Rideal(ReactNum)
         END IF
       END IF
-      Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact) = &
-          Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact) + E_a
+      Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) = &
+          Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a
       Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) = &
           Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) + 1
 #endif
@@ -1797,8 +1797,9 @@ DO subsurfxi = 1,nSurfSample
           IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
             SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
                                                                   + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
-            NumDesorbLH(Adsorption%AssocReact(2,iReact,iSpec),iReact) = &
-                NumDesorbLH(Adsorption%AssocReact(2,iReact,iSpec),iReact) + 1
+            !NumDesorbLH(Adsorption%AssocReact(2,iReact,iSpec),iReact) = &
+            !    NumDesorbLH(Adsorption%AssocReact(2,iReact,iSpec),iReact) + 1
+            NumDesorbLH(iSpec,iReact) = NumDesorbLH(iSpec,iReact) + 1
           END IF
         END IF
         ! remove adsorbate and update map

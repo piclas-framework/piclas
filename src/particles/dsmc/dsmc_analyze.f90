@@ -146,7 +146,7 @@ SUBROUTINE CalcSurfaceValues
           MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
           IF (DSMC%WallModel.GT.0) THEN
             IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
-              MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0. !SampWall(iSurfSide)%Accomodation(iSpec,p,q)
+              MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0.
             ELSE
               MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
                                                         / SampWall(iSurfSide)%State(12+iSpec,p,q))
@@ -815,7 +815,8 @@ END SELECT
 
 END SUBROUTINE InitHODSMC
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
+                          ,emission_opt)
 !===================================================================================================================================
 ! Sample Wall values from Particle collisions
 !===================================================================================================================================
@@ -835,6 +836,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
   REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
   LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
   REAL,INTENT(IN)                    :: AdsorptionEnthalpie
+  LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -882,36 +884,70 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
   END IF
   END IF
   END IF
-
-  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
-  IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-    SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-    IF (DSMC%AnalyzeSurfCollis) THEN
-      AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
-      AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
-      IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-        CALL abort(&
-        __STAMP__&
-        ,'maxSurfCollisNumber reached!')
-      END IF
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
-        = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-        = PartState(PartID,4)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-        = PartState(PartID,5)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-        = PartState(PartID,6)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
-        = LastPartPos(PartID,1)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
-        = LastPartPos(PartID,2)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
-        = LastPartPos(PartID,3)
-      AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
-        = PartSpecies(PartID)
+  
+  IF (PRESENT(emission_opt)) THEN
+    IF (.NOT.emission_opt) THEN
+      !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
+      IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+        SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+        IF (DSMC%AnalyzeSurfCollis) THEN
+          AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+          AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+          IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+            CALL abort(&
+            __STAMP__&
+            ,'maxSurfCollisNumber reached!')
+          END IF
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
+            = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+            = PartState(PartID,4)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+            = PartState(PartID,5)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+            = PartState(PartID,6)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+            = LastPartPos(PartID,1)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+            = LastPartPos(PartID,2)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+            = LastPartPos(PartID,3)
+          AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+            = PartSpecies(PartID)
+        END IF
+      END IF   
     END IF
-  END IF   
+  ELSE
+    !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
+    IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+      SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+      IF (DSMC%AnalyzeSurfCollis) THEN
+        AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+        AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+        IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'maxSurfCollisNumber reached!')
+        END IF
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
+          = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+          = PartState(PartID,4)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+          = PartState(PartID,5)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+          = PartState(PartID,6)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+          = LastPartPos(PartID,1)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+          = LastPartPos(PartID,2)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+          = LastPartPos(PartID,3)
+        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+          = PartSpecies(PartID)
+      END IF
+    END IF
+  END IF
 
 END SUBROUTINE CalcWallSample
 

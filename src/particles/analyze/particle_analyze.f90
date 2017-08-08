@@ -228,6 +228,7 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_DSMC_Vars,             ONLY: Adsorption,BGGas, SpecDSMC
   USE MOD_Particle_Vars,         ONLY: Species
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
+  USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -805,6 +806,12 @@ IF (DSMC%WallModel.GE.1) THEN
     ALLOCATE(AdsorptionReactRate(1:nSpecies*Adsorption%ReactNum))
     ALLOCATE(AdsorptionActE(1:nSpecies*(Adsorption%ReactNum)))
     CALL GetAdsRates(Adsorptionrate,SurfCollNum,AdsorptionNum,AdsorptionReactRate,AdsorptionActE)
+  ELSE
+    IF(SurfMesh%SurfOnProc)THEN
+      DO iSpec = 1,nSpecies
+        Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+      END DO
+    END IF
   END IF
   IF (CalcSurfRates) THEN 
     SDEALLOCATE(SurfReactRate)
@@ -1400,7 +1407,7 @@ END SUBROUTINE GetWallNumSpec
 #if (PP_TimeDiscMethod==42)
 SUBROUTINE GetAccCoeff(Accomodation)
 !===================================================================================================================================
-! Calculate adsorption, desorption and accomodation rates for all species
+! Calculate accomodation rates for all species
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1495,7 +1502,7 @@ INTEGER, INTENT(OUT)            :: SurfCollNum(nSpecies), AdsorbNum(nSpecies)
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec, iCase, iReact
 #ifdef MPI
-REAL                            :: AD(nSpecies),CO(nSpecies),RR(nSpecies*Adsorption%ReactNum),AE(nSpecies*Adsorption%ReactNum)
+REAL                            :: AD(nSpecies),RR(nSpecies*Adsorption%ReactNum)
 INTEGER                         :: ADN(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
@@ -1570,21 +1577,21 @@ END IF
 #ifdef MPI
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbRate  ,nSpecies                    ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,ReactRate   ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,ReactRate   ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbActE  ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   AdsorbRate = AdsorbRate  / REAL(SurfCOMM%nProcs)
-  ReactRate  = ReactRate   / REAL(SurfCOMM%nProcs)
   SurfCollNum= SurfCollNum / REAL(SurfCOMM%nProcs)
   AdsorbNum  = AdsorbNum   / REAL(SurfCOMM%nProcs)
+  ReactRate  = ReactRate   / REAL(SurfCOMM%nProcs)
   AdsorbActE = AdsorbActE  / REAL(SurfCOMM%nProcs)
 ELSE
   CALL MPI_REDUCE(AdsorbRate  ,AD          ,nSpecies                    ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(ReactRate   ,RR          ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(SurfCollNum ,CO          ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(SurfCollNum ,ADN         ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(AdsorbNum   ,ADN         ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(AdsorbActE  ,AE          ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(ReactRate   ,RR          ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(AdsorbActE  ,RR          ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*MPI*/
 
@@ -1632,7 +1639,6 @@ INTEGER                         :: iSpec, iReact, iCase
 #ifdef MPI
 INTEGER                         :: commSize
 REAL                            :: DE(nSpecies)
-REAL                            :: SE(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
 REAL                            :: RR(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
 INTEGER                         :: DEN(nSpecies)
 #endif /*MPI*/
@@ -1726,11 +1732,11 @@ commSize = nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE ,ReactRate  ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE ,SurfaceActE,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  ReactRate   = ReactRate   / REAL(SurfCOMM%nProcs)
   SurfaceActE = SurfaceActE / REAL(SurfCOMM%nProcs)
-  ReactRate   = reactRate   / REAL(SurfCOMM%nProcs)
 ELSE
-  CALL MPI_REDUCE(SurfaceActE  ,SE         ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(ReactRate    ,RR         ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(SurfaceActE  ,RR         ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*MPI*/
 
