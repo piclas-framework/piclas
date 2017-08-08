@@ -136,7 +136,7 @@ intel_tracking:
 #                         - test record points for TWT setup and compare with h5diff
 #                         - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 #                         - h-p-convtests
-#                         - feature_maxwell_dipole_PML/ : curved cylinder geometry with PML on axis and dipole in center for testing RP output
+#                         - feature_maxwell_dipole_cylinder_PML/ : curved cylinder geometry with PML on axis and dipole in center for testing RP output
 #                         - feature_maxwell_dipole_dielectric/ : curved sphere with dielectric region in the center and dipole at near the edge
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -187,7 +187,7 @@ gnu_maxwell_cylinder_PML:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_dipole_PML/ -j no-debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_dipole_cylinder_PML/ -j no-debug ; fi
 
 gnu_maxwell_sphere_dielectric:
   stage: reggie_nightly
@@ -246,7 +246,7 @@ intel_maxwell_cylinder_PML:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_dipole_PML/ -j no-debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_dipole_cylinder_PML/ -j no-debug ; fi
 
 intel_maxwell_sphere_dielectric:
   stage: reggie_nightly
