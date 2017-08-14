@@ -3600,12 +3600,12 @@ CASE(1) ! adsorption
   Norm_Ec = NormalVelo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
   !Norm_Ec = Velocity**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
            - EZeroPoint_Educt !+ potential_pot
-  IF ((Norm_Ec.GE.E_Activation) ) THEN !.AND. (Norm_Ec.LT.E_Activation_max)) THEN
-    Xi_Total = Xi_vib + Xi_rot + 1
-    phi_1 = b_f + Xi_Total/2. - 1
-    phi_2 = 1 - Xi_Total/2.
-    IF((b_f + Xi_Total + 1).GT.0.0) THEN
-      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / GAMMA(b_f + Xi_Total + 1)
+  IF ((Norm_Ec.GE.E_Activation) .AND. (Norm_Ec.LT.E_Activation_max)) THEN
+    Xi_Total = Xi_vib + Xi_rot + 1.
+    phi_1 = b_f - 1 + Xi_Total/2.
+    phi_2 = 1. - Xi_Total/2.
+    IF((phi_1+1).GT.0.0) THEN
+      Beta = a_f * c_f * BoltzmannConst**(-b_f + 1) * GAMMA(Xi_Total/2.) / GAMMA(phi_1 + 1)
     END IF
     CalcAdsorbReactProb = Beta * (Norm_Ec - E_Activation)**phi_1 * (Norm_Ec) ** phi_2 !&
         !+ Beta * ((-Norm_Ec) + E_Activation_max)**phi_1 * (Norm_Ec) ** phi_2
@@ -3614,13 +3614,14 @@ CASE(1) ! adsorption
 CASE(2) ! dissociation
 !-----------------------------------------------------------------------------------------------------------------------------------
   Norm_Ec = NormalVelo**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
+  !Norm_Ec = Velocity**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
           - EZeroPoint_Educt !+ potential_pot
   IF ((Norm_Ec.GE.E_Activation) ) THEN !.AND. (Norm_Ec.LT.E_Activation_max)) THEN
-    Xi_Total = Xi_vib + Xi_rot + 1
-    phi_1 = b_f + Xi_Total/2. - 1
-    phi_2 = 1 - Xi_Total/2.
-    IF((b_f + Xi_Total + 1).GT.0.0) THEN
-      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / GAMMA(b_f + Xi_Total + 1)
+    Xi_Total = Xi_vib + Xi_rot + 2.
+    phi_1 = b_f - 1. + Xi_Total/2.
+    phi_2 = 1. - Xi_Total/2.
+    IF((phi_1+1).GT.0.0) THEN
+      Beta = a_f * c_f * BoltzmannConst**(-b_f +1) * GAMMA(Xi_Total/2.) / GAMMA(phi_1 + 1)
     END IF
     CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2 !&
 !        + Beta * ((-Norm_Ec) + E_Activation_max)**phi_1 * (Norm_Ec) ** phi_2
