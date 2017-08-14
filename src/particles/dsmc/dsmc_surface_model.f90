@@ -688,7 +688,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
           END IF
         END IF
         Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) = &
-            Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a
+            Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a/BoltzmannConst
         Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) = &
             Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) + 1
 #endif
@@ -751,7 +751,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         END IF
       END IF
       Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) = &
-          Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a
+          Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a/BoltzmannConst
       Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) = &
           Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) + 1
 #endif
@@ -790,7 +790,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         D_AB = Adsorption%EDissBond(ReactNum,iSpec)
         D_A = 0.
         D_B = 0.
-        AdsorptionEnthalpie = (-( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        AdsorptionEnthalpie = -(( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
 #if (PP_TimeDiscMethod==42)
         iSampleReact = 1 + ReactNum
         IF (DSMC%ReservoirRateStatistic) THEN
