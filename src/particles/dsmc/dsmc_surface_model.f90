@@ -479,15 +479,15 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) &
                                                                   + trapping_prob
   END IF
-  ! if no trapping return and perform elastic reflection
-  CALL RANDOM_NUMBER(RanNum)
-  IF (RanNum.GT.trapping_prob) THEN
-    outSpec(1) = iSpec
-    outSpec(2) = 0
-    AdsorptionEnthalpie = 0.
-    adsorption_case = -1
-    RETURN
-  END IF
+  !! if no trapping return and perform elastic reflection
+  !CALL RANDOM_NUMBER(RanNum)
+  !IF (RanNum.GT.trapping_prob) THEN
+  !  outSpec(1) = iSpec
+  !  outSpec(2) = 0
+  !  AdsorptionEnthalpie = 0.
+  !  adsorption_case = -1
+  !  RETURN
+  !END IF
   c_f = BoltzmannConst/PlanckConst &
       * REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
       / ( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
