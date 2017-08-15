@@ -75,7 +75,7 @@ IF (DSMC%WallModel.GT.0) THEN
                   + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
                   - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
                   * Species(iSpec)%MacroParticleFactor / maxPart
-            ELSE IF (DSMC%WallModel.GT.1) THEN
+            ELSE IF (DSMC%WallModel.EQ.3) THEN
               maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
               Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
                   + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
@@ -489,7 +489,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !  RETURN
   !END IF
   c_f = BoltzmannConst/PlanckConst &
-      * REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
+      !* REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))/SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
+      * REAL(Adsorption%DensSurfAtoms(SurfSideID)*Adsorption%AreaIncrease(SurfSideID)) &
       / ( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
   !---------------------------------------------------------------------------------------------------------------------------------
   ! calculate probability for molecular adsorption (from trapped state)
@@ -3530,6 +3531,7 @@ REAL FUNCTION CalcAdsorbReactProb(ReactionCase,PartID,NormalVelo,E_Activation,E_
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, BoltzmannConst,PartState
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
   USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
+  USE MOD_DSMC_ChemReact,         ONLY : gammainc
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3613,18 +3615,15 @@ CASE(1) ! adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) ! dissociation
 !-----------------------------------------------------------------------------------------------------------------------------------
-  Norm_Ec = NormalVelo**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
-  !Norm_Ec = Velocity**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
-          - EZeroPoint_Educt !+ potential_pot
-  IF ((Norm_Ec.GE.E_Activation) ) THEN !.AND. (Norm_Ec.LT.E_Activation_max)) THEN
+  Norm_Ec = NormalVelo**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  IF ((Norm_Ec.GE.E_Activation) ) THEN
     Xi_Total = Xi_vib + Xi_rot + 2.
     phi_1 = b_f - 1. + Xi_Total/2.
     phi_2 = 1. - Xi_Total/2.
     IF((phi_1+1).GT.0.0) THEN
-      Beta = a_f * c_f * BoltzmannConst**(-b_f +1) * GAMMA(Xi_Total/2.) / GAMMA(phi_1 + 1)
+      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
     END IF
-    CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2 !&
-!        + Beta * ((-Norm_Ec) + E_Activation_max)**phi_1 * (Norm_Ec) ** phi_2
+    CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) ! eley-rideal
@@ -3685,15 +3684,14 @@ CASE(3) ! eley-rideal
   Norm_Ec = NormalVelo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
           - EZeroPoint_Educt &
           + SurfPartIntE + SurfPartVibE!+ potential_pot
-  IF ((Norm_Ec.GE.E_Activation) )THEN ! .AND. (Norm_Ec.LT.E_Activation_max)) THEN
-    Xi_Total = Xi_vib + Xi_rot + 1
-    phi_1 = b_f + Xi_Total/2. - 1
-    phi_2 = 1 - Xi_Total/2.
-    IF((b_f + Xi_Total + 1).GT.0.0) THEN
-      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / GAMMA(b_f + Xi_Total + 1)
+  IF ((Norm_Ec.GE.E_Activation) ) THEN
+    Xi_Total = Xi_vib + Xi_rot + 2.
+    phi_1 = b_f - 1. + Xi_Total/2.
+    phi_2 = 1. - Xi_Total/2.
+    IF((phi_1+1).GT.0.0) THEN
+      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
     END IF
-    CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2 !&
-        !+ Beta * ((-Norm_Ec) + E_Activation_max)**phi_1 * (Norm_Ec) ** phi_2
+    CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SELECT
