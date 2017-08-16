@@ -1356,7 +1356,7 @@ DO subsurfxi = 1,nSurfSample
                     Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iSampleReact) + 1.
               ELSE
                 Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iSampleReact) = &
-                    Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iSampleReact) + P_actual_react(iReact)
+                    Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iSampleReact) + P_actual_react(ReactNum_run+iReact)
               END IF
             END IF
             Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) = &
@@ -3602,7 +3602,7 @@ CASE(1) ! adsorption
   Norm_Ec = NormalVelo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
   !Norm_Ec = Velocity**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
            - EZeroPoint_Educt !+ potential_pot
-  IF ((Norm_Ec.GE.E_Activation) ) THEN
+  IF ((Norm_Ec.GE.E_Activation) .AND. (Norm_Ec.LT.E_Activation_max)) THEN
     Xi_Total = Xi_vib + Xi_rot + 2.
     phi_1 = b_f - 1. + Xi_Total/2.
     phi_2 = 1. - Xi_Total/2.

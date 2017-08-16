@@ -1037,11 +1037,11 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Desorptionrate(iSpec)
         END DO
-        DO iCase = 1, nSpecies*(Adsorption%ReactNum+Adsorption%NumOfExchReact+1)
+        DO iCase = 1, nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') SurfReactRate(iCase)
         END DO
-        DO iCase = 1, nSpecies*(Adsorption%ReactNum+Adsorption%NumOfExchReact+1)
+        DO iCase = 1, nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') SurfaceActE(iCase)
         END DO
