@@ -43,11 +43,12 @@ USE MOD_Particle_Mesh_Vars,     ONLY : nTotalSides
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, nPartBound, PartBound
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
+USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion, CalcAdsorbProb, CalcDesorbProb
 #endif
 #ifdef MPI
+USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeCoverageInfo
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
+USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange,SurfCoverageSendBuf,SurfCoverageRecvBuf
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -91,6 +92,11 @@ IF (DSMC%WallModel.EQ.1) THEN
             Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),& 
             Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),& 
             Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
+ELSE IF (DSMC%WallModel.EQ.2) THEN
+  ALLOCATE( Adsorption%RecombCoeff(1:nPartBound,1:nSpecies),&
+            Adsorption%RecombEnergy(1:nPartBound,1:nSpecies),&
+            Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies),&
+            Adsorption%RecombData(1:2,1:nSpecies))
 ELSE IF (DSMC%WallModel.EQ.3) THEN 
   ALLOCATE( Adsorption%HeatOfAdsZero(1:nPartBound,1:nSpecies),&
             Adsorption%Coordination(1:nPartBound,1:nSpecies),&
@@ -117,6 +123,23 @@ DO iSpec = 1,nSpecies
     Adsorption%Nu_b(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
     Adsorption%DesorbEnergy(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
     Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
+  ELSE IF (DSMC%WallModel.EQ.2) THEN
+    Adsorption%RecombData(1,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-PartnerSpec','-1')
+    Adsorption%RecombData(2,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-ResultSpec','-1')
+    DO iPartBound=1,nPartBound
+      IF(PartBound%SolidCatalytic(iPartBound))THEN
+        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+        hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
+        Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
+        Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
+        Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation','1.')
+        IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
+          CALL abort(&
+__STAMP__,&
+'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
+        END IF
+      END IF
+    END DO
   ELSE IF (DSMC%WallModel.EQ.3) THEN 
     DO iPartBound=1,nPartBound
       IF(PartBound%SolidCatalytic(iPartBound))THEN
@@ -142,12 +165,13 @@ END DO
   Adsorption%TPD_Temp = 0.
 #endif
 ! allocate and initialize adsorption variables
-ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          Adsorption%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nTotalSides),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nTotalSides),&
           Adsorption%AreaIncrease(1:SurfMesh%nTotalSides),&
@@ -180,6 +204,7 @@ DO iSpec = 1,nSpecies
   END DO
 END DO
 ! write temporary coverage values into global coverage array for each surface
+Adsorption%Coverage(:,:,:,:) = 0. 
 DO iSide=1,SurfMesh%nSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
@@ -194,6 +219,7 @@ Adsorption%ProbDes(:,:,:,:) = 0.
 Adsorption%SumDesorbPart(:,:,:,:) = 0
 Adsorption%SumAdsorbPart(:,:,:,:) = 0
 Adsorption%SumReactPart(:,:,:,:) = 0
+Adsorption%SumERDesorbed(:,:,:,:) = 0
 
 #ifdef MPI
 ! allocate send and receive buffer
@@ -205,7 +231,29 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   AdsorbSendBuf(iProc)%content_int=0
   AdsorbRecvBuf(iProc)%content_int=0
 END DO ! iProc
+IF (DSMC%WallModel.EQ.2) THEN
+  ALLOCATE(SurfCoverageSendBuf(SurfCOMM%nMPINeighbors))
+  ALLOCATE(SurfCoverageRecvBuf(SurfCOMM%nMPINeighbors))
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SurfExchange%nCoverageSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
+    SurfExchange%nCoverageSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
+    ALLOCATE(SurfCoverageSendBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfExchange%nCoverageSidesSend(iProc)))
+    ALLOCATE(SurfCoverageRecvBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfExchange%nCoverageSidesRecv(iProc)))
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageSendList(SurfExchange%nCoverageSidesSend(iProc)))
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(SurfExchange%nCoverageSidesRecv(iProc)))
+    SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
+    SurfCOMM%MPINeighbor(iProc)%CoverageSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+  END DO
+  SurfCoverageSendBuf(iProc)%content = 0.
+  SurfCoverageRecvBuf(iProc)%content = 0.
+END IF
 #endif /*MPI*/
+
+IF (DSMC%WallModel.EQ.2) THEN
+  CALL CalcDesorbProb()
+  CALL CalcAdsorbProb()
+  CALL ExchangeCoverageInfo()
+END IF
 
 IF (DSMC%WallModel.EQ.3) THEN
   CALL Init_SurfDist()
@@ -217,6 +265,10 @@ IF (DSMC%WallModel.EQ.3) THEN
   END DO
 #endif
 END IF
+
+! define number of possible recombination reactions per species needed for sampling
+IF (DSMC%WallModel.EQ.1) Adsorption%NumOfAssocReact = 0
+IF (DSMC%WallModel.EQ.2) Adsorption%NumOfAssocReact = 1 
 CALL Init_ChemistrySampling()
 
 END SUBROUTINE InitDSMCSurfModel
@@ -1216,6 +1268,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 USE MOD_Particle_MPI_Vars,      ONLY : SurfExchange
 USE MOD_Particle_MPI_Vars,      ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
+USE MOD_Particle_MPI_Vars,      ONLY : SurfCoverageSendBuf,SurfCoverageRecvBuf
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1245,6 +1298,7 @@ SDEALLOCATE(Adsorption%ProbDes)
 SDEALLOCATE(Adsorption%SumDesorbPart)
 SDEALLOCATE(Adsorption%SumReactPart)
 SDEALLOCATE(Adsorption%SumAdsorbPart)
+SDEALLOCATE(Adsorption%SumERDesorbed)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
 SDEALLOCATE(Adsorption%AreaIncrease)
 SDEALLOCATE(Adsorption%CrystalIndx)
@@ -1258,6 +1312,11 @@ SDEALLOCATE(Adsorption%Nu_a)
 SDEALLOCATE(Adsorption%Nu_b)
 SDEALLOCATE(Adsorption%DesorbEnergy)
 SDEALLOCATE(Adsorption%Intensification)
+! parameters for surface recombination model (wallmodel=2)
+SDEALLOCATE(Adsorption%RecombCoeff)
+SDEALLOCATE(Adsorption%RecombAccomodation)
+SDEALLOCATE(Adsorption%RecombEnergy)
+SDEALLOCATE(Adsorption%RecombData)
 ! parameters for UBI-QEP model (wallmodel=3)
 SDEALLOCATE(Adsorption%HeatOfAdsZero)
 SDEALLOCATE(Adsorption%DissocReact)
@@ -1323,6 +1382,8 @@ IF (ALLOCATED(SurfCOMM%MPINeighbor)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList)
   SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList)
+  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageSendList)
+  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageRecvList)
   END DO
 END IF
 SDEALLOCATE(SurfExchange%nSurfDistSidesSend)
@@ -1338,6 +1399,20 @@ END IF
 IF (ALLOCATED(SurfDistRecvBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfDistRecvBuf(iProc)%content_int)
+  END DO
+  DEALLOCATE(SurfDistRecvBuf)
+END IF
+SDEALLOCATE(SurfExchange%nCoverageSidesSend)
+SDEALLOCATE(SurfExchange%nCoverageSidesRecv)
+IF (ALLOCATED(SurfCoverageSendBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(SurfCoverageSendBuf(iProc)%content)
+  END DO
+  DEALLOCATE(SurfDistSendBuf)
+END IF
+IF (ALLOCATED(SurfCoverageRecvBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(SurfCoverageRecvBuf(iProc)%content)
   END DO
   DEALLOCATE(SurfDistRecvBuf)
 END IF

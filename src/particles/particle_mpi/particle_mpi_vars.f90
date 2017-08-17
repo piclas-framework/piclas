@@ -109,6 +109,9 @@ TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistSendBuf(:)                         ! S
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbRecvBuf(:)
 TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbSendBuf(:)
 
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfCoverageRecvBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfCoverageSendBuf(:)
+
 TYPE(tMPIMessage),ALLOCATABLE  :: CondensRecvBuf(:)
 TYPE(tMPIMessage),ALLOCATABLE  :: CondensSendBuf(:)
 
@@ -150,6 +153,8 @@ TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: nSurfDistSidesSend(:)        ! number of mpi sides to send (nProcs)
   INTEGER,ALLOCATABLE            :: nSurfDistSidesRecv(:)        ! number of sides received from mpi (nProcs)
+  INTEGER,ALLOCATABLE            :: nCoverageSidesSend(:)        ! number of mpi sides to send (nProcs)
+  INTEGER,ALLOCATABLE            :: nCoverageSidesRecv(:)        ! number of sides received from mpi (nProcs)
   TYPE(tDistNbrComm),ALLOCATABLE :: NbrOfPos(:)          ! array for number of distribution sites sending per proc 
   INTEGER,ALLOCATABLE            :: SurfDistSendRequest(:,:)     ! send request message handle,  1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: SurfDistRecvRequest(:,:)     ! recv request message handle,  1 - Number, 2-Message

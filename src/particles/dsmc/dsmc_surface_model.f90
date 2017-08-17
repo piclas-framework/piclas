@@ -24,6 +24,7 @@ PUBLIC                       :: AnalyzePartitionTemp
 #ifdef MPI
 PUBLIC                       :: ExchangeSurfDistInfo
 PUBLIC                       :: ExchangeSurfDistSize
+PUBLIC                       :: ExchangeCoverageInfo
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -69,13 +70,17 @@ IF (DSMC%WallModel.GT.0) THEN
                                                             * maxPart/Species(iSpec)%MacroParticleFactor)
             END IF
 #endif
-            IF (DSMC%WallModel.EQ.1) THEN
+            SELECT CASE (DSMC%WallModel)
+            CASE(1)
               maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
               Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
                   + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
                   - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
                   * Species(iSpec)%MacroParticleFactor / maxPart
-            ELSE IF (DSMC%WallModel.EQ.3) THEN
+            CASE(2)
+              Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                  + Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)
+            CASE(3)
               maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
               Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
                   + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
@@ -111,7 +116,7 @@ IF (DSMC%WallModel.GT.0) THEN
                   CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
                 END IF
               END IF
-            END IF
+            END SELECT
             ! sample adsorption coverage
             IF (WriteMacroValues) THEN
               SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) &
@@ -121,22 +126,31 @@ IF (DSMC%WallModel.GT.0) THEN
         END DO
       END DO
     END DO
-    Adsorption%SumDesorbPart(:,:,:,:) = 0
+    IF (DSMC%WallModel.GE.2) THEN
+      Adsorption%SumDesorbPart(:,:,:,:) = Adsorption%SumERDesorbed(:,:,1:SurfMesh%nSides,:)
+      Adsorption%SumERDesorbed(:,:,:,:) = 0
+    ELSE
+      Adsorption%SumDesorbPart(:,:,:,:) = 0
+    END IF
     Adsorption%SumAdsorbPart(:,:,:,:) = 0
     Adsorption%SumReactPart(:,:,:,:) = 0
   END IF
   
-#ifdef MPI
-  IF (DSMC%WallModel.EQ.3) THEN
-    ! communicate distribution to halo-sides of neighbour procs
-    CALL ExchangeSurfDistInfo()
-  END IF
-#endif
-  
   IF (DSMC%WallModel.EQ.1) THEN
     CALL CalcAdsorbProb()
     IF (KeepWallParticles) CALL CalcDesorbprob()
+  ELSE IF (DSMC%WallModel.EQ.2) THEN
+    CALL CalcDesorbProb()
+    CALL CalcAdsorbProb()
   END IF
+
+#ifdef MPI
+  ! communicate coverage and probabilities to halo sides of neighbour procs
+  IF (DSMC%WallModel.EQ.2) CALL ExchangeCoverageInfo()
+  ! communicate distribution to halo-sides of neighbour procs
+  IF (DSMC%WallModel.EQ.3) CALL ExchangeSurfDistInfo()
+#endif
+  
 END IF
 
 END SUBROUTINE DSMC_Update_Wall_Vars  
@@ -2375,7 +2389,7 @@ SUBROUTINE ExchangeAdsorbNum()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies
-USE MOD_DSMC_Vars                   ,ONLY:Adsorption
+USE MOD_DSMC_Vars                   ,ONLY:Adsorption, DSMC
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars           ,ONLY:AdsorbSendBuf,AdsorbRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2391,7 +2405,7 @@ INTEGER                         :: iPos,p,q,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
-nValues=nSpecies*(nSurfSample)**2
+nValues=2*nSpecies*(nSurfSample)**2
 
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -2417,9 +2431,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       DO p=1,nSurfSample
         AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= Adsorption%SumAdsorbPart(p,q,SurfSideID,:)
         iPos=iPos+nSpecies
+        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= Adsorption%SumERDesorbed(p,q,SurfSideID,:)
+        iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
-!     Adsorption%SumAdsorbPart(:,:,SurfSideID,:)=0.
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
 
@@ -2465,6 +2480,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         Adsorption%SumAdsorbPart(p,q,SurfSideID,:)=Adsorption%SumAdsorbPart(p,q,SurfSideID,:) &
                                          +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
         iPos=iPos+nSpecies
+        Adsorption%SumERDesorbed(p,q,SurfSideID,:)=Adsorption%SumERDesorbed(p,q,SurfSideID,:) &
+                                         +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
+        iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
@@ -2473,6 +2491,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 END SUBROUTINE ExchangeAdsorbNum
+
 
 SUBROUTINE ExchangeSurfDistSize()
 !===================================================================================================================================
@@ -2715,6 +2734,121 @@ DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
 END DO
 
 END SUBROUTINE ExchangeSurfDistInfo
+
+SUBROUTINE ExchangeCoverageInfo() 
+!===================================================================================================================================
+! exchange the surface Coverage and Probabilities to halosides of neighbours
+! only processes with surface sides in their halo region and the original process participate on the communication
+! structure is similar to surface sampling/particle communication
+! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
+! the receiving process adds the new data to his own sides
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars               ,ONLY:nSpecies
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
+USE MOD_Particle_MPI_Vars           ,ONLY:SurfCoverageSendBuf,SurfCoverageRecvBuf,SurfExchange
+USE MOD_DSMC_Vars                   ,ONLY:Adsorption
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: MessageSize, iSurfSide, SurfSideID
+INTEGER                         :: iPos,p,q,iProc, nValues
+INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+!===================================================================================================================================
+
+nValues = 3*nSpecies * nSurfSample**2
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nCoverageSidesRecv(iProc).EQ.0) CYCLE
+  Messagesize = SurfExchange%nCoverageSidesRecv(iProc)*nValues
+  CALL MPI_IRECV( SurfCoverageRecvBuf(iProc)%content           &
+                , MessageSize                                  &
+                , MPI_INT                                      &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
+                , 1013                                         &
+                , SurfCOMM%COMM                                &
+                , SurfExchange%RecvRequest(iProc)& 
+                , IERROR )
+END DO ! iProc
+
+! build message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nCoverageSidesSend(iProc).EQ.0) CYCLE
+  iPos=0
+  DO iSurfSide=1,SurfExchange%nCoverageSidesSend(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%CoverageSendList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        SurfCoverageSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = Adsorption%Coverage(p,q,SurfSideID,:)
+        iPos=iPos+nSpecies
+        SurfCoverageSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = Adsorption%ProbAds(p,q,SurfSideID,:)
+        iPos=iPos+nSpecies
+        SurfCoverageSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = Adsorption%ProbDes(p,q,SurfSideID,:)
+        iPos=iPos+nSpecies
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+  END DO ! iSurfSide=1,nSurfExchange%nSurfDistSidesSend(iProc)
+END DO
+
+! send message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nCoverageSidesSend(iProc).EQ.0) CYCLE
+  Messagesize = SurfExchange%nCoverageSidesSend(iProc)*nValues
+  CALL MPI_ISEND( SurfCoverageSendBuf(iProc)%content       &
+                , MessageSize                              & 
+                , MPI_INT                                  &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
+                , 1013                                     &
+                , SurfCOMM%COMM                            &   
+                , SurfExchange%SendRequest(iProc)&
+                , IERROR )
+END DO ! iProc
+
+! 4) Finish received surface distribution
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nCoverageSidesSend(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error in surface distribution (send)', IERROR)
+  END IF
+  IF(SurfExchange%nCoverageSidesRecv(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error in Surface distribution (receive)', IERROR)
+  END IF
+END DO ! iProc
+
+! add data do my list
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nCoverageSidesRecv(iProc).EQ.0) CYCLE
+  iPos=0
+  DO iSurfSide=1,SurfExchange%nCoverageSidesRecv(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        Adsorption%Coverage(p,q,SurfSideID,:) = SurfCoverageRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+        iPos=iPos+nSpecies
+        Adsorption%ProbAds(p,q,SurfSideID,:) = SurfCoverageRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+        iPos=iPos+nSpecies
+        Adsorption%ProbDes(p,q,SurfSideID,:) = SurfCoverageRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+        iPos=iPos+nSpecies
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample.
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  SurfCoverageRecvBuf(iProc)%content = 0.
+  SurfCoverageSendBuf(iProc)%content = 0.
+END DO ! iProc
+
+END SUBROUTINE ExchangeCoverageInfo
 #endif /*MPI*/
 
 SUBROUTINE CalcAdsorbProb()
@@ -2723,16 +2857,19 @@ SUBROUTINE CalcAdsorbProb()
 !===================================================================================================================================
   USE MOD_Particle_Vars,          ONLY : nSpecies
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
-  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+  USE MOD_Mesh_Vars,              ONLY : BC
+  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 !===================================================================================================================================
   IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
   INTEGER                          :: SurfSide, iSpec, p, q
   REAL                             :: Theta_req, Kfactor, S_0
+  INTEGER                          :: PartBoundID
 !===================================================================================================================================
   DO iSpec=1,nSpecies
   DO SurfSide=1,SurfMesh%nSides
+  PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSide)))
   DO q = 1,nSurfSample
   DO p = 1,nSurfSample
 !===================================================================================================================================
@@ -2752,9 +2889,11 @@ SUBROUTINE CalcAdsorbProb()
         Adsorption%ProbAds(p,q,SurfSide,iSpec) = S_0 / (1.0 + Kfactor * ( 1.0/Theta_req - 1.0))
       END IF
 !===================================================================================================================================
-!     ELSE IF (DSMC%WallModel.EQ.2) THEN
+    ELSE IF (DSMC%WallModel.EQ.2) THEN
+! Recombination Model described by Laux
+      Adsorption%ProbAds(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec) - Adsorption%ProbDes(p,q,SurfSide,iSpec)
 !===================================================================================================================================
-!     ELSE IF (DSMC%WallModel.EQ.3) THEN
+!    ELSE IF (DSMC%WallModel.EQ.3) THEN
 !===================================================================================================================================
     END IF
 #if (PP_TimeDiscMethod==42)
@@ -2783,26 +2922,27 @@ SUBROUTINE CalcDesorbProb()
   USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
 !===================================================================================================================================
-   IMPLICIT NONE
+  IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
-   INTEGER                          :: SurfSide, iSpec, globSide, p, q
-   REAL                             :: Theta, nu_des, rate, WallTemp
-   REAL                             :: E_des
+  INTEGER                          :: SurfSide, iSpec, p, q
+  REAL                             :: Theta, nu_des, rate, WallTemp
+  REAL                             :: E_des
+  INTEGER                          :: PartBoundID
 !===================================================================================================================================
 ! CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
-  globSide = Adsorption%SurfSideToGlobSideMap(SurfSide)
+  PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSide)))
 ! special TPD (temperature programmed desorption) temperature adjustment routine    
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
-    WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide))) + (Adsorption%TPD_beta * iter * dt)
+    WallTemp = PartBound%WallTemp(PartBoundID) + (Adsorption%TPD_beta * iter * dt)
     Adsorption%TPD_Temp = Walltemp
   ELSE
-    WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+    WallTemp = PartBound%WallTemp(PartBoundID)
   END IF
 #else
-  WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+  WallTemp = PartBound%WallTemp(PartBoundID)
 #endif
 
   DO iSpec = 1,nSpecies 
@@ -2831,7 +2971,14 @@ DO SurfSide=1,SurfMesh%nSides
       END IF
 #endif
 !===================================================================================================================================
-!     ELSE IF (DSMC%WallModel.EQ.2) THEN
+    ELSE IF (DSMC%WallModel.EQ.2) THEN
+! Recombination Model described by Laux
+      IF (Adsorption%Coverage(p,q,SurfSide,Adsorption%RecombData(1,iSpec)).LT.0) THEN
+        Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
+      ELSE
+        Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec) &
+            * ( 1 - exp( - Adsorption%Coverage(p,q,SurfSide, Adsorption%RecombData(1,iSpec) ) ) )
+      END IF
 !===================================================================================================================================
 !     ELSE IF (DSMC%WallModel.EQ.3) THEN
 !===================================================================================================================================

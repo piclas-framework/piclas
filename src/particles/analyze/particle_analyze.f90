@@ -528,7 +528,7 @@ SUBROUTINE AnalyzeParticles(Time)
           OutputCounter = OutputCounter + 1
         END IF
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
-        IF (DSMC%WallModel.GE.1) THEN
+        IF (DSMC%WallModel.EQ.3) THEN
           IF (CalcSurfNumSpec) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -797,7 +797,7 @@ tLBStart = LOCALTIME() ! LB Time Start
       CALL ReacRates(RRate, NumSpecTmp)
     END IF
   END IF
-IF (DSMC%WallModel.GE.1) THEN
+IF (DSMC%WallModel.EQ.3) THEN
   IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
   IF (CalcAccomodation) CALL GetAccCoeff(Accomodation)
   IF (CalcAdsorbRates) THEN 
@@ -824,7 +824,7 @@ END IF
 IF (CalcEvaporation) CALL GetEvaporationRate(EvaporationRate)
 #endif /*PP_TimeDiscMethod==42*/
 #if (PP_TimeDiscMethod==4)
-IF (DSMC%WallModel.GE.1) THEN
+IF (DSMC%WallModel.EQ.3) THEN
   IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 END IF
 #endif /*PP_TimeDiscMethod==4*/
@@ -982,7 +982,7 @@ IF (PartMPI%MPIROOT) THEN
     END IF
 #if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
 ! output for adsorption
-    IF (DSMC%WallModel.GE.1) THEN
+    IF (DSMC%WallModel.EQ.3) THEN
       IF (CalcSurfNumSpec) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
