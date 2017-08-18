@@ -42,8 +42,9 @@ USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_Particle_Mesh_Vars,     ONLY : nTotalSides
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, nPartBound, PartBound
+USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcAdsorbProb, CalcDesorbProb
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion, CalcAdsorbProb, CalcDesorbProb
+USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
 #endif
 #ifdef MPI
 USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeCoverageInfo
@@ -255,7 +256,9 @@ END IF
 IF (DSMC%WallModel.EQ.2) THEN
   CALL CalcDesorbProb()
   CALL CalcAdsorbProb()
+#ifdef MPI
   CALL ExchangeCoverageInfo()
+#endif /*MPI*/
 END IF
 
 IF (DSMC%WallModel.EQ.3) THEN
@@ -1221,7 +1224,8 @@ INTEGER , INTENT(IN)            :: TST_Case
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: PartitionArraySize, iSpec, iReactNum
+REAL                            :: PartitionArraySize
+INTEGER                         :: iSpec, iReactNum
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'
 
