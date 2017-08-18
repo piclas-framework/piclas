@@ -230,14 +230,16 @@ Adsorption%SumERDesorbed(:,:,:,:) = 0
 ALLOCATE(AdsorbSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(AdsorbRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
-  ALLOCATE(AdsorbSendBuf(iProc)%content_int(nSpecies*(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
-  ALLOCATE(AdsorbRecvBuf(iProc)%content_int(nSpecies*(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+  ALLOCATE(AdsorbSendBuf(iProc)%content_int(2*nSpecies*(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+  ALLOCATE(AdsorbRecvBuf(iProc)%content_int(2*nSpecies*(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
   AdsorbSendBuf(iProc)%content_int=0
   AdsorbRecvBuf(iProc)%content_int=0
 END DO ! iProc
 IF (DSMC%WallModel.EQ.2) THEN
   ALLOCATE(SurfCoverageSendBuf(SurfCOMM%nMPINeighbors))
   ALLOCATE(SurfCoverageRecvBuf(SurfCOMM%nMPINeighbors))
+  ALLOCATE(SurfExchange%nCoverageSidesSend(SurfCOMM%nMPINeighbors))
+  ALLOCATE(SurfExchange%nCoverageSidesRecv(SurfCOMM%nMPINeighbors))
   DO iProc=1,SurfCOMM%nMPINeighbors
     SurfExchange%nCoverageSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
     SurfExchange%nCoverageSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
@@ -1233,8 +1235,6 @@ Adsorption%PartitionMaxTemp = GETREAL('Particles-DSMC-AdsorptionTST-PartitionMax
 Adsorption%PartitionInterval = GETREAL('Particles-DSMC-AdsorptionTST-PartitionInterval','20.')
 ALLOCATE(Adsorption%PartitionTemp(1:nElems,1:nSpecies))
 
-!ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
-!Adsorption%TST_Calc(:,:) = .FALSE.
 IF (TST_Case.EQ.1) THEN
   DO iSpec=1,nSpecies
     DO iReactNum=0,Adsorption%ReactNum
@@ -1245,9 +1245,9 @@ IF (TST_Case.EQ.1) THEN
           Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
         END IF
       ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.GT.Adsorption%DissNum)) THEN
-        !IF ((Adsorption%ER_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%ER_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
+        IF ((Adsorption%ER_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%ER_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
           Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
-        !END IF
+        END IF
       END IF
     END DO
   END DO
@@ -1343,6 +1343,8 @@ SDEALLOCATE(Adsorption%HeatOfAdsZero)
 SDEALLOCATE(Adsorption%DissocReact)
 SDEALLOCATE(Adsorption%Diss_Powerfactor)
 SDEALLOCATE(Adsorption%Diss_Prefactor)
+SDEALLOCATE(Adsorption%ER_Powerfactor)
+SDEALLOCATE(Adsorption%ER_Prefactor)
 SDEALLOCATE(Adsorption%EDissBond)
 SDEALLOCATE(Adsorption%EDissBondAdsorbPoly)
 SDEALLOCATE(Adsorption%AssocReact)
