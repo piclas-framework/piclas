@@ -2973,11 +2973,15 @@ DO SurfSide=1,SurfMesh%nSides
 !===================================================================================================================================
     ELSE IF (DSMC%WallModel.EQ.2) THEN
 ! Recombination Model described by Laux
-      IF (Adsorption%Coverage(p,q,SurfSide,Adsorption%RecombData(1,iSpec)).LT.0) THEN
+      IF (Adsorption%RecombData(1,iSpec).LE.0) THEN
         Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
       ELSE
-        Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec) &
-            * ( 1 - exp( - Adsorption%Coverage(p,q,SurfSide, Adsorption%RecombData(1,iSpec) ) ) )
+        IF (Adsorption%Coverage(p,q,SurfSide,Adsorption%RecombData(1,iSpec)).LT.0) THEN
+          Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
+        ELSE
+          Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec) &
+              * ( 1 - exp( - Adsorption%Coverage(p,q,SurfSide, Adsorption%RecombData(1,iSpec) ) ) )
+        END IF
       END IF
 !===================================================================================================================================
 !     ELSE IF (DSMC%WallModel.EQ.3) THEN

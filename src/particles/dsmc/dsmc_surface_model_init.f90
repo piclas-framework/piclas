@@ -204,14 +204,17 @@ DO iSpec = 1,nSpecies
   END DO
 END DO
 ! write temporary coverage values into global coverage array for each surface
-Adsorption%Coverage(:,:,:,:) = 0. 
-DO iSide=1,SurfMesh%nSides
-  SideID = Adsorption%SurfSideToGlobSideMap(iSide)
-  PartboundID = PartBound%MapToPartBC(BC(SideID))
-  DO iSpec=1,nSpecies
-    Adsorption%Coverage(:,:,iSide,iSpec) = Coverage_tmp(PartBoundID,iSpec)
+IF (DSMC%WallModel.EQ.2) THEN
+  Adsorption%Coverage(:,:,:,:) = 0. 
+ELSE
+  DO iSide=1,SurfMesh%nSides
+    SideID = Adsorption%SurfSideToGlobSideMap(iSide)
+    PartboundID = PartBound%MapToPartBC(BC(SideID))
+    DO iSpec=1,nSpecies
+      Adsorption%Coverage(:,:,iSide,iSpec) = Coverage_tmp(PartBoundID,iSpec)
+    END DO
   END DO
-END DO
+END IF
 SDEALLOCATE(Coverage_tmp)
 
 Adsorption%ProbAds(:,:,:,:) = 0.
@@ -243,9 +246,9 @@ IF (DSMC%WallModel.EQ.2) THEN
     ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(SurfExchange%nCoverageSidesRecv(iProc)))
     SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
     SurfCOMM%MPINeighbor(iProc)%CoverageSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+    SurfCoverageSendBuf(iProc)%content = 0.
+    SurfCoverageRecvBuf(iProc)%content = 0.
   END DO
-  SurfCoverageSendBuf(iProc)%content = 0.
-  SurfCoverageRecvBuf(iProc)%content = 0.
 END IF
 #endif /*MPI*/
 

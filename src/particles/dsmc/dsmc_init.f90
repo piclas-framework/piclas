@@ -808,7 +808,7 @@ USE MOD_Liquid_Boundary,            ONLY: Init_Liquid_Boundary
       CALL InitParticleBoundarySampling()
       SWRITE(UNIT_stdOut,'(A)')'WARNING: Particles-DSMC-CalcSurfaceVal == FALSE!'
     END IF
-    IF ((DSMC%WallModel.EQ.2) .OR.(DSMC%WallModel.EQ.1)) CALL abort(&
+    IF ((DSMC%WallModel.EQ.1)) CALL abort(&
       __STAMP__&
       ,'Error: WallModel 1&2 not working!')
     CALL InitDSMCSurfModel()
