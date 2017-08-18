@@ -149,7 +149,7 @@ SUBROUTINE CalcSurfaceValues
                                                         / SampWall(iSurfSide)%State(12+iSpec,p,q))
             END IF
             MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
-            DO iReact=1,Adsorption%NumOfAssocReact
+            DO iReact=1,Adsorption%RecombNum
               IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
                 MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec)
               ELSE

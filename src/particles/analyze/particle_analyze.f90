@@ -576,13 +576,13 @@ SUBROUTINE AnalyzeParticles(Time)
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P_Molec-Adsorb-Spec-',iSpec,' '
                 OutputCounter = OutputCounter + 1
-              DO iCase = 1,Adsorption%NumOfDissocReact
+              DO iCase = 1,Adsorption%DissNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-P_Dissoc-Spec-',iSpec,'-Reaction-', iCase,' '
                 OutputCounter = OutputCounter + 1
               END DO
-              DO iCase = 1, Adsorption%NumOfAssocReact
+              DO iCase = 1, Adsorption%RecombNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-P_ER-Spec-',iSpec,'-Reaction-', iCase,' '
@@ -590,13 +590,13 @@ SUBROUTINE AnalyzeParticles(Time)
               END DO
             END DO
             DO iSpec = 1, nSpecies
-              DO iCase = 1,Adsorption%NumOfDissocReact
+              DO iCase = 1,Adsorption%DissNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-E-diss-Spec-', iSpec,'-Reaction-', iCase,' '
                 OutputCounter = OutputCounter + 1
               END DO
-              DO iCase = 1,Adsorption%NumOfAssocReact
+              DO iCase = 1,Adsorption%RecombNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-E-ER-Spec-', iSpec,'-Reaction-', iCase,' '
@@ -619,13 +619,13 @@ SUBROUTINE AnalyzeParticles(Time)
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P-SurfDesorb-Molec-Spec-', iSpec,' '
               OutputCounter = OutputCounter + 1
-              DO iCase = 1, Adsorption%NumOfDissocReact
+              DO iCase = 1, Adsorption%DissNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-P-SurfDissoc-Spec-',iSpec,'-Reaction-', iCase,' '
                 OutputCounter = OutputCounter + 1
               END DO
-              DO iCase = 1, Adsorption%NumOfAssocReact
+              DO iCase = 1, Adsorption%RecombNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-P-SurfLH-Spec-',iSpec,'-Reaction-', iCase,' '
@@ -641,13 +641,13 @@ SUBROUTINE AnalyzeParticles(Time)
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Desorb-Spec-', iSpec,' '
               OutputCounter = OutputCounter + 1
-              DO iCase = 1,Adsorption%NumOfDissocReact
+              DO iCase = 1,Adsorption%DissNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-E-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
                 OutputCounter = OutputCounter + 1
               END DO
-              DO iCase = 1,Adsorption%NumOfAssocReact
+              DO iCase = 1,Adsorption%RecombNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-E-LH-Spec-', iSpec,'-Reaction-', iCase,' '

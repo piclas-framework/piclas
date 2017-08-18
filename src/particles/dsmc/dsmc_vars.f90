@@ -296,11 +296,14 @@ TYPE tAdsorption
                                                                     ! 2: Resulting recombination species (nSpecies)
   ! parameters for UBI-QEP model (wallmodel=3)
   REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:,:)      ! heat of adsorption (K) on clear surfaces for surface n
-  INTEGER                                :: DissNum                 ! Number of dissociative surface reactions for one species
-  INTEGER                                :: ReactNum                ! Number of all surface reactions for one species
+  INTEGER                                :: DissNum                 ! max number of dissociative surface reactions for one species
+  INTEGER                                :: RecombNum               ! max number of associative surface reactions for one species
+  INTEGER                                :: ReactNum                ! max number of diss/assoc surface reactions for one species
   INTEGER , ALLOCATABLE                  :: DissocReact(:,:,:)      ! Resulting species for given dissoc (2,MaxDissNum,nSpecies)
   REAL    , ALLOCATABLE                  :: Diss_Prefactor(:,:)
   REAL    , ALLOCATABLE                  :: Diss_Powerfactor(:,:)
+  REAL    , ALLOCATABLE                  :: ER_Prefactor(:,:)
+  REAL    , ALLOCATABLE                  :: ER_Powerfactor(:,:)
   REAL    , ALLOCATABLE                  :: EDissBond(:,:)          ! Bond dissociation energy (K) for diss into resulting species
                                                                     ! (ReactNum,nspecies)
   REAL    , ALLOCATABLE                  :: EDissBondAdsorbPoly(:,:)! Bond dissociation energy (K) for diss into resulting species
@@ -311,6 +314,7 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Reactant_DissBond_K(:,:)
   REAL    , ALLOCATABLE                  :: Product_DissBond_K(:,:)
   INTEGER                                :: nDissocReactions
+  INTEGER                                :: nAssocReactions
   INTEGER                                :: nDisPropReactions
   INTEGER , ALLOCATABLE                  :: Coordination(:,:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   INTEGER , ALLOCATABLE                  :: DiCoord(:,:)              ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)

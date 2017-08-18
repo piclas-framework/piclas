@@ -851,7 +851,7 @@ INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM
 
 IF (DSMC%WallModel.GT.0)THEN
   ! additional array entries for Coverage, Accomodation and recombination coefficient
-  nValues = (SurfMesh%SampSize+(nSpecies+1)+nSpecies+(Adsorption%NumOfAssocReact*nSpecies))*(nSurfSample)**2
+  nValues = (SurfMesh%SampSize+(nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
 ELSE
   nValues = SurfMesh%SampSize*nSurfSample**2
 END IF
@@ -885,7 +885,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           iPos=iPos+nSpecies+1
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
           iPos=iPos+nSpecies
-          DO iReact=1,Adsorption%NumOfAssocReact
+          DO iReact=1,Adsorption%RecombNum
             SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Reaction(iReact,:,p,q)
             iPos=iPos+nSpecies
           END DO
@@ -949,7 +949,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                   +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
-          DO iReact=1,Adsorption%NumOfAssocReact
+          DO iReact=1,Adsorption%RecombNum
             SampWall(SurfSideID)%Reaction(iReact,:,p,q)=SampWall(SurfSideID)%Reaction(iReact,:,p,q) &
                                                        +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos=iPos+nSpecies

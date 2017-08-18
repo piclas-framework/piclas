@@ -270,8 +270,8 @@ IF (DSMC%WallModel.EQ.3) THEN
 END IF
 
 ! define number of possible recombination reactions per species needed for sampling
-IF (DSMC%WallModel.EQ.1) Adsorption%NumOfAssocReact = 0
-IF (DSMC%WallModel.EQ.2) Adsorption%NumOfAssocReact = 1 
+IF (DSMC%WallModel.EQ.1) Adsorption%RecombNum = 0
+IF (DSMC%WallModel.EQ.2) Adsorption%RecombNum = 1 
 CALL Init_ChemistrySampling()
 
 END SUBROUTINE InitDSMCSurfModel
@@ -793,15 +793,11 @@ Adsorption%NumOfExchReact = 0
 
 ! Adsorption constants
 ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
-          Adsorption%Ads_Prefactor(1:nSpecies))!,&
-!           Adsorption%ER_Powerfactor(1:nSpecies),&
-!           Adsorption%ER_Prefactor(1:nSpecies))
+          Adsorption%Ads_Prefactor(1:nSpecies))
 DO iSpec = 1,nSpecies            
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Adsorption%Ads_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor','0.')
   Adsorption%Ads_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor','0.')
-  !Adsorption%ER_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Powerfactor','0.') 
-  !Adsorption%ER_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Prefactor','0.')
 END DO
 
 #if (PP_TimeDiscMethod==42)
@@ -843,17 +839,21 @@ __STAMP__&
     DO iReactNum = 1,MaxDissNum
       IF ((Adsorption%DissocReact(1,iReactNum,iSpec2).EQ.iSpec).OR.(Adsorption%DissocReact(2,iReactNum,iSpec2).EQ.iSpec) ) THEN
         nAssocReact(iSpec) = nAssocReact(iSpec) + 1
-        Adsorption%NumOfAssocReact = Adsorption%NumOfDissocReact + 1
       END IF
     END DO
     END DO
   END DO
   MaxAssocNum = MAXVAL(nAssocReact)
+  Adsorption%NumOfAssocReact = SUM(nAssocReact(:))
+  Adsorption%nAssocReactions = SUM(nAssocReact(:))
+  Adsorption%RecombNum = MaxAssocNum 
   DEALLOCATE(nAssocReact)
   
   ! fill associative reactions species map from defined dissociative reactions
   MaxReactNum = MaxDissNum + MaxAssocNum
   ALLOCATE( Adsorption%AssocReact(1:2,1:MaxAssocNum,1:nSpecies),&
+            Adsorption%ER_Powerfactor(1:MaxAssocNum,1:nSpecies),&
+            Adsorption%ER_Prefactor(1:MaxAssocNum,1:nSpecies),&
             Adsorption%EDissBond(0:MaxReactNum,1:nSpecies),&
             Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
   Adsorption%EDissBond(0:MaxReactNum,1:nSpecies) = 0.
@@ -865,7 +865,7 @@ __STAMP__&
       Adsorption%EDissBond(iReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
     END DO
   END DO
-  DO iSpec = 1,nSpecies            
+  DO iSpec = 1,nSpecies
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
     IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
       Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
@@ -887,6 +887,7 @@ __STAMP__&
     END IF
   END DO
   DO iSpec = 1,nSpecies
+    WRITE(UNIT=hilf,FMT='(I2)') iSpec
     ReactNum = 1
     DO iSpec2 = 1,nSpecies
     DO iReactNum2 = 1,MaxDissNum
@@ -894,11 +895,21 @@ __STAMP__&
         Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(2,iReactNum2,iSpec2)
         Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
         Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
+        WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
+        Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
+            GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.') 
+        Adsorption%ER_Prefactor(ReactNum,iSpec) = &
+            GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Prefactor','0.')
         ReactNum = ReactNum + 1
       ELSE IF (Adsorption%DissocReact(2,iReactNum2,iSpec2).EQ.iSpec) THEN
         Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,iReactNum2,iSpec2)
         Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
         Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
+        WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
+        Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
+            GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.') 
+        Adsorption%ER_Prefactor(ReactNum,iSpec) = &
+            GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Prefactor','0.')
         ReactNum = ReactNum + 1
       ELSE
         CYCLE
@@ -907,6 +918,8 @@ __STAMP__&
     END DO
     IF (ReactNum.LE.(MaxAssocNum)) THEN
       Adsorption%AssocReact(:,ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0
+      Adsorption%ER_Powerfactor(ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0.
+      Adsorption%ER_Prefactor(ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0.
     END IF
   END DO
   
@@ -1104,6 +1117,7 @@ __STAMP__&
 END IF !MaxDissNum > 0
 ! save defined number of surface reactions
 Adsorption%DissNum = MaxDissNum
+Adsorption%RecombNum = MaxAssocNum
 Adsorption%ReactNum = MaxReactNum
 Adsorption%nDissocReactions = nDissoc
 Adsorption%nDisPropReactions = nDisProp
@@ -1165,7 +1179,7 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   SampWall(iSide)%Adsorption=0.
   ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Accomodation=0.
-  ALLOCATE(SampWall(iSide)%Reaction(1:Adsorption%NumOfAssocReact,1:nSpecies,1:nSurfSample,1:nSurfSample))
+  ALLOCATE(SampWall(iSide)%Reaction(1:Adsorption%RecombNum,1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Reaction=0.
 END DO
 #ifdef MPI
@@ -1174,12 +1188,12 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%NumOfAssocReact*nSpecies))&
+    ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%NumOfAssocReact*nSpecies))&
+    ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
   END IF

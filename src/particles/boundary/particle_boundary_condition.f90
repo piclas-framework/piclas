@@ -2016,13 +2016,13 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 #endif
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       IF (DSMC%WallModel.EQ.2) THEN
-        DO iReact = 1,Adsorption%NumOfAssocReact
+        DO iReact = 1,Adsorption%RecombNum
           IF (Adsorption%RecombData(2,SpecID).EQ.outSpec(2))THEN
             SampWall(SurfSideID)%Reaction(1,SpecID,p,q) = SampWall(SurfSideID)%Reaction(1,SpecID,p,q) + 1
           END IF
         END DO
       ELSE IF ( DSMC%WallModel.EQ.3) THEN
-        DO iReact = 1,Adsorption%NumOfAssocReact
+        DO iReact = 1,Adsorption%RecombNum
           IF (Adsorption%AssocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
             SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
           END IF

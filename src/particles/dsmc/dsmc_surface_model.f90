@@ -358,9 +358,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, Species, BoltzmannConst, WriteMacroValues
   USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
-  USE MOD_Particle_Boundary_Vars, ONLY : PartBound, SampWall, SurfMesh
-  USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC
+  USE MOD_Particle_Boundary_Vars, ONLY : PartBound, SampWall!, SurfMesh
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
 #if (PP_TimeDiscMethod==42)  
   USE MOD_TimeDisc_Vars,          ONLY : iter, dt
@@ -715,7 +714,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !---------------------------------------------------------------------------------------------------------------------------------
   ! calculate probability for Eley-Rideal reaction (not ready yet)
   !---------------------------------------------------------------------------------------------------------------------------------
-  DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
+  DO ReactNum = 1,(Adsorption%RecombNum)
     ! reaction partner
     jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
     Neighpos_j = 0
@@ -924,7 +923,7 @@ SUBROUTINE CalcBackgndPartDesorb()
 ! reservoir sample variables
   INTEGER                           :: iSampleReact
 #endif
-  INTEGER                           :: NumDesorbLH(1:nSpecies,1:Adsorption%NumOfAssocReact)
+  INTEGER                           :: NumDesorbLH(1:nSpecies,1:Adsorption%RecombNum)
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
@@ -1043,7 +1042,7 @@ DO subsurfxi = 1,nSurfSample
     ! calculate probability for associative reactions
     !-------------------------------------------------------------------------------------------------------------------------------
     ! product of associative reactions desorb after reaction as in most cases exothermic (LH-reaction)
-    DO iReact = 1,(Adsorption%ReactNum-Adsorption%DissNum)
+    DO iReact = 1,Adsorption%RecombNum
       IF (Adsorption%AssocReact(1,iReact,iSpec).LT.1) CYCLE ! no partner for this associative reaction
       Coord_ReactP(iReact) = Adsorption%Coordination(PartBoundID,Adsorption%AssocReact(1,iReact,iSpec))
       CALL RANDOM_NUMBER(RanNum)
@@ -1125,7 +1124,7 @@ DO subsurfxi = 1,nSurfSample
 #endif
       END IF
     END DO
-    ReactNum_run = ReactNum_run + Adsorption%ReactNum-Adsorption%DissNum
+    ReactNum_run = ReactNum_run + Adsorption%RecombNum
     
     !-------------------------------------------------------------------------------------------------------------------------------
     ! sort Neighbours to coordinations for search of two random neighbour positions from particle position
@@ -1767,9 +1766,9 @@ DO subsurfxi = 1,nSurfSample
       DO iReact = 1,ReactNum_run+1
         CALL RANDOM_NUMBER(RanNum)
         IF ((P_actual_react(iReact)/sum_probabilities).GT.RanNum) THEN
-          IF (iReact.LE.(Adsorption%ReactNum-Adsorption%DissNum)) THEN
+          IF (iReact.LE.(Adsorption%RecombNum)) THEN
             surf_react_case = 1
-          ELSE IF ((iReact.GT.(Adsorption%ReactNum-Adsorption%DissNum)).AND.(iReact.LE.(Adsorption%ReactNum))) THEN
+          ELSE IF ((iReact.GT.(Adsorption%RecombNum)).AND.(iReact.LE.(Adsorption%ReactNum))) THEN
             surf_react_case = 2
           ELSE IF ((iReact.GT.(Adsorption%ReactNum)).AND.(iReact.LT.ReactNum_run)) THEN
             surf_react_case = 3
@@ -1857,7 +1856,7 @@ DO subsurfxi = 1,nSurfSample
       CASE(2) ! dissociation
       !-----------------------------------------------------------------------------------------------------------------------------
         ! update number of reactions
-        DissocNum = iReact -(Adsorption%ReactNum-Adsorption%DissNum)
+        DissocNum = iReact - Adsorption%RecombNum
         reactdesorbnum(Adsorption%DissocReact(1,DissocNum,iSpec)) = &
                 reactdesorbnum(Adsorption%DissocReact(1,DissocNum,iSpec)) + 1
         reactdesorbnum(Adsorption%DissocReact(2,DissocNum,iSpec)) = &
@@ -2260,7 +2259,7 @@ DO subsurfxi = 1,nSurfSample
         SDEALLOCATE(RanNumPoly)
         SDEALLOCATE(VibQuantWallPoly)
       END IF
-      DO iReact = 1,Adsorption%NumOfAssocReact
+      DO iReact = 1,Adsorption%RecombNum
         IF (NumDesorbLH(iSpec,iReact).GT.0) THEN
           SampWall(SurfSideID)%Reaction(iReact,iSpec,subsurfxi,subsurfeta) = &
               SampWall(SurfSideID)%Reaction(iReact,iSpec,subsurfxi,subsurfeta) &
@@ -3660,8 +3659,8 @@ CASE(3)
     a_f = 0.0
     b_f = 0.0
   ELSE
-    a_f = 0.0
-    b_f = 0.0
+    a_f = Adsorption%ER_Prefactor(ReactNum,SpecID)
+    b_f = Adsorption%ER_Powerfactor(ReactNum,SpecID)
   END IF
 END SELECT
 
