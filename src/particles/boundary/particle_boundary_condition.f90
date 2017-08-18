@@ -1565,8 +1565,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
   USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
   USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBilinear,CalcNormAndTangBezier
-  USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcBackgndPartAdsorb!,CalcRecombinationAdsorb
-!   USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcPartAdsorb
+  USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcBackgndPartAdsorb
 ! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1703,7 +1702,6 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
         AdsorptionEnthalpie = Adsorption%RecombEnergy(locBCID,SpecID) * Adsorption%RecombAccomodation(locBCID,SpecID)
       END IF
     END IF
-    !CALL CalcRecombinationAdsorb(p,q,SurfSideID,PartID,adsorption_case,outSpec,AdsorptionEnthalpie)
   CASE (3)
     Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
     Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
