@@ -359,7 +359,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, Species, BoltzmannConst, WriteMacroValues
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC
-  USE MOD_Particle_Boundary_Vars, ONLY : PartBound, SampWall!, SurfMesh
+  USE MOD_Particle_Boundary_Vars, ONLY : PartBound, SampWall, SurfMesh
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
 #if (PP_TimeDiscMethod==42)  
   USE MOD_TimeDisc_Vars,          ONLY : iter, dt
@@ -396,6 +396,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   REAL                             :: SurfPartIntE, SurfPartVibE, CharaTemp
   INTEGER                          :: iDOF, DissocReactID, iPolyatMole, iQuant, AssocReactID
   REAL                             :: a_f, b_f, E_d
+  REAL                             :: coverage_check
 #if (PP_TimeDiscMethod==42)
   REAL                             :: iSampleReact
 #endif
@@ -719,6 +720,11 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
     Neighpos_j = 0
     IF (jSpec.EQ.0) CYCLE
+    coverage_check = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,jSpec) &
+                   + Adsorption%SumAdsorbPart(subsurfxi,subsurfeta,SurfSideID,jSpec) &
+                   * Species(jSpec)%MacroParticleFactor &
+                   / REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8))
+    IF (coverage_check.LT.0.) CYCLE
     ! reaction results
     kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
     jCoord = Adsorption%Coordination(PartBoundID,jSpec)
@@ -751,17 +757,17 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       END IF
       ! calculation of ER-reaction probability with TCE
       CALL Set_TST_Factors(3,a_f,b_f,PartID,ReactNum,PartBoundID)
-      P_Eley_Rideal(ReactNum) = CalcAdsorbReactProb(3,PartID,Norm_Velo,E_a,E_d,a_f,b_f,c_f &
+      P_Eley_Rideal(ReactNum+Adsorption%DissNum) = CalcAdsorbReactProb(3,PartID,Norm_Velo,E_a,E_d,a_f,b_f,c_f &
                                ,PartnerSpecies=jSpec,CharaTemp=CharaTemp,WallTemp=WallTemp)
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + Adsorption%DissNum + ReactNum
-      IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(P_Eley_Rideal(ReactNum).GT.0.)) THEN
+      IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(P_Eley_Rideal(ReactNum+Adsorption%DissNum).GT.0.)) THEN
         IF (P_Eley_Rideal(ReactNum).GT.1) THEN
           Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
               Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
         ELSE
           Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
-              Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + P_Eley_Rideal(ReactNum)
+              Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + P_Eley_Rideal(ReactNum+Adsorption%DissNum)
         END IF
       END IF
       Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) = &
@@ -794,7 +800,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       IF ((P_Eley_Rideal(ReactNum)/sum_probabilities).GT.RanNum) THEN
         ! if ER-reaction set output parameters
         adsorption_case = 3
-        AssocReactID = ReactNum - (Adsorption%ReactNum - Adsorption%DissNum)
+        AssocReactID = ReactNum - Adsorption%DissNum
         outSpec(1) = Adsorption%AssocReact(1,AssocReactID,iSpec)
         outSpec(2) = Adsorption%AssocReact(2,AssocReactID,iSpec)
         ! calculate adsorption Enthalpie

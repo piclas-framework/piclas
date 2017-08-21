@@ -128,7 +128,7 @@ DO iSpec = 1,nSpecies
     Adsorption%RecombData(1,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-PartnerSpec','-1')
     Adsorption%RecombData(2,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-ResultSpec','-1')
     DO iPartBound=1,nPartBound
-      IF(PartBound%SolidCatalytic(iPartBound))THEN
+      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidCatalytic(iPartBound))THEN
         WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
         hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
         Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
@@ -143,7 +143,7 @@ __STAMP__,&
     END DO
   ELSE IF (DSMC%WallModel.EQ.3) THEN 
     DO iPartBound=1,nPartBound
-      IF(PartBound%SolidCatalytic(iPartBound))THEN
+      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidCatalytic(iPartBound))THEN
         WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
         hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
         Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
