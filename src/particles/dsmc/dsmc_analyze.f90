@@ -53,7 +53,7 @@ PUBLIC :: CalcInstantTransTemp, CalcWallSample
 
 CONTAINS
 
-SUBROUTINE CalcSurfaceValues
+SUBROUTINE CalcSurfaceValues(during_dt_opt)
 !===================================================================================================================================
 ! Calculates macroscopic surface values from samples
 !===================================================================================================================================
@@ -75,16 +75,30 @@ SUBROUTINE CalcSurfaceValues
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES            
+  LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during timestep (i.e. before iter=iter+1, time=time+dt...)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                            :: iSpec,iSurfSide,p,q, iReact
-  REAL                               :: TimeSample
+  REAL                               :: TimeSample, ActualTime
   INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
+  LOGICAL                            :: during_dt
 !===================================================================================================================================
- 
+
   IF(.NOT.SurfMesh%SurfOnProc) RETURN
+
+  IF (PRESENT(during_dt_opt)) THEN
+    during_dt=during_dt_opt
+  ELSE
+    during_dt=.FALSE.
+  END IF
+  IF (during_dt) THEN
+    ActualTime=time+dt
+  ELSE
+    ActualTime=time
+  END IF
+
 #ifdef MPI
   CALL ExchangeSurfData()  
 #endif
@@ -183,7 +197,7 @@ SUBROUTINE CalcSurfaceValues
     DEALLOCATE(SumCounterTotal)
   END IF
 
-  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),time+dt)
+  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
 
   DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)
 
