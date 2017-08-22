@@ -1699,7 +1699,8 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
         adsorption_case = 3
         outSpec(1) = Adsorption%RecombData(1,SpecID)
         outSpec(2) = Adsorption%RecombData(2,SpecID)
-        AdsorptionEnthalpie = Adsorption%RecombEnergy(locBCID,SpecID) * Adsorption%RecombAccomodation(locBCID,SpecID)
+        AdsorptionEnthalpie = - Adsorption%RecombEnergy(locBCID,SpecID) * Adsorption%RecombAccomodation(locBCID,SpecID) &
+                            * BoltzmannConst
       END IF
     END IF
   CASE (3)
@@ -2014,6 +2015,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
     Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
     Adsorption%AdsorpInfo(outSpec(2))%NumOfDes = Adsorption%AdsorpInfo(outSpec(2))%NumOfDes + 1
 #endif
+    ! Sample recombination coefficient
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       IF (DSMC%WallModel.EQ.2) THEN
         DO iReact = 1,Adsorption%RecombNum

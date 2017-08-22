@@ -38,6 +38,7 @@ USE MOD_PARTICLE_Vars,          ONLY : WriteMacroValues, nSpecies
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, Species
 USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
+USE MOD_TImeDisc_Vars,          ONLY : tend,time
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
@@ -118,7 +119,8 @@ IF (DSMC%WallModel.GT.0) THEN
               END IF
             END SELECT
             ! sample adsorption coverage
-            IF (WriteMacroValues) THEN
+            IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
+                .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
               SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) &
                                                           + Adsorption%Coverage(p,q,iSurfSide,iSpec)
             END IF
@@ -1803,7 +1805,7 @@ DO subsurfxi = 1,nSurfSample
               Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact+Adsorption%DissNum+1) + 1
         END IF
 #endif
-        IF (WriteMacroValues) THEN
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
           ! calculate Enthalpie of desorption and sample
           Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
           Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%AssocReact(1,iReact,iSpec),-1,.FALSE.)
@@ -1874,7 +1876,7 @@ DO subsurfxi = 1,nSurfSample
               Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) + 1
         END IF
 #endif
-        IF (WriteMacroValues) THEN
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
           ! calculate Enthalpie of desorption and sample
           Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.FALSE.)
           Heat_Product1 = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%DissocReact(1,DissocNum,iSpec),-1,.FALSE.)
@@ -1976,7 +1978,7 @@ DO subsurfxi = 1,nSurfSample
           reactdesorbnum(Adsorption%ChemProduct(2,ExchNum)) = reactdesorbnum(Adsorption%ChemProduct(2,ExchNum)) - 1
           ReactDirForward = .FALSE.
         END IF
-        IF (WriteMacroValues) THEN
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
           ! calculate Enthalpie of reaction and sample
           Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemReactant(1,ExchNum),-1,.FALSE.)
           Heat_ReactP = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Adsorption%ChemReactant(2,ExchNum),-1,.FALSE.)
@@ -2144,7 +2146,7 @@ DO subsurfxi = 1,nSurfSample
           Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) + 1
         END IF
 #endif
-        IF (WriteMacroValues) THEN
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
           ! calculate Enthalpie of desorption and sample
           AdsorptionEnthalpie = (Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,-1,.TRUE.) * BoltzmannConst &
                           / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
