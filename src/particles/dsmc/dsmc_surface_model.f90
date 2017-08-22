@@ -88,7 +88,7 @@ IF (DSMC%WallModel.GT.0) THEN
                   - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
                   * Species(iSpec)%MacroParticleFactor / maxPart
               ! adjust number of background mapping adsorbates if SumAdsorbPart > 0
-              IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).GT.0) THEN
+              IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
                 ! calculate number of adsorbed particles on background for each species
                 numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
                 SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
@@ -96,24 +96,10 @@ IF (DSMC%WallModel.GT.0) THEN
                       / maxPart) * REAL(numSites)
                 ! convert to integer adsorbates
                 new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-                IF (new_adsorbates.GT.0) THEN
+                IF (new_adsorbates.NE.0) THEN
                   ! Adjust tracking of adsorbing background particles
                   SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                                                                     - new_adsorbates
-                  CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
-                END IF
-              ELSE IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).LT.0) THEN
-                ! calculate number of desorbed particles on background for each species due to ER-reaction
-                numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
-                SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                      + (REAL(Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
-                      / maxPart) * REAL(numSites)
-                ! convert to integer adsorbates
-                new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-                IF (new_adsorbates.LT.0) THEN
-                  ! Adjust tracking of adsorbing background particles
-                  SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                                                                    + new_adsorbates
                   CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
                 END IF
               END IF
