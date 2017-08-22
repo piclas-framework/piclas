@@ -148,7 +148,7 @@ SUBROUTINE DSMC_main()
         DEALLOCATE(Coll_pData)
       END IF                                                                                     ! end no octree
       IF(DSMC%CalcQualityFactors) THEN
-        IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroValues) THEN
+        IF((Time+dt.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroValues) THEN
             ! mean collision probability of all collision pairs
             IF(DSMC%CollProbMeanCount.GT.0) THEN
               DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
@@ -203,7 +203,7 @@ SUBROUTINE DSMC_main()
       ENDIF
     ELSE
       ! Use user given TimeFracSamp
-      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+      IF((Time+dt.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
         SamplingActive=.TRUE.
         SWRITE(*,*)'Sampling active'
       ENDIF
@@ -216,11 +216,10 @@ SUBROUTINE DSMC_main()
       CALL DSMCHO_data_sampling()
       IF(DSMC%NumOutput.NE.0) THEN
         nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
-        IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
+        IF(Time+dt.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
           DSMC%NumOutput = DSMC%NumOutput - 1
           ! Skipping outputs immediately after the first few iterations
           IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
-            ! 
             CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time+dt)
             IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
           END IF
