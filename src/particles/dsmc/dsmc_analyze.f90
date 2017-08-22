@@ -108,6 +108,9 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
   IF (DSMC%WallModel.GT.0) THEN
     ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
     MacroSurfaceSpecVal=0.
+  ELSE
+    ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+    MacroSurfaceSpecVal=0.
   END IF
   IF (DSMC%CalcSurfCollis_Output) THEN
     ALLOCATE(CounterTotal(1:nSpecies+1))

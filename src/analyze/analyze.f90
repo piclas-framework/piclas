@@ -637,6 +637,7 @@ IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+    IF (DSMC%CalcSurfaceVal)  CALL CalcSurfaceValues
   END IF
 #elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
   !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
