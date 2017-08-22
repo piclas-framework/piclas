@@ -1779,11 +1779,11 @@ IF(DoRestart)THEN
   IF(DoImportTTMFile)THEN
     t=time
     CALL WriteTTMToHDF5(t)
-    SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created."
+    SWRITE(UNIT_StdOut,'(A)')'   TTM field: StateFile (IMD TTM data) created.'
   END IF
 ELSE
   IF(IMDTimeScale.GT.0.0)THEN
-
+    SWRITE(UNIT_StdOut,'(A)')'   IMD: calc physical time in seconds for which the IMD *.chkpt file is defined.'
     ! calc physical time in seconds for which the IMD *.chkpt file is defined
     ! t = IMDanalyzeIter * IMDtimestep * IMDTimeScale * IMDNumber
     IMDtimestep=0.0
@@ -1804,22 +1804,23 @@ ELSE
       ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
     END IF
 
-    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDtimestep       :",IMDtimestep
-    SWRITE(UNIT_StdOut,'(A,I25)')                    "   IMDanalyzeIter    :",IMDanalyzeIter
-    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDTimeScale      :",IMDTimeScale
-    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDLengthScale    :",IMDLengthScale
-    SWRITE(UNIT_StdOut,'(A,I25)')                    "   IMDNumber         :",IMDNumber
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDtimestep')   ,' | ',IMDtimestep   ,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDanalyzeIter'),' | ',IMDanalyzeIter,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDTimeScale')  ,' | ',IMDTimeScale  ,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDLengthScale'),' | ',IMDLengthScale,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDNumber')     ,' | ',IMDNumber     ,' | ',TRIM('OUTPUT'),' | '
     t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
-    SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t :",t,' (',t*1e12,' ps)'
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('t')             ,' | ',t             ,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     IF(DoImportTTMFile)THEN
-      SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created."
+      SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created.'
       CALL WriteTTMToHDF5(t)
-      SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating successfully!"
+      SWRITE(UNIT_StdOut,'(A)')'   TTM field: StateFile (IMD TTM data) created. Terminating successfully!'
     ELSE 
-      SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating successfully!"
+      SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
     END IF
 #ifdef MPI
     CALL FinalizeMPI()
@@ -1827,14 +1828,14 @@ ELSE
     IF(iERROR.NE.0)THEN
       CALL abort(&
       __STAMP__&
-      , " MPI_FINALIZE(iERROR) returned non-zero integer value",iERROR)
+      , ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
     END IF
 #endif /*MPI*/
     STOP 0 ! terminate successfully
   ELSE
     CALL abort(&
     __STAMP__&
-    , " IMDLengthScale.LE.0.0 which is not allowed")
+    , ' IMDLengthScale.LE.0.0 which is not allowed')
   END IF
 END IF
 END SUBROUTINE WriteIMDStateToHDF5

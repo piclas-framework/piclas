@@ -39,7 +39,7 @@ SUBROUTINE InitTTM()
 ! IMD TTM data format and target arrays for data input (from ASCII data file *.ttm) are shown below
 ! -------------------------------------------------------------------------------------------------------------------------------
 ! The properties and array index are chosen as follows
-!        1      2    3       4  5      6       7       8       9    10   11       ->  TTM_FD(1:11,ix,iy,iz,iLineTTM) -> TTM_DG
+!        1      2    3       4  5      6       7       8       9    10   11       ->  TTM_FD(1:11,ix,iy,iz) -> TTM_DG
 !  1 2 3 4      5    6       7  8      9       10      11      12   13   14 15    ->  tmp_array(1:15)
 ! #x y z natoms temp md_temp xi source v_com.x v_com.y v_com.z fd_k fd_g Z  proc
 ! -------------------------------------------------------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ IF(TTMInitIsDone)THEN
    RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT TTM ...'
+SWRITE(UNIT_stdOut,'(A)') ' INIT TTM (IMD Two-Temperature Model) ...'
 
 DoImportTTMFile = GETLOGICAL('DoImportTTMFile','.FALSE.')
 TTMLogFile      = TRIM(GETSTR('TTMLogFile',''))
@@ -123,7 +123,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ElemIsDone=.FALSE.
         !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("Reading TTM data from"),' | ', TRIM(TTMFile),&
                                                       !' | ',TRIM("OUTPUT"),' | '
-        SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMFile)
+        SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(TTMFile)
 #ifdef MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
           CALL abort(&
@@ -151,12 +151,9 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           END IF
         END IF
     
-        read(StrTmp,*,iostat=io_error)  i
+        READ(StrTmp,*,iostat=io_error)  i
         TTMNumber = i
-        !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("IMD *.ttm file"),' | ', TRIM(StrTmp),' | ',TRIM("OUTPUT"),' | '
         SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("TTMNumber")     ,' | ', TTMNumber   ,' | ',TRIM("OUTPUT"),' | '
-        !SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.ttm file = ",StrTmp
-        !SWRITE(UNIT_stdOut,'(A,I10)') " TTMNumber      = ",TTMNumber
     
         iLineTTM=0
         DO i=1,1 ! header lines: currently 1 -> adjust?
@@ -212,6 +209,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         END IF
         CLOSE(ioUnit)
         SWRITE(UNIT_stdOut,'(A,I10,A)') " Read ",iLineTTM," lines from file (+1 header line)"
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("IMD TTM FD grid points"),&
+                                                           ' | ',iLineTTM,' | ',TRIM("OUTPUT"),' | '
     
         IF(FD_nElems.EQ.PP_nElems)THEN ! same number of elements in FD grid and DG solution -> assume they coincide
           SWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells within the DG mesh in order to map the values ...'
@@ -234,7 +233,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               END DO
             END DO
           END DO
-          SWRITE(UNIT_stdOut,'(A)') 'Done.'
+          SWRITE(UNIT_stdOut,'(A)') ' Done.'
           IF(ANY(ElemIsDone).EQV..FALSE.)THEN
             SWRITE(UNIT_stdOut,'(A)') " NOT all IMD TTM FD cells have been located within the DG grid!"
           ELSE
@@ -303,7 +302,7 @@ IF(io_error.NE.0)THEN
   __STAMP__&
   ,'Cannot open specified File (ttm data) from '//TRIM(TTMLogFile))
 END IF
-SWRITE(UNIT_stdOut,'(A,A)') "Reading from file: ",TRIM(TTMLogFile)
+SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(TTMLogFile)
 iLine=1
 DO !iLine=1,1 ! header lines: currently 1 -> adjust?
   READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
@@ -331,7 +330,7 @@ DO !iLine=1,1 ! header lines: currently 1 -> adjust?
           Exit
         END IF
         fd_hx=fd_hx*IMDLengthScale
-        SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hx=",fd_hx
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("fd_hx")     ,' | ',fd_hx,' | ',TRIM("OUTPUT"),' | '
         StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
       END IF
 
@@ -347,7 +346,7 @@ DO !iLine=1,1 ! header lines: currently 1 -> adjust?
             Exit
           END IF
           fd_hy=fd_hy*IMDLengthScale
-          SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hy=",fd_hy
+          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("fd_hy")     ,' | ',fd_hy,' | ',TRIM("OUTPUT"),' | '
           StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
         END IF
       END IF
@@ -367,7 +366,7 @@ DO !iLine=1,1 ! header lines: currently 1 -> adjust?
           Exit
         END IF
         fd_hz=fd_hz*IMDLengthScale
-        SWRITE(UNIT_stdOut,'(A6,E25.14E3)') "fd_hz=",fd_hz
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("fd_hz")     ,' | ',fd_hz,' | ',TRIM("OUTPUT"),' | '
         StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
       END IF
 

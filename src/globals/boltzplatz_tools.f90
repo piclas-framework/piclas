@@ -248,7 +248,6 @@ CALL InitRecordPoints()
 #ifdef PARTICLES
 CALL InitParticleAnalyze()
 #endif
-CALL IgnoredStrings()
 
 #ifdef PP_HDG
 CALL InitHDG()
@@ -259,6 +258,8 @@ CALL InitHDG()
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
+
+CALL IgnoredStrings()
 #endif /*PARTICLES*/
 
 END SUBROUTINE InitBoltzplatz
