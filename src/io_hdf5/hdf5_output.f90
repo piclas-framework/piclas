@@ -1868,7 +1868,7 @@ CHARACTER(LEN=255)              :: FileName
 REAL                            :: StartT,EndT
 #endif
 !===================================================================================================================================
-N_variables=11
+N_variables=18
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1) ='N[natoms]'
 StrVarNames(2) ='T_e[temp]'
@@ -1881,6 +1881,13 @@ StrVarNames(8) ='[v_com.z]'
 StrVarNames(9) ='[fd_k]'
 StrVarNames(10)='[fd_g]'
 StrVarNames(11)='charge[Z]'
+StrVarNames(12)='n_e(ElectronDensity)'
+StrVarNames(13)='omega_pe_cold(PlasmaFrequency)'
+StrVarNames(14)='omega_pe_warm(PlasmaFrequency)'
+StrVarNames(15)='dt_HDG_cold(TimeStep)'
+StrVarNames(16)='dt_HDG_warm(TimeStep)'
+StrVarNames(17)='T_e(ElectronTempInKelvin)'
+StrVarNames(18)='lambda_D(DebyeLength)'
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TTM_DG TO HDF5 FILE...'
 #ifdef MPI
