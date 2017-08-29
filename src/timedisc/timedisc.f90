@@ -614,7 +614,8 @@ DO !iter_t=0,MaxIter
 !#ifndef PP_HDG
 !      dt_Min=CALCTIMESTEP()
 !#endif /*PP_HDG*/
-      IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
+      IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
+        CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
       IF(PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
 !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required

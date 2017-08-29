@@ -31,7 +31,7 @@ PUBLIC :: PostProcessGradient
 CONTAINS
 
 #ifdef PP_HDG
-SUBROUTINE Elem_Mat()
+SUBROUTINE Elem_Mat(td_iter)
 !===================================================================================================================================
 ! 
 !===================================================================================================================================
@@ -45,10 +45,12 @@ USE MOD_Mesh_Vars          ,ONLY: sJ, Metrics_fTilde, Metrics_gTilde,Metrics_hTi
 USE MOD_Mesh_Vars          ,ONLY: SurfElem
 USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide!,VolToSide2A
 USE MOD_Basis              ,ONLY: getSPDInverse
+USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER(KIND=8),INTENT(IN)  :: td_iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -63,11 +65,15 @@ REAL                 :: Dhat(nGP_vol,nGP_vol)
 REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
 INTEGER              :: idx(3),jdx(3),gdx(3)
-REAL                 :: time
+REAL                 :: time0, time
 !===================================================================================================================================
-StartTime=BOLTZPLATZTIME()
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
+IF(DoDisplayIter)THEN
+  IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+    time0=BOLTZPLATZTIME()
+    SWRITE(UNIT_stdOut,'(132("-"))')
+    SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
+  END IF
+END IF
 
 
 Ehat = 0.0
@@ -255,9 +261,13 @@ DO iElem=1,PP_nElems
 
 END DO !iElem
 
-time=BOLTZPLATZTIME()
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' HDG ELEME_MAT DONE! [',Time-StartTime,' sec ]'
-SWRITE(UNIT_stdOut,'(132("-"))')
+IF(DoDisplayIter)THEN
+  IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+    time=BOLTZPLATZTIME()
+    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+    SWRITE(UNIT_stdOut,'(132("-"))')
+  END IF
+END IF
 
 CONTAINS
 

@@ -3540,9 +3540,9 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=GETLOGICAL('Part-Species'//TRIM(hilf2)//'-SimpleRadialVeloFit','.FALSE.')
       IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
         AnySimpleRadialVeloFit=.TRUE.
-        Species(iSpec)%Surfaceflux(iSF)%preFac       = GETREAL('Part-Species'//TRIM(hilf2)//'-preFac','14.5')
-        Species(iSpec)%Surfaceflux(iSF)%powerFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-powerFac','7150.')
-        Species(iSpec)%Surfaceflux(iSF)%shiftFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-shiftFac','453.5')
+        Species(iSpec)%Surfaceflux(iSF)%preFac       = GETREAL('Part-Species'//TRIM(hilf2)//'-preFac','0.')
+        Species(iSpec)%Surfaceflux(iSF)%powerFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-powerFac','0.')
+        Species(iSpec)%Surfaceflux(iSF)%shiftFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-shiftFac','0.')
         Species(iSpec)%Surfaceflux(iSF)%dir(1)       = GETINT('Part-Species'//TRIM(hilf2)//'-axialDir','1')
         IF (Species(iSpec)%Surfaceflux(iSF)%dir(1).EQ.1) THEN
           Species(iSpec)%Surfaceflux(iSF)%dir(2)=2
@@ -3556,6 +3556,11 @@ __STAMP__&
         ELSE
           CALL abort(__STAMP__&
             ,'ERROR in init: axialDir for SFradial must be between 1 and 3!')
+        END IF
+        IF ( Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(2)).NE.0. .AND. &
+             Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(3)).NE.0. ) THEN
+          CALL abort(__STAMP__&
+            ,'ERROR in init: axialDir for SFradial do not correspond to VeloVecIC!')
         END IF
         Species(iSpec)%Surfaceflux(iSF)%origin       = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-origin',2,'0. , 0.')
         WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(Species(iSpec)%Surfaceflux(iSF)%rmax)
@@ -3632,6 +3637,14 @@ DO BCSideID=1,nBCSides
   TmpSideEnd(currentBC) = BCSideID
   TmpSideNumber(currentBC) = TmpSideNumber(currentBC) + 1  ! Number of Sides
 END DO ! BCSideID
+IF (AnySimpleRadialVeloFit) THEN
+  ALLOCATE(nType0(1:MaxSurfacefluxBCs,1:nSpecies), &
+    nType1(1:MaxSurfacefluxBCs,1:nSpecies), &
+    nType2(1:MaxSurfacefluxBCs,1:nSpecies) )
+  nType0=0
+  nType1=0
+  nType2=0
+END IF
 !--- 2b: save sequential lists in BCdata_auxSF
 DO iBC=1,nDataBC
   BCdata_auxSF(TmpMapToBC(iBC))%SideNumber=TmpSideNumber(iBC)
@@ -3647,14 +3660,6 @@ DO iBC=1,nDataBC
       END IF
     END DO
   END DO
-  IF (AnySimpleRadialVeloFit) THEN
-    ALLOCATE(nType0(1:MaxSurfacefluxBCs,1:nSpecies), &
-             nType1(1:MaxSurfacefluxBCs,1:nSpecies), &
-             nType2(1:MaxSurfacefluxBCs,1:nSpecies) )
-    nType0=0
-    nType1=0
-    nType2=0
-  END IF
   BCSideID=TmpSideStart(iBC)
   iCount=0
   DO !follow BCSideID list seq. with iCount
@@ -4255,7 +4260,8 @@ __STAMP__&
                 CALL abort(__STAMP__,&
                   'ERROR in VeloFit!')
               END IF
-              PartState(ParticleIndexNbr,3+dir(1)) = vTot * SQRT(1.-veloR**2)
+              PartState(ParticleIndexNbr,3+dir(1)) = SIGN(vTot * SQRT(1.-veloR**2) &
+                ,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(dir(1)))
               veloR = veloR * vToT
               PartState(ParticleIndexNbr,3+dir(2)) = veloR*cos(phi)
               PartState(ParticleIndexNbr,3+dir(3)) = veloR*sin(phi)
