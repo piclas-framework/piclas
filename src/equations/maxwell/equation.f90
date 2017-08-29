@@ -138,7 +138,7 @@ IF(DoExactFlux)THEN
 END IF
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
-  CASE(4)
+  CASE(4,41)
     DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
   CASE(5)
