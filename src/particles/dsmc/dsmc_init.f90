@@ -53,6 +53,9 @@ USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
+USE MOD_PICDepo_Vars,       ONLY:SFResampleAnalyzeSurfCollis
+USE MOD_DSMC_Analyze,       ONLY:ReadAnalyzeSurfCollisToHDF5
+USE MOD_PICDepo_Vars,       ONLY:LastAnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -63,7 +66,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
-  INTEGER               :: iInter
+  INTEGER               :: iInter, iBC
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: JToEv, Temp
   INTEGER,ALLOCATABLE   :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
@@ -725,14 +728,40 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
     DSMC%CalcSurfCollis_Output = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Output','.FALSE.')
     IF (DSMC%CalcSurfCollis_Only0Swaps) DSMC%CalcSurfCollis_OnlySwaps=.TRUE.
     DSMC%AnalyzeSurfCollis = GETLOGICAL('Particles-DSMC-AnalyzeSurfCollis','.FALSE.')
+    AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
+    ALLOCATE(AnalyzeSurfCollis%BCs(1))
+    AnalyzeSurfCollis%BCs = 0
+    IF (.NOT.DSMC%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) THEN
+      CALL abort(__STAMP__,&
+        'ERROR: SFResampleAnalyzeSurfCollis was set without DSMC%AnalyzeSurfCollis!')
+    END IF
     IF (DSMC%AnalyzeSurfCollis) THEN
       AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
+      AnalyzeSurfCollis%NumberOfBCs = GETINT('Particles-DSMC-NumberOfBCs','1')
+      IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
+        AnalyzeSurfCollis%BCs = GETINT('Particles-DSMC-SurfCollisBC','0') ! 0 means all...
+      ELSE
+        DEALLOCATE(AnalyzeSurfCollis%BCs)
+        ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
+        hilf2=''
+        DO iBC=1,AnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...
+          WRITE(UNIT=hilf,FMT='(I0)') 0
+          hilf2=TRIM(hilf2)//TRIM(hilf)
+          IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
+        END DO
+        AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-DSMC-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,hilf2)
+      END IF
       ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
       ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
+      ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
       ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
+      IF (LastAnalyzeSurfCollis%Restart) THEN
+        CALL ReadAnalyzeSurfCollisToHDF5()
+      END IF
       !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0
+      AnalyzeSurfCollis%BCid=0
       AnalyzeSurfCollis%Number=0
       !AnalyzeSurfCollis%Rate=0.
     END IF

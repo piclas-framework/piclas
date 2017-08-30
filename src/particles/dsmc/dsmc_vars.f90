@@ -196,8 +196,11 @@ TYPE tAnalyzeSurfCollis
   REAL, ALLOCATABLE             :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
                                                               ! (Species,Particles,Data(x,y,z,u,v,w)
   INTEGER, ALLOCATABLE          :: Spec(:)                ! Species of Particle in Data-array
+  INTEGER, ALLOCATABLE          :: BCid(:)                ! ID of PartBC from crossing of Particle in Data-array
   INTEGER, ALLOCATABLE          :: Number(:)              ! collided/swaped particles per Species during Sampling period
   !REAL, ALLOCATABLE             :: Rate(:)                ! collided/swaped particles/s per Species during Sampling period
+  INTEGER                       :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
+  INTEGER, ALLOCATABLE          :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
 
 END TYPE tAnalyzeSurfCollis
 
