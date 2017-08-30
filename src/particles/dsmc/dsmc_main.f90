@@ -222,7 +222,7 @@ SUBROUTINE DSMC_main()
           IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
             ! 
             CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time+dt)
-            IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
+            IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
           END IF
         END IF
       END IF

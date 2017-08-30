@@ -926,17 +926,6 @@ DO iPartBound=1,nPartBound
   CASE('symmetric')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
-  CASE('analyze')
-     PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
-     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
-       !read Species to be changed at wall (in, out), out=0: delete
-       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-       DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
-         WRITE(UNIT=hilf2,FMT='(I2)') iSwaps
-         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-       END DO
-     END IF
   CASE DEFAULT
      SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
      CALL abort(&
