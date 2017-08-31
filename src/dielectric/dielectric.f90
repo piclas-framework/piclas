@@ -553,10 +553,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Master ! deallocate at the end of this routine
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Slave  ! deallocate at the end of this routine
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Master,Dielectric_dummy_Master2! deallocate at the end of this routine
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Slave ,Dielectric_dummy_Slave2 ! deallocate at the end of this routine
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: Dielectric_dummy_elem   ! deallocate at the end of this routine
-INTEGER                               :: iElem
+INTEGER                               :: iElem,I,J,iSide
 !===================================================================================================================================
 ALLOCATE(Dielectric_dummy_elem(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 Dielectric_dummy_elem=0. ! default is an invalid number
@@ -564,6 +564,12 @@ ALLOCATE(Dielectric_dummy_Master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Dielectric_dummy_Slave( PP_nVar,0:PP_N,0:PP_N,1:nSides))
 Dielectric_dummy_Master=0.
 Dielectric_dummy_Slave =0.
+#ifdef MPI
+ALLOCATE(Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides))
+Dielectric_dummy_Master2=0.
+Dielectric_dummy_Slave2 =0.
+#endif /*MPI*/
 
 ! fill dummy values for non-Dielectric sides
 DO iElem=1,PP_nElems
@@ -579,13 +585,23 @@ CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dumm
 #ifdef MPI
 CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
 
+! re-map data (for MPI communication)
+DO I=0,PP_N
+  DO J=0,PP_N
+    DO iSide=1,nSides
+      Dielectric_dummy_Master2(1,I,J,iSide)=Dielectric_dummy_Master(1,I,J,iSide)
+      Dielectric_dummy_Slave2 (1,I,J,iSide)=Dielectric_dummy_Slave( 1,I,J,iSide)
+    END DO
+  END DO
+END DO
+
 ! send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
-CALL StartReceiveMPIData(1,Dielectric_dummy_Slave(1,0:PP_N,0:PP_N,1:nSides) ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIData(   1,Dielectric_dummy_Slave(1,0:PP_N,0:PP_N,1:nSides) ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+CALL StartReceiveMPIData(1,Dielectric_dummy_Slave2 ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,Dielectric_dummy_Slave2 ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 
 ! send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
-CALL StartReceiveMPIData(1,Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides),1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
-CALL StartSendMPIData(   1,Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides),1,nSides,SendRequest_U ,SendID=1) ! Send MINE
+CALL StartReceiveMPIData(1,Dielectric_dummy_Master2,1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(   1,Dielectric_dummy_Master2,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
 
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
 CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE 
@@ -593,8 +609,15 @@ CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - r
 
 ALLOCATE(Dielectric_Master(0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
+
+
+#ifdef MPI
 Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
 Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
+#else
+Dielectric_Master=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
+Dielectric_Slave =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
+#endif /*MPI*/
 
 SDEALLOCATE(Dielectric_dummy_Slave)
 SDEALLOCATE(Dielectric_dummy_Master)
