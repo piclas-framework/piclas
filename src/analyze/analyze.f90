@@ -369,7 +369,6 @@ USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall
 USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
-USE MOD_DSMC_Vars,             ONLY: AnalyzeSurfCollis
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
@@ -604,26 +603,19 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
 #else
   CALL DSMCHO_data_sampling()
 #endif
-  IF (iter.GT.0) iter_macvalout = iter_macvalout + 1
+  iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
 #if (PP_TimeDiscMethod==1000)
     CALL LD_output_calc()  ! Data sampling for output
 #elif(PP_TimeDiscMethod==1001)
     CALL LD_DSMC_output_calc()
 #else
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
     IF (DSMC%CalcSurfaceVal) THEN
       CALL CalcSurfaceValues
       DO iSide=1,SurfMesh%nTotalSides 
         SampWall(iSide)%State=0.
       END DO
-      IF (DSMC%AnalyzeSurfCollis) THEN
-        AnalyzeSurfCollis%Data=0.
-        AnalyzeSurfCollis%Spec=0
-        AnalyzeSurfCollis%BCid=0
-        AnalyzeSurfCollis%Number=0
-        !AnalyzeSurfCollis%Rate=0.
-      END IF
     END IF
 #endif
     iter_macvalout = 0
@@ -635,36 +627,12 @@ END IF
 IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
-  END IF
-#elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-  !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
-  IF((dt.EQ.tEndDiff).AND.WriteMacroValues) THEN
-    iter_macvalout = iter_macvalout + 1
-    IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
-      IF (DSMC%CalcSurfaceVal) THEN
-        CALL CalcSurfaceValues
-        DO iSide=1,SurfMesh%nTotalSides
-          SampWall(iSide)%State=0.
-        END DO
-        IF (DSMC%AnalyzeSurfCollis) THEN
-          AnalyzeSurfCollis%Data=0.
-          AnalyzeSurfCollis%Spec=0
-          AnalyzeSurfCollis%BCid=0
-          AnalyzeSurfCollis%Number=0
-          !AnalyzeSurfCollis%Rate=0.
-        END IF
-      END IF
-      iter_macvalout = 0
-      DSMC%SampNum = 0
-      DSMC_HOSolution = 0.0
-    END IF
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
   END IF
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     IF (.NOT. useLD) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
     END IF
     IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
