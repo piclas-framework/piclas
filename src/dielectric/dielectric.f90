@@ -552,24 +552,19 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Master,Dielectric_dummy_Master2! deallocate at the end of this routine
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: Dielectric_dummy_Slave ,Dielectric_dummy_Slave2 ! deallocate at the end of this routine
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: Dielectric_dummy_elem   ! deallocate at the end of this routine
-INTEGER                               :: iElem,I,J,iSide
-!===================================================================================================================================
-ALLOCATE(Dielectric_dummy_elem(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
-Dielectric_dummy_elem=0. ! default is an invalid number
-ALLOCATE(Dielectric_dummy_Master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(Dielectric_dummy_Slave( PP_nVar,0:PP_N,0:PP_N,1:nSides))
-Dielectric_dummy_Master=0.
-Dielectric_dummy_Slave =0.
+! LOCAL VARIABLE,Dielectric_dummy_Master2S
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master 
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave  
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem   
 #ifdef MPI
-ALLOCATE(Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides))
-Dielectric_dummy_Master2=0.
-Dielectric_dummy_Slave2 =0.
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2 
 #endif /*MPI*/
+INTEGER                                                  :: iElem,I,J,iSide
+!===================================================================================================================================
+Dielectric_dummy_elem    = 0. ! default is an invalid number
+Dielectric_dummy_Master  = 0.
+Dielectric_dummy_Slave   = 0.
 
 ! fill dummy values for non-Dielectric sides
 DO iElem=1,PP_nElems
@@ -586,6 +581,8 @@ CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dumm
 CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
 
 ! re-map data (for MPI communication)
+Dielectric_dummy_Master2 = 0.
+Dielectric_dummy_Slave2  = 0.
 DO I=0,PP_N
   DO J=0,PP_N
     DO iSide=1,nSides
@@ -612,16 +609,13 @@ ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
 
 
 #ifdef MPI
-Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
-Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
-#else
 Dielectric_Master=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
 Dielectric_Slave =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
+#else
+Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
+Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 #endif /*MPI*/
 
-SDEALLOCATE(Dielectric_dummy_Slave)
-SDEALLOCATE(Dielectric_dummy_Master)
-SDEALLOCATE(Dielectric_dummy_elem)
 END SUBROUTINE SetDielectricFaceProfile
 
 
