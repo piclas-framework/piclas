@@ -44,7 +44,8 @@ USE MOD_Mesh_Vars           ,ONLY: BC,BoundaryType,nBCSides
 USE MOD_Precond_Vars        ,ONLY: nVec, Surf
 USE MOD_LinearSolver_Vars   ,ONLY: nDOFElem
 USE MOD_Jac_Ex_Vars         ,ONLY: LL_minus, LL_plus
-USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann
+USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacRiemannDielectric
+USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,23 +79,21 @@ JacA = 0.
 JacBC = 0.
 
 DO iLocSide = 1,6
- ! debug
- !IF(iLocSide.NE.ZETA_MINUS) CYCLE
-
- SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-  ! debgug
- !print*,'SideID,flip,locSide,iElem',SideID,flip,ilocSide,iElem
- !read*
- ! get derivative of flux maxtrix
- CALL ConstructJacRiemann(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
- IF (SideID.LE.nBCSides) THEN
-  BCType=Boundarytype(BC(SideID),BC_TYPE)
- ! debug
- ! print*,BCTYPE
- ! read*
-  CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacBC)
-  JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
- END IF
+  SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+  IF(DoDielectric) THEN
+    ! if it is a dielectric element, the preconditioner has to consider the it on the face
+    IF(isDielectricElem(iElem))THEN !  master is DIELECTRIC and slave PHYSICAL
+      CALL ConstructJacRiemannDielectric(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide),ilocSide,iElem)
+      CYCLE
+    END IF
+  END IF
+  ! get derivative of flux maxtrix
+  CALL ConstructJacRiemann(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
+  IF (SideID.LE.nBCSides) THEN
+    BCType=Boundarytype(BC(SideID),BC_TYPE)
+    CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacBC)
+    JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
+  END IF
 END DO ! iLocSide 
 
  DO oo = 0,PP_N
@@ -134,7 +133,8 @@ USE MOD_Mesh_Vars           ,ONLY: BC,BoundaryType,nBCSides
 USE MOD_Precond_Vars        ,ONLY: nVec, Surf
 USE MOD_LinearSolver_Vars   ,ONLY: nDOFLine
 USE MOD_Jac_Ex_Vars         ,ONLY: LL_minus, LL_plus
-USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann
+USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacRiemannDielectric
+USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -160,23 +160,22 @@ JacA = 0.
 JacBC = 0.
 
 DO iLocSide = 1,6
- ! debug
- !IF(iLocSide.NE.ZETA_MINUS) CYCLE
-
- SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-  ! debgug
- !print*,'SideID,flip,locSide,iElem',SideID,flip,ilocSide,iElem
- !read*
- ! get derivative of flux maxtrix
- CALL ConstructJacRiemann(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
- IF (SideID.LE.nBCSides) THEN
-  BCType=Boundarytype(BC(SideID),BC_TYPE)
- ! debug
- ! print*,BCTYPE
- ! read*
-  CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacBC)
-  JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
- END IF
+  SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+  ! check for dielectric 
+  IF(DoDielectric) THEN
+    ! if it is a dielectric element, the preconditioner has to consider the it on the face
+    IF(isDielectricElem(iElem))THEN !  master is DIELECTRIC and slave PHYSICAL
+      CALL ConstructJacRiemannDielectric(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide),ilocSide,iElem)
+      CYCLE
+    END IF
+  END IF
+  ! normal element
+  CALL ConstructJacRiemann(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
+  IF (SideID.LE.nBCSides) THEN
+   BCType=Boundarytype(BC(SideID),BC_TYPE)
+   CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacBC)
+   JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
+  END IF
 END DO ! iLocSide 
 
 
