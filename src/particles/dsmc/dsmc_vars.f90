@@ -119,7 +119,7 @@ TYPE tDSMC
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot), 
                                                             ! should be 0.5 or 0
   INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)               ! Number of Collision for each case + entire Collision number
-  REAL                          :: TimeFracSamp             ! %-of simulation time for sampling
+  REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
   INTEGER                       :: NumOutput                ! number of Outputs
   REAL                          :: DeltaTimeOutput          ! Time intervall for Output
@@ -196,8 +196,11 @@ TYPE tAnalyzeSurfCollis
   REAL, ALLOCATABLE             :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
                                                               ! (Species,Particles,Data(x,y,z,u,v,w)
   INTEGER, ALLOCATABLE          :: Spec(:)                ! Species of Particle in Data-array
+  INTEGER, ALLOCATABLE          :: BCid(:)                ! ID of PartBC from crossing of Particle in Data-array
   INTEGER, ALLOCATABLE          :: Number(:)              ! collided/swaped particles per Species during Sampling period
   !REAL, ALLOCATABLE             :: Rate(:)                ! collided/swaped particles/s per Species during Sampling period
+  INTEGER                       :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
+  INTEGER, ALLOCATABLE          :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
 
 END TYPE tAnalyzeSurfCollis
 
@@ -446,7 +449,7 @@ REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)   ! variables,
 !
 !TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
-INTEGER(KIND=8)                   :: iter_loc, iter_macvalout, istep
+INTEGER(KIND=8)                   :: iter_loc, iter_macvalout, istep, iter_macsurfvalout
 !-----------------------------------------------convergence criteria-------------------------------------------------
 LOGICAL                           :: SamplingActive             ! Identifier if DSMC Sampling is activated
 LOGICAL                           :: UseQCrit                   ! Identifier if Q-Criterion (Burt,Boyd) for 

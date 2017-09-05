@@ -194,7 +194,7 @@ USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_PICDepo,               ONLY: Deposition
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime,DoImportIMDFile
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroVolumeValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Tracking_vars,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
@@ -206,7 +206,7 @@ USE MOD_PARTICLE_Vars,         ONLY: PDM,Pt,PartState
 #endif /*(PP_TimeDiscMethod==201)*/
 USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,             ONLY: Iter_macvalout
+USE MOD_DSMC_Vars,             ONLY: Iter_macvalout,Iter_macsurfvalout
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -268,7 +268,8 @@ ELSE
 END IF
 #ifdef PARTICLES
 iter_macvalout=0
-IF (WriteMacroValues) MacroValSampTime = Time
+iter_macsurfvalout=0
+IF (WriteMacroVolumeValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 tZero=time
 nAnalyze=1
@@ -343,7 +344,7 @@ iter_loc=0
 ! fill initial analyze stuff
 tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
 tEndDiff=tEnd-time            ! dito for end time
-dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroValues=T)
+dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
 CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -614,7 +615,8 @@ DO !iter_t=0,MaxIter
 !#ifndef PP_HDG
 !      dt_Min=CALCTIMESTEP()
 !#endif /*PP_HDG*/
-      IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
+      IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
+        CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
       IF(PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
 !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
@@ -1255,7 +1257,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroValues
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1342,7 +1344,7 @@ REAL    :: RandVal, dtFrac
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
             (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-            WriteMacroValues ) THEN
+            WriteMacroVolumeValues ) THEN
     CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
   ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
            PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
@@ -4279,7 +4281,7 @@ SUBROUTINE TimeStep_LD_DSMC(t)
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, iter, TEnd
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM, WriteMacroValues!Time
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM, WriteMacroVolumeValues!Time
 USE MOD_LD_Vars,          ONLY : LD_DSMC_RHS
 USE MOD_LD,               ONLY : LD_main
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -4315,7 +4317,7 @@ REAL,INTENT(IN)       :: t
   CALL DSMC_main() ! first dsmc then ld due to RHS-calculation!
   CALL LD_main()
 ! ----- Start Analyze Particles
-  IF (.NOT.WriteMacroValues) THEN
+  IF (.NOT.WriteMacroVolumeValues) THEN
     IF(t.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN
       CALL LD_DSMC_data_sampling()  ! Data sampling for output
       IF(DSMC%NumOutput.NE.0) THEN

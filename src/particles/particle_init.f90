@@ -34,19 +34,24 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
 USE MOD_ReadInTools
-USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone, WriteMacroValues, nSpecies
+USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone, WriteMacroVolumeValues, nSpecies
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
-USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
+USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC,AnalyzeSurfCollis
 USE MOD_Mesh_Vars,                  ONLY : nElems
 USE MOD_InitializeBackgroundField,  ONLY:InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
+USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY:InitParticleCommSize
 #endif
+USE MOD_PICDepo_Vars,               ONLY:SFResampleAnalyzeSurfCollis
+USE MOD_DSMC_Analyze,               ONLY:ReadAnalyzeSurfCollisToHDF5
+USE MOD_PICDepo_Vars,               ONLY:LastAnalyzeSurfCollis
+USE MOD_Particle_Vars,              ONLY:WriteMacroSurfaceValues
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -55,6 +60,9 @@ USE MOD_Particle_MPI,               ONLY:InitParticleCommSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER,ALLOCATABLE   :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
+CHARACTER(32)         :: hilf , hilf2
+INTEGER               :: iSpec, iBC
 #ifdef MPI
 #endif
 !===================================================================================================================================
@@ -74,7 +82,7 @@ CALL InitializeParticleSurfaceflux()
 IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD
-ELSE IF (WriteMacroValues) THEN
+ELSE IF (WriteMacroVolumeValues) THEN
   DSMC%CalcSurfaceVal  = .FALSE.
   DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
@@ -86,7 +94,8 @@ END IF
 CALL InitParticleCommSize()
 #endif
 
-IF(useDSMC .OR. WriteMacroValues) THEN
+! Initialize volume sampling
+IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
   HODSMC%SampleType = TRIM(GETSTR('DSMC-HOSampling-Type','cell_mean'))
@@ -99,6 +108,82 @@ IF(useDSMC .OR. WriteMacroValues) THEN
   ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
   DSMC_HOSolution = 0.0
   CALL InitHODSMC()
+END IF
+
+! Initialize surface sampling
+DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
+IF (DSMC%CalcSurfaceVal) THEN
+  WriteMacroSurfaceValues = .FALSE.
+  IF(ALMOSTZERO(DSMC%TimeFracSamp)) WriteMacroSurfaceValues=.TRUE.
+  DSMC%CalcSurfaceTime = GETLOGICAL('Particles-DSMC-CalcSurfaceTime','.FALSE.')
+  CALL InitParticleBoundarySampling()
+  
+  DSMC%CalcSurfCollis_OnlySwaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_OnlySwaps','.FALSE.')
+  DSMC%CalcSurfCollis_Only0Swaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Only0Swaps','.FALSE.')
+  DSMC%CalcSurfCollis_Output = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Output','.FALSE.')
+  IF (DSMC%CalcSurfCollis_Only0Swaps) DSMC%CalcSurfCollis_OnlySwaps=.TRUE.
+  DSMC%AnalyzeSurfCollis = GETLOGICAL('Particles-DSMC-AnalyzeSurfCollis','.FALSE.')
+  AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
+  ALLOCATE(AnalyzeSurfCollis%BCs(1))
+  AnalyzeSurfCollis%BCs = 0
+  IF (.NOT.DSMC%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) THEN
+    CALL abort(__STAMP__,&
+      'ERROR: SFResampleAnalyzeSurfCollis was set without DSMC%AnalyzeSurfCollis!')
+  END IF
+  IF (DSMC%AnalyzeSurfCollis) THEN
+    AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
+    AnalyzeSurfCollis%NumberOfBCs = GETINT('Particles-DSMC-NumberOfBCs','1')
+    IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
+      AnalyzeSurfCollis%BCs = GETINT('Particles-DSMC-SurfCollisBC','0') ! 0 means all...
+    ELSE
+      DEALLOCATE(AnalyzeSurfCollis%BCs)
+      ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
+      hilf2=''
+      DO iBC=1,AnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...
+        WRITE(UNIT=hilf,FMT='(I0)') 0
+        hilf2=TRIM(hilf2)//TRIM(hilf)
+        IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
+      END DO
+      AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-DSMC-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,hilf2)
+    END IF
+    ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
+    ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
+    ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
+    ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
+    IF (LastAnalyzeSurfCollis%Restart) THEN
+      CALL ReadAnalyzeSurfCollisToHDF5()
+    END IF
+    !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
+    AnalyzeSurfCollis%Data=0.
+    AnalyzeSurfCollis%Spec=0
+    AnalyzeSurfCollis%BCid=0
+    AnalyzeSurfCollis%Number=0
+    !AnalyzeSurfCollis%Rate=0.
+  END IF
+! Species-dependent calculations
+  ALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags(1:nSpecies))
+  DSMC%CalcSurfCollis_NbrOfSpecies = GETINT('Particles-DSMC-CalcSurfCollis_NbrOfSpecies','0')
+  IF ( (DSMC%CalcSurfCollis_NbrOfSpecies.GT.0) .AND. (DSMC%CalcSurfCollis_NbrOfSpecies.LE.nSpecies) ) THEN
+    ALLOCATE(CalcSurfCollis_SpeciesRead(1:DSMC%CalcSurfCollis_NbrOfSpecies))
+    hilf2=''
+    DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies !build default string: 1 - CSC_NoS
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      hilf2=TRIM(hilf2)//TRIM(hilf)
+      IF (ispec.NE.DSMC%CalcSurfCollis_NbrOfSpecies) hilf2=TRIM(hilf2)//','
+    END DO
+    CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-DSMC-CalcSurfCollis_Species',DSMC%CalcSurfCollis_NbrOfSpecies,hilf2)
+    DSMC%CalcSurfCollis_SpeciesFlags(:)=.FALSE.
+    DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies
+      DSMC%CalcSurfCollis_SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
+    END DO
+    DEALLOCATE(CalcSurfCollis_SpeciesRead)
+  ELSE IF (DSMC%CalcSurfCollis_NbrOfSpecies.EQ.0) THEN !default
+    DSMC%CalcSurfCollis_SpeciesFlags(:)=.TRUE.
+  ELSE
+    CALL abort(&
+    __STAMP__&
+    ,'Error in Particles-DSMC-CalcSurfCollis_NbrOfSpecies!')
+  END IF
 END IF
 
 ParticlesInitIsDone=.TRUE.
@@ -384,7 +469,7 @@ END IF
 OutputMesh = GETLOGICAL('Part-WriteOutputMesh','.FALSE.')
            
 ! output of macroscopic values
-WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
+WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
 !ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
 WriteFieldsToVTK = GETLOGICAL('Part-WriteFieldsToVTK','.FALSE.')
@@ -926,6 +1011,17 @@ DO iPartBound=1,nPartBound
   CASE('symmetric')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('analyze')
+     PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
+     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
+       !read Species to be changed at wall (in, out), out=0: delete
+       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+       DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
+         WRITE(UNIT=hilf2,FMT='(I2)') iSwaps
+         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+       END DO
+     END IF
   CASE DEFAULT
      SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
      CALL abort(&
