@@ -223,10 +223,12 @@ USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,     ONLY:totalIterLinearSolver
 #endif /*IMEX*/
+#ifdef PARTICLES
 #ifdef IMPA
 USE MOD_LinearSolver_vars,     ONLY:nPartNewton
 USE MOD_LinearSolver_Vars,     ONLY:TotalPartIterLinearSolver
 #endif /*IMPA*/
+#endif /*PARTICLES*/
 #if (PP_TimeDiscMethod==120)||(PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,    ONLY: totalFullNewtonIter
 #endif
@@ -572,6 +574,7 @@ DO !iter_t=0,MaxIter
       TotalIterLinearSolver=0
 #endif /*IMEX*/
 #ifdef IMPA
+#ifdef PARTICLES
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
@@ -579,12 +582,13 @@ DO !iter_t=0,MaxIter
         SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
                                                                               /REAL(nPartNewton)
       END IF
+      nPartNewTon=0
+      TotalPartIterLinearSolver=0
+#endif /*PARTICLES*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
       totalFullNewtonIter=0
 #endif 
-      nPartNewTon=0
-      TotalPartIterLinearSolver=0
       SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA*/
       ! Analyze for output
