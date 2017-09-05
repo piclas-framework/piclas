@@ -77,7 +77,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
 ! Particle Adsorption after wall collision
 !===================================================================================================================================
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
-  USE MOD_Particle_Vars,          ONLY : WriteMacroValues, KeepWallParticles, PDM
+  USE MOD_Particle_Vars,          ONLY : WriteMacroVolumeValues, KeepWallParticles, PDM
   USE MOD_Particle_Vars,          ONLY : PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : CollisMode, Adsorption
@@ -251,8 +251,8 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
     !End internal energy accomodation
     
 !----  Sampling at walls
-    IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-      CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap)
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroVolumeValues)) THEN
+      CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
     END IF
     
   ELSE
@@ -507,7 +507,7 @@ END SUBROUTINE Calc_PartNum_Wall_Desorb
 !     TransArray(6) = PartState(i,6)-VelZold
 !     
 !     !----  Sampling at walls
-!     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)) .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+!     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)) .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroVolumeValues)) THEN
 !       CALL CalcWallSample(i,SurfSide,TriNum,Transarray,IntArray)
 !     END IF
 ! 
