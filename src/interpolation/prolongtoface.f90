@@ -20,8 +20,15 @@ END INTERFACE
 INTERFACE ProlongToFace_BC
   MODULE PROCEDURE ProlongToFace_BC
 END INTERFACE
+
+! NO interface because of possibility to MAP arrays, dimension reduction, increase
+!INTERFACE ProlongToFace_Elementlocal
+!  MODULE PROCEDURE ProlongToFace_Elementlocal
+!END INTERFACE
+
 PUBLIC::ProlongToFace
 PUBLIC::ProlongToFace_BC
+PUBLIC::ProlongToFace_Elementlocal
 !===================================================================================================================================
 
 CONTAINS
@@ -423,5 +430,119 @@ DO SideID=1,nBCSides
 END DO !SideID
 END SUBROUTINE ProlongToFace_BC
 
+
+SUBROUTINE ProlongToFace_Elementlocal(nVar,locSideID,Uvol,Uface)
+!===================================================================================================================================
+! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
+! integration points, using fast 1D Interpolation and does NOT rotate into global coordinate system
+! Face integration points are still volume-IJK orientated
+! Has to be called for each element face separately
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Interpolation_Vars, ONLY: L_PlusMinus
+USE MOD_PreProc
+USE MOD_Mappings,           ONLY: CGNS_VolToSide_IJK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)              :: nVar
+INTEGER,INTENT(IN)              :: locSideID
+REAL,INTENT(IN)                 :: Uvol(1:nVar,0:PP_N,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: Uface(1:nVar,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                         :: i,j,k
+INTEGER                         :: pq(1:3)
+!===================================================================================================================================
+
+#if (PP_NodeType==1) /* for Gauss-points*/
+Uface=0.
+DO k=0,PP_N
+  DO j=0,PP_N
+    DO i=0,PP_N
+      pq=CGNS_VolToSide_IJK(i,j,k,locSideID)
+      Uface(:,pq(1),pq(2))=Uface(:,pq(1),pq(2))+Uvol(:,i,j,k)*L_PlusMinus(pq(3),locSideID)
+    END DO ! i=0,PP_N
+  END DO ! j=0,PP_N
+END DO ! k=0,PP_N
+
+!  SELECT CASE(locSideID)
+!  CASE(XI_MINUS)
+!    DO q=0,PP_N
+!      DO p=0,PP_N
+!        Uface(:,p,q)=Uvol(:,0,p,q)*L_Minus(0)
+!        DO l=1,PP_N
+!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,l,p,q)*L_Minus(l)
+!        END DO ! l
+!      END DO ! p
+!    END DO ! q
+!  CASE(ETA_MINUS)
+!    DO q=0,PP_N
+!      DO p=0,PP_N
+!        Uface(:,p,q)=Uvol(:,p,0,q)*L_Minus(0)
+!        DO l=1,PP_N
+!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,l,q)*L_Minus(l)
+!        END DO ! l
+!      END DO ! p
+!    END DO ! q
+!  CASE(ZETA_MINUS)
+!    DO q=0,PP_N
+!      DO p=0,PP_N
+!        Uface(:,p,q)=Uvol(:,p,q,0)*L_Minus(0)
+!        DO l=1,PP_N
+!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,q,l)*L_Minus(l)
+!        END DO ! l
+!      END DO ! p
+!    END DO ! q
+!  CASE(XI_PLUS)
+!    DO q=0,PP_N
+!      DO p=0,PP_N
+!        Uface(:,p,q)=Uvol(:,0,p,q)*L_Plus(0)
+!        DO l=1,PP_N
+!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,l,p,q)*L_Plus(l)
+!        END DO ! l
+!      END DO ! p
+!    END DO ! q
+!  CASE(ETA_PLUS)
+!    DO q=0,PP_N
+!      DO p=0,PP_N
+!        Uface(:,p,q)=Uvol(:,p,0,q)*L_Plus(0)
+!        DO l=1,PP_N
+!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,l,q)*L_Plus(l)
+!        END DO ! l
+!      END DO ! p
+!    END DO ! q
+!  CASE(ZETA_PLUS)
+!    DO q=0,PP_N
+!      DO p=0,PP_N
+!        Uface(:,p,q)=Uvol(:,p,q,0)*L_Plus(0)
+!        DO l=1,PP_N
+!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,q,l)*L_Plus(l)
+!        END DO ! l
+!      END DO ! p
+!    END DO ! q
+!  END SELECT
+#else /* for Gauss-Lobatto-points*/
+  SELECT CASE(locSideID)
+  CASE(XI_MINUS)
+    Uface(:,:,:)=Uvol(:,0,:,:)
+  CASE(ETA_MINUS)
+    Uface(:,:,:)=Uvol(:,:,0,:)
+  CASE(ZETA_MINUS)
+    Uface(:,:,:)=Uvol(:,:,:,0)
+  CASE(XI_PLUS)
+    Uface(:,:,:)=Uvol(:,PP_N,:,:)
+  CASE(ETA_PLUS)
+    Uface(:,:,:)=Uvol(:,:,PP_N,:)
+  CASE(ZETA_PLUS)
+    Uface(:,:,:)=Uvol(:,:,:,PP_N)
+  END SELECT
+#endif
+
+END SUBROUTINE ProlongToFace_Elementlocal
 
 END MODULE MOD_ProlongToFace
