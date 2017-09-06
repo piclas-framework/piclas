@@ -133,6 +133,7 @@ USE MOD_PreProc ! PP_N
 USE MOD_Equation_Vars,      ONLY: eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
 USE MOD_Dielectric_Vars,    ONLY: DoDielectric,isDielectricElem, ElemToDielectric,DielectricConstant_inv
 USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_ProlongToFace,      ONLY: ProlongToFace_Elementlocal
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -148,92 +149,16 @@ REAL,DIMENSION(8,8,0:PP_N,0:PP_N),INTENT(OUT)    :: Aside
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3), A_p(1:8,1:8)
-INTEGER                                          :: p,q,l,ElemID2
+INTEGER                                          :: p,q,l
 REAL                                             :: DielectricConstant_inv_Face(0:PP_N,0:PP_N)
 REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================
 
-ElemID2=ElemToDielectric(ElemID)
-! prolong to face of DielectricConstant_inv
-#if (PP_NodeType==1) /* for Gauss-points*/
-  SELECT CASE(locSideID)
-  CASE(XI_MINUS)
-    DO q=0,PP_N
-      DO p=0,PP_N
-        DielectricConstant_inv_Face(p,q)=DielectricConstant_inv(0,p,q,ElemID2)*L_Minus(0)
-        DO l=1,PP_N
-          ! switch to right hand system
-          DielectricConstant_inv_Face(p,q)=DielectricConstant_inv_Face(p,q)+DielectricConstant_inv(l,p,q,ElemID2)*L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_MINUS)
-    DO q=0,PP_N
-      DO p=0,PP_N
-        DielectricConstant_inv_Face(p,q)=DielectricConstant_inv(p,0,q,ElemID2)*L_Minus(0)
-        DO l=1,PP_N
-          DielectricConstant_inv_Face(p,q)=DielectricConstant_inv_Face(p,q)+DielectricConstant_inv(p,l,q,ElemID2)*L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_MINUS)
-    DO q=0,PP_N
-      DO p=0,PP_N
-        DielectricConstant_inv_Face(p,q)=DielectricConstant_inv(p,q,0,ElemID2)*L_Minus(0)
-        DO l=1,PP_N
-          ! switch to right hand system
-          DielectricConstant_inv_Face(p,q)=DielectricConstant_inv_Face(p,q)+DielectricConstant_inv(p,q,l,ElemID2)*L_Minus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(XI_PLUS)
-    DO q=0,PP_N
-      DO p=0,PP_N
-        DielectricConstant_inv_Face(p,q)=DielectricConstant_inv(0,p,q,ElemID2)*L_Plus(0)
-        DO l=1,PP_N
-          DielectricConstant_inv_Face(p,q)=DielectricConstant_inv_Face(p,q)+DielectricConstant_inv(l,p,q,ElemID2)*L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ETA_PLUS)
-    DO q=0,PP_N
-      DO p=0,PP_N
-        !DielectricConstant_inv_Face(PP_N-p,q)=DielectricConstant_inv(p,0,q,ElemID)*L_Plus(0)
-        DielectricConstant_inv_Face(p,q)=DielectricConstant_inv(p,0,q,ElemID2)*L_Plus(0)
-        DO l=1,PP_N
-          ! switch to right hand system
-          !DielectricConstant_inv_Face(PP_N-p,q)=DielectricConstant_inv_Face(PP_N-p,q) &
-          DielectricConstant_inv_Face(p,q)=DielectricConstant_inv_Face(p,q) &
-                                                 +DielectricConstant_inv(p,l,q,ElemID2)*L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  CASE(ZETA_PLUS)
-    DO q=0,PP_N
-      DO p=0,PP_N
-        DielectricConstant_inv_Face(p,q)=DielectricConstant_inv(p,q,0,ElemID2)*L_Plus(0)
-        DO l=1,PP_N
-          DielectricConstant_inv_Face(p,q)=DielectricConstant_inv_Face(p,q)+DielectricConstant_inv(p,q,l,ElemID2)*L_Plus(l)
-        END DO ! l
-      END DO ! p
-    END DO ! q
-  END SELECT
-#else /* for Gauss-Lobatto-points*/
-  SELECT CASE(locSideID)
-  CASE(XI_MINUS)
-    DielectricConstant_inv_Face(:,:)=DielectricConstant_inv(0,:,:,ElemID2)
-  CASE(ETA_MINUS)
-    DielectricConstant_inv_Face(:,:)=DielectricConstant_inv(:,0,:,ElemID2)
-  CASE(ZETA_MINUS)
-    DielectricConstant_inv_Face(:,:)=DielectricConstant_inv(:,:,0,ElemID2)
-  CASE(XI_PLUS)
-    DielectricConstant_inv_Face(:,:)=DielectricConstant_inv(PP_N,:,:,ElemID2)
-  CASE(ETA_PLUS)
-    DielectricConstant_inv_Face(:,:)=DielectricConstant_inv(:,PP_N,:,ElemID2)
-  CASE(ZETA_PLUS)
-    DielectricConstant_inv_Face(:,:)=DielectricConstant_inv(:,:,PP_N,ElemID2)
-  END SELECT
-#endif
+
+CALL ProlongToFace_Elementlocal(nVar=1                                                      &
+                               ,locSideID=locSideID                                         &
+                               ,Uvol=DielectricConstant_inv(:,:,:,ElemToDielectric(ElemID)) &
+                               ,Uface=DielectricConstant_inv_Face                           )
 
 ! Gauss point p,q
 DO q=0 ,PP_N
