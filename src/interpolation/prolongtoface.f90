@@ -469,78 +469,21 @@ DO k=0,PP_N
     END DO ! i=0,PP_N
   END DO ! j=0,PP_N
 END DO ! k=0,PP_N
-
-!  SELECT CASE(locSideID)
-!  CASE(XI_MINUS)
-!    DO q=0,PP_N
-!      DO p=0,PP_N
-!        Uface(:,p,q)=Uvol(:,0,p,q)*L_Minus(0)
-!        DO l=1,PP_N
-!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,l,p,q)*L_Minus(l)
-!        END DO ! l
-!      END DO ! p
-!    END DO ! q
-!  CASE(ETA_MINUS)
-!    DO q=0,PP_N
-!      DO p=0,PP_N
-!        Uface(:,p,q)=Uvol(:,p,0,q)*L_Minus(0)
-!        DO l=1,PP_N
-!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,l,q)*L_Minus(l)
-!        END DO ! l
-!      END DO ! p
-!    END DO ! q
-!  CASE(ZETA_MINUS)
-!    DO q=0,PP_N
-!      DO p=0,PP_N
-!        Uface(:,p,q)=Uvol(:,p,q,0)*L_Minus(0)
-!        DO l=1,PP_N
-!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,q,l)*L_Minus(l)
-!        END DO ! l
-!      END DO ! p
-!    END DO ! q
-!  CASE(XI_PLUS)
-!    DO q=0,PP_N
-!      DO p=0,PP_N
-!        Uface(:,p,q)=Uvol(:,0,p,q)*L_Plus(0)
-!        DO l=1,PP_N
-!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,l,p,q)*L_Plus(l)
-!        END DO ! l
-!      END DO ! p
-!    END DO ! q
-!  CASE(ETA_PLUS)
-!    DO q=0,PP_N
-!      DO p=0,PP_N
-!        Uface(:,p,q)=Uvol(:,p,0,q)*L_Plus(0)
-!        DO l=1,PP_N
-!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,l,q)*L_Plus(l)
-!        END DO ! l
-!      END DO ! p
-!    END DO ! q
-!  CASE(ZETA_PLUS)
-!    DO q=0,PP_N
-!      DO p=0,PP_N
-!        Uface(:,p,q)=Uvol(:,p,q,0)*L_Plus(0)
-!        DO l=1,PP_N
-!          Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,q,l)*L_Plus(l)
-!        END DO ! l
-!      END DO ! p
-!    END DO ! q
-!  END SELECT
 #else /* for Gauss-Lobatto-points*/
-  SELECT CASE(locSideID)
-  CASE(XI_MINUS)
-    Uface(:,:,:)=Uvol(:,0,:,:)
-  CASE(ETA_MINUS)
-    Uface(:,:,:)=Uvol(:,:,0,:)
-  CASE(ZETA_MINUS)
-    Uface(:,:,:)=Uvol(:,:,:,0)
-  CASE(XI_PLUS)
-    Uface(:,:,:)=Uvol(:,PP_N,:,:)
-  CASE(ETA_PLUS)
-    Uface(:,:,:)=Uvol(:,:,PP_N,:)
-  CASE(ZETA_PLUS)
-    Uface(:,:,:)=Uvol(:,:,:,PP_N)
-  END SELECT
+SELECT CASE(locSideID)
+CASE(XI_MINUS)
+  Uface(:,:,:)=Uvol(:,0,:,:)
+CASE(ETA_MINUS)
+  Uface(:,:,:)=Uvol(:,:,0,:)
+CASE(ZETA_MINUS)
+  Uface(:,:,:)=Uvol(:,:,:,0)
+CASE(XI_PLUS)
+  Uface(:,:,:)=Uvol(:,PP_N,:,:)
+CASE(ETA_PLUS)
+  Uface(:,:,:)=Uvol(:,:,PP_N,:)
+CASE(ZETA_PLUS)
+  Uface(:,:,:)=Uvol(:,:,:,PP_N)
+END SELECT
 #endif
 
 END SUBROUTINE ProlongToFace_Elementlocal
