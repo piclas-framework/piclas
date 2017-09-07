@@ -147,9 +147,9 @@ CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricE
 CALL CountAndCreateMappings('Dielectric',&
                             isDielectricElem,isDielectricFace,isDielectricInterFace,&
                             nDielectricElems,nDielectricFaces, nDielectricInterFaces,&
-                            ElemToDielectric,DielectricToElem,&
-                            FaceToDielectric,DielectricToFace,&
-                            FaceToDielectricInter,DielectricInterToFace)
+                            ElemToDielectric,DielectricToElem,& ! these two are allocated
+                            FaceToDielectric,DielectricToFace,& ! these two are allocated
+                            FaceToDielectricInter,DielectricInterToFace) ! these two are allocated
 
 ! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region
 CALL SetDielectricVolumeProfile()
@@ -309,7 +309,8 @@ SUBROUTINE FinalizeDielectric()
 USE MOD_Dielectric_Vars,            ONLY: DoDielectric,DielectricEps,DielectricMu
 USE MOD_Dielectric_Vars,            ONLY: ElemToDielectric,DielectricToElem,isDielectricElem
 USE MOD_Dielectric_Vars,            ONLY: FaceToDielectric,DielectricToFace,isDielectricFace
-!USE MOD_Dielectric_Vars,            ONLY: DielectricRamp
+USE MOD_Dielectric_Vars,            ONLY: FaceToDielectricInter,DielectricInterToFace,isDielectricInterFace
+USE MOD_Dielectric_Vars,            ONLY: DielectricConstant_inv,Dielectric_Master,Dielectric_Slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -326,9 +327,15 @@ SDEALLOCATE(DielectricMu)
 SDEALLOCATE(DielectricToElem)
 SDEALLOCATE(ElemToDielectric)
 SDEALLOCATE(DielectricToFace)
+SDEALLOCATE(FaceToDielectricInter)
+SDEALLOCATE(DielectricInterToFace)
 SDEALLOCATE(FaceToDielectric)
 SDEALLOCATE(isDielectricElem)
 SDEALLOCATE(isDielectricFace)
+SDEALLOCATE(isDielectricInterFace)
+SDEALLOCATE(DielectricConstant_inv)
+SDEALLOCATE(Dielectric_Master)
+SDEALLOCATE(Dielectric_Slave)
 END SUBROUTINE FinalizeDielectric
 
 

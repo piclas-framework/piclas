@@ -43,7 +43,7 @@ REAL                :: PMLRampLength            ! ramping length in percent (%) 
 ! mapping variables
 INTEGER             :: nPMLElems,nPMLFaces,nPMLInterFaces          ! number of PML elements and faces (mapping)
 INTEGER,ALLOCATABLE :: PMLToElem(:),PMLToFace(:),PMLInterToFace(:) ! mapping to total element/face list
-INTEGER,ALLOCATABLE :: ElemToPML(:),FaceToPML(:),FaceTOPMLInter(:) ! mapping to PML element/face list
+INTEGER,ALLOCATABLE :: ElemToPML(:),FaceToPML(:),FaceToPMLInter(:) ! mapping to PML element/face list
 ! PML auxiliary variables P_t=E & Q_t=B
 REAL,ALLOCATABLE    :: U2(:,:,:,:,:)                               ! U2( P=U2(1:3) and Q=U2(4:6),i,j,k,nPMLElems)
 REAL,ALLOCATABLE    :: U2t(:,:,:,:,:)                              ! U2t(P=U2(1:3) and Q=U2(4:6),i,j,k,nPMLElems)

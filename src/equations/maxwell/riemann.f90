@@ -490,8 +490,6 @@ REAL                  :: U_Slave_loc (1:PP_nVar,0:PP_N,0:PP_N)
 REAL                  :: Flux_loc(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N), U_loc(1:PP_nVar)
 !===================================================================================================================================
 
-IF(.NOT.DoExactFlux) RETURN
-
 UseMaster=.TRUE.
 ! emission over plane, hence, first entry decides orientation of  plane
 IF(NormVec(FluxDir,0,0).GT.0)THEN

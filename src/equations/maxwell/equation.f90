@@ -60,8 +60,6 @@ INTEGER                          :: nRefStates,iBC,ntmp,iRefState
 INTEGER,ALLOCATABLE              :: RefStates(:)
 LOGICAL                          :: isNew
 REAL                             :: PulseCenter
-#ifdef MPI
-#endif
 !===================================================================================================================================
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
@@ -138,6 +136,7 @@ END DO
 IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
 IF(DoExactFlux)THEN
   FluxDir = GETINT('FluxDir','3') 
+  CALL InitExactFlux()
 END IF
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
@@ -1057,12 +1056,83 @@ SWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
 END SUBROUTINE GetWaveGuideRadius
 
 
+SUBROUTINE InitExactFlux()
+!===================================================================================================================================
+! Get the constant advection velocity vector from the ini file 
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot!,iError
+USE MOD_Mesh_Vars,       ONLY:nSides
+USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
+USE MOD_Equation_Vars,   ONLY:FluxDir,ExactFluxPosition,isExactFluxInterFace
+USE MOD_ReadInTools,     ONLY:GETREAL
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL,ALLOCATABLE :: isExactFluxElem(:)     ! true if iElem is an element located within the ExactFlux region
+LOGICAL,ALLOCATABLE :: isExactFluxFace(:)     ! true if iFace is a Face located wihtin or on the boarder (interface) of the
+!                                             ! ExactFlux region
+INTEGER,ALLOCATABLE :: ExactFluxToElem(:),ExactFluxToFace(:),ExactFluxInterToFace(:) ! mapping to total element/face list
+INTEGER,ALLOCATABLE :: ElemToExactFlux(:),FaceToExactFlux(:),FaceToExactFluxInter(:) ! mapping to ExactFlux element/face list
+REAL                :: InterFaceRegion(6)
+INTEGER             :: nExactFluxElems,nExactFluxFaces,nExactFluxInterFaces
+!===================================================================================================================================
+! get x,y, or z-position of interface
+ExactFluxPosition    = GETREAL('ExactFluxPosition','0.')
+! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of FluxDir
+SELECT CASE(ABS(FluxDir))
+CASE(1) ! x
+  InterFaceRegion(1:6)=(/-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+CASE(2) ! y
+  InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.)/)
+CASE(3) ! z
+  InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition/)
+CASE DEFAULT
+  CALL abort(&
+      __STAMP__&
+      ,' Unknown exact flux direction: FluxDir=',FluxDir)
+END SELECT
+
+! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
+CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,.FALSE.)
+
+! find all faces in the ExactFlux region
+CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem)
+
+! Get number of ExactFlux Elems, Faces and Interfaces. Create Mappngs ExactFlux <-> physical region
+CALL CountAndCreateMappings('ExactFlux',&
+                            isExactFluxElem,isExactFluxFace,isExactFluxInterFace,&
+                            nExactFluxElems,nExactFluxFaces, nExactFluxInterFaces,&
+                            ElemToExactFlux,ExactFluxToElem,& ! these two are allocated
+                            FaceToExactFlux,ExactFluxToFace,& ! these two are allocated
+                            FaceToExactFluxInter,ExactFluxInterToFace) ! these two are allocated
+
+SWRITE(UNIT_StdOut,'(A6,I10,A)') 'Found ',nExactFluxInterFaces,' interfaces'
+
+! Deallocate the vectors (must be deallocated because the used routine require INTENT,IN and ALLOCATABLE)
+SDEALLOCATE(isExactFluxElem)
+SDEALLOCATE(isExactFluxFace)
+SDEALLOCATE(ExactFluxToElem)
+SDEALLOCATE(ExactFluxToFace)
+SDEALLOCATE(ExactFluxInterToFace)
+SDEALLOCATE(ElemToExactFlux)
+SDEALLOCATE(FaceToExactFlux)
+SDEALLOCATE(FaceToExactFluxInter)
+END SUBROUTINE InitExactFlux
+
+
 SUBROUTINE FinalizeEquation()
 !===================================================================================================================================
 ! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,ONLY:EquationInitIsDone
+USE MOD_Equation_Vars,ONLY:EquationInitIsDone,isExactFluxInterFace
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1073,6 +1143,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 EquationInitIsDone = .FALSE.
+SDEALLOCATE(isExactFluxInterFace)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation

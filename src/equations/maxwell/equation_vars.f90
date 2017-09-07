@@ -59,6 +59,8 @@ REAL              :: TERadius                               !> Radius of Input T
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
 LOGICAL           :: TEPolarization                         !> linear or circular polarized
 LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
+REAL              :: ExactFluxPosition                      !> x,y, or z-position of interface
+LOGICAL,ALLOCATABLE::isExactFluxInterFace(:)                !> Flag for each side on which an exact flux is added
 INTEGER           :: FluxDir                                !> direction of flux
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)

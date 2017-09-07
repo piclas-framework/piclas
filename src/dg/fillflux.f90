@@ -40,7 +40,8 @@ USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,
 USE MOD_PML_vars,        ONLY:isPMLFace,DoPML,isPMLFace,isPMLInterFace,PMLnVar
 USE MOD_Dielectric_vars, ONLY:isDielectricFace,DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
 USE MOD_Dielectric_vars, ONLY:Dielectric_Master
-USE MOD_Mesh_Vars,       ONLY: SideToElem
+USE MOD_Mesh_Vars,       ONLY:SideToElem
+USE MOD_Equation_Vars,   ONLY:DoExactFlux,isExactFluxInterFace
 #ifdef maxwell
 USE MOD_Riemann,         ONLY:ExactFlux
 #endif /*maxwell*/
@@ -144,19 +145,18 @@ END DO
 Flux_slave(:,:,:,firstSideID:lastSideID) = Flux_master(:,:,:,firstSideID:lastSideID)
 
 #ifdef maxwell
-IF(DoPML) THEN
+IF(DoExactFlux) THEN
   DO SideID=firstSideID,lastSideID
-    IF (isPMLFace(SideID))THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
-      ! CAUTION: Multiplication with SurfElem is done in ExactFlux
-      IF(isPMLInterFace(SideID)) CALL ExactFlux(t,tDeriv                                        &
-                                               , Flux_Master(1:PP_nVar+PMLnVar,:,:,SideID)      &
-                                               , Flux_Slave(1:PP_nVar+PMLnVar,:,:,SideID)       &
-                                               , U_Master(:,:,:,SideID)                         &
-                                               , U_Slave(:,:,:,SideID)                          &
-                                               , NormVec(:,:,:,SideID)                          &
-                                               , Face_xGP(1:3,:,:,SideID)                       &
-                                               , SurfElem(:,:,SideID)                           )
-    END IF
+    IF (isExactFluxInterFace(SideID))THEN! CAUTION: Multiplication with SurfElem is done in ExactFlux
+      CALL ExactFlux(t,tDeriv                                        &
+                    , Flux_Master(1:PP_nVar+PMLnVar,:,:,SideID)      &
+                    , Flux_Slave(1:PP_nVar+PMLnVar,:,:,SideID)       &
+                    , U_Master(:,:,:,SideID)                         &
+                    , U_Slave(:,:,:,SideID)                          &
+                    , NormVec(:,:,:,SideID)                          &
+                    , Face_xGP(1:3,:,:,SideID)                       &
+                    , SurfElem(:,:,SideID)                           )
+    END IF ! isExactFluxFace(SideID)
   END DO ! SideID
 END IF                                           
 #endif /*maxwell*/

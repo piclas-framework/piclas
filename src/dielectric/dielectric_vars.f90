@@ -38,7 +38,7 @@ REAL                :: c2_dielectric                  ! c**2/(EpsR*MuR)
 INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces          ! number of Dielectric elements and faces
 !                                                                                       ! (mapping)
 INTEGER,ALLOCATABLE :: DielectricToElem(:),DielectricToFace(:),DielectricInterToFace(:) ! mapping to total element/face list
-INTEGER,ALLOCATABLE :: ElemToDielectric(:),FaceToDielectric(:),FaceTODielectricInter(:) ! mapping to Dielectric element/face list
+INTEGER,ALLOCATABLE :: ElemToDielectric(:),FaceToDielectric(:),FaceToDielectricInter(:) ! mapping to Dielectric element/face list
 !
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricEps
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricMu
