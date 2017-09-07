@@ -548,6 +548,7 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/io_hdf5/*.f90
                                 ./src/loadbalance/*.f90
                                 ./src/mesh/*.f90
+                                ./src/interfaces/*.f90
                                 ./src/mpi/*.f90
                                 ./src/output/*.f90
                                 ./src/readintools/*.f90
