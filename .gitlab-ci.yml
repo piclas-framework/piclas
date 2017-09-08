@@ -138,6 +138,8 @@ intel_tracking:
 #                         - h-p-convtests
 #                         - feature_maxwell_dipole_cylinder_PML/ : curved cylinder geometry with PML on axis and dipole in center for testing RP output
 #                         - feature_maxwell_dipole_dielectric/ : curved sphere with dielectric region in the center and dipole at near the edge
+#                         - feature_maxwell_ExactFlux_PML/ : inner BC that emits a planar wave in z-direction (PMLs are placed at
+#                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_mpi:
@@ -195,6 +197,13 @@ gnu_maxwell_sphere_dielectric:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_dipole_dielectric/ -j no-debug ; fi
+
+gnu_maxwell_ExactFlux_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_ExactFlux_PML/ -j no-debug ; fi
 
 
 
@@ -254,6 +263,13 @@ intel_maxwell_sphere_dielectric:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_dipole_dielectric/ -j no-debug ; fi
+
+intel_maxwell_ExactFlux_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_ExactFlux_PML/ -j no-debug ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week

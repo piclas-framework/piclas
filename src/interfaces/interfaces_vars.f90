@@ -10,4 +10,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL             :: InterfacesInitIsDone = .FALSE.
+INTEGER,ALLOCATABLE :: InterfaceRiemann(:)            ! face identifier for switching between different Riemann solvers
 END MODULE MOD_Interfaces_Vars

@@ -1113,7 +1113,7 @@ CALL CountAndCreateMappings('ExactFlux',&
                             FaceToExactFlux,ExactFluxToFace,& ! these two are allocated
                             FaceToExactFluxInter,ExactFluxInterToFace) ! these two are allocated
 
-SWRITE(UNIT_StdOut,'(A6,I10,A)') 'Found ',nExactFluxInterFaces,' interfaces'
+SWRITE(UNIT_StdOut,'(A6,I10,A)') 'Found ',nExactFluxInterFaces,' interfaces for ExactFlux.'
 
 ! Deallocate the vectors (must be deallocated because the used routine require INTENT,IN and ALLOCATABLE)
 SDEALLOCATE(isExactFluxElem)

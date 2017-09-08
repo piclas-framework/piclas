@@ -37,14 +37,15 @@ USE MOD_Riemann,         ONLY:RiemannDielectric,RiemannDielectricInterFace,Riema
 USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
-USE MOD_PML_vars,        ONLY:isPMLFace,DoPML,isPMLFace,isPMLInterFace,PMLnVar
-USE MOD_Dielectric_vars, ONLY:isDielectricFace,DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
+USE MOD_PML_vars,        ONLY:DoPML,isPMLFace,isPMLInterFace,PMLnVar
+USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
 USE MOD_Dielectric_vars, ONLY:Dielectric_Master
 USE MOD_Mesh_Vars,       ONLY:SideToElem
 USE MOD_Equation_Vars,   ONLY:DoExactFlux,isExactFluxInterFace
 #ifdef maxwell
 USE MOD_Riemann,         ONLY:ExactFlux
 #endif /*maxwell*/
+USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,49 +81,25 @@ END IF
 
 ! Compute fluxes on PP_N, no additional interpolation required
 DO SideID=firstSideID,lastSideID
-  ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region!
-  IF(DoPML.AND.DoDielectric)THEN
-    IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
-      CALL abort(&
-      __STAMP__&
-      ,'It is forbidden to connect a PML to a dielectric region!')
-    END IF
-  END IF
-
-  ! 1.) Check Perfectly Matched Layer
-  IF(DoPML) THEN
-    IF (isPMLFace(SideID))THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
-                                 !     (flux-splitting!)
-      CALL RiemannPML(Flux_Master(1:32,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
-      CYCLE ! don't check the following if the flux has already been calculated here -> continue with next side
-    END IF
-  END IF ! DoPML
-
-  ! 2.) Check Dielectric Medium
-  IF(DoDielectric) THEN
-    IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
-      IF(isDielectricInterFace(SideID))THEN
-        ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
-        ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(isDielectricElem(ElemID))THEN !  master is DIELECTRIC and slave PHYSICAL
-          ! A+(Eps0,Mu0) and A-(EpsR,MuR)
-          CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
-                                                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        ELSE ! master is PHYSICAL and slave DIELECTRIC
-          ! A+(EpsR,MuR) and A-(Eps0,Mu0)
-          CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
-                                                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        END IF
-      ELSE ! b) dielectric region <-> dielectric region
-        CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
-                                                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-      END IF
-    ELSE ! c) no Dielectric, standard flux
-      CALL Riemann(Flux_Master(1:8,:,:,SideID), U_Master(:,:,:,SideID),  U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
-    END IF ! IF(isDielectricFace(SideID))
-  ELSE ! d) no Dielectric, standard flux
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_VACUUM) ! standard flux
     CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
-  END IF ! DoDielectric
+  CASE(RIEMANN_PML) ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
+    CALL RiemannPML(Flux_Master(1:32,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
+  CASE(RIEMANN_DIELECTRIC) ! dielectric region <-> dielectric region
+    CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+                           NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CASE(RIEMANN_DIELECTRIC2VAC) ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
+    CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+                                     NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CASE(RIEMANN_VAC2DIELECTRIC) ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
+    CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+                                                NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+  END SELECT
 END DO ! SideID
   
 IF(.NOT.doMPISides)THEN
@@ -155,7 +132,8 @@ IF(DoExactFlux) THEN
                     , U_Slave(:,:,:,SideID)                          &
                     , NormVec(:,:,:,SideID)                          &
                     , Face_xGP(1:3,:,:,SideID)                       &
-                    , SurfElem(:,:,SideID)                           )
+                    , SurfElem(:,:,SideID)                           &
+                    , SideID)
     END IF ! isExactFluxFace(SideID)
   END DO ! SideID
 END IF                                           

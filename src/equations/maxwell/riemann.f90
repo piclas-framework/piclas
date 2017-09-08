@@ -438,7 +438,7 @@ END DO
 END SUBROUTINE RiemannPML
 
 
-SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,Face_xGP,SurfElem)
+SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,Face_xGP,SurfElem,SideID)
 !===================================================================================================================================
 ! Routine to add an exact function to a Riemann-Problem Face
 ! used at PML interfaces to emit a wave
@@ -456,10 +456,12 @@ SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,F
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir
-USE MOD_Equation,      ONLY: ExactFunc
-USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
-USE MOD_PML_vars,      ONLY: PMLnVar
+USE MOD_Equation_Vars,   ONLY:IniExactFunc,DoExactFlux,FluxDir
+USE MOD_Equation,        ONLY:ExactFunc
+USE MOD_PML_Vars,        ONLY:xyzPhysicalMinMax
+USE MOD_PML_vars,        ONLY:PMLnVar
+USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
+USE MOD_Dielectric_vars, ONLY:Dielectric_Master
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -471,6 +473,7 @@ REAL,INTENT(IN)       :: Face_xGP(1:3,0:PP_N,0:PP_N)
 REAL,INTENT(IN)       :: U_master(1:PP_nVar,0:PP_N,0:PP_N)
 REAL,INTENT(IN)       :: U_slave (1:PP_nVar,0:PP_N,0:PP_N)
 REAL,INTENT(IN)       :: SurfElem (0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)    :: SideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)    :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
@@ -478,12 +481,6 @@ REAL,INTENT(INOUT)    :: Flux_Slave (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: p,q
-! assume exact solution is solution of RP
-!REAL                  :: U_Face_loc(1:PP_nVar)
-!REAL                  :: A(1:8,1:8)
-!REAL                  :: Flux_loc(1:PP_nVar)
-!REAL                  :: n_loc(1:3)
-! assume, that the RP has to be solved with U_ex
 LOGICAL               :: UseMaster
 REAL                  :: U_Master_loc(1:PP_nVar,0:PP_N,0:PP_N)
 REAL                  :: U_Slave_loc (1:PP_nVar,0:PP_N,0:PP_N)
@@ -502,7 +499,8 @@ __STAMP__&
 ,'weired mesh?')
 END IF
 
-IF(.NOT.ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,0,0),xyzPhysicalMinMax(FluxDir*2-1),1e-4)) RETURN
+!abfrage auskommentiert: ueberfluessig?
+!IF(.NOT.ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,0,0),xyzPhysicalMinMax(FluxDir*2-1),1e-4)) RETURN
 
 U_Slave_loc =U_Slave
 U_Master_loc=U_Master
@@ -523,8 +521,28 @@ DO q=0,PP_N
 END DO ! q
 
 Flux_loc=0.
-CALL RiemannPML(Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
-!CALL Riemann(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
+
+! check interface type for Riemann solver selection
+SELECT CASE(InterfaceRiemann(SideID))
+CASE(RIEMANN_VACUUM) ! standard flux
+  CALL Riemann(Flux_loc(1:8,:,:),U_Master_loc( :,:,:),U_Slave_loc(  :,:,:),NormVec(:,:,:))
+CASE(RIEMANN_PML) ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
+  CALL RiemannPML(Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
+CASE(RIEMANN_DIELECTRIC) ! dielectric region <-> dielectric region
+  CALL RiemannDielectric(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                         NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+CASE(RIEMANN_DIELECTRIC2VAC) ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
+  CALL RiemannDielectricInterFace2(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                                   NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+CASE(RIEMANN_VAC2DIELECTRIC) ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
+  CALL RiemannDielectricInterFace(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                                              NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+CASE DEFAULT
+  CALL abort(&
+  __STAMP__&
+  ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+END SELECT
+
 IF(Usemaster)THEN
   DO q=0,PP_N
     DO p=0,PP_N

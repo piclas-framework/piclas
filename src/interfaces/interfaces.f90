@@ -15,6 +15,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE InitInterfaces
+  MODULE PROCEDURE InitInterfaces
+END INTERFACE
 INTERFACE FindInterfacesInRegion
   MODULE PROCEDURE FindInterfacesInRegion
 END INTERFACE
@@ -24,12 +27,103 @@ END INTERFACE
 INTERFACE CountAndCreateMappings
   MODULE PROCEDURE CountAndCreateMappings
 END INTERFACE
+INTERFACE FinalizeInterfaces
+  MODULE PROCEDURE FinalizeInterfaces
+END INTERFACE
 
+PUBLIC::InitInterfaces
 PUBLIC::FindElementInRegion
 PUBLIC::FindInterfacesInRegion
 PUBLIC::CountAndCreateMappings
+PUBLIC::FinalizeInterfaces
 !===================================================================================================================================
 CONTAINS
+
+
+SUBROUTINE InitInterfaces
+!===================================================================================================================================
+!> Check every face and set the correct identifier for selecting the corresponding Riemann solver
+!> possible connections are (Master <-> Slave direction is important):
+!>   - vaccuum <-> vacuum          : RIEMANN_VACUUM         = 0
+!>   - PML <-> vacuum              : RIEMANN_PML            = 1
+!>   - PML <-> PML                 : RIEMANN_PML            = 1
+!>   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
+!>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3
+!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars,       ONLY:nSides
+USE MOD_PML_vars,        ONLY:DoPML,isPMLFace,isPMLInterFace
+USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
+USE MOD_Equation_Vars,   ONLY:DoExactFlux,isExactFluxInterFace
+USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
+USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
+USE MOD_Mesh_Vars,       ONLY:SideToElem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: SideID,ElemID
+!===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...' 
+ALLOCATE(InterfaceRiemann(1:nSides))
+DO SideID=1,nSides
+  InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
+  ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
+  IF(DoPML.AND.DoDielectric)THEN
+    IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
+      CALL abort(&
+      __STAMP__&
+      ,'It is forbidden to connect a PML to a dielectric region! (Not implemented)')
+    END IF
+  END IF
+
+  ! 1.) Check Perfectly Matched Layer
+  IF(DoPML) THEN
+    IF (isPMLFace(SideID))THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
+                                 !     (flux-splitting!)
+      InterfaceRiemann(SideID)=RIEMANN_PML
+      CYCLE ! don't check the following if the flux has already been calculated here -> continue with next side
+    END IF
+  END IF ! DoPML
+
+  ! 2.) Check Dielectric Medium
+  IF(DoDielectric) THEN
+    IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
+      IF(isDielectricInterFace(SideID))THEN
+        ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
+        ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
+        IF(isDielectricElem(ElemID))THEN !  master is DIELECTRIC and slave PHYSICAL
+          InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+        ELSE ! master is PHYSICAL and slave DIELECTRIC
+          InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+        END IF
+      ELSE ! b) dielectric region <-> dielectric region
+        InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC
+      END IF
+    ELSE ! c) no Dielectric, standard flux
+      InterfaceRiemann(SideID)=RIEMANN_VACUUM
+    END IF ! IF(isDielectricFace(SideID))
+  ELSE ! d) no Dielectric, standard flux
+    InterfaceRiemann(SideID)=RIEMANN_VACUUM
+  END IF ! DoDielectric
+
+  IF(InterfaceRiemann(SideID).EQ.-1)THEN
+    CALL abort(&
+    __STAMP__&
+    ,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML ...)')
+  END IF
+END DO ! SideID
+
+InterfacesInitIsDone=.TRUE.
+SWRITE(UNIT_stdOut,'(A)')' INIT INTERFACES DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitInterfaces
 
 
 SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DisplayInfoProcs)
@@ -423,6 +517,26 @@ DO iFace=1,nSides
 END DO
 
 END SUBROUTINE CountAndCreateMappings
+
+
+SUBROUTINE FinalizeInterfaces()
+!===================================================================================================================================
+! Get the constant advection velocity vector from the ini file
+!===================================================================================================================================
+! MODULES
+USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+InterfacesInitIsDone = .FALSE.
+SDEALLOCATE(InterfaceRiemann)
+END SUBROUTINE FinalizeInterfaces
 
 
 END MODULE MOD_Interfaces
