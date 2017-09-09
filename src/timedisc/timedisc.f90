@@ -2798,7 +2798,7 @@ IF(DoSurfaceFlux)THEN
         ! next, get time point for remaining flight time AFTER surface crossing
         CALL RANDOM_NUMBER(RandVal)
         PartDtFrac(iPart)=RandVal
-        ParticleIsImplicit(iPart)=.TRUE.
+        PartIsImplicit(iPart)=.TRUE.
         ! particle crosses surface at t^n + (1.-RandVal)*dt
         ! for all stages   t_Stage =< t^n + (1.-RandVal)*dt particle is outside of domain
         ! for              t_Stage >  t^n + (1.-RandVal)*dt particle is in domain and can be advanced in time
