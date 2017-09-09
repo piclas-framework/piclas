@@ -552,7 +552,7 @@ USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartCommSize,PartSendBuf, PartRecvBuf &
                                       ,PartTargetProc
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Species,PartPosRef,PartDtFrac
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Species,PartPosRef
 #if defined(LSERK)
 USE MOD_Particle_Vars,            ONLY:Pt_temp
 #endif
@@ -563,7 +563,7 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,  NbrOfExtParticles
 #if defined(IMEX) || defined(IMPA)
-USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
+USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
@@ -1157,7 +1157,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef,PartDtFrac
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef
 #if defined(LSERK)
 USE MOD_Particle_Vars,            ONLY:Pt_temp
 #endif
@@ -1167,7 +1167,7 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
 #if defined(IMEX) || defined(IMPA)
-USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
+USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
