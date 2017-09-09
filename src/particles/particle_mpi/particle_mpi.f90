@@ -214,6 +214,8 @@ PartCommSize   = PartCommSize + 1
 PartCommSize   = PartCommSize + 6
 ! and PartAcceptLambda
 PartCommSize   = PartCommSize + 1
+! PartDtFrac
+PartCommSize   = PartCommSize + 1
 #endif
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
@@ -550,7 +552,7 @@ USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartCommSize,PartSendBuf, PartRecvBuf &
                                       ,PartTargetProc
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Species,PartPosRef
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Species,PartPosRef,PartDtFrac
 #if defined(LSERK)
 USE MOD_Particle_Vars,            ONLY:Pt_temp
 #endif
@@ -784,7 +786,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ELSE
         PartSendBuf(iProc)%content(jPos+11) = 0.0
       END IF
-      jPos=jPos+4
+       PartSendBuf(iProc)%content(jPos+12) = PartDtFrac(iPart)
+      jPos=jPos+5
       ! fieldatparticle 
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
       jPos=jPos+6
@@ -1154,7 +1157,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef,PartDtFrac
 #if defined(LSERK)
 USE MOD_Particle_Vars,            ONLY:Pt_temp
 #endif
@@ -1321,7 +1324,8 @@ DO iProc=1,PartMPI%nMPINeighbors
     ELSE
       DoPartInNewton(PartID) = .FALSE.
     END IF
-    jPos=jPos+4
+    PartDtFrac(PartID) = PartRecvBuf(iProc)%content(jPos+12)
+    jPos=jPos+5
     ! fieldatparticle 
     FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6

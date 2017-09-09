@@ -187,7 +187,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX ! ,StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
@@ -296,7 +296,8 @@ IF(opt)THEN ! compute zero state
       Pt_tmp(4) = Pt(iPart,1) 
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
-      F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-coeff*Pt_tmp
+      F_PartX0(1:3,iPart) =   PartState(iPart,1:3)-PartQ(1:3,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:3)
+      F_PartX0(4:6,iPart) =   PartState(iPart,4:6)-PartQ(4:6,iPart)-coeff*Pt_tmp(4:6)
       PartXK(1:6,iPart)   =   PartState(iPart,1:6)
       R_PartXK(1:6,iPart) =   Pt_tmp(1:6)
       F_PartXK(1:6,iPart) =   F_PartX0(1:6,iPart)
@@ -571,7 +572,7 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 USE MOD_Globals
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm2_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
-                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm2_F_PartX0 !,StagePartPos
+                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm2_F_PartX0,PartDtFrac !,StagePartPos
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
 USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -708,7 +709,8 @@ __STAMP__&
     R_PartXK(4,iPart)=Pt(iPart,1)
     R_PartXK(5,iPart)=Pt(iPart,2)
     R_PartXK(6,iPart)=Pt(iPart,3)
-    F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - coeff*R_PartXK(1:6,iPart)
+    F_PartXK(1:3,iPart)=PartState(iPart,1:3) - PartQ(1:3,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:3,iPart)
+    F_PartXK(4:6,iPart)=PartState(iPart,4:6) - PartQ(4:6,iPart) - coeff*R_PartXK(4:6,iPart)
     ! if check, then here!
     DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
     IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
@@ -840,7 +842,8 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       R_PartXK(4,iPart)=Pt(iPart,1)
       R_PartXK(5,iPart)=Pt(iPart,2)
       R_PartXK(6,iPart)=Pt(iPart,3)
-      F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
+      F_PartXK(1:3,iPart)=PartState(iPart,1:3) - PartQ(1:3,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:3,iPart)
+      F_PartXK(4:6,iPart)=PartState(iPart,4:6) - PartQ(4:6,iPart) - coeff*R_PartXK(4:6,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
       !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
