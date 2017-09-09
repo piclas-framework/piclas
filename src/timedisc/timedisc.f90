@@ -3071,7 +3071,7 @@ DO iStage=2,nRKStages
                 END DO ! iCounter=1,iStage-2
                 PartQ(4:6,iPart) = PartState(iPart,4:6) + dt* PartQ(4:6,iPart)
                 ! velocity guess for PartState
-                PartState(4:6,iPart) = PartQ(iPart,4:6)
+                PartState(iPart,4:6) = PartQ(4:6,iPart)
               ELSE
                 ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
                 PartIsImplicit(iPart)=.FALSE.
