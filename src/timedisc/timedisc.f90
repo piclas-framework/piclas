@@ -3106,10 +3106,10 @@ DO iStage=2,nRKStages
       DO iPart=1,PDM%ParticleVecLength
         IF(PDM%ParticleInside(iPart))THEN
           ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
-          IF(.NOT.PartIsImplicit(iPart))THEN
+          IF(PartIsImplicit(iPart))THEN
             ! finish implicit particle emission
             IF(PDM%IsNewPart(iPart))THEN
-              PartIsImplicit(iPart)=.TRUE.
+              !PartIsImplicit(iPart)=.TRUE.
               PDM%IsNewPart(iPart)=.FALSE.
               PartDtFrac(iPart)   =1.0 ! particle now continues to follow the normal time integration
               ! new velocity/impulse is finally computed
@@ -3140,6 +3140,8 @@ DO iStage=2,nRKStages
               ! set partstaten based on reconstructed values
               PartStateN(iPart,1:3) = PartState_tmp(1:3)
             END IF
+          ELSE
+            IF(PDM%IsNewPart(iPart)) PartIsImplicit(iPart)=.TRUE.
           END IF
         END IF ! ParticleInside
       END DO ! iPart
