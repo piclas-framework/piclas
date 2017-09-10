@@ -2761,54 +2761,54 @@ IF(t.GE.DelayTime)THEN
       PDM%IsNewPart(iPart)=.FALSE.
     END DO ! iPart
   END IF
-END IF
-RKdtFracTotal=0.
-RKdtFrac     =0.
+  RKdtFracTotal=0.
+  RKdtFrac     =0.
 
-! surface flux
-IF(DoSurfaceFlux)THEN
-  RKdtFrac      = 1.0 ! RK_c(iStage)
-  RKdtFracTotal = 1.0 ! RK_c(iStage)
-  CALL ParticleSurfaceflux() 
-  ! compute emission for all particles during dt
-  DO iPart=1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart))THEN
-      IF(PDM%IsNewPart(iPart))THEN
-        IF(PartLorentzType.EQ.5)THEN
-          LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
-          LorentzFac=1.0/SQRT(LorentzFac)
-          PartState(iPart,4) = LorentzFac*PartState(iPart,4)
-          PartState(iPart,5) = LorentzFac*PartState(iPart,5)
-          PartState(iPart,6) = LorentzFac*PartState(iPart,6)
-        END IF
-        ! interpolate field at surface position
-        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
-        ! RHS at interface
-        SELECT CASE(PartLorentzType)
-        CASE(0)
-          Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE(1)
-          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE(3)
-          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE(5)
-          Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE DEFAULT
-        END SELECT
-        ! next, get time point for remaining flight time AFTER surface crossing
-        CALL RANDOM_NUMBER(RandVal)
-        PartDtFrac(iPart)=RandVal
-        PartIsImplicit(iPart)=.TRUE.
-        ! particle crosses surface at t^n + (1.-RandVal)*dt
-        ! for all stages   t_Stage =< t^n + (1.-RandVal)*dt particle is outside of domain
-        ! for              t_Stage >  t^n + (1.-RandVal)*dt particle is in domain and can be advanced in time
-      ELSE
-        ! set DtFrac to unity
-        PartDtFrac(iPart)=1.0
-      END IF ! IsNewPart
-    END IF ! ParticleInside
-  END DO ! iPart
-END IF
+  ! surface flux
+  IF(DoSurfaceFlux)THEN
+    RKdtFrac      = 1.0 ! RK_c(iStage)
+    RKdtFracTotal = 1.0 ! RK_c(iStage)
+    CALL ParticleSurfaceflux() 
+    ! compute emission for all particles during dt
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PDM%ParticleInside(iPart))THEN
+        IF(PDM%IsNewPart(iPart))THEN
+          IF(PartLorentzType.EQ.5)THEN
+            LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
+            LorentzFac=1.0/SQRT(LorentzFac)
+            PartState(iPart,4) = LorentzFac*PartState(iPart,4)
+            PartState(iPart,5) = LorentzFac*PartState(iPart,5)
+            PartState(iPart,6) = LorentzFac*PartState(iPart,6)
+          END IF
+          ! interpolate field at surface position
+          CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+          ! RHS at interface
+          SELECT CASE(PartLorentzType)
+          CASE(0)
+            Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+          CASE(1)
+            Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+          CASE(3)
+            Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+          CASE(5)
+            Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+          CASE DEFAULT
+          END SELECT
+          ! next, get time point for remaining flight time AFTER surface crossing
+          CALL RANDOM_NUMBER(RandVal)
+          PartDtFrac(iPart)=RandVal
+          PartIsImplicit(iPart)=.TRUE.
+          ! particle crosses surface at t^n + (1.-RandVal)*dt
+          ! for all stages   t_Stage =< t^n + (1.-RandVal)*dt particle is outside of domain
+          ! for              t_Stage >  t^n + (1.-RandVal)*dt particle is in domain and can be advanced in time
+        ELSE
+          ! set DtFrac to unity
+          PartDtFrac(iPart)=1.0
+        END IF ! IsNewPart
+      END IF ! ParticleInside
+    END DO ! iPart
+  END IF
+END IF ! t.GE. DelayTime
 #endif /*PARTICLES*/
 
 #ifndef PP_HDG
@@ -2976,7 +2976,12 @@ DO iStage=2,nRKStages
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN
         ! ignore surface flux particle
-        IF(PDM%IsNewPart(iPart)) CYCLE 
+        ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
+        ! surface flux particles
+        IF(PDM%IsNewPart(iPart))THEN
+          PartIsImplicit(iPart)=.FALSE.
+          CYCLE
+        END IF
         ! old position of stage
         ! StagePartPos(iPart,1)=PartState(iPart,1)
         ! StagePartPos(iPart,2)=PartState(iPart,2)
@@ -3043,12 +3048,15 @@ DO iStage=2,nRKStages
     IF(DoSurfaceFlux)THEN
       DO iPart=1,PDM%ParticleVecLength
         IF(PDM%ParticleInside(iPart))THEN
-          ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
-          IF(PartIsImplicit(iPart))THEN
+          ! dirty hack, hence new particles are set to explicit
+          ! if particle enters during stage, it is set to implicit
+          IF(.NOT.PartIsImplicit(iPart))THEN
             ! check if particle takes part in interation
             IF(PDM%IsNewPart(iPart))THEN
               DtFrac=PartDtFrac(iPart)
-              IF(tStage.GE.(1.-DtFrac))THEN
+              IF(RK_c(iStage).GE.(1.-DtFrac))THEN
+                ! PO: How to set Dtfrac for particle, euler-implicit is easy, RKs?
+                ! currently the dtfrac is scaled with RK_c, maybe this is NOT required?, unsure
                 PartDtFrac(iPart)=DtFrac*RK_c(iStage)
                 LastPartPos(iPart,1)=PartState(iPart,1)
                 LastPartPos(iPart,2)=PartState(iPart,2)
@@ -3073,9 +3081,8 @@ DO iStage=2,nRKStages
                 PartQ(4:6,iPart) = PartState(iPart,4:6) + dt* PartQ(4:6,iPart)
                 ! velocity guess for PartState
                 PartState(iPart,4:6) = PartQ(4:6,iPart)
-              ELSE
-                ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
-                PartIsImplicit(iPart)=.FALSE.
+                ! switch particle to implicit treating, to give source terms, ets.
+                PartIsImplicit(iPart)=.TRUE.
               END IF
             END IF
           END IF
@@ -3100,9 +3107,9 @@ DO iStage=2,nRKStages
         IF(PDM%ParticleInside(iPart))THEN
           ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
           IF(.NOT.PartIsImplicit(iPart))THEN
-            IF(PDM%IsNewPart(iPart)) PartIsImplicit(iPart)=.TRUE.
-          ELSE ! finish implicit particle emission
+            ! finish implicit particle emission
             IF(PDM%IsNewPart(iPart))THEN
+              PartIsImplicit(iPart)=.TRUE.
               PDM%IsNewPart(iPart)=.FALSE.
               PartDtFrac(iPart)   =1.0 ! particle now continues to follow the normal time integration
               ! new velocity/impulse is finally computed
