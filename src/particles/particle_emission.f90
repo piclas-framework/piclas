@@ -4399,14 +4399,14 @@ __STAMP__&
         END DO ! iPart
       END IF
 #elif (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
-      IF(iStage.EQ.nRKStages)THEN
+      !IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-      END IF
+      !END IF
 #else
       nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
       DO iPart=1,NbrOfparticle
