@@ -76,7 +76,7 @@ ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
   InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
-#ifndef PP_HDG ! pure Maxwell simulations
+#ifndef PP_HDG /*pure Maxwell simulations*/
   IF(DoPML.AND.DoDielectric)THEN
     IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
       CALL abort(&
