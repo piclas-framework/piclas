@@ -3061,6 +3061,8 @@ DO iStage=2,nRKStages
                 LastPartPos(iPart,2)=PartState(iPart,2)
                 LastPartPos(iPart,3)=PartState(iPart,3)
                 PEM%lastElement(iPart)=PEM%Element(iPart)
+                ! zero everything
+                PartStage(iPart,1:6,:) = 0.
                 ! force is acting on all previous stages
                 DO iCounter=1,iStage-1
                   PartStage(iPart,4:6,iCounter) = Pt(iPart,1:3)
@@ -3135,7 +3137,7 @@ DO iStage=2,nRKStages
                 PartStage(iPart,3,iCounter) = PartState_tmp(6)*LorentzFacInv
                 ! compute previous level
                 PartState_tmp(1:6)=PartState_tmp(1:6)-dt*ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-              END DO ! iCounter=1,iStage-1
+              END DO ! iCounter=iStage-1,1,-1
               ! set partstaten based on reconstructed values
               PartStateN(iPart,1:3) = PartState_tmp(1:3)
             END IF
