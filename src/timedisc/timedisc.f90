@@ -2978,7 +2978,8 @@ DO iStage=2,nRKStages
         ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
         ! surface flux particles
         IF(PDM%IsNewPart(iPart))THEN
-          PartIsImplicit(iPart)=.FALSE.
+          ! PartIsImplicit is switched from TRUE -> FALSE
+          PartIsImplicit(iPart)=.FALSE. 
           CYCLE
         END IF
         ! old position of stage
@@ -3050,7 +3051,7 @@ DO iStage=2,nRKStages
           ! dirty hack, hence new particles are set to explicit
           ! if particle enters during stage, it is set to implicit
           IF(.NOT.PartIsImplicit(iPart))THEN
-            ! check if particle takes part in interation
+            ! check if particle takes part in interaction
             IF(PDM%IsNewPart(iPart))THEN
               DtFrac=PartDtFrac(iPart)
               IF(RK_c(iStage).GE.(1.-DtFrac))THEN
