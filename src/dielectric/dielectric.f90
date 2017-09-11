@@ -134,7 +134,7 @@ END IF
 ! find all elements in the Dielectric region. Here: find all elements located outside of 'xyzPhysicalMinMaxDielectric' 
 IF(useDielectricMinMax)THEN
   CALL FindElementInRegion(isDielectricElem,xyzDielectricMinMax,&
-                           ElementIsInside=.TRUE.,DisplayInfoProcs=DielectricprintInfoProcs)
+                           ElementIsInside=.TRUE.,DisplayInfoProcs=DielectricprintInfoProcs) ! pure Maxwell simulations
 ELSE
   CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
                            ElementIsInside=.FALSE.,DisplayInfoProcs=DielectricprintInfoProcs)

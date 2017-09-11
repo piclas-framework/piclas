@@ -53,9 +53,10 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,       ONLY:nSides
+#ifndef PP_HDG
 USE MOD_PML_vars,        ONLY:DoPML,isPMLFace,isPMLInterFace
+#endif /*NOT HDG*/
 USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
-USE MOD_Equation_Vars,   ONLY:DoExactFlux,isExactFluxInterFace
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
 USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
 USE MOD_Mesh_Vars,       ONLY:SideToElem
@@ -75,6 +76,7 @@ ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
   InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
+#ifndef PP_HDG ! pure Maxwell simulations
   IF(DoPML.AND.DoDielectric)THEN
     IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
       CALL abort(&
@@ -91,6 +93,7 @@ DO SideID=1,nSides
       CYCLE ! don't check the following if the flux has already been calculated here -> continue with next side
     END IF
   END IF ! DoPML
+#endif /*NOT HDG*/
 
   ! 2.) Check Dielectric Medium
   IF(DoDielectric) THEN
