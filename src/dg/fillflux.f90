@@ -35,7 +35,7 @@ USE MOD_Riemann,         ONLY:Riemann,RiemannPML
 USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
-USE MOD_PML_vars,        ONLY:isPMLFace,FaceToPML,DoPML,isPMLFace,isPMLInterFace,PMLnVar
+USE MOD_PML_vars,        ONLY:isPMLFace,DoPML,isPMLFace,isPMLInterFace,PMLnVar
 #ifdef maxwell
 USE MOD_Riemann,         ONLY:ExactFlux
 #endif /*maxwell*/

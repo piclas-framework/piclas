@@ -444,7 +444,7 @@ SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,F
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir,c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_Equation_Vars, ONLY: IniExactFunc,DoExactFlux,FluxDir!,c,c2,c_corr,c_corr_c,c_corr_c2
 USE MOD_Equation,      ONLY: ExactFunc
 USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 USE MOD_PML_vars,      ONLY: PMLnVar

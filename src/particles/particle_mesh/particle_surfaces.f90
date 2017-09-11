@@ -508,7 +508,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo,MortarSlave2MasterInfo,MortarType
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars,                ONLY:nSides
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 USE MOD_Mappings,                 ONLY:CGNS_SideToVol2
 ! IMPLICIT VARIABLE HANDLING

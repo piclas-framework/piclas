@@ -2576,7 +2576,6 @@ USE MOD_Predictor,               ONLY:Predictor,StorePredictor
 USE MOD_LinearSolver_Vars,       ONLY:LinSolverRHS
 USE MOD_Equation,                ONLY:DivCleaningDamping
 USE MOD_Equation,                ONLY:CalcSource
-USE MOD_TimeDisc_Vars,      ONLY: dt_Min
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
 #endif /*maxwell*/
@@ -2592,7 +2591,7 @@ USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species,nSpecies
+USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux!, StagePartPos
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
@@ -2641,7 +2640,7 @@ REAL               :: dtFrac,RandVal, LorentzFac,PartState_tmp(1:6)
 ! RK counter
 INTEGER            :: iCounter !, iStage
 #ifdef PARTICLES
-INTEGER            :: iPart,iSpec,iSF
+INTEGER            :: iPart
 #endif /*PARTICLES*/
 !===================================================================================================================================
 

@@ -217,7 +217,6 @@ USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,SideSlabNormals
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonTol
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
@@ -394,8 +393,6 @@ USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
-USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -423,7 +420,7 @@ REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
 REAL                              :: xi(2),eta(2),t(2), scaleFac!, normVec(3)
-INTEGER                           :: nInter,InterType,nRoot, flipdummy!,BCSideID
+INTEGER                           :: InterType,nRoot, flipdummy!,BCSideID
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
 
@@ -870,8 +867,8 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,MyRank
-USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut
+USE MOD_Mesh_Vars,               ONLY:NGeo,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
@@ -2823,8 +2820,8 @@ SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 !================================================================================================================================
 ! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
 !================================================================================================================================
-USE MOD_Globals_Vars,       ONLY:epsMach
-USE MOD_Globals,            ONLY:UNIT_stdOut,myRank
+!USE MOD_Globals_Vars,       ONLY:epsMach
+USE MOD_Globals,            ONLY:UNIT_stdOut
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES

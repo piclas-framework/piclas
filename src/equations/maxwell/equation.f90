@@ -269,12 +269,10 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
-                                     ,I_0,tFWHM, sigma_t, omega_0_2inv,E_0,BeamEta,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
-                                     ,BeamOmegaW, BeamAmpFac,tFWHM,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,TERadius
+USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
+                                     ,sigma_t, omega_0_2inv,E_0,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
+                                     ,BeamOmegaW, BeamAmpFac,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,TERadius
 USE MOD_TimeDisc_Vars,    ONLY: dt
-USE MOD_PML_Vars,      ONLY: xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -303,14 +301,14 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez           ! aux. Variab
 !REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 !REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
 REAL                            :: MuMN,SqrtN
-REAL                            :: omegaG,g,h,k,B0G
+REAL                            :: omegaG,g,h,B0G
 REAL                            :: Bess_mG_R_R_inv,r_inv
 REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,sin2,cos2,costz2,sintz2,dBess_mG_R
 INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
-REAL                            :: eta, kx,ky,kz,RadiusMax
+REAL                            :: kz,RadiusMax
 !===================================================================================================================================
 Cent=x
 SELECT CASE (ExactFunction)
@@ -939,7 +937,7 @@ INTEGER,INTENT(IN)      :: BCStateIn
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Radius,RadiusMax
+REAL                    :: Radius
 INTEGER                 :: iSide,p,q
 INTEGER                 :: locType,locState
 #if (PP_NodeType==1)

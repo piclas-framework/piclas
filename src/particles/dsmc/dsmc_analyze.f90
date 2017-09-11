@@ -68,7 +68,6 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI
-  USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
   USE MOD_Particle_Boundary_Sampling, ONLY:ExchangeSurfData
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
 #endif
@@ -2638,7 +2637,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: Filename, TypeString, H5_Name
 INTEGER,ALLOCATABLE            :: SpeciesPositions(:,:)
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:),params(:)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)!,params(:)
 #ifdef MPI
 INTEGER,ALLOCATABLE            :: sendbuf(:),recvbuf(:)
 REAL,ALLOCATABLE               :: sendbuf2(:),recvbuf2(:)

@@ -1751,7 +1751,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Restart_Vars,          ONLY: DoRestart
-USE MOD_TTM_Vars,              ONLY: DoImportTTMFile,TTMLogFile
+USE MOD_TTM_Vars,              ONLY: DoImportTTMFile
 #ifdef MPI
 USE MOD_MPI,                   ONLY:FinalizeMPI
 #endif /*MPI*/
@@ -1766,7 +1766,7 @@ REAL,INTENT(IN)                  :: time
 ! LOCAL VARIABLES
 CHARACTER(LEN=255) :: tempStr
 REAL               :: t,tFuture,IMDtimestep
-INTEGER            :: I,iSTATUS,IMDanalyzeIter
+INTEGER            :: iSTATUS,IMDanalyzeIter
 !===================================================================================================================================
 IF(DoRestart)THEN
   IF(DoImportTTMFile)THEN
@@ -1860,7 +1860,6 @@ CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 #endif
 !REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-INTEGER             :: iElem
 !===================================================================================================================================
 N_variables=11
 ALLOCATE(StrVarNames(1:N_variables))

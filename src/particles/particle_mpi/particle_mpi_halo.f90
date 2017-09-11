@@ -47,10 +47,9 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,         ONLY:GEO,SidePeriodicType,nPartSides,PartElemToSide
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
-!1USE MOD_Particle_Tracking_Vars,     ONLY:CartesianPeriodic             ! old periodic for refmapping and ALL bcs periocic
 USE MOD_Particle_MPI_Vars,          ONLY:halo_eps
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,nSides,BC,BoundaryType
+USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,BC,BoundaryType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -75,7 +74,7 @@ END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
 INTEGER                     :: ALLOCSTAT,PVID,iDir
-REAL                        :: MinMax(2),CompareXYZ,Vec1(1:3)
+REAL                        :: MinMax(2),Vec1(1:3)
 LOGICAL                     :: SideisDone(1:nPartSides)
 LOGICAL                     :: SideInside
 !=================================================================================================================================
@@ -639,7 +638,7 @@ USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------

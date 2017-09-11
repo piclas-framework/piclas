@@ -63,7 +63,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
-  INTEGER               :: iInter, iBC
+  INTEGER               :: iInter
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: JToEv, Temp
   REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
