@@ -629,7 +629,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
       ! bad search direction!
       ! new search direction
-      DeltaX=PartDeltaX(:,iPart)*2.
+      DeltaX=PartDeltaX(:,iPart)!*2
       CALL PartMatrixVector(t,Coeff,iPart,DeltaX(:),Xtilde) ! coeff*Ut+Source^n+1 ! only output
       XTilde=XTilde+F_PartXK(1:6,iPart)
       CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)

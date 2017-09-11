@@ -2890,6 +2890,12 @@ DO iStage=2,nRKStages
   !--------------------------------------------------------------------------------------------------------------------------------
 
 #ifdef PARTICLES
+  IF(MPIRoot)THEN
+    IF(DoPrintConvInfo)THEN
+      WRITE(*,*) '-----------------------------'
+      WRITE(*,*) ' explicit particles'
+    END IF
+  END IF
   ExplicitSource=0.
   ! particle step || only explicit particles
   IF (t.GE.DelayTime) THEN
@@ -2971,6 +2977,12 @@ DO iStage=2,nRKStages
 #endif /*DG*/
 
 #ifdef PARTICLES
+  IF(MPIRoot)THEN
+    IF(DoPrintConvInfo)THEN
+      WRITE(*,*) '-----------------------------'
+      WRITE(*,*) ' implicit particles '
+    END IF
+  END IF
   IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN
@@ -2991,14 +3003,43 @@ DO iStage=2,nRKStages
         LastPartPos(iPart,2)=PartState(iPart,2)
         LastPartPos(iPart,3)=PartState(iPart,3)
         PEM%lastElement(iPart)=PEM%Element(iPart)
-        ! compute Q and U
-        PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
-        DO iCounter=1,iStage-2
-          PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-        END DO ! iCounter=1,iStage-2
-        PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
-        ! predictor
-        CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
+        IF(PartDtFrac(iPart).NE.1.)THEN
+          !dtfrac=PartDtFrac(ipart)
+          !IF(RK_c(istage).LT.(1.-dtfrac))THEN
+          ! particle cannot participate, because it COULD land outside, hence, it is skipped in stage three
+            IF(iStage.NE.3) CALL abort(&
+  __STAMP__&
+  ,'Something wrong with iStage and PartDtFrac! ')
+            PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage)*PartStage(iPart,1:6,1)
+            DO iCounter=1,iStage-1
+              PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+            END DO ! iCounter=1,iStage-2
+            PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
+            Pt(iPart,1:3) = PartStage(iPart,4:6,1)
+            ! update velocity, DO not change position, only velocity required for update
+            PartState(iPart,4:6)=PartQ(4:6,iPart)
+            PartIsImplicit(iPart)=.FALSE.
+          !ELSE
+          !  PartDtFrac=1.
+          !  ! compute Q and U
+          !  PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
+          !  DO iCounter=1,iStage-2
+          !    PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+          !  END DO ! iCounter=1,iStage-2
+          !  PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
+          !  ! predictor
+          !  CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
+          !END IF
+        ELSE
+          ! compute Q and U
+          PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
+          DO iCounter=1,iStage-2
+            PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+          END DO ! iCounter=1,iStage-2
+          PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
+          ! predictor
+          CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
+        END IF
       END IF ! PartIsImplicit
     END DO ! iPart
     IF(PredictorType.GT.0)THEN
@@ -3053,17 +3094,18 @@ DO iStage=2,nRKStages
           IF(.NOT.PartIsImplicit(iPart))THEN
             ! check if particle takes part in interaction
             IF(PDM%IsNewPart(iPart))THEN
-              DtFrac=PartDtFrac(iPart)
-              IF(RK_c(iStage).GE.(1.-DtFrac))THEN
-                ! PO: How to set Dtfrac for particle, euler-implicit is easy, RKs?
-                ! currently the dtfrac is scaled with RK_c, maybe this is NOT required?, unsure
-                PartDtFrac(iPart)=DtFrac*RK_c(iStage)
+              dtfrac=PartDtFrac(ipart)
+              IF(RK_c(istage).GE.(1.-dtfrac))THEN
+                ! po: how to set dtfrac for particle, euler-implicit is easy, rks?
+                ! currently the dtfrac is scaled with rk_c, maybe this is not required?, unsure
+                !PartDtFrac(iPart)=RK_c(iStage)-Dtfrac+1.
+                PartDtFrac(iPart)=RK_c(iStage)+DtFrac - 1.
                 LastPartPos(iPart,1)=PartState(iPart,1)
                 LastPartPos(iPart,2)=PartState(iPart,2)
                 LastPartPos(iPart,3)=PartState(iPart,3)
                 PEM%lastElement(iPart)=PEM%Element(iPart)
-                ! zero everything
-                PartStage(iPart,1:6,:) = 0.
+                ! zero everything  ignore for test
+                !PartStage(iPart,1:6,:) = 0.
                 ! force is acting on all previous stages
                 DO iCounter=1,iStage-1
                   PartStage(iPart,4:6,iCounter) = Pt(iPart,1:3)
@@ -3113,7 +3155,11 @@ DO iStage=2,nRKStages
             IF(PDM%IsNewPart(iPart))THEN
               !PartIsImplicit(iPart)=.TRUE.
               PDM%IsNewPart(iPart)=.FALSE.
-              PartDtFrac(iPart)   =1.0 ! particle now continues to follow the normal time integration
+              IF(iStage.GT.2)THEN! caution: neg. increase for third stage
+                PartDtFrac(iPart)=1.
+              ELSE
+                PartDtFrac(iPart)=PartDtFrac(iPart)-RK_c(iStage)+1.
+              END IF
               ! new velocity/impulse is finally computed
               ! PartState(iPart,1:6)  is position and velocity at end of integration
               ! recompute the velocity and velocity change of particles
@@ -3143,7 +3189,14 @@ DO iStage=2,nRKStages
               PartStateN(iPart,1:3) = PartState_tmp(1:3)
             END IF
           ELSE
-            IF(PDM%IsNewPart(iPart)) PartIsImplicit(iPart)=.TRUE.
+            IF(PDM%IsNewPart(iPart))THEN
+              PartIsImplicit(iPart)=.TRUE.
+              CYCLE
+            END IF
+            IF(PartDtFrac(iPart).NE.1)THEN
+              PartIsImplicit(iPart)=.TRUE.
+              PartDtFrac(iPart)=1.
+            END IF
           END IF
         END IF ! ParticleInside
       END DO ! iPart
