@@ -254,11 +254,11 @@ CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FAL
 #ifdef MPI
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 
-! send Slave PML info (real with [0=no PML] or [1=PML] as (N+1)*(N+1) array) to Master procs
+! send Slave special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Master procs
 CALL StartReceiveMPIData(1,isFace_Slave,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIData(   1,isFace_Slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 
-! send Master PML info (real with [0=no PML] or [1=PML] as (N+1)*(N+1) array) to Slave procs
+! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
 CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 
@@ -373,7 +373,6 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,     ONLY: nSides
-USE MOD_PML_vars,      ONLY: PMLprintInfoProcs
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

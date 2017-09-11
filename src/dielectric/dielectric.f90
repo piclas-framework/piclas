@@ -35,7 +35,9 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
+#ifndef PP_HDG
 USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
+#endif /*PP_HDG*/
 USE MOD_Equation_Vars,   ONLY: c_corr,c
 USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings
 ! IMPLICIT VARIABLE HANDLING
@@ -151,14 +153,16 @@ CALL CountAndCreateMappings('Dielectric',&
                             FaceToDielectric,DielectricToFace,& ! these two are allocated
                             FaceToDielectricInter,DielectricInterToFace) ! these two are allocated
 
-! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region
+#ifndef PP_HDG
+! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell
 CALL SetDielectricVolumeProfile()
 
-! Determine dielectric Values on faces and communicate them
+! Determine dielectric Values on faces and communicate them: only for Maxwell
 CALL SetDielectricFaceProfile()
 
-! create a HDF5 file containing the DielectriczetaGlobal field
+! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell
 CALL WriteDielectricGlobalToHDF5()
+#endif /*PP_HDG*/
 
 DielectricInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT Dielectric DONE!'
@@ -213,6 +217,7 @@ DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(Eps
 END SUBROUTINE SetDielectricVolumeProfile
 
 
+#ifndef PP_HDG
 SUBROUTINE SetDielectricFaceProfile()
 !===================================================================================================================================
 ! set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master"
@@ -299,6 +304,7 @@ Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 #endif /*MPI*/
 
 END SUBROUTINE SetDielectricFaceProfile
+#endif /*PP_HDG*/
 
 
 SUBROUTINE FinalizeDielectric()
