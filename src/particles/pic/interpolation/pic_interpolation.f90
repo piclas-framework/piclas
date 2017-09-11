@@ -912,7 +912,6 @@ USE MOD_PICInterpolation_Vars, ONLY:VariableExternalField,DeltaExternalField,nIn
 ! LOCAL VARIABLES
 INTEGER               :: ioUnit, ii, err, ncounts
 REAL                  :: dummy, diff_comp, diff_check
-CHARACTER(LEN=256)        :: FileName
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
 !OPEN(NEWUNIT=ioUnit,FILE=VariableExternalField,STATUS='OLD',FORM='FORMATTED')

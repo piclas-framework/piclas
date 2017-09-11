@@ -1303,10 +1303,6 @@ USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezi
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-#if defined(LSERK)
-USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
-#endif
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXk

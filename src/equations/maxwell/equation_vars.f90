@@ -29,7 +29,8 @@ REAL              :: c2_inv
 REAL              :: eps0 
 REAL              :: mu0 
 REAL              :: smu0
-REAL              :: DipoleOmega ! electric dipole angular frequency
+REAL              :: DipoleOmega  ! electric dipole angular frequency
+REAL              :: xDipole(1:3) ! base point of electromagnetic dipole
 REAL              :: tPulse
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
@@ -49,7 +50,8 @@ REAL              :: BeamAmpFac                             !> decide if pulse m
 REAL              :: tDelay                                 !> delay time filter for gaussian beam
 REAL              :: I_0                                    !> max. intensity
 REAL              :: sigma_t                                !> sigma_t can be used instead of tFWHM
-REAL              :: omega_0, omega_0_2inv                  !> spot size and inv of spot size
+REAL              :: omega_0,omega_0_2inv,somega_0_2        !> spot size and inv of spot size
+REAL              :: tActive                                !> active time for laser pulse
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
@@ -57,6 +59,8 @@ REAL              :: TERadius                               !> Radius of Input T
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
 LOGICAL           :: TEPolarization                         !> linear or circular polarized
 LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
+REAL              :: ExactFluxPosition                      !> x,y, or z-position of interface
+LOGICAL,ALLOCATABLE::isExactFluxInterFace(:)                !> Flag for each side on which an exact flux is added
 INTEGER           :: FluxDir                                !> direction of flux
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)

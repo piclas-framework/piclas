@@ -439,10 +439,13 @@ TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
 CHARACTER(LEN=255)                          :: HelpStr,Str
 TYPE(Varying_String)                        :: aStr,bStr,Separator
 INTEGER                                     :: stat,iniUnit,nLines,i
-CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent,FileContent2
+CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent
 CHARACTER(LEN=1)                            :: tmpChar=''
+#ifdef PARTICLES
 INTEGER                                     :: NArgs,NChar
+CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent2
 LOGICAL                                     :: DoReadDSMC
+#endif
 !===================================================================================================================================
 ! Check if we have read in ini file already
 nLines=0

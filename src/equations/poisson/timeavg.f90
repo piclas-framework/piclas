@@ -61,7 +61,6 @@ CHARACTER(LEN=255),ALLOCATABLE :: VarNamesFlucIni(:)
 LOGICAL,ALLOCATABLE            :: hasAvgVars(:)
 #ifdef PARTICLES
 INTEGER                        :: iSpec,iCounter
-CHARACTER(LEN=255)             :: VarName
 CHARACTER(LEN=2)               :: strhelp
 #endif /*PARTICLES*/
 !==================================================================================================================================

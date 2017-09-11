@@ -344,21 +344,21 @@ END SUBROUTINE ReadConfiguration
 !==================================================================================================================================
 !> reads the file "configurationsX.cmake" and creates a binary
 !==================================================================================================================================
-SUBROUTINE BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,N_compile_flags)
+SUBROUTINE BuildConfiguration(iExample,iReggieBuild,nReggieBuilds)
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,  ONLY: BuildDebug,BuildNoDebug,BuildEQNSYS,BuildTESTCASE,NumberOfProcs,NumberOfProcsStr
 USE MOD_RegressionCheck_Vars,  ONLY: BuildContinue,BuildContinueNumber,BuildDir,BuildTIMEDISCMETHOD,BuildMPI,BuildFV,Build2D
 USE MOD_RegressionCheck_Vars,  ONLY: CodeNameLowCase,CodeNameUppCase,Examples,BuildPARABOLIC,BuildConfigurationsCombined
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors,AddError,GetConfigurationFile!,ConfigurationCounter
-USE MOD_RegressionCheck_Vars,  ONLY: BuildConfigurations,BuildValid,BuildCounter,BuildIndex,EXECPATH,configuration_cmake
+USE MOD_RegressionCheck_Vars,  ONLY: BuildValid,EXECPATH,configuration_cmake
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)                        :: iExample,iReggieBuild,N_compile_flags,nReggieBuilds
+INTEGER,INTENT(IN)                        :: iExample,iReggieBuild,nReggieBuilds
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                   :: ioUnit,iSTATUS,iSTATUS2,J,K
+INTEGER                                   :: ioUnit,iSTATUS,iSTATUS2
 CHARACTER(LEN=255)                        :: FileName
 LOGICAL                                   :: ExistFile
 CHARACTER(LEN=500)                        :: SYSCOMMAND

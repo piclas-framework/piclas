@@ -269,6 +269,7 @@ DO
   IF (iSTATUS.NE.0) EXIT
   nExamples=nExamples+1
 END DO
+SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,I3)')  ' Number of Examples: ', nExamples
 
 ! read in the directory name for each example and initialization of default values a.k.a. nullify
@@ -277,7 +278,7 @@ ALLOCATE(Examples(nExamples))
 REWIND(ioUnit)
 DO iExample=1,nExamples
   READ(ioUnit,FMT='(A)') ExampleNames(iExample)
-  SWRITE(UNIT_stdOut,'(A,I3.3,3x,A)')  ' Example-',iExample, ExampleNames(iExample)
+  SWRITE(UNIT_stdOut,'(A,I3.3,3x,A)')  ' Example-',iExample, TRIM(ExampleNames(iExample))
   ! fill PATH of examples
   Examples(iExample)%PATH = TRIM(ExamplesDir)//TRIM(ExampleNames(iExample))
   Examples(iExample)%ReferenceFile=''
@@ -797,7 +798,7 @@ END SUBROUTINE CheckForExecutable
 SUBROUTINE GetConfigurationFile(Proposal)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,  ONLY: EXECPATH,CodeNameLowCase,RunContinue
+USE MOD_RegressionCheck_Vars,  ONLY: EXECPATH,CodeNameLowCase
 USE MOD_RegressionCheck_Vars,  ONLY: BuildSolver,configuration_cmake
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -846,7 +847,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                 :: N_compile_flags
 ! LOCAL VARIABLES
-LOGICAL                            :: ExistSolver      ! logical to flag solver
 INTEGER                            :: J
 !===================================================================================================================================
 DO J=1,N_compile_flags

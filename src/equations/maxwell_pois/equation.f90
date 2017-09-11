@@ -98,6 +98,7 @@ smu0               = 1./mu0
 fDamping           = GETREAL('fDamping','0.99')
 fDamping_pois      = GETREAL('fDamping_pois','0.99')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
+xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point for CASE(4)
 c_test = 1./SQRT(eps0*mu0)
 IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
@@ -192,7 +193,7 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars,ONLY:c,c2,eps0
+USE MOD_Equation_Vars,ONLY:c,c2,eps0,xDipole
 USE MOD_Globals_Vars,ONLY:PI
 # if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
@@ -216,7 +217,6 @@ REAL                            :: Cent(3),r,r2,zlen
 REAL                            :: a, b, d, l, m, n, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/)          ! aux. Constants for Dipole
 REAL,PARAMETER                  :: Q=1, dD=1, omegaD=6.28318E8     ! aux. Constants for Dipole
 REAL                            :: c1,s1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron
@@ -467,7 +467,7 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! MODULES
 USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY : eps0,IniExactFunc
+USE MOD_Equation_Vars, ONLY : eps0,IniExactFunc,xDipole
 #ifdef PARTICLES
 USE MOD_Equation_Vars, ONLY : c_corr
 USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
@@ -493,7 +493,7 @@ REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv
 REAL                            :: r                                                 ! for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1, omega=6.28318E8 !2.096     ! for Dipole
+REAL,PARAMETER                  :: Q=1, d=1, omega=6.28318E8 !2.096     ! for Dipole
 !===================================================================================================================================
 eps0inv = 1./eps0
 #ifdef PARTICLES
