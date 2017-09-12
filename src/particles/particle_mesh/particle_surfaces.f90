@@ -86,8 +86,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars,               ONLY:EpsMach
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,NGeo,nBCSides,nSides
-!USE MOD_Mesh_Vars,                  ONLY:ElemToSide
+USE MOD_Mesh_Vars,                  ONLY:nSides,NGeo,nBCSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
@@ -508,7 +507,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo,MortarSlave2MasterInfo,MortarType
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars,                ONLY:nSides
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 USE MOD_Mappings,                 ONLY:CGNS_SideToVol2
 ! IMPLICIT VARIABLE HANDLING

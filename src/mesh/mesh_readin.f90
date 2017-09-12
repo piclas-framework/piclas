@@ -866,7 +866,7 @@ DO iElem=FirstElemInd,LastElemInd
       IF(BCindex.NE.0)THEN !BC
         aSide%BCindex = BCindex
         IF((BoundaryType(aSide%BCindex,BC_TYPE).NE.1).AND.&
-           (BoundaryType(aSide%BCindex,BC_TYPE).NE.100))THEN ! Reassignement from periodic to non-periodic
+           (BoundaryType(aSide%BCindex,BC_TYPE).NE.100))THEN ! Reassignment from periodic to non-periodic
           doConnection=.FALSE.
           aSide%flip  =0
 #ifdef PARTICLES

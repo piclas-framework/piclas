@@ -334,7 +334,6 @@ END DO  !subsurfxi = 1,nSurfSample
 END DO  !subsurfeta = 1,nSurfSample
 END DO  !SurfSideID = 1,SurfMesh%nSides
 
-
 END SUBROUTINE CalcDiffusion
 
 

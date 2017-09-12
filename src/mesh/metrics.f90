@@ -77,12 +77,15 @@ USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
 USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
 USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
-USE MOD_Mesh_Vars,               ONLY:nElems,nSides,offSetElem
+USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
+#ifdef MPI
+USE MOD_Mesh_Vars,               ONLY:nSides
+#endif
 USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D

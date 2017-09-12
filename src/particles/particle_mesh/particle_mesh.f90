@@ -595,10 +595,8 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY:MyRank,UNIT_stdout
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
-USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,BezierControlPoints3d
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
+USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection
@@ -607,11 +605,13 @@ USE MOD_Particle_Intersection,  ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
+USE MOD_Globals,                ONLY:MyRank,UNIT_stdout
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,      ONLY:OutputBezierControlPoints
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3d
 #endif /*CODE_ANALYZE*/
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
+USE MOD_Particle_Vars,          ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1967,8 +1967,8 @@ SUBROUTINE ReShapeBezierSides()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,SidePeriodicType,nPartPeriodicSides,PartSideToElem
-USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,nElems,BC
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides
+USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,BC
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
@@ -4041,8 +4041,7 @@ SUBROUTINE DuplicateSlavePeriodicSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
-USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,nBCSides,MortarSlave2MasterInfo,nElems &
-                                      ,XCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nBCs,nSides,BoundaryType,MortarSlave2MasterInfo,nElems,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,nPartPeriodicSides,GEO &
                                      ,nTotalBCSides,nPartSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
@@ -4061,7 +4060,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iSide,NBElemID,tmpnSides,NBlocSideID,p,q,ElemID,newSideID,locSideID,PVID
+INTEGER                              :: iSide,NBElemID,tmpnSides,NBlocSideID,ElemID,newSideID,locSideID,PVID
 INTEGER                              :: BCID,iBC,flip,ilocSide,iElem,SideID,idir
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3D(:,:,:,:)                                
 REAL,ALLOCATABLE                     :: DummyBezierControlPoints3DElevated(:,:,:,:)                                

@@ -457,6 +457,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     END IF
   END IF
 
+#ifdef PARTICLES
   IF(DoPartRelaxation)THEN
     IF(MOD(nFullNewtonIter,AdaptIterRelaxation).EQ.0)THEN
       IF(Norm_Rold.GT.Norm_R)THEN
@@ -470,7 +471,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     END IF
   END IF ! DoPartRelaxation
 
-#ifdef PARTICLES
   IF((.NOT.IsConverged).AND.(MOD(nFullNewtonIter,UpdateInIter).EQ.0)) CALL UpdateNextFreePosition()
 #endif /*PARTICLES*/
 END DO ! funny pseudo Newton for all implicit

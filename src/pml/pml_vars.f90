@@ -27,17 +27,23 @@ INTEGER             :: PMLspread                ! if true zeta_x=zeta_y=zeta_z f
 INTEGER             :: PMLprintInfo             ! 0=only root prints PML info, 1=all procs print PML info
 INTEGER             :: PMLprintInfoProcs        ! number of procs taking part in PML info printing
 REAL,DIMENSION(6)   :: xyzPhysicalMinMax        ! physical boundary coordinates, outside = PML region
-REAL,DIMENSION(6)   :: xyzPMLMinMax             ! PML boundary coordinates, outside = PML region
-REAL,DIMENSION(6)   :: xyzPMLzetaShapeBase      ! used for manipulating the PML zeta profile in the PML region
+REAL,DIMENSION(6)   :: xyzPMLMinMax             ! PML      boundary coordinates, outside = physical region
+REAL,DIMENSION(3)   :: xyzPMLzetaShapeOrigin    ! coordinate origin for PML ramp: used for manipulating the PML zeta profile
 LOGICAL             :: usePMLMinMax             ! set and inner PML region
-REAL                :: PMLzeta0                 ! damping constant for PML region shift
-REAL                :: PMLalpha0                ! CFS-PML aplha factor for complex frequency shift
+LOGICAL             :: DoPMLTimeRamp            ! use scaling factor which ramps the damping factor over time
+REAL                :: PMLTimeRamp              ! [0,1] scaling factor which ramps the damping factor over time
+REAL                :: PMLTimeRamptStart        ! PMLTimeRamp is 0 for t < PMLTimeRamptStart
+REAL                :: PMLTimeRamptEnd          ! PMLTimeRamp is 1 for t > PMLTimeRamptEnd
+REAL                :: PMLsDeltaT               ! ramping factor     : PMLTimeRamp = t/(tEnd-tStart) = PMLsDeltaT * t + c_1
+REAL                :: PMLTimeRampCoeff         ! ramping coefficient: c_1
+REAL                :: PMLzeta0                 ! [0,inf] damping constant for PML region shift
+REAL                :: PMLalpha0                ! [0,inf] CFS-PML aplha factor for complex frequency shift
 LOGICAL             :: PMLzetaNorm              ! normalize zeta_x,y,z in overlapping regions to zeta0
 REAL                :: PMLRampLength            ! ramping length in percent (%) of PML region
 ! mapping variables
 INTEGER             :: nPMLElems,nPMLFaces,nPMLInterFaces          ! number of PML elements and faces (mapping)
 INTEGER,ALLOCATABLE :: PMLToElem(:),PMLToFace(:),PMLInterToFace(:) ! mapping to total element/face list
-INTEGER,ALLOCATABLE :: ElemToPML(:),FaceToPML(:),FaceTOPMLInter(:) ! mapping to PML element/face list
+INTEGER,ALLOCATABLE :: ElemToPML(:),FaceToPML(:),FaceToPMLInter(:) ! mapping to PML element/face list
 ! PML auxiliary variables P_t=E & Q_t=B
 REAL,ALLOCATABLE    :: U2(:,:,:,:,:)                               ! U2( P=U2(1:3) and Q=U2(4:6),i,j,k,nPMLElems)
 REAL,ALLOCATABLE    :: U2t(:,:,:,:,:)                              ! U2t(P=U2(1:3) and Q=U2(4:6),i,j,k,nPMLElems)

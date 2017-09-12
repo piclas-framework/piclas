@@ -222,8 +222,6 @@ USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-USE MOD_Timedisc_Vars         , ONLY : iter
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
@@ -1584,8 +1582,6 @@ __STAMP__&
     CASE('IMD') ! read IMD particle position from *.chkpt file
       ! set velocity distribution to read external data
       SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(IMDAtomFile)
-      !SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("Reading IMD data from"),' | ', TRIM(IMDAtomFile),&
-                                                    !' | ',TRIM("OUTPUT"),' | '
       IF(TRIM(IMDAtomFile).NE.'no file found')THEN
         Species(FractNbr)%Init(iInit)%velocityDistribution='IMD'
 #ifdef MPI
@@ -1621,11 +1617,6 @@ __STAMP__&
         read(StrTmp,*,iostat=io_error)  IMDNumber
         SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("IMD *.chkpt file"),' | ', TRIM(StrTmp),' | ',TRIM("OUTPUT"),' | '
         SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("IMDNumber")       ,' | ', IMDNumber   ,' | ',TRIM("OUTPUT"),' | '
-        !SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
-        !SWRITE(UNIT_stdOut,'(A68,L,A)') ' |               IMD *.chkpt file |                                 ',DoRefMapping,&
-  !' | OUTPUT |'
-        !SWRITE(UNIT_stdOut,'(A,A)')   " IMD *.chkpt file          : ",TRIM(StrTmp)
-        !SWRITE(UNIT_stdOut,'(A,I15)') " IMDNumber                 : ",IMDNumber
         Nshift=0
         xMin=HUGE(1.)
         yMin=HUGE(1.)
@@ -1692,16 +1683,17 @@ __STAMP__&
           END IF
         END DO
         CLOSE(ioUnit)
+        SWRITE(UNIT_stdOut,'(A,I15)')  "Particles Read: chunkSize = NbrOfParticle = ",(i-Nshift)-1
+        chunkSize     = (i-Nshift)-1 ! don't change here, change at velocity
+        NbrOfParticle = (i-Nshift)-1 ! don't change here, change at velocity
+        SWRITE(UNIT_stdOut,'(A)') 'Min-Max particle positions from IMD source file:'
         SWRITE(UNIT_stdOut,'(A25,A25)')  "x-Min [nm]","x-Max [nm]"
         SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') xMin*1.e9,xMax*1.e9
         SWRITE(UNIT_stdOut,'(A25,A25)')  "y-Min [nm]","y-Max [nm]"
         SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') yMin*1.e9,yMax*1.e9
         SWRITE(UNIT_stdOut,'(A25,A25)')  "z-Min [nm]","z-Max [nm]"
         SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') zMin*1.e9,zMax*1.e9
-        SWRITE(UNIT_stdOut,'(A)') ""
-        SWRITE(UNIT_stdOut,'(A,I15)')  "Particles Read: chunkSize/NbrOfParticle = ",(i-Nshift)-1
-        chunkSize     = (i-Nshift)-1 ! don't change here, change at velocity
-        NbrOfParticle = (i-Nshift)-1 ! don't change here, change at velocity
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("IMD Particles Found"),' | ',(i-Nshift)-1,' | ',TRIM("OUTPUT"),' | '
       ELSE ! TRIM(IMDAtomFile) = 'no file found' -> exit
         Species(FractNbr)%Init(iInit)%velocityDistribution=''
       END IF
@@ -2082,9 +2074,6 @@ REAL                             :: OneDTwoStreamTransRatio          ! Ratio bet
 REAL                             :: Alpha                            ! WaveNumber for sin-deviation initiation.
 REAL                             :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
 REAL                             :: MJRatio(3)                       ! momentum to temperature ratio
-REAL                             :: IMD_array(12)!,Vabs,Ekin
-INTEGER                          :: Nshift,ioUnit,io_error
-CHARACTER(LEN=255)               :: StrTmp
 ! Maxwell-Juettner
 REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
 REAL                             :: VelocitySpread                         ! widening of init velocity
@@ -3540,9 +3529,9 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=GETLOGICAL('Part-Species'//TRIM(hilf2)//'-SimpleRadialVeloFit','.FALSE.')
       IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
         AnySimpleRadialVeloFit=.TRUE.
-        Species(iSpec)%Surfaceflux(iSF)%preFac       = GETREAL('Part-Species'//TRIM(hilf2)//'-preFac','14.5')
-        Species(iSpec)%Surfaceflux(iSF)%powerFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-powerFac','7150.')
-        Species(iSpec)%Surfaceflux(iSF)%shiftFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-shiftFac','453.5')
+        Species(iSpec)%Surfaceflux(iSF)%preFac       = GETREAL('Part-Species'//TRIM(hilf2)//'-preFac','0.')
+        Species(iSpec)%Surfaceflux(iSF)%powerFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-powerFac','0.')
+        Species(iSpec)%Surfaceflux(iSF)%shiftFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-shiftFac','0.')
         Species(iSpec)%Surfaceflux(iSF)%dir(1)       = GETINT('Part-Species'//TRIM(hilf2)//'-axialDir','1')
         IF (Species(iSpec)%Surfaceflux(iSF)%dir(1).EQ.1) THEN
           Species(iSpec)%Surfaceflux(iSF)%dir(2)=2
@@ -3556,6 +3545,11 @@ __STAMP__&
         ELSE
           CALL abort(__STAMP__&
             ,'ERROR in init: axialDir for SFradial must be between 1 and 3!')
+        END IF
+        IF ( Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(2)).NE.0. .AND. &
+             Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(3)).NE.0. ) THEN
+          CALL abort(__STAMP__&
+            ,'ERROR in init: axialDir for SFradial do not correspond to VeloVecIC!')
         END IF
         Species(iSpec)%Surfaceflux(iSF)%origin       = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-origin',2,'0. , 0.')
         WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(Species(iSpec)%Surfaceflux(iSF)%rmax)
@@ -3632,6 +3626,14 @@ DO BCSideID=1,nBCSides
   TmpSideEnd(currentBC) = BCSideID
   TmpSideNumber(currentBC) = TmpSideNumber(currentBC) + 1  ! Number of Sides
 END DO ! BCSideID
+IF (AnySimpleRadialVeloFit) THEN
+  ALLOCATE(nType0(1:MaxSurfacefluxBCs,1:nSpecies), &
+    nType1(1:MaxSurfacefluxBCs,1:nSpecies), &
+    nType2(1:MaxSurfacefluxBCs,1:nSpecies) )
+  nType0=0
+  nType1=0
+  nType2=0
+END IF
 !--- 2b: save sequential lists in BCdata_auxSF
 DO iBC=1,nDataBC
   BCdata_auxSF(TmpMapToBC(iBC))%SideNumber=TmpSideNumber(iBC)
@@ -3647,14 +3649,6 @@ DO iBC=1,nDataBC
       END IF
     END DO
   END DO
-  IF (AnySimpleRadialVeloFit) THEN
-    ALLOCATE(nType0(1:MaxSurfacefluxBCs,1:nSpecies), &
-             nType1(1:MaxSurfacefluxBCs,1:nSpecies), &
-             nType2(1:MaxSurfacefluxBCs,1:nSpecies) )
-    nType0=0
-    nType1=0
-    nType2=0
-  END IF
   BCSideID=TmpSideStart(iBC)
   iCount=0
   DO !follow BCSideID list seq. with iCount
@@ -4275,7 +4269,8 @@ __STAMP__&
                 CALL abort(__STAMP__,&
                   'ERROR in VeloFit!')
               END IF
-              PartState(ParticleIndexNbr,3+dir(1)) = vTot * SQRT(1.-veloR**2)
+              PartState(ParticleIndexNbr,3+dir(1)) = SIGN(vTot * SQRT(1.-veloR**2) &
+                ,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(dir(1)))
               veloR = veloR * vToT
               PartState(ParticleIndexNbr,3+dir(2)) = veloR*cos(phi)
               PartState(ParticleIndexNbr,3+dir(3)) = veloR*sin(phi)

@@ -53,7 +53,7 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
 ! P1*xi+P2*eta+P0-LastPartPos-alpha*PartTrajectory
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals!,                 ONLY:Cross,abort
+USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,SideDistance
@@ -217,7 +217,6 @@ USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,SideSlabNormals
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonTol
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
@@ -394,13 +393,12 @@ USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
-USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
 #ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+USE MOD_Mesh_Vars,               ONLY:NGeo
 #endif /*CODE_ANALYZE*/
-!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 #ifdef MPI
 USE MOD_Mesh_Vars,               ONLY:BC
 #endif /*MPI*/
@@ -422,8 +420,8 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
-REAL                              :: xi(2),eta(2),t(2), scaleFac!, normVec(3)
-INTEGER                           :: nInter,InterType,nRoot, flipdummy!,BCSideID
+REAL                              :: xi(2),eta(2),t(2), scaleFac
+INTEGER                           :: InterType,nRoot, flipdummy
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
 
@@ -870,8 +868,8 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,MyRank
-USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut
+USE MOD_Mesh_Vars,               ONLY:NGeo,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
@@ -884,7 +882,6 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
-USE MOD_Globals,                 ONLY:myrank
 USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -2703,8 +2700,8 @@ END DO!i
 ! 2.) Get smallest subspace interval
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-maxvalue=MAXVAL(alpha(1,:))
-minvalue=MINVAL(alpha(2,:))
+maxvalue=MAXVAL(alpha(1,:)) ! taken the maxvalue of the minima
+minvalue=MINVAL(alpha(2,:)) ! taken the minvalue of the maxima
 
 IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
 !  IF((maxvalue.LT.0).AND.(minvalue.GT.0))THEN
@@ -2823,8 +2820,9 @@ SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 !================================================================================================================================
 ! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
 !================================================================================================================================
-USE MOD_Globals_Vars,       ONLY:epsMach
-USE MOD_Globals,            ONLY:UNIT_stdOut,myRank
+#ifdef CODE_ANALYZE
+USE MOD_Globals,            ONLY:UNIT_stdOut
+#endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES

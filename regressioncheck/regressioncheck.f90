@@ -37,11 +37,11 @@ USE MOD_MPI,                     ONLY: FinalizeMPI
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: EndTime             ! time at the end of the reggie execution
 INTEGER                        :: nReggieBuilds       ! number of different cmake builds (with different flags)
 CHARACTER(LEN=500)             :: SYSCOMMAND          ! string to fit the system command
 CHARACTER(LEN=255)             :: FileName            ! filename
 !==================================================================================================================================
+
 ! errorcodes
 ALLOCATE(firstError)
 NULLIFY(aError)
@@ -51,6 +51,10 @@ SYSCOMMAND=''
 FileName=''
 CALL InitGlobals() ! only "boltzplatz"
 CALL InitMPI()
+
+! Measure regressioncheck runtime 
+StartTime=REGGIETIME()
+
 ! Check Code Names
 IF(LEN(CodeNameUppCase).NE.LEN(ADJUSTL(TRIM(CodeNameUppCase))))       CALL abort(&
   __STAMP__&
@@ -76,9 +80,6 @@ CALL GetCommandLineOption()
 ! set paths for execution
 IF(.NOT.BuildSolver) CALL CheckForExecutable(Mode=1)
 
-! Measure regressioncheck runtime 
-StartTime=REGGIETIME()
-
 IF(DoFullReggie)THEN ! call regressioncheck recursivly using the commands from gitlab-ci.yml
   CALL PerformFullRegressionCheck()
 ELSE
@@ -93,9 +94,6 @@ ELSE
   DEALLOCATE(Examples)
 END IF
 
-! Measure processing duration
-EndTime=REGGIETIME()
-
 ! remove the following if never used again
 !   #ifdef MPI
 !   CALL MPI_FINALIZE(iError)
@@ -105,7 +103,7 @@ EndTime=REGGIETIME()
 !   #endif /*MPI*/
 
 ! Print the summary or examples and error codes (if they exist)
-CALL SummaryOfErrors(EndTime)
+CALL SummaryOfErrors()
 
 #ifdef MPI
 CALL MPI_FINALIZE(iError)
@@ -113,5 +111,5 @@ IF(iError .NE. 0) ERROR STOP 'MPI finalize error'
 CALL FinalizeMPI()
 #endif /*MPI*/
 
-IF(nErrors.GT.0) STOP 999
+IF(nErrors.GT.0) ERROR STOP 999
 END PROGRAM RegressionCheck

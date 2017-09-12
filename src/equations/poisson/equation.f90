@@ -41,13 +41,13 @@ SUBROUTINE InitEquation()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,ONLY:GETREALARRAY,GETREAL,GETINT
-USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
+USE MOD_ReadInTools,             ONLY:GETREALARRAY,GETREAL,GETINT
+USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
 USE MOD_Equation_Vars
 USE MOD_HDG_vars
-USE MOD_Mesh_Vars,ONLY:nSides,nInnerSides
-USE MOD_TimeDisc_Vars, ONLY: TEnd
-USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,ElemToSide
+USE MOD_Mesh_Vars,               ONLY:nSides,nInnerSides
+USE MOD_TimeDisc_Vars,           ONLY:TEnd
+USE MOD_Mesh_Vars,               ONLY:Elem_xGP,ElemToSide
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,11 +56,9 @@ USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,ElemToSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,iElem,iLocSide
+INTEGER :: i,j,k,iElem
 INTEGER :: p,q,flip,locSideID,SideID
-REAL    :: XCL_N_Face(3,0:PP_N,0:PP_N)
 REAL    :: Face_xGP(3,0:PP_N,0:PP_N)
-REAL    :: rtmp(nGP_vol)
 REAL    :: Invdummy(3,3)
 !===================================================================================================================================
 TEnd=GetReal('TEnd') 

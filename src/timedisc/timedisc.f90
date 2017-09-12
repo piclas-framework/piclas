@@ -164,17 +164,17 @@ SUBROUTINE TimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
-                                     ,IterDisplayStep,DoDisplayIter
-USE MOD_TimeDisc_Vars,      ONLY: dt_Min
-USE MOD_TimeAverage_vars,   ONLY: doCalcTimeAverage
-USE MOD_TimeAverage,        ONLY: CalcTimeAverage
+USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
+USE MOD_TimeAverage_vars,      ONLY: doCalcTimeAverage
+USE MOD_TimeAverage,           ONLY: CalcTimeAverage
 #if (PP_TimeDiscMethod==201)                                                                                                         
-USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
+USE MOD_TimeDisc_Vars,         ONLY: dt_temp, MaximumIterNum 
 #endif
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
+USE MOD_PML_Vars,              ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
+USE MOD_PML,                   ONLY: PMLTimeRamping
 #endif /*PP_HDG*/
 USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
@@ -191,11 +191,11 @@ USE MOD_Filter,                ONLY: Filter
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 #ifdef PARTICLES
-USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
+USE MOD_PICDepo,               ONLY: Deposition
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues, MacroValSampTime,DoImportIMDFile
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroVolumeValues, MacroValSampTime,DoImportIMDFile
+USE MOD_Particle_Tracking_vars,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Particle_Mesh_Vars,    ONLY: Geo
@@ -206,7 +206,7 @@ USE MOD_PARTICLE_Vars,         ONLY: PDM,Pt,PartState
 #endif /*(PP_TimeDiscMethod==201)*/
 USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,             ONLY: Iter_macvalout
+USE MOD_DSMC_Vars,             ONLY: Iter_macvalout,Iter_macsurfvalout
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -218,17 +218,19 @@ USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 #ifdef MPI
 USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
-!USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
+!USE MOD_Particle_MPI_Vars,    ONLY: PartMPI
 #endif /*MPI*/
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
+USE MOD_LinearSolver_Vars,     ONLY:totalIterLinearSolver
 #endif /*IMEX*/
+#ifdef PARTICLES
 #ifdef IMPA
-USE MOD_LinearSolver_vars, ONLY:nPartNewton
-USE MOD_LinearSolver_Vars, ONLY:TotalPartIterLinearSolver
+USE MOD_LinearSolver_vars,     ONLY:nPartNewton
+USE MOD_LinearSolver_Vars,     ONLY:TotalPartIterLinearSolver
 #endif /*IMPA*/
+#endif /*PARTICLES*/
 #if (PP_TimeDiscMethod==120)||(PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
-USE MOD_LinearSolver_Vars,       ONLY: totalFullNewtonIter
+USE MOD_LinearSolver_Vars,    ONLY: totalFullNewtonIter
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -268,7 +270,8 @@ ELSE
 END IF
 #ifdef PARTICLES
 iter_macvalout=0
-IF (WriteMacroValues) MacroValSampTime = Time
+iter_macsurfvalout=0
+IF (WriteMacroVolumeValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 tZero=time
 nAnalyze=1
@@ -343,7 +346,7 @@ iter_loc=0
 ! fill initial analyze stuff
 tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
 tEndDiff=tEnd-time            ! dito for end time
-dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroValues=T)
+dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
 CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -434,6 +437,14 @@ DO !iter_t=0,MaxIter
   END IF
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tFuture)
+
+#ifndef PP_HDG
+  IF(DoPML)THEN
+    IF(DoPMLTimeRamp)THEN
+      CALL PMLTimeRamping(time,PMLTimeRamp)
+    END IF
+  END IF
+#endif /*NOT PP_HDG*/
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -563,6 +574,7 @@ DO !iter_t=0,MaxIter
       TotalIterLinearSolver=0
 #endif /*IMEX*/
 #ifdef IMPA
+#ifdef PARTICLES
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
@@ -570,12 +582,13 @@ DO !iter_t=0,MaxIter
         SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
                                                                               /REAL(nPartNewton)
       END IF
+      nPartNewTon=0
+      TotalPartIterLinearSolver=0
+#endif /*PARTICLES*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
       totalFullNewtonIter=0
 #endif 
-      nPartNewTon=0
-      TotalPartIterLinearSolver=0
       SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA*/
       ! Analyze for output
@@ -1248,7 +1261,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroValues
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1342,7 +1355,7 @@ REAL    :: RandVal, dtFrac
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
             (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-            WriteMacroValues ) THEN
+            WriteMacroVolumeValues ) THEN
     CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
   ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
            PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
@@ -4293,7 +4306,7 @@ SUBROUTINE TimeStep_LD_DSMC(t)
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, iter, TEnd
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM, WriteMacroValues!Time
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM, WriteMacroVolumeValues!Time
 USE MOD_LD_Vars,          ONLY : LD_DSMC_RHS
 USE MOD_LD,               ONLY : LD_main
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -4329,7 +4342,7 @@ REAL,INTENT(IN)       :: t
   CALL DSMC_main() ! first dsmc then ld due to RHS-calculation!
   CALL LD_main()
 ! ----- Start Analyze Particles
-  IF (.NOT.WriteMacroValues) THEN
+  IF (.NOT.WriteMacroVolumeValues) THEN
     IF(t.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN
       CALL LD_DSMC_data_sampling()  ! Data sampling for output
       IF(DSMC%NumOutput.NE.0) THEN

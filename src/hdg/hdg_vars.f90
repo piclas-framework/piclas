@@ -42,6 +42,7 @@ LOGICAL             :: nonlinear            ! Use non-linear sources for HDG? (e
 LOGICAL             :: NewtonExactApprox
 LOGICAL             :: AdaptNewtonStartValue
 INTEGER             :: AdaptIterNewton
+INTEGER             :: AdaptIterNewtonToLinear
 INTEGER             :: AdaptIterNewtonOld
 INTEGER             :: NonLinSolver  ! 1 Newton, 2 Fixpoint
 REAL,ALLOCATABLE    :: NonlinVolumeFac(:,:)      !Factor for Volumeintegration necessary for nonlinear sources

@@ -38,9 +38,6 @@ INTERFACE AddError
   MODULE PROCEDURE AddError
 END INTERFACE
 
-!INTERFACE GetParameterFromFile
-  !MODULE PROCEDURE GetParameterFromFile
-!END INTERFACE
 
 INTERFACE CheckFileForString
   MODULE PROCEDURE CheckFileForString
@@ -66,7 +63,6 @@ END INTERFACE
 PUBLIC::GetExampleList,InitExample,CheckForExecutable,GetCommandLineOption
 PUBLIC::SummaryOfErrors
 PUBLIC::AddError
-!PUBLIC::GetParameterFromFile
 PUBLIC::CheckFileForString
 PUBLIC::REGGIETIME
 PUBLIC::CalcOrder
@@ -273,6 +269,7 @@ DO
   IF (iSTATUS.NE.0) EXIT
   nExamples=nExamples+1
 END DO
+SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,I3)')  ' Number of Examples: ', nExamples
 
 ! read in the directory name for each example and initialization of default values a.k.a. nullify
@@ -281,7 +278,7 @@ ALLOCATE(Examples(nExamples))
 REWIND(ioUnit)
 DO iExample=1,nExamples
   READ(ioUnit,FMT='(A)') ExampleNames(iExample)
-  SWRITE(UNIT_stdOut,'(A,I3.3,3x,A)')  ' Example-',iExample, ExampleNames(iExample)
+  SWRITE(UNIT_stdOut,'(A,I3.3,3x,A)')  ' Example-',iExample, TRIM(ExampleNames(iExample))
   ! fill PATH of examples
   Examples(iExample)%PATH = TRIM(ExamplesDir)//TRIM(ExampleNames(iExample))
   Examples(iExample)%ReferenceFile=''
@@ -801,7 +798,7 @@ END SUBROUTINE CheckForExecutable
 SUBROUTINE GetConfigurationFile(Proposal)
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,  ONLY: EXECPATH,CodeNameLowCase,RunContinue
+USE MOD_RegressionCheck_Vars,  ONLY: EXECPATH,CodeNameLowCase
 USE MOD_RegressionCheck_Vars,  ONLY: BuildSolver,configuration_cmake
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -850,7 +847,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                 :: N_compile_flags
 ! LOCAL VARIABLES
-LOGICAL                            :: ExistSolver      ! logical to flag solver
 INTEGER                            :: J
 !===================================================================================================================================
 DO J=1,N_compile_flags
@@ -948,24 +944,19 @@ END SUBROUTINE GetNumberOfProcs
 !==================================================================================================================================
 !> Print a table containing the information of the error code pointer list
 !==================================================================================================================================
-SUBROUTINE SummaryOfErrors(EndTime)
+SUBROUTINE SummaryOfErrors()
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars, ONLY: firstError,aError,nErrors,BuildDir,BuildSolver
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-REAL,INTENT(INOUT),OPTIONAL    :: EndTime            ! Used to track computation time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: Time
 CHARACTER(LEN=255)             :: SpacingBetweenExamples(2) ! set row spacing between examples in table
 !===================================================================================================================================
-IF(.NOT.PRESENT(EndTime))THEN
-  Time=REGGIETIME() ! Measure processing duration -> when e.g. failed to compile occurs
-ELSE
-  Time=EndTime ! when reggie terminates normally
-END IF
+Time=REGGIETIME(StartTime) ! Measure processing duration
 SWRITE(UNIT_stdOut,'(132("="))')
 nErrors=0
 IF(.NOT.ASSOCIATED(aError))THEN
@@ -1013,9 +1004,9 @@ END IF
 
 SWRITE(UNIT_stdOut,'(132("-"))')
 IF(nErrors.GT.0)THEN
-  SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' RegressionCheck FAILED! [',Time-StartTime,' sec ]'
+  SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' RegressionCheck FAILED! [',Time,' sec ]'
 ELSE
-  SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' RegressionCheck SUCCESSFUL! [',Time-StartTime,' sec ]'
+  SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' RegressionCheck SUCCESSFUL! [',Time,' sec ]'
 END IF
 SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -1138,11 +1129,11 @@ END SUBROUTINE CheckFileForString
 !> Calculates current time (own function because of a laterMPI implementation)
 !==================================================================================================================================
 #ifdef MPI
-FUNCTION REGGIETIME(Comm)
+FUNCTION REGGIETIME(StartTime,Comm)
 USE MOD_Globals, ONLY:iError,MPI_COMM_WORLD
 USE mpi
 #else
-FUNCTION REGGIETIME()
+FUNCTION REGGIETIME(StartTime)
 #endif
 ! MODULES
 IMPLICIT NONE
@@ -1151,11 +1142,15 @@ IMPLICIT NONE
 #ifdef MPI
 INTEGER, INTENT(IN),OPTIONAL    :: Comm
 #endif
+REAL, INTENT(IN),OPTIONAL       :: StartTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL                            :: REGGIETIME
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifndef MPI
+INTEGER(KIND=8)                 :: Rate,TOC
+#endif /*NOT MPI*/
 !===================================================================================================================================
 #ifdef MPI
 IF(PRESENT(Comm))THEN
@@ -1163,10 +1158,20 @@ IF(PRESENT(Comm))THEN
 ELSE
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END IF
-REGGIETIME=MPI_WTIME()
+IF(PRESENT(StartTime))THEN
+  REGGIETIME=MPI_WTIME()-StartTime
+ELSE
+  REGGIETIME=MPI_WTIME()
+END IF
 #else
-CALL CPU_TIME(REGGIETIME)
+CALL SYSTEM_CLOCK(TOC,Rate)
+IF(PRESENT(StartTime))THEN
+  REGGIETIME=(REAL(TOC)-StartTime)/REAL(Rate)
+ELSE
+  REGGIETIME=REAL(TOC)
+END IF
 #endif
+
 END FUNCTION REGGIETIME
 
 

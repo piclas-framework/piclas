@@ -381,8 +381,8 @@ DO iPart=1,PDM%ParticleVecLength
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', InElem+offSetElem
             ELSE
-              WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+              WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ' &
+                , offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
             END IF
 #else
             WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID         ', PEM%LastElement(iPart)+offSetElem
@@ -392,8 +392,8 @@ DO iPart=1,PDM%ParticleVecLength
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', InElem+offSetElem
             ELSE
-              WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+              WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ' &
+                , offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
             END IF
 #else
             WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID         ', ElemID+offSetElem
@@ -811,7 +811,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO,PartElemToSide,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO,ElemRadiusNGeo
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -977,7 +977,7 @@ REAL                              :: n_loc(3)
 IF(BC(SideID).GT.0)THEN
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                  ,xi    &
-                                                                 ,eta   ,PartID,SideID,flip,ElemID,crossedBC)
+                                                                 ,eta   ,PartID,SideID,flip,hitlocSide,ElemID,crossedBC)
 
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
@@ -1383,7 +1383,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,PartElemToSide
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection

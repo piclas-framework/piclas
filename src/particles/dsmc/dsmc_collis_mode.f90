@@ -819,7 +819,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,            ONLY : Abort
   USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,          ONLY : DSMC
-  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroValues
+  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues
   USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -837,7 +837,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
   
   IF(DSMC%CalcQualityFactors) THEN  
-    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroValues) THEN
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) &
                                          - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
                                          +(PartState(Coll_pData(iPair)%iPart_p1,2) &

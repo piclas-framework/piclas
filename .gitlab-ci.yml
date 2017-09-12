@@ -127,9 +127,6 @@ intel_tracking:
   tags:
     - withmodules
   script:
-    #- echo "nothing to do";
-    # fix h5diff on runner -> libs may be wrongly set in the binary file
-    # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_tracking_DSMC -j no-debug ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -137,9 +134,12 @@ intel_tracking:
 #                         - feature_PIC_single_particle/ : basic PIC test with a single particle in a cart box
 #                         - test particle emission for gyrotron setup with fixed electric current of 44 A
 #                         - test record points for TWT setup and compare with h5diff
-#                         - build all specified compile options in "run_basic"
+#                         - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 #                         - h-p-convtests
-#                         - compile HDF5
+#                         - feature_maxwell_dipole_cylinder_PML/ : curved cylinder geometry with PML on axis and dipole in center for testing RP output
+#                         - feature_maxwell_dipole_dielectric/ : curved sphere with dielectric region in the center and dipole at near the edge
+#                         - feature_maxwell_ExactFlux_PML/ : inner BC that emits a planar wave in z-direction (PMLs are placed at
+#                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_mpi:
@@ -177,19 +177,34 @@ gnu_convtest:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_convtest -j no-debug ; fi
 
-gnu_HDF5_single_mpi:
-  stage: reggie_nightly
-  tags:
-    - withmodules
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
-
 gnu_HDG_turner:
   stage: reggie_nightly
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_HDG_turner/ -j no-debug ; fi
+
+gnu_maxwell_cylinder_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_dipole_cylinder_PML/ -j no-debug ; fi
+
+gnu_maxwell_sphere_dielectric:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_dipole_dielectric/ -j no-debug ; fi
+
+gnu_maxwell_ExactFlux_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_ExactFlux_PML/ -j no-debug ; fi
+
 
 
 
@@ -205,9 +220,6 @@ intel_PIC:
   tags:
     - withmodules
   script:
-    #- echo "nothing to do";
-    # fix h5diff on runner -> libs may be wrongly set in the binary file
-    # "/opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: symbol lookup error: /opt/hdf5/hdf5-1.8.17/ifort16/bin/h5diff: undefined symbol: ompi_mpi_char";
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC_single_particle/ -j no-debug ; fi
 
 intel_emission_gyro:
@@ -231,19 +243,33 @@ intel_convtest:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_convtest -j no-debug ; fi
 
-intel_HDF5_single_mpi:
-  stage: reggie_nightly
-  tags:
-    - withmodules
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build build_HDF5_single_MPI -j no-debug ; fi
-
 intel_HDG_turner:
   stage: reggie_nightly
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC_HDG_turner/ -j no-debug ; fi
+
+intel_maxwell_cylinder_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_dipole_cylinder_PML/ -j no-debug ; fi
+
+intel_maxwell_sphere_dielectric:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_dipole_dielectric/ -j no-debug ; fi
+
+intel_maxwell_ExactFlux_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_ExactFlux_PML/ -j no-debug ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week

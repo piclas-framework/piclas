@@ -35,11 +35,12 @@ SUBROUTINE VolInt_weakForm(Ut,dofirstElems)
 ! Attention 2: ut is initialized and is updated with the volume flux derivatives
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,ONLY:D_hat!,D_hat_T
-USE MOD_Mesh_Vars,ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_PML_Vars,   ONLY: DoPML,ElemToPML,isPMLElem,U2t
+USE MOD_DG_Vars,           ONLY:D_hat
+USE MOD_Mesh_Vars,         ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_PML_Vars,          ONLY: DoPML,ElemToPML,isPMLElem,U2t
+USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem
 USE MOD_PreProc
-USE MOD_Flux,ONLY:EvalFlux3D                                         ! computes volume fluxes in local coordinates
+USE MOD_Flux,ONLY:EvalFlux3D,EvalFlux3DDielectric                      ! computes volume fluxes in local coordinates
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -70,7 +71,16 @@ DO iElem=firstElemID,lastElemID
 !DO iElem=1,PP_nElems
   ! Cut out the local DG solution for a grid cell iElem and all Gauss points from the global field
   ! Compute for all Gauss point values the Cartesian flux components
-  CALL EvalFlux3D(iElem,f,g,h)
+  IF(DoDielectric)THEN
+    IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
+      CALL EvalFlux3DDielectric(iElem,f,g,h)
+    ELSE
+      CALL EvalFlux3D(iElem,f,g,h)
+    END IF
+  ELSE
+    CALL EvalFlux3D(iElem,f,g,h)
+  END IF
+
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
