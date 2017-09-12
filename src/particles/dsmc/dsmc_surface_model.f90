@@ -507,15 +507,15 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 #if (PP_TimeDiscMethod==42)
     iSampleReact = 1
     IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(Prob_Ads.GT.0.)) THEN
-      IF (Prob_Ads.GT.1) THEN
-        Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
-            Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
-        Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + 1.
-      ELSE
+      !IF (Prob_Ads.GT.1) THEN
+      !  Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
+      !      Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
+      !  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + 1.
+      !ELSE
         Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
             Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + Prob_ads
         Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + Prob_ads
-      END IF
+      !END IF
     END IF
     Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) = &
         Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iSampleReact) + 1
@@ -673,22 +673,22 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         D_A = 0.
         D_B = 0.
         E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.) * BoltzmannConst
-        E_d = 0.1 * Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
+        E_d = 0.0  !0.1 * Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
         ! calculation of dissociative adsorption probability with TCE
         CALL Set_TST_Factors(2,a_f,b_f,PartID,ReactNum,PartBoundID)
         Prob_diss(ReactNum) = CalcAdsorbReactProb(2,PartID,Norm_Velo,E_a,E_d,a_f,b_f,c_f)
 #if (PP_TimeDiscMethod==42)
         iSampleReact = 1 + ReactNum
         IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(Prob_diss(ReactNum).GT.0.)) THEN
-          IF (Prob_diss(ReactNum).GT.1) THEN
-            Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
-                Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
-            Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + 1.
-          ELSE
+          !IF (Prob_diss(ReactNum).GT.1) THEN
+          !  Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
+          !      Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
+          !  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + 1.
+          !ELSE
             Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
                 Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + Prob_diss(ReactNum)
             Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + Prob_diss(ReactNum)
-          END IF
+          !END IF
         END IF
         Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) = &
             Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a/BoltzmannConst
@@ -701,7 +701,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   END DO
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
-  ! calculate probability for Eley-Rideal reaction (not ready yet)
+  ! calculate probability for Eley-Rideal reaction
   !---------------------------------------------------------------------------------------------------------------------------------
   DO ReactNum = 1,(Adsorption%RecombNum)
     ! reaction partner
@@ -736,7 +736,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       D_A = 0.
       D_B = 0.
       E_a = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
-      E_d = 0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,Neighpos_j,.TRUE.)
+      E_d = 0.0 !0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,jSpec,Neighpos_j,.TRUE.)
       ! estimate characteristic vibrational temperature of surface-particle bond
       IF (Coord.EQ.1) THEN
         CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfSideID))
@@ -750,13 +750,13 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + Adsorption%DissNum + ReactNum
       IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(P_Eley_Rideal(ReactNum+Adsorption%DissNum).GT.0.)) THEN
-        IF (P_Eley_Rideal(ReactNum).GT.1) THEN
-          Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
-              Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
-        ELSE
+        !IF (P_Eley_Rideal(ReactNum).GT.1) THEN
+        !  Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
+        !      Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
+        !ELSE
           Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
               Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + P_Eley_Rideal(ReactNum+Adsorption%DissNum)
-        END IF
+        !END IF
       END IF
       Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) = &
           Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iSampleReact-1) + E_a/BoltzmannConst
@@ -3675,7 +3675,7 @@ REAL FUNCTION CalcAdsorbReactProb(ReactionCase,PartID,NormalVelo,E_Activation,E_
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, BoltzmannConst,PartState
   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
   USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
-  USE MOD_DSMC_ChemReact,         ONLY : gammainc
+  !USE MOD_DSMC_ChemReact,         ONLY : gammainc
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3743,42 +3743,26 @@ SELECT CASE(ReactionCase)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) ! adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
-  Norm_Ec = NormalVelo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
-  !Norm_Ec = Velocity**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
-           - EZeroPoint_Educt !+ potential_pot
+  Norm_Ec = NormalVelo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
   IF ((Norm_Ec.GE.E_Activation) .AND. (Norm_Ec.LT.E_Activation_max)) THEN
-    Xi_Total = Xi_vib + Xi_rot + 2.
+    Xi_Total = Xi_vib + Xi_rot + 1.
     phi_1 = b_f - 1. + Xi_Total/2.
     phi_2 = 1. - Xi_Total/2.
     IF((phi_1+1).GT.0.0) THEN
-      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
+      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1))
     END IF
     CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
   END IF
-  !IF ((Norm_Ec.GE.E_Activation) .AND. (Norm_Ec.LT.E_Activation_max)) THEN
-  !  Xi_Total = Xi_vib + Xi_rot + 1.
-  !  phi_1 = b_f - 1 + Xi_Total/2.
-  !  phi_2 = 1. - Xi_Total/2.
-  !  IF((phi_1+1).GT.0.0) THEN
-  !    IF(gammainc((/phi_1+1,E_Activation_max/)).LT.1)THEN
-  !      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) &
-  !           / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,0./))-gammainc((/phi_1+1,E_Activation_max/)))))
-  !    ELSE
-  !      Beta = 0.
-  !    END IF
-  !  END IF
-  !  CalcAdsorbReactProb = Beta * (-Norm_Ec + E_Activation_max)**phi_1 * (Norm_Ec) ** phi_2
-  !END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) ! dissociation
 !-----------------------------------------------------------------------------------------------------------------------------------
   Norm_Ec = NormalVelo**2 * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
   IF ((Norm_Ec.GE.E_Activation) ) THEN
-    Xi_Total = Xi_vib + Xi_rot + 2.
+    Xi_Total = Xi_vib + Xi_rot + 1.
     phi_1 = b_f - 1. + Xi_Total/2.
     phi_2 = 1. - Xi_Total/2.
     IF((phi_1+1).GT.0.0) THEN
-      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
+      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1))
     END IF
     CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
   END IF
@@ -3838,15 +3822,15 @@ CASE(3) ! eley-rideal
       END IF
     END IF
   END IF
-  Norm_Ec = NormalVelo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)&
-          - EZeroPoint_Educt &
-          + SurfPartIntE + SurfPartVibE!+ potential_pot
+  Norm_Ec = NormalVelo**2. * 0.5*Species(iSpec)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt &
+          + SurfPartIntE + SurfPartVibE
   IF ((Norm_Ec.GE.E_Activation) ) THEN
     Xi_Total = Xi_vib + Xi_rot + 2.
     phi_1 = b_f - 1. + Xi_Total/2.
     phi_2 = 1. - Xi_Total/2.
     IF((phi_1+1).GT.0.0) THEN
-      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
+      !Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
+      Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1))
     END IF
     CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
   END IF
