@@ -184,7 +184,8 @@ USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
-USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
+USE MOD_HDF5_output,           ONLY: WriteStateToHDF5,WriteQDSToHDF5
+USE MOD_QDS_Vars,              ONLY: DoQDS
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh,                  ONLY: SwapMesh
 USE MOD_Filter,                ONLY: Filter
@@ -294,6 +295,7 @@ IF(DoRestart) CALL EvalGradient()
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+IF(DoQDS)              CALL WriteQDSToHDF5(time)
 
 ! if measurement of particle tracking time
 #ifdef PARTICLES
@@ -597,6 +599,7 @@ DO !iter_t=0,MaxIter
 #endif /*PP_HDG*/
       ! Write state to file
       IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+      IF(DoQDS)              CALL WriteQDSToHDF5(time)
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tFuture)
 #ifndef PP_HDG
       ! Write state to file

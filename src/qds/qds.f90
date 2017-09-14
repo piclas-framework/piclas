@@ -109,6 +109,7 @@ IF(DoQDS)THEN
   Velo =(/0.,0.,0./) !(/1020.882,0.,0./)
   Dens= 2.633459376E25
   Mass = 4.651734101E-26
+  QDSSpeciesMass=Mass
 
   !QDS_Species = GETINT('Particles-QDSSpecies','0')
 
@@ -117,7 +118,18 @@ IF(DoQDS)THEN
 
 
 
-  IF(.NOT.DoRestart) CALL FillIniQDS()
+  !IF(.NOT.DoRestart) CALL FillIniQDS()
+
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+  !  i=0; j=0; k=0
+  !  QDSMacroValues(1,i,j,k,1) = Dens*wGP(i)*wGP(j)*wGP(k)/sJ(i,j,k,1)*Mass
+    QDSMacroValues(1,i,j,k,88) = Dens*Mass
+    QDSMacroValues(2:4,i,j,k,88) = QDSMacroValues(1,i,j,k,88)*Velo(1:3)
+    QDSMacroValues(6,i,j,k,88) = Temp
+  END DO; END DO; END DO
+
 
 ELSE
   QDSnVar=0
@@ -373,7 +385,7 @@ END IF
 
 ! Compute fluxes on PP_N, no additional interpolation required
 DO SideID=firstSideID,lastSideID
-  CALL RiemannQDS(FluxQDS_Master(1:8,:,:,SideID),UQDS_Master( :,:,:,SideID),UQDS_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
+  CALL RiemannQDS(FluxQDS_Master(1:QDSnVar,:,:,SideID),UQDS_Master( :,:,:,SideID),UQDS_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
 END DO ! SideID
   
 IF(.NOT.doMPISides)THEN
@@ -1050,7 +1062,7 @@ SUBROUTINE RiemannQDS(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_QDS_Vars,     ONLY:QDSnVar
+USE MOD_QDS_Vars,     ONLY:QDSnVar,QDSMaxVelo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1077,12 +1089,13 @@ DO iVar=0,7
             + U_L(4+iVar*5,Count_1,Count_2)*nv(3,Count_1,Count_2)
     velocompR = U_R(2+iVar*5,Count_1,Count_2)*nv(1,Count_1,Count_2) + U_R(3+iVar*5,Count_1,Count_2)*nv(2,Count_1,Count_2) &
             + U_R(4+iVar*5,Count_1,Count_2)*nv(3,Count_1,Count_2)
-    IF (ABS(velocompL).GT.ABS(velocompR)) THEN
-      LambdaMax = ABS(velocompL)
-    ELSE
-      LambdaMax = ABS(velocompR)
-    END IF
+    !IF (ABS(velocompL).GT.ABS(velocompR)) THEN
+      !LambdaMax = ABS(velocompL)
+    !ELSE
+      !LambdaMax = ABS(velocompR)
+    !END IF
 !    LambdaMax = MERGE(velocompL, velocompR, ABS(velocompL).GT.ABS(velocompR))
+    LambdaMax=QDSMaxVelo
 
 !    Lambda_L = 0.5 * (LambdaMax + ABS(LambdaMax))
 !    Lambda_R = 0.5 * (LambdaMax - ABS(LambdaMax))
@@ -1209,7 +1222,7 @@ REAL        :: checkSum
 DO iElem = 1, nQDSElems
 
 
-IF(1.EQ.1)THEN
+IF(1.EQ.2)THEN
   IF (QDSMacroValues(1,0,0,0,iElem).NE.0.0) then
       print*, 'build parts', iElem
       print*, QDSMacroValues(1,0,0,0,iElem)/(QDSSpeciesMass*wGP(0)*wGP(0)*wGP(0)/sJ(0,0,0,iElem)), &
@@ -1286,7 +1299,7 @@ DO iElem = 1, nQDSElems
       DO i=0,PP_N
         QDSMacroValues(:,i,j,k,iElem) = 0.0
         DO iPart=0,7
-          IF (i.eq.1.and.j.eq.1.and.k.eq.1.and.ielem.eq.1) print*, UQDS(1+iPart*5,i,j,k,iElem)
+          !IF (i.eq.1.and.j.eq.1.and.k.eq.1.and.ielem.eq.1) print*, UQDS(1+iPart*5,i,j,k,iElem)
           QDSMacroValues(1,i,j,k,iElem) = QDSMacroValues(1,i,j,k,iElem) + UQDS(1+iPart*5,i,j,k,iElem)
           QDSMacroValues(2,i,j,k,iElem) = QDSMacroValues(2,i,j,k,iElem) + UQDS(2+iPart*5,i,j,k,iElem)*UQDS(1+iPart*5,i,j,k,iElem)
           QDSMacroValues(3,i,j,k,iElem) = QDSMacroValues(3,i,j,k,iElem) + UQDS(3+iPart*5,i,j,k,iElem)*UQDS(1+iPart*5,i,j,k,iElem)

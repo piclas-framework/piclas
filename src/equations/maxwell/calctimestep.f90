@@ -26,9 +26,10 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_Mesh_Vars,    ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 USE MOD_Equation_Vars,ONLY:c,c_corr
 USE MOD_TimeDisc_Vars,ONLY:CFLScale
+USE MOD_QDS_Vars,     ONLY:QDSMaxVelo,DoQDS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -40,9 +41,12 @@ REAL                         :: CalcTimeStep
 ! LOCAL VARIABLES
 INTEGER                      :: i,j,k,iElem
 REAL                         :: Max_Lambda1,Max_Lambda2,Max_Lambda3
+REAL                         :: Max_Lambda4,Max_Lambda5,Max_Lambda6
 REAL                         :: TimeStepConv,locTimeStepConv
+REAL                         :: locTimeStepQDS
 !===================================================================================================================================
 locTimeStepConv=HUGE(1.)
+locTimeStepQDS=HUGE(1.)
 DO iElem=1,PP_nElems
   Max_Lambda1=0.
   Max_Lambda2=0.
@@ -71,6 +75,27 @@ DO iElem=1,PP_nElems
       END DO ! i
     END DO ! j
   END DO ! k
+
+
+  IF(DoQDS)THEN
+    Max_Lambda4=0.
+    Max_Lambda5=0.
+    Max_Lambda6=0.
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+    ! QDS
+          Max_Lambda4=MAX(Max_Lambda4,sJ(i,j,k,iElem)*(QDSMaxVelo &
+                          *SQRT(SUM(Metrics_fTilde(:,i,j,k,iElem)*Metrics_fTilde(:,i,j,k,iElem)))))
+          Max_Lambda5=MAX(Max_Lambda5,sJ(i,j,k,iElem)*(QDSMaxVelo &
+                          *SQRT(SUM(Metrics_gTilde(:,i,j,k,iElem)*Metrics_gTilde(:,i,j,k,iElem)))))
+          Max_Lambda6=MAX(Max_Lambda6,sJ(i,j,k,iElem)*(QDSMaxVelo &
+                          *SQRT(SUM(Metrics_hTilde(:,i,j,k,iElem)*Metrics_hTilde(:,i,j,k,iElem)))))
+        END DO ! i
+      END DO ! j
+    END DO ! k
+  locTimeStepQDS=MIN(locTimeStepQDS,CFLScale*2./(Max_Lambda4+Max_Lambda5+Max_Lambda6))
+  END IF
 ! VERSION 3: ---------------------------------
 !   locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1))
 ! --------------------------------------------
@@ -94,6 +119,17 @@ CALL MPI_ALLREDUCE(locTimeStepConv,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,M
 TimeStepConv=locTimeStepConv
 #endif /*MPI*/
 CalcTimeStep=TimeStepConv
+
+
+
+IF(DoQDS)THEN
+#ifdef MPI
+  CALL MPI_ALLREDUCE(locTimeStepQDS,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+#else
+TimeStepConv=locTimeStepQDS
+#endif /*MPI*/
+  CalcTimeStep=TimeStepConv
+END IF
 END FUNCTION CALCTIMESTEP
 
 END MODULE MOD_CalcTimeStep

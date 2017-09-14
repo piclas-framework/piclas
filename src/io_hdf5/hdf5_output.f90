@@ -61,6 +61,10 @@ INTERFACE WriteDielectricGlobalToHDF5
 END INTERFACE
 #endif /*PP_HDG*/
 
+INTERFACE WriteQDSToHDF5
+  MODULE PROCEDURE WriteQDSToHDF5
+END INTERFACE
+
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage
@@ -71,6 +75,7 @@ PUBLIC :: WriteDielectricGlobalToHDF5
 #ifdef PARTICLES
 PUBLIC :: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
+PUBLIC :: WriteQDSToHDF5
 !===================================================================================================================================
 
 CONTAINS
@@ -2095,6 +2100,103 @@ SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
 #endif /*PP_HDG*/
+
+
+SUBROUTINE WriteQDSToHDF5(OutputTime)
+!===================================================================================================================================
+! write QDS field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_io_HDF5
+USE MOD_QDS_Vars,        ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)     :: OutputTime!,FutureTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: N_variables
+CHARACTER(LEN=255)  :: StrVarNames(1:6)
+CHARACTER(LEN=255)  :: FileName
+#ifdef MPI
+REAL                :: StartT,EndT
+#endif
+INTEGER             :: iElem,j,k,l
+REAL                :: Utemp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems)
+!===================================================================================================================================
+!QDSSpeciesMass=Species(QDS_Species)%MassIC
+!    CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
+!                          nValGlobal=(/6,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+!                          nVal=      (/6,PP_N+1,PP_N+1,PP_N+1,nQDSElems/),&
+!                          offset=    (/0,      0,     0,     0,     offsetElem/),&
+!                          collective=.TRUE., existing=.TRUE., RealArray=Utemp)
+N_variables=6
+! create global Eps field for parallel output of Eps distribution
+StrVarNames(1) = 'Density'
+StrVarNames(2) = 'VeloX'
+StrVarNames(3) = 'VeloY'
+StrVarNames(4) = 'VeloZ'
+StrVarNames(5) = 'Energy'
+StrVarNames(6) = 'Temperature'
+Utemp=0.
+DO iElem =1, nQDSElems
+  DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
+    IF (QDSMacroValues(1,l,k,j,iElem).GT.0.0) THEN
+!      Utemp(1,l,k,j,iElem) = QDSMacroValues(1,l,k,j,iElem)/(Species(QDS_Species)%MassIC*wGP(l)*wGP(k)*wGP(j))*sJ(l,k,j,iElem)
+      Utemp(1,l,k,j,iElem) = QDSMacroValues(1,l,k,j,iElem)/QDSSpeciesMass
+      IF (Utemp(1,l,k,j,iElem).LT.0.0) then
+        print*, 'Utemp(1,l,k,j,iElem).LT.0.0'
+        print*, Utemp(1,l,k,j,iElem),iElem, l,k,j, QDSMacroValues(1,l,k,j,iElem)
+        print*,"Press ENTER to continue"
+        read*
+      END IF
+      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)
+      Utemp(5:6,l,k,j,iElem) = QDSMacroValues(5:6,l,k,j,iElem)
+    ELSE
+      Utemp(:,l,k,j,iElem) = 0.0
+    END IF
+  END DO; END DO; END DO
+END DO
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE QDS TO HDF5 FILE...'
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+!FutureTime=0.0
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+#ifdef MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
+#endif
+CALL WriteAttributeToHDF5(File_ID,'VarNamesQDS',N_variables,StrArray=StrVarNames)
+CALL CloseDataFile()
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName='DG_Solution', rank=5,&
+                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,nQDSElems   /),&
+                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
+                        collective=.TRUE.,RealArray=Utemp)
+#ifdef MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+END SUBROUTINE WriteQDSToHDF5
 
 
 END MODULE MOD_HDF5_output
