@@ -167,7 +167,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
 USE MOD_TimeAverage_vars,      ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,           ONLY: CalcTimeAverage
-#if (PP_TimeDiscMethod==201)                                                                                                         
+#if (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars,         ONLY: dt_temp, MaximumIterNum 
 #endif
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
@@ -651,6 +651,8 @@ USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
 USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
+USE MOD_QDS_Vars,                ONLY: UQDS,UQDSt,nQDSElems,DoQDS,QDSnVar
+USE MOD_QDS,                     ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
 USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
 USE MOD_Equation,                ONLY: CalcSource
@@ -696,8 +698,9 @@ INTEGER(KIND=8),INTENT(INOUT) :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !INTEGER                       :: iPart
-REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
-REAL                          :: U2t_temp(1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+REAL                          :: Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+REAL                          :: U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+REAL                          :: UQDSt_temp(1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems) ! temporal variable for UQDSt
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
@@ -795,6 +798,10 @@ IF(DoPML) THEN
   CALL CalcPMLSource()
   CALL PMLTimeDerivative()
 END IF
+IF(DoQDS) THEN
+  CALL QDSReCalculateDGValues()
+  CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.)
+END IF
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -840,6 +847,10 @@ tLBStart = LOCALTIME() ! LB Time Start
 IF(DoPML) THEN
   U2t_temp = U2t
   U2 = U2 + U2t*b_dt(1)
+END IF
+IF(DoQDS) THEN
+  UQDSt_temp = UQDSt
+  UQDS = UQDS + UQDSt*b_dt(1)
 END IF
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
@@ -982,6 +993,10 @@ DO iStage=2,nRKStages
     CALL CalcPMLSource()
     CALL PMLTimeDerivative()
   END IF
+  IF(DoQDS) THEN
+    !CALL QDSReCalculateDGValues()
+    CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.)
+  END IF
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -1017,6 +1032,10 @@ DO iStage=2,nRKStages
   IF(DoPML)THEN
     U2t_temp = U2t - U2t_temp*RK_a(iStage)
     U2 = U2 + U2t_temp*b_dt(iStage)
+  END IF
+  IF(DoQDS)THEN
+    UQDSt_temp = UQDSt - UQDSt_temp*RK_a(iStage)
+    UQDS = UQDS + UQDSt_temp*b_dt(iStage)
   END IF
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
@@ -1093,6 +1112,9 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
 
 END DO
+IF(DoQDS) THEN
+  CALL QDSCalculateMacroValues()
+END IF
 
 #ifdef PARTICLES
 IF (t.GE.DelayTime) THEN

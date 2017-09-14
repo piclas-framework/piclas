@@ -28,6 +28,7 @@ USE MOD_Interpolation,             ONLY:FinalizeInterpolation
 USE MOD_Mesh,                      ONLY:FinalizeMesh
 USE MOD_Equation,                  ONLY:FinalizeEquation
 USE MOD_Interfaces,                ONLY:FinalizeInterfaces
+USE MOD_QDS,                       ONLY:FinalizeQDS
 USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_Mortar,                    ONLY:FinalizeMortar
@@ -127,6 +128,7 @@ CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from 
 #endif /*PARTICLES*/
 
 CALL FinalizeInterfaces()
+CALL FinalizeQDS()
 
 END SUBROUTINE FinalizeBoltzplatz
 
@@ -182,6 +184,7 @@ USE MOD_ParticleSolver,     ONLY:InitPartSolver
 USE MOD_HDG,                ONLY:InitHDG
 #endif
 USE MOD_Interfaces,         ONLY:InitInterfaces
+USE MOD_QDS,                ONLY:InitQDS
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -262,6 +265,8 @@ END IF
 #endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
+
+CALL InitQDS()
 
 ! do this last!
 CALL IgnoredStrings()
