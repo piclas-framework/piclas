@@ -120,7 +120,7 @@ USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound
+USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
@@ -900,6 +900,16 @@ ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
 SolidSimFlag = .FALSE.
 LiquidSimFlag = .FALSE.
 
+ALLOCATE(PartBound%Adaptive(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
+ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
+nAdaptiveBC = 0
+PartBound%Adaptive(:) = .FALSE.
+PartBound%AdaptiveType(:) = -1
+PartBound%AdaptiveTemp(:) = -1.
+PartBound%AdaptivePressure(:) = -1.
+
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
 PartBound%Voltage_CollectCharges(:)=0.
@@ -934,6 +944,18 @@ DO iPartBound=1,nPartBound
            GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientDynamicVisc','1.72326582572253E-5') ! N2:T=288K
        PartBound%AmbientThermalCond(iPartBound)=&
            GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientThermalCond','2.42948500556027E-2') ! N2:T=288K
+     END IF
+     PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
+     IF(PartBound%Adaptive(iPartBound)) THEN
+       nAdaptiveBC = nAdaptiveBC + 1
+       PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
+       PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+       PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
+       IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
+         CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp or -AdaptivePressure not defined')
+       END IF
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
@@ -1006,6 +1028,7 @@ __STAMP__&
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
 END DO
+
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
 ! Set mapping from field boundary to particle boundary index
@@ -1015,11 +1038,11 @@ DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,1).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
-      SWRITE(*,*)"PartBound",iPBC,"is internal bound, no mapping needed"
+      SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      SWRITE(*,*)"Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      SWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -1323,6 +1346,10 @@ SDEALLOCATE(PartBound%AmbientVelo)
 SDEALLOCATE(PartBound%AmbientDens)
 SDEALLOCATE(PartBound%AmbientDynamicVisc)
 SDEALLOCATE(PartBound%AmbientThermalCond)
+SDEALLOCATE(PartBound%Adaptive)
+SDEALLOCATE(PartBound%AdaptiveType)
+SDEALLOCATE(PartBound%AdaptiveTemp)
+SDEALLOCATE(PartBound%AdaptivePressure)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)

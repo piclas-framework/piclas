@@ -210,6 +210,8 @@ USE MOD_DSMC_Vars,             ONLY: Iter_macvalout,Iter_macsurfvalout
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
+USE MOD_Part_Emission,         ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Boundary_Vars,ONLY: nAdaptiveBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation,              ONLY: EvalGradient
@@ -519,6 +521,10 @@ DO !iter_t=0,MaxIter
   ! calling the analyze routines
   CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 #endif
+#ifdef PARTICLES
+  ! sampling of near adaptive boundary element values
+  IF(nAdaptiveBC.GT.0) CALL AdaptiveBCAnalyze()
+#endif /*PARICLES*/
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
   IF((ALMOSTEQUAL(dt,tAnalyzeDiff)).OR.(ALMOSTEQUAL(dt,tEndDiff)))THEN
@@ -1265,7 +1271,7 @@ USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux,ParticleAdaptiveSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_Liquid_Boundary,  ONLY: Evaporation
@@ -1297,6 +1303,7 @@ REAL    :: RandVal, dtFrac
     END IF
     IF (LiquidSimFlag) CALL Evaporation()
     CALL ParticleSurfaceflux()
+    CALL ParticleAdaptiveSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%dtFracPush(iPart)) THEN

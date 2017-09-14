@@ -233,6 +233,7 @@ TYPE tSurfaceflux
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
+  REAL                                   :: PressureFraction
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -249,6 +250,8 @@ TYPE tSpecies                                                                ! P
   LOGICAL                                :: IsImplicit
 #endif
 END TYPE
+
+REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector

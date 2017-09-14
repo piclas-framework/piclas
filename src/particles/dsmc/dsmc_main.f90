@@ -212,6 +212,7 @@ SUBROUTINE DSMC_main()
     ! Calculate Entropy using Theorem of Boltzmann
     !CALL EntropyCalculation()
     !
+
     IF(SamplingActive) THEN
       CALL DSMCHO_data_sampling()
       IF(DSMC%NumOutput.NE.0) THEN
