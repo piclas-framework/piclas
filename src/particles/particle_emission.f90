@@ -4734,9 +4734,6 @@ SUBROUTINE ParticleAdaptiveSurfaceflux
 ! Routine is necessary for boundary with surfaceflux using adapting part density, velocity or temperature
 !===================================================================================================================================
 ! Modules
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,ONLY: PartMPI
-#endif /* MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -4745,10 +4742,10 @@ USE MOD_Timedisc_Vars         , ONLY : iter
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, PartBound, nAdaptiveBC
+USE MOD_Particle_Boundary_Vars, ONLY : PartBound, nAdaptiveBC
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif
@@ -4757,7 +4754,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
+USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
@@ -4786,20 +4783,15 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
 INTEGER                     :: iSpec , PositionNbr, iSF, iSide, currentBC, SideID, iLoop
-INTEGER                     :: NbrOfParticle, ExtraParts
-INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSF, PartInsSubSide, iPart, iPartTotal, IntSample
+INTEGER                     :: NbrOfParticle
+INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSubSide, iPart, iPartTotal
 INTEGER                     :: ParticleIndexNbr, allocStat
-REAL                        :: PartIns,VFR_total
 REAL                        :: Particle_pos(3), RandVal1, RandVal2(2)
-REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
-INTEGER(KIND=8)             :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
-INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:,:)
-REAL                        :: xiab(1:2,1:2),xi(2),E,F,G,D,gradXiEta2D(1:2,1:2),gradXiEta3D(1:2,1:3)
-REAL                        :: point(2),origin(2),veloR,vTot,phi,radius,preFac,powerFac,shiftFac
-INTEGER                     :: dir(3), nReject, allowedRejections
-LOGICAL                     :: AcceptPos
+REAL,ALLOCATABLE            :: particle_positions(:)
+REAL                        :: xiab(1:2,1:2),xi(2),E,F,G,D,gradXiEta2D(1:2,1:2)
 REAL                        :: ElemPartDensity, VeloVec(1:3), VeloIC
 REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure
+INTEGER                     :: nReject
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -5772,7 +5764,7 @@ SUBROUTINE AdaptiveBCAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
-USE MOD_DSMC_Vars,              ONLY:DSMCSampNearInt, DSMCSampCellVolW, useDSMC
+USE MOD_DSMC_Vars,              ONLY:useDSMC
 USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal,BoltzmannConst
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsBCElem
@@ -5785,7 +5777,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iElem, ElemID, AdaptiveElemID, i, iSpec
+INTEGER                       :: ElemID, AdaptiveElemID, i, iSpec
 REAL                          :: Theta, TVib_TempFac
 REAL, ALLOCATABLE             :: Source(:,:,:)
 !===================================================================================================================================

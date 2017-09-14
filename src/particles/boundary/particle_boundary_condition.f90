@@ -1521,16 +1521,14 @@ SUBROUTINE SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
-USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
-USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,WriteMacroSurfaceValues
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
-USE MOD_LD_Vars,                ONLY:useLD
+!USE MOD_LD_Vars,                ONLY:useLD
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1547,10 +1545,9 @@ LOGICAL,INTENT(OUT),OPTIONAL      :: opt_crossed
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), WallVelo(3)
-REAL                                  :: epsLength
-REAL                                 :: Xitild,EtaTild
-INTEGER                              :: p,q, SurfSideID, locBCID
+REAL                                 :: n_loc(1:3), WallVelo(3)
+REAL                                 :: epsLength
+INTEGER                              :: locBCID
 INTEGER                              :: moved(2)
 !===================================================================================================================================
 

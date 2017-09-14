@@ -1503,7 +1503,6 @@ INTEGER, INTENT(OUT)            :: SurfCollNum(nSpecies), AdsorbNum(nSpecies)
 INTEGER                         :: iSpec, iCase, iReact
 #ifdef MPI
 REAL                            :: AD(nSpecies),RR(nSpecies*Adsorption%ReactNum)
-REAL                            :: RRR(nSpecies*(Adsorption%ReactNum+1))
 INTEGER                         :: ADN(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
@@ -1761,11 +1760,11 @@ SUBROUTINE GetEvaporationRate(EvaporationRate)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PDM, nSpecies
+USE MOD_Particle_Vars,          ONLY : Species, nSpecies
 USE MOD_Particle_Analyze_Vars
 USE MOD_DSMC_Vars,              ONLY : Liquid
 #ifdef MPI
-USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
+!USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
 #endif /*MPI*/
 USE MOD_TimeDisc_Vars,          ONLY : dt
