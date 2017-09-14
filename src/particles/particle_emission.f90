@@ -4435,8 +4435,10 @@ __STAMP__&
     ! Sample Energies on Surfaces when particles are emitted from them
     IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
       ! if desorption
-      IF (useDSMC.AND.(CollisMode.GT.1).AND.(DSMC%WallModel.GT.0)) THEN
-        IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+      IF (DSMC%WallModel.GT.0) THEN
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
+            .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
           DO iPart = 1,PartsEmitted
             PartID = PartInsIndexes(1,iPart)
             p = PartInsIndexes(2,iPart)
@@ -4474,9 +4476,10 @@ __STAMP__&
             IntArray(5) = EvibWall
             IntArray(6) = EvibNew
         
-            CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,(/0.,0.,0./),0.,.False.,0.,emission_opt=.TRUE.)
+            CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,(/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
           END DO
         END IF
+      END IF
       END IF
     END IF
     

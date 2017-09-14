@@ -86,6 +86,31 @@ TYPE tSampWall             ! DSMC sample for Wall
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 
+TYPE tSurfColl
+  INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)
+  LOGICAL,ALLOCATABLE                   :: SpeciesFlags(:)        ! Species counted for wall collisions (def.: all species=T)
+  LOGICAL                               :: OnlySwaps              ! count only wall collisions being SpeciesSwaps (def. F)
+  LOGICAL                               :: Only0Swaps             ! count only wall collisions being delete-SpeciesSwaps (def. F)
+  LOGICAL                               :: Output                 ! Print sums of all counted wall collisions (def. F)
+  LOGICAL                               :: AnalyzeSurfCollis      ! Output of collided/swaped particles 
+                                                                  ! during Sampling period? (def. F)
+END TYPE
+TYPE (tSurfColl)                        :: CalcSurfCollis
+  
+TYPE tAnalyzeSurfCollis 
+  INTEGER                               :: maxPartNumber          ! max. number of collided/swaped particles during Sampling
+  REAL, ALLOCATABLE                     :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
+                                                                  ! (Species,Particles,Data(x,y,z,u,v,w)
+  INTEGER, ALLOCATABLE                  :: Spec(:)                ! Species of Particle in Data-array
+  INTEGER, ALLOCATABLE                  :: BCid(:)                ! ID of PartBC from crossing of Particle in Data-array
+  INTEGER, ALLOCATABLE                  :: Number(:)              ! collided/swaped particles per Species during Sampling period
+  !REAL, ALLOCATABLE                     :: Rate(:)                ! collided/swaped particles/s per Species during Sampling period
+  INTEGER                               :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
+  INTEGER, ALLOCATABLE                  :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
+
+END TYPE tAnalyzeSurfCollis
+TYPE(tAnalyzeSurfCollis)                :: AnalyzeSurfCollis
+
 TYPE tPartBoundary
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition

@@ -304,6 +304,7 @@ REAL                                     :: DelayTime
 
 LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
 
+LOGICAL                                  :: WRITEMacroValues = .FALSE.
 LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! Output of macroscopic values in volume
 LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling   

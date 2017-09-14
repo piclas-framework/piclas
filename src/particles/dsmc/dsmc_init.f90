@@ -48,7 +48,6 @@ USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, SolidSimFlag
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
-USE MOD_TimeDisc_Vars,              ONLY: TEnd
 USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
 USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
@@ -101,9 +100,6 @@ IMPLICIT NONE
   DSMC%PartitionMaxTemp = GETREAL('Particles-DSMC-PartitionMaxTemp','20000')
   DSMC%PartitionInterval = GETREAL('Particles-DSMC-PartitionInterval','10')
 !-----------------------------------------------------------------------------------
-  DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
-  DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
-  IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
   DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors','.FALSE.')
   DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim','.FALSE.')
 #if (PP_TimeDiscMethod==42)
@@ -138,9 +134,6 @@ IMPLICIT NONE
     CALL Abort(&
      __STAMP__&
     ,'ERROR in ModelForVibrationEnergy Flag!')
-  END IF
-  IF (DSMC%NumOutput.NE.0) THEN
-    DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
   END IF
   DSMC%NumPolyatomMolecs = 0
   ! Steady - State Detection: Use Q-Criterion or SSD-Alogrithm?
@@ -760,7 +753,7 @@ IMPLICIT NONE
     END IF
     IF ((DSMC%WallModel.EQ.1)) CALL abort(&
       __STAMP__&
-      ,'Error: WallModel 1&2 not working!')
+      ,'Error: WallModel 1 not working!')
     CALL InitDSMCSurfModel()
   ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.LE.1) THEN
     CALL abort(&
@@ -1180,7 +1173,6 @@ SDEALLOCATE(DSMC_RHS)
 SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(SpecDSMC)
 SDEALLOCATE(DSMC%NumColl)
-SDEALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)

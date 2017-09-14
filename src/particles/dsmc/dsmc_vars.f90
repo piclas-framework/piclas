@@ -139,12 +139,6 @@ TYPE tDSMC
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
   LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
-  INTEGER                       :: CalcSurfCollis_NbrOfSpecies     ! Nbr. of Species to be counted for wall collisions (def. 0: all)
-  LOGICAL,ALLOCATABLE           :: CalcSurfCollis_SpeciesFlags(:)  ! Species counted for wall collisions (def.: all species=T)
-  LOGICAL                       :: CalcSurfCollis_OnlySwaps        ! count only wall collisions being SpeciesSwaps (def. F)
-  LOGICAL                       :: AnalyzeSurfCollis        ! Output of collided/swaped particles during Sampling period? (def. F)
-  LOGICAL                       :: CalcSurfCollis_Only0Swaps       ! count only wall collisions being delete-SpeciesSwaps (def. F)
-  LOGICAL                       :: CalcSurfCollis_Output           ! Print sums of all counted wall collisions (def. F)
   REAL                          :: CollProbMean                 ! Summation of collision probability
   REAL                          :: CollProbMax               ! Maximal collision probability per cell
   INTEGER                       :: CollProbMeanCount                ! counter of possible collision pairs
@@ -192,21 +186,6 @@ END TYPE tDSMC
 
 TYPE(tDSMC)                        :: DSMC
 
-TYPE tAnalyzeSurfCollis 
-  INTEGER                       :: maxPartNumber          ! max. number of collided/swaped particles during Sampling
-  REAL, ALLOCATABLE             :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
-                                                              ! (Species,Particles,Data(x,y,z,u,v,w)
-  INTEGER, ALLOCATABLE          :: Spec(:)                ! Species of Particle in Data-array
-  INTEGER, ALLOCATABLE          :: BCid(:)                ! ID of PartBC from crossing of Particle in Data-array
-  INTEGER, ALLOCATABLE          :: Number(:)              ! collided/swaped particles per Species during Sampling period
-  !REAL, ALLOCATABLE             :: Rate(:)                ! collided/swaped particles/s per Species during Sampling period
-  INTEGER                       :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
-  INTEGER, ALLOCATABLE          :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
-
-END TYPE tAnalyzeSurfCollis
-
-TYPE(tAnalyzeSurfCollis)        :: AnalyzeSurfCollis
-  
 TYPE tBGGas
   INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
   REAL                          :: BGGasDensity             ! Density of Background Gas

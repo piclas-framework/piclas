@@ -363,13 +363,12 @@ USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #ifdef PARTICLES
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_TimeDisc_Vars,         ONLY: dt
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroVolumeValues,MacroValSamplIterNum
+USE MOD_Particle_Vars,         ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
-USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall
+USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
 USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
-USE MOD_DSMC_Vars,             ONLY: AnalyzeSurfCollis
+USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution, useDSMC
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
@@ -613,17 +612,6 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
     CALL LD_DSMC_output_calc()
 #else
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
-    IF (DSMC%CalcSurfaceVal) THEN
-      CALL CalcSurfaceValues
-      DO iSide=1,SurfMesh%nTotalSides 
-        SampWall(iSide)%State=0.
-        IF (DSMC%WallModel.GT.0) THEN
-          SampWall(iSide)%Adsorption=0.
-          SampWall(iSide)%Accomodation=0.
-          SampWall(iSide)%Reaction=0.
-        END IF
-      END DO
-    END IF
 #endif
     iter_macvalout = 0
     DSMC%SampNum = 0
@@ -632,15 +620,22 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
 END IF
 
 ! write surface data for DSMC macroscopic values 
-IF ((DSMC%CalcSurfaceVal).AND.(.NOT.Output))THEN
+IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
   IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides 
       SampWall(iSide)%State=0.
+      IF (useDSMC) THEN
+      IF (DSMC%WallModel.GT.0) THEN
+        SampWall(iSide)%Adsorption=0.
+        SampWall(iSide)%Accomodation=0.
+        SampWall(iSide)%Reaction=0.
+      END IF
+      END IF
     END DO
-    IF (DSMC%AnalyzeSurfCollis) THEN
+    IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0
       AnalyzeSurfCollis%BCid=0
@@ -656,6 +651,7 @@ IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
 #elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
   !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
@@ -671,14 +667,14 @@ IF(OutPut)THEN
       END IF
     END IF
     ! surface data
-    IF (DSMC%CalcSurfaceVal) THEN
+    IF (WriteMacroSurfaceValues) THEN
       iter_macsurfvalout = iter_macsurfvalout + 1
       IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
         CALL CalcSurfaceValues
         DO iSide=1,SurfMesh%nTotalSides
           SampWall(iSide)%State=0.
         END DO
-        IF (DSMC%AnalyzeSurfCollis) THEN
+        IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
           AnalyzeSurfCollis%Data=0.
           AnalyzeSurfCollis%Spec=0
           AnalyzeSurfCollis%BCid=0
@@ -690,7 +686,7 @@ IF(OutPut)THEN
     END IF
   END IF
 #else
-  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues)) THEN
+  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
     IF (.NOT. useLD) THEN
       CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
     END IF
