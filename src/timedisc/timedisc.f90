@@ -210,6 +210,10 @@ USE MOD_DSMC_Vars,             ONLY: Iter_macvalout,Iter_macsurfvalout
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
+#ifdef IMPA
+USE MOD_LinearSolver_vars,     ONLY:nPartNewton
+USE MOD_LinearSolver_Vars,     ONLY:TotalPartIterLinearSolver
+#endif /*IMPA*/
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation,              ONLY: EvalGradient
@@ -223,10 +227,6 @@ USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,     ONLY:totalIterLinearSolver
 #endif /*IMEX*/
-#ifdef IMPA
-USE MOD_LinearSolver_vars,     ONLY:nPartNewton
-USE MOD_LinearSolver_Vars,     ONLY:TotalPartIterLinearSolver
-#endif /*IMPA*/
 #if (PP_TimeDiscMethod==120)||(PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,    ONLY: totalFullNewtonIter
 #endif
@@ -571,7 +571,7 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
       TotalIterLinearSolver=0
 #endif /*IMEX*/
-#ifdef IMPA
+#if defined(IMPA) && defined(PARICLES)
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
@@ -586,7 +586,7 @@ DO !iter_t=0,MaxIter
       nPartNewTon=0
       TotalPartIterLinearSolver=0
       SWRITE(UNIT_stdOut,'(132("="))')
-#endif /*IMPA*/
+#endif /*IMPA && PARTICLE*/
       ! Analyze for output
       CALL PerformAnalyze(tAnalyze,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter_In=finalIter)
 #ifndef PP_HDG
@@ -3010,7 +3010,7 @@ DO iStage=2,nRKStages
             IF(iStage.NE.3) CALL abort(&
   __STAMP__&
   ,'Something wrong with iStage and PartDtFrac! ')
-            PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage)*PartStage(iPart,1:6,1)
+            PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage)*PartStage(iPart,1:6,iStage)
             DO iCounter=1,iStage-1
               PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
             END DO ! iCounter=1,iStage-2
