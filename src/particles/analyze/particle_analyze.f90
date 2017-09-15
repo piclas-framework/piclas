@@ -216,7 +216,7 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
   USE MOD_DSMC_Vars,             ONLY: DSMC
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   USE MOD_TimeDisc_Vars,         ONLY : iter
 #endif
   USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
@@ -469,6 +469,7 @@ SUBROUTINE AnalyzeParticles(Time)
           END DO
         END IF
 #endif
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
             DO iSpec=1, nSpecies         
@@ -527,6 +528,7 @@ SUBROUTINE AnalyzeParticles(Time)
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Pmax',' '
           OutputCounter = OutputCounter + 1
         END IF
+#endif
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
         IF (DSMC%WallModel.EQ.3) THEN
           IF (CalcSurfNumSpec) THEN
@@ -708,6 +710,7 @@ SUBROUTINE AnalyzeParticles(Time)
 ! Analyze Routines
 !===================================================================================================================================
 
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
   IF((iter.GT.0).AND.(DSMC%CalcQualityFactors).AND.(DSMC%CollProbMeanCount.GT.0)) THEN
@@ -717,7 +720,7 @@ SUBROUTINE AnalyzeParticles(Time)
     MaxCollProb = 0.0
     MeanCollProb = 0.0
   END IF
-
+#endif
   ! computes the real and simulated number of particles
   CALL CalcNumPartsofSpec(NumSpec,SimNumSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
