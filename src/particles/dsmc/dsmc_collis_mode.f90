@@ -1873,7 +1873,7 @@ __STAMP__&
           ReactionProb4 = 0.0
         END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(iPart_p3.GT.0)) THEN
           ChemReac%NumReac(iReac4) = ChemReac%NumReac(iReac4) + ReactionProb4  ! for calculation of reaction rate coefficient
         END IF
 # endif
@@ -1991,7 +1991,7 @@ __STAMP__&
           ReactionProb3 = 0.0
         END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(iPart_p3.GT.0)) THEN
           ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
           ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
         END IF
@@ -2096,7 +2096,7 @@ __STAMP__&
           ReactionProb3 = 0.0
         END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(iPart_p3.GT.0)) THEN
           ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
           ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
         END IF
@@ -2192,7 +2192,7 @@ __STAMP__&
           ReactionProb2 = 0.0
         END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(iPart_p3.GT.0)) THEN
           ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
           ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
         END IF
@@ -2275,7 +2275,7 @@ __STAMP__&
           ReactionProb2 = 0.0
         END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(iPart_p3.GT.0)) THEN
           ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
           ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
         END IF

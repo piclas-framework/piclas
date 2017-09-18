@@ -683,7 +683,7 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
     tempProb = tempProb + tempEng(iDOF)
   END DO
   CALL RANDOM_NUMBER(iRan2)
-  DO WHILE ((iRan2.GT.((Ec-tempProb)**FakXi/NormProb)).OR.(Ec-tempProb.LT.0.0))
+  DO !WHILE ((iRan2.GT.((Ec-tempProb)**FakXi/NormProb)).OR.(Ec-tempProb.LT.0.0))
     CALL RANDOM_NUMBER(iRan)
     iQuant(:)=INT(iRan(:)*iMaxQuant(:))
     tempEng(:)=(iQuant(:) + 0.5)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:)*BoltzmannConst
@@ -692,6 +692,9 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
       tempProb = tempProb + tempEng(iDOF)
     END DO
     CALL RANDOM_NUMBER(iRan2)
+    IF (Ec-tempProb.GT.0.0) THEN 
+      IF (iRan2.GT.((Ec-tempProb)**FakXi/NormProb)) EXIT
+    END IF
   END DO
   PartStateIntEn(iPart,1)=tempProb
   VibQuantsPar(iPart)%Quants(:) = iQuant(:)

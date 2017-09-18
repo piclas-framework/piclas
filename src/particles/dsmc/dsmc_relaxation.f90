@@ -119,7 +119,8 @@ SUBROUTINE SetMeanVibQua()
               PolyatomMolDSMC(iPolyatMole)%TVib = CalcTVibPoly(ChemReac%MeanEVib_PerIter(iSpec), iSpec)
               PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean = 2*(ChemReac%MeanEVib_PerIter(iSpec)-SpecDSMC(iSpec)%EZeroPoint) &
                                                             / (BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%TVib)
-            ELSEIF(ALMOSTEQUAL(ChemReac%MeanEVib_PerIter(iSpec),SpecDSMC(iSpec)%EZeroPoint)) THEN
+            ELSEIF(ABS(ChemReac%MeanEVib_PerIter(iSpec)-SpecDSMC(iSpec)%EZeroPoint)/SpecDSMC(iSpec)%EZeroPoint.LT.1E-9) THEN
+              ! Check relative difference between vibrational energy and zero-point energy
               PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean = 0.0
               PolyatomMolDSMC(iPolyatMole)%TVib = 0.0
             ELSE

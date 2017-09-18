@@ -249,7 +249,7 @@ SUBROUTINE AnalyzeParticles(Time)
   INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
   REAL                :: WEl, WMag, NumSpec(nSpecAnalyze)
   REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
-  REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
+  REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
   REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum, MeanFreePath
 #ifdef MPI
   REAL                :: sumMeanCollProb
@@ -2132,7 +2132,7 @@ REAL, INTENT(IN)                   :: NumSpec(nSpecAnalyze)    ! number of real 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)                  :: Temp(nSpecAnalyze)
-REAL, INTENT(OUT)                  :: IntEn(nSpecies,3)
+REAL, INTENT(OUT)                  :: IntEn(nSpecAnalyze,3)
 REAL, INTENT(OUT)                  :: IntTemp(nSpecies,3)
 REAL, INTENT(OUT)                  :: TempTotal(nSpecAnalyze)
 REAL, INTENT(OUT)                  :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
@@ -2441,7 +2441,7 @@ IMPLICIT NONE
 REAL, INTENT(IN)               :: NumSpec(nSpecAnalyze)    ! number of real particles (already GLOBAL number)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: IntTemp(nSpecies,3) , IntEn(nSpecies,3)
+REAL,INTENT(OUT)               :: IntTemp(nSpecies,3) , IntEn(nSpecAnalyze,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: iPart, iSpec, iDOF, iPolyatMole
