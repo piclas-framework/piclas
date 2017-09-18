@@ -116,7 +116,7 @@ USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter!,time
 USE MOD_Equation_Vars,     ONLY:c2_inv
 USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
 #ifdef MPI
-USE MOD_Particle_MPI_Vars, ONLY:DoExternalParts,PartMPI
+USE MOD_Particle_MPI_Vars, ONLY:PartMPI
 #endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -909,6 +909,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     SWRITE(UNIT_stdOut,'(A20,2x,L,2x,I10)') ' Accept?: ', DoSetLambda,iCounter
   END IF
 END DO
+
+IF(1.EQ.2)THEN
+  iPart=nInnerPartNewton
+END IF
 
 END SUBROUTINE Particle_Armijo
 

@@ -151,7 +151,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
-USE MOD_Equation_Vars,           ONLY:c_inv
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else

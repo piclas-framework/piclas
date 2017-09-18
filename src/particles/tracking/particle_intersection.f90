@@ -1194,6 +1194,8 @@ CALL abort(&
 __STAMP__&
 ,' The code should never go here')
 
+IF(PRESENT(ElemCheck_Opt)) firstClip=.FALSE.
+
 END SUBROUTINE ComputeCurvedIntersection
 
 

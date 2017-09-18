@@ -571,7 +571,7 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
       TotalIterLinearSolver=0
 #endif /*IMEX*/
-#if defined(IMPA) && defined(PARICLES)
+#if defined(IMPA) && defined(PARTICLES)
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
