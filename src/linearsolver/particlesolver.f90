@@ -114,6 +114,10 @@ USE MOD_Particle_Vars,     ONLY:Species,PartSpecies,PartIsImplicit,PDM,Pt,PartSt
 USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
 USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter!,time
 USE MOD_Equation_Vars,     ONLY:c2_inv
+USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
+#ifdef MPI
+USE MOD_Particle_MPI_Vars, ONLY:DoExternalParts,PartMPI
+#endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -124,6 +128,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER     :: iPart
 REAL        :: NewVelo(3),Vabs,PartGamma
+INTEGER     :: nImp,nExp
 !===================================================================================================================================
 
 PartIsImplicit=.FALSE.
@@ -173,6 +178,26 @@ CASE DEFAULT
 __STAMP__&
 ,' Method to select implicit particles is not implemented!')
 END SELECT
+
+IF(DoPrintConvInfo)THEN
+  nImp=0
+  nExp=0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(PartIsImplicit(iPart)) nImp=nImp+1
+    IF(.NOT.PartIsImplicit(iPart)) nExp=nExp+1
+  END DO
+#ifdef MPI
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,nExp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,nImp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+  ELSE
+    CALL MPI_REDUCE(nExp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(nImp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+  END IF
+#endif /*MPI*/
+  SWRITE(UNIT_StdOut,*) ' Particles explicit/implicit ', nExp, nImp
+END IF
   
 END SUBROUTINE SelectImplicitParticles
 #endif
