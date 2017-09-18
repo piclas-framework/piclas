@@ -2608,7 +2608,7 @@ USE MOD_part_MPFtools,           ONLY:StartParticleMerge
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts
+USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts,PartMPI
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*MPI*/
 USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
@@ -2640,7 +2640,7 @@ REAL               :: dtFrac,RandVal, LorentzFac,PartState_tmp(1:6)
 ! RK counter
 INTEGER            :: iCounter !, iStage
 #ifdef PARTICLES
-INTEGER            :: iPart
+INTEGER            :: iPart,nParts
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -2767,11 +2767,13 @@ IF(t.GE.DelayTime)THEN
   IF(DoSurfaceFlux)THEN
     RKdtFrac      = 1.0 ! RK_c(iStage)
     RKdtFracTotal = 1.0 ! RK_c(iStage)
+    IF(DoPrintConvInfo) nParts=0
     CALL ParticleSurfaceflux() 
     ! compute emission for all particles during dt
     DO iPart=1,PDM%ParticleVecLength
       IF(PDM%ParticleInside(iPart))THEN
         IF(PDM%IsNewPart(iPart))THEN
+          IF(DoPrintConvInfo) nParts=nParts+1
           IF(PartLorentzType.EQ.5)THEN
             LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
             LorentzFac=1.0/SQRT(LorentzFac)
@@ -2779,6 +2781,7 @@ IF(t.GE.DelayTime)THEN
             PartState(iPart,5) = LorentzFac*PartState(iPart,5)
             PartState(iPart,6) = LorentzFac*PartState(iPart,6)
           END IF
+          ! CAUTION: position in reference space has to be computed during emission for implicit particles
           ! interpolate field at surface position
           CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
           ! RHS at interface
@@ -2806,6 +2809,16 @@ IF(t.GE.DelayTime)THEN
         END IF ! IsNewPart
       END IF ! ParticleInside
     END DO ! iPart
+    IF(DoPrintConvInfo)THEN
+#ifdef MPI
+      IF(PartMPI%MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,nParts,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+      ELSE
+        CALL MPI_REDUCE(nParts       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+      END IF
+#endif /*MPI*/
+      SWRITE(UNIT_StdOut,*) ' SurfaceFlux-Particles: ',nParts
+    END IF
   END IF
 END IF ! t.GE. DelayTime
 #endif /*PARTICLES*/
@@ -2842,6 +2855,12 @@ DO iStage=2,nRKStages
   ! and particles
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
+    IF(MPIRoot)THEN
+      IF(DoPrintConvInfo)THEN
+        WRITE(*,*) '-----------------------------'
+        WRITE(*,*) ' compute last stage value.   '
+      END IF
+    END IF
     ! normal
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
@@ -3087,6 +3106,12 @@ DO iStage=2,nRKStages
     ! for            t_Stage >  t^n + (1.-RandVal)*dt particle is in domain and can be advanced in time
     !-------------------------------------------------------------------------------------------------------------------------------
     IF(DoSurfaceFlux)THEN
+     IF(MPIRoot)THEN
+       IF(DoPrintConvInfo)THEN
+         WRITE(*,*) '-----------------------------'
+         WRITE(*,*) ' surface flux particles '
+       END IF
+     END IF
       DO iPart=1,PDM%ParticleVecLength
         IF(PDM%ParticleInside(iPart))THEN
           ! dirty hack, hence new particles are set to explicit
@@ -3211,7 +3236,11 @@ IF (t.GE.DelayTime) THEN
   ! add here new method
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-    ! IF(DoSurfaceFlux)THEN
+    IF(DoSurfaceFlux)THEN
+      ! sanity check
+      IF(PDM%IsNewPart(iPart)) CALL abort(&
+   __STAMP__&
+   ,' Particle error with surfaceflux. Part-ID: ',iPart)
     !   IF(PDM%IsNewPart(iPart))THEN
     !     PDM%IsNewPart(iPart)=.FALSE.
     !     PEM%lastElement(iPart)=PEM%Element(iPart)
@@ -3237,7 +3266,7 @@ IF (t.GE.DelayTime) THEN
     !     END SELECT
     !     CYCLE
     !   END IF
-    ! END IF
+    END IF
     IF(.NOT.PartIsImplicit(iPart))THEN
       LastPartPos(iPart,1)=PartState(iPart,1)
       LastPartPos(iPart,2)=PartState(iPart,2)
