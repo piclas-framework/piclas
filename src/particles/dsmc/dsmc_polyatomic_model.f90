@@ -9,7 +9,7 @@ MODULE MOD_DSMC_PolyAtomicModel
 IMPLICIT NONE
 
 INTERFACE DSMC_VibRelaxPoly
-  MODULE PROCEDURE DSMC_VibRelaxPoly_MH
+  MODULE PROCEDURE DSMC_VibRelaxPoly_ARM_MH
 END INTERFACE
 
 INTERFACE DSMC_SetInternalEnr_Poly
@@ -22,7 +22,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly_ARM, DSMC_SetInternalEnr_Poly_MH, DSMC_SetInternalEnr_Poly_MH_FirstPick
-PUBLIC :: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly_ARM, DSMC_VibRelaxPoly_MH, Calc_Beta_Poly
+PUBLIC :: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly_ARM, DSMC_VibRelaxPoly_MH, Calc_Beta_Poly, DSMC_VibRelaxPoly_ARM_MH
 PUBLIC :: DSMC_FindFirstVibPick, DSMC_RelaxVibPolyProduct
 !===================================================================================================================================
 
@@ -122,7 +122,6 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -187,9 +186,6 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-  USE MOD_DSMC_Vars,            ONLY : LD_MultiTemperaturMod
-#endif
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Adaptive_MacroVal, PEM, Species
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
@@ -241,6 +237,10 @@ __STAMP__&
       __STAMP__&
       ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
+
+  IF (DSMC%ElectronicModel) THEN
+    CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
+  ENDIF
 
   ! set vibrational energy
   iPolyatMole = SpecDSMC(iSpecies)%SpecToPolyArray
@@ -317,6 +317,10 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
       __STAMP__&
       ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
+
+  IF (DSMC%ElectronicModel) THEN
+    CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
+  ENDIF
 
 ! Set vibrational energy of new molecule
   IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -415,6 +419,10 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf
       __STAMP__&
       ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
+
+  IF (DSMC%ElectronicModel) THEN
+    CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
+  ENDIF
 
   IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
     iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -515,6 +523,10 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
       ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
+  IF (DSMC%ElectronicModel) THEN
+    CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
+  ENDIF
+
   IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
     iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
     ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF) &          
@@ -581,7 +593,6 @@ SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib)
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, Coll_pData, VibQuantsPar
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PartSpecies
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -603,7 +614,7 @@ SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib)
   DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     ! Addition of the zero-point energy part for the respective dofs (avoiding the redistribution of too much vibrational energy)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DSMC%GammaQuant * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-    ! Maximum quantum number calculated with the collision energy
+    ! Maximum quantum number calculated with the collision energy, which does not contain zero-point energy!
     MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))  &
               - DSMC%GammaQuant
     iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
@@ -619,7 +630,7 @@ SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib)
     PartStateIntEn(iPart,1) = PartStateIntEn(iPart,1)     &
       + (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-        - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+      - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
     VibQuantsPar(iPart)%Quants(iDOF) = iQua
     IF (iDOF.LT.PolyatomMolDSMC(iPolyatMole)%VibDOF) FakXi = FakXi - 0.5*Xi_vib(iDOF + 1)
   END DO
@@ -634,7 +645,6 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PartSpecies
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -698,7 +708,6 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PartSpecies
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -753,14 +762,45 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 END SUBROUTINE DSMC_VibRelaxPoly_MH
 
 
+SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
+!===================================================================================================================================
+! Switch between ARM and MH depending on the number of vibrational modes:
+! Acceptance Rejection: up to 4 modes (molecules with 3 atoms, linear and non-linear)
+! Metropolis-Hastings: from 6 modes (molecules with 4 or more atoms)
+!===================================================================================================================================
+! MODULES
+  USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
+  USE MOD_Particle_Vars,        ONLY : PartSpecies
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iPair, iPart
+  REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                       :: iPolyatMole
+!===================================================================================================================================
+
+  iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.5) THEN
+    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
+  ELSE
+    CALL DSMC_VibRelaxPoly_ARM(iPair,iPart,FakXi)
+  END IF
+
+END SUBROUTINE DSMC_VibRelaxPoly_ARM_MH
+
+
 SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 !===================================================================================================================================
 ! Rotational relaxation routine
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn,  Coll_pData
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, Coll_pData
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

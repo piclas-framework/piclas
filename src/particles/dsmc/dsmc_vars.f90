@@ -104,6 +104,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL, ALLOCATABLE                :: PartitionFunction(:)  ! Partition function for each species in given temperature range
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
+  INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -405,10 +406,16 @@ TYPE tReactInfo
    REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability 
                                                             ! (nSpecies, quant num part3)
    INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)     ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
-END TYPE   
+END TYPE
+
+TYPE tArbDiss
+  INTEGER                         :: NumOfNonReactives      ! Number
+  INTEGER, ALLOCATABLE            :: NonReactiveSpecies(:)    ! Array with the non-reactive collision partners for dissociation
+END TYPE
 
 TYPE tChemReactions
   INTEGER                         :: NumOfReact             ! Number of possible Reactions
+  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)  !
   LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method

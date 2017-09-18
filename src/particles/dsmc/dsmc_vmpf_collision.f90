@@ -644,6 +644,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
 ! Vibrational Relaxation
 !--------------------------------------------------------------------------------------------------! 
 
+  FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
   IF(DoVib2) THEN
     CollisionEnergy = CollisionEnergy + PartStateIntEn(Part_2,1) ! adding vib energy to coll energy
     MaxColQua = CollisionEnergy/(BoltzmannConst*SpecDSMC(PartSpec2)%CharaTVib)  &

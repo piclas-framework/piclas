@@ -66,7 +66,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
-  INTEGER               :: iInter, iBC
+  INTEGER               :: iInter, MaxElecQua
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: JToEv, Temp
   REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
@@ -304,10 +304,10 @@ IMPLICIT NONE
       IF(.NOT.(SpecDSMC(iSpec)%InterID.EQ.4)) THEN
         WRITE(UNIT=hilf,FMT='(I2)') iSpec
         SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
-        IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%ElectronicModel)  THEN
+        IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%DoTEVRRelaxation)  THEN
           CALL Abort(&
           __STAMP__&
-          ,'! Simulation of Polyatomic Molecules and Electronic States are not possible yet!!!')
+          ,'! Simulation of Polyatomic Molecules and T-E-V-R relaxation not possible yet!!!')
         END IF
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           DSMC%NumPolyatomMolecs = DSMC%NumPolyatomMolecs + 1
@@ -401,7 +401,7 @@ __STAMP__&
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
             WRITE(UNIT=hilf,FMT='(I2)') iSpec
-            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
+            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
             IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
               IF (iInit.EQ.0)THEN
                 IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
@@ -437,7 +437,7 @@ __STAMP__&
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
             WRITE(UNIT=hilf,FMT='(I2)') iSpec
-            SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
+            SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
 __STAMP__&
@@ -545,13 +545,13 @@ __STAMP__&
     IF(DSMC%CompareLandauTeller) THEN
       IF(CollisMode.NE.2) THEN
         CALL abort(&
-        __STAMP__&
-        ,'ERROR: Comparison with Landau-Teller only available in CollisMode = 2, CollisMode:', CollisMode)
+__STAMP__&
+,'ERROR: Comparison with Landau-Teller only available in CollisMode = 2, CollisMode:', CollisMode)
       END IF
       IF(nSpecies.GT.1) THEN
         CALL abort(&
-        __STAMP__&
-        ,'ERROR: Comparison with Landau-Teller only available for a single species, nSpecies:', nSpecies)
+__STAMP__&
+,'ERROR: Comparison with Landau-Teller only available for a single species, nSpecies:', nSpecies)
       END IF
     END IF
 #endif
@@ -628,13 +628,31 @@ __STAMP__&
         PartitionArraySize = INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
       ELSE
         CALL abort(&
-        __STAMP__&
-        ,'ERROR: Partition temperature limit must be multiple of partition interval!')
+__STAMP__&
+,'ERROR: Partition temperature limit must be multiple of partition interval!')
       END IF
     END IF
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I2)') iSpec
-      SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfFormation_K','0.0')*BoltzmannConst
+      ! Read-in of heat of formation, ions shall have the same input as the respective neutral species since ionization energy is
+      ! added later. Energies are then consistent across chemical reactions of QK and Arrhenius type.
+      SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfFormation_K','0.123456789')
+      IF(SpecDSMC(iSpec)%HeatOfFormation.EQ.0.123456789) THEN
+        CALL abort(&
+__STAMP__&
+,'ERROR: Please specify heat of formation for species:', iSpec)
+      END IF
+      SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
+      ! Heat of formation of ionized species is modified with the ionization energy directly from read-in electronic energy levels
+      ! of the ground/previous state of the respective species (Input requires a species number (eg species number of N for NIon1))
+      IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState','0')
+        IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
+          CALL abort(&
+__STAMP__&
+,'ERROR: Please specify the previous state of the ion species:', iSpec)
+        END IF
+      END IF
       ! Read-in of species parameters for the partition function calculation -------------------------------------------------------
       IF(DSMC%BackwardReacRate) THEN
         IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -644,22 +662,22 @@ __STAMP__&
             IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
               IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
                 CALL abort(&
-                __STAMP__&
-                ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+__STAMP__&
+,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
               END IF
             ELSE
               IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
                  * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
                 CALL abort(&
-                __STAMP__&
-                ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+__STAMP__&
+,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
               END IF
             END IF
           ELSE            
             IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
               CALL abort(&
-              __STAMP__&
-              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+__STAMP__&
+,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
             END IF
           END IF
         END IF
@@ -683,6 +701,18 @@ __STAMP__&
           SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
         END DO
       END IF
+      ! Adding the ionization energy of the ground/previous state to the heat of formation of ionized species
+      IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
+          MaxElecQua = SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant - 1
+          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation &
+                                          + SpecDSMC(SpecDSMC(iSpec)%PreviousState)%ElectronicState(2,MaxElecQua)*BoltzmannConst
+        ELSE
+          CALL abort(&
+__STAMP__&
+,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
+        END IF
+      END IF
       !-----------------------------------------------------------------------------------------------------------------------------
       SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')    
       SpecDSMC(iSpec)%RelPolarizability     = GETREAL('Part-Species'//TRIM(hilf)//'-RelPolarizability','0')
@@ -704,22 +734,22 @@ __STAMP__&
           IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
             IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
               CALL abort(&
-              __STAMP__&
-              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
+__STAMP__&
+,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
             END IF
           ELSE
             IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
                 * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
               CALL abort(&
-              __STAMP__&
-              ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
+__STAMP__&
+,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
             END IF
           END IF
         ELSE            
           IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
             CALL abort(&
-            __STAMP__&
-            ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
+__STAMP__&
+,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
           END IF
         END IF
       END IF
@@ -745,8 +775,8 @@ __STAMP__&
   END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(&
-    __STAMP__&
-    ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
+__STAMP__&
+,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
