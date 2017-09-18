@@ -15,8 +15,6 @@ REAL                  :: ManualTimeStep                                      ! M
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
-LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
-LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
@@ -233,7 +231,6 @@ TYPE tSurfaceflux
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
-  REAL                                   :: PressureFraction
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -250,8 +247,6 @@ TYPE tSpecies                                                                ! P
   LOGICAL                                :: IsImplicit
 #endif
 END TYPE
-
-REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
@@ -307,7 +302,6 @@ REAL                                     :: DelayTime
 
 LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
 
-LOGICAL                                  :: WRITEMacroValues = .FALSE.
 LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! Output of macroscopic values in volume
 LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling   

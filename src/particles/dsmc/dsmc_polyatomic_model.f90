@@ -190,8 +190,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
   USE MOD_DSMC_Vars,            ONLY : LD_MultiTemperaturMod
 #endif
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Adaptive_MacroVal, PEM, Species
-  USE MOD_Particle_Boundary_Vars,ONLY: PartBound
+  USE MOD_Particle_Vars,        ONLY : BoltzmannConst
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -206,8 +205,6 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
   INTEGER                       :: iQuant, iDOF, iPolyatMole
   REAL                          :: TVib                       ! vibrational temperature
   REAL                          :: TRot                       ! rotational temperature
-  INTEGER                       :: ElemID
-  REAL                          :: pressure
 !===================================================================================================================================
 
   SELECT CASE (init_or_sf)
@@ -215,27 +212,8 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
       TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
       TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
     CASE(2) !SurfaceFlux
-      IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
-        !-- compute number of to be inserted particles
-        SELECT CASE(PartBound%AdaptiveType(Species(iSpecies)%Surfaceflux(iInit)%BC))
-        CASE(1) ! Pressure inlet (pressure, temperature const)
-          TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
-        CASE(2) ! adaptive Outlet/freestream
-          ElemID = PEM%Element(iPart)
-          pressure = PartBound%AdaptivePressure(Species(iSpecies)%Surfaceflux(iInit)%BC)
-          TVib = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
-          TRot = TVib
-        CASE(3) ! pressure outlet (pressure defined)
-        CASE DEFAULT
-          CALL abort(&
-__STAMP__&
-,'wrong adaptive type for Surfaceflux in vib/rot poly!')
-        END SELECT
-      ELSE
-        TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
-        TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
-      END IF
+      TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
+      TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
     CASE DEFAULT
       CALL abort(&
       __STAMP__&

@@ -34,20 +34,24 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
 USE MOD_ReadInTools
-USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone, WriteMacroVolumeValues, nSpecies
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
-USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
-USE MOD_Mesh_Vars,                  ONLY: nElems
-USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
+USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC,AnalyzeSurfCollis
+USE MOD_Mesh_Vars,                  ONLY : nElems
+USE MOD_InitializeBackgroundField,  ONLY:InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 #ifdef MPI
-USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
+USE MOD_Particle_MPI,               ONLY:InitParticleCommSize
 #endif
+USE MOD_PICDepo_Vars,               ONLY:SFResampleAnalyzeSurfCollis
+USE MOD_DSMC_Analyze,               ONLY:ReadAnalyzeSurfCollisToHDF5
+USE MOD_PICDepo_Vars,               ONLY:LastAnalyzeSurfCollis
+USE MOD_Particle_Vars,              ONLY:WriteMacroSurfaceValues
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,6 +60,11 @@ USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER,ALLOCATABLE   :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
+CHARACTER(32)         :: hilf , hilf2
+INTEGER               :: iSpec, iBC
+#ifdef MPI
+#endif
 !===================================================================================================================================
 IF(ParticlesInitIsDone)THEN
    SWRITE(*,*) "InitParticles already called."
@@ -69,6 +78,21 @@ IF(useBGField) CALL InitializeBackgroundField()
 
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
+
+IF (useDSMC) THEN
+  CALL  InitDSMC()
+  IF (useLD) CALL InitLD
+ELSE IF (WriteMacroVolumeValues) THEN
+  DSMC%CalcSurfaceVal  = .FALSE.
+  DSMC%ElectronicModel = .FALSE.
+  DSMC%OutputMeshInit  = .FALSE.
+  DSMC%OutputMeshSamp  = .FALSE.
+END IF
+
+#ifdef MPI
+! has to be called AFTER InitializeVariables and InitDSMC 
+CALL InitParticleCommSize()
+#endif
 
 ! Initialize volume sampling
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
@@ -87,23 +111,80 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
+DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
+IF (DSMC%CalcSurfaceVal) THEN
+  WriteMacroSurfaceValues = .FALSE.
+  IF(ALMOSTZERO(DSMC%TimeFracSamp)) WriteMacroSurfaceValues=.TRUE.
+  DSMC%CalcSurfaceTime = GETLOGICAL('Particles-DSMC-CalcSurfaceTime','.FALSE.')
   CALL InitParticleBoundarySampling()
+  
+  DSMC%CalcSurfCollis_OnlySwaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_OnlySwaps','.FALSE.')
+  DSMC%CalcSurfCollis_Only0Swaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Only0Swaps','.FALSE.')
+  DSMC%CalcSurfCollis_Output = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Output','.FALSE.')
+  IF (DSMC%CalcSurfCollis_Only0Swaps) DSMC%CalcSurfCollis_OnlySwaps=.TRUE.
+  DSMC%AnalyzeSurfCollis = GETLOGICAL('Particles-DSMC-AnalyzeSurfCollis','.FALSE.')
+  AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
+  ALLOCATE(AnalyzeSurfCollis%BCs(1))
+  AnalyzeSurfCollis%BCs = 0
+  IF (.NOT.DSMC%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) THEN
+    CALL abort(__STAMP__,&
+      'ERROR: SFResampleAnalyzeSurfCollis was set without DSMC%AnalyzeSurfCollis!')
+  END IF
+  IF (DSMC%AnalyzeSurfCollis) THEN
+    AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
+    AnalyzeSurfCollis%NumberOfBCs = GETINT('Particles-DSMC-NumberOfBCs','1')
+    IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
+      AnalyzeSurfCollis%BCs = GETINT('Particles-DSMC-SurfCollisBC','0') ! 0 means all...
+    ELSE
+      DEALLOCATE(AnalyzeSurfCollis%BCs)
+      ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
+      hilf2=''
+      DO iBC=1,AnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...
+        WRITE(UNIT=hilf,FMT='(I0)') 0
+        hilf2=TRIM(hilf2)//TRIM(hilf)
+        IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
+      END DO
+      AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-DSMC-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,hilf2)
+    END IF
+    ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
+    ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
+    ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
+    ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
+    IF (LastAnalyzeSurfCollis%Restart) THEN
+      CALL ReadAnalyzeSurfCollisToHDF5()
+    END IF
+    !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
+    AnalyzeSurfCollis%Data=0.
+    AnalyzeSurfCollis%Spec=0
+    AnalyzeSurfCollis%BCid=0
+    AnalyzeSurfCollis%Number=0
+    !AnalyzeSurfCollis%Rate=0.
+  END IF
+! Species-dependent calculations
+  ALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags(1:nSpecies))
+  DSMC%CalcSurfCollis_NbrOfSpecies = GETINT('Particles-DSMC-CalcSurfCollis_NbrOfSpecies','0')
+  IF ( (DSMC%CalcSurfCollis_NbrOfSpecies.GT.0) .AND. (DSMC%CalcSurfCollis_NbrOfSpecies.LE.nSpecies) ) THEN
+    ALLOCATE(CalcSurfCollis_SpeciesRead(1:DSMC%CalcSurfCollis_NbrOfSpecies))
+    hilf2=''
+    DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies !build default string: 1 - CSC_NoS
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      hilf2=TRIM(hilf2)//TRIM(hilf)
+      IF (ispec.NE.DSMC%CalcSurfCollis_NbrOfSpecies) hilf2=TRIM(hilf2)//','
+    END DO
+    CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-DSMC-CalcSurfCollis_Species',DSMC%CalcSurfCollis_NbrOfSpecies,hilf2)
+    DSMC%CalcSurfCollis_SpeciesFlags(:)=.FALSE.
+    DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies
+      DSMC%CalcSurfCollis_SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
+    END DO
+    DEALLOCATE(CalcSurfCollis_SpeciesRead)
+  ELSE IF (DSMC%CalcSurfCollis_NbrOfSpecies.EQ.0) THEN !default
+    DSMC%CalcSurfCollis_SpeciesFlags(:)=.TRUE.
+  ELSE
+    CALL abort(&
+    __STAMP__&
+    ,'Error in Particles-DSMC-CalcSurfCollis_NbrOfSpecies!')
+  END IF
 END IF
-
-IF (useDSMC) THEN
-  CALL  InitDSMC()
-  IF (useLD) CALL InitLD
-ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
-  DSMC%ElectronicModel = .FALSE.
-  DSMC%OutputMeshInit  = .FALSE.
-  DSMC%OutputMeshSamp  = .FALSE.
-END IF
-
-#ifdef MPI
-! has to be called AFTER InitializeVariables and InitDSMC 
-CALL InitParticleCommSize()
-#endif
 
 ParticlesInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
@@ -120,11 +201,11 @@ USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC
+USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
-USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC
+USE MOD_DSMC_Vars,             ONLY:useDSMC
 USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK, OutputMesh
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
@@ -133,7 +214,6 @@ USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
-USE MOD_TimeDisc_Vars,         ONLY:TEnd
 #if defined(IMEX) || defined (IMPA)
 USE MOD_TimeDisc_Vars,         ONLY: nRKStages
 #endif /*IMEX*/
@@ -389,30 +469,8 @@ END IF
 OutputMesh = GETLOGICAL('Part-WriteOutputMesh','.FALSE.')
            
 ! output of macroscopic values
-WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
-WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.FALSE.')
-WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.FALSE.')
-IF(WriteMacroValues)THEN
-  WriteMacroVolumeValues = .TRUE.
-  WriteMacroSurfaceValues = .TRUE.
-ELSE IF((WriteMacroVolumeValues.AND.WriteMacroSurfaceValues).AND.(.NOT.WriteMacroValues))THEN
-  WriteMacroValues = .TRUE.
-END IF
+WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
-DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
-DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.') 
-IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
-  IF(DSMC%TimeFracSamp.GT.0.0) CALL abort(&
-__STAMP__&
-    ,'ERROR: Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
-  IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal = .TRUE.
-END IF
-DSMC%NumOutput = GETINT('Particles-NumberOfDSMCOutputs','0')
-IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
-IF (DSMC%NumOutput.NE.0) THEN
-  DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
-END IF
-
 !ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
 WriteFieldsToVTK = GETLOGICAL('Part-WriteFieldsToVTK','.FALSE.')
 
@@ -888,27 +946,6 @@ ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
-ALLOCATE(PartBound%SolidState(1:nPartBound))
-ALLOCATE(PartBound%SolidCatalytic(1:nPartBound))
-ALLOCATE(PartBound%SolidSpec(1:nPartBound))
-ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
-ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
-ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
-ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
-ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
-ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
-SolidSimFlag = .FALSE.
-LiquidSimFlag = .FALSE.
-
-ALLOCATE(PartBound%Adaptive(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
-ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
-nAdaptiveBC = 0
-PartBound%Adaptive(:) = .FALSE.
-PartBound%AdaptiveType(:) = -1
-PartBound%AdaptiveTemp(:) = -1.
-PartBound%AdaptivePressure(:) = -1.
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -945,18 +982,6 @@ DO iPartBound=1,nPartBound
        PartBound%AmbientThermalCond(iPartBound)=&
            GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientThermalCond','2.42948500556027E-2') ! N2:T=288K
      END IF
-     PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
-     IF(PartBound%Adaptive(iPartBound)) THEN
-       nAdaptiveBC = nAdaptiveBC + 1
-       PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-       PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
-       IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
-         CALL abort(&
-__STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp or -AdaptivePressure not defined')
-       END IF
-     END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
@@ -968,29 +993,6 @@ __STAMP__&
      PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
-     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState','.TRUE.')
-     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
-     IF(PartBound%SolidState(iPartBound))THEN
-       SolidSimFlag = .TRUE.
-       PartBound%SolidCatalytic(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidCatalytic','.FALSE.')
-       PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec','0')
-       PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens','1.0E+19')
-       PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC','3.2395E-25')
-       PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease','1.')
-       PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx','4')
-     END IF
-     IF (PartBound%LiquidSpec(iPartBound).GT.nSpecies) CALL abort(&
-__STAMP__&
-     ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%LiquidSpec(iPartBound))
-     ! Parameters for evaporation pressure using Antoine Eq.
-     PartBound%ParamAntoine(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-ParamAntoine',3,'0. , 0. , 0.')
-     IF ( (.NOT.PartBound%SolidState(iPartBound)) .AND. (ALMOSTZERO(PartBound%ParamAntoine(1,iPartBound))) &
-          .AND. (ALMOSTZERO(PartBound%ParamAntoine(2,iPartBound))) .AND. (ALMOSTZERO(PartBound%ParamAntoine(3,iPartBound))) ) THEN
-        CALL abort(&
-__STAMP__&
-       ,'Antoine Parameters not defined for Liquid Particle Boundary: ',iPartBound)
-     END IF
-     IF (.NOT.PartBound%SolidState(iPartBound)) LiquidSimFlag = .TRUE.
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -1028,7 +1030,6 @@ __STAMP__&
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
 END DO
-
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
 ! Set mapping from field boundary to particle boundary index
@@ -1038,11 +1039,11 @@ DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,1).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
-      SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
+      SWRITE(*,*)"PartBound",iPBC,"is internal bound, no mapping needed"
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      SWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      SWRITE(*,*)"Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -1346,25 +1347,12 @@ SDEALLOCATE(PartBound%AmbientVelo)
 SDEALLOCATE(PartBound%AmbientDens)
 SDEALLOCATE(PartBound%AmbientDynamicVisc)
 SDEALLOCATE(PartBound%AmbientThermalCond)
-SDEALLOCATE(PartBound%Adaptive)
-SDEALLOCATE(PartBound%AdaptiveType)
-SDEALLOCATE(PartBound%AdaptiveTemp)
-SDEALLOCATE(PartBound%AdaptivePressure)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
-SDEALLOCATE(PartBound%SolidState)
-SDEALLOCATE(PartBound%SolidCatalytic)
-SDEALLOCATE(PartBound%SolidSpec)
-SDEALLOCATE(PartBound%SolidPartDens)
-SDEALLOCATE(PartBound%SolidMassIC)
-SDEALLOCATE(PartBound%SolidAreaIncrease)
-SDEALLOCATE(PartBound%SolidCrystalIndx)
-SDEALLOCATE(PartBound%LiquidSpec)
-SDEALLOCATE(PartBound%ParamAntoine)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)
