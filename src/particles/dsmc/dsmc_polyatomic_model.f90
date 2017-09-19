@@ -672,18 +672,22 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
     NormProb = NormProb - 0.5*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
   END DO
   NormProb = NormProb**FakXi
-  CALL RANDOM_NUMBER(iRan)
   iMaxQuant(:) = INT(Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))-0.5) + 1
   iMaxQuant(:) = MIN(iMaxQuant(:), PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
 
+  CALL RANDOM_NUMBER(iRan)
   iQuant(:)=INT(iRan(:)*iMaxQuant(:))
   tempEng(:)=(iQuant(:) + 0.5)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:)*BoltzmannConst
   tempProb = 0.0
   DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     tempProb = tempProb + tempEng(iDOF)
   END DO
-  CALL RANDOM_NUMBER(iRan2)
-  DO !WHILE ((iRan2.GT.((Ec-tempProb)**FakXi/NormProb)).OR.(Ec-tempProb.LT.0.0))
+
+  DO
+    IF (Ec-tempProb.GT.0.0) THEN
+      CALL RANDOM_NUMBER(iRan2)
+      IF (iRan2.LE.((Ec-tempProb)**FakXi/NormProb)) EXIT
+    END IF
     CALL RANDOM_NUMBER(iRan)
     iQuant(:)=INT(iRan(:)*iMaxQuant(:))
     tempEng(:)=(iQuant(:) + 0.5)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:)*BoltzmannConst
@@ -691,10 +695,6 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
     DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
       tempProb = tempProb + tempEng(iDOF)
     END DO
-    CALL RANDOM_NUMBER(iRan2)
-    IF (Ec-tempProb.GT.0.0) THEN 
-      IF (iRan2.GT.((Ec-tempProb)**FakXi/NormProb)) EXIT
-    END IF
   END DO
   PartStateIntEn(iPart,1)=tempProb
   VibQuantsPar(iPart)%Quants(:) = iQuant(:)
