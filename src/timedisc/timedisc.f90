@@ -2817,7 +2817,7 @@ IF(t.GE.DelayTime)THEN
         CALL MPI_REDUCE(nParts       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
       END IF
 #endif /*MPI*/
-      SWRITE(UNIT_StdOut,*) ' SurfaceFlux-Particles: ',nParts
+      SWRITE(UNIT_StdOut,'(A,I10)') ' SurfaceFlux-Particles: ',nParts
     END IF
   END IF
 END IF ! t.GE. DelayTime
@@ -2835,11 +2835,9 @@ DO iStage=2,nRKStages
   tStage = t + RK_c(iStage)*dt
   alpha  = ESDIRK_a(iStage,iStage)*dt
   sGamma = 1.0/alpha
-  IF(MPIRoot)THEN
-    IF(DoPrintConvInfo)THEN
-      WRITE(*,*) '-----------------------------'
-      WRITE(*,*) 'istage:',istage
-    END IF
+  IF(DoPrintConvInfo)THEN
+    SWRITE(UNIT_StdOut,'(A)')    '-----------------------------'
+    SWRITE(UNIT_StdOut,'(A,I2)') 'istage:',istage
   END IF
 #ifndef PP_HDG
   ! store predictor
@@ -2855,11 +2853,9 @@ DO iStage=2,nRKStages
   ! and particles
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
-    IF(MPIRoot)THEN
-      IF(DoPrintConvInfo)THEN
-        WRITE(*,*) '-----------------------------'
-        WRITE(*,*) ' compute last stage value.   '
-      END IF
+    IF(DoPrintConvInfo)THEN
+      SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
+      SWRITE(UNIT_StdOut,'(A)') ' compute last stage value.   '
     END IF
     ! normal
     DO iPart=1,PDM%ParticleVecLength
@@ -2909,11 +2905,9 @@ DO iStage=2,nRKStages
   !--------------------------------------------------------------------------------------------------------------------------------
 
 #ifdef PARTICLES
-  IF(MPIRoot)THEN
-    IF(DoPrintConvInfo)THEN
-      WRITE(*,*) '-----------------------------'
-      WRITE(*,*) ' explicit particles'
-    END IF
+  IF(DoPrintConvInfo)THEN
+    SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
+    SWRITE(UNIT_StdOut,'(A)') ' explicit particles'
   END IF
   ExplicitSource=0.
   ! particle step || only explicit particles
@@ -2996,11 +2990,9 @@ DO iStage=2,nRKStages
 #endif /*DG*/
 
 #ifdef PARTICLES
-  IF(MPIRoot)THEN
-    IF(DoPrintConvInfo)THEN
-      WRITE(*,*) '-----------------------------'
-      WRITE(*,*) ' implicit particles '
-    END IF
+  IF(DoPrintConvInfo)THEN
+    SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
+    SWRITE(UNIT_StdOut,'(A)') ' implicit particles '
   END IF
   IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
@@ -3029,11 +3021,14 @@ DO iStage=2,nRKStages
             IF(iStage.NE.3) CALL abort(&
   __STAMP__&
   ,'Something wrong with iStage and PartDtFrac! ')
+            ! the acceleration and velocity is taken from previous/first stage
+            PartStage(iPart,1:6,iStage)=PartStage(iPart,1:6,1)
             PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage)*PartStage(iPart,1:6,iStage)
             DO iCounter=1,iStage-1
               PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
             END DO ! iCounter=1,iStage-2
             PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
+            ! assume outside force is constant
             Pt(iPart,1:3) = PartStage(iPart,4:6,1)
             ! update velocity, DO not change position, only velocity required for update
             PartState(iPart,4:6)=PartQ(4:6,iPart)
@@ -3106,12 +3101,10 @@ DO iStage=2,nRKStages
     ! for            t_Stage >  t^n + (1.-RandVal)*dt particle is in domain and can be advanced in time
     !-------------------------------------------------------------------------------------------------------------------------------
     IF(DoSurfaceFlux)THEN
-     IF(MPIRoot)THEN
-       IF(DoPrintConvInfo)THEN
-         WRITE(*,*) '-----------------------------'
-         WRITE(*,*) ' surface flux particles '
-       END IF
-     END IF
+      IF(DoPrintConvInfo)THEN
+        SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
+        SWRITE(UNIT_StdOut,'(A)') ' surface flux particles '
+      END IF
       DO iPart=1,PDM%ParticleVecLength
         IF(PDM%ParticleInside(iPart))THEN
           ! dirty hack, hence new particles are set to explicit
