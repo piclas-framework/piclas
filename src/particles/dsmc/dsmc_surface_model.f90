@@ -2346,6 +2346,7 @@ END DO ! iProc
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   iPos=0
+  AdsorbSendBuf(iProc)%content_int = 0
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
     DO q=1,nSurfSample
@@ -2408,7 +2409,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
   AdsorbRecvBuf(iProc)%content_int = 0
-  AdsorbSendBuf(iProc)%content_int = 0
 END DO ! iProc
 
 END SUBROUTINE ExchangeAdsorbNum
@@ -2554,6 +2554,7 @@ END DO ! iProc
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSurfDistSidesSend(iProc).EQ.0) CYCLE
   iPos=0
+  SurfDistSendBuf(iProc)%content_int = 0
   DO iSurfSide=1,SurfExchange%nSurfDistSidesSend(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(iSurfSide)
     DO q=1,nSurfSample
@@ -2628,7 +2629,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     END DO ! q=0,nSurfSample.
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
   SurfDistRecvBuf(iProc)%content_int = 0
-  SurfDistSendBuf(iProc)%content_int = 0
 END DO ! iProc
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
@@ -2703,6 +2703,7 @@ END DO ! iProc
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nCoverageSidesSend(iProc).EQ.0) CYCLE
   iPos=0
+  SurfCoverageSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfExchange%nCoverageSidesSend(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%CoverageSendList(iSurfSide)
     DO q=1,nSurfSample
@@ -2766,7 +2767,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     END DO ! q=0,nSurfSample.
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
   SurfCoverageRecvBuf(iProc)%content = 0.
-  SurfCoverageSendBuf(iProc)%content = 0.
 END DO ! iProc
 
 END SUBROUTINE ExchangeCoverageInfo
