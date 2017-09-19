@@ -443,12 +443,9 @@ SUBROUTINE QK_ImpactIonization(iPair,iReac,RelaxToDo)
 ! derived from the work of Liechty 2010-02
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac
+USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
 USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst
-#if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars,              ONLY : DSMC
-#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
