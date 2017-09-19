@@ -561,7 +561,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
       IF(SpecDSMC(ProductReac(3))%InterID.EQ.4) THEN
         PartStateIntEn(React3Inx,3) = 0.0
       ELSE
-        CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,React3Inx,FakXi)
+        CALL ElectronicEnergyExchange(iPair,React3Inx,FakXi)
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React3Inx,3)
       END IF
     END IF
@@ -569,14 +569,14 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
     IF(SpecDSMC(ProductReac(2))%InterID.EQ.4) THEN
       PartStateIntEn(React2Inx,3) = 0.0
     ELSE
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,React2Inx,FakXi)
+      CALL ElectronicEnergyExchange(iPair,React2Inx,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React2Inx,3)
     END IF
     FakXi = FakXi - 0.5*Xi_elec(1)
     IF(SpecDSMC(ProductReac(1))%InterID.EQ.4) THEN
       PartStateIntEn(React1Inx,3) = 0.0
     ELSE
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,React1Inx,FakXi)
+      CALL ElectronicEnergyExchange(iPair,React1Inx,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,3)
     END IF
   END IF ! DSMC%ElectronicModel
@@ -700,7 +700,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
     ERel_React1_React3 = Coll_pData(iPair)%Ec - ERel_React1_React2
     IF(EductReac(3).NE.0) THEN
       ! Scattering 3 -> 3: Utilizing the FracMassCent's from above, calculated for the pseudo-molecule and the third educt,
-      ! PartState(Reac1Inx) is the centre of mass of the pseudo-molecule
+      ! PartState(React1Inx) is the centre of mass of the pseudo-molecule
       VeloMx = FracMassCent1 * PartState(React1Inx, 4) &
              + FracMassCent2 * PartState(React3Inx, 4)
       VeloMy = FracMassCent1 * PartState(React1Inx, 5) &
@@ -950,7 +950,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
   ! Reading the stoichiometric coefficients from the reactants
   iReac = iReacTmp - ChemReac%NumOfReact/2
   IF (ChemReac%QKProcedure(iReac)) THEN
-    IF (ChemReac%ReactType(iReac).EQ.'iQK') THEN
+    IF (TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
       MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
       ActivationEnergy = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)
     END IF

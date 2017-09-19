@@ -200,20 +200,6 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
-
-!Debug_Energy(1) = Debug_Energy(1) &
-!     + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MassIC &
-!   * (PartState(Coll_pData(iPair)%iPart_p1,4)**2  &
-!     +PartState(Coll_pData(iPair)%iPart_p1,5)**2  &
-!     +PartState(Coll_pData(iPair)%iPart_p1,6)**2) &
-!     + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p2))%MassIC* &
-!     (PartState(Coll_pData(iPair)%iPart_p2,4)**2 &
-!     +PartState(Coll_pData(iPair)%iPart_p2,5)**2&
-!     +PartState(Coll_pData(iPair)%iPart_p2,6)**2) &
-!     +PartStateIntEn(Coll_pData(iPair)%iPart_p1,3) &
-!     +PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
-!print*,'!!!!!!!!!!!!!!!!!!!!'
-!print*, PartStateIntEn(Coll_pData(iPair)%iPart_p1,3), PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
 !--------------------------------------------------------------------------------------------------!
@@ -256,12 +242,12 @@ END IF
     ! calculate energy for electronic relaxation of particle 1
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)
 #if (PP_TimeDiscMethod == 42)
-    CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
+    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
 #else
     IF (usevMPF) THEN
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2,iElem)
+      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2,iElem)
     ELSE
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi )
+      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi )
     END IF
 #endif
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)
@@ -271,12 +257,12 @@ END IF
     ! calculate energy for electronic relaxation of particle 1
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
 #if (PP_TimeDiscMethod == 42)
-    CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
+    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
 #else
     IF (usevMPF) THEN
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1,iElem)
+      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1,iElem)
     ELSE
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi )
+      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi )
     END IF
 #endif
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
@@ -294,7 +280,7 @@ END IF
 
   IF(DoVib1) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN      
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
       CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
@@ -410,16 +396,6 @@ END IF
 
   IF(usevMPF) CALL vMPF_PostVelo(iPair, iElem)
 
-!Debug_Energy(2) = Debug_Energy(2) &
-!    + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MassIC &
-!   * ((VeloMx + FracMassCent2*RanVelox)**2+(VeloMy + FracMassCent2*RanVeloy)**2 +(VeloMz + FracMassCent2*RanVeloz)**2) &
-!    + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p2))%MassIC* &
-!     ((VeloMx - FracMassCent1*RanVelox)**2+(VeloMy - FracMassCent1*RanVeloy)**2+(VeloMz - FracMassCent1*RanVeloz)**2) &
-!    + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)+ PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
-
-!print*, PartStateIntEn(Coll_pData(iPair)%iPart_p1,3), PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
-!print*,'relax', evor, enach, evor-enach, PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2)
-!print*,'!!!!!!!!!!!!!!!!!!!!'
 #if (PP_TimeDiscMethod==42)
   ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
   END IF
@@ -495,14 +471,14 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
     CALL DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib1, ProbVibMax1)
-    CALL DSMC_calc_P_rot(iSpec, jSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
+    CALL DSMC_calc_P_rot(iSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF (SpecDSMC(jSpec)%InterID.EQ.2) THEN
     CALL DSMC_calc_P_vib(jSpec, iSpec, iPair, Xi_rel, ProbVib2, ProbVibMax2)
-    CALL DSMC_calc_P_rot(jSpec, iSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
+    CALL DSMC_calc_P_rot(jSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
     ProbRot2 = 0.
@@ -1919,8 +1895,7 @@ __STAMP__&
               ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + 1  ! for calculation of reaction rate coefficient
             END IF
 # endif
-          ELSE
-            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          ELSEIF(ReactionProb4.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
@@ -2024,8 +1999,7 @@ __STAMP__&
               ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
             END IF
 # endif
-          ELSE
-            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          ELSEIF(ReactionProb3.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
@@ -2129,8 +2103,7 @@ __STAMP__&
               ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
             END IF
 # endif
-          ELSE
-            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          ELSEIF(ReactionProb3.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
@@ -2212,8 +2185,7 @@ __STAMP__&
               ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
             END IF
 # endif
-          ELSE
-            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          ELSEIF(ReactionProb2.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
@@ -2295,8 +2267,7 @@ __STAMP__&
               ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
             END IF
 #endif
-          ELSE
-            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          ELSEIF(ReactionProb2.GT.0.0) THEN ! Probability is set to zero if no third collision partner is found
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
@@ -2540,7 +2511,7 @@ __STAMP__&
 END SUBROUTINE ReactionDecision
 
 
-SUBROUTINE DSMC_calc_P_rot(iSpec, jSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
+SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! Calculation of probability for rotational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2556,7 +2527,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, jSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotM
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)       :: iSpec, iPair, iPart, jSpec
+  INTEGER, INTENT(IN)       :: iSpec, iPair, iPart
   REAL, INTENT(IN)          :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2601,11 +2572,6 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, jSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotM
     CALL Abort(&
 __STAMP__&
 ,'Error! Model for rotational relaxation undefined:',RealInfoOpt=DSMC%RotRelaxProb)
-  END IF
-
-  ! disable compiler warnings
-  IF(1.EQ.2)THEN
-    CorrFact=REAL(jSpec)
   END IF
 
 END SUBROUTINE DSMC_calc_P_rot

@@ -684,7 +684,7 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
   END DO
 
   DO
-    IF (Ec-tempProb.GT.0.0) THEN
+    IF (Ec-tempProb.GE.0.0) THEN
       CALL RANDOM_NUMBER(iRan2)
       IF (iRan2.LE.((Ec-tempProb)**FakXi/NormProb)) EXIT
     END IF

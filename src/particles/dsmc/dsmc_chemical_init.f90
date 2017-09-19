@@ -192,6 +192,11 @@ __STAMP__&
                               + ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1)*SpecDSMC(iSpec)%HeatOfFormation
         ! For the impact-ionization, the heat of reaction is equal to the ionization energy
         IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
+          IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState)) THEN
+            CALL abort(&
+            __STAMP__&
+            ,'ERROR: QK reactions require the definition of at least the ionization energy as electronic level!',iReac)
+          END IF
           MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
           ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
         END IF

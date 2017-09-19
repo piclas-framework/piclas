@@ -105,11 +105,13 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
+  INTEGER                           :: NextIonizationSpecies! 
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
 TYPE tDSMC 
+  INTEGER                       :: ElectronSpecies          ! Species of the electron
   REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot), 
                                                             ! should be 0.5 or 0
@@ -136,6 +138,7 @@ TYPE tDSMC
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean                 ! Summation of collision probability
   REAL                          :: CollProbMax               ! Maximal collision probability per cell
+  REAL                          :: MeanFreePath
   INTEGER                       :: CollProbMeanCount                ! counter of possible collision pairs
   INTEGER                       :: CollSepCount            ! counter of actual collision pairs
   REAL                          :: CollSepDist           ! Summation of mean collision separation distance

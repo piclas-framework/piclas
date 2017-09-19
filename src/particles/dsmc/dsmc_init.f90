@@ -649,8 +649,31 @@ __STAMP__&
         SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState','0')
         IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
           CALL abort(&
-__STAMP__&
-,'ERROR: Please specify the previous state of the ion species:', iSpec)
+          __STAMP__&
+          ,'ERROR: Please specify the previous state of the ion species:', iSpec)
+        END IF
+      END IF
+      ! Read-in of species for field ionization
+      IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+        SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies','0')
+      ELSE
+        SpecDSMC(iSpec)%NextIonizationSpecies = 0
+        DSMC%ElectronSpecies = iSpec
+      END IF
+      ! Read-in of electronic levels for QK and backward reaction rate -------------------------------------------------------------
+      IF (DSMC%ElectronicModelDatabase .EQ.'none') THEN
+        IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+          SpecDSMC(iSpec)%MaxElecQuant               = GETINT('Part-Species'//TRIM(hilf)//'-NumElectronicLevels','0')
+          IF(SpecDSMC(iSpec)%MaxElecQuant.GT.0) THEN
+            ALLOCATE(SpecDSMC(iSpec)%ElectronicState(2,0:SpecDSMC(iSpec)%MaxElecQuant-1))
+            DO iDOF=1, SpecDSMC(iSpec)%MaxElecQuant
+              WRITE(UNIT=hilf2,FMT='(I2)') iDOF
+              SpecDSMC(iSpec)%ElectronicState(1,iDOF-1) &
+                = GETINT('Part-Species'//TRIM(hilf)//'-ElectronicDegeneracy-Level'//TRIM(hilf2),'0')
+              SpecDSMC(iSpec)%ElectronicState(2,iDOF-1) &
+                = GETREAL('Part-Species'//TRIM(hilf)//'-ElectronicEnergyLevel-Level'//TRIM(hilf2),'0')
+            END DO
+          END IF
         END IF
       END IF
       ! Read-in of species parameters for the partition function calculation -------------------------------------------------------
@@ -681,17 +704,11 @@ __STAMP__&
             END IF
           END IF
         END IF
-        IF (DSMC%ElectronicModelDatabase .EQ. 'none') THEN
-          SpecDSMC(iSpec)%MaxElecQuant               = GETINT('Part-Species'//TRIM(hilf)//'-NumElectronicLevels','0')
-          IF(SpecDSMC(iSpec)%MaxElecQuant.GT.0) THEN
-            ALLOCATE(SpecDSMC(iSpec)%ElectronicState(2,0:SpecDSMC(iSpec)%MaxElecQuant-1))
-            DO iDOF=1, SpecDSMC(iSpec)%MaxElecQuant
-              WRITE(UNIT=hilf2,FMT='(I2)') iDOF
-              SpecDSMC(iSpec)%ElectronicState(1,iDOF-1) &
-                = GETINT('Part-Species'//TRIM(hilf)//'-ElectronicDegeneracy-Level'//TRIM(hilf2),'0')
-              SpecDSMC(iSpec)%ElectronicState(2,iDOF-1) &
-                = GETREAL('Part-Species'//TRIM(hilf)//'-ElectronicEnergyLevel-Level'//TRIM(hilf2),'0')
-            END DO
+        IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+          IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
+              CALL abort(&
+              __STAMP__&
+              ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
           END IF
         END IF
         ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))

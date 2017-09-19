@@ -459,28 +459,31 @@ INTEGER, INTENT(IN)           :: iPair, iReac
 LOGICAL, INTENT(INOUT)        :: RelaxToDo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: PartToExec, PartReac2, MaxElecQua
+INTEGER                       :: React1Inx, React2Inx, MaxElecQua
 REAL                          :: IonizationEnergy
 !===================================================================================================================================
 
 
 IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-  PartToExec = Coll_pData(iPair)%iPart_p1
-  PartReac2 = Coll_pData(iPair)%iPart_p2
+  React1Inx = Coll_pData(iPair)%iPart_p1
+  React2Inx = Coll_pData(iPair)%iPart_p2
 ELSE
-  PartToExec = Coll_pData(iPair)%iPart_p2
-  PartReac2 = Coll_pData(iPair)%iPart_p1
+  React1Inx = Coll_pData(iPair)%iPart_p2
+  React2Inx = Coll_pData(iPair)%iPart_p1
 END IF
 ! this is based on the idea of the QK method but used accordingly to the dissociation
 ! this time it is not possible to use quantizied levels as they are not equally spaced
 ! therefore we use the energy
-Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
-                           + PartStateIntEn(PartToExec,3)
+Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+
+IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(React1Inx,3)
+
 ! ionization level is last known energy level of species
-MaxElecQua=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
-IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,MaxElecQua)*BoltzmannConst
+MaxElecQua=SpecDSMC(PartSpecies(React1Inx))%MaxElecQuant - 1
+IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxElecQua)*BoltzmannConst
 ! if you have electronic levels above the ionization limit, such limits should be used instead of
 ! the pure energy comparison
+
 IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
 #if (PP_TimeDiscMethod==42)
   ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction

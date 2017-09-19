@@ -47,7 +47,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
   CALL RANDOM_NUMBER(iRan)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
-  DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
+  DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
    !laux diss page 31
    CALL RANDOM_NUMBER(iRan)
    iQua = INT(iRan * iQuaMax)

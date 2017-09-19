@@ -93,6 +93,7 @@ SUBROUTINE DSMC_main()
       DSMC%CollProbMeanCount = 0
       DSMC%CollSepDist = 0.0
       DSMC%CollSepCount = 0
+      DSMC%MeanFreePath = 0.0
     END IF
 #if (PP_TimeDiscMethod==42)
     IF (ChemReac%NumOfReact.GT.0) THEN
