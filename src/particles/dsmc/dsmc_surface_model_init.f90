@@ -1163,9 +1163,9 @@ USE MOD_ReadInTools
 USE MOD_Mesh_Vars,              ONLY : BC
 USE MOD_Particle_Vars,          ONLY : nSpecies, Species
 USE MOD_DSMC_Vars,              ONLY : Adsorption
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
 #ifdef MPI
-USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM, SampWall
+USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 USE MOD_Particle_MPI_Vars,      ONLY : SurfSendBuf,SurfRecvBuf,SurfExchange
 USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo, ExchangeSurfDistSize
 #endif /*MPI*/
