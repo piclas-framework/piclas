@@ -757,7 +757,7 @@ SUBROUTINE AnalyzeParticles(Time)
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
       CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      MeanCollProb = sumMeanCollProb / PartMPI%nProcs
+      MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
   ELSE ! no Root
     tLBStart = LOCALTIME() ! LB Time Start
     IF (CalcPartBalance)THEN
@@ -1376,7 +1376,7 @@ END IF
     END IF
     IF (CalcSurfCoverage) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,WallCoverage,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      WallCoverage = WallCoverage / SurfCOMM%nProcs
+      WallCoverage = WallCoverage / REAL(SurfCOMM%nProcs)
     END IF
   ELSE
     IF (CalcSurfNumSpec) THEN
