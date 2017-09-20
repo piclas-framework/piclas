@@ -749,7 +749,11 @@ SUBROUTINE AnalyzeParticles(Time)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF(DSMC%CalcQualityFactors) THEN
       MeanFreePath = 0.0
+#ifdef MPI
       IF((iter.GT.0).AND.PartMPI%MPIRoot) THEN
+#else
+      IF((iter.GT.0)) THEN
+#endif
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpec(1:nSpecies), NumSpec(nSpecAnalyze), &
                                                               GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
       END IF
