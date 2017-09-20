@@ -763,6 +763,9 @@ SUBROUTINE AnalyzeParticles(Time)
                                                             GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
     END IF
   END IF
+#else
+  MaxCollProb = 0.0
+  MeanCollProb = 0.0
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
@@ -788,7 +791,7 @@ SUBROUTINE AnalyzeParticles(Time)
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
       CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      MeanCollProb = sumMeanCollProb / PartMPI%nProcs
+      MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
     END IF
 #endif
   ELSE ! no Root
@@ -965,7 +968,6 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif
-
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
@@ -1419,7 +1421,7 @@ END IF
     END IF
     IF (CalcSurfCoverage) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,WallCoverage,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      WallCoverage = WallCoverage / SurfCOMM%nProcs
+      WallCoverage = WallCoverage / REAL(SurfCOMM%nProcs)
     END IF
   ELSE
     IF (CalcSurfNumSpec) THEN
