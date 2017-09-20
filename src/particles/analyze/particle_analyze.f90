@@ -727,7 +727,6 @@ SUBROUTINE AnalyzeParticles(Time)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
   IF(((CalcTemp.OR.CalcEint).AND.CollisMode.GT.1).OR.(DSMC%CalcQualityFactors)) THEN
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
@@ -747,20 +746,25 @@ SUBROUTINE AnalyzeParticles(Time)
         ETotal = ETotal - totalChemEnergySum
       END IF
     END IF
-  END IF
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+    IF(DSMC%CalcQualityFactors) THEN
+      MeanFreePath = 0.0
+      IF((iter.GT.0).AND.PartMPI%MPIRoot) THEN
+        IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpec(1:nSpecies), NumSpec(nSpecAnalyze), &
+                                                              GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
+      END IF
+    END IF
 #endif
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   IF(DSMC%CalcQualityFactors) THEN
     MaxCollProb = 0.0
     MeanCollProb = 0.0
-    MeanFreePath = 0.0
     IF(iter.GT.0) THEN
       MaxCollProb = DSMC%CollProbMax
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
-      IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpec(1:nSpecies), NumSpec(nSpecAnalyze), &
-                                                            GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
     END IF
   END IF
 #else
