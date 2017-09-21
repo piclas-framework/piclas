@@ -381,11 +381,12 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ImplicitSource=ExplicitSource
   ! store old value of U
   Uold=U
-#ifndef PP_HDG
-  CALL LinearSolver(tStage,coeff,relTolerance)
-#else
-  CALL HDG(tStage,U,iter)
-#endif /*HDG*/
+!#ifndef PP_HDG
+!  CALL LinearSolver(tStage,coeff,relTolerance)
+!#else
+!  CALL HDG(tStage,U,iter)
+!#endif /*HDG*/
+Uold=0.
 
   Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
@@ -440,8 +441,8 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       END IF
     END IF
   END IF
-  IF(DoPrintConvInfo.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I10,2x,E24.12,2x,E24.12,2x,E24.12)') ' iter,Norm_R,rel,abort' &
-                                                                  ,nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
+  !IF(DoPrintConvInfo.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I10,2x,E24.12,2x,E24.12,2x,E24.12)') ' iter,Norm_R,rel,abort' &
+  !                                                                ,nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
 
   Norm_Diff_old=Norm_Diff
   Norm_Diff=Norm_Rold-Norm_R
