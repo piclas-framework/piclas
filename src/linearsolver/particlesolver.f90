@@ -321,8 +321,7 @@ IF(opt)THEN ! compute zero state
       Pt_tmp(4) = Pt(iPart,1) 
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
-      F_PartX0(1:3,iPart) =   PartState(iPart,1:3)-PartQ(1:3,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:3)
-      F_PartX0(4:6,iPart) =   PartState(iPart,4:6)-PartQ(4:6,iPart)-coeff*Pt_tmp(4:6)
+      F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:6)
       PartXK(1:6,iPart)   =   PartState(iPart,1:6)
       R_PartXK(1:6,iPart) =   Pt_tmp(1:6)
       F_PartXK(1:6,iPart) =   F_PartX0(1:6,iPart)
@@ -734,8 +733,7 @@ __STAMP__&
     R_PartXK(4,iPart)=Pt(iPart,1)
     R_PartXK(5,iPart)=Pt(iPart,2)
     R_PartXK(6,iPart)=Pt(iPart,3)
-    F_PartXK(1:3,iPart)=PartState(iPart,1:3) - PartQ(1:3,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:3,iPart)
-    F_PartXK(4:6,iPart)=PartState(iPart,4:6) - PartQ(4:6,iPart) - coeff*R_PartXK(4:6,iPart)
+    F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
     ! if check, then here!
     DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
     IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
@@ -867,8 +865,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       R_PartXK(4,iPart)=Pt(iPart,1)
       R_PartXK(5,iPart)=Pt(iPart,2)
       R_PartXK(6,iPart)=Pt(iPart,3)
-      F_PartXK(1:3,iPart)=PartState(iPart,1:3) - PartQ(1:3,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:3,iPart)
-      F_PartXK(4:6,iPart)=PartState(iPart,4:6) - PartQ(4:6,iPart) - coeff*R_PartXK(4:6,iPart)
+      F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
       !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN

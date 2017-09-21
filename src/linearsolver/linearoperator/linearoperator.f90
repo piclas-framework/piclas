@@ -392,8 +392,7 @@ PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
 PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
 PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
-Y(1:3) = (X(1:3) - (PartDtFrac(PartID)*coeff/EpsFD)*(PartT(1:3) - R_PartXk(1:3,PartID)))
-Y(4:6) = (X(4:6) - (coeff/EpsFD)*(PartT(4:6) - R_PartXk(4:6,PartID)))
+Y(1:6) = (X(1:6) - (PartDtFrac(PartID)*coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
 
 ! compiler warnings
 IF(1.EQ.2)THEN
