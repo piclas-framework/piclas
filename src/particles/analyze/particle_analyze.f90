@@ -710,7 +710,7 @@ SUBROUTINE AnalyzeParticles(Time)
 ! Analyze Routines
 !===================================================================================================================================
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
   IF((iter.GT.0).AND.(DSMC%CalcQualityFactors).AND.(DSMC%CollProbMeanCount.GT.0)) THEN
@@ -720,6 +720,9 @@ SUBROUTINE AnalyzeParticles(Time)
     MaxCollProb = 0.0
     MeanCollProb = 0.0
   END IF
+#else
+  MaxCollProb = 0.0
+  MeanCollProb = 0.0
 #endif
   ! computes the real and simulated number of particles
   CALL CalcNumPartsofSpec(NumSpec,SimNumSpec)
@@ -757,7 +760,7 @@ SUBROUTINE AnalyzeParticles(Time)
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
       CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      MeanCollProb = sumMeanCollProb / PartMPI%nProcs
+      MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
   ELSE ! no Root
     tLBStart = LOCALTIME() ! LB Time Start
     IF (CalcPartBalance)THEN
@@ -932,7 +935,7 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif
-
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecies
@@ -983,6 +986,7 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') MaxCollProb
     END IF
+#endif
 #if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
 ! output for adsorption
     IF (DSMC%WallModel.EQ.3) THEN
@@ -1376,7 +1380,7 @@ END IF
     END IF
     IF (CalcSurfCoverage) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,WallCoverage,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      WallCoverage = WallCoverage / SurfCOMM%nProcs
+      WallCoverage = WallCoverage / REAL(SurfCOMM%nProcs)
     END IF
   ELSE
     IF (CalcSurfNumSpec) THEN

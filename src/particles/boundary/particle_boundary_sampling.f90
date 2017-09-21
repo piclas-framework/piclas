@@ -946,6 +946,7 @@ END DO ! iProc
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   iPos=0
+  SurfSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
     DO q=1,nSurfSample
@@ -1031,7 +1032,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
   SurfRecvBuf(iProc)%content = 0.
-  SurfSendBuf(iProc)%content = 0.
 END DO ! iProc
 
 END SUBROUTINE ExchangeSurfData
