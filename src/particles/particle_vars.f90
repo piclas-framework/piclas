@@ -51,8 +51,9 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
 #if defined(IMEX) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n
-REAL    , ALLOCATABLE :: PartSFEnter(:)                                      ! time fraction of domain entering (surface flux)
-REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! fraction of time step for push (surface flux)
+REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable: 
+                                                                             ! 1) time fraction of domain entering (surface flux)
+                                                                             ! 2) fraction of time step for push (surface flux)
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 !REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (1:NParts,1:3) with 2nd index: x,y,z

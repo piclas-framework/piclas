@@ -363,13 +363,6 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PartSFEnter(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartDtFrac arrays!')
-END IF
-PartSFEnter=1.
 ! ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
 !         ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
 ! IF (ALLOCSTAT.NE.0) THEN
