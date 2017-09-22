@@ -2668,20 +2668,20 @@ DO iCounter=3,nRKStages
   rTmp=MAX(rTmp,RK_c(iCounter))
 END DO ! iCounter=2,nRKStages-1
 
-print*,'c'
-DO iCounter=2,nRKStages
-  print*,'RK_c',RK_c(iCounter)
-END DO ! iCounter=2,nRKStages-1
-
-print*,'inc'
-DO iCounter=2,nRKStages
-  print*,'iStage-inc',iCounter,RK_inc(iCounter)
-END DO ! iCounter=2,nRKStages-1
-
-print*,'percent'
-DO iCounter=2,nRKStages
-  print*,'iStage-inflow',iCounter,RK_inflow(iCounter)
-END DO ! iCounter=2,nRKStages-1
+!print*,'c'
+!DO iCounter=2,nRKStages
+!  print*,'RK_c',RK_c(iCounter)
+!END DO ! iCounter=2,nRKStages-1
+!
+!print*,'inc'
+!DO iCounter=2,nRKStages
+!  print*,'iStage-inc',iCounter,RK_inc(iCounter)
+!END DO ! iCounter=2,nRKStages-1
+!
+!print*,'percent'
+!DO iCounter=2,nRKStages
+!  print*,'iStage-inflow',iCounter,RK_inflow(iCounter)
+!END DO ! iCounter=2,nRKStages-1
 !stop
 
 ! particle locating
@@ -3171,7 +3171,8 @@ DO iStage=2,nRKStages
         SWRITE(UNIT_StdOut,'(A)') ' surface flux particles '
         nParts=0
       END IF
-      print*,'rk_fillSF',rk_fillSF
+      rk_fillSF=RK_inflow(iStage)/RK_c(iStage)
+      !print*,'rk_fillSF',rk_fillSF
       DO iPart=1,PDM%ParticleVecLength
         IF(PDM%ParticleInside(iPart))THEN
           ! dirty hack, hence new particles are set to explicit
@@ -3250,21 +3251,21 @@ DO iStage=2,nRKStages
                 !  PDM%ParticleInside(iPart)=.FALSE.
                 !  PDM%IsNewPart(iPart)=.FALSE.
                 !END IF
-                IF(iStage.EQ.4)THEN
-                  PartIsImplicit(ipart)=.FALSE.
-                  PDM%ParticleInside(iPart)=.FALSE.
-                  PDM%IsNewPart(iPart)=.FALSE.
-                END IF
-                IF(iStage.EQ.5)THEN
-                  PartIsImplicit(ipart)=.FALSE.
-                  PDM%ParticleInside(iPart)=.FALSE.
-                  PDM%IsNewPart(iPart)=.FALSE.
-                END IF
-                IF(iStage.EQ.6)THEN
-                  PartIsImplicit(ipart)=.FALSE.
-                  PDM%ParticleInside(iPart)=.FALSE.
-                  PDM%IsNewPart(iPart)=.FALSE.
-                END IF
+                !IF(iStage.EQ.4)THEN
+                !  PartIsImplicit(ipart)=.FALSE.
+                !  PDM%ParticleInside(iPart)=.FALSE.
+                !  PDM%IsNewPart(iPart)=.FALSE.
+                !END IF
+                !IF(iStage.EQ.5)THEN
+                !  PartIsImplicit(ipart)=.FALSE.
+                !  PDM%ParticleInside(iPart)=.FALSE.
+                !  PDM%IsNewPart(iPart)=.FALSE.
+                !END IF
+                !IF(iStage.EQ.6)THEN
+                !  PartIsImplicit(ipart)=.FALSE.
+                !  PDM%ParticleInside(iPart)=.FALSE.
+                !  PDM%IsNewPart(iPart)=.FALSE.
+                !END IF
                 IF(DoPrintConvInfo)THEN
                   IF(PDM%ParticleInside(ipart)) nParts=nParts+1
                 END IF
@@ -3273,7 +3274,7 @@ DO iStage=2,nRKStages
           END IF
         END IF ! ParticleInside
       END DO ! iPart
-      RK_fillSF = RK_fillSF -RK_inflow(iStage)
+     ! RK_fillSF = RK_fillSF -RK_inflow(iStage)
       IF(DoPrintConvInfo)THEN
 #ifdef MPI
        IF(PartMPI%MPIRoot)THEN
@@ -3294,13 +3295,13 @@ DO iStage=2,nRKStages
 #endif /*DG*/
 #ifdef PARTICLES
 
-      nParts=0
-      DO iPart=1,PDM%ParticleVecLength
-        IF(PDM%ParticleInside(iPart))THEN
-          IF(PartIsImplicit(iPart)) nParts=nParts+1
-        END IF ! ParticleInside
-      END DO ! iPart
-      print*,'implicit ',nParts
+      !nParts=0
+      !DO iPart=1,PDM%ParticleVecLength
+      !  IF(PDM%ParticleInside(iPart))THEN
+      !    IF(PartIsImplicit(iPart)) nParts=nParts+1
+      !  END IF ! ParticleInside
+      !END DO ! iPart
+      !print*,'implicit ',nParts
 
 
 
@@ -3388,7 +3389,7 @@ DO iStage=2,nRKStages
           END IF
         END IF ! ParticleInside
       END DO ! iPart
-      print*,'explicit ',nParts
+      !print*,'explicit ',nParts
     END IF ! DoSurfaceFlux
 
 
