@@ -3057,6 +3057,7 @@ DO iStage=2,nRKStages
         PEM%lastElement(iPart)=PEM%Element(iPart)
         IF(PartSFEnter(iPart).NE.1.)THEN
           dtfrac=PartSFEnter(ipart)
+          !dtfrac=PartDtFrac(ipart)
           !IF(RK_c(istage).LT.(1.-dtfrac))THEN
           IF(RK_c(istage).LT.(dtfrac))THEN
             ! particle cannot participate, because it COULD land outside, hence, it is skipped in stage three
@@ -3152,6 +3153,7 @@ DO iStage=2,nRKStages
         SWRITE(UNIT_StdOut,'(A)') ' surface flux particles '
         nParts=0
       END IF
+      print*,'rk_fillSF',rk_fillSF
       DO iPart=1,PDM%ParticleVecLength
         IF(PDM%ParticleInside(iPart))THEN
           ! dirty hack, hence new particles are set to explicit
