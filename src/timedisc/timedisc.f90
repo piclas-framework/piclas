@@ -3089,7 +3089,7 @@ DO iStage=2,nRKStages
             Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
           CASE DEFAULT
           END SELECT
-          Pt(iPart,1:3) = PartStage(iPart,4:6,1)
+          !Pt(iPart,1:3) = PartStage(iPart,4:6,1)
           PartIsImplicit(iPart)=.FALSE.
           PartDtFrac(iPart)=1.
         ELSE

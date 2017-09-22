@@ -381,12 +381,11 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ImplicitSource=ExplicitSource
   ! store old value of U
   Uold=U
-!#ifndef PP_HDG
-!  CALL LinearSolver(tStage,coeff,relTolerance)
-!#else
-!  CALL HDG(tStage,U,iter)
-!#endif /*HDG*/
-Uold=0.
+#ifndef PP_HDG
+  CALL LinearSolver(tStage,coeff,relTolerance)
+#else
+  CALL HDG(tStage,U,iter)
+#endif /*HDG*/
 
   Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
