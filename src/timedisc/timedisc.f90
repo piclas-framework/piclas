@@ -3207,11 +3207,11 @@ DO iStage=2,nRKStages
                   PartStage(iPart,1:6,iStage2)=Pt_loc(1:6)
                 END DO ! iStage2=2,iStage-1
                 ! compute v_tild
-                v_tild = ESDIRK_a(iStage,1)*PartStage(iPart,4:6,1)
-                DO iCounter=2,iStage-1
-                  v_tild = v_tild + ESDIRK_a(iStage,iCounter)*PartStage(ipart,4:6,iCounter)
-                END DO                                                                                                  
-                !v_tild = PartStateN(iPart,4:6) + dt*(1.-dtFrac) * v_tild
+                !v_tild = ESDIRK_a(iStage,1)*PartStage(iPart,4:6,1)
+                !DO iCounter=2,iStage-1
+                !  v_tild = v_tild + ESDIRK_a(iStage,iCounter)*PartStage(ipart,4:6,iCounter)
+                !END DO                                                                                                  
+                !!v_tild = PartStateN(iPart,4:6) + dt*(1.-dtFrac) * v_tild
                 v_tild = PartStateN(iPart,4:6) !+ dt* v_tild
                 ! next, contribution of stage update
                 !dtFrac=dtFrac*RK_inflow(iStage)
@@ -3302,14 +3302,13 @@ DO iStage=2,nRKStages
               END IF
               ! set the inverse of time step
               dtFrac=dt
-              !dtFrac=dt*(1.-PartDtFrac(ipart))
               ! remove current stage from PartState^iStage
               PartState_tmp(1:6)=PartState(iPart,1:6)-dtFrac*ESDIRK_a(iStage,iStage)*Pt_loc(1:6)
               DO iCounter=iStage-1,1,-1 
                 PartState_tmp(1:6)=PartState_tmp(1:6)-dtFrac*ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
               END DO ! iCounter=iStage,1,-1
-              ! set recomputed position, not velocity
-              PartStateN(iPart,1:3) = PartState_tmp(1:3)
+              ! set recomputed position, and  velocity (due to force, it has to differ
+              PartStateN(iPart,1:6) = PartState_tmp(1:6)
               IF(RK_inc(iStage).GE.0)THEN
                 PartSFEnter(iPart)=1.
                 PartDtFrac(iPart)=1.
