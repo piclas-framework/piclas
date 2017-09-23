@@ -53,7 +53,7 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
 ! P1*xi+P2*eta+P0-LastPartPos-alpha*PartTrajectory
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals!,                 ONLY:Cross,abort
+USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,SideDistance
@@ -395,9 +395,10 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
 #ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+USE MOD_Mesh_Vars,               ONLY:NGeo
 #endif /*CODE_ANALYZE*/
-!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 #ifdef MPI
 USE MOD_Mesh_Vars,               ONLY:BC
 #endif /*MPI*/
@@ -419,8 +420,8 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
-REAL                              :: xi(2),eta(2),t(2), scaleFac!, normVec(3)
-INTEGER                           :: InterType,nRoot, flipdummy!,BCSideID
+REAL                              :: xi(2),eta(2),t(2), scaleFac
+INTEGER                           :: InterType,nRoot, flipdummy
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
 
@@ -881,7 +882,6 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
-USE MOD_Globals,                 ONLY:myrank
 USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -2822,8 +2822,9 @@ SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 !================================================================================================================================
 ! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
 !================================================================================================================================
-!USE MOD_Globals_Vars,       ONLY:epsMach
+#ifdef CODE_ANALYZE
 USE MOD_Globals,            ONLY:UNIT_stdOut
+#endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES

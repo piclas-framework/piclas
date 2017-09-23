@@ -440,7 +440,7 @@ IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
 IF(DoImportIMDFile)THEN
   DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
   SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
-  ' | *CUSTOM |'
+  ' | *CHANGE |'
 END IF
 
 

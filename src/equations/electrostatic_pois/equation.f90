@@ -206,7 +206,6 @@ REAL                            :: Cent(3),r,r2,zlen
 REAL                            :: a, b, d, l, m, n, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/)          ! aux. Constants for Dipole
 REAL,PARAMETER                  :: Q=1, dD=1, omegaD=2.096         ! aux. Constants for Dipole
 REAL                            :: c1,s1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron

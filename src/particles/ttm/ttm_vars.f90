@@ -26,6 +26,8 @@ LOGICAL,ALLOCATABLE,TARGET :: ElemIsDone(:)                                     
 INTEGER                    :: TTMGridFDdim(3)                                   !> number of FD grid cells in each direction
 INTEGER                    :: TTMNumber                                         !> file time index
 INTEGER                    :: FD_nElems                                         !> number of TTM FD grid cells
+REAL                       :: TTMTotalVolume                                    !> TTM FD grid volume
+REAL                       :: TTMCellVolume                                     !> TTM FD grid volume
 
 !===================================================================================================================================
 END MODULE MOD_TTM_Vars

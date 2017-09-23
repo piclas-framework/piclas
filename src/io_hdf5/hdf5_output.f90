@@ -55,6 +55,10 @@ END INTERFACE
 INTERFACE WritePMLzetaGlobalToHDF5
   MODULE PROCEDURE WritePMLzetaGlobalToHDF5
 END INTERFACE
+
+INTERFACE WriteDielectricGlobalToHDF5
+  MODULE PROCEDURE WriteDielectricGlobalToHDF5
+END INTERFACE
 #endif /*PP_HDG*/
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
@@ -62,6 +66,7 @@ PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage
 #ifndef PP_HDG
 PUBLIC :: WritePMLzetaGlobalToHDF5
+PUBLIC :: WriteDielectricGlobalToHDF5
 #endif /*PP_HDG*/
 #ifdef PARTICLES
 PUBLIC :: WriteIMDStateToHDF5
@@ -1653,6 +1658,7 @@ END IF
 
 END SUBROUTINE GatheredWriteArray
 
+#ifdef PARTICLES
 #ifdef MPI
 SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray)
@@ -1739,6 +1745,7 @@ END IF
 
 END SUBROUTINE DistributedWriteArray
 #endif /*MPI*/
+#endif /*PARTICLES*/
 
 
 #ifdef PARTICLES
@@ -1772,11 +1779,11 @@ IF(DoRestart)THEN
   IF(DoImportTTMFile)THEN
     t=time
     CALL WriteTTMToHDF5(t)
-    SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created."
+    SWRITE(UNIT_StdOut,'(A)')'   TTM field: StateFile (IMD TTM data) created.'
   END IF
 ELSE
   IF(IMDTimeScale.GT.0.0)THEN
-
+    SWRITE(UNIT_StdOut,'(A)')'   IMD: calc physical time in seconds for which the IMD *.chkpt file is defined.'
     ! calc physical time in seconds for which the IMD *.chkpt file is defined
     ! t = IMDanalyzeIter * IMDtimestep * IMDTimeScale * IMDNumber
     IMDtimestep=0.0
@@ -1797,22 +1804,23 @@ ELSE
       ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
     END IF
 
-    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDtimestep       :",IMDtimestep
-    SWRITE(UNIT_StdOut,'(A,I25)')                    "   IMDanalyzeIter    :",IMDanalyzeIter
-    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDTimeScale      :",IMDTimeScale
-    SWRITE(UNIT_StdOut,'(A,E25.14E3)')               "   IMDLengthScale    :",IMDLengthScale
-    SWRITE(UNIT_StdOut,'(A,I25)')                    "   IMDNumber         :",IMDNumber
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDtimestep')   ,' | ',IMDtimestep   ,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDanalyzeIter'),' | ',IMDanalyzeIter,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDTimeScale')  ,' | ',IMDTimeScale  ,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDLengthScale'),' | ',IMDLengthScale,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDNumber')     ,' | ',IMDNumber     ,' | ',TRIM('OUTPUT'),' | '
     t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
-    SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     "   Calculated time t :",t,' (',t*1e12,' ps)'
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('t')             ,' | ',t             ,' | ',TRIM('OUTPUT'),' | '
+    SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     IF(DoImportTTMFile)THEN
-      SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created."
+      SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created.'
       CALL WriteTTMToHDF5(t)
-      SWRITE(UNIT_StdOut,'(A)')"   TTM field: StateFile (IMD TTM data) created. Terminating successfully!"
+      SWRITE(UNIT_StdOut,'(A)')'   TTM field: StateFile (IMD TTM data) created. Terminating successfully!'
     ELSE 
-      SWRITE(UNIT_StdOut,'(A)')"   Particles: StateFile (IMD MD data) created. Terminating successfully!"
+      SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
     END IF
 #ifdef MPI
     CALL FinalizeMPI()
@@ -1820,14 +1828,14 @@ ELSE
     IF(iERROR.NE.0)THEN
       CALL abort(&
       __STAMP__&
-      , " MPI_FINALIZE(iERROR) returned non-zero integer value",iERROR)
+      , ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
     END IF
 #endif /*MPI*/
     STOP 0 ! terminate successfully
   ELSE
     CALL abort(&
     __STAMP__&
-    , " IMDLengthScale.LE.0.0 which is not allowed")
+    , ' IMDLengthScale.LE.0.0 which is not allowed')
   END IF
 END IF
 END SUBROUTINE WriteIMDStateToHDF5
@@ -1848,20 +1856,19 @@ USE MOD_io_HDF5
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: OutputTime!,FutureTime
+REAL,INTENT(IN)                 :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: N_variables
+INTEGER                         :: N_variables
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
-CHARACTER(LEN=255)  :: FileName
+CHARACTER(LEN=255)              :: FileName
 #ifdef MPI
-REAL                :: StartT,EndT
+REAL                            :: StartT,EndT
 #endif
-!REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 !===================================================================================================================================
-N_variables=11
+N_variables=18
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1) ='N[natoms]'
 StrVarNames(2) ='T_e[temp]'
@@ -1874,6 +1881,13 @@ StrVarNames(8) ='[v_com.z]'
 StrVarNames(9) ='[fd_k]'
 StrVarNames(10)='[fd_g]'
 StrVarNames(11)='charge[Z]'
+StrVarNames(12)='n_e(ElectronDensity)'
+StrVarNames(13)='omega_pe_cold(PlasmaFrequency)'
+StrVarNames(14)='omega_pe_warm(PlasmaFrequency)'
+StrVarNames(15)='dt_HDG_cold(TimeStep)'
+StrVarNames(16)='dt_HDG_warm(TimeStep)'
+StrVarNames(17)='T_e(ElectronTempInKelvin)'
+StrVarNames(18)='lambda_D(DebyeLength)'
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TTM_DG TO HDF5 FILE...'
 #ifdef MPI
@@ -1887,7 +1901,6 @@ IF(MPIRoot) CALL GenerateFileSkeleton('TTM',N_variables,StrVarNames,TRIM(MeshFil
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 #else
-  !CALL OpenDataFile(FileName,create=.FALSE.)
   CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
 CALL WriteAttributeToHDF5(File_ID,'VarNamesTTM',N_variables,StrArray=StrVarNames)
@@ -2001,6 +2014,87 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*PP_HDG*/
 
 
+#ifndef PP_HDG
+SUBROUTINE WriteDielectricGlobalToHDF5()
+!===================================================================================================================================
+! write DielectricGlobal field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEps,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY: DielectricMu,isDielectricElem,ElemToDielectric
+USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_io_HDF5
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: N_variables
+CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
+CHARACTER(LEN=255)  :: FileName
+#ifdef MPI
+REAL                :: StartT,EndT
+#endif
+REAL                :: OutputTime!,FutureTime
+!REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+INTEGER             :: iElem
+!===================================================================================================================================
+N_variables=2
+! create global Eps field for parallel output of Eps distribution
+ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ALLOCATE(StrVarNames(1:N_variables))
+StrVarNames(1)='DielectricEpsGlobal'
+StrVarNames(2)='DielectricMuGlobal'
+DielectricGlobal=0.
+DO iElem=1,PP_nElems
+  IF(isDielectricElem(iElem))THEN
+    DielectricGlobal(1,:,:,:,iElem)=DielectricEps(:,:,:,ElemToDielectric(iElem))
+    DielectricGlobal(2,:,:,:,iElem)=DielectricMu( :,:,:,ElemToDielectric(iElem))
+  END IF
+END DO!iElem
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+OutputTime=0.0
+!FutureTime=0.0
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DielectricGlobal',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+#ifdef MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
+#endif
+CALL WriteAttributeToHDF5(File_ID,'VarNamesDielectricGlobal',N_variables,StrArray=StrVarNames)
+CALL CloseDataFile()
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName='DG_Solution', rank=5,&
+                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
+                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
+                        collective=.TRUE.,RealArray=DielectricGlobal)
+#ifdef MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+SDEALLOCATE(DielectricGlobal)
+SDEALLOCATE(StrVarNames)
+END SUBROUTINE WriteDielectricGlobalToHDF5
+#endif /*PP_HDG*/
 
 
 END MODULE MOD_HDF5_output

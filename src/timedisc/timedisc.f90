@@ -579,12 +579,12 @@ DO !iter_t=0,MaxIter
         SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
                                                                               /REAL(nPartNewton)
       END IF
+      nPartNewTon=0
+      TotalPartIterLinearSolver=0
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
       totalFullNewtonIter=0
 #endif 
-      nPartNewTon=0
-      TotalPartIterLinearSolver=0
       SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA && PARTICLE*/
       ! Analyze for output

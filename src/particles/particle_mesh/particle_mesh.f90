@@ -613,7 +613,8 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Globals,                ONLY:MyRank,UNIT_stdout
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
-USE MOD_Particle_Surfaces,      ONLY:OutputBezierControlPoints,BezierControlPoints3d
+USE MOD_Particle_Surfaces,      ONLY:OutputBezierControlPoints
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3d
 #endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -4047,8 +4048,7 @@ SUBROUTINE DuplicateSlavePeriodicSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
-USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nElems,nBCs,nSides,BoundaryType,MortarSlave2MasterInfo,nElems &
-                                      ,XCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nBCs,nSides,BoundaryType,MortarSlave2MasterInfo,nElems,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,nPartPeriodicSides,GEO &
                                      ,nTotalBCSides,nPartSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D

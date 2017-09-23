@@ -232,8 +232,6 @@ SUBROUTINE Eval_xyz_Poly(Xi_in,NVar,N_in,xGP_in,wBary_In,U_In,U_Out)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
-!USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
-!USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -252,8 +250,6 @@ INTEGER                   :: i,j,k
 REAL,DIMENSION(3,0:N_in)  :: L_xi        
 REAL                      :: L_eta_zeta
 !===================================================================================================================================
-
-! 
 CALL LagrangeInterpolationPolys(xi_in(1),N_in,xGP_in,wBary_In,L_xi(1,:))
 CALL LagrangeInterpolationPolys(xi_in(2),N_in,xGP_in,wBary_In,L_xi(2,:))
 CALL LagrangeInterpolationPolys(xi_in(3),N_in,xGP_in,wBary_In,L_xi(3,:))
@@ -267,8 +263,6 @@ DO k=0,N_in
     END DO ! i=0,N_In
   END DO ! j=0,N_In
 END DO ! k=0,N_In
-
-
 END SUBROUTINE Eval_xyz_poly
 
 
