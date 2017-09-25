@@ -1143,7 +1143,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   ELSE
     Species_nOut=1
     ALLOCATE(StrOutNames(1:Species_nOut))
-    StrOutNames(1)='Counter'
+    StrOutNames(1)='Spec_Counter'
   END IF
   
   CALL WriteAttributeToHDF5(File_ID,'Species_Varnames',Species_nOut,StrArray=StrOutNames)
