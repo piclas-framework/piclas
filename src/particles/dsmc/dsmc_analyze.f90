@@ -60,7 +60,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 ! MODULES
   USE MOD_Globals
   USE MOD_Timedisc_Vars,              ONLY:time,dt
-  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal,Adsorption
+  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal,Adsorption,useDSMC
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,CalcSurfCollis
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI
@@ -83,7 +83,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
   INTEGER                            :: iSpec,iSurfSide,p,q, iReact
   REAL                               :: TimeSample, ActualTime
   INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
-  LOGICAL                            :: during_dt
+  LOGICAL                            :: during_dt,calcWallModel
 !===================================================================================================================================
 
   IF (PRESENT(during_dt_opt)) THEN
@@ -117,9 +117,14 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
   CALL ExchangeSurfData()  
 #endif
 
+  calcWallModel=.FALSE.
+  IF(useDSMC)THEN
+    IF(DSMC%WallModel.GT.0) calcWallModel=.TRUE.
+  END IF
+
   ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
-  IF (DSMC%WallModel.GT.0) THEN
+  IF(calcWallModel) THEN
     ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
     MacroSurfaceSpecVal=0.
   ELSE
@@ -139,7 +144,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
         MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        IF (DSMC%WallModel.GT.0) THEN
+        IF(calcWallModel) THEN
           MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
                                              +SampWall(iSurfSide)%State(4,p,q) &
                                              +SampWall(iSurfSide)%State(7,p,q) &
@@ -163,7 +168,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
             MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + SampWall(iSurfSide)%State(12+iSpec,p,q)/TimeSample
           END IF
           MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
-          IF (DSMC%WallModel.GT.0) THEN
+          IF(calcWallModel) THEN
             IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
               MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0.
             ELSE
