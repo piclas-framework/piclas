@@ -205,6 +205,13 @@ gnu_maxwell_ExactFlux_PML:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_maxwell_ExactFlux_PML/ -j no-debug ; fi
 
+gnu_poisson_implicit_surface_flux:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_poisson_implicitsf/ -j no-debug ; fi
+
 
 
 
@@ -270,6 +277,13 @@ intel_maxwell_ExactFlux_PML:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_maxwell_ExactFlux_PML/ -j no-debug ; fi
+
+intel_poisson_implicit_surface_flux:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_poisson_implicitsf/ -j no-debug ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
