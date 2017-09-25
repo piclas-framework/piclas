@@ -665,6 +665,12 @@ __STAMP__&
         END IF
       END DO ! iSide=nSides+1,nTotalSides
     END DO ! iProc = 0, SurfCOMM%nProcs-1
+  ELSE
+    ! process receives only surface data from other processes, but does not send data.
+    DO iProc=0,SurfCOMM%nProcs-1
+      IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
+      IF(isMPINeighbor(iProc)) SurfCOMM%nMPINeighbors=SurfCOMM%nMPINeighbors+1
+    END DO ! iProc = 0, SurfCOMM%nProcs-1
   END IF
 END IF
 
