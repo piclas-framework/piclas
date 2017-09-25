@@ -510,7 +510,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
-USE MOD_QDS_Vars,           ONLY: QDSnVar
+USE MOD_QDS_DG_Vars,        ONLY: QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -784,7 +784,7 @@ USE MOD_PreProc
 USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
 USE MOD_Mesh_Vars,          ONLY: SideToElem
 USE MOD_Mesh_Vars,          ONLY: nBCSides
-USE MOD_QDS_Vars,           ONLY: QDSnVar
+USE MOD_QDS_DG_Vars,        ONLY: QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

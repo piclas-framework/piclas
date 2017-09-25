@@ -397,8 +397,8 @@ SUBROUTINE ApplyJacobianQDS(U,toPhysical,toSwap)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Mesh_Vars,ONLY:sJ
-USE MOD_QDS_Vars, ONLY: QDSnVar
+USE MOD_Mesh_Vars,   ONLY:sJ
+USE MOD_QDS_DG_Vars, ONLY: QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -185,7 +185,7 @@ USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5,WriteQDSToHDF5
-USE MOD_QDS_Vars,              ONLY: DoQDS
+USE MOD_QDS_DG_Vars,           ONLY: DoQDS
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh,                  ONLY: SwapMesh
 USE MOD_Filter,                ONLY: Filter
@@ -654,8 +654,8 @@ USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
 USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
-USE MOD_QDS_Vars,                ONLY: UQDS,UQDSt,nQDSElems,DoQDS,QDSnVar
-USE MOD_QDS,                     ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
+USE MOD_QDS_DG_Vars,             ONLY: UQDS,UQDSt,nQDSElems,DoQDS,QDSnVar
+USE MOD_QDS_DG,                  ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
 USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
 USE MOD_Equation,                ONLY: CalcSource

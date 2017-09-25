@@ -1,6 +1,6 @@
-MODULE MOD_QDS_Vars
+MODULE MOD_QDS_DG_Vars
 !===================================================================================================================================
-! 
+! QDS-DG variables needed for the DG method
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -66,4 +66,4 @@ CHARACTER(LEN=255),DIMENSION(40),PARAMETER :: StrVarNames(40)=(/ CHARACTER(LEN=2
                                                                                       'VeloZ8', &
                                                                                       'Energy8'/)
 
-END MODULE MOD_QDS_Vars
+END MODULE MOD_QDS_DG_Vars

@@ -2112,7 +2112,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
 USE MOD_io_HDF5
-USE MOD_QDS_Vars,        ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
+USE MOD_QDS_DG_Vars,     ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
