@@ -26,6 +26,12 @@ TYPE tSurfaceSendList
   INTEGER                               :: NativeProcID
   INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
+  
+  INTEGER,ALLOCATABLE                   :: SurfDistSendList(:)           ! list containing surfsideid of sides to send to proc
+  INTEGER,ALLOCATABLE                   :: SurfDistRecvList(:)           ! list containing surfsideid of sides to recv from proc
+  INTEGER,ALLOCATABLE                   :: CoverageSendList(:)           ! list containing surfsideid of sides to send to proc
+  INTEGER,ALLOCATABLE                   :: CoverageRecvList(:)           ! list containing surfsideid of sides to recv from proc
+  
 END TYPE
 #endif /*MPI*/
 
@@ -53,6 +59,7 @@ TYPE tSurfaceMesh
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping form the SideID to shorter side list
   REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
+  INTEGER,ALLOCATABLE                   :: SurfSideToGlobSideMap(:)      ! map of surfside ID to global Side ID
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
@@ -64,13 +71,45 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 7-9   E_vib (pre, wall, re)
                                                                        ! 10-12 Forces in x, y, z direction
                                                                        ! 13-12+nSpecies Wall-Collision counter
+  REAL,ALLOCATABLE                      :: Adsorption(:,:,:)           ! Sampling of Adsorption relevant values
+                                                                       ! 1:Enthalpie released/annihilated upon adsorption/desorption
+                                                                       ! 2-nSpecies+1: Coverages for certain species
+  REAL,ALLOCATABLE                      :: Accomodation(:,:,:)         ! 1-nSpecies: Accomodation
+                                                                       ! (nSpecies,p,q)
+  REAL,ALLOCATABLE                      :: Reaction(:,:,:,:)           ! 1-nReact,1-nSpecies: E-R + LHrecombination coefficient
+                                                                       ! (nReact,nSpecies,p,q)
   !REAL, ALLOCATABLE                    :: Energy(:,:,:)               ! 1-3 E_tra (pre, wall, re),
   !                                                                    ! 4-6 E_rot (pre, wall, re),
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
 END TYPE
-TYPE(tSampWall), ALLOCATABLE           :: SampWall(:)             ! Wall sample array (number of BC-Sides)
+TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
+
+TYPE tSurfColl
+  INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)
+  LOGICAL,ALLOCATABLE                   :: SpeciesFlags(:)        ! Species counted for wall collisions (def.: all species=T)
+  LOGICAL                               :: OnlySwaps              ! count only wall collisions being SpeciesSwaps (def. F)
+  LOGICAL                               :: Only0Swaps             ! count only wall collisions being delete-SpeciesSwaps (def. F)
+  LOGICAL                               :: Output                 ! Print sums of all counted wall collisions (def. F)
+  LOGICAL                               :: AnalyzeSurfCollis      ! Output of collided/swaped particles 
+                                                                  ! during Sampling period? (def. F)
+END TYPE
+TYPE (tSurfColl)                        :: CalcSurfCollis
+  
+TYPE tAnalyzeSurfCollis 
+  INTEGER                               :: maxPartNumber          ! max. number of collided/swaped particles during Sampling
+  REAL, ALLOCATABLE                     :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
+                                                                  ! (Species,Particles,Data(x,y,z,u,v,w)
+  INTEGER, ALLOCATABLE                  :: Spec(:)                ! Species of Particle in Data-array
+  INTEGER, ALLOCATABLE                  :: BCid(:)                ! ID of PartBC from crossing of Particle in Data-array
+  INTEGER, ALLOCATABLE                  :: Number(:)              ! collided/swaped particles per Species during Sampling period
+  !REAL, ALLOCATABLE                     :: Rate(:)                ! collided/swaped particles/s per Species during Sampling period
+  INTEGER                               :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
+  INTEGER, ALLOCATABLE                  :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
+
+END TYPE tAnalyzeSurfCollis
+TYPE(tAnalyzeSurfCollis)                :: AnalyzeSurfCollis
 
 TYPE tPartBoundary
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
@@ -96,6 +135,15 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
   LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
+  LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
+  LOGICAL , ALLOCATABLE                  :: SolidCatalytic(:)             ! flag defining if solid surface treated catalytically
+  INTEGER , ALLOCATABLE                  :: SolidSpec(:)
+  REAL    , ALLOCATABLE                  :: SolidPartDens(:)
+  REAL    , ALLOCATABLE                  :: SolidMassIC(:)
+  REAL    , ALLOCATABLE                  :: SolidAreaIncrease(:)
+  INTEGER , ALLOCATABLE                  :: SolidCrystalIndx(:)
+  INTEGER , ALLOCATABLE                  :: LiquidSpec(:)                 ! Species of Liquid Boundary
+  REAL    , ALLOCATABLE                  :: ParamAntoine(:,:)       ! Parameters for Antoine Eq (vapor pressure) [3,nPartBound]
   REAL    , ALLOCATABLE                  :: AmbientTemp(:)
   REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
   REAL    , ALLOCATABLE                  :: AmbientBeta(:)
@@ -103,11 +151,16 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientDens(:)
   REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
+  LOGICAL , ALLOCATABLE                  :: Adaptive(:)
+  INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
+  REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
+  REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
   LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
+INTEGER                                  :: nAdaptiveBC
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
 !===================================================================================================================================

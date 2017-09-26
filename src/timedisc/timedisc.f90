@@ -211,6 +211,8 @@ USE MOD_DSMC_Vars,             ONLY: Iter_macvalout,Iter_macsurfvalout
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
+USE MOD_Part_Emission,         ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Boundary_Vars,ONLY: nAdaptiveBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation,              ONLY: EvalGradient
@@ -521,6 +523,10 @@ DO !iter_t=0,MaxIter
   ! calling the analyze routines
   CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 #endif
+#ifdef PARTICLES
+  ! sampling of near adaptive boundary element values
+  IF(nAdaptiveBC.GT.0) CALL AdaptiveBCAnalyze()
+#endif /*PARICLES*/
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
   IF((ALMOSTEQUAL(dt,tAnalyzeDiff)).OR.(ALMOSTEQUAL(dt,tEndDiff)))THEN
@@ -1285,15 +1291,17 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY : KeepWallParticles
+USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux,ParticleAdaptiveSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
-USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
+USE MOD_Liquid_Boundary,  ONLY: Evaporation
+USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb !, AnalyzePartitionTemp
+USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -1311,10 +1319,16 @@ REAL    :: RandVal, dtFrac
 
   IF (DoSurfaceFlux) THEN
     ! Calculate desobing particles for Surfaceflux
-    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
-     CALL Calc_PartNum_Wall_Desorb()
+    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
+      CALL Calc_PartNum_Wall_Desorb()
     END IF
+    IF (DSMC%WallModel.EQ.3) THEN
+      CALL CalcBackgndPartDesorb()
+      !CALL AnalyzePartitionTemp()
+    END IF
+    IF (LiquidSimFlag) CALL Evaporation()
     CALL ParticleSurfaceflux()
+    CALL ParticleAdaptiveSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%dtFracPush(iPart)) THEN
@@ -1346,9 +1360,8 @@ REAL    :: RandVal, dtFrac
   END IF
 #ifdef MPI
   ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
+  CALL IRecvNbOfParticles()
 #endif /*MPI*/
-  CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
   IF(DoRefMapping)THEN
@@ -1368,6 +1381,7 @@ REAL    :: RandVal, dtFrac
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
+  CALL DSMC_Update_Wall_Vars()
   CALL ParticleInserting()
   IF (CollisMode.NE.0) THEN
     CALL UpdateNextFreePosition()
@@ -1419,6 +1433,7 @@ USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
+USE MOD_Particle_Vars,    ONLY : LiquidSimFlag
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1598,7 +1613,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux, KeepWallParticles
+USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux, KeepWallParticles, LiquidSimFlag
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM!, Species, PartSpecies
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC!, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1606,7 +1621,9 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
-USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
+USE MOD_Liquid_Boundary,  ONLY: Evaporation
+USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb
+USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -1623,10 +1640,15 @@ REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
   ! Calculate desobing particles for Surfaceflux
-  IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
-    CALL Calc_PartNum_Wall_Desorb()
+  IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
+      CALL Calc_PartNum_Wall_Desorb()
+  END IF
+  IF (DSMC%WallModel.EQ.3) THEN
+    CALL CalcBackgndPartDesorb()
+    !CALL AnalyzePartitionTemp()
   END IF
   CALL DSMC_Update_Wall_Vars()
+  IF (LiquidSimFlag) CALL Evaporation()
   CALL UpdateNextFreePosition()
 
 !  Debug_Energy=0.0
@@ -1666,9 +1688,15 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
 ELSE
   IF (DoSurfaceFlux) THEN
     ! Calculate desobing particles for Surfaceflux
-    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
-     CALL Calc_PartNum_Wall_Desorb()
+    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
+      CALL Calc_PartNum_Wall_Desorb()
     END IF
+    IF (DSMC%WallModel.EQ.3) THEN
+      CALL CalcBackgndPartDesorb()
+      !CALL AnalyzePartitionTemp()
+    END IF
+    ! Calculate number of evaporating particles
+    IF (LiquidSimFlag) CALL Evaporation()
     
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
@@ -1709,7 +1737,6 @@ ELSE
   ! open receive buffer for number of particles
   CALL IRecvNbOfParticles()
 #endif /*MPI*/
-  CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
   IF(DoRefMapping)THEN
@@ -1729,6 +1756,7 @@ ELSE
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
+  CALL DSMC_Update_Wall_Vars()
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()

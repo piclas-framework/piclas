@@ -94,13 +94,26 @@ INTEGER                                  :: PartCommSize0                    ! N
 TYPE tMPIMessage
   REAL,ALLOCATABLE                      :: content(:)                        ! message buffer real
   LOGICAL,ALLOCATABLE                   :: content_log(:)                    ! message buffer logical for BGM
+  INTEGER,ALLOCATABLE                   :: content_int(:)                    ! message buffer for integer for adsorption
 END TYPE
 
 TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)                             ! PartRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! PartSendBuf with all requried types
 
-TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! PartRecvBuf with all required types
-TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! PartSendBuf with all requried types
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! SurfRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! SurfSendBuf with all requried types
+
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistRecvBuf(:)                         ! SurfDistRecvBuf with all requried types
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfDistSendBuf(:)                         ! SurfDistSendBuf with all requried types
+
+TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbRecvBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: AdsorbSendBuf(:)
+
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfCoverageRecvBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfCoverageSendBuf(:)
+
+TYPE(tMPIMessage),ALLOCATABLE  :: CondensRecvBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: CondensSendBuf(:)
 
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! only mpi neighbors
@@ -128,11 +141,23 @@ TYPE tParticleMPIExchange2
 END TYPE
 TYPE (tParticleMPIExchange2)     :: PartMPIInsert 
 
+TYPE tDistNbrComm
+  INTEGER,ALLOCATABLE            :: nPosSend(:)   ! number of distribution site to send for surface (nSidesSend,nCoordination)
+  INTEGER,ALLOCATABLE            :: nPosRecv(:)   ! number of distribution sites to receive for surface (nSidesRecv,nCoordination)
+END TYPE
+
 TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: nSidesSend(:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: nSidesRecv(:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: nSurfDistSidesSend(:)        ! number of mpi sides to send (nProcs)
+  INTEGER,ALLOCATABLE            :: nSurfDistSidesRecv(:)        ! number of sides received from mpi (nProcs)
+  INTEGER,ALLOCATABLE            :: nCoverageSidesSend(:)        ! number of mpi sides to send (nProcs)
+  INTEGER,ALLOCATABLE            :: nCoverageSidesRecv(:)        ! number of sides received from mpi (nProcs)
+  TYPE(tDistNbrComm),ALLOCATABLE :: NbrOfPos(:)          ! array for number of distribution sites sending per proc 
+  INTEGER,ALLOCATABLE            :: SurfDistSendRequest(:,:)     ! send request message handle,  1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: SurfDistRecvRequest(:,:)     ! recv request message handle,  1 - Number, 2-Message
 END TYPE
 TYPE (tSurfMPIExchange)          :: SurfExchange
 
