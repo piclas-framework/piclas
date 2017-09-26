@@ -212,6 +212,12 @@ gnu_poisson_implicit_surface_flux:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_poisson_implicitsf/ -j no-debug ; fi
 
+gnu_PIC_maxwell_bgfield:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_maxwell_bgfield/ -j no-debug ; fi
 
 
 
@@ -284,6 +290,13 @@ intel_poisson_implicit_surface_flux:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_poisson_implicitsf/ -j no-debug ; fi
+
+intel_PIC_maxwell_bgfield:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_maxwell_bgfield/ -j no-debug ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
