@@ -219,7 +219,7 @@ INTEGER                  :: iElem
 REAL                     :: StartT,EndT
 #endif /*MPI*/
 #ifdef PARTICLES
-INTEGER                  :: FirstElemInd,LastelemInd,i,iInit
+INTEGER                  :: FirstElemInd,LastelemInd,iInit
 INTEGER,ALLOCATABLE      :: PartInt(:,:)
 INTEGER,PARAMETER        :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                  :: PartDataSize         !number of entries in each line of PartData
