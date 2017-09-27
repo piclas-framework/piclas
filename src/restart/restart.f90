@@ -195,8 +195,9 @@ USE MOD_HDG,                     ONLY:RestartHDG
 #endif /*PP_HDG*/
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
 USE MOD_TTM_Vars,                ONLY:DoImportTTMFile,TTM_DG
-USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
 #endif /*PARTICLES*/
+USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
+USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -235,10 +236,13 @@ INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nP
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 #endif /*MPI*/
 REAL                     :: VFR_total
-INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
 CHARACTER(255)           :: TTMRestartFile !> TTM Data file for restart
 LOGICAL                  :: TTM_DG_SolutionExists
 #endif /*PARTICLES*/
+INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
+CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
+LOGICAL                  :: QDS_DG_SolutionExists
+INTEGER                  :: i,j,k
 !===================================================================================================================================
 IF(DoRestart)THEN
   SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
@@ -277,6 +281,49 @@ IF(DoRestart)THEN
   END IF
 #endif /*PARTICLES*/
 
+  IF(DoQDS)THEN ! read QDS data from "XXXXX_QDS_000.0XXXXXXXXXXX.h5"
+    IndNum=INDEX(RestartFile,'State')
+    IF(IndNum.LE.0)CALL abort(&
+      __STAMP__&
+      ,' Restart file does not contain "State" character string?! Supply restart file for reading QDS data')
+    QDSRestartFile=TRIM(RestartFile(1:IndNum-1))//'QDS'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
+#ifdef MPI
+    CALL OpenDataFile(QDSRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+#else
+    CALL OpenDataFile(QDSRestartFile,create=.FALSE.,readOnly=.TRUE.)
+#endif
+    !ALLOCATE( QDSMacroValues(1:6,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
+    CALL DatasetExists(File_ID,'DG_Solution',QDS_DG_SolutionExists)
+
+    IF(.NOT.QDS_DG_SolutionExists)THEN
+      CALL abort(&
+        __STAMP__&
+        ,' Restart file does not contain "DG_Solution" in restart file for reading QDS data')
+    END IF
+
+    IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+      CALL ReadArray('DG_Solution',5,(/6,PP_N+1,PP_N+1,PP_N+1,nQDSElems/),OffsetElem,5,RealArray=QDSMacroValues)
+      DO iElem =1, nQDSElems
+        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+          QDSMacroValues(1  ,i,j,k,iElem) = QDSMacroValues(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
+          QDSMacroValues(2:4,i,j,k,iElem) = QDSMacroValues(2:4,i,j,k,iElem) * QDSMacroValues(1,i,j,k,iElem)
+        END DO; END DO; END DO
+      END DO
+      CALL CloseDataFile() 
+    ELSE! We need to interpolate the solution to the new computational grid
+      ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
+      CALL ReadArray('DG_Solution',5,(/6,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      DO iElem =1, nQDSElems
+        DO k=0, N_Restart; DO j=0, N_Restart; DO i=0, N_Restart
+          U_local(1  ,i,j,k,iElem) = U_local(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
+          U_local(2:4,i,j,k,iElem) = U_local(2:4,i,j,k,iElem) * U_local(1,i,j,k,iElem)
+        END DO; END DO; END DO
+        CALL ChangeBasis3D(6,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),QDSMacroValues(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
+    END IF
+  END IF
+
 #ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
@@ -308,9 +355,6 @@ IF(DoRestart)THEN
     ELSE
       lambda=0.
     END IF
-
-
-
 #else
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     IF(DoPML)THEN

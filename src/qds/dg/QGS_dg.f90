@@ -56,7 +56,7 @@ USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
 USE MOD_ReadInTools,     ONLY:GETLOGICAL
 USE MOD_Mesh_Vars,       ONLY:nSides
 USE MOD_Globals_Vars,    ONLY:PI
-!USE MOD_Restart_Vars,    ONLY:DoRestart
+USE MOD_Restart_Vars,    ONLY:DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -127,18 +127,22 @@ IF(DoQDS)THEN
 
 
 
-  !IF(.NOT.DoRestart) CALL FillIniQDS()
+  !print*,"QDS_dg.f90: ini QDS, do restart?"
+  !read*
+  IF(.NOT.DoRestart)THEN
+    !CALL FillIniQDS()
 
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-  !  i=0; j=0; k=0
-  !  QDSMacroValues(1,i,j,k,1) = Dens*wGP(i)*wGP(j)*wGP(k)/sJ(i,j,k,1)*Mass
-    QDSMacroValues(1,i,j,k,88) = Dens*Mass
-    QDSMacroValues(2:4,i,j,k,88) = QDSMacroValues(1,i,j,k,88)*Velo(1:3)
-    QDSMacroValues(6,i,j,k,88) = Temp
-  END DO; END DO; END DO
-
+    ! fill the cell with no. 88
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+    !  i=0; j=0; k=0
+    !  QDSMacroValues(1,i,j,k,1) = Dens*wGP(i)*wGP(j)*wGP(k)/sJ(i,j,k,1)*Mass
+      QDSMacroValues(1,i,j,k,88) = Dens*Mass
+      QDSMacroValues(2:4,i,j,k,88) = QDSMacroValues(1,i,j,k,88)*Velo(1:3)
+      QDSMacroValues(6,i,j,k,88) = Temp
+    END DO; END DO; END DO
+  END IF
 
 ELSE
   QDSnVar=0

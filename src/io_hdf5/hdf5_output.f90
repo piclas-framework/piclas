@@ -1204,11 +1204,12 @@ SUBROUTINE FlushHDF5(FlushTime_In)
 ! MODULES
 !USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,ONLY:ProjectName
-USE MOD_HDF5_Input,ONLY:GetHDF5NextFileName
+USE MOD_Globals_Vars,      ONLY:ProjectName
+USE MOD_HDF5_Input,        ONLY:GetHDF5NextFileName
 #ifdef MPI
 USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
 #endif /*MPI*/
+USE MOD_QDS_DG_Vars,       ONLY:DoQDS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1220,7 +1221,7 @@ REAL,INTENT(IN),OPTIONAL :: FlushTime_In
 ! LOCAL VARIABLES
 INTEGER                  :: stat,ioUnit
 REAL                     :: FlushTime
-CHARACTER(LEN=255)       :: FileName,InputFile,NextFile
+CHARACTER(LEN=255)       :: InputFile,NextFile
 !===================================================================================================================================
 IF(.NOT.MPIRoot) RETURN
 
@@ -1234,26 +1235,9 @@ IF (.NOT.PRESENT(FlushTime_In)) THEN
 ELSE
   FlushTime=FlushTime_In
 END IF
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 
-! Delete state files
-InputFile=TRIM(FileName)
-! Read calculation time from file
-#ifdef MPI
-CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
-#else
-CALL GetHDF5NextFileName(Inputfile,NextFile)
-#endif
-! Delete File - only root
-stat=0
-ioUnit=GETFREEUNIT()
-OPEN ( UNIT   = ioUnit,            &
-       FILE   = InputFile,      &
-       STATUS = 'OLD',          &
-       ACTION = 'WRITE',        &
-       ACCESS = 'SEQUENTIAL',   &
-       IOSTAT = stat          )
-IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
+! delete state files
+NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 DO
   InputFile=TRIM(NextFile)
   ! Read calculation time from file
@@ -1264,8 +1248,7 @@ DO
 #endif
   ! Delete File - only root
   stat=0
-  ioUnit=GETFREEUNIT()
-  OPEN ( UNIT   = ioUnit,            &
+  OPEN ( NEWUNIT= ioUnit,         &
          FILE   = InputFile,      &
          STATUS = 'OLD',          &
          ACTION = 'WRITE',        &
@@ -1274,6 +1257,30 @@ DO
   IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
+
+! delete QDS state files
+IF(DoQDS)THEN
+  NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',FlushTime))//'.h5'
+  DO
+    InputFile=TRIM(NextFile)
+    ! Read calculation time from file
+#ifdef MPI
+    CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
+#else
+    CALL GetHDF5NextFileName(Inputfile,NextFile)
+#endif
+    ! Delete File - only root
+    stat=0
+    OPEN ( NEWUNIT= ioUnit,         &
+           FILE   = InputFile,      &
+           STATUS = 'OLD',          &
+           ACTION = 'WRITE',        &
+           ACCESS = 'SEQUENTIAL',   &
+           IOSTAT = stat          )
+    IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
+    IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
+  END DO
+END IF
 
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 
@@ -1979,7 +1986,6 @@ DO iElem=1,PP_nElems
     END IF
   END IF
 END DO!iElem
-!print*,"MAXVAL(PMLzetaGlobal)=",MAXVAL(PMLzetaGlobal),"MAXVAL(PMLzeta)",MAXVAL(PMLzeta)
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 #ifdef MPI
@@ -2102,7 +2108,7 @@ END SUBROUTINE WriteDielectricGlobalToHDF5
 #endif /*PP_HDG*/
 
 
-SUBROUTINE WriteQDSToHDF5(OutputTime)
+SUBROUTINE WriteQDSToHDF5(OutputTime,FutureTime)
 !===================================================================================================================================
 ! write QDS field to HDF5 file
 !===================================================================================================================================
@@ -2117,7 +2123,8 @@ USE MOD_QDS_DG_Vars,     ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: OutputTime!,FutureTime
+REAL,INTENT(IN)                :: OutputTime
+REAL,INTENT(IN),OPTIONAL       :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2157,7 +2164,7 @@ DO iElem =1, nQDSElems
         print*,"Press ENTER to continue"
         read*
       END IF
-      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)
+      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)/QDSMacroValues(1,l,k,j,iElem) 
       Utemp(5:6,l,k,j,iElem) = QDSMacroValues(5:6,l,k,j,iElem)
     ELSE
       Utemp(:,l,k,j,iElem) = 0.0
@@ -2173,7 +2180,11 @@ END IF
 !FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+IF(PRESENT(FutureTime))THEN
+  IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FutureTime)
+ELSE
+  IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+END IF
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)

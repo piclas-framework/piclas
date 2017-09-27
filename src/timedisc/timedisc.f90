@@ -296,8 +296,10 @@ IF(DoRestart) CALL EvalGradient()
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
-IF(DoQDS)              CALL WriteQDSToHDF5(time)
+IF(DoWriteStateToHDF5)THEN 
+  CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+  IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+END IF
 
 ! if measurement of particle tracking time
 #ifdef PARTICLES
@@ -604,8 +606,10 @@ DO !iter_t=0,MaxIter
 #ifndef PP_HDG
 #endif /*PP_HDG*/
       ! Write state to file
-      IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
-      IF(DoQDS)              CALL WriteQDSToHDF5(time)
+      IF(DoWriteStateToHDF5)THEN 
+        CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+        IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+      END IF
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tFuture)
 #ifndef PP_HDG
       ! Write state to file
