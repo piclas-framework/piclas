@@ -151,7 +151,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
-USE MOD_Equation_Vars,           ONLY:c_inv
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else
@@ -441,8 +440,8 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       END IF
     END IF
   END IF
-  IF(DoPrintConvInfo.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I10,2x,E24.12,2x,E24.12,2x,E24.12)') ' iter,Norm_R,rel,abort' &
-                                                                  ,nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
+  !IF(DoPrintConvInfo.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I10,2x,E24.12,2x,E24.12,2x,E24.12)') ' iter,Norm_R,rel,abort' &
+  !                                                                ,nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
 
   Norm_Diff_old=Norm_Diff
   Norm_Diff=Norm_Rold-Norm_R

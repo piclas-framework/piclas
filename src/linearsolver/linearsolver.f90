@@ -140,7 +140,7 @@ DoPartRelaxation=.TRUE.
 IF(ALMOSTZERO(PartRelaxationFac))THEN
   DoPartRelaxation=.FALSE.
 ELSE
-  AdaptIterRelaxation0 = GETREAL('AdaptIterRelaxation0','2')
+  AdaptIterRelaxation0 = GETINT('AdaptIterRelaxation0','2')
 END IF
 IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
