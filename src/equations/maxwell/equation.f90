@@ -684,6 +684,7 @@ CASE(16) ! 3 of 3: Gauß-shape with perfect focus (w(z)=w_0): initial & boundary
   END IF
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
+  mG =34
   IF ((ExactFunction.EQ.51).AND.(x(3).GT.eps)) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   phi = ATAN2(x(2),x(1))

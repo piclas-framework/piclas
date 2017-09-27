@@ -590,7 +590,12 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,CodeAnalyze_Opt)
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt& 
+#ifdef CODE_ANALYZE
+        ,CodeAnalyze_Opt)
+#else
+        )
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 ! Checks if particle is in Element
 !===================================================================================================================================
@@ -619,7 +624,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                       :: ElemID,PartID
 REAL,INTENT(IN)                          :: PartPos_In(1:3)
+#ifdef CODE_ANALYZE
 LOGICAL,INTENT(IN),OPTIONAL              :: CodeAnalyze_Opt
+#endif /*CODE_ANALYZE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                      :: FoundInElem

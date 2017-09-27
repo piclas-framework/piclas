@@ -497,7 +497,7 @@ USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #endif
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ
-USE MOD_LinearSolver_Vars,      ONLY:PartXk,R_PartXK
+USE MOD_LinearSolver_Vars,      ONLY:R_PartXK
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
@@ -523,10 +523,6 @@ REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3
 !#if defined(LSERK)
 !REAL                                 :: absPt_temp
 !#endif
-#if IMPA
-REAL                                 :: absVec
-REAL                                 :: PartDiff(3)
-#endif /*IMPA*/
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 !REAL                                 :: oneMinus!=0.99999999
 REAL                                  :: epsLength
@@ -1331,6 +1327,24 @@ __STAMP__&
       nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
       PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
     END IF ! CalcPartBalance
+    ! sample values of deleted species
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+      Xitild =MIN(MAX(-1.,xi ),0.99)
+      Etatild=MIN(MAX(-1.,eta),0.99)
+      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+      !----  Sampling Forces at walls
+  !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
+  !                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                            * ( PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                            * ( PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                            * ( PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
+    !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
     PDM%ParticleInside(PartID) = .FALSE.
     alpha=-1.
   ELSEIF (targetSpecies.gt.0) THEN !swap species

@@ -47,7 +47,6 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,         ONLY:GEO,SidePeriodicType,nPartSides,PartElemToSide
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
-!1USE MOD_Particle_Tracking_Vars,     ONLY:CartesianPeriodic             ! old periodic for refmapping and ALL bcs periocic
 USE MOD_Particle_MPI_Vars,          ONLY:halo_eps
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,BC,BoundaryType

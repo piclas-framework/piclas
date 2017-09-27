@@ -404,7 +404,7 @@ IF(.NOT.isOpen)THEN
     WRITE(ioUnit,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
     DO iPlane=1,nPoyntingIntPlanes
       WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
-      WRITE(ioUnit,'(A14,I0.3,A1,E13.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
+      WRITE(ioUnit,'(A14,I0.3,A1,E14.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
     END DO              
     WRITE(ioUnit,'(A1)') ''
   END IF

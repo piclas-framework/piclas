@@ -114,6 +114,10 @@ USE MOD_Particle_Vars,     ONLY:Species,PartSpecies,PartIsImplicit,PDM,Pt,PartSt
 USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
 USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter!,time
 USE MOD_Equation_Vars,     ONLY:c2_inv
+USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
+#ifdef MPI
+USE MOD_Particle_MPI_Vars, ONLY:PartMPI
+#endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -124,6 +128,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER     :: iPart
 REAL        :: NewVelo(3),Vabs,PartGamma
+INTEGER     :: nImp,nExp
 !===================================================================================================================================
 
 PartIsImplicit=.FALSE.
@@ -173,6 +178,26 @@ CASE DEFAULT
 __STAMP__&
 ,' Method to select implicit particles is not implemented!')
 END SELECT
+
+IF(DoPrintConvInfo)THEN
+  nImp=0
+  nExp=0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(PartIsImplicit(iPart)) nImp=nImp+1
+    IF(.NOT.PartIsImplicit(iPart)) nExp=nExp+1
+  END DO
+#ifdef MPI
+  IF(PartMPI%MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,nExp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,nImp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+  ELSE
+    CALL MPI_REDUCE(nExp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(nImp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
+  END IF
+#endif /*MPI*/
+  SWRITE(UNIT_StdOut,*) ' Particles explicit/implicit ', nExp, nImp
+END IF
   
 END SUBROUTINE SelectImplicitParticles
 #endif
@@ -187,7 +212,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX ! ,StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
@@ -296,7 +321,7 @@ IF(opt)THEN ! compute zero state
       Pt_tmp(4) = Pt(iPart,1) 
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
-      F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-coeff*Pt_tmp
+      F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:6)
       PartXK(1:6,iPart)   =   PartState(iPart,1:6)
       R_PartXK(1:6,iPart) =   Pt_tmp(1:6)
       F_PartXK(1:6,iPart) =   F_PartX0(1:6,iPart)
@@ -571,7 +596,7 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 USE MOD_Globals
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm2_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
-                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm2_F_PartX0 !,StagePartPos
+                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm2_F_PartX0,PartDtFrac !,StagePartPos
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
 USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -628,18 +653,18 @@ DO iPart=1,PDM%ParticleVecLength
     IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
       ! bad search direction!
       ! new search direction
-      DeltaX=PartDeltaX(:,iPart)*2.
+      DeltaX=PartDeltaX(:,iPart)!*2
       CALL PartMatrixVector(t,Coeff,iPart,DeltaX(:),Xtilde) ! coeff*Ut+Source^n+1 ! only output
       XTilde=XTilde+F_PartXK(1:6,iPart)
       CALL PartVectorDotProduct(Xtilde,Xtilde,Norm2_PartX)
-      IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
-        Norm2_PartX = Norm2_PartX/Norm2_F_PartXk(iPart)
-        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', deltaX
-        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', PartDeltaX(1:6,iPart)
+!      IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
+!        Norm2_PartX = Norm2_PartX/Norm2_F_PartXk(iPart)
+!        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', deltaX
+!        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', PartDeltaX(1:6,iPart)
 !        CALL abort(&
 !  __STAMP__&
 !  ,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
-      END IF
+!     END IF
     END IF
     ! update position
     PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
@@ -708,7 +733,7 @@ __STAMP__&
     R_PartXK(4,iPart)=Pt(iPart,1)
     R_PartXK(5,iPart)=Pt(iPart,2)
     R_PartXK(6,iPart)=Pt(iPart,3)
-    F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - coeff*R_PartXK(1:6,iPart)
+    F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
     ! if check, then here!
     DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
     IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
@@ -840,7 +865,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       R_PartXK(4,iPart)=Pt(iPart,1)
       R_PartXK(5,iPart)=Pt(iPart,2)
       R_PartXK(6,iPart)=Pt(iPart,3)
-      F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
+      F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
       !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
@@ -881,6 +906,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     SWRITE(UNIT_stdOut,'(A20,2x,L,2x,I10)') ' Accept?: ', DoSetLambda,iCounter
   END IF
 END DO
+
+IF(1.EQ.2)THEN
+  iPart=nInnerPartNewton
+END IF
 
 END SUBROUTINE Particle_Armijo
 

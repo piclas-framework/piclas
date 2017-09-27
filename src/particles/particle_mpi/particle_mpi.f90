@@ -214,6 +214,8 @@ PartCommSize   = PartCommSize + 1
 PartCommSize   = PartCommSize + 6
 ! and PartAcceptLambda
 PartCommSize   = PartCommSize + 1
+! PartDtFrac
+PartCommSize   = PartCommSize + 1
 #endif
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
@@ -561,7 +563,7 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,  NbrOfExtParticles
 #if defined(IMEX) || defined(IMPA)
-USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
+USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
@@ -784,7 +786,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ELSE
         PartSendBuf(iProc)%content(jPos+11) = 0.0
       END IF
-      jPos=jPos+4
+       PartSendBuf(iProc)%content(jPos+12) = PartDtFrac(iPart)
+      jPos=jPos+5
       ! fieldatparticle 
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
       jPos=jPos+6
@@ -1164,7 +1167,7 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
 #if defined(IMEX) || defined(IMPA)
-USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
+USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
@@ -1321,7 +1324,8 @@ DO iProc=1,PartMPI%nMPINeighbors
     ELSE
       DoPartInNewton(PartID) = .FALSE.
     END IF
-    jPos=jPos+4
+    PartDtFrac(PartID) = PartRecvBuf(iProc)%content(jPos+12)
+    jPos=jPos+5
     ! fieldatparticle 
     FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6

@@ -4549,6 +4549,10 @@ __STAMP__&
 ,'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
           END IF
 #endif /*CODE_ANALYZE*/ 
+#ifdef IMPA
+            ! required for implicit
+            CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
+#endif /*IMPA*/
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
             PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
@@ -4649,14 +4653,14 @@ __STAMP__&
         END DO ! iPart
       END IF
 #elif (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
-      IF(iStage.EQ.nRKStages)THEN
+      !IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-      END IF
+      !END IF
 #else
       nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
       DO iPart=1,NbrOfparticle
