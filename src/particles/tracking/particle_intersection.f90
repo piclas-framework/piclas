@@ -1194,6 +1194,8 @@ CALL abort(&
 __STAMP__&
 ,' The code should never go here')
 
+IF(PRESENT(ElemCheck_Opt)) firstClip=.FALSE.
+
 END SUBROUTINE ComputeCurvedIntersection
 
 
@@ -3046,13 +3048,16 @@ a=eta*A2(1)+A2(2)
 b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
 
 IF(ABS(B).GE.ABS(A))THEN
-#ifdef CODE_ANALYZE
   IF(ABS(B).LE.0.)THEN
+#ifdef CODE_ANALYZE
     CALL abort(&
     __STAMP__&
     ,' Division by zero. Invalid b')
-  END IF
+#else
+  ComputeXi=10
+  RETURN
 #endif /*CODE_ANALYZE*/
+  END IF
   ComputeXi=(-eta*(A2(3)-A1(3))-(A2(4)-A1(4)))/b
 ELSE
 #ifdef CODE_ANALYZE

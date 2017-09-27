@@ -44,7 +44,7 @@ USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
 USE MOD_Equation_Vars 
 USE MOD_TimeDisc_Vars,           ONLY:TEnd
 USE MOD_Mesh_Vars,               ONLY:BoundaryType,nBCs
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
+USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_Mesh_Vars,               ONLY:xyzMinMax
 USE MOD_Mesh,                    ONLY:GetMeshMinMaxBoundaries
 ! IMPLICIT VARIABLE HANDLING
@@ -171,7 +171,7 @@ DO iRefState=1,nTmp
     BeamOmegaW=BeamWaveNumber*c
 
     ! construct perpendicular electric field
-    IF(ABS(WaveVector(3)).LT.epsilontol)THEN
+    IF(ABS(WaveVector(3)).LT.EpsMach)THEN
       E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
     ELSE
       IF(ALMOSTEQUAL(ABS(WaveVector(3)),1.))THEN ! wave vector in z-dir -> E_0 in x-dir!
@@ -684,6 +684,7 @@ CASE(16) ! 3 of 3: Gauß-shape with perfect focus (w(z)=w_0): initial & boundary
   END IF
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
+  mG =34
   IF ((ExactFunction.EQ.51).AND.(x(3).GT.eps)) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   phi = ATAN2(x(2),x(1))
