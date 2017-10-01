@@ -233,7 +233,6 @@ USE MOD_LinearSolver_Vars,     ONLY:totalIterLinearSolver
 #if (PP_TimeDiscMethod==120)||(PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,    ONLY: totalFullNewtonIter
 #endif
-USE MOD_QDS_DG_Vars,          ONLY: QDSMacroValues,QDSSpeciesMass
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -569,12 +568,6 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_stdOut,'(A,I2.2,A1,I2.2,A1,I4.4,A1,I2.2,A1,I2.2,A1,I2.2)') &
           ' Sys date  :    ',timeArray(3),'.',timeArray(2),'.',timeArray(1),' ',timeArray(5),':',timeArray(6),':',timeArray(7)
         WRITE(UNIT_stdOut,'(A,ES12.5,A)')' CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
-        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' max number density:',MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass,' [1/m^3]'
-        IF(MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass.GT.1E50)THEN
-          CALL abort(&
-          __STAMP__&
-          ,'density too high!!!')
-        END IF
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
@@ -4761,7 +4754,6 @@ USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
 #if (PP_TimeDiscMethod==201)                                                                                                         
 USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
 #endif
-USE MOD_QDS_DG_Vars,        ONLY: QDSMacroValues,QDSSpeciesMass,QDSInitIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4831,8 +4823,6 @@ dt_temp = 1E-8
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min
-print*,"QDSInitIsDone",QDSInitIsDone
-WRITE(UNIT_stdOut,'(A,ES12.5,A)')' max number density:',MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass,' [1/m^3]'
 ! using sub-cycling requires an addional time step
 SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 END SUBROUTINE InitTimeStep

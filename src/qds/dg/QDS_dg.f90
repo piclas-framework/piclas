@@ -161,7 +161,7 @@ SUBROUTINE QDSTimeDerivative(t,tStage,tDeriv,doSource)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_QDS_DG_Vars,      ONLY: UQDS,UQDSt
+USE MOD_QDS_DG_Vars,      ONLY: UQDS,UQDSt,QDSMacroValues,QDSSpeciesMass
 USE MOD_QDS_DG_Vars,      ONLY: QDSnVar
 USE MOD_Vector
 USE MOD_QDS_DG_Vars,      ONLY:UQDS,UQDSt,UQDS_master,UQDS_Slave,FluxQDS_Master,FluxQDS_Slave
@@ -187,7 +187,14 @@ LOGICAL,INTENT(IN)              :: doSource
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
+IF(mpiroot)THEN
+  WRITE(UNIT_stdOut,'(A,ES12.5,A)')' max number density:',MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass,' [1/m^3]'
+  IF(MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass.GT.1E50)THEN
+    CALL abort(&
+    __STAMP__&
+    ,'density too high!!!')
+  END IF
+END IF
 ! prolong the solution to the face integration points for flux computation
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
