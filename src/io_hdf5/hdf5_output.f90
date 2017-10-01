@@ -2138,12 +2138,6 @@ REAL                :: StartT,EndT
 INTEGER             :: iElem,j,k,l
 REAL                :: Utemp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems)
 !===================================================================================================================================
-!QDSSpeciesMass=Species(QDS_Species)%MassIC
-!    CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
-!                          nValGlobal=(/6,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-!                          nVal=      (/6,PP_N+1,PP_N+1,PP_N+1,nQDSElems/),&
-!                          offset=    (/0,      0,     0,     0,     offsetElem/),&
-!                          collective=.TRUE., existing=.TRUE., RealArray=Utemp)
 N_variables=6
 ! create global Eps field for parallel output of Eps distribution
 StrVarNames(1) = 'Density'
@@ -2177,7 +2171,6 @@ IF(MPIROOT)THEN
   StartT=MPI_WTIME()
 #endif
 END IF
-!FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'
 IF(PRESENT(FutureTime))THEN

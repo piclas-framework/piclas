@@ -164,7 +164,7 @@ USE MOD_PreProc
 USE MOD_QDS_DG_Vars,      ONLY: UQDS,UQDSt
 USE MOD_QDS_DG_Vars,      ONLY: QDSnVar
 USE MOD_Vector
-USE MOD_QDS_DG_Vars,         ONLY:UQDS,UQDSt,UQDS_master,UQDS_Slave,FluxQDS_Master,FluxQDS_Slave !,nTotalU
+USE MOD_QDS_DG_Vars,      ONLY:UQDS,UQDSt,UQDS_master,UQDS_Slave,FluxQDS_Master,FluxQDS_Slave
 USE MOD_ProlongToFace,    ONLY:ProlongToFaceQDS
 USE MOD_Mesh_Vars,        ONLY:nSides
 USE MOD_Interpolation,    ONLY:ApplyJacobianQDS
@@ -193,17 +193,11 @@ LOGICAL,INTENT(IN)              :: doSource
 ! Prolong to face for MPI sides - send direction
 CALL StartReceiveMPIData(QDSnVar,UQDS_Slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 CALL ProlongToFaceQDS(UQDS,UQDS_Master,UQDS_Slave,doMPISides=.TRUE.)
-!CALL U_Mortar(UQDS_Master,UQDS_Slave,doMPISides=.TRUE.)
 CALL StartSendMPIData(QDSnVar,UQDS_Slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #endif /*MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFaceQDS(UQDS,UQDS_Master,UQDS_Slave,doMPISides=.FALSE.)
-!CALL U_Mortar(UQDS_Master,UQDS_Slave,doMPISides=.FALSE.)
-! Nullify arrays
-! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
-!       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
-!CALL VNullify(nTotalU,UQDSt)
 UQDSt=0.
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolIntQDS(UQDSt,dofirstElems=.TRUE.)
@@ -214,7 +208,6 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - rec
 #endif /*MPI*/
 
 ! Initialization of the time derivative
-!Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 #ifdef MPI
 CALL StartReceiveMPIData(QDSnVar,FluxQDS_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
 ! fill the global surface flux list
@@ -225,7 +218,6 @@ CALL StartSendMPIData(QDSnVar,FluxQDS_Slave,1,nSides,SendRequest_Flux,SendID=1) 
 
 ! fill the all surface fluxes on this proc
 CALL FillFluxQDS(t,tDeriv,FluxQDS_Master,FluxQDS_Slave,UQDS_Master,UQDS_Slave,doMPISides=.FALSE.)
-!CALL Flux_Mortar(FluxQDS_Master,FluxQDS_Slave,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfIntQDS(FluxQDS_Master,FluxQDS_Slave,UQDSt,doMPISides=.FALSE.)
 
@@ -237,7 +229,6 @@ CALL VolIntQDS(UQDSt,dofirstElems=.FALSE.)
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
 
 !FINALIZE Fluxes for MPI Sides
-!CALL Flux_Mortar(FluxQDS_Master,FluxQDS_Slave,doMPISides=.TRUE.)
 CALL SurfIntQDS(FluxQDS_Master,FluxQDS_Slave,UQDSt,doMPISides=.TRUE.)
 #endif
 
@@ -308,47 +299,57 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, k, j, i, locPartNum, iPart1, iPart2, iPart3
+INTEGER           :: iElem, k, j, i, L, iPart1, iPart2, iPart3
 !===================================================================================================================================
 !QDSSpeciesMass=Species(QDS_Species)%MassIC
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
-DO iElem = 1, nQDSElems
 
 
 IF(1.EQ.2)THEN
-  IF (QDSMacroValues(1,0,0,0,iElem).NE.0.0) then
-      print*, 'build parts', iElem
-      print*, QDSMacroValues(1,0,0,0,iElem)/(QDSSpeciesMass*wGP(0)*wGP(0)*wGP(0)/sJ(0,0,0,iElem)), &
-      QDSMacroValues(2:4,0,0,0,iElem)/QDSMacroValues(1,0,0,0,iElem), QDSMacroValues(6,0,0,0,iElem)
-  end if
-  IF (QDSMacroValues(1,1,1,1,iElem).NE.0.0) then
-      print*, 'zwei', iElem
-      print*, QDSMacroValues(1,1,1,1,iElem)/(QDSSpeciesMass*wGP(1)*wGP(1)*wGP(1)/sJ(1,1,1,iElem)), &
-      QDSMacroValues(2:4,1,1,1,iElem)/QDSMacroValues(1,1,1,1,iElem), QDSMacroValues(6,1,1,1,iElem)
-  end if
+  DO iElem = 1, nQDSElems
+    IF (QDSMacroValues(1,0,0,0,iElem).NE.0.0) then
+        print*, 'build parts', iElem
+        print*, QDSMacroValues(1,0,0,0,iElem)/(QDSSpeciesMass*wGP(0)*wGP(0)*wGP(0)/sJ(0,0,0,iElem)), &
+        QDSMacroValues(2:4,0,0,0,iElem)/QDSMacroValues(1,0,0,0,iElem), QDSMacroValues(6,0,0,0,iElem)
+    end if
+    IF (QDSMacroValues(1,1,1,1,iElem).NE.0.0) then
+        print*, 'zwei', iElem
+        print*, QDSMacroValues(1,1,1,1,iElem)/(QDSSpeciesMass*wGP(1)*wGP(1)*wGP(1)/sJ(1,1,1,iElem)), &
+        QDSMacroValues(2:4,1,1,1,iElem)/QDSMacroValues(1,1,1,1,iElem), QDSMacroValues(6,1,1,1,iElem)
+    end if
+  END DO
 END IF
 
 
-END DO
 DO iElem = 1, nQDSElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-        locPartNum = 0
+        L = 0
         IF (QDSMacroValues(1,i,j,k,iElem).GT.0.0) THEN
           IF (QDSMacroValues(6,i,j,k,iElem).LT.0.0) QDSMacroValues(6,i,j,k,iElem) = 0.0
           DO iPart1=1,2; DO iPart2=1,2; DO iPart3=1,2
-            UQDS(1+locPartNum*5,i,j,k,iElem) =  QDSMacroValues(1,i,j,k,iElem)*GaussHermitWeiAbs(1,iPart1) &
-                *GaussHermitWeiAbs(1,iPart2)*GaussHermitWeiAbs(1,iPart3)/(PI*SQRT(PI))
-            UQDS(2+locPartNum*5,i,j,k,iElem) =  QDSMacroValues(2,i,j,k,iElem) / QDSMacroValues(1,i,j,k,iElem) &
-                  + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart1)
-            UQDS(3+locPartNum*5,i,j,k,iElem) =  QDSMacroValues(3,i,j,k,iElem) / QDSMacroValues(1,i,j,k,iElem) &
-                  + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart2)
-            UQDS(4+locPartNum*5,i,j,k,iElem) =  QDSMacroValues(4,i,j,k,iElem) / QDSMacroValues(1,i,j,k,iElem) &
-                  + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart3)
-            UQDS(5+locPartNum*5,i,j,k,iElem) =(QDSSpecDOF-3.)*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem) &
-                  /(QDSSpeciesMass*2.)
-            locPartNum = locPartNum + 1
+            UQDS(1+L,i,j,k,iElem) =     QDSMacroValues(1,i,j,k,iElem)*&
+                                     GaussHermitWeiAbs(1,iPart1)     *&
+                                     GaussHermitWeiAbs(1,iPart2)     *&
+                                     GaussHermitWeiAbs(1,iPart3)/(PI*SQRT(PI))
+
+            UQDS(2+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
+                                     * (QDSMacroValues(2  ,i,j,k,iElem) /&
+                                        QDSMacroValues(1  ,i,j,k,iElem) &
+                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart1))    
+            UQDS(3+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
+                                     * (QDSMacroValues(3  ,i,j,k,iElem) /&
+                                        QDSMacroValues(1  ,i,j,k,iElem) &
+                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart2))    
+            UQDS(4+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
+                                     * (QDSMacroValues(4  ,i,j,k,iElem) /&
+                                        QDSMacroValues(1  ,i,j,k,iElem) &
+                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart3))
+
+            UQDS(5+L,i,j,k,iElem) =(QDSSpecDOF-3.)*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/(QDSSpeciesMass*2.)
+
+            L = L + 5
           END DO; END DO; END DO
         ELSE
           UQDS(:,i,j,k,iElem) = 0.0
@@ -381,10 +382,9 @@ USE MOD_PreProc
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, k, j, i, iPart
+INTEGER           :: iElem, k, j, i, iPart,L
 !REAL :: Temp, Velo(3), Dens, Mass
 !===================================================================================================================================
-!QDSSpeciesMass=Species(QDS_Species)%MassIC
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 DO iElem = 1, nQDSElems
   DO k=0,PP_N
@@ -392,22 +392,24 @@ DO iElem = 1, nQDSElems
       DO i=0,PP_N
         QDSMacroValues(:,i,j,k,iElem) = 0.0
         DO iPart=0,7
-          !IF (i.eq.1.and.j.eq.1.and.k.eq.1.and.ielem.eq.1) print*, UQDS(1+iPart*5,i,j,k,iElem)
-          QDSMacroValues(1,i,j,k,iElem) = QDSMacroValues(1,i,j,k,iElem) + UQDS(1+iPart*5,i,j,k,iElem)
-          QDSMacroValues(2,i,j,k,iElem) = QDSMacroValues(2,i,j,k,iElem) + UQDS(2+iPart*5,i,j,k,iElem)*UQDS(1+iPart*5,i,j,k,iElem)
-          QDSMacroValues(3,i,j,k,iElem) = QDSMacroValues(3,i,j,k,iElem) + UQDS(3+iPart*5,i,j,k,iElem)*UQDS(1+iPart*5,i,j,k,iElem)
-          QDSMacroValues(4,i,j,k,iElem) = QDSMacroValues(4,i,j,k,iElem) + UQDS(4+iPart*5,i,j,k,iElem)*UQDS(1+iPart*5,i,j,k,iElem)
-          QDSMacroValues(5,i,j,k,iElem) = QDSMacroValues(5,i,j,k,iElem) + UQDS(1+iPart*5,i,j,k,iElem) &
-            *(0.5*(UQDS(2+iPart*5,i,j,k,iElem)**2.+&
-                   UQDS(3+iPart*5,i,j,k,iElem)**2.+&
-                   UQDS(4+iPart*5,i,j,k,iElem)**2.)+&
-                   UQDS(5+iPart*5,i,j,k,iElem))
-!          IF (k.eq.0.and.j.eq.0.and.i.eq.0) print*,1+iPart*5, UQDS(1+iPart*5,i,j,k,iElem),UQDS(2+iPart*5,i,j,k,iElem),& 
-!            UQDS(3+iPart*5,i,j,k,iElem)  ,UQDS(4+iPart*5,i,j,k,iElem),UQDS(5+iPart*5,i,j,k,iElem)
+          L=iPart*5
+          IF(UQDS(1+L,i,j,k,iElem).GT.0.0)THEN
+            QDSMacroValues(1,i,j,k,iElem) = QDSMacroValues(1,i,j,k,iElem) + UQDS(1+L,i,j,k,iElem)
+            QDSMacroValues(2,i,j,k,iElem) = QDSMacroValues(2,i,j,k,iElem) + UQDS(2+L,i,j,k,iElem)
+            QDSMacroValues(3,i,j,k,iElem) = QDSMacroValues(3,i,j,k,iElem) + UQDS(3+L,i,j,k,iElem)
+            QDSMacroValues(4,i,j,k,iElem) = QDSMacroValues(4,i,j,k,iElem) + UQDS(4+L,i,j,k,iElem)
+            QDSMacroValues(5,i,j,k,iElem) = QDSMacroValues(5,i,j,k,iElem) + UQDS(5+L,i,j,k,iElem) &
+                                                                          + 0.5*(UQDS(2+L,i,j,k,iElem)**2+&
+                                                                                 UQDS(3+L,i,j,k,iElem)**2+&
+                                                                                 UQDS(4+L,i,j,k,iElem)**2)&
+                                                                                /UQDS(1+L,i,j,k,iElem)
+          END IF
         END DO        
         IF (QDSMacroValues(1,i,j,k,iElem).GT.0.0) THEN
           QDSMacroValues(6,i,j,k,iElem) = (2.*QDSMacroValues(5,i,j,k,iElem) &
-            -(QDSMacroValues(2,i,j,k,iElem)**2.0+QDSMacroValues(3,i,j,k,iElem)**2.0+QDSMacroValues(4,i,j,k,iElem)**2.0) &
+                                            -(QDSMacroValues(2,i,j,k,iElem)**2+&
+                                              QDSMacroValues(3,i,j,k,iElem)**2+&
+                                              QDSMacroValues(4,i,j,k,iElem)**2) &
             /QDSMacroValues(1,i,j,k,iElem)) / (QDSMacroValues(1,i,j,k,iElem)*3.) *QDSSpeciesMass /BoltzmannConst
         ELSE
           QDSMacroValues(6,i,j,k,iElem) = 0.0
@@ -416,20 +418,6 @@ DO iElem = 1, nQDSElems
     END DO ! j
   END DO
 END DO
-
-!  Temp = 278.687
-!  Velo =(/0.,0.,0./) !(/1020.882,0.,0./)
-!  Dens= 2.633459376E25
-!  Mass = 4.651734101E-26
-!DO k=0,PP_N
-!  DO j=0,PP_N
-!    DO i=0,PP_N
-!  QDSMacroValues(1,i,j,k,1) = Dens*wGP(i)*wGP(j)*wGP(k)/sJ(i,j,k,1)*Mass
-!  QDSMacroValues(2:4,i,j,k,1) = QDSMacroValues(1,i,j,k,1)*Velo(1:3)
-!  QDSMacroValues(6,i,j,k,1) = Temp
-!END DO; END DO; END DO
-!print*,'energie and temp', QDSMacroValues(5,0,0,0,1),  QDSMacroValues(6,0,0,0,1)
-!read*
 END SUBROUTINE QDSCalculateMacroValues
 
 
@@ -455,6 +443,7 @@ SDEALLOCATE(UQDS_Master)
 SDEALLOCATE(UQDS_Slave)
 SDEALLOCATE(FluxQDS_Master)
 SDEALLOCATE(FluxQDS_Slave)
+SDEALLOCATE(GaussHermitWeiAbs)
 END SUBROUTINE QDS_FinalizeDG
 
 
