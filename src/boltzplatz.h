@@ -30,6 +30,13 @@
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ ## k).OR.x<-HUGE(1._ ## k)) CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
 #endif
 
+! Test for equality: read description in src/globals/globals.f90 for further infos
+! for variable relative tolerance
+#define ALMOSTEQUALRELATIVE(x,y,tol)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(tol))
+! for fixed relative tolerance (for double precision use twice the machine precision 2E-52 ~ 2.22e-16 -> 2*2.22E-16=4.44E-16)
+#define ALMOSTEQUAL(x,y)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(4.44E-16))
+#define ALMOSTZERO(x) (ABS(x).LE.(2.22e-16))
+
 #ifdef MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
@@ -89,11 +96,11 @@
 
 !#define DEBUGMESH
 
-#define PLANAR_RECT   0
-#define PLANAR_NONRECT   1
-#define BILINEAR 2
-#define PLANAR_CURVED   3
-#define CURVED   4
+#define PLANAR_RECT    0
+#define PLANAR_NONRECT 1
+#define BILINEAR       2
+#define PLANAR_CURVED  3
+#define CURVED         4
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1
@@ -101,3 +108,13 @@
 #define LOCAL_PROC_ID   3
 !#define NATIVE_SIDE_ID  1
 #define LOCAL_SEND_ID   4
+
+! Entry position for interface type for selecting the corresponding Riemann solver
+#define RIEMANN_VACUUM         0
+#define RIEMANN_PML            1
+#define RIEMANN_DIELECTRIC     2
+#define RIEMANN_DIELECTRIC2VAC 3
+#define RIEMANN_VAC2DIELECTRIC 4
+
+! format
+#define OUTPUTFORMAT '(E25.14E3)'

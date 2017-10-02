@@ -35,18 +35,6 @@ INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
 END INTERFACE
 
-INTERFACE AlmostEqual
-  MODULE PROCEDURE AlmostEqual
-END INTERFACE
-
-INTERFACE AlmostEqualToTolerance
-  MODULE PROCEDURE AlmostEqualToTolerance
-END INTERFACE
-
-INTERFACE AlmostZero
-  MODULE PROCEDURE AlmostZero
-END INTERFACE
-
 INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
@@ -82,6 +70,22 @@ END INTERFACE CreateErrFile
 INTERFACE CROSS
   MODULE PROCEDURE CROSS
 END INTERFACE CROSS
+
+INTERFACE str2real
+  MODULE PROCEDURE str2real
+END INTERFACE
+
+INTERFACE str2int
+  MODULE PROCEDURE str2int
+END INTERFACE
+
+INTERFACE str2logical
+  MODULE PROCEDURE str2logical
+END INTERFACE
+
+INTERFACE GetParameterFromFile
+  MODULE PROCEDURE GetParameterFromFile
+END INTERFACE
 
 !===================================================================================================================================
 CONTAINS
@@ -138,106 +142,106 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitGlobals
 
 
-FUNCTION AlmostEqual(Num1,Num2)
-!===================================================================================================================================
-! Bruce Dawson quote:
-! "There is no silver bullet. You have to choose wisely."
-!    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-!      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
-!      to your calculation. Maybe."
-!    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-!      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
-!      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-!    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
-!      Good luck and God speed."
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars,    ONLY:TwoEpsMach ! relative epsilon value: something like 4.???E-16 for double precision
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL            :: Num1,Num2      ! Number
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL         :: ALMOSTEQUAL
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*TwoEpsMach)THEN
-  ALMOSTEQUAL=.TRUE.
-ELSE
-  ALMOSTEQUAL=.FALSE.
-END IF
-END FUNCTION AlmostEqual
+! FUNCTION AlmostEqual(Num1,Num2) ! see boltzplatz.h
+! !===================================================================================================================================
+! ! Bruce Dawson quote:
+! ! "There is no silver bullet. You have to choose wisely."
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !      to your calculation. Maybe."
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !      Good luck and God speed."
+! !===================================================================================================================================
+! ! MODULES
+! USE MOD_Globals_Vars,    ONLY:TwoEpsMach ! relative epsilon value: something like 4.???E-16 for double precision
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL            :: Num1,Num2      ! Number
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! LOGICAL         :: ALMOSTEQUAL
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! !===================================================================================================================================
+! IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*TwoEpsMach)THEN
+!   ALMOSTEQUAL=.TRUE.
+! ELSE
+!   ALMOSTEQUAL=.FALSE.
+! END IF
+! END FUNCTION AlmostEqual
 
 
-FUNCTION AlmostEqualToTolerance(Num1,Num2,Tolerance)
-!===================================================================================================================================
-! Bruce Dawson quote:
-! "There is no silver bullet. You have to choose wisely."
-!    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-!      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
-!      to your calculation. Maybe."
-!    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-!      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
-!      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-!    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
-!      Good luck and God speed."
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL            :: Num1,Num2
-REAL            :: Tolerance ! relative epsilon value as input
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL         :: AlmostEqualToTolerance
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*Tolerance)THEN
-   AlmostEqualToTolerance=.TRUE.
-ELSE
-  AlmostEqualToTolerance=.FALSE.
-END IF
-END FUNCTION AlmostEqualToTolerance
+! FUNCTION ALMOSTEQUALRELATIVE(Num1,Num2,Tolerance) ! old name "AlmostEqualToTolerance", new is same as for flexi: see boltzplatz.h
+! !===================================================================================================================================
+! ! Bruce Dawson quote:
+! ! "There is no silver bullet. You have to choose wisely."
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !      to your calculation. Maybe."
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !      Good luck and God speed."
+! !===================================================================================================================================
+! ! MODULES
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL            :: Num1,Num2
+! REAL            :: Tolerance ! relative epsilon value as input
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! LOGICAL         :: ALMOSTEQUALRELATIVE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! !===================================================================================================================================
+! IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*Tolerance)THEN
+!    ALMOSTEQUALRELATIVE=.TRUE.
+! ELSE
+!   ALMOSTEQUALRELATIVE=.FALSE.
+! END IF
+! END FUNCTION ALMOSTEQUALRELATIVE
 
 
-FUNCTION AlmostZero(Num)
-!===================================================================================================================================
-! Performe an almost zero check. But ...
-! Bruce Dawson quote:
-! "There is no silver bullet. You have to choose wisely."
-!    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-!      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
-!      to your calculation. Maybe."
-!    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-!      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
-!      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-!    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
-!      Good luck and God speed."
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars,    ONLY:EpsMach
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL            :: Num ! Number
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL         :: AlmostZero
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-AlmostZero=.FALSE.
-IF(ABS(Num).LE.EpsMach) AlmostZero=.TRUE.
-
-END FUNCTION AlmostZero
+! FUNCTION AlmostZero(Num) ! see boltzplatz.h
+! !===================================================================================================================================
+! ! Performe an almost zero check. But ...
+! ! Bruce Dawson quote:
+! ! "There is no silver bullet. You have to choose wisely."
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !      to your calculation. Maybe."
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !      Good luck and God speed."
+! !===================================================================================================================================
+! ! MODULES
+! USE MOD_Globals_Vars,    ONLY:EpsMach
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL            :: Num ! Number
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! LOGICAL         :: AlmostZero
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! !===================================================================================================================================
+! 
+! AlmostZero=.FALSE.
+! IF(ABS(Num).LE.EpsMach) AlmostZero=.TRUE.
+! 
+! END FUNCTION AlmostZero
 
 
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
@@ -383,6 +387,176 @@ END IF
 END SUBROUTINE CreateErrFile
 
 
+!==================================================================================================================================
+!> Convert a String to an Integer
+!==================================================================================================================================
+SUBROUTINE str2int(str,int_number,stat)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(len=*),INTENT(IN) :: str
+INTEGER,INTENT(OUT)         :: int_number
+INTEGER,INTENT(OUT)         :: stat
+!===================================================================================================================================
+READ(str,*,IOSTAT=stat)  int_number
+END SUBROUTINE str2int
+
+
+!==================================================================================================================================
+!> Convert a String to a REAL
+!==================================================================================================================================
+SUBROUTINE str2real(str,real_number,stat)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(len=*),INTENT(IN) :: str
+REAL,INTENT(OUT)            :: real_number
+INTEGER,INTENT(OUT)         :: stat
+!===================================================================================================================================
+READ(str,*,IOSTAT=stat)  real_number
+END SUBROUTINE str2real
+
+
+!==================================================================================================================================
+!> Convert a String to a LOGICAL
+!==================================================================================================================================
+SUBROUTINE str2logical(str,logical_number,stat)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(len=*),INTENT(IN) :: str
+LOGICAL,INTENT(OUT)         :: logical_number
+INTEGER,INTENT(OUT)         :: stat
+!===================================================================================================================================
+READ(str,*,IOSTAT=stat)  logical_number
+END SUBROUTINE str2logical
+
+
+!==================================================================================================================================
+!> read compile flags from a specified file
+!> example line in "configuration.cmake": SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
+!> ParameterName: timestep
+!> output: 0.1
+!> Type of Msg: [G]et[P]arameter[F]rom[File] -> GPFF: not ordinary read-in tool
+!==================================================================================================================================
+SUBROUTINE GetParameterFromFile(FileName,ParameterName,output,DelimiterSymbolIN,CommentSymbolIN,DoDisplayInfo)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)          :: FileName          !> e.g. './../laser.inp'
+CHARACTER(LEN=*),INTENT(IN)          :: ParameterName     !> e.g. 'timestep'
+CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: DelimiterSymbolIN !> e.g. '=' (default is '=')
+CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: CommentSymbolIN   !> e.g. '#' (default is '!')
+CHARACTER(LEN=*),INTENT(INOUT)       :: output            !> e.g. '0.1'
+LOGICAL,OPTIONAL,INTENT(IN)          :: DoDisplayInfo     !> default is: TRUE
+                                                          !> display DefMsg or errors if the parameter or the file is not found 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                              :: ExistFile         !> file exists=.true., file does not exist=.false.
+INTEGER                              :: iSTATUS           !> status
+CHARACTER(LEN=255)                   :: temp,temp2,temp3  !> temp variables for read in of file lines
+CHARACTER(LEN=255)                   :: DelimiterSymbol   !> symbol for commenting out code, e.g., "#" or "!"
+CHARACTER(LEN=255)                   :: CommentSymbol     !> symbol for commenting out code, e.g., "#" or "!"
+INTEGER                              :: ioUnit            !> field handler unit and ??
+INTEGER                              :: IndNum            !> Index Number
+CHARACTER(LEN=8)                     :: DefMsg            !> additional flag like "DEFAULT" or "*CUSTOM"
+!===================================================================================================================================
+IF(PRESENT(DelimiterSymbolIN))THEN
+  DelimiterSymbol=TRIM(ADJUSTL(DelimiterSymbolIN))
+ELSE
+  DelimiterSymbol='='
+END IF
+IF(PRESENT(CommentSymbolIN))THEN
+  CommentSymbol=TRIM(ADJUSTL(CommentSymbolIN))
+ELSE
+  CommentSymbol='!'
+END IF
+output=''
+! read from file
+INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
+IF(ExistFile) THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
+  DO
+    READ(ioUnit,'(A)',iostat=iSTATUS)temp
+    IF(ADJUSTL(temp(1:LEN(TRIM(CommentSymbol)))).EQ.TRIM(CommentSymbol)) CYCLE  ! complete line is commented out
+    IF(iSTATUS.EQ.-1)EXIT                           ! end of file is reached
+    IF(LEN(trim(temp)).GT.1)THEN                    ! exclude empty lines
+      IndNum=INDEX(temp,TRIM(ParameterName))        ! e.g. 'timestep'
+      IF(IndNum.GT.0)THEN
+        IF(IndNum-1.GT.0)THEN                       ! check if the parameter name is contained within a substring of another 
+          IF(temp(IndNum-1:IndNum-1).NE.' ')CYCLE   ! parameter, e.g., "timestep" within "fd_timestep" -> skip
+        END IF
+        temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
+        IF(DelimiterSymbol.NE.'')THEN               ! demiliting symbol must not be empty
+          IndNum=INDEX(temp2,TRIM(DelimiterSymbol)) ! only use string FROM delimiting symbol +1
+          IF(IndNum.GT.0)THEN
+            temp3=TRIM(ADJUSTL(temp2(IndNum+1:LEN(temp2))))
+            temp2=temp3
+          END IF
+        ELSE
+          ! no nothing?
+        END IF
+        IndNum=INDEX(temp2,TRIM(CommentSymbol)) ! only use string UP TO commenting symbol
+        IF(IndNum.EQ.0)IndNum=LEN(TRIM(temp2))+1
+        output=TRIM(ADJUSTL(temp2(1:IndNum-1)))
+        DefMsg='GPFF'
+        SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM(ParameterName),' | ', TRIM(output),' | ',TRIM(DefMsg),' | '
+        EXIT ! found the parameter -> exit loop
+      END IF
+    END IF
+  END DO
+  CLOSE(ioUnit)
+  IF(output.EQ.'')THEN
+    IF(PRESENT(DoDisplayInfo))THEN                                                                                                 
+      IF(DoDisplayInfo)THEN                                                                                                        
+        SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'             
+      END IF                                                                                                                       
+    ELSE                                                                                                                           
+      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'               
+    END IF
+    output='ParameterName does not exist'
+  END IF
+ELSE 
+  IF(PRESENT(DoDisplayInfo))THEN                                                                                                 
+    IF(DoDisplayInfo)THEN                                                                                                        
+      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'                       
+    END IF                                                                                                                       
+  ELSE                                                                                                                           
+    SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'                         
+  END IF
+  output='file does not exist'
+END IF
+END SUBROUTINE GetParameterFromFile
+
+
+
+
 FUNCTION INTSTAMP(Nam,Num)
 !===================================================================================================================================
 ! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
@@ -426,7 +600,7 @@ INTEGER            :: i         ! loop variable
 !IF (Analyze_dt.LT.1E-10) THEN
 !  WRITE(TimeStamp,'(F15.14)')Time
 !ELSE
-WRITE(TimeStamp,'(F20.16)')Time
+WRITE(TimeStamp,'(F21.17)')Time
 !END IF
 ! Replace spaces with 0's
 DO i=1,LEN(TRIM(TimeStamp))

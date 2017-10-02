@@ -48,6 +48,7 @@ USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
 #ifdef PARTICLES
 USE MOD_Particle_Vars,  ONLY: nSpecies
+USE MOD_PICDepo_Vars,   ONLY: DoDeposition
 #endif /*PARTICLES*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -60,7 +61,6 @@ CHARACTER(LEN=255),ALLOCATABLE :: VarNamesFlucIni(:)
 LOGICAL,ALLOCATABLE            :: hasAvgVars(:)
 #ifdef PARTICLES
 INTEGER                        :: iSpec,iCounter
-CHARACTER(LEN=255)             :: VarName
 CHARACTER(LEN=2)               :: strhelp
 #endif /*PARTICLES*/
 !==================================================================================================================================
@@ -78,9 +78,9 @@ ELSE
 END IF
 
 ! Define variables to be averaged
-nMaxVarAvg=PP_nVar+2
+nMaxVarAvg=PP_nVar+6
 #ifdef PARTICLES
-nMaxVarAvg=nMaxVarAvg+5*nSpecies
+nMaxVarAvg=nMaxVarAvg+9*nSpecies
 #endif /*PARTICLES*/
 ALLOCATE(VarNamesAvgList(nMaxVarAvg))
 
@@ -89,9 +89,14 @@ DO iVar=1,PP_nVar
 END DO ! iVar=1,PP_nVar
 VarNamesAvgList( 9)='ElectricFieldMagnitude'
 VarNamesAvgList(10)='MagneticFieldMagnitude'
+! derived quantity
+VarNamesAvgList(11)='PoyntingVectorX'
+VarNamesAvgList(12)='PoyntingVectorY'
+VarNamesAvgList(13)='PoyntingVectorZ'
+VarNamesAvgList(14)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
-iCounter=PP_nVar+2
+iCounter=PP_nVar+6
 DO iSpec=1,nSpecies
   WRITE(strhelp,'(I2.2)') iSpec
   VarnamesAvgList(iCounter+1)=TRIM('PowerDensityX-Spec')//TRIM(strhelp)
@@ -99,13 +104,17 @@ DO iSpec=1,nSpecies
   VarnamesAvgList(iCounter+3)=TRIM('PowerDensityZ-Spec')//TRIM(strhelp)
   VarnamesAvgList(iCounter+4)=TRIM('PowerDensity-Spec')//TRIM(strhelp)
   VarnamesAvgList(iCounter+5)=TRIM('ChargeDensity-Spec')//TRIM(strhelp)
-  iCounter=iCounter+5
+  VarnamesAvgList(iCounter+6)=TRIM('CurrentDensityX-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+7)=TRIM('CurrentDensityY-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+8)=TRIM('CurrentDensityZ-Spec')//TRIM(strhelp)
+  VarnamesAvgList(iCounter+9)=TRIM('CurrentDensity-Spec')//TRIM(strhelp)
+  iCounter=iCounter+9
 END DO
 #endif /*PARTICLES*/
 
-nMaxVarFluc=PP_nVar+2
+nMaxVarFluc=PP_nVar+6
 #ifdef PARTICLES
-nMaxVarFluc=nMaxVarFluc+5*nSpecies
+nMaxVarFluc=nMaxVarFluc+9*nSpecies
 #endif /*PARTICLES*/
 ALLOCATE(VarNamesFlucList(nMaxVarFluc),hasAvgVars(nMaxVarFluc))
 hasAvgVars=.TRUE.
@@ -115,6 +124,11 @@ DO iVar=1,PP_nVar
 END DO ! iVar=1,PP_nVar
 VarNamesFlucList( 9)='ElectricFieldMagnitude'
 VarNamesFlucList(10)='MagneticFieldMagnitude'
+! derived quantity
+VarNamesFlucList(11)='PoyntingVectorX'
+VarNamesFlucList(12)='PoyntingVectorY'
+VarNamesFlucList(13)='PoyntingVectorZ'
+VarNamesFlucList(14)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
 iCounter=PP_nVar+2
@@ -125,7 +139,11 @@ DO iSpec=1,nSpecies
   VarnamesFlucList(iCounter+3)=TRIM('PowerDensityZ-Spec')//TRIM(strhelp)
   VarnamesFlucList(iCounter+4)=TRIM('PowerDensity-Spec')//TRIM(strhelp)
   VarnamesFlucList(iCounter+5)=TRIM('ChargeDensity-Spec')//TRIM(strhelp)
-  iCounter=iCounter+5
+  VarnamesFlucList(iCounter+6)=TRIM('CurrentDensityX-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+7)=TRIM('CurrentDensityY-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+8)=TRIM('CurrentDensityZ-Spec')//TRIM(strhelp)
+  VarnamesFlucList(iCounter+9)=TRIM('CurrentDensity-Spec')//TRIM(strhelp)
+  iCounter=iCounter+9
 END DO
 #endif /*PARTICLES*/
 
@@ -172,22 +190,28 @@ DO iVar=1,nVarFluc
   IF(iVar2.NE.-1) CalcAvg(iVar2) = .TRUE.
 END DO
 
-! particles, additional marking for samling
+! PoyntingVector sampling
+DoPoyntingVectorAvg = .FALSE.
+IF(ANY(CalcAvg (11:14))) DoPoyntingVectorAvg = .TRUE.
+IF(ANY(CalcFluc(11:14))) DoPoyntingVectorAvg = .TRUE.
+
+! particles, additional marking for sampling
 #ifdef PARTICLES
 iCounter=PP_nVar+2
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
-DO iSpec=1,nSpecies
-  IF(ANY(CalcAvg(iCounter+1:iCounter+5))) THEN
-    DoPowerDensity(iSpec)=.TRUE.
-    nSpecPowerDensity=nSpecPowerDensity+1
-  END IF
-  iCounter=iCounter+5
-END DO
-IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
+IF(DoDeposition)THEN ! compute powerdensity only if particles are deposited
+  DO iSpec=1,nSpecies
+    IF(ANY(CalcAvg(iCounter+1:iCounter+9))) THEN
+      DoPowerDensity(iSpec)=.TRUE.
+      nSpecPowerDensity=nSpecPowerDensity+1
+    END IF
+    iCounter=iCounter+9
+  END DO
+  IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:7,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
+END IF
 #endif /*PARTICELS*/
-
 
 ! For fluctuations with mixed base vars
 ! nothing to do
@@ -293,8 +317,9 @@ USE MOD_PreProc
 USE MOD_DG_Vars          ,ONLY: U
 USE MOD_Mesh_Vars        ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output      ,ONLY: WriteTimeAverage
+USE MOD_Equation_Vars    ,ONLY: smu0
 USE MOD_Timeaverage_Vars ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
-                               ,VarnamesAvgOut,VarNamesFlucOut
+                               ,VarnamesAvgOut,VarNamesFlucOut,DoPoyntingVectorAvg
 #ifdef PARTICLES
 USE MOD_Timeaverage_Vars ,ONLY: PowerDensity,DoPowerDensity
 USE MOD_Particle_Vars,    ONLY: nSpecies
@@ -312,6 +337,7 @@ REAL,INTENT(IN)                 :: tFuture                !< future simulation t
 INTEGER                         :: i,j,k,iElem,iVar
 REAL                            :: dtStep
 REAL                            :: tmpVars(nVarAvg,0:PP_N,0:PP_N,0:PP_N)
+REAL                            :: tmpPoyntingVector(1:3)
 #ifdef PARTICLES
 INTEGER                         :: iSpec,iSpec2,iCounter
 #endif /*Particles*/
@@ -348,24 +374,47 @@ DO iElem=1,nElems
     END DO; END DO; END DO
   END IF
 
+  ! PoyntingVector and PoyntingVectorMagnitude
+  IF(DoPoyntingVectorAvg)THEN
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      tmpPoyntingVector = smu0*CROSS(U(1:3,i,j,k,iElem),U(4:6,i,j,k,iElem))
+      IF(CalcAvg(11)) tmpVars(iAvg(11),i,j,k) = tmpPoyntingVector(1)
+      IF(CalcAvg(12)) tmpVars(iAvg(12),i,j,k) = tmpPoyntingVector(1)
+      IF(CalcAvg(13)) tmpVars(iAvg(13),i,j,k) = tmpPoyntingVector(1)
+      IF(CalcAvg(14)) tmpVars(iAvg(14),i,j,k) = SQRT(DOT_PRODUCT(tmpPoyntingVector,tmpPoyntingVector))
+    END DO; END DO; END DO
+  END IF
+
 #ifdef PARTICLES
-  iCounter=PP_nVar+2
+  iCounter=PP_nVar+6
   iSpec2=0
   DO iSpec=1,nSpecies
     iVar=iCounter
     IF(DoPowerDensity(iSpec))THEN
       iSpec2=iSpec2+1
+      ! PowerDensity 1:3
       IF(CalcAvg(iCounter+1)) tmpVars(iAvg(iVar+1),:,:,:) = PowerDensity(1,:,:,:,iElem,iSpec2)
       IF(CalcAvg(iCounter+2)) tmpVars(iAvg(iVar+2),:,:,:) = PowerDensity(2,:,:,:,iElem,iSpec2)
       IF(CalcAvg(iCounter+3)) tmpVars(iAvg(iVar+3),:,:,:) = PowerDensity(3,:,:,:,iElem,iSpec2)
+      ! Mag(PowerDensity)
       IF(CalcAvg(iCounter+4))THEN
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          tmpVars(iAvg(iVar+4),i,j,k) = SUM(PowerDensity(1:3,i,j,k,iElem,iSpec2))
+          tmpVars(iAvg(iVar+4),i,j,k) = SQRT(DOT_PRODUCT(PowerDensity(1:3,i,j,k,iElem,iSpec2),PowerDensity(1:3,i,j,k,iElem,iSpec2)))
         END DO; END DO; END DO
       END IF
       IF(CalcAvg(iCounter+5)) tmpVars(iAvg(iVar+5),:,:,:) = PowerDensity(4,:,:,:,iElem,iSpec2)
+      ! CurrentDensity 1:3
+      IF(CalcAvg(iCounter+6)) tmpVars(iAvg(iVar+6),:,:,:) = PowerDensity(5,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+7)) tmpVars(iAvg(iVar+7),:,:,:) = PowerDensity(6,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+8)) tmpVars(iAvg(iVar+8),:,:,:) = PowerDensity(7,:,:,:,iElem,iSpec2)
+      ! Mag(CurrentDensity)
+      IF(CalcAvg(iCounter+9))THEN
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+          tmpVars(iAvg(iVar+9),i,j,k) = SQRT(DOT_PRODUCT(PowerDensity(5:7,i,j,k,iElem,iSpec2),PowerDensity(5:7,i,j,k,iElem,iSpec2)))
+        END DO; END DO; END DO
+      END IF
     END IF
-    iCounter=iCounter+5
+    iCounter=iCounter+9
   END DO ! iSpec=1,nSpecies
 #endif /*Particles*/
 

@@ -125,7 +125,7 @@ IF (PRESENT(Proposal)) THEN
 ELSE
   CALL FindStr(Key,GetStr,DefMsg)
 END IF
-SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM(Key),' | ', TRIM(GetStr),' | ',TRIM(DefMsg),' | '
+SWRITE(UNIT_StdOut,'(a3,a45,a3,a33,a3,a7,a3)')' | ',TRIM(Key),' | ', TRIM(GetStr),' | ',TRIM(DefMsg),' | '
 END FUNCTION GETSTR
 
 
@@ -216,7 +216,7 @@ ELSE
   CALL FindStr(Key,HelpStr,DefMsg)
 END IF
 READ(HelpStr,*)GetInt
-SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM(Key),' | ', GetInt,' | ',TRIM(DefMsg),' | '
+SWRITE(UNIT_StdOut,'(a3,a45,a3,i33,a3,a7,a3)')' | ',TRIM(Key),' | ', GetInt,' | ',TRIM(DefMsg),' | '
 END FUNCTION GETINT
 
 
@@ -252,7 +252,7 @@ ELSE
   CALL FindStr(Key,HelpStr,DefMsg)
 END IF
 READ(HelpStr,*)GetReal
-SWRITE(UNIT_StdOut,'(a3,a30,a3,e33.5,a3,a7,a3)')' | ',TRIM(Key),' | ', GetReal,' | ',TRIM(DefMsg),' | '
+SWRITE(UNIT_StdOut,'(a3,a45,a3,e33.5,a3,a7,a3)')' | ',TRIM(Key),' | ', GetReal,' | ',TRIM(DefMsg),' | '
 END FUNCTION GETREAL
 
 
@@ -288,7 +288,7 @@ ELSE
   CALL FindStr(Key,HelpStr,DefMsg)
 END IF
 READ(HelpStr,*)GetLogical
-SWRITE(UNIT_StdOut,'(a3,a30,a3,l33,a3,a7,a3)')' | ',TRIM(Key),' | ', GetLogical,' | ',TRIM(DefMsg),' | '
+SWRITE(UNIT_StdOut,'(a3,a45,a3,l33,a3,a7,a3)')' | ',TRIM(Key),' | ', GetLogical,' | ',TRIM(DefMsg),' | '
 END FUNCTION GETLOGICAL
 
 
@@ -326,7 +326,7 @@ ELSE
   CALL FindStr(Key,HelpStr,DefMsg)
 END IF
 READ(HelpStr,*)GetIntArray
-SWRITE(UNIT_stdOut,'(a3,a30,a3,a28,i4,a4,a7,a3)',ADVANCE='NO') ' | ',TRIM(Key),' | ',&
+SWRITE(UNIT_stdOut,'(a3,a45,a3,a28,i4,a4,a7,a3)',ADVANCE='NO') ' | ',TRIM(Key),' | ',&
                                                                'Integer array of size (',nIntegers,') | ',TRIM(DefMsg),' | '
 DO iInteger=0,nIntegers-1
   IF ((iInteger.GT.0) .AND. (MOD(iInteger,8).EQ.0)) THEN
@@ -374,7 +374,7 @@ ELSE
 END IF
 CALL getPImultiplies(helpstr)
 READ(HelpStr,*)GetRealArray
-SWRITE(UNIT_stdOut,'(a3,a30,a3,a28,i4,a4,a7,a3)',ADVANCE='NO') ' | ',TRIM(Key),' | ',&
+SWRITE(UNIT_stdOut,'(a3,a45,a3,a28,i4,a4,a7,a3)',ADVANCE='NO') ' | ',TRIM(Key),' | ',&
                                                                'Real array of size (',nReals,') | ',TRIM(DefMsg),' | '
 DO iReal=0,nReals-1
   IF ((iReal.GT.0) .AND. (MOD(iReal,8).EQ.0)) THEN
@@ -439,10 +439,13 @@ TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
 CHARACTER(LEN=255)                          :: HelpStr,Str
 TYPE(Varying_String)                        :: aStr,bStr,Separator
 INTEGER                                     :: stat,iniUnit,nLines,i
-CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent,FileContent2
+CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent
 CHARACTER(LEN=1)                            :: tmpChar=''
+#ifdef PARTICLES
 INTEGER                                     :: NArgs,NChar
+CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent2
 LOGICAL                                     :: DoReadDSMC
+#endif
 !===================================================================================================================================
 ! Check if we have read in ini file already
 nLines=0

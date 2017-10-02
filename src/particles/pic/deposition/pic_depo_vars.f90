@@ -11,7 +11,7 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                               :: DoDeposition       ! flag to switch deposition on/off
-REAL,ALLOCATABLE                      :: source(:,:,:,:,:)  ! source(1:4,PP_N,PP_N,PP_N,nElems)
+REAL,ALLOCATABLE                      :: PartSource(:,:,:,:,:)  ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
 REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE                   :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                      :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
@@ -65,17 +65,40 @@ INTEGER                               :: NbrOfSFdepoFixes                  !Numb
 REAL    , ALLOCATABLE                 :: SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
 REAL    , ALLOCATABLE                 :: SFdepoFixesChargeMult(:)          !multiplier for mirrored charges (wall: -1.0, sym: 1.0)
+LOGICAL , ALLOCATABLE                 :: SFdepoFixesPartOfLink(:)          !this fix is part of a link
 REAL                                  :: SFdepoFixesEps                    !epsilon for defined planes
 INTEGER                               :: NbrOfSFdepoFixLinks               !Number of linked SFdepoFixes
-INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:2 (2 Fixes are linked with each other!)
+INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:3 (2 fixes are linked with each other!)
+                                                                           !             (:,3 is fraction of 180 deg)
 INTEGER                               :: NbrOfSFdepoLayers                 !Number of const. source layer for sf-depo at planar BCs
 REAL    , ALLOCATABLE                 :: SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
+LOGICAL , ALLOCATABLE                 :: SFdepoLayersUseFixBounds(:)       !use alls planes of SFdepoFixes as additional bounds?
 CHARACTER(LEN=256),ALLOCATABLE        :: SFdepoLayersSpace(:)              !name of space (cuboid or cylinder)
 REAL    , ALLOCATABLE                 :: SFdepoLayersBaseVector(:,:,:)     !1:nFixes;1:2;1:3(x,y,z)
 INTEGER , ALLOCATABLE                 :: SFdepoLayersSpec(:)               !species of particles for respective layer
 REAL    , ALLOCATABLE                 :: SFdepoLayersPartNum(:)            !number of particles in volume
 REAL    , ALLOCATABLE                 :: SFdepoLayersRadius(:)             !radius for cylinder-space
+LOGICAL                               :: SFResampleAnalyzeSurfCollis
+TYPE tLastAnalyzeSurfCollis
+  INTEGER                             :: PartNumberSamp                    !number of parts from last sampling
+  INTEGER                             :: PartNumberReduced                 !max. allowed number of parts to be saved
+  LOGICAL                             :: ReducePartNumber                  !reduce PartNumberSamp to PartNumberReduced
+  INTEGER                             :: PartNumberDepo                    !number of parts to be inserted in depo
+  REAL, ALLOCATABLE                   :: WallState(:,:)                    !Pos at wall and velocities from last sampling
+  INTEGER, ALLOCATABLE                :: Species(:)                        !Spec of parts
+  REAL                                :: pushTimeStep                      !timestep for (fractional) euler push from wall into ghost domain
+  INTEGER                             :: PartNumThreshold                  !Threshold for checking inserted parts per depo (otherwise abort)
+  REAL                                :: NormVecOfWall(3)                  !normVec for pushTimeStep
+  REAL                                :: Bounds(1:2,1:3)                   !bounds after push for preventing parts outside of...
+                                                                           !...extruded domain 1:2(min,max);1:3(x,y,z)
+  LOGICAL                             :: UseFixBounds                      !use alls planes of SFdepoFixes as additional bounds?
+  LOGICAL                             :: Restart                           !read-in old DSMCSurfCollis-file for restart
+  CHARACTER(LEN=256)                  :: DSMCSurfCollisRestartFile
+  INTEGER                             :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
+  INTEGER, ALLOCATABLE                :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
+END TYPE
+TYPE(tLastAnalyzeSurfCollis)          :: LastAnalyzeSurfCollis
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================

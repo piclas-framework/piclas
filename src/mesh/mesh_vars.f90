@@ -37,8 +37,10 @@ REAL,ALLOCATABLE :: DCL_N(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! will be used in the future
 REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
-REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:,:)   !< XYZ positions (first index 1:3) of the volume Gauss Point
-REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)   !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
+REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+REAL,DIMENSION(6):: xyzMinMax                    !< from Face_xGP points determined maximum domain extension (min/max of domain)
+LOGICAL          :: GetMeshMinMaxBoundariesIsDone =.FALSE. !< don't call twice the calculation of xyzMinMax
 !----------------------------------------------------------------------------------------------------------------------------------
 ! MORTAR DATA FOR NON-CONFORMING MESHES ORIGINATING FROM AN OCTREE BASIS (ONLY ALLOCATED IF isMortarMesh=.TRUE.!!!)
 !----------------------------------------------------------------------------------------------------------------------------------

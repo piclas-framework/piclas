@@ -37,6 +37,10 @@ INTERFACE CGNS_VolToSide
   MODULE PROCEDURE CGNS_VolToSide
 END INTERFACE
 
+INTERFACE CGNS_VolToSide_IJK
+  MODULE PROCEDURE CGNS_VolToSide_IJK
+END INTERFACE
+
 INTERFACE SideToVol
   MODULE PROCEDURE SideToVol
 END INTERFACE
@@ -67,6 +71,7 @@ PUBLIC::Flip_M2S
 PUBLIC::CGNS_SideToVol
 PUBLIC::CGNS_SideToVol2
 PUBLIC::CGNS_VolToSide
+PUBLIC::CGNS_VolToSide_IJK
 PUBLIC::SideToVol
 PUBLIC::SideToAdjointLocSide
 PUBLIC::SideToVol2
@@ -281,6 +286,44 @@ SELECT CASE(locSideID)
     CGNS_VolToSide = (/i,j,PP_N-k/)
 END SELECT
 END FUNCTION CGNS_VolToSide
+
+
+FUNCTION CGNS_VolToSide_IJK(i,j,k, locSideID)
+!===================================================================================================================================
+! Transforms Volume-Coordinates into RHS of the Side (uses CGNS-Notation)
+! input: i,j,k, locSideID 
+!   where: i,j,k = volume-indices 
+! output: indices in IJK of volume and  volume-index which is not used (depending on locSideID)
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: i,j,k,locSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,DIMENSION(3) :: CGNS_VolToSide_IJK
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SELECT CASE(locSideID)
+  CASE(XI_MINUS)   
+    CGNS_VolToSide_IJK = (/k,j,i/)
+  CASE(XI_PLUS)    
+    CGNS_VolToSide_IJK= (/j,k,i/)
+  CASE(ETA_MINUS)
+    CGNS_VolToSide_IJK= (/i,k,j/)
+  CASE(ETA_PLUS)   
+    CGNS_VolToSide_IJK = (/i,k,j/)
+  CASE(ZETA_MINUS) 
+    CGNS_VolToSide_IJK = (/j,i,k/)
+  CASE(ZETA_PLUS)  
+    CGNS_VolToSide_IJK = (/i,j,k/)
+END SELECT
+END FUNCTION CGNS_VolToSide_IJK
 
 
 FUNCTION CGNS_SideToVol(l, p, q, locSideID)

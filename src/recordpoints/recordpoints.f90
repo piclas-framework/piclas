@@ -46,7 +46,10 @@ USE MOD_ReadInTools         ,ONLY: GETSTR,GETINT,GETLOGICAL,GETREAL
 USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize,RP_SamplingOffset
-USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples
+USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples,RP_fileExists
+#ifdef LSERK
+USE MOD_RecordPoints_Vars   ,ONLY: RPSkip
+#endif /*LSERK*/
 #ifdef MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 #endif
@@ -92,6 +95,10 @@ IF(RP_onProc)THEN
   SDEALLOCATE(lastSample)
   ALLOCATE(lastSample(0:PP_nVar,nRP))
 END IF
+RP_fileExists=.FALSE.
+#ifdef LSERK
+RPSkip=.FALSE.
+#endif /*LSERK*/
 
 RecordPointsInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT RECORDPOINTS DONE!'
@@ -286,6 +293,7 @@ DO iRP=1,nRP
 END DO
 END SUBROUTINE InitRPBasis
 
+
 SUBROUTINE RecordPoints(iter,t,forceSampling,Output)
 !===================================================================================================================================
 ! Interpolate solution at time t to recordpoint positions and fill output buffer 
@@ -376,9 +384,12 @@ USE MOD_Mesh_Vars         ,ONLY: MeshFile
 USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples
 USE MOD_Recordpoints_Vars ,ONLY: offsetRP,nRP,nGlobalRP,lastSample
-USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists
+USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists,chunkSamples
+#ifdef LSERK
+USE MOD_Recordpoints_Vars ,ONLY: RPSkip
+#endif /*LSERK*/
 #ifdef MPI
-USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
+USE MOD_Recordpoints_Vars ,ONLY: RP_COMM,nRP_Procs
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -399,64 +410,89 @@ startT=MPI_WTIME()
 #endif
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
+IF(myRPrank.EQ.0)THEN
 #ifdef MPI
-CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=RP_COMM)
+  CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.TRUE.,readOnly=.FALSE.)
 #else
-CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,readOnly=.FALSE.)
+  CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,readOnly=.FALSE.)
 #endif
+  IF(.NOT.RP_fileExists)THEN
+    ! Create dataset attributes
+    CALL WriteAttributeToHDF5(File_ID,'File_Type'  ,1,StrScalar=(/TRIM('RecordPoints_Data')/))
+    CALL WriteAttributeToHDF5(File_ID,'MeshFile'   ,1,StrScalar=(/TRIM(MeshFile)/))
+    CALL WriteAttributeToHDF5(File_ID,'ProjectName',1,StrScalar=(/TRIM(ProjectName)/))
+    CALL WriteAttributeToHDF5(File_ID,'RPDefFile'  ,1,StrScalar=(/TRIM(RPDefFile)/))
+    CALL WriteAttributeToHDF5(File_ID,'Time'       ,1,RealScalar=OutputTime)
+    CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar,StrArray=StrVarNames)
+  END IF
+  CALL CloseDataFile()
+END IF
 
+#ifdef MPI
+CALL MPI_BARRIER(RP_COMM,iError)
+IF(nRP_Procs.EQ.1)THEN
+  CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+ELSE
+  CALL OpenDataFile(Filestring,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=RP_COMM)
+END IF
+#else
+CALL OpenDataFile(Filestring,create=.FALSE.,readOnly=.FALSE.)
+#endif
+  
 IF(iSample.GT.0)THEN
+  IF(.NOT.RP_fileExists) chunkSamples=iSample
   ! write buffer into file, we need two offset dimensions (one buffer, one processor)
-  !CALL MPI_BARRIER(RP_COMM,iError)
   nSamples=nSamples+iSample
-  !IPWRITE(*,*) 'blabla',iSample,nSamples,nRP,size(RP_Data),size(LastSample),RP_BufferSize
-  !IPWRITE(*,*) 'values',RP_data(8,nRP,iSample)
-  !CALL MPI_BARRIER(RP_COMM,iError)
-  CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
-                        nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
-                        nVal=      (/PP_nVar+1,nRP      ,iSample/),&
-                        offset=    (/0        ,offsetRP ,nSamples-iSample/),&
-                        resizeDim= (/.FALSE.  ,.FALSE.  ,.TRUE./),&
-                        chunkSize= (/PP_nVar+1,1        ,1/),&
-                        RealArray=RP_Data(:,:,1:iSample),&
-                        collective=.TRUE.)!, existing=RP_fileExists)
+#ifdef MPI
+  IF(nRP_Procs.EQ.1)THEN
+#endif
+    CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
+                          nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
+                          nVal=      (/PP_nVar+1,nRP      ,iSample/),&
+                          offset=    (/0        ,offsetRP ,nSamples-iSample/),&
+                          resizeDim= (/.FALSE.  ,.FALSE.  ,.TRUE./),&
+                          chunkSize= (/PP_nVar+1,nGlobalRP,chunkSamples      /),&
+                          RealArray=RP_Data(:,:,1:iSample),&
+                          collective=.FALSE.)!, existing=RP_fileExists)
+#ifdef MPI
+  ELSE
+    CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
+                          nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
+                          nVal=      (/PP_nVar+1,nRP      ,iSample/),&
+                          offset=    (/0        ,offsetRP ,nSamples-iSample/),&
+                          resizeDim= (/.FALSE.  ,.FALSE.  ,.TRUE./),&
+                          chunkSize= (/PP_nVar+1,nGlobalRP,chunkSamples      /),&
+                          RealArray=RP_Data(:,:,1:iSample),&
+                          collective=.TRUE.)!, existing=RP_fileExists)
+  END IF
+#endif
   lastSample=RP_Data(:,:,iSample)
 END IF
+CALL CloseDataFile()
 ! Reset buffer
 RP_Data=0.
 
+iSample=0
+RP_fileExists=.TRUE.
 IF(finalizeFile)THEN
-  IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a,I4,a)')' RP Buffer  : ',nSamples,' samples.'
-  ! Create dataset attributes
-  CALL WriteAttributeToHDF5(File_ID,'File_Type'  ,1,StrScalar=(/TRIM('RecordPoints_Data')/))
-  CALL WriteAttributeToHDF5(File_ID,'MeshFile'   ,1,StrScalar=(/TRIM(MeshFile)/))
-  CALL WriteAttributeToHDF5(File_ID,'ProjectName',1,StrScalar=(/TRIM(ProjectName)/))
-  CALL WriteAttributeToHDF5(File_ID,'RPDefFile'  ,1,StrScalar=(/TRIM(RPDefFile)/))
-  CALL WriteAttributeToHDF5(File_ID,'Time'       ,1,RealScalar=OutputTime)
-  CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar,StrArray=StrVarNames)
-
+  IF(myRPrank.EQ.0)THEN
+    WRITE(UNIT_stdOut,'(a,I4,a)')' RP Buffer  : ',nSamples,' samples.'
+  END IF
   IF((nSamples.GT.RP_Buffersize).AND.(RP_Buffersize.LT.RP_Maxbuffersize))THEN
     ! Recompute required buffersize from timestep and add 10% tolerance
     RP_Buffersize=MIN(CEILING(1.2*nSamples),RP_MaxBuffersize)
     DEALLOCATE(RP_Data)
     ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
   END IF
-  ! last sample = first sample
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-  nSamples=0
-  iSample=0
   RP_fileExists=.FALSE.
-#else
-  RP_Data(:,:,1)=lastSample
-  nSamples=0
+  ! last sample of previous file = first sample of next file
   iSample=1
-  RP_fileExists=.FALSE.
-#endif
-ELSE
-  iSample=0
-  RP_fileExists=.TRUE.
+  nSamples=0
+  RP_Data(:,:,1)=lastSample
+#ifdef LSERK
+  RPSkip=.TRUE.
+#endif /*LSERK*/
 END IF
-CALL CloseDataFile()
 
 #ifdef MPI
 endT=MPI_WTIME()

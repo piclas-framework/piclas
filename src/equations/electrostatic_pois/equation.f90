@@ -206,7 +206,6 @@ REAL                            :: Cent(3),r,r2,zlen
 REAL                            :: a, b, d, l, m, n, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gamma,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/)          ! aux. Constants for Dipole
 REAL,PARAMETER                  :: Q=1, dD=1, omegaD=2.096         ! aux. Constants for Dipole
 REAL                            :: c1,s1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron
@@ -261,7 +260,7 @@ USE MOD_Globals,            ONLY : abort
 USE MOD_PreProc
 USE MOD_Equation_Vars,      ONLY : eps0,c_corr,IniExactFunc,Phi
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,       ONLY : Source,DoDeposition
+USE MOD_PICDepo_Vars,       ONLY : PartSource,DoDeposition
 USE MOD_Particle_Mesh_Vars, ONLY : NbrOfRegions,GEO
 USE MOD_Particle_Vars,      ONLY : RegionElectronRef
 #endif /*PARTICLES*/
@@ -304,8 +303,8 @@ IF(DoDeposition)THEN
                    * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
         END IF
       END IF
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * source(1:3,i,j,k,iElem)
-      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + coeff*eps0inv * ( source(  4,i,j,k,iElem) - source_e ) * c_corr 
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * PartSource(1:3,i,j,k,iElem)
+      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + coeff*eps0inv * ( PartSource(  4,i,j,k,iElem) - source_e ) * c_corr 
     END DO; END DO; END DO
   END DO
 END IF
@@ -336,7 +335,7 @@ USE MOD_PreProc
 USE MOD_Equation_Vars, ONLY : Phit,Phi
 USE MOD_DG_Vars,       ONLY: U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
-USE MOD_PICDepo_Vars,  ONLY : Source,DoDeposition
+USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #ifdef LSERK
 USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
@@ -363,8 +362,8 @@ IF(DoDeposition)THEN
       Phit(  2:4,i,j,k,iElem) = Phit(  2:4,i,j,k,iElem) - U(  1:3,i,j,k,iElem)*c_corr
       !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
       !print*, t
-     ! print*, eps0inv * source(4,i,j,k,iElem)*c_corr
-      !print*, eps0inv * source(1:3,i,j,k,iElem)
+     ! print*, eps0inv * PartSource(4,i,j,k,iElem)*c_corr
+      !print*, eps0inv * PartSource(1:3,i,j,k,iElem)
       !read*
       !END IF
     END DO; END DO; END DO
@@ -372,7 +371,7 @@ IF(DoDeposition)THEN
 END IF
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
-CASE(1) ! Constant          - no sources
+CASE(1) ! Constant          - no PartSource
 CASE DEFAULT
   CALL abort(&
       __STAMP__&

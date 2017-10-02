@@ -199,35 +199,42 @@ ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RESERVOIR")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ParticleEuler-FieldEulerImplicit")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=100 -DIMEX)
+   SET(BOLTZPLATZ_IMPLICIT ON)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ParticleExplicit-FieldImplicitO3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=101 -DIMEX)
+   SET(BOLTZPLATZ_IMPLICIT ON)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ParticleExplicit-FieldImplicitO4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=102 -DIMEX)
+   SET(BOLTZPLATZ_IMPLICIT ON)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Ascher3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=103 -DIMEX)
+   SET(BOLTZPLATZ_IMPLICIT ON)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ParticleImplicit")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=110 -DIMPA)
+   SET(BOLTZPLATZ_IMPLICIT ON)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=111 -DIMPA)
+   SET(BOLTZPLATZ_IMPLICIT ON)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=112 -DIMPA)
+   SET(BOLTZPLATZ_IMPLICIT ON)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "CN")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
+   SET(BOLTZPLATZ_IMPLICIT ON)
    IF(BOLTZPLATZ_HDG)
-      SET(BOLTZPLATZ_IMPLICIT ON)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
+   SET(BOLTZPLATZ_IMPLICIT ON)
    IF(BOLTZPLATZ_HDG)
-      SET(BOLTZPLATZ_IMPLICIT ON)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
+   SET(BOLTZPLATZ_IMPLICIT ON)
    IF(BOLTZPLATZ_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
-      SET(BOLTZPLATZ_IMPLICIT ON)
    ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
@@ -344,8 +351,8 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${BOLTZPLATZ_INSTRUCTION} -finline-functions -fstack-arrays ")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O0 ${BOLTZPLATZ_INSTRUCTION} ")
-  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=bounds,do,mem,pointer -finit-real=snan -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall")
+  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=bounds,do,mem,pointer -finit-real=snan -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
   # add flags only for compiling not linking!
   SET (BOLTZPLATZ_COMPILE_FLAGS "-xf95-cpp-input")
 
@@ -360,7 +367,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -shared-intel -DINTEL")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
-   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays -init=zero")
    # add flags only for compiling not linking!
    SET (BOLTZPLATZ_COMPILE_FLAGS "-fpp -assume bscc")
 
@@ -402,7 +409,6 @@ IF(NOT BOLTZPLATZ_BUILD_HDF5)
       SET(BOLTZPLATZ_HDF5_CMAKE TRUE)
       MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
       MESSAGE (STATUS "HDF5 Fortran libs: static:${HDF5_static_Fortran_FOUND} and shared:${HDF5_shared_Fortran_FOUND}")
-      MESSAGE (STATUS "h5diff found:${HDF5_DIFF_EXECUTABLE}")
     ENDIF()
   ENDIF()
 ELSE()
@@ -447,7 +453,6 @@ ELSE()
   UNSET(HDF5_INCLUDE_DIR)
   UNSET(HDF5_DIFF_EXECUTABLE)
   SET(HDF5_DIFF_EXECUTABLE              ${BOLTZPLATZ_HDF5_DIR}/bin/h5diff)
-  MESSAGE (STATUS "h5diff found:${HDF5_DIFF_EXECUTABLE}")
   LIST(APPEND HDF5_INCLUDE_DIR_FORTRAN ${HDF5_Fortran_INCLUDE_DIR} ${HDF5_C_INCLUDE_DIR})
   LIST(APPEND HDF5_INCLUDE_DIR  ${HDF5_C_INCLUDE_DIR})
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
@@ -456,6 +461,7 @@ ENDIF()
 IF (BOLTZPLATZ_HDF5F90)
    ADD_DEFINITIONS(-DHDF5_F90)
 ENDIF()
+MESSAGE (STATUS "h5diff: ${HDF5_DIFF_EXECUTABLE}")
 
 IF(BOLTZPLATZ_HDF5_CMAKE)
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
@@ -463,8 +469,8 @@ IF(BOLTZPLATZ_HDF5_CMAKE)
 ELSE()
   #INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR}/static)
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
-  LIST(INSERT HDF5_LIBRARIES 0 ${HDF5_hdf5_fortran_LIBRARY_RELEASE})
-  LIST(REMOVE_DUPLICATES HDF5_LIBRARIES)
+  #LIST(INSERT HDF5_LIBRARIES 0 ${HDF5_hdf5_fortran_LIBRARY_RELEASE})
+  #LIST(REMOVE_DUPLICATES HDF5_LIBRARIES)
   MESSAGE(STATUS "Found HDF5 Libs: " ${HDF5_LIBRARIES})
   LIST(APPEND linkedlibs ${HDF5_LIBRARIES} )
 ENDIF()
@@ -542,6 +548,8 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/io_hdf5/*.f90
                                 ./src/loadbalance/*.f90
                                 ./src/mesh/*.f90
+                                ./src/interfaces/*.f90
+                                ./src/dielectric/*.f90
                                 ./src/mpi/*.f90
                                 ./src/output/*.f90
                                 ./src/readintools/*.f90
@@ -552,9 +560,7 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
 
 FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
                         ./src/interpolation/prolongtoface.f90
-                        ./src/linearsolver/*.f90
                         ./src/pml/*.f90
-                        ./src/precond/*.f90
                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/*.f90)
 
 FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
@@ -574,6 +580,28 @@ FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
                               ./src/linearsolver/linearoperator/linearoperator.f90
                               ./src/linearsolver/newton.f90)
 
+IF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell_pois")
+  FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
+                               ./src/precond/precond_vars.f90
+                               ./src/precond/applypreconditioner.f90
+                               ./src/linearsolver/linearoperator/sparse_ilu.f90
+                               ./src/precond/csr/*.f90
+                               ./src/precond/ilu/*.f90
+                               ./src/precond/jacdg/*.f90
+                               ./src/precond/jac_fd/*.f90
+                               ./src/precond/jac_ex/${BOLTZPLATZ_EQNSYSNAME}/*.f90)
+ELSE()
+  FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
+                               ./src/precond/precond_vars.f90
+                               ./src/precond/applypreconditioner.f90
+                               ./src/linearsolver/linearoperator/sparse_ilu.f90
+                               ./src/precond/csr/*.f90
+                               ./src/precond/ilu/*.f90
+                               ./src/precond/jacdg/*.f90
+                               ./src/precond/jac_fd/*.f90
+                               ./src/precond/jac_ex/maxwell/*.f90)
+ENDIF()
+
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
@@ -586,6 +614,10 @@ IF(BOLTZPLATZ_HDG)
   ENDIF(BOLTZPLATZ_IMPLICIT)
 ELSE()
   LIST(APPEND boltzplatzF90 ${dgF90})
+  IF(BOLTZPLATZ_IMPLICIT)
+    LIST(APPEND boltzplatzF90 ${implicitF90})
+    LIST(APPEND boltzplatzF90 ${precondF90})
+  ENDIF(BOLTZPLATZ_IMPLICIT)
 ENDIF(BOLTZPLATZ_HDG)
 
 LIST(APPEND boltzplatzF90 ${mainF90})

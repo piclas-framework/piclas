@@ -34,18 +34,19 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
 USE MOD_ReadInTools
-USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone, WriteMacroValues, nSpecies
+USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
 USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
-USE MOD_Mesh_Vars,                  ONLY : nElems
-USE MOD_InitializeBackgroundField,  ONLY:InitializeBackgroundField
+USE MOD_Mesh_Vars,                  ONLY: nElems
+USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
+USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 #ifdef MPI
-USE MOD_Particle_MPI,               ONLY:InitParticleCommSize
+USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -55,8 +56,6 @@ USE MOD_Particle_MPI,               ONLY:InitParticleCommSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
-#endif
 !===================================================================================================================================
 IF(ParticlesInitIsDone)THEN
    SWRITE(*,*) "InitParticles already called."
@@ -71,22 +70,8 @@ IF(useBGField) CALL InitializeBackgroundField()
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
 
-IF (useDSMC) THEN
-  CALL  InitDSMC()
-  IF (useLD) CALL InitLD
-ELSE IF (WriteMacroValues) THEN
-  DSMC%CalcSurfaceVal  = .FALSE.
-  DSMC%ElectronicModel = .FALSE.
-  DSMC%OutputMeshInit  = .FALSE.
-  DSMC%OutputMeshSamp  = .FALSE.
-END IF
-
-#ifdef MPI
-! has to be called AFTER InitializeVariables and InitDSMC 
-CALL InitParticleCommSize()
-#endif
-
-IF(useDSMC .OR. WriteMacroValues) THEN
+! Initialize volume sampling
+IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
   HODSMC%SampleType = TRIM(GETSTR('DSMC-HOSampling-Type','cell_mean'))
@@ -100,6 +85,25 @@ IF(useDSMC .OR. WriteMacroValues) THEN
   DSMC_HOSolution = 0.0
   CALL InitHODSMC()
 END IF
+
+! Initialize surface sampling
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
+  CALL InitParticleBoundarySampling()
+END IF
+
+IF (useDSMC) THEN
+  CALL  InitDSMC()
+  IF (useLD) CALL InitLD
+ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
+  DSMC%ElectronicModel = .FALSE.
+  DSMC%OutputMeshInit  = .FALSE.
+  DSMC%OutputMeshSamp  = .FALSE.
+END IF
+
+#ifdef MPI
+! has to be called AFTER InitializeVariables and InitDSMC 
+CALL InitParticleCommSize()
+#endif
 
 ParticlesInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
@@ -116,11 +120,11 @@ USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound
+USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
-USE MOD_DSMC_Vars,             ONLY:useDSMC
+USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC
 USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK, OutputMesh
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
@@ -129,6 +133,7 @@ USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
+USE MOD_TimeDisc_Vars,         ONLY:TEnd
 #if defined(IMEX) || defined (IMPA)
 USE MOD_TimeDisc_Vars,         ONLY: nRKStages
 #endif /*IMEX*/
@@ -152,13 +157,13 @@ LOGICAL               :: TrueRandom, PartDens_OnlyInit                          
 INTEGER,ALLOCATABLE   :: iSeeds(:)
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins
-INTEGER               :: iVec, MaxNbrOfSpeciesSwaps
-LOGICAL                       :: exitTrue
+INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
+LOGICAL               :: exitTrue,IsIMDSpecies
 #ifdef MPI
 #endif
 !===================================================================================================================================
 ! Read print flags
-printRandomSeeds = GETLOGICAL('printRandomSeeds','.TRUE.')
+printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -271,6 +276,13 @@ __STAMP__&
   ,' Cannot allocate PartIsImplicit arrays!')
 END IF
 PartIsImplicit=.FALSE.
+ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartDtFrac arrays!')
+END IF
+PartDtFrac=1.
 ! ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
 !         ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
 ! IF (ALLOCSTAT.NE.0) THEN
@@ -334,6 +346,23 @@ KeepWallParticles = .FALSE.
 
 nSpecies = GETINT('Part-nSpecies','1')
 
+! IMD data import from *.chkpt file
+DoImportIMDFile=.FALSE. ! default
+IMDLengthScale=0.0
+
+IMDTimeScale          = GETREAL('IMDTimeScale','10.18e-15')
+IMDLengthScale        = GETREAL('IMDLengthScale','1.0E-10')
+IMDAtomFile           = GETSTR( 'IMDAtomFile','no file found')         
+IMDCutOff             = GETSTR( 'IMDCutOff','no_cutoff')
+IMDCutOffxValue       = GETREAL('IMDCutOffxValue','-999.9')
+
+IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
+IF(DoImportIMDFile)THEN
+  DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
+  SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
+  ' | *CHANGE |'
+END IF
+
 
 ! init varibale MPF per particle
 IF (usevMPF) THEN
@@ -368,7 +397,29 @@ OutputMesh = GETLOGICAL('Part-WriteOutputMesh','.FALSE.')
            
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
+WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.FALSE.')
+WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.FALSE.')
+IF(WriteMacroValues)THEN
+  WriteMacroVolumeValues = .TRUE.
+  WriteMacroSurfaceValues = .TRUE.
+ELSE IF((WriteMacroVolumeValues.AND.WriteMacroSurfaceValues).AND.(.NOT.WriteMacroValues))THEN
+  WriteMacroValues = .TRUE.
+END IF
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
+DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
+DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.') 
+IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
+  IF(DSMC%TimeFracSamp.GT.0.0) CALL abort(&
+__STAMP__&
+    ,'ERROR: Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
+  IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal = .TRUE.
+END IF
+DSMC%NumOutput = GETINT('Particles-NumberOfDSMCOutputs','0')
+IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
+IF (DSMC%NumOutput.NE.0) THEN
+  DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+END IF
+
 !ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
 WriteFieldsToVTK = GETLOGICAL('Part-WriteFieldsToVTK','.FALSE.')
 
@@ -412,10 +463,19 @@ DO iSpec = 1, nSpecies
 #endif
     END IF ! iInit
     ! get emission and init data
-    Species(iSpec)%Init(iInit)%UseForInit           = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
-    Species(iSpec)%Init(iInit)%UseForEmission       = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
+    Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
+    Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
     Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
+    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'tangential_constant')THEN
+      Species(iSpec)%Init(iInit)%Rotation        = GETINT('Part-Species'//TRIM(hilf2)//'-rotation','1')
+      Species(iSpec)%Init(iInit)%VelocitySpread  = GETREAL('Part-Species'//TRIM(hilf2)//'-velocityspread','0.')
+      IF(Species(iSpec)%Init(iInit)%VelocitySpread.LT.0. .OR. Species(iSpec)%Init(iInit)%VelocitySpread.GT.1.) CALL abort(&
+__STAMP__&
+          ,' Wrong input parameter for VelocitySpread in [0;1].')
+      Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
+    END IF
+    Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
     Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
@@ -464,7 +524,7 @@ DO iSpec = 1, nSpecies
     IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
       .AND.(Species(iSpec)%Init(iInit)%UseForInit) ) THEN
       IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
-      .AND. AlmostEqual(Species(iSpec)%Init(iInit)%PartDensity,0.) ) THEN
+      .AND. (ABS(Species(iSpec)%Init(iInit)%PartDensity).LE.0.) ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
         SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
         SWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit
@@ -473,12 +533,12 @@ DO iSpec = 1, nSpecies
     !--- cuboid-/cylinder-height calculation from v and dt
     IF (.NOT.Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
       IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
-        IF (AlmostEqual(Species(iSpec)%Init(iInit)%CuboidHeightIC,-1.)) THEN ! flag is initialized with -1, compatibility issue 
+        IF (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%CuboidHeightIC,-1.)) THEN ! flag is initialized with -1, compatibility issue 
           Species(iSpec)%Init(iInit)%CalcHeightFromDt=.TRUE.                 
           SWRITE(*,*) "WARNING: Cuboid height will be calculated from v and dt!"
         END IF
       ELSE IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') THEN
-        IF (AlmostEqual(Species(iSpec)%Init(iInit)%CylinderHeightIC,-1.)) THEN !flag is initialized with -1, compatibility issue 
+        IF (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%CylinderHeightIC,-1.)) THEN !flag is initialized with -1, compatibility issue 
           Species(iSpec)%Init(iInit)%CalcHeightFromDt=.TRUE.                   
           SWRITE(*,*) "WARNING: Cylinder height will be calculated from v and dt!"
         END IF
@@ -616,15 +676,15 @@ __STAMP__&
             = GETREAL('Part-Species'//TRIM(hilf3)//'-CylinderHeightIC','1.')
           !--normalize and stuff
           IF ((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid') .OR. &
-               ((((.NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
-            .OR. ((.NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1),0.) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2),1.)) &
-              .OR. .NOT.AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3),0.))) &
-            .AND. (((AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1),0.)) &
-              .AND. (AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2),0.))) &
-              .AND. (AlmostEqual(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3),1.))))) THEN
+               ((((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
+            .OR. ((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1),0.) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2),1.)) &
+              .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3),0.))) &
+            .AND. (((ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1),0.)) &
+              .AND. (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2),0.))) &
+              .AND. (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3),1.))))) THEN
             !-- cuboid; or BV are non-default and NormalIC is default: calc. NormalIC for ExcludeRegions from BV1/2
             !   (for def. BV and non-def. NormalIC; or all def. or non-def.: Use User-defined NormalIC when ExclRegion is cylinder)
             Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1) &
@@ -791,6 +851,23 @@ __STAMP__&
   END DO ! iInit
 END DO ! iSpec 
 
+! get information for IMD atom/ion charge determination and distribution
+IMDnSpecies         = GETINT('IMDnSpecies','1')
+IMDInputFile        = GETSTR('IMDInputFile','no file found')
+ALLOCATE(IMDSpeciesID(IMDnSpecies))
+ALLOCATE(IMDSpeciesCharge(IMDnSpecies))
+iIMDSpec=1
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
+  IF(IsIMDSpecies)THEN
+    IMDSpeciesID(iIMDSpec)=iSpec
+    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/1.60217653E-19)
+    iIMDSpec=iIMDSpec+1
+  END IF
+END DO
+
+
 ! Which Lorentz boost method should be used?
 PartLorentzType = GETINT('Part-LorentzType','3')
 
@@ -818,6 +895,27 @@ ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
+ALLOCATE(PartBound%SolidState(1:nPartBound))
+ALLOCATE(PartBound%SolidCatalytic(1:nPartBound))
+ALLOCATE(PartBound%SolidSpec(1:nPartBound))
+ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
+ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
+ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
+ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
+ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
+ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
+SolidSimFlag = .FALSE.
+LiquidSimFlag = .FALSE.
+
+ALLOCATE(PartBound%Adaptive(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
+ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
+nAdaptiveBC = 0
+PartBound%Adaptive(:) = .FALSE.
+PartBound%AdaptiveType(:) = -1
+PartBound%AdaptiveTemp(:) = -1.
+PartBound%AdaptivePressure(:) = -1.
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -854,6 +952,18 @@ DO iPartBound=1,nPartBound
        PartBound%AmbientThermalCond(iPartBound)=&
            GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientThermalCond','2.42948500556027E-2') ! N2:T=288K
      END IF
+     PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
+     IF(PartBound%Adaptive(iPartBound)) THEN
+       nAdaptiveBC = nAdaptiveBC + 1
+       PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
+       PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+       PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
+       IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
+         CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp or -AdaptivePressure not defined')
+       END IF
+     END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
@@ -865,6 +975,29 @@ DO iPartBound=1,nPartBound
      PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
+     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState','.TRUE.')
+     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
+     IF(PartBound%SolidState(iPartBound))THEN
+       SolidSimFlag = .TRUE.
+       PartBound%SolidCatalytic(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidCatalytic','.FALSE.')
+       PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec','0')
+       PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens','1.0E+19')
+       PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC','3.2395E-25')
+       PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease','1.')
+       PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx','4')
+     END IF
+     IF (PartBound%LiquidSpec(iPartBound).GT.nSpecies) CALL abort(&
+__STAMP__&
+     ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%LiquidSpec(iPartBound))
+     ! Parameters for evaporation pressure using Antoine Eq.
+     PartBound%ParamAntoine(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-ParamAntoine',3,'0. , 0. , 0.')
+     IF ( (.NOT.PartBound%SolidState(iPartBound)) .AND. (ALMOSTZERO(PartBound%ParamAntoine(1,iPartBound))) &
+          .AND. (ALMOSTZERO(PartBound%ParamAntoine(2,iPartBound))) .AND. (ALMOSTZERO(PartBound%ParamAntoine(3,iPartBound))) ) THEN
+        CALL abort(&
+__STAMP__&
+       ,'Antoine Parameters not defined for Liquid Particle Boundary: ',iPartBound)
+     END IF
+     IF (.NOT.PartBound%SolidState(iPartBound)) LiquidSimFlag = .TRUE.
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -883,6 +1016,17 @@ DO iPartBound=1,nPartBound
   CASE('symmetric')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('analyze')
+     PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
+     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
+       !read Species to be changed at wall (in, out), out=0: delete
+       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+       DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
+         WRITE(UNIT=hilf2,FMT='(I2)') iSwaps
+         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+       END DO
+     END IF
   CASE DEFAULT
      SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
      CALL abort(&
@@ -891,6 +1035,7 @@ __STAMP__&
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
 END DO
+
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
 ! Set mapping from field boundary to particle boundary index
@@ -900,11 +1045,11 @@ DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,1).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
-      SWRITE(*,*)"PartBound",iPBC,"is internal bound, no mapping needed"
+      SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      SWRITE(*,*)"Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      SWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -956,7 +1101,7 @@ END IF
   dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
   overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
 #if (PP_TimeDiscMethod==200)
-IF ( AlmostEqual(overrelax_factor,1.0) .AND. .NOT.AlmostEqual(dt_part_ratio,3.8) ) THEN
+IF ( ALMOSTEQUAL(overrelax_factor,1.0) .AND. .NOT.ALMOSTEQUAL(dt_part_ratio,3.8) ) THEN
   overrelax_factor = dt_part_ratio !compatibility
 END IF
 #endif
@@ -1019,6 +1164,18 @@ END IF
 DEALLOCATE(iseeds)
 !DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
+DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
+
+DO iSpec = 1, nSpecies
+  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+    IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
+      IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(&
+__STAMP__, &
+' Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow!')
+    END IF      
+  END DO ! iInit = 0, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1, nSpecies
+
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
@@ -1196,11 +1353,25 @@ SDEALLOCATE(PartBound%AmbientVelo)
 SDEALLOCATE(PartBound%AmbientDens)
 SDEALLOCATE(PartBound%AmbientDynamicVisc)
 SDEALLOCATE(PartBound%AmbientThermalCond)
+SDEALLOCATE(PartBound%Adaptive)
+SDEALLOCATE(PartBound%AdaptiveType)
+SDEALLOCATE(PartBound%AdaptiveTemp)
+SDEALLOCATE(PartBound%AdaptivePressure)
 SDEALLOCATE(PartBound%Voltage)
+SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PartBound%SolidState)
+SDEALLOCATE(PartBound%SolidCatalytic)
+SDEALLOCATE(PartBound%SolidSpec)
+SDEALLOCATE(PartBound%SolidPartDens)
+SDEALLOCATE(PartBound%SolidMassIC)
+SDEALLOCATE(PartBound%SolidAreaIncrease)
+SDEALLOCATE(PartBound%SolidCrystalIndx)
+SDEALLOCATE(PartBound%LiquidSpec)
+SDEALLOCATE(PartBound%ParamAntoine)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

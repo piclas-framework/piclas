@@ -61,7 +61,7 @@ USE MOD_Mesh_Vars,          ONLY: offsetSide
 USE MOD_LoadBalance_Vars,   ONLY: writePartitionInfo
 USE MOD_Mesh_Vars,          ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars,          ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
-USE MOD_LoadBalance_Vars,   ONLY: DoLoadBalance,nLoadBalance, LoadDistri, PartDistri
+USE MOD_LoadBalance_Vars,   ONLY: DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #ifdef MPI
 USE MOD_ReadInTools,        ONLY: GETLOGICAL
 USE MOD_MPI_Vars,           ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
@@ -527,7 +527,7 @@ END DO
 writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
 IF(DoLoadBalance)THEN
   writePartitionInfo=.TRUE.
-  WRITE( hilf,'(I4.4)') nLoadBalance
+  WRITE( hilf,'(I4.4)') nLoadBalanceSteps
   filename='partitionInfo-'//TRIM(hilf)//'.out'
 ELSE
   filename='partitionInfo.out'
@@ -834,7 +834,7 @@ DO iElem=1,nElems
     IF(aSide%nMortars.GT.0)THEN !mortar side
       LOGWRITE(*,*)'   --- Mortars ---'
       DO iMortar=1,aSide%nMortars
-        LOGWRITE(*,'(I4,4(A,I4))'),iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
+        LOGWRITE(*,'(I4,4(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
                      ', flip= ',aSide%MortarSide(iMortar)%sp%Flip, &
                      ', SideID= ',aSide%MortarSide(iMortar)%sp%SideID, &
                      ', nbProc= ',aSide%MortarSide(iMortar)%sp%nbProc

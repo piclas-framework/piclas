@@ -329,7 +329,7 @@ USE MOD_PreProc
 USE MOD_Globals,                 ONLY:Abort
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
 USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType
+USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,PartDtFrac
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
@@ -354,7 +354,11 @@ REAL               :: LorentzFacInv
 !===================================================================================================================================
 
 CALL PartVectorDotProduct(X,X,X_abs)
-EpsFD= rEps0/SQRT(X_abs)
+IF(X_abs.NE.0.)THEN
+  EpsFD= rEps0/SQRT(X_abs)
+ELSE
+  EpsFD= rEps0*0.1
+END IF
 
 !CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
 !CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
@@ -388,7 +392,7 @@ PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
 PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
 PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
-Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
+Y(1:6) = (X(1:6) - (PartDtFrac(PartID)*coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
 
 ! compiler warnings
 IF(1.EQ.2)THEN

@@ -11,16 +11,15 @@ SAVE
 !----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=10),PARAMETER    :: CodeNameUppCase='BOLTZPLATZ'      !> Code name in upper case letters. IMPORTANT: set its length!
 CHARACTER(LEN=10),PARAMETER    :: CodeNameLowCase='boltzplatz'      !> Code name in lower case letters. IMPORTANT: set its length!
+CHARACTER(LEN=500)             :: configuration_cmake               !> path to configuration.cmake
 INTEGER                        :: nErrors                           !> number of errors encountered during reggie execution
 INTEGER                        :: GlobalRunNumber                   !> count the number of separate runs for listing in summary
 INTEGER                        :: NumberOfProcs                     !> number of processors for parallel build
 CHARACTER(LEN=20)              :: NumberOfProcsStr                  !> number of processors for parallel build as string
 INTEGER                        :: nExamples                         !> number of regressioncheck examples
 CHARACTER(LEN=255),ALLOCATABLE :: ExampleNames(:)                   !> name of each example
-CHARACTER(LEN=255)             :: RuntimeOption                     !> option for the regressioncheck: default (run), run and build
-CHARACTER(LEN=255)             :: RuntimeOptionType                 !> specific option for the regressioncheck: default (run)
-CHARACTER(LEN=255)             :: RuntimeOptionTypeII               !> specific option for the regressioncheck: default (empty)
-CHARACTER(LEN=255)             :: RuntimeOptionTypeIII              !> specific option for the regressioncheck: default (empty)
+CHARACTER(LEN=255)             :: RuntimeOption(6)                  !> options for the regressioncheck
+LOGICAL                        :: DoFullReggie                      !> run reggie recursively and test gitlab-ci.yml file locally
 CHARACTER(LEN=255)             :: EXECPATH                          !> path to solver incl. executable
 CHARACTER(LEN=255)             :: ExamplesDir                       !> path to the regression check example folders
 CHARACTER(LEN=255)             :: readRHS(2)                        !> parameter from parameter_reggie.ini: right hand side 
@@ -31,7 +30,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: BuildTESTCASE(:)                  !> TESTCASE 
 CHARACTER(LEN=255),ALLOCATABLE :: BuildTIMEDISCMETHOD(:)            !> TIMEDISCMETHOD for each build: only PICLas
 CHARACTER(LEN=255),ALLOCATABLE :: BuildMPI(:)                       !> ON/OFF: build is created with/without MPI
 CHARACTER(LEN=255),ALLOCATABLE :: BuildFV(:)                        !> ON/OFF: build is created with/without FV (finite volume)
-CHARACTER(LEN=255),ALLOCATABLE :: BuildCODE2D(:)                    !> ON/OFF: build is created with/without 2D only
+CHARACTER(LEN=255),ALLOCATABLE :: Build2D(:)                        !> ON/OFF: build is created with/without 2D only
 CHARACTER(LEN=255),ALLOCATABLE :: BuildPARABOLIC(:)                 !> ON/OFF: build is created with/without PARABOLIC terms
 
 LOGICAL                        :: BuildSolver                       !> Flag for automatic building of different flexi cmake configs
@@ -39,9 +38,11 @@ LOGICAL                        :: BuildDebug                        !> Prints th
                                                                     !> BuildSolver is true 
 LOGICAL                        :: BuildNoDebug                      !> Don't print any compiler output (if BuildSolver is true) 
 LOGICAL                        :: BuildContinue                     !> allow the building sequence to begin at the last failure
+LOGICAL                        :: RunContinue                       !> use all previously built executables before further compiling
 INTEGER                        :: BuildContinueNumber               !> start building sequence from this point
 
 CHARACTER(LEN=255),ALLOCATABLE :: BuildConfigurations(:,:)          !> CMAKE complie flag and value
+CHARACTER(LEN=2000),ALLOCATABLE :: BuildConfigurationsCombined(:)   !> CMAKE complie flags combinations for valid and invalid builds
 LOGICAL,ALLOCATABLE            :: BuildValid(:)                     !> use the configuration or don't
 INTEGER,ALLOCATABLE            :: BuildCounter(:)                   !> register for creaating all possible cmake configurations
 INTEGER,ALLOCATABLE            :: BuildIndex(:)                     !> number of different flag settings for each specified cmake 
@@ -77,8 +78,11 @@ TYPE tExample                                                       !> examples 
                                                                     !> 1 - failed during execution
                                                                     !> 2 - test failed
   CHARACTER(LEN=255)               :: IntegrateLineFile             !> File name with ACSI number columns
+  CHARACTER(LEN=255)               :: IntegrateLineOption           !> speciel settings for integrate line function
+  REAL                             :: IntegrateLineMultiplier       !> multiply the integrated value by this factor
   INTEGER                          :: IntegrateLineRange(2)         !> the numerbs of two coulumns with data
   REAL                             :: IntegrateLineValue            !> the reference integral value
+  REAL                             :: IntegrateLineTolerance        !> the reference integral tolerance
   CHARACTER(LEN=255)               :: IntegrateLineDelimiter        !> delimiter string for reading the data file
   INTEGER                          :: IntegrateLineHeaderLines      !> number of header lines to be ignored from data file
   LOGICAL                          :: IntegrateLine                 !> read two columns from a file and integrate over line
@@ -105,6 +109,7 @@ TYPE tExample                                                       !> examples 
   REAL                             :: ConvergenceTestDomainSize     !> length of simulation domain, needed for grid step size
   REAL                             :: ConvergenceTestValue          !> single value for comparison
   REAL                             :: ConvergenceTestTolerance      !> relative tolerance when comparing the "ConvergenceTestValue"
+  REAL                             :: ConvergenceTestSuccessRate    !> The Success Rate (default if 50%) of nVar Convergence tests 
   REAL, ALLOCATABLE                :: ConvergenceTestGridSize(:)    !> array for grid step size: cell length / ( p + 1 )
   REAL, ALLOCATABLE                :: ConvergenceTestError(:,:)     !> array for L2 errors over iteration or polynomial degree
                                                                     !> dimension for "array" will be: [SubExampleNumber]x[nVar]x[2]

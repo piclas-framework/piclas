@@ -7,9 +7,7 @@ MODULE  MOD_PICInterpolation
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InterpolateFieldToParticle, InitializeInterpolation !, Calc_inv, &
-PUBLIC :: InterpolateCurvedExternalField                                  
-PUBLIC :: InterpolateFieldToSingleParticle
+PUBLIC :: InterpolateFieldToParticle,InitializeInterpolation,InterpolateFieldToSingleParticle,InterpolateVariableExternalField
 !===================================================================================================================================
 INTERFACE InitializeInterpolation
   MODULE PROCEDURE InitializeInterpolation
@@ -19,14 +17,9 @@ INTERFACE InterpolateFieldToParticle
   MODULE PROCEDURE InterpolateFieldToParticle
 END INTERFACE
 
-INTERFACE read_curved_external_Field
-  MODULE PROCEDURE read_curved_external_Field
+INTERFACE InterpolateVariableExternalField
+  MODULE PROCEDURE InterpolateVariableExternalField
 END INTERFACE
-
-INTERFACE InterpolateCurvedExternalField
-  MODULE PROCEDURE InterpolateCurvedExternalField
-END INTERFACE
-
 
 INTERFACE InterpolateFieldToSingleParticle
   MODULE PROCEDURE InterpolateFieldToSingleParticle
@@ -72,12 +65,15 @@ externalField=externalField*ScaleExternalField
 DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
 useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
 
-! curved external field 
-usecurvedExternalField = .FALSE.
-FileNameCurvedExternalField = GETSTR('PIC-curvedexternalField','none')
-IF (FileNameCurvedExternalField/='none') THEN
-  usecurvedExternalField = .TRUE.
-  CALL read_curved_external_Field()
+! Variable external field 
+useVariableExternalField = .FALSE.
+FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')
+IF (FileNameVariableExternalField.EQ.'none') THEN
+  FileNameVariableExternalField=GETSTR('PIC-variableexternalField','none')
+END IF
+IF (FileNameVariableExternalField.NE.'none') THEN
+  useVariableExternalField = .TRUE.
+  CALL ReadVariableExternalField()
 END IF
 
 !--- Allocate arrays for interpolation of fields to particles
@@ -117,7 +113,7 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_DG_Vars,                 ONLY:U
 #endif
 USE MOD_PIC_Vars!,      ONLY: 
-USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_Vars,   ONLY:useVariableExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars,   ONLY:InterpolationElemLoop
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
@@ -193,7 +189,7 @@ IF (.NOT.InterpolationElemLoop) THEN
   RETURN
 END IF
 
-IF(usecurvedExternalField) THEN ! used curved external Bz
+IF(useVariableExternalField) THEN ! used curved external Bz
   FieldAtParticle(firstPart:lastPart,:) = 0.
   FieldAtParticle(firstPart:lastPart,1) = externalField(1)
   FieldAtParticle(firstPart:lastPart,2) = externalField(2)
@@ -204,9 +200,9 @@ IF(usecurvedExternalField) THEN ! used curved external Bz
 #endif
   ! Bz field strength at particle position
   DO iPart = firstPart, LastPart
-    FieldAtparticle(iPart,6) = InterpolateCurvedExternalField(PartState(iPart,3))
+    FieldAtparticle(iPart,6) = InterpolateVariableExternalField(PartState(iPart,3))
   END DO
-ELSE ! usecurvedExternalField
+ELSE ! useVariableExternalField
   FieldAtParticle(firstPart:lastPart,:) = 0.
   FieldAtParticle(firstPart:lastPart,1) = externalField(1)
   FieldAtParticle(firstPart:lastPart,2) = externalField(2)
@@ -550,7 +546,7 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_DG_Vars,                 ONLY:U
 #endif
 USE MOD_PIC_Vars!,      ONLY: 
-USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,externalField,DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_Vars,   ONLY:useVariableExternalField,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
 #ifdef PP_POIS
@@ -595,7 +591,7 @@ NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before inte
 NotMappedSurfFluxParts=.FALSE.
 #endif /*HDG-LSERK*/
 FieldAtParticle=0.
-IF(usecurvedExternalField) THEN ! used curved external Bz
+IF(useVariableExternalField) THEN ! used Variable external Bz
   FieldAtParticle(:) = 0.
   FieldAtParticle(1) = externalField(1)
   FieldAtParticle(2) = externalField(2)
@@ -605,8 +601,8 @@ IF(usecurvedExternalField) THEN ! used curved external Bz
   FieldAtParticle(5) = externalField(5)
 #endif
   ! Bz field strength at particle position
-  FieldAtparticle(6) = InterpolateCurvedExternalField(PartState(PartID,3))
-ELSE ! usecurvedExternalField
+  FieldAtparticle(6) = InterpolateVariableExternalField(PartState(PartID,3))
+ELSE ! useVariableExternalField
   FieldAtParticle(:) = 0.
   FieldAtParticle(1) = externalField(1)
   FieldAtParticle(2) = externalField(2)
@@ -619,6 +615,7 @@ ELSE ! usecurvedExternalField
 END IF ! use constant external field
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
+  field(1:6)=0.
   ElemID=PEM%Element(PartID)
 #ifdef MPI
   IF(ElemID.GT.PP_nElems) RETURN
@@ -895,17 +892,16 @@ RETURN
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
-SUBROUTINE read_curved_external_Field()
+SUBROUTINE ReadVariableExternalField()
 !===================================================================================================================================
 ! ATTENTION: The extrenal field needs to be defined on equidistant data-points
 ! Usage Information
-! The file for the curved Bfield contains only the z coordinates and the static Bz-field
+! The file for the variable Bfield contains only the z coordinates and the static Bz-field
 ! Use the following format F8.5,1x,F8.5
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExternalField &
-                                      ,DeltaExternalField,nIntPoints
+USE MOD_PICInterpolation_Vars, ONLY:VariableExternalField,DeltaExternalField,nIntPoints,FileNameVariableExternalField
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -914,74 +910,74 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER               :: unit_index_CEF, ii, err, ncounts
-  REAL                  :: dummy, diff_comp, diff_check
+INTEGER               :: ioUnit, ii, err, ncounts
+REAL                  :: dummy, diff_comp, diff_check
 !===================================================================================================================================
-
-  SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF CURVED EXTERNAL FIELD FOR PARTICLES '
-  unit_index_CEF=147
-  OPEN(UNIT=unit_index_CEF,FILE=FileNameCurvedExternalField,STATUS='OLD',FORM='FORMATTED')
-  err = 0
-  ncounts = 0
-  DO WHILE ( err == 0 )
-    READ(unit_index_CEF,*,IOSTAT = err) dummy
-    IF (err == -1 ) THEN
-      EXIT
-    END IF 
-    ERR = 0
-    ncounts = ncounts + 1 
-  END DO
-  CLOSE (unit_index_CEF)
-  nIntPoints = ncounts
-  ! allocate needed space
-  ALLOCATE(CurvedExternalField(1:2,1:ncounts))
-  OPEN(UNIT=unit_index_CEF,FILE=FileNameCurvedExternalField,STATUS='OLD',FORM='FORMATTED')
-  DO ii = 1, ncounts
-    read(unit_index_CEF,'(F10.5,x,F10.5)') CurvedExternalField(1,ii) , CurvedExternalField(2,ii)
-    IF (ii.GE.2) THEN
-      diff_comp  = CurvedExternalField(1,2)  - CurvedExternalField(1,1)
-      diff_check = CurvedExternalField(1,ii) - CurvedExternalField(1,ii-1)
-      IF(ABS(diff_comp-diff_check).GE.1E-10)THEN
-        SWRITE(UNIT_stdOut,'(A)') "ERROR: No equidistant points were used." 
-        SWRITE(UNIT_stdOut,'(A)') diff_comp, diff_check
-        CALL abort(&
+SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
+!OPEN(NEWUNIT=ioUnit,FILE=VariableExternalField,STATUS='OLD',FORM='FORMATTED')
+OPEN(NEWUNIT=ioUnit,FILE=FileNameVariableExternalField,STATUS='OLD')
+err = 0
+ncounts = 0
+DO WHILE (err.EQ.0)
+  READ(ioUnit,*,IOSTAT = err) dummy
+  IF (err.EQ.-1) THEN
+    EXIT
+  END IF 
+  ERR = 0
+  ncounts = ncounts + 1 
+END DO
+REWIND(ioUnit)
+nIntPoints = ncounts
+! allocate needed space
+ALLOCATE(VariableExternalField(1:2,1:nIntPoints))
+DO ii = 1, ncounts
+  read(ioUnit,*) VariableExternalField(1,ii) , VariableExternalField(2,ii)
+  IF (ii.GE.2) THEN
+    diff_comp  = VariableExternalField(1,2)  - VariableExternalField(1,1)
+    diff_check = VariableExternalField(1,ii) - VariableExternalField(1,ii-1)
+    IF( (.NOT.ALMOSTEQUALRELATIVE(diff_comp,diff_check,1E-5)) .AND. ((diff_comp.GT.0.0).AND.(diff_check.GT.0.0)) )THEN
+      SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field." 
+      SWRITE(UNIT_stdOut,OUTPUTFORMAT) diff_comp
+      SWRITE(UNIT_stdOut,OUTPUTFORMAT) diff_check
+      CALL abort(&
 __STAMP__&
-          ,' Error in dataset!')
-      END IF  
-    END IF
-  END DO
-  CLOSE (unit_index_CEF)
-
-  IF (CurvedExternalField(1,1) .NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,  &
-        "ERROR: Points have to start at 0.")
+        ,' Error in dataset!')
+    END IF  
   END IF
-  IF(ncounts.GT.1) THEN
-    DeltaExternalField = CurvedExternalField(1,2)  - CurvedExternalField(1,1)
-    SWRITE(UNIT_stdOut,'(A,1X,F8.5)') ' Delta external field: ',DeltaExternalField
-    IF(DeltaExternalField.LE.0) THEN
-      SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
-    END IF
-  ELSE 
-    CALL abort(&
+END DO
+CLOSE (ioUnit)
+
+!IF (VariableExternalField(1,1) .NE.0) THEN
+  !CALL abort(&
+!__STAMP__&
+!,  &
+      !"ERROR: Points have to start at 0.")
+!END IF
+IF(ncounts.GT.1) THEN
+  DeltaExternalField = VariableExternalField(1,2)  - VariableExternalField(1,1)
+  SWRITE(UNIT_stdOut,'(A,1X,E25.14E3)') ' Delta external field: ',DeltaExternalField
+  IF(DeltaExternalField.LE.0) THEN
+    SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
+  END IF
+ELSE 
+  CALL abort(&
 __STAMP__&
 , &
-        " ERROR: not enough data points in curved external field file!")
-  END IF
-  SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
-  SWRITE(UNIT_stdOut,'(A)')' ...CURVED EXTERNAL FIELD INITIALIZATION DONE'
-END SUBROUTINE read_curved_external_Field
+      " ERROR: not enough data points in variable external field file!")
+END IF
+SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
+SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
+END SUBROUTINE ReadVariableExternalField
 
 
-FUNCTION InterpolateCurvedExternalField(Pos)
+PURE FUNCTION InterpolateVariableExternalField(Pos)
 !===================================================================================================================================
-! interpolates curved external field to z position
+! interpolates Variable external field to z position
+! NO z-values smaller than VariableExternalField(1,1) are allowed!
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_PICInterpolation_Vars   ,ONLY:DeltaExternalField,nIntPoints,CurvedExternalField
+!USE MOD_Globals
+USE MOD_PICInterpolation_Vars   ,ONLY:DeltaExternalField,nIntPoints,VariableExternalField
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -989,25 +985,21 @@ IMPLICIT NONE
 REAL,INTENT(IN)          :: Pos ! partilce z position
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: InterpolateCurvedExternalField  ! Bz
+REAL                     :: InterpolateVariableExternalField  ! Bz
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                  :: iPos
 !===================================================================================================================================
-
-iPos = 0
-iPos = INT(POS/DeltaExternalField) + 1
-IF (iPos.GE.nIntPoints) THEN
-  IPWRITE(UNIT_stdOut,'(I4,A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
-  CALL abort(&
-  __STAMP__ &
-  ,"ERROR: particle out of data point region for external curved field interpolation!")
+iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField) + 1
+IF(iPos.GE.nIntPoints)THEN ! particle outside of range (greater -> use constant value)
+  InterpolateVariableExternalField = VariableExternalField(2,nIntPoints)
+ELSEIF(iPos.LT.1)THEN ! particle outside of range (lower -> use constant value)
+  InterpolateVariableExternalField = VariableExternalField(2,1)
+ELSE ! Linear Interpolation between iPos and iPos+1 B point
+  InterpolateVariableExternalField = (VariableExternalField(2,iPos+1) - VariableExternalField(2,iPos)) & !  dy
+                                   / (VariableExternalField(1,iPos+1) - VariableExternalField(1,iPos)) & ! /dx
+                             * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
-!  Linear Interpolation between iPos and iPos+1 B point
-InterpolateCurvedExternalField = (CurvedExternalField(2,iPos+1) - CurvedExternalField(2,iPos)) &
-                               / (CurvedExternalField(1,iPos+1) - CurvedExternalField(1,iPos)) &
-                               * (Pos - CurvedExternalField(1,iPos) ) + CurvedExternalField(2,iPos)
-
-END FUNCTION InterpolateCurvedExternalField 
+END FUNCTION InterpolateVariableExternalField 
 
 END MODULE MOD_PICInterpolation

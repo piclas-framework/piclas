@@ -27,7 +27,7 @@ USE MOD_Globals
 USE MOD_ReadInTools,            ONLY:GETINT,GETREALARRAY
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,NbrOfCases,casematrix
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
-USE MOD_Mesh_Vars,              ONLY:BC,BoundaryType,nBCs
+USE MOD_Mesh_Vars,              ONLY:BoundaryType,nBCs
 #ifdef MPI
 USE MOD_Particle_Vars,          ONLY:PDM
 USE MOD_Particle_MPI_Vars,      ONLY: PartShiftVector

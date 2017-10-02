@@ -10,12 +10,29 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL, PARAMETER       :: BoltzmannConst=1.380648813E-23                      ! Boltzmann constant [J/K] SI-Unit!
+REAL, PARAMETER       :: BoltzmannConst=1.380648813E-23                      ! Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
+LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
+LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
+! IMD: Molecular Dynamics Model - ion distribution info
+LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
+REAL                  :: IMDTimeScale                                        ! Time unit of input file
+REAL                  :: IMDLengthScale                                      ! global IMD length scale
+INTEGER               :: IMDNumber                                           ! Output number IMD Data file
+CHARACTER(255)        :: IMDInputFile                                        ! Laser data file name containing PartState(1:6)
+INTEGER               :: IMDnSpecies                                         ! number of IMD species
+INTEGER , ALLOCATABLE :: IMDSpeciesID(:)                                     ! species ID for distributing the IMD atoms/ions
+INTEGER , ALLOCATABLE :: IMDSpeciesCharge(:)                                 ! charge number of IMD atoms/ions
+CHARACTER(255)        :: IMDAtomFile                                         ! Laser data file name containing PartState(1:6)
+REAL                  :: IMDCutOffxValue                                     ! cut-off coordinate for IMDCutOff='coordiantes'
+CHARACTER(255)        :: IMDCutOff                                           ! cut-off type for IMD data reduction: 1.) no_cutoff
+                                                                             !                                      2.) Epot
+                                                                             !                                      3.) coordinates
+                                                                             !                                      4.) velocity
 REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  
@@ -35,7 +52,10 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 #if defined(IMEX) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
-REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! PartilceState at t^n
+REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n
+REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable: 
+                                                                             ! 1) time fraction of domain entering (surface flux)
+                                                                             ! 2) fraction of time step for push (surface flux)
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 !REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (1:NParts,1:3) with 2nd index: x,y,z
@@ -116,6 +136,11 @@ TYPE tInit                                                                   ! P
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
+  INTEGER                                :: Rotation                         ! direction of rotation, similar to TE-mode
+  INTEGER                                :: VelocitySpreadMethod             ! method to compute the velocity spread
+  REAL                                   :: InflowRiseTime                   ! time to ramp the number of inflow particles 
+                                                                             ! linearly from zero to unity
+  REAL                                   :: VelocitySpread                   ! velocity spread in percent
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
   REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
   REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
@@ -156,6 +181,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
+  INTEGER(KIND=4)                        :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
   REAL                                   :: Nsigma                           ! sigma multiple of maxwell for virtual insert length
   LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapted SetPos/Velo)?
   CHARACTER(40)                          :: vpiDomainType                    ! specifying Keyword for virtual Pre-Inserting region
@@ -202,13 +228,15 @@ TYPE tSurfaceflux
   INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
+  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
   LOGICAL                                :: SimpleRadialVeloFit !fit of veloR/veloTot=-r*(A*exp(B*r)+C)
   REAL                                   :: preFac !A
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
-  REAL                                   :: rmin, rmax                       ! min and max radius of to-be inserted particles
+  REAL                                   :: rmax                             ! max radius of to-be inserted particles
+  REAL                                   :: PressureFraction
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -225,6 +253,8 @@ TYPE tSpecies                                                                ! P
   LOGICAL                                :: IsImplicit
 #endif
 END TYPE
+
+REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
@@ -280,7 +310,9 @@ REAL                                     :: DelayTime
 
 LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
 
-LOGICAL                                  :: WriteMacroValues                  ! Output of macroscopic values
+LOGICAL                                  :: WRITEMacroValues = .FALSE.
+LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! Output of macroscopic values in volume
+LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling   
                                                                               ! macroscopic values
 REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
@@ -321,7 +353,8 @@ LOGICAL                                  :: useVTKFileBGG                     ! 
 REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
-LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson samling instead of random rounding
+LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
+LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 LOGICAL                                  :: FindNeighbourElems=.FALSE.
 

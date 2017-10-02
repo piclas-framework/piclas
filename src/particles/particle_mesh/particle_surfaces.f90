@@ -56,13 +56,22 @@ END INTERFACE
 INTERFACE EvaluateBezierPolynomialAndGradient
   MODULE PROCEDURE EvaluateBezierPolynomialAndGradient
 END INTERFACE
-  
+
+#ifdef CODE_ANALYZE
+INTERFACE OutputBezierControlPoints
+  MODULE PROCEDURE OutputBezierControlPoints
+END INTERFACE
+#endif /*CODE_ANALYZE*/
 
 PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D, GetSideSlabNormalsAndIntervals, &
         GetSideBoundingBox,GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
 
 PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier
 PUBLIC::RotateMasterToSlave
+
+#ifdef CODE_ANALYZE
+PUBLIC::OutputBezierControlPoints
+#endif /*CODE_ANALYZE*/
 
 !===================================================================================================================================
 
@@ -77,8 +86,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars,               ONLY:EpsMach
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,NGeo,nBCSides,nSides
-!USE MOD_Mesh_Vars,                  ONLY:ElemToSide
+USE MOD_Mesh_Vars,                  ONLY:nSides,NGeo,nBCSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
@@ -261,7 +269,6 @@ SDEALLOCATE(BezierSampleXi)
 SDEALLOCATE(SurfMeshSubSideData)
 SDEALLOCATE(SurfMeshSideAreas)
 SDEALLOCATE(BCdata_auxSF)
-SDEALLOCATE(SurfFluxSideRejectType)
 #ifdef CODE_ANALYZE
 SDEALLOCATE(SideBoundingBoxVolume)
 #endif
@@ -500,7 +507,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo,MortarSlave2MasterInfo,MortarType
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars,                ONLY:nSides
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 USE MOD_Mappings,                 ONLY:CGNS_SideToVol2
 ! IMPLICIT VARIABLE HANDLING
@@ -1307,5 +1313,59 @@ END DO; END DO ! p,q
 
 END SUBROUTINE RotateMasterToSlave
 
+#ifdef CODE_ANALYZE
+SUBROUTINE OutputBezierControlPoints(BezierControlPoints3D_in,BezierControlPoints2D_in) 
+!===================================================================================================================================
+! dump the BezierControlPoints
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Mesh_Vars, ONLY: NGeo
+!----------------------------------------------------------------------------------------------------------------------------------!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN),OPTIONAL  :: BezierControlPoints3d_in(1:3,0:NGeo,0:NGeo)
+REAL,INTENT(IN),OPTIONAL  :: BezierControlPoints2d_in(1:2,0:NGeo,0:NGeo)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: k,i,j
+REAL             :: BezierControlPoints3d(1:3,0:NGeo,0:NGeo)
+!===================================================================================================================================
+
+BezierControlPoints3d=0.
+IF(PRESENT(BezierControlPoints3d_in))THEN
+  BezierControlPoints3d=BezierControlPoints3d_in
+ELSE IF(PRESENT(BezierControlPoints2d_in))THEN
+  BezierControlPoints3d(1:2,:,:)=BezierControlPoints2d_in(:,:,:)
+ELSE
+  CALL abort(&
+__STAMP__&
+,' Tilman hat nicht aufgepasst.!')
+END IF
+
+DO K=1,3
+  WRITE(UNIT_stdout,'(A,I1,A)',ADVANCE='NO')' P(:,:,',K,') = [ '
+  DO I=0,NGeo ! output for MATLAB
+    DO J=0,NGeo
+      WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3d(K,J,I)
+      IF(J.EQ.NGeo)THEN
+        IF(I.EQ.NGeo)THEN
+          WRITE(UNIT_stdout,'(A)')' ];'
+        ELSE
+          WRITE(UNIT_stdout,'(A)')' ;...'
+        END IF
+      ELSE ! comma
+        WRITE(UNIT_stdout,'(A)',ADVANCE='NO')' , '
+      END IF
+    END DO
+  END DO
+END DO
+
+END SUBROUTINE OutputBezierControlPoints
+#endif /*CODE_ANALYZE*/
 
 END MODULE MOD_Particle_Surfaces

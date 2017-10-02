@@ -27,11 +27,13 @@ USE MOD_Restart,                   ONLY:FinalizeRestart
 USE MOD_Interpolation,             ONLY:FinalizeInterpolation
 USE MOD_Mesh,                      ONLY:FinalizeMesh
 USE MOD_Equation,                  ONLY:FinalizeEquation
+USE MOD_Interfaces,                ONLY:FinalizeInterfaces
 USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_Mortar,                    ONLY:FinalizeMortar
 #ifndef PP_HDG
 USE MOD_PML,                       ONLY:FinalizePML
+USE MOD_Dielectric,                ONLY:FinalizeDielectric
 #else
 USE MOD_HDG,                       ONLY:FinalizeHDG
 #endif /*PP_HDG*/
@@ -53,6 +55,7 @@ USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
 USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
 USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
+USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 #ifdef MPI
@@ -85,6 +88,7 @@ CALL FinalizeLinearSolver()
 #endif /*IMEX*/
 #ifndef PP_HDG
 CALL FinalizePML()
+CALL FinalizeDielectric()
 #else
 CALL FinalizeHDG()
 #endif /*PP_HDG*/
@@ -118,7 +122,11 @@ ParticlesInitIsDone=.FALSE.
 #ifdef MPI
 ParticleMPIInitIsDone=.FALSE.
 #endif /*MPI*/
+
+CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 #endif /*PARTICLES*/
+
+CALL FinalizeInterfaces()
 
 END SUBROUTINE FinalizeBoltzplatz
 
@@ -136,7 +144,6 @@ USE MOD_Restart_Vars,       ONLY:RestartInitIsDone
 USE MOD_Restart,            ONLY:InitRestart
 USE MOD_Restart_Vars,       ONLY:DoRestart
 USE MOD_ReadInTools,        ONLY:IgnoredStrings
-!USE MOD_Interpolation,      ONLY:InitInterpolation
 USE MOD_Mesh,               ONLY:InitMesh
 USE MOD_Equation,           ONLY:InitEquation
 USE MOD_GetBoundaryFlux,    ONLY:InitBC
@@ -144,6 +151,7 @@ USE MOD_DG,                 ONLY:InitDG
 USE MOD_Mortar,             ONLY:InitMortar
 #ifndef PP_HDG
 USE MOD_PML,                ONLY:InitPML
+USE MOD_Dielectric,         ONLY:InitDielectric
 #endif /*PP_HDG*/
 USE MOD_Filter,             ONLY:InitFilter
 USE MOD_Analyze,            ONLY:InitAnalyze
@@ -154,24 +162,26 @@ USE MOD_LinearSolver,       ONLY:InitLinearSolver
 #ifdef IMEX
 USE MOD_CSR,                ONLY:InitCSR
 #endif /*IMEX*/
-!USE MOD_TimeDisc,           ONLY:InitTimeDisc
 USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution
 #ifdef MPI
 USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
 USE MOD_ParticleInit,       ONLY:InitParticles
+USE MOD_TTMInit,            ONLY:InitTTM,InitIMD_TTM_Coupling
+USE MOD_TTM_Vars,           ONLY:DoImportTTMFile
 USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
 USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
 USE MOD_Particle_MPI,       ONLY:InitParticleMPI
 #if defined(IMPA) || (PP_TimeDiscMethod==110)
-USE MOD_ParticleSolver,       ONLY:InitPartSolver
+USE MOD_ParticleSolver,     ONLY:InitPartSolver
 #endif
 #endif
 #ifdef PP_HDG
-USE MOD_HDG,              ONLY:InitHDG
+USE MOD_HDG,                ONLY:InitHDG
 #endif
+USE MOD_Interfaces,         ONLY:InitInterfaces
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -211,11 +221,12 @@ CALL InitParticleSurfaces()
 #endif /*PARTICLES*/
 CALL InitEquation()
 CALL InitBC()
-!1#ifdef PARTICLES
+!#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
 #ifndef PP_HDG
-CALL InitPML()
+CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
+CALL InitDielectric() ! Dielectric media
 #endif /*PP_HDG*/
 CALL InitDG()
 CALL InitFilter()
@@ -238,11 +249,22 @@ CALL InitRecordPoints()
 #ifdef PARTICLES
 CALL InitParticleAnalyze()
 #endif
-CALL IgnoredStrings()
 
 #ifdef PP_HDG
 CALL InitHDG()
 #endif
+
+#ifdef PARTICLES
+  CALL InitTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+IF(DoImportTTMFile)THEN
+  CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
+END IF
+#endif /*PARTICLES*/
+
+CALL InitInterfaces() ! set riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
+
+! do this last!
+CALL IgnoredStrings()
 
 END SUBROUTINE InitBoltzplatz
 

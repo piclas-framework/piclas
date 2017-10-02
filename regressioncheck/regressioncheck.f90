@@ -25,29 +25,36 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_RegressionCheck_tools, ONLY: InitExample,GetExampleList,CheckForExecutable,GetCommandLineOption
 USE MOD_RegressionCheck_tools, ONLY: SummaryOfErrors
-USE MOD_RegressionCheck_Run,   ONLY: PerformRegressionCheck
+USE MOD_RegressionCheck_Run,   ONLY: PerformRegressionCheck,PerformFullRegressionCheck
 USE MOD_RegressionCheck_Vars,  ONLY: ExampleNames,Examples,firstError,aError,BuildSolver,nErrors
-USE MOD_RegressionCheck_Vars,  ONLY: CodeNameUppCase,CodeNameLowCase
+USE MOD_RegressionCheck_Vars,  ONLY: CodeNameUppCase,CodeNameLowCase,DoFullReggie
 USE MOD_MPI,                   ONLY: InitMPI
 USE MOD_Mesh,                  ONLY: FinalizeMesh
 USE MOD_RegressionCheck_tools, ONLY: REGGIETIME
+#ifdef MPI
+USE MOD_MPI,                     ONLY: FinalizeMPI
+#endif /*MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: EndTime             ! time at the end of the reggie execution
 INTEGER                        :: nReggieBuilds       ! number of different cmake builds (with different flags)
 CHARACTER(LEN=500)             :: SYSCOMMAND          ! string to fit the system command
 CHARACTER(LEN=255)             :: FileName            ! filename
 !==================================================================================================================================
+
 ! errorcodes
 ALLOCATE(firstError)
-firstError%ErrorCode=-1
 NULLIFY(aError)
+firstError%ErrorCode=-1
 nReggieBuilds=0
 SYSCOMMAND=''
 FileName=''
 CALL InitGlobals() ! only "boltzplatz"
 CALL InitMPI()
+
+! Measure regressioncheck runtime 
+StartTime=REGGIETIME()
+
 ! Check Code Names
 IF(LEN(CodeNameUppCase).NE.LEN(ADJUSTL(TRIM(CodeNameUppCase))))       CALL abort(&
   __STAMP__&
@@ -73,31 +80,36 @@ CALL GetCommandLineOption()
 ! set paths for execution
 IF(.NOT.BuildSolver) CALL CheckForExecutable(Mode=1)
 
-! Measure regressioncheck runtime 
-StartTime=REGGIETIME()
+IF(DoFullReggie)THEN ! call regressioncheck recursivly using the commands from gitlab-ci.yml
+  CALL PerformFullRegressionCheck()
+ELSE
+  ! check if examples are checked out and get list
+  CALL GetExampleList()
+  
+  ! perform the regressioncheck
+  CALL PerformRegressionCheck()
+  
+  ! deallocate example names and example type
+  DEALLOCATE(ExampleNames)
+  DEALLOCATE(Examples)
+END IF
 
-! check if examples are checked out and get list
-CALL GetExampleList()
-
-! perform the regressioncheck
-CALL PerformRegressionCheck()
-
-! deallocate example names and example type
-DEALLOCATE(ExampleNames)
-DEALLOCATE(Examples)
-
-! Measure processing duration
-EndTime=REGGIETIME()
-
-#if MPI
-CALL MPI_FINALIZE(iError)
-IF(iError .NE. 0) CALL abort(&
-  __STAMP__&
-  ,'MPI finalize error',iError,999.)
-#endif
+! remove the following if never used again
+!   #ifdef MPI
+!   CALL MPI_FINALIZE(iError)
+!   IF(iError .NE. 0) CALL abort(&
+!     __STAMP__&
+!     ,'MPI finalize error',iError,999.)
+!   #endif /*MPI*/
 
 ! Print the summary or examples and error codes (if they exist)
-CALL SummaryOfErrors(EndTime)
+CALL SummaryOfErrors()
 
-IF(nErrors.GT.0) ERROR STOP '999'
+#ifdef MPI
+CALL MPI_FINALIZE(iError)
+IF(iError .NE. 0) ERROR STOP 'MPI finalize error'
+CALL FinalizeMPI()
+#endif /*MPI*/
+
+IF(nErrors.GT.0) ERROR STOP 999
 END PROGRAM RegressionCheck

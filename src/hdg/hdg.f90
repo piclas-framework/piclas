@@ -80,6 +80,7 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
     AdaptIterNewton=GETINT('AdaptIterNewton','0')
     AdaptIterNewtonOld = AdaptIterNewton
     AdaptNewtonStartValue = GETLOGICAL('NewtonAdaptStartValue','false')
+    AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear','100')
     IF (NewtonExactApprox) AdaptNewtonStartValue=.true.
     IF (DoRestart) AdaptNewtonStartValue=.false.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
@@ -238,7 +239,7 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
-  CALL Elem_Mat()
+  CALL Elem_Mat(INT(0,8))
 END IF
 
 ALLOCATE(Fdiag(nGP_face,nSides))
@@ -1011,7 +1012,7 @@ IF(AdaptNewtonStartValue) THEN
         END IF
       END DO; END DO; END DO !i,j,k
     END DO !iElem
-    CALL Elem_Mat()
+    CALL Elem_Mat(td_iter)
     CALL BuildPrecond()
   END IF
 END IF
@@ -1022,7 +1023,8 @@ AdaptIterNewton = AdaptIterNewtonOld
 DO iter=1,MaxIterFixPoint
 
   IF (.NOT.beLinear) THEN
-    IF ((iter.EQ.100).OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
+    IF ((iter.EQ.AdaptIterNewtonToLinear)) THEN !.OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
+                                               !removed second cond. to ensure fast convergence with very small AdaptIterNewton
       IF(MPIroot) WRITE(*,*) 'The linear way, baby !!!!!!!!!!!!'
       DO iElem=1,PP_nElems
         RegionID=GEO%ElemToRegion(iElem)
@@ -1031,7 +1033,7 @@ DO iter=1,MaxIterFixPoint
           NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
         END DO; END DO; END DO !i,j,k
       END DO !iElem
-      CALL Elem_Mat()
+      CALL Elem_Mat(td_iter)
       CALL BuildPrecond()
       AdaptIterNewton = 0
       beLinear=.true.
@@ -1052,7 +1054,7 @@ DO iter=1,MaxIterFixPoint
           END IF
         END DO; END DO; END DO !i,j,k
       END DO !iElem
-      CALL Elem_Mat()
+      CALL Elem_Mat(td_iter)
       CALL BuildPrecond()
     END IF
   END IF

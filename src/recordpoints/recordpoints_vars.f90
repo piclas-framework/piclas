@@ -23,6 +23,7 @@ INTEGER            :: nGlobalRP               ! total no. of RP
 INTEGER            :: offsetRP                ! offset for each proc in global RP list
 INTEGER            :: iSample=0               ! no of samples in array
 INTEGER            :: nSamples=0              ! total no. samples in case of multiple io steps
+INTEGER            :: chunkSamples=0          !< time samples per chunk for IO (first iSample in file)
 INTEGER,ALLOCATABLE:: RP_ElemID(:)            ! mapping from RP->Elem (nRP)
 REAL,ALLOCATABLE   :: L_xi_RP(:,:)            ! lagrange basis evaluated at RPs coords
 REAL,ALLOCATABLE   :: L_eta_RP(:,:)            
@@ -36,5 +37,8 @@ CHARACTER(LEN=255) :: StrVarNames(PP_nVar)
 INTEGER            :: myRPrank
 INTEGER            :: RP_COMM
 INTEGER            :: nRP_Procs
+#ifdef LSERK
+LOGICAL            :: RPSkip
+#endif /*LSERK*/
 
 END MODULE MOD_recordPoints_Vars

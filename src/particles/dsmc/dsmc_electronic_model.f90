@@ -399,14 +399,16 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   REAL                                                  :: tempEnergyDiff, tempEnergy
   LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
-  SWRITE(*,*) 'Read electronic level entries ',TRIM(dsetname),' from ',DSMC%ElectronicModelDatabase
+  SWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(dsetname)//' from '//TRIM(DSMC%ElectronicModelDatabase)
   ! Initialize FORTRAN interface.
   CALL H5OPEN_F(err)
   ! Open the file.
-  CALL H5FOPEN_F (DSMC%ElectronicModelDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
-  CALL DatasetExists(File_ID_DSMC,dsetname,DataSetFound)
+  CALL H5FOPEN_F (TRIM(DSMC%ElectronicModelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
   IF(.NOT.DataSetFound)THEN
-    SWRITE(*,*) 'DataSet not found: ',TRIM(dsetname),DSMC%ElectronicModelDatabase
+    CALL abort(&
+    __STAMP__&
+    ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(DSMC%ElectronicModelDatabase)//']')
   END IF
   ! Open the  dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
@@ -458,7 +460,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
     SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
     SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
     SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2) 
-    SWRITE(*,*) 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',dsetname
+    SWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname)
   END IF
   ! Close the file.
   CALL H5FCLOSE_F(file_id_dsmc, err)

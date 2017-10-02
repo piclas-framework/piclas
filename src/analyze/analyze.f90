@@ -340,15 +340,15 @@ AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
 
-SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter)
+SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter_In)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
+USE MOD_Restart_Vars,          ONLY: DoRestart
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 #endif
@@ -356,19 +356,19 @@ USE MOD_RecordPoints,          ONLY: RecordPoints
 #if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 #endif
+#ifdef LSERK
+USE MOD_Recordpoints_Vars,     ONLY: RPSkip
+#endif /*LSERK*/
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
-#if (PP_TimeDiscMethod==42)
-USE MOD_TimeDisc_Vars,         ONLY: dt
-#else
-USE MOD_TimeDisc_Vars,         ONLY: dt
-#endif
 #ifdef PARTICLES
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum
+USE MOD_Mesh_Vars,             ONLY: MeshFile
+USE MOD_TimeDisc_Vars,         ONLY: dt
+USE MOD_Particle_Vars,         ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
-USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall
-USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout
-USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
+USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
+USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
+USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution, useDSMC
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
@@ -388,7 +388,6 @@ USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundi
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #endif /*MPI*/
-USE MOD_LoadBalance_Vars,      ONLY: WeightOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -397,7 +396,7 @@ REAL,INTENT(INOUT)            :: t
 REAL,INTENT(IN)               :: tenddiff
 INTEGER(KIND=8),INTENT(INOUT) :: iter
 LOGICAL,INTENT(IN)            :: forceAnalyze,output
-LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
+LOGICAL,INTENT(IN),OPTIONAL   :: LastIter_In
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -418,20 +417,20 @@ REAL                          :: tLBStart,tLBEnd
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 CHARACTER(LEN=255)            :: outfile
+LOGICAL                       :: LastIter
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load blaaaance
 IF(MPIRoot)THEN
   IF(iter.EQ.0)THEN
-    WeightOutput=0. ! initialize with 0.
     outfile='ElemTimeStatistics.csv'
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
     WRITE(ioUnit,'(A25)',ADVANCE='NO') "time"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MinWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "MaxWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "CurrentImbalance"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "TargetWeight (mean)"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MinWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MaxWeight"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",CurrentImbalance"
+    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",TargetWeight (mean)"
     WRITE(ioUnit,'(A1)') ' '
     CLOSE(ioUnit) 
   END IF
@@ -442,6 +441,11 @@ END IF
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
 !IF(iter.EQ.0) RETURN
 #endif
+
+LastIter=.FALSE.
+IF(PRESENT(LastIter_in))THEN
+  IF(LastIter_in) LastIter=.TRUE.
+END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
@@ -456,15 +460,37 @@ IF (CalcPoyntingInt) THEN
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 #if (PP_nVar>=6)
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-  IF(forceAnalyze)THEN
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
+    ! initial analysis is only performed for NO restart
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
-   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
-  END IF ! ForceAnalyze
-  IF(PRESENT(LastIter) .AND. LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+  ELSE
+     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+#if defined(LSERK)
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+        ! is triggered with prolong-to-face, which would else be missing    
+        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
+        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+      END IF
+    ELSE
+      ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+      ! is triggered with prolong-to-face, which would else be missing    
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    END IF
 #else
-  IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
+    IF(.NOT.LastIter)THEN
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    END IF
+#endif
+  END IF ! ForceAnalyze
+#if defined(LSERK)
+  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
+  IF(LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+#else
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #endif
 #endif
 #ifdef MPI
@@ -479,7 +505,15 @@ IF(RP_onProc) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+#ifdef LSERK
+  IF(RPSkip)THEN
+    RPSkip=.FALSE.
+  ELSE
+    CALL RecordPoints(iter,t,forceAnalyze,Output)
+  END IF
+#else
   CALL RecordPoints(iter,t,forceAnalyze,Output)
+#endif /*LSERK*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
@@ -493,22 +527,58 @@ END IF
 IF (DoAnalyze)  THEN
 #ifdef PARTICLES 
   ! particle analyze
-  IF(forceAnalyze)THEN
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
+    ! initial analysis is only performed for NO restart
     CALL AnalyzeParticles(t)
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeParticles(t) 
+    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeParticles(t)
+      END IF
+    ELSE
+      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeParticles(t)
+   END IF
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t) 
+#if defined(LSERK)
+  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
+  IF(LastIter) CALL AnalyzeParticles(t)
+#else
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
+#endif
 #else /*pure DGSEM */
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-  IF(ForceAnalyze)THEN
-    CALL AnalyzeField(t) 
+  ! analyze field
+  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
+    ! initial analysis is only performed for NO restart
+    CALL AnalyzeField(t)
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeField(t) 
+    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+      IF(iter.GT.1)THEN
+        ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
+        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeField(t)
+      END IF
+    ELSE
+      ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
+      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeField(t)
+    END IF
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeField(t) 
+#if defined(LSERK)
+  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
+  IF(LastIter) CALL AnalyzeField(t)
+#else
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(t)
+#endif
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
@@ -524,8 +594,9 @@ END IF
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-! write DSMC macroscopic values 
-IF ((WriteMacroValues).AND.(.NOT.Output))THEN
+
+! write volume data for DSMC macroscopic values 
+IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
 #if (PP_TimeDiscMethod==1000)
   CALL LD_data_sampling()  ! Data sampling for output
 #elif(PP_TimeDiscMethod==1001)
@@ -533,20 +604,14 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
 #else
   CALL DSMCHO_data_sampling()
 #endif
-  iter_macvalout = iter_macvalout + 1
+  IF (iter.GT.0) iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
 #if (PP_TimeDiscMethod==1000)
     CALL LD_output_calc()  ! Data sampling for output
 #elif(PP_TimeDiscMethod==1001)
     CALL LD_DSMC_output_calc()
 #else
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
-    IF (DSMC%CalcSurfaceVal) THEN
-      CALL CalcSurfaceValues
-      DO iSide=1,SurfMesh%nTotalSides 
-        SampWall(iSide)%State=0.
-      END DO
-    END IF
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
 #endif
     iter_macvalout = 0
     DSMC%SampNum = 0
@@ -554,15 +619,76 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
   END IF
 END IF
 
+! write surface data for DSMC macroscopic values 
+IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
+#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
+  IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
+  IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
+    CALL CalcSurfaceValues
+    DO iSide=1,SurfMesh%nTotalSides 
+      SampWall(iSide)%State=0.
+      IF (useDSMC) THEN
+      IF (DSMC%WallModel.GT.0) THEN
+        SampWall(iSide)%Adsorption=0.
+        SampWall(iSide)%Accomodation=0.
+        SampWall(iSide)%Reaction=0.
+      END IF
+      END IF
+    END DO
+    IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
+      AnalyzeSurfCollis%Data=0.
+      AnalyzeSurfCollis%Spec=0
+      AnalyzeSurfCollis%BCid=0
+      AnalyzeSurfCollis%Number=0
+      !AnalyzeSurfCollis%Rate=0.
+    END IF
+#endif
+    iter_macsurfvalout = 0
+  END IF
+END IF
+
 IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+  END IF
+#elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+  !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
+  IF(dt.EQ.tEndDiff)THEN
+    ! volume data
+    IF(WriteMacroVolumeValues)THEN
+      iter_macvalout = iter_macvalout + 1
+      IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
+        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+        iter_macvalout = 0
+        DSMC%SampNum = 0
+        DSMC_HOSolution = 0.0
+      END IF
+    END IF
+    ! surface data
+    IF (WriteMacroSurfaceValues) THEN
+      iter_macsurfvalout = iter_macsurfvalout + 1
+      IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
+        CALL CalcSurfaceValues
+        DO iSide=1,SurfMesh%nTotalSides
+          SampWall(iSide)%State=0.
+        END DO
+        IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
+          AnalyzeSurfCollis%Data=0.
+          AnalyzeSurfCollis%Spec=0
+          AnalyzeSurfCollis%BCid=0
+          AnalyzeSurfCollis%Number=0
+          !AnalyzeSurfCollis%Rate=0.
+        END IF
+        iter_macsurfvalout = 0
+      END IF
+    END IF
   END IF
 #else
-  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
+  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
     IF (.NOT. useLD) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
     END IF
     IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
@@ -611,7 +737,7 @@ IF (DoAnalyze)  THEN
   ELSE
     IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(t) 
   END IF
-  IF(PRESENT(LastIter) .AND. LastIter)THEN
+  IF(LastIter)THEN
     CALL CodeAnalyzeOutput(t) 
     SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks

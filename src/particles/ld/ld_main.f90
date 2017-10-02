@@ -40,7 +40,7 @@ USE MOD_LD_lag_velo,           ONLY : CalcSurfLagVelo
 USE MOD_LD_reassign_part_prop, ONLY : LD_reassign_prop
 USE MOD_LD_part_treat,         ONLY : LDPartTreament
 #if (PP_TimeDiscMethod!=1001)
-USE MOD_Particle_Vars,         ONLY : WriteMacroValues
+USE MOD_Particle_Vars,         ONLY : WriteMacroVolumeValues
 USE MOD_TimeDisc_Vars,         ONLY : TEnd
 USE MOD_DSMC_Vars,             ONLY : DSMC
 #endif
@@ -78,7 +78,7 @@ USE MOD_LD_Analyze
 #endif
   END DO
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
-  IF (.NOT.WriteMacroValues) THEN
+  IF (.NOT.WriteMacroVolumeValues) THEN
     IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN
       CALL LD_data_sampling()  ! Data sampling for output
       IF(DSMC%NumOutput.NE.0) THEN

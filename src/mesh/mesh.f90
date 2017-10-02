@@ -25,9 +25,14 @@ INTERFACE FinalizeMesh
   MODULE PROCEDURE FinalizeMesh
 END INTERFACE
 
+INTERFACE GetMeshMinMaxBoundaries
+  MODULE PROCEDURE GetMeshMinMaxBoundaries
+END INTERFACE
+
 PUBLIC::InitMesh
 PUBLIC::SwapMesh
 PUBLIC::FinalizeMesh
+PUBLIC::GetMeshMinMaxBoundaries
 !===================================================================================================================================
 
 CONTAINS
@@ -295,6 +300,11 @@ ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
 ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
 ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
+Face_xGP=0.
+NormVec=0.
+TangVec1=0.
+TangVec2=0.
+SurfElem=0.
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
@@ -645,6 +655,48 @@ ELSE
 END IF
 
 END SUBROUTINE SwapMesh
+
+
+SUBROUTINE GetMeshMinMaxBoundaries()
+!============================================================================================================================
+! Deallocate all global interpolation variables.
+!============================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Mesh_Vars,     ONLY: Face_xGP,nBCSides,xyzMinMax,GetMeshMinMaxBoundariesIsDone
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------
+!input parameters
+!----------------------------------------------------------------------------------------------------------------------------
+!output parameters
+!----------------------------------------------------------------------------------------------------------------------------
+!local variables
+REAL                :: xyzMinMaxloc(6)
+!============================================================================================================================
+! check if already called
+IF(GetMeshMinMaxBoundariesIsDone)RETURN
+! get processor local bounding box of faces for damping value ramp
+xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:nBCSides)),&
+                    MINVAL(Face_xGP(2,:,:,1:nBCSides)),MAXVAL(Face_xGP(2,:,:,1:nBCSides)),&
+                    MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
+! get global bounding box of faces for damping value ramp
+#ifdef MPI
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(3),xyzMinMax(3), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(4),xyzMinMax(4), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(5),xyzMinMax(5), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
+   CALL MPI_ALLREDUCE(xyzMinMaxloc(6),xyzMinMax(6), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+#else
+   xyzMinMax=xyzMinMaxloc
+#endif /*MPI*/
+
+! don't call twice
+GetMeshMinMaxBoundariesIsDone=.TRUE.
+
+END SUBROUTINE GetMeshMinMaxBoundaries
 
 
 SUBROUTINE FinalizeMesh()

@@ -15,12 +15,15 @@ SAVE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-
 INTERFACE PerformRegressionCheck
   MODULE PROCEDURE PerformRegressionCheck
 END INTERFACE
 
-PUBLIC::PerformRegressionCheck
+INTERFACE PerformFullRegressionCheck
+  MODULE PROCEDURE PerformFullRegressionCheck
+END INTERFACE
+
+PUBLIC::PerformRegressionCheck,PerformFullRegressionCheck
 !==================================================================================================================================
 
 CONTAINS
@@ -34,7 +37,7 @@ SUBROUTINE PerformRegressionCheck()
 USE MOD_Globals
 USE MOD_RegressionCheck_Compare, ONLY: CompareResults,CompareConvergence
 USE MOD_RegressionCheck_Tools,   ONLY: InitExample
-USE MOD_RegressionCheck_Vars,    ONLY: nExamples,ExampleNames,Examples,EXECPATH,RuntimeOptionType,GlobalRunNumber 
+USE MOD_RegressionCheck_Vars,    ONLY: nExamples,ExampleNames,Examples,EXECPATH,RuntimeOption,GlobalRunNumber 
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -53,7 +56,7 @@ INTEGER                        :: N_compile_flags                   !> number of
 INTEGER                        :: iReggieBuild,nReggieBuilds ! field handler unit and ??
 INTEGER                        :: iSubExample,iScaling,iRun
 LOGICAL                        :: SkipExample,SkipBuild,ExitBuild,SkipFolder,SkipComparison
-LOGICAL                        :: UseFV,UseCODE2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
+LOGICAL                        :: UseFV,Use2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
 !==================================================================================================================================
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)') ' Performing tests ...'
@@ -62,7 +65,7 @@ GlobalRunNumber=0      ! init
 !==================================================================================================================================
 DO iExample = 1, nExamples ! loop level 1 of 5
 !==================================================================================================================================
-  CALL CheckExampleName(ExampleNames(iExample),RuntimeOptionType,SkipExample)
+  CALL CheckExampleName(ExampleNames(iExample),RuntimeOption(2),SkipExample)
   IF(SkipExample)CYCLE ! ignore the example folder and continue with the next
 
   ! set the build configuration environment when BuildSolver=.TRUE.
@@ -76,10 +79,11 @@ DO iExample = 1, nExamples ! loop level 1 of 5
 !==================================================================================================================================
     ! read the parameters for the current example (parameter_reggie.ini), must be read separately for every iReggieBuild
     ! because changes to specific parameters are made depending on the cmake compilation flags, e.g., in "CALL SetParameters(...)"
-    CALL InitExample(Examples(iExample)%PATH,Examples(iExample))
+    CALL InitExample(Examples(iExample)%PATH,Examples(iExample),SkipExample)
+    IF(SkipExample)CYCLE ! skip if "parameter_reggie.ini" file is missing
 
     ! Get code binary (build or find it)
-    CALL GetCodeBinary(iExample,iReggieBuild,nReggieBuilds,N_compile_flags,ReggieBuildExe,SkipBuild,ExitBuild)
+    CALL GetCodeBinary(iExample,iReggieBuild,nReggieBuilds,ReggieBuildExe,SkipBuild,ExitBuild)
     IF(SkipBuild)CYCLE ! invalid reggie build but not last reggie build
     IF(ExitBuild)EXIT  ! last reggie build -> exit ("cycle" would start an infinite loop)
 
@@ -87,7 +91,7 @@ DO iExample = 1, nExamples ! loop level 1 of 5
     CALL GetNvar(iExample,iReggieBuild)
 
     ! check if executable is compiled with correct TESTCASE (e.g. for tylorgreenvortex)
-    CALL CheckCompilerFlags(iExample,iReggieBuild,TESTCASE,TIMEDISCMETHOD,UseFV,UseCODE2D,UsePARABOLIC)
+    CALL CheckCompilerFlags(iExample,iReggieBuild,TESTCASE,TIMEDISCMETHOD,UseFV,Use2D,UsePARABOLIC)
 
     ! remove subexample (before printing the case overview) for certain configurations: e.g. Preconditioner when running explicitly
     CALL CheckSubExample(iExample,iReggieBuild,TIMEDISCMETHOD)
@@ -103,7 +107,7 @@ DO iExample = 1, nExamples ! loop level 1 of 5
     CALL PrintExampleInfo(iExample,EXECPATH,parameter_ini,parameter_ini2)
  
     ! Set options in parameter.ini file
-    CALL SetParameters(iExample,parameter_ini,UseFV,UseCODE2D,UsePARABOLIC,SkipFolder)
+    CALL SetParameters(iExample,parameter_ini,UseFV,Use2D,UsePARABOLIC,SkipFolder)
     IF(SkipFolder)CYCLE ! e.g. p-convergence folder and FV subcells (p-convergence not meaningful)
 
 !==================================================================================================================================
@@ -139,6 +143,181 @@ END SUBROUTINE PerformRegressionCheck
 
 
 !==================================================================================================================================
+!> Routine which performs the actual regressioncheck. It triggers the builds and execute commands. Additionally, it performs
+!> the checks for L2-error norms, h5-diff and runtime
+!==================================================================================================================================
+SUBROUTINE PerformFullRegressionCheck()
+! MODULES
+USE MOD_Globals
+USE MOD_RegressionCheck_Compare, ONLY: CompareResults,CompareConvergence
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=500)            :: SYSCOMMAND                         !> string to fit the system command
+CHARACTER(LEN=500)            :: FileName,OutputFile                !> file and path strings
+INTEGER                       :: ioUnit                             !> io-unit
+INTEGER                       :: iSTATUS                            !> status
+LOGICAL                       :: ExistFile                          !> T=file exists, F=file does not exist
+CHARACTER(len=500)            :: temp,temp2,TmpStr                  !> auxiliary variables
+CHARACTER(len=500)            :: reggie(50)                         !> consider 50 cases maximum
+CHARACTER(len=500)            :: reggieUnique(50)                   !> consider 50 cases maximum
+LOGICAL                       :: isNotUnique                        !> don't repeat the same case twice
+INTEGER                       :: IndNum                             !> index
+INTEGER                       :: iReggie,nReggie,iReggieDONE        !> number of cases
+INTEGER                       :: iReggieUnique,nReggieUnique        !> number of cases
+CHARACTER(len=50)             :: PreFix                             !> auxiliary variable
+CHARACTER(LEN=50)             :: FileSuffix                         !> auxiliary vars for file name endings
+INTEGER                       :: IndNum1,IndNum2,Ind1,Ind2          !> index numbers
+!==================================================================================================================================
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A)') ' Performing FULL regressioncheck ...'
+nReggie=0
+iSTATUS=0 ! nullify
+
+! check for the '.gitlab-ci.yml' file
+FileName=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'../.gitlab-ci.yml'
+INQUIRE(File=FileName,EXIST=ExistFile)              ! inquire existence
+IF(ExistFile.EQV..FALSE.)THEN ! check a second possibility
+  FileName=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'.gitlab-ci.yml'
+  INQUIRE(File=FileName,EXIST=ExistFile)            ! inquire existence
+END IF
+
+! Read the file if is exists
+IF(ExistFile) THEN
+  print*,"FileName=",TRIM(FileName)
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
+  IF(iSTATUS.NE.0)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' Could not open .gitlab-ci.yml'
+    ERROR STOP 1
+  END IF
+  DO
+    READ(ioUnit,'(A)',iostat=iSTATUS)temp
+    IF(iSTATUS.GT.0)THEN
+      SWRITE(UNIT_stdOut,'(A,I5)') " Read-in failed: iSTATUS=",iSTATUS
+      SWRITE(UNIT_stdOut,'(A)') temp
+      ERROR STOP 1
+    ELSE IF(iSTATUS.LT.0)THEN
+      EXIT
+    ELSE ! iSTATUS = 0
+      IndNum=INDEX(temp,'./regressioncheck')
+      IF(IndNum.GT.0)THEN
+        nReggie=nReggie+1
+        temp2=TRIM(ADJUSTL(temp(IndNum:LEN(temp)))) ! +17
+        IndNum=INDEX(temp2,';')
+        IF(IndNum.GT.0)THEN
+          temp=TRIM(ADJUSTL(temp2(1:IndNum-1)))
+          temp2=temp
+        END IF
+        !print*,'[',trim(temp2),']   length=',LEN(TRIM(ADJUSTL(temp2)))
+        reggie(nReggie)=TRIM(ADJUSTL(temp2))//' no-full'//' no-debug'
+      END IF
+    END IF
+  END DO
+  CLOSE(ioUnit)
+ELSE ! could not find '.gitlab-ci.yml'
+  SWRITE(UNIT_stdOut,'(A13,A)') ' ERROR     : ','no ".gitlab-ci.yml" found.'
+  SWRITE(UNIT_stdOut,'(A13,A)') ' FileName  : ', TRIM(FileName)
+  SWRITE(UNIT_stdOut,'(A13,L)') ' ExistFile : ', ExistFile
+  ERROR STOP 1
+END IF
+
+FileName=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'bin/regressioncheck'
+INQUIRE(File=FileName,EXIST=ExistFile)              ! inquire existence
+IF(ExistFile.EQV..FALSE.)THEN ! check a second possibility
+  FileName=TRIM(BASEDIR(2:LEN(BASEDIR)-1))//'regressioncheck'
+  INQUIRE(File=FileName,EXIST=ExistFile)            ! inquire existence
+  PreFix=''
+ELSE
+  PreFix='bin/'
+END IF
+
+IF(ExistFile.EQV..FALSE.)THEN
+  SWRITE(UNIT_stdOut,'(A13,A)') ' ERROR     : ','no "regressioncheck" found.'
+  SWRITE(UNIT_stdOut,'(A13,A)') ' FileName  : ', TRIM(FileName)
+  SWRITE(UNIT_stdOut,'(A13,L)') ' ExistFile : ', ExistFile
+  ERROR STOP 1
+END IF
+SWRITE(UNIT_stdOut,'(A)')' '
+
+! Display an overview of all cases that were found
+SWRITE(UNIT_stdOut,'(A)') " FULL list: The following cases were found in .gitlab-ci.yml"
+SWRITE(UNIT_stdOut,'(132("-"))')
+DO iReggie=1,nReggie
+  SWRITE(UNIT_stdOut,'(A)') ' cd '//TRIM(BASEDIR)//' && '//TRIM(PreFix)//TRIM(reggie(iReggie))
+END DO
+SWRITE(UNIT_stdOut,'(132("-"))')
+
+! sort out duplicate cases
+iReggieUnique=0
+reggieUnique='-1'
+DO iReggie=1,nReggie
+  isNotUnique=.FALSE.
+  DO iReggieDONE=1,iReggie
+    IF(TRIM(reggieUnique(iReggieDONE)).EQ.TRIM(reggie(iReggie)))THEN ! if any old case (reggieUnique) matches 
+                                                                     ! the current case (reggie)
+      isNotUnique=.TRUE.
+    END IF
+  END DO
+  IF(isNotUnique)CYCLE ! don't repeat the same case twice
+  WRITE(FileSuffix,'(I4.4)')iReggieUnique
+  reggieUnique(iReggie)=TRIM(reggie(iReggie))
+  iReggieUnique=iReggieUnique+1
+END DO
+nReggieUnique=iReggieUnique
+iReggieUnique=1
+! map unique cases to reggie()
+DO iReggie=1,nReggie
+  IF(reggieUnique(iReggie).EQ.'-1')CYCLE
+  reggie(iReggieUnique)=reggieUnique(iReggie)
+  iReggieUnique=iReggieUnique+1
+END DO
+
+! Display an overview of all cases that will be run
+SWRITE(UNIT_stdOut,'(A)') " UNIQUE list: The following cases will be executed"
+SWRITE(UNIT_stdOut,'(132("-"))')
+DO iReggie=1,nReggieUnique
+  SWRITE(UNIT_stdOut,'(A)') ' cd '//TRIM(BASEDIR)//' && '//TRIM(PreFix)//TRIM(reggie(iReggie))
+END DO
+SWRITE(UNIT_stdOut,'(132("-"))')
+
+! loop the cases that will be executed
+DO iReggie=1,nReggieUnique
+  WRITE(FileSuffix,'(I4.4)')iReggie
+  SYSCOMMAND='cd '//TRIM(BASEDIR)//' && '//TRIM(PreFix)//TRIM(reggie(iReggie))//' > '& !' | tee '&
+             //TRIM(PreFix)//'full-reggie-'//TRIM(FileSuffix)//'.out'
+  SWRITE(UNIT_stdOut,'(A)')' '
+  ! display the file where the output will be written
+  IndNum=INDEX(BASEDIR,'/')
+  IndNum1=INDEX(BASEDIR,'"') ! remove " from file path
+  Ind1=1
+  IF((IndNum1.GT.0).AND.(IndNum1.LT.IndNum))  Ind1=MAX(1,IndNum1+1) ! only valid if ["] comes before [/]
+  IndNum2=INDEX(BASEDIR,'"',BACK = .TRUE.) ! remove " from file path
+  Ind2=LEN(BASEDIR)
+  IF((IndNum2.GT.1).AND.(IndNum1.NE.IndNum2)) Ind2=IndNum2-1        ! only valid if a second ["] exists 
+  
+  OutputFile=TRIM(BASEDIR(Ind1:Ind2))//TRIM(PreFix)//'full-reggie-'//TRIM(FileSuffix)//'.out'
+  SWRITE(UNIT_stdOut,'(A,A,A,A)') ' Running case [',TRIM(FileSuffix),'] and writing the output to ',TRIM(OutputFile)
+                                   !TRIM(BASEDIR)//TRIM(PreFix)//'full-reggie-'//TRIM(FileSuffix)//'.out'
+  ! display the command that will be executed
+  SWRITE(UNIT_stdOut,'(A)')'   SYSCOMMAND: '//TRIM(SYSCOMMAND)
+  ! run the recursive regressioncheck
+  CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+  IF(iSTATUS.NE.0)THEN
+    SWRITE(UNIT_stdOut,'(A)')    '   Failed running recursive regressioncheck'
+    SWRITE(UNIT_stdOut,'(A,I5)') '     iSTATUS: ',iSTATUS
+    ERROR STOP 1
+  ELSE
+    CALL GetParameterFromFile(OutputFile,'RegressionCheck SUCCESSFUL!',TmpStr)
+    SWRITE(UNIT_stdOut,'(A,A)') '   RegressionCheck SUCCESSFUL! ',ADJUSTL(TRIM(TmpStr))
+  END IF
+END DO
+
+END SUBROUTINE PerformFullRegressionCheck
+
+
+!==================================================================================================================================
 !> depending on the equation system -> get different Nvar (number of variables in the equation system) for the current example
 !> currently supports: - navierstokes             ->    Examples(iExample)%Nvar=5
 !>                     - linearscalaradvection    ->    Examples(iExample)%Nvar=1
@@ -150,7 +329,8 @@ SUBROUTINE GetNvar(iExample,iReggieBuild)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: Examples,EXECPATH,BuildEQNSYS,BuildSolver,CodeNameUppCase,CodeNameLowCase
+USE MOD_RegressionCheck_Vars,    ONLY: Examples,EXECPATH,BuildEQNSYS,BuildSolver,CodeNameUppCase,CodeNameLowCase,configuration_cmake
+USE MOD_RegressionCheck_Vars,    ONLY: RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -161,19 +341,19 @@ INTEGER,INTENT(IN)             :: iExample,iReggieBuild
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: IndNum
-CHARACTER(LEN=255)             :: FileName                          ! path to a file or its name
 CHARACTER(LEN=255)             :: temp,temp2                        ! temp variables for read in of file lines
 LOGICAL                        :: ExistFile                         ! file exists=.true., file does not exist=.false.
 INTEGER                        :: iSTATUS                           ! status
 INTEGER                        :: ioUnit                            ! IO channel
 !===================================================================================================================================
+iSTATUS=0 ! nullify
 IndNum=INDEX(EXECPATH, '/')
 IF(IndNum.GT.0)THEN
   IndNum=INDEX(EXECPATH,'/',BACK = .TRUE.) ! get path without binary
-  FileName=EXECPATH(1:IndNum)//'configuration.cmake'
-  INQUIRE(File=FileName,EXIST=ExistFile)
+  !configuration_cmake=EXECPATH(1:IndNum)//'configuration.cmake'
+  INQUIRE(File=configuration_cmake,EXIST=ExistFile)
   IF(ExistFile) THEN
-    OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
+    OPEN(NEWUNIT=ioUnit,FILE=TRIM(configuration_cmake),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
     DO
       READ(ioUnit,'(A)',iostat=iSTATUS)temp
       IF(ADJUSTL(temp).EQ.'!') CYCLE
@@ -196,17 +376,18 @@ IF(IndNum.GT.0)THEN
     END DO
     CLOSE(ioUnit)
   ELSE ! could not find 'configuration.cmake' at location of execution binary
-    IF(BuildSolver)THEN ! get EQNSYSNAME from cmake build configuration settings
+    IF((BuildSolver).AND.(.NOT.RunContinue))THEN ! get EQNSYSNAME from cmake build configuration settings
       Examples(iExample)%EQNSYSNAME=BuildEQNSYS(iReggieBuild)
     ELSE ! stop 
-      SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the '&
+      SWRITE(UNIT_stdOut,'(A24,A)') ' ERROR: ','no "configuration.cmake" found at the location of the '&
                                                                                                    //CodeNameLowCase//' binary.'
-      SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
-      SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
-      ERROR STOP '-1'
+      SWRITE(UNIT_stdOut,'(A24,A)') ' configuration_cmake: ', TRIM(configuration_cmake)
+      SWRITE(UNIT_stdOut,'(A24,L)') ' ExistFile: ', ExistFile
+      ERROR STOP 1
     END IF
   END IF
 END IF
+! select the correct equation system: ADD NEW SYSTEMS WHEN NEEDED!!!
 SELECT CASE (TRIM(Examples(iExample)%EQNSYSNAME))
   CASE ('navierstokes')  
     Examples(iExample)%Nvar=5
@@ -218,11 +399,11 @@ SELECT CASE (TRIM(Examples(iExample)%EQNSYSNAME))
     Examples(iExample)%Nvar=1
   CASE DEFAULT
     Examples(iExample)%Nvar=-1
-    SWRITE(UNIT_stdOut,'(A)')   ' ERROR: missing case select for this '&
+    SWRITE(UNIT_stdOut,'(A)') ' ERROR: missing case select for this '&
                                                                    //CodeNameUppCase//'_EQNSYSNAME with appropriate Nvar. Fix it by'
-    SWRITE(UNIT_stdOut,'(A)')   '        adding the correct line of code to ../regressioncheck/regressioncheck_run.f90'
-    SWRITE(UNIT_stdOut,'(A,A)') '        Examples(iExample)%EQNSYSNAME=',Examples(iExample)%EQNSYSNAME
-    ERROR STOP '77'
+    SWRITE(UNIT_stdOut,'(A)') '        adding the correct line of code to ../regressioncheck/regressioncheck_run.f90'
+    SWRITE(UNIT_stdOut,'(A)') '        Examples(iExample)%EQNSYSNAME=['//TRIM(Examples(iExample)%EQNSYSNAME)//']'
+    ERROR STOP 77
 END SELECT
 END SUBROUTINE GetNvar
 
@@ -252,7 +433,7 @@ dummystr=TRIM(ADJUSTL(ExampleName)) ! e.g. "run_basic"
 IF(dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType)))).EQ.RuntimeOptionType)THEN ! e.g. "run[_basic]" = "run"
   SWRITE(UNIT_stdOut,'(A)') ''
 END IF
-SWRITE(UNIT_stdOut,'(A,2x,A50)',ADVANCE='no') ' Example-Name: ',  TRIM(ExampleName)
+SWRITE(UNIT_stdOut,'(A65)',ADVANCE='no') ' Example-Name: '//dummystr
 IF(dummystr(1:LEN(TRIM(ADJUSTL(RuntimeOptionType)))).NE.RuntimeOptionType)THEN
   SWRITE(UNIT_stdOut,'(A,2x,A)') '  ...skipping'
   SkipExample=.TRUE.
@@ -264,8 +445,8 @@ END SUBROUTINE CheckExampleName
 
 
 !===================================================================================================================================
-!> IF build-mode: read the configurations.reggie and determine the number of builds
-!> ELSE         : nReggieBuilds=1
+!> IF BuildSolver=T: read the configurations.reggie and determine the number of builds
+!> ELSE            : nReggieBuilds=1
 !===================================================================================================================================
 SUBROUTINE GetnReggieBuilds(iExample,ReggieBuildExe,N_compile_flags,nReggieBuilds)
 !===================================================================================================================================
@@ -273,8 +454,7 @@ SUBROUTINE GetnReggieBuilds(iExample,ReggieBuildExe,N_compile_flags,nReggieBuild
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Build,   ONLY: ReadConfiguration
-USE MOD_RegressionCheck_Vars,    ONLY: BuildDir
-USE MOD_RegressionCheck_Vars,    ONLY: BuildCounter,BuildSolver
+USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,BuildCounter,BuildSolver,BuildContinue,RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -289,16 +469,19 @@ INTEGER,INTENT(INOUT)          :: nReggieBuilds,N_compile_flags
 CHARACTER(LEN=500)             :: SYSCOMMAND                        !> string to fit the system command
 INTEGER                        :: iSTATUS                           !> status
 !===================================================================================================================================
+iSTATUS=0 ! nullify
 ! if "BuildSolver" is true, the complete (valid) compiler-flag parameter combination
 ! is tested (specified in "configuration.reggie", default example is "run_basic")
 IF(BuildSolver)THEN
   IF(ReggieBuildExe.EQ.'')THEN
     CALL ReadConfiguration(iExample,nReggieBuilds,N_compile_flags)
     BuildCounter=1 ! reset the counter between read and build (used for selecting the build configuration for compilation)
-    SYSCOMMAND='rm -rf '//TRIM(BuildDir)//'build_reggie_bin > /dev/null 2>&1'
-    CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
-    SYSCOMMAND= 'mkdir '//TRIM(BuildDir)//'build_reggie_bin'
-    CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+    IF((.NOT.BuildContinue).AND.(.NOT.RunContinue))THEN ! only delete the executables folder if reggie starts at the beginning
+      SYSCOMMAND='rm -rf '//TRIM(BuildDir)//'build_reggie_bin > /dev/null 2>&1'
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      SYSCOMMAND= 'mkdir '//TRIM(BuildDir)//'build_reggie_bin'
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+    END IF
   ELSE
     SWRITE(UNIT_stdOut,'(A)')'regressioncheck_run.f90: CALL ReadConfiguration() has already been performed, skipping...'
   END IF
@@ -314,20 +497,21 @@ END SUBROUTINE GetnReggieBuilds
 !> 2.) use a previously built binary that was created with reggie, e.g., /build_reggie_bin/XXXXX0001
 !> 3.) use an existing binary
 !===================================================================================================================================
-SUBROUTINE GetCodeBinary(iExample,iReggieBuild,nReggieBuilds,N_compile_flags,ReggieBuildExe,SkipBuild,ExitBuild)
+SUBROUTINE GetCodeBinary(iExample,iReggieBuild,nReggieBuilds,ReggieBuildExe,SkipBuild,ExitBuild)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: BuildDir,CodeNameLowCase,EXECPATH
 USE MOD_RegressionCheck_Vars,    ONLY: BuildValid,BuildSolver
-USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable
+USE MOD_RegressionCheck_Tools,   ONLY: CheckForExecutable,GetConfigurationFile!,ConfigurationCounter
 USE MOD_RegressionCheck_Build,   ONLY: BuildConfiguration
+USE MOD_RegressionCheck_Vars,    ONLY: BuildContinue,BuildContinueNumber,RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)             :: iExample,iReggieBuild,nReggieBuilds,N_compile_flags
+INTEGER,INTENT(IN)             :: iExample,iReggieBuild,nReggieBuilds
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(INOUT) :: ReggieBuildExe
@@ -341,27 +525,51 @@ CHARACTER(LEN=500)             :: SYSCOMMAND                        !> string to
 !===================================================================================================================================
 SkipBuild=.FALSE.
 ExitBuild=.FALSE.
+iSTATUS=0 ! nullify
 ! Get code binary (build or find it)
 IF(BuildSolver)THEN
+!print*,""
+!print*,"iReggieBuild=[",iReggieBuild,"]"
+!print*,"BuildValid(iReggieBuild)=[",BuildValid(iReggieBuild),"]"
+
   ! if build is not valid no binary has been built and the lopp can cycle here
   IF(.NOT.BuildValid(iReggieBuild))THEN ! invalid reggie build 
-    WRITE (ReggieBuildExe, '(a, i4.4)') "invalid"
+    WRITE (ReggieBuildExe, '(a, i4.4)') "[BUILD_is_invalid]"
   ELSE
     WRITE (ReggieBuildExe, '(a, i4.4)') CodeNameLowCase, COUNT(BuildValid(1:iReggieBuild)) ! e.g. XXXXX0001
   END IF
   ! check if build exists -> if it does, don't build a new executable with cmake
   FileName=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
   INQUIRE(File=FileName,EXIST=ExistFile)
+
+  IF(BuildContinue)THEN ! even if the executable exists, re-build it when it equels BuildContinueNumber
+    IF(COUNT(BuildValid(1:iReggieBuild)).EQ.BuildContinueNumber)THEN
+      ExistFile=.FALSE. ! set in order to skip building
+    END IF
+  END IF
+
+  IF(RunContinue)THEN ! info when re-using the built binaries
+    SWRITE(UNIT_stdOut,'(A)') ' '
+    SWRITE(UNIT_stdOut,'(132("="))')
+    SWRITE(UNIT_stdOut,'(A)') TRIM(FileName)
+    SWRITE(UNIT_stdOut,'(A,L)')'Binary exists: ',ExistFile
+    ! NEW -> NOT USED ANY MORE !  CALL ConfigurationCounter(N_compile_flags) ! call here because below BuildConfiguration(...) will be skipped
+  END IF
+
   IF(ExistFile) THEN ! 1. build already exists (e.g. XXXX0001 located in ../build_reggie_bin/)
     EXECPATH=TRIM(FileName)
   ELSE ! 2. build does not exists -> create it
-    CALL BuildConfiguration(iExample,iReggieBuild,nReggieBuilds,N_compile_flags)
+    CALL BuildConfiguration(iExample,iReggieBuild,nReggieBuilds)
     IF(BuildValid(iReggieBuild))THEN ! only move binary if it has been created (only for valid builds)
-      SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/'//CodeNameLowCase//' build_reggie_bin/'//ReggieBuildExe
+      SYSCOMMAND='cd '//TRIM(BuildDir)//' && mv build_reggie/bin/'//CodeNameLowCase//' build_reggie_bin/'//TRIM(ReggieBuildExe)
+      CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
+      SYSCOMMAND='cd '//TRIM(BuildDir)//' && cp build_reggie/bin/configuration.cmake build_reggie_bin/'//TRIM(ReggieBuildExe)//&
+                 '_configuration.cmake'
       CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
       EXECPATH=TRIM(BuildDir)//'build_reggie_bin/'//ReggieBuildExe
     END IF
   END IF
+
   ! if build is not valid no exe has been built and the lopp can cycle here
   IF((.NOT.BuildValid(iReggieBuild)).AND.(iReggieBuild.NE.nReggieBuilds))THEN ! invalid reggie build but not last reggie build
     SkipBuild=.TRUE. ! -> does a CYLCE
@@ -369,8 +577,27 @@ IF(BuildSolver)THEN
                                                                                   ! ("cycle" would start an infinite loop)
     ExitBuild=.TRUE. ! -> does an EXIT
   END IF
+
+
+  IF(BuildContinue)THEN ! skip build if the build is smaller than BuildContinueNumber
+    IF(COUNT(BuildValid(1:iReggieBuild)).LT.BuildContinueNumber)THEN ! skip the first N builds when BuildContinue is used
+    !IF(iReggieBuild.LT.BuildContinueNumber)THEN ! skip the first N builds when BuildContinue is used
+!print*,"COUNT(BuildValid(1:iReggieBuild))",COUNT(BuildValid(1:iReggieBuild))
+!print*,"BuildContinueNumber              ",BuildContinueNumber,"----> RETURN"
+!read*
+      SkipBuild=.TRUE. ! set in order to skip running
+      !RETURN
+    END IF
+  END IF
+
   CALL CheckForExecutable(Mode=2) ! check if executable was created correctly
 END IF
+
+! set the configuration file path info depending on reggie build/run setting
+IF(.NOT.SkipBuild)THEN ! only set the path when the build is not to be skipped
+  CALL GetConfigurationFile()
+END IF
+
 END SUBROUTINE GetCodeBinary
 
 
@@ -378,16 +605,17 @@ END SUBROUTINE GetCodeBinary
 !===================================================================================================================================
 !> check if executable is compiled with correct TESTCASE (e.g. for tylorgreenvortex)
 !===================================================================================================================================
-SUBROUTINE CheckCompilerFlags(iExample,iReggieBuild,TESTCASE,TIMEDISCMETHOD,UseFV,UseCODE2D,UsePARABOLIC)
+SUBROUTINE CheckCompilerFlags(iExample,iReggieBuild,TESTCASE,TIMEDISCMETHOD,UseFV,Use2D,UsePARABOLIC)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RegressionCheck_Vars,    ONLY: CodeNameLowCase,EXECPATH,Examples,BuildFV,BuildCODE2D,BuildPARABOLIC
+USE MOD_RegressionCheck_Vars,    ONLY: CodeNameLowCase,Examples,BuildFV,Build2D,BuildPARABOLIC
 USE MOD_RegressionCheck_Vars,    ONLY: BuildSolver
 USE MOD_RegressionCheck_Build,   ONLY: BuildConfiguration
-USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildMPI,CodeNameUppCase
+USE MOD_RegressionCheck_Vars,    ONLY: BuildTESTCASE,BuildTIMEDISCMETHOD,BuildMPI,CodeNameUppCase,configuration_cmake
 USE MOD_RegressionCheck_Build,   ONLY: GetFlagFromFile
+USE MOD_RegressionCheck_Vars,    ONLY: RunContinue
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -396,66 +624,65 @@ INTEGER,INTENT(IN)             :: iExample,iReggieBuild
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(INOUT) :: TESTCASE,TIMEDISCMETHOD
-LOGICAL,INTENT(INOUT)          :: UseFV,UseCODE2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
+LOGICAL,INTENT(INOUT)          :: UseFV,Use2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                        :: ExistFile                         !> file exists=.true., file does not exist=.false.
-CHARACTER(LEN=255)             :: FileName                          !> path to a file or its name
 CHARACTER(LEN=255)             :: tempStr
 LOGICAL                        :: UseMPI
 !===================================================================================================================================
 UseMPI       = .FALSE. ! default
 UseFV        = .FALSE. ! default
-UseCODE2D    = .FALSE. ! default
+Use2D    = .FALSE. ! default
 UsePARABOLIC = .FALSE. ! default
-IF(BuildSolver)THEN
+IF((BuildSolver).AND.(.NOT.RunContinue))THEN ! only when freshly built files and folders are present
   TESTCASE       = BuildTESTCASE(iReggieBuild)
   TIMEDISCMETHOD = BuildTIMEDISCMETHOD(iReggieBuild)
-  IF(ADJUSTL(TRIM(BuildMPI(       iReggieBuild))).EQ.'ON')UseMPI   =.TRUE.
+  IF(ADJUSTL(TRIM(BuildMPI(       iReggieBuild))).EQ.'ON')UseMPI      =.TRUE.
   IF(ADJUSTL(TRIM(BuildFV(        iReggieBuild))).EQ.'ON')UseFV       =.TRUE.
-  IF(ADJUSTL(TRIM(BuildCODE2D(    iReggieBuild))).EQ.'ON')UseCODE2D   =.TRUE.
+  IF(ADJUSTL(TRIM(Build2D(        iReggieBuild))).EQ.'ON')Use2D       =.TRUE.
   IF(ADJUSTL(TRIM(BuildPARABOLIC( iReggieBuild))).EQ.'ON')UsePARABOLIC=.TRUE.
 ELSE ! pre-compiled binary
   ! check if "configuration.cmake" exists and read specific flags from it
-  FileName=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
-  INQUIRE(File=FileName,EXIST=ExistFile)
+  !configuration_cmake=EXECPATH(1:INDEX(EXECPATH,'/',BACK = .TRUE.))//'configuration.cmake'
+  !print*,"configuration_cmake=["//TRIM(configuration_cmake)//"]"
+  INQUIRE(File=configuration_cmake,EXIST=ExistFile)
   IF(ExistFile) THEN
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled with MPI
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_MPI',tempStr,BACK=.TRUE.)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_MPI',tempStr,BACK=.TRUE.)
     IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')UseMPI=.TRUE.
     IF(TRIM(tempStr).EQ.'flag does not exist')CALL abort(&
       __STAMP__&
       ,CodeNameUppCase//'_MPI flag not found in configuration.cmake!',999,999.)
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled for a certain testcase
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_TESTCASE',TESTCASE)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_TESTCASE',TESTCASE)
     IF(CodeNameLowCase.EQ.'boltzplatz')TESTCASE='default'! set default for boltzplatz (currently no testcases are implemented)
     IF(TRIM(TESTCASE).EQ.'flag does not exist')CALL abort(&
       __STAMP__&
       ,CodeNameUppCase//'_TESTCASE flag not found in configuration.cmake!',999,999.)
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled with a certain time integration method
-    CALL GetFlagFromFile(FileName,CodeNameUppCase//'_TIMEDISCMETHOD',TIMEDISCMETHOD)
+    CALL GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_TIMEDISCMETHOD',TIMEDISCMETHOD)
     IF(CodeNameLowCase.EQ.'flexi')TIMEDISCMETHOD='default'! set default for flexi (TIMEDISCMETHOD is not a compile flag)
     IF(TRIM(TIMEDISCMETHOD).EQ.'flag does not exist')CALL abort(&
       __STAMP__&
       ,CodeNameUppCase//'_TIMEDISCMETHOD flag not found in configuration.cmake!',999,999.)
     ! -----------------------------------------------------------------------------------------------------------------------------
     ! check if binary was compiled for specific convergence tests
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_FV',tempStr,BACK=.TRUE.)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_FV',tempStr,BACK=.TRUE.)
     IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')UseFV=.TRUE.
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_CODE2D',tempStr,BACK=.TRUE.)
-    IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')UseCODE2D=.TRUE.
-    CALL  GetFlagFromFile(FileName,CodeNameUppCase//'_PARABOLIC',tempStr,BACK=.TRUE.)
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_2D',tempStr,BACK=.TRUE.)
+    IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')Use2D=.TRUE.
+    CALL  GetFlagFromFile(configuration_cmake,CodeNameUppCase//'_PARABOLIC',tempStr,BACK=.TRUE.)
     IF(ADJUSTL(TRIM(tempStr)).EQ.'ON')UsePARABOLIC=.TRUE.
     ! -----------------------------------------------------------------------------------------------------------------------------
   ELSE
-    SWRITE(UNIT_stdOut,'(A12,A)')     ' ERROR: ','no "configuration.cmake" found at the location of the'//CodeNameLowCase//&
-                                                                                                                      ' binary.'
-    SWRITE(UNIT_stdOut,'(A12,A)')  ' FileName: ', TRIM(FileName)
-    SWRITE(UNIT_stdOut,'(A12,L)') ' ExistFile: ', ExistFile
-    ERROR STOP '-1'
+    SWRITE(UNIT_stdOut,'(A24,A)') ' ERROR: ','no "configuration.cmake" found at the location of the'//CodeNameLowCase//' binary.'
+    SWRITE(UNIT_stdOut,'(A24,A)') ' configuration_cmake: ', TRIM(configuration_cmake)
+    SWRITE(UNIT_stdOut,'(A24,L)') ' ExistFile            : ', ExistFile
+    ERROR STOP 1
   END IF
 END IF
 
@@ -491,7 +718,7 @@ CHARACTER(LEN=*),INTENT(IN)    :: TIMEDISCMETHOD
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-! remove subexample (before printing the case overview) for certain configurations: e.g. Preconditioner when running explicitly
+! remove subexample (before displaying the case overview) for certain configurations: e.g. Preconditioner when running explicitly
 IF((TRIM(TIMEDISCMETHOD).NE.'ImplicitO3').AND.(TRIM(Examples(iExample)%SubExample).EQ.'PrecondType'))THEN
   Examples(iExample)%SubExample       = ''
   Examples(iExample)%SubExampleNumber = 0
@@ -576,7 +803,7 @@ INTEGER                        :: IndNum                           !> index numb
 SkipFolder=.False.
 IndNum=INDEX(ExampleNames(iExample), 'TESTCASE') ! look for TESTCASE- flag in folder name of example
 IF(IndNum.GT.0)THEN ! folder name contains 'TESTCASE'
-  FolderName=ExampleNames(iExample) ! e.g. run_TESTCASE-taylorgreenvortex/
+  FolderName=ExampleNames(iExample)               ! e.g. run_TESTCASE-taylorgreenvortex/
   FolderName=FolderName(IndNum+9:LEN(FolderName)) ! e.g. taylorgreenvortex/
   IndNum=INDEX(FolderName, '_')                   ! e.g. taylorgreenvortex_full/
   IF(IndNum.GT.0)FolderName=FolderName(1:IndNum-1)! e.g. taylorgreenvortex
@@ -613,7 +840,6 @@ SUBROUTINE GetParameterFiles(iExample,TIMEDISCMETHOD,parameter_ini,parameter_ini
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: CodeNameLowCase,Examples
-USE MOD_RegressionCheck_tools,   ONLY: GetParameterFromFile,str2logical
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -630,6 +856,7 @@ LOGICAL                        :: UseDSMC
 CHARACTER(LEN=255)             :: TempStr
 INTEGER                        :: iSTATUS,IndNum
 !===================================================================================================================================
+iSTATUS=0 ! nullify
 ! get list of parameter files for running the simulation
 parameter_ini2=''
 IF(TRIM(TIMEDISCMETHOD).EQ.'DSMC')THEN
@@ -648,10 +875,14 @@ ELSE ! standard flexi or PIC related simulation
     CALL str2logical(TempStr,UseDSMC,iSTATUS)
   END IF
   IF(UseDSMC)THEN ! if UseDSMC is true, a parameter file for DSMC info needs to bespecified (must be located where the mesh is)
+                  ! and must be named 'parameter_DSMC.ini'
     CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),'MeshFile',TempStr) ! find mesh file lcoation
     IndNum=INDEX(TempStr,'/',BACK = .TRUE.) ! get path without mesh file name (*.h5)
     IF(IndNum.GT.0)THEN
-      TempStr=TempStr(1:IndNum) ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      TempStr=TempStr(1:IndNum)                    ! e.g. "./poisson/turner2013_mesh.h5" -> "./poisson/"
+      IF(TRIM(ADJUSTL(TempStr)).EQ.'./')TempStr='' ! e.g. "./turner2013_mesh.h5"         -> "./"
+    ELSE ! parameter file not located within a different directory
+      TempStr=''
     END IF
     !parameter_folder ! get folder where the mesh is
     parameter_ini2=TRIM(ADJUSTL(TempStr))//'parameter_DSMC.ini'
@@ -659,16 +890,16 @@ ELSE ! standard flexi or PIC related simulation
 END IF
 INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini),EXIST=ExistFile)
 IF(.NOT.ExistFile) THEN
-  SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-  SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini:      ',TRIM(parameter_ini)
-  ERROR STOP '-1'
+  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no parameter file found under : ['//TRIM(Examples(iExample)%PATH)//']'
+  SWRITE(UNIT_stdOut,'(A)')   ' parameter_ini                        : ['//TRIM(parameter_ini)//']'
+  ERROR STOP 1
 END IF
 IF(parameter_ini2.NE.'')THEN
   INQUIRE(File=TRIM(Examples(iExample)%PATH)//TRIM(parameter_ini2),EXIST=ExistFile)
   IF(.NOT.ExistFile) THEN
-    SWRITE(UNIT_stdOut,'(A,A)') ' ERROR: no File found under ',TRIM(Examples(iExample)%PATH)
-    SWRITE(UNIT_stdOut,'(A,A)') ' parameter_ini2:     ',TRIM(parameter_ini2)
-    ERROR STOP '-1'
+    SWRITE(UNIT_stdOut,'(A)') ' ERROR: no parameter file found under : ['//TRIM(Examples(iExample)%PATH)//']'
+    SWRITE(UNIT_stdOut,'(A)') ' parameter_ini2                       : ['//TRIM(parameter_ini2)//']'
+    ERROR STOP 1
   END IF
 END IF
 END SUBROUTINE
@@ -720,34 +951,37 @@ END SUBROUTINE PrintExampleInfo
 !===================================================================================================================================
 !> check if executable is compiled with correct TESTCASE (e.g. for tylorgreenvortex)
 !===================================================================================================================================
-SUBROUTINE SetParameters(iExample,parameter_ini,UseFV,UseCODE2D,UsePARABOLIC,SkipFolder)
+SUBROUTINE SetParameters(iExample,parameter_ini,UseFV,Use2D,UsePARABOLIC,SkipFolder)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,CodeNameUppCase
+USE MOD_RegressionCheck_Vars,    ONLY: ExampleNames
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(OUT)            :: SkipFolder
 INTEGER,INTENT(IN)             :: iExample
-LOGICAL,INTENT(INOUT)          :: UseFV,UseCODE2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
+LOGICAL,INTENT(INOUT)          :: UseFV,Use2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
 CHARACTER(LEN=*),INTENT(INOUT) :: parameter_ini
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!LOGICAL                        :: UseFV,UseCODE2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
+!LOGICAL                        :: UseFV,Use2D,UsePARABOLIC      !> compiler flags currently used for ConvergenceTest
 !LOGICAL                        :: ExistFile                         !> file exists=.true., file does not exist=.false.
 !CHARACTER(LEN=255)             :: FileName                          !> path to a file or its name
-!CHARACTER(LEN=255)             :: tempStr
 !LOGICAL                        :: UseMPI
+INTEGER                        :: IndNum
+INTEGER                        :: iSubExample
+CHARACTER(LEN=255)             :: MeshFile
 !===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)') " SUBROUTINE SetParameters ..."
 SkipFolder=.FALSE.
 ! Check specific compile flags for ConvergenceTest
 IF(Examples(iExample)%ConvergenceTest)THEN ! Do ConvergenceTest
-  SWRITE(UNIT_stdOut,'(A)') " SUBROUTINE SetParameters ..."
   ! Check for UseFV (finite volume operator cells)
   !print*,"UseFV=",UseFV
   SWRITE(UNIT_stdOut,'(A15,L1,A2)',ADVANCE='NO')" UseFV       =[",UseFV,"] "
@@ -774,33 +1008,73 @@ IF(Examples(iExample)%ConvergenceTest)THEN ! Do ConvergenceTest
       ! DO NOTHING
     END IF
   END IF
-  
-  ! Check for 2D version of the code
-  !print*,"UseCODE2D=",UseCODE2D
-  SWRITE(UNIT_stdOut,'(A15,L1,A2)',ADVANCE='NO')" UseCODE2D   =[",UseCODE2D,"] "
-  SWRITE(UNIT_stdOut,'(A)')"Setting option in parameter.ini: NOTHING (not implemented yet)"
-  IF(UseCODE2D)THEN
-      !CALL SetSubExample(iExample,-1,parameter_ini,'MeshFile','33')
-      ! DO NOTHING
-  ELSE
-      !CALL SetSubExample(iExample,-1,parameter_ini,'MeshFile','0')
-      ! DO NOTHING
-  END IF
 
   ! Check for UsePARABOLIC==OFF -> Euler simulation
-  !print*,"UsePARABOLIC=",UsePARABOLIC
   SWRITE(UNIT_stdOut,'(A15,L1,A2)',ADVANCE='NO')" UsePARABOLIC=[",UsePARABOLIC,"] "
   IF(UsePARABOLIC)THEN
-    CALL SetSubExample(iExample,-1,parameter_ini,'IniExactFunc','4')
+    CALL SetSubExample(iExample,-1,parameter_ini,'IniExactFunc','4') !Sine wave in vel
   ELSE
     IF(    CodeNameUppCase.EQ.'FLEXI')THEN
-      CALL SetSubExample(iExample,-1,parameter_ini,'IniExactFunc','2')
+      CALL SetSubExample(iExample,-1,parameter_ini,'IniExactFunc','2') !Sine wave in density
     ELSEIF(CodeNameUppCase.EQ.'BOLTZPLATZ')THEN
       CALL SetSubExample(iExample,-1,parameter_ini,'IniExactFunc','12')
     END IF
   END IF
 
+ 
+  ! Check for 2D version of the code
+  SWRITE(UNIT_stdOut,'(A15,L1,A2)',ADVANCE='NO')" Use2D   =[",Use2D,"] "
+  SWRITE(UNIT_stdOut,'(A)')"Setting option in parameter.ini: NOTHING (not implemented yet)"
+  IF(Use2D)THEN
+      IndNum=INDEX(ExampleNames(iExample), 'mortar') ! look for mortar in folder name of example
+      IF(IndNum.GT.0)THEN ! folder name contains 'mortar'
+        SkipFolder=.TRUE.
+        SWRITE(UNIT_stdOut,'(A18,A)')"","Skipping example because [mortar] and [2D=ON]"
+        RETURN
+      END IF
+      CALL SetSubExample(iExample,-1,parameter_ini,'IniExactFunc','2') !Sine wave in density
+      IF  (TRIM(Examples(iExample)%SubExample).EQ.'MeshFile') THEN
+         DO iSubExample = 1, MAX(1,Examples(iExample)%SubExampleNumber) 
+            IndNum=INDEX(TRIM(Examples(iExample)%SubExampleOption(iSubExample)),'3D')
+            IF(IndNum.GT.0)THEN
+              Examples(iExample)%SubExampleOption(iSubExample)(IndNum:IndNum)='2'
+              SWRITE(UNIT_stdOut,'(A)')"Setting SubExampleOption for MeshFile from 3D to 2D"
+            END IF
+         END DO
+      END IF
 
+  ELSE
+    IF  (TRIM(Examples(iExample)%SubExample).EQ.'MeshFile') THEN
+       DO iSubExample = 1, MAX(1,Examples(iExample)%SubExampleNumber) 
+          IndNum=INDEX(TRIM(Examples(iExample)%SubExampleOption(iSubExample)),'2D')
+          IF(IndNum.GT.0)THEN
+            Examples(iExample)%SubExampleOption(iSubExample)(IndNum:IndNum)='3'
+            SWRITE(UNIT_stdOut,'(A)')"Setting SubExampleOption for MeshFile from 2D to 3D"
+          END IF
+       END DO
+    END IF
+  END IF
+
+
+END IF
+
+! Check for 2D version of the code: use different file names for 2D or 3D code version
+SWRITE(UNIT_stdOut,'(A15,L1,A2)',ADVANCE='NO')" Use2D   =[",Use2D,"] "
+SWRITE(UNIT_stdOut,'(A)')"Setting option in parameter.ini: MESHFILE (if file name contains '2D' it will be exchanged with '3D)"
+! read MeshFile from parameter_ini and search for "3D", then substitute with 2D
+CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//parameter_ini,'MeshFile',meshFile)
+IF(Use2D)THEN
+  IndNum=INDEX(meshFile,'3D')
+  IF(IndNum.GT.0)THEN
+    meshFile(IndNum:IndNum)='2'
+    CALL SetSubExample(iExample,-1,parameter_ini,'MeshFile',meshFile)
+  END IF
+ELSE
+  IndNum=INDEX(meshFile,'2D')
+  IF(IndNum.GT.0)THEN
+    meshFile(IndNum:IndNum)='3'
+    CALL SetSubExample(iExample,-1,parameter_ini,'MeshFile',meshFile)
+  END IF
 END IF
 
 END SUBROUTINE SetParameters
@@ -839,6 +1113,7 @@ INTEGER                              :: MODE              !> 1: change SubExampl
                                                           !> 2: change specific parameter in parameter.ini
 !===================================================================================================================================
 MODE=0 ! default
+iSTATUS=0 ! nullify
 IF(iSubExample.GT.0)MODE=1
 IF(PRESENT(ChangeOption).AND.PRESENT(ChangeParameter))MODE=2
 
@@ -855,6 +1130,7 @@ ELSE
   RETURN ! do nothing
 END IF
 
+! use 'sed' to replace a parameter in the *.ini file with specific settings
 IF(ExistStringInFile)THEN
   IF(MODE.EQ.1)THEN
     SYSCOMMAND=      'cd '//TRIM(Examples(iExample)%PATH)//& ! write the current SubExampleOption(iSubExample) to parameter_ini
@@ -928,6 +1204,7 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: tmp
 INTEGER                        :: iSTATUS,ioUnit
 !==================================================================================================================================
+iSTATUS=0 ! nullify
 SELECT CASE(MODE)
   CASE(0) ! MODE=0: INITIAL -> delete pre-existing files and folders
     ! delete "std_files_*" folder
@@ -990,7 +1267,7 @@ SELECT CASE(MODE)
     CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=iSTATUS)
   CASE DEFAULT
     SWRITE(UNIT_stdOut,'(A,I3,A)') ' SUBROUTINE CleanFolder: MODE=',MODE,' does not exist!'
-    ERROR STOP '-1'
+    ERROR STOP 1
 END SELECT
 
 END SUBROUTINE CleanFolder
@@ -1005,7 +1282,7 @@ SUBROUTINE RunTheCode(iExample,iSubExample,iScaling,iRun,MPIthreadsStr,EXECPATH,
 ! MODULES
 USE MOD_Globals
 USE MOD_RegressionCheck_Vars,    ONLY: Examples,GlobalRunNumber
-USE MOD_RegressionCheck_tools,   ONLY: AddError,str2int
+USE MOD_RegressionCheck_tools,   ONLY: AddError
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1024,9 +1301,13 @@ CHARACTER(LEN=1000)            :: SYSCOMMAND                                    
 CHARACTER(LEN=255)             :: FileSuffix,FolderSuffix,tempStr                 !> auxiliary vars for file and folder names
 CHARACTER(LEN=255)             :: FileOutFolderName,StdOutFileName,ErrOutFileName !> new std.out and err.out files
 INTEGER                        :: MPIthreadsInteger,PolynomialDegree              !> character to integer auxiliaray vars
+CHARACTER(LEN=255)             :: ComputationResult                               !> auxiliary var to determine a failed computation
+                                                                                  !>  even if EXITSTATUS=0
 !===================================================================================================================================
 SkipComparison=.FALSE.
 MPIthreadsInteger=1 ! default: single run
+iSTATUS=0 ! nullify
+ComputationSTATUS=0 ! nullify
 ! -----------------------------------------------------------------------------------------------------------------------
 ! Run the Code
 ! -----------------------------------------------------------------------------------------------------------------------
@@ -1063,6 +1344,12 @@ ELSE ! single run
 END IF
 GlobalRunNumber=GlobalRunNumber+1
 CALL EXECUTE_COMMAND_LINE(SYSCOMMAND, WAIT=.TRUE., EXITSTAT=ComputationSTATUS) ! run the code
+CALL GetParameterFromFile(TRIM(Examples(iExample)%PATH)//'std.out',&
+                          'Program abort caused',ComputationResult,DoDisplayInfo=.FALSE.)
+IF((TRIM(ComputationResult).NE.'ParameterName does not exist').AND.(TRIM(ComputationResult).NE.'file does not exist'))THEN
+  ComputationSTATUS=1 ! an abort was caused (works for MPI=ON/OFF)
+  SWRITE(UNIT_stdOut, '(A)')' Program abort caused '//TRIM(ComputationResult)
+END IF
 ! -----------------------------------------------------------------------------------------------------------------------
 ! copy the std.out and err.out files to sub folder (std_filed_.....)
 ! -----------------------------------------------------------------------------------------------------------------------

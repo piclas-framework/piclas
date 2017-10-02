@@ -26,10 +26,10 @@ REAL,ALLOCATABLE                      :: BGField_wGP(:)       ! GP integration w
 REAL,ALLOCATABLE                      :: BGField_wBary(:)     ! barycentric weights
 
 
-CHARACTER(LEN=256)                    :: FileNameCurvedExternalField  ! filename containing the externanl field csv tabe
-LOGICAL                               :: usecurvedExternalField       ! use given external field. only for Bz variation in z
-REAL,ALLOCATABLE                      :: CurvedExternalField(:,:)     ! z - Pos , Bz
+CHARACTER(LEN=256)                    :: FileNameVariableExternalField ! filename containing the externanl field csv table
+LOGICAL                               :: useVariableExternalField      ! use given external field. only for Bz variation in z
+REAL,ALLOCATABLE                      :: VariableExternalField(:,:)    ! z - Pos , Bz
 REAL                                  :: DeltaExternalField
-INTEGER                               :: nIntPoints                   ! number of all interpolation points of curved external field
+INTEGER                               :: nIntPoints                    ! number of all interpolation points external field
 !===================================================================================================================================
 END MODULE MOD_PICInterpolation_Vars
