@@ -616,6 +616,9 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_HOSolution = 0.0
+    IF(DSMC%CalcQualityFactors) THEN
+      DSMC%QualityFacSamp(:,:) = 0.
+    END IF
   END IF
 END IF
 

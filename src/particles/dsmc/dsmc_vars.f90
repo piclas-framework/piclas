@@ -101,7 +101,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
                                                             ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
-  REAL, ALLOCATABLE                :: PartitionFunction(:)  ! Partition function for each species in given temperature range
+  REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
@@ -136,18 +136,18 @@ TYPE tDSMC
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
   LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
-  REAL                          :: CollProbMean                 ! Summation of collision probability
-  REAL                          :: CollProbMax               ! Maximal collision probability per cell
+  REAL                          :: CollProbMean             ! Summation of collision probability
+  REAL                          :: CollProbMax              ! Maximal collision probability per cell
   REAL                          :: MeanFreePath
-  INTEGER                       :: CollProbMeanCount                ! counter of possible collision pairs
-  INTEGER                       :: CollSepCount            ! counter of actual collision pairs
-  REAL                          :: CollSepDist           ! Summation of mean collision separation distance
-  LOGICAL                       :: CalcQualityFactors      ! Enables/disables the calculation and output of flow-field variables
-  REAL, ALLOCATABLE            :: QualityFactors(:,:)     ! Quality factors for DSMC
+  INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
+  INTEGER                       :: CollSepCount             ! counter of actual collision pairs
+  REAL                          :: CollSepDist              ! Summation of mean collision separation distance
+  LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
+  REAL, ALLOCATABLE             :: QualityFactors(:,:)      ! Quality factors for DSMC
                                                             !     1: Maximal collision prob
                                                             !     2: Time-averaged mean collision prob
                                                             !     3: Mean collision separation distance over mean free path
-  REAL, ALLOCATABLE            :: QualityFacSamp(:,:)     ! Sampling of quality factors
+  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
                                                             !     1: Time-averaged mean collision prob
                                                             !     2: Mean collision separation distance over mean free path
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
@@ -160,29 +160,29 @@ TYPE tDSMC
                                                             ! 0 perfect/diffusive reflection
                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
                                                             ! 2 adsorption/desorption + chemical interaction (UBI-QEP)
-  REAL                          :: RotRelaxProb              ! Model for calculation of rotational relaxation probability, ini_1
+  REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model
                                                             !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
-  REAL                          :: VibRelaxProb              ! Model for calculation of vibrational relaxation probability, ini_1
+  REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
                                                             !    0-1: constant probability (0: no relaxation)
                                                             !    2: Boyd's model, with correction from Abe
-  REAL                          :: ElecRelaxProb              ! electronic relaxation probability
-  LOGICAL                       :: PolySingleMode             ! Separate relaxation of each vibrational mode of a polyatomic in a
-                                                               ! loop over all vibrational modes (every mode has its own corrected
-                                                               ! relaxation probability, comparison with the same random number
-                                                               ! while the previous probability is added to the next)
-  REAL, ALLOCATABLE            :: InstantTransTemp(:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
+  REAL                          :: ElecRelaxProb            ! electronic relaxation probability
+  LOGICAL                       :: PolySingleMode           ! Separate relaxation of each vibrational mode of a polyatomic in a
+                                                            ! loop over all vibrational modes (every mode has its own corrected
+                                                            ! relaxation probability, comparison with the same random number
+                                                            ! while the previous probability is added to the next)
+  REAL, ALLOCATABLE             :: InstantTransTemp(:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
   LOGICAL                       :: BackwardReacRate         ! Enables the automatic calculation of the backward reaction rate
-                                                             ! coefficient with the equilibrium constant by partition functions
+                                                            ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
 #if (PP_TimeDiscMethod==42)
-  LOGICAL                       :: CompareLandauTeller       ! Keeps the translational temperature at the fixed value of the init
+  LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
 #endif
 END TYPE tDSMC
 
-TYPE(tDSMC)                        :: DSMC
+TYPE(tDSMC)                     :: DSMC
 
 TYPE tBGGas
   INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
