@@ -1598,8 +1598,8 @@ StrVarNames(nVarCount+11)='Total_PointWeight'
 StrVarNames(nVarCount+12)='Total_TempMean'
 nVarCount=nVarCount+nVarloc
 IF (DSMC%CalcQualityFactors) THEN
-  StrVarNames(nVarCount+1) ='DSMC_MeanCollProb'
-  StrVarNames(nVarCount+2) ='DSMC_MaxCollProb'
+  StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
+  StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_CollSepDist'
 END IF
 
