@@ -129,8 +129,18 @@ IF(DoQDS)THEN
 
   !print*,"QDS_dg.f90: ini QDS, do restart?"
   !read*
+
   IF(.NOT.DoRestart)THEN
     !CALL FillIniQDS()
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+    QDSMacroValues(1,i,j,k,:)=Dens*Mass/10
+    QDSMacroValues(2,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(1)
+    QDSMacroValues(3,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(2)
+    QDSMacroValues(4,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(3)
+    QDSMacroValues(6,i,j,k,:) = Temp
+    END DO; END DO; END DO
 
     ! fill the cell with no. 88
     DO k=0,PP_N
