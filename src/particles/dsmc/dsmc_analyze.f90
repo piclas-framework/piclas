@@ -1600,7 +1600,7 @@ nVarCount=nVarCount+nVarloc
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
-  StrVarNames(nVarCount+3) ='DSMC_CollSepDist'
+  StrVarNames(nVarCount+3) ='DSMC_MCD_over_MFD'
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
