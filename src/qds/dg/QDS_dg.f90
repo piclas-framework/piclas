@@ -79,6 +79,7 @@ END IF
 DoQDS                      = GETLOGICAL('DoQDS','.FALSE.')
 IF(DoQDS)THEN
   QDSnVar=40
+  QDSnVar_macro=6
   nQDSElems=PP_nElems
 
   ALLOCATE(UQDS       (1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems))        
@@ -96,7 +97,7 @@ IF(DoQDS)THEN
   FluxQDS_Master=0.
   FluxQDS_Slave=0.
 
-  ALLOCATE(QDSMacroValues(6,0:PP_N,0:PP_N,0:PP_N,nQDSElems))
+  ALLOCATE(QDSMacroValues(1:QDSnVar_macro,0:PP_N,0:PP_N,0:PP_N,nQDSElems))
   QDSMacroValues=0.
 
   ALLOCATE(GaussHermitWeiAbs(2,2))
@@ -131,31 +132,38 @@ IF(DoQDS)THEN
   !read*
 
   IF(.NOT.DoRestart)THEN
-    !CALL FillIniQDS()
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-    QDSMacroValues(1,i,j,k,:)=Dens*Mass/10
-    QDSMacroValues(2,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(1)
-    QDSMacroValues(3,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(2)
-    QDSMacroValues(4,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(3)
-    QDSMacroValues(6,i,j,k,:) = Temp
-    END DO; END DO; END DO
+    CALL FillIniQDS()
 
-    ! fill the cell with no. 88
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-    !  i=0; j=0; k=0
-    !  QDSMacroValues(1,i,j,k,1) = Dens*wGP(i)*wGP(j)*wGP(k)/sJ(i,j,k,1)*Mass
-      QDSMacroValues(1,i,j,k,88) = Dens*Mass
-      QDSMacroValues(2:4,i,j,k,88) = QDSMacroValues(1,i,j,k,88)*Velo(1:3)
-      QDSMacroValues(6,i,j,k,88) = Temp
-    END DO; END DO; END DO
+    !print*,MAXVAL(QDSMacroValues(1,i,j,k,:))
+    !print*,MAXVAL(QDSMacroValues(6,i,j,k,:))
+
+
+
+!    DO k=0,PP_N
+!      DO j=0,PP_N
+!        DO i=0,PP_N
+!    QDSMacroValues(1,i,j,k,:)=Dens*Mass/10
+!    QDSMacroValues(2,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(1)
+!    QDSMacroValues(3,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(2)
+!    QDSMacroValues(4,i,j,k,:) = QDSMacroValues(1,i,j,k,:)*Velo(3)
+!    QDSMacroValues(6,i,j,k,:) = Temp
+!    END DO; END DO; END DO
+!
+!    ! fill the cell with no. 88
+!    DO k=0,PP_N
+!      DO j=0,PP_N
+!        DO i=0,PP_N
+!    !  i=0; j=0; k=0
+!    !  QDSMacroValues(1,i,j,k,1) = Dens*wGP(i)*wGP(j)*wGP(k)/sJ(i,j,k,1)*Mass
+!      QDSMacroValues(1,i,j,k,88) = Dens*Mass
+!      QDSMacroValues(2:4,i,j,k,88) = QDSMacroValues(1,i,j,k,88)*Velo(1:3)
+!      QDSMacroValues(6,i,j,k,88) = Temp
+!    END DO; END DO; END DO
   END IF
 
 ELSE
   QDSnVar=0
+  QDSnVar_macro=0
 END IF
 QDSInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT QDS-DG DONE!'
@@ -265,9 +273,10 @@ SUBROUTINE FillIniQDS()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Mesh_Vars,      ONLY:Elem_xGP
-USE MOD_QDS_Equation,   ONLY:ExactFuncQDS
-USE MOD_QDS_DG_Vars,    ONLY:nQDSElems,UQDS,QDSnVar
+USE MOD_Mesh_Vars,         ONLY:Elem_xGP
+USE MOD_QDS_Equation,      ONLY:QDS_ExactFunc
+USE MOD_QDS_DG_Vars,       ONLY:nQDSElems,QDSMacroValues,QDSnVar_macro
+USE MOD_QDS_Equation_vars, ONLY:QDSIniExactFunc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -283,11 +292,9 @@ DO iQDSElems=1,nQDSElems
     DO j=0,PP_N
       DO i=0,PP_N
 #ifdef PP_HDG
-        !CALL ExactFuncQDS(IniExactFunc,     Elem_xGP(1:3,i,j,k,iQDSElems),UQDS(1:QDSnVar,i,j,k,iQDSElems))
-        CALL ExactFuncQDS(1,     Elem_xGP(1:3,i,j,k,iQDSElems),UQDS(1:QDSnVar,i,j,k,iQDSElems))
+        CALL QDS_ExactFunc(QDSIniExactFunc,     Elem_xGP(1:3,i,j,k,iQDSElems),QDSMacroValues(1:QDSnVar_macro,i,j,k,iQDSElems))
 #else
-        !CALL ExactFuncQDS(IniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iQDSElems),UQDS(1:QDSnVar,i,j,k,iQDSElems))
-        CALL ExactFuncQDS(1,0.,0,Elem_xGP(1:3,i,j,k,iQDSElems),UQDS(1:QDSnVar,i,j,k,iQDSElems))
+        CALL QDS_ExactFunc(QDSIniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iQDSElems),QDSMacroValues(1:QDSnVar_macro,i,j,k,iQDSElems))
 #endif
       END DO ! i
     END DO ! j
@@ -354,11 +361,13 @@ DO iElem = 1, nQDSElems
             UQDS(2+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
                                      * (QDSMacroValues(2  ,i,j,k,iElem) /&
                                         QDSMacroValues(1  ,i,j,k,iElem) &
-                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart1))    
+                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart1))
+
             UQDS(3+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
                                      * (QDSMacroValues(3  ,i,j,k,iElem) /&
                                         QDSMacroValues(1  ,i,j,k,iElem) &
-                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart2))    
+                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart2))
+
             UQDS(4+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
                                      * (QDSMacroValues(4  ,i,j,k,iElem) /&
                                         QDSMacroValues(1  ,i,j,k,iElem) &
@@ -423,13 +432,13 @@ DO iElem = 1, nQDSElems
           END IF
         END DO        
         IF (QDSMacroValues(1,i,j,k,iElem).GT.0.0) THEN
-          QDSMacroValues(6,i,j,k,iElem) = (2.*QDSMacroValues(5,i,j,k,iElem) &
-                                            -(QDSMacroValues(2,i,j,k,iElem)**2+&
-                                              QDSMacroValues(3,i,j,k,iElem)**2+&
-                                              QDSMacroValues(4,i,j,k,iElem)**2) &
+          QDSMacroValues(6,i,j,k,iElem) =  (2.*QDSMacroValues(5,i,j,k,iElem) &
+                                             -(QDSMacroValues(2,i,j,k,iElem)**2+&
+                                               QDSMacroValues(3,i,j,k,iElem)**2+&
+                                               QDSMacroValues(4,i,j,k,iElem)**2) &
             /QDSMacroValues(1,i,j,k,iElem)) / (QDSMacroValues(1,i,j,k,iElem)*3.) *QDSSpeciesMass /BoltzmannConst
         ELSE
-          QDSMacroValues(6,i,j,k,iElem) = 0.0
+          QDSMacroValues(1:6,i,j,k,iElem) = 0.0
         END IF
       END DO ! i
     END DO ! j

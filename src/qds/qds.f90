@@ -36,6 +36,7 @@ SUBROUTINE InitQDS
 ! MODULES
 USE MOD_Globals,         ONLY:UNIT_stdOut,mpiroot
 USE MOD_QDS_DG,          ONLY:QDS_InitDG
+USE MOD_QDS_Equation,    ONLY:QDS_InitEquation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -51,6 +52,7 @@ IMPLICIT NONE
 SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT QDS ...' 
 
+CALL QDS_InitEquation()
 CALL QDS_InitDG()
 
 
@@ -75,6 +77,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 CALL QDS_FinalizeDG()
+!CALL QDS_FinalizeEquation()
 
 END SUBROUTINE FinalizeQDS
 

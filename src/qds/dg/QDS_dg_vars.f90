@@ -14,7 +14,8 @@ LOGICAL                   :: QDSInitIsDone = .FALSE.
 LOGICAL                   :: DoQDS                    ! true/false switch for QDS calculation procedures
 REAL,ALLOCATABLE          :: UQDS(:,:,:,:,:)          ! U2( 1:QDSnVar,i,j,k,nQDSElems)
 REAL,ALLOCATABLE          :: UQDSt(:,:,:,:,:)         ! U2t(1:QDSnVar,i,j,k,nQDSElems)
-INTEGER                   :: QDSnVar                  ! is zero or 24 depending
+INTEGER                   :: QDSnVar                  ! is zero or 40 depending on DoQDS=T/F
+INTEGER                   :: QDSnVar_macro            ! is zero or 6 depending on DoQDS=T/F
 INTEGER                   :: nQDSElems                ! number of QDS elements
 REAL,ALLOCATABLE          :: UQDS_Master(:,:,:,:)
 REAL,ALLOCATABLE          :: UQDS_Slave(:,:,:,:)

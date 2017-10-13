@@ -43,24 +43,24 @@ REAL,INTENT(OUT)                                 :: F(QDSnVar,0:PP_N,0:PP_N)
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                                          :: p,q, iVar,I
+INTEGER                                          :: p,q, iVar,L
 REAL                                             :: velocompL, velocompR,LambdaMax
 !===================================================================================================================================
 !Lax-Friedrich
 DO iVar=0,7
-  I=iVar*5
+  L=iVar*5
   DO q=0,PP_N; DO p=0,PP_N 
-    IF(U_L(1+I,p,q).GT.0.0)THEN
-      velocompL = U_L(2+I,p,q)/U_L(1+I,p,q)*nv(1,p,q) + &
-                  U_L(3+I,p,q)/U_L(1+I,p,q)*nv(2,p,q) + &
-                  U_L(4+I,p,q)/U_L(1+I,p,q)*nv(3,p,q)
+    IF(U_L(1+L,p,q).GT.0.0)THEN
+      velocompL = U_L(2+L,p,q)/U_L(1+L,p,q)*nv(1,p,q) + &
+                  U_L(3+L,p,q)/U_L(1+L,p,q)*nv(2,p,q) + &
+                  U_L(4+L,p,q)/U_L(1+L,p,q)*nv(3,p,q)
     ELSE
       velocompL = 0.0
     END IF
-    IF(U_R(1+I,p,q).GT.0.0)THEN
-      velocompR = U_R(2+I,p,q)/U_R(1+I,p,q)*nv(1,p,q) + &
-                  U_R(3+I,p,q)/U_R(1+I,p,q)*nv(2,p,q) + &
-                  U_R(4+I,p,q)/U_R(1+I,p,q)*nv(3,p,q)
+    IF(U_R(1+L,p,q).GT.0.0)THEN
+      velocompR = U_R(2+L,p,q)/U_R(1+L,p,q)*nv(1,p,q) + &
+                  U_R(3+L,p,q)/U_R(1+L,p,q)*nv(2,p,q) + &
+                  U_R(4+L,p,q)/U_R(1+L,p,q)*nv(3,p,q)
     ELSE
       velocompR = 0.0
     END IF
@@ -69,7 +69,8 @@ DO iVar=0,7
     !ELSE
       !LambdaMax = ABS(velocompR)
     !END IF
-    LambdaMax = MERGE(ABS(velocompL),ABS(velocompR),ABS(velocompL).GT.ABS(velocompR))
+    !LambdaMax = MERGE(ABS(velocompL),ABS(velocompR),ABS(velocompL).GT.ABS(velocompR))
+    LambdaMax = MAX(ABS(velocompL),ABS(velocompR))
     !LambdaMax=QDSMaxVelo
 
 
@@ -83,20 +84,20 @@ DO iVar=0,7
     
 
 
-     F(1+I,p,q) =   0.5*(velocompL* U_L(1+I,p,q) + velocompR* U_R(1+I,p,q)) &
-                  - 0.5*LambdaMax *(U_R(1+I,p,q) -            U_L(1+I,p,q))
+     F(1+L,p,q) =   0.5*(velocompL* U_L(1+L,p,q) + velocompR* U_R(1+L,p,q)) &
+                  - 0.5*LambdaMax *(U_R(1+L,p,q) -            U_L(1+L,p,q))
 
-     F(2+I,p,q) =   0.5*(velocompL* U_L(2+I,p,q) + velocompR* U_R(2+I,p,q)) &
-                  - 0.5*LambdaMax *(U_R(2+I,p,q) -            U_L(2+I,p,q))
+     F(2+L,p,q) =   0.5*(velocompL* U_L(2+L,p,q) + velocompR* U_R(2+L,p,q)) &
+                  - 0.5*LambdaMax *(U_R(2+L,p,q) -            U_L(2+L,p,q))
 
-     F(3+I,p,q) =   0.5*(velocompL* U_L(3+I,p,q) + velocompR* U_R(3+I,p,q)) &
-                  - 0.5*LambdaMax *(U_R(3+I,p,q) -            U_L(3+I,p,q))
+     F(3+L,p,q) =   0.5*(velocompL* U_L(3+L,p,q) + velocompR* U_R(3+L,p,q)) &
+                  - 0.5*LambdaMax *(U_R(3+L,p,q) -            U_L(3+L,p,q))
 
-     F(4+I,p,q) =   0.5*(velocompL* U_L(4+I,p,q) + velocompR* U_R(4+I,p,q)) &
-                  - 0.5*LambdaMax *(U_R(4+I,p,q) -            U_L(4+I,p,q))
+     F(4+L,p,q) =   0.5*(velocompL* U_L(4+L,p,q) + velocompR* U_R(4+L,p,q)) &
+                  - 0.5*LambdaMax *(U_R(4+L,p,q) -            U_L(4+L,p,q))
 
-     F(5+I,p,q) =   0.5*(velocompL* U_L(5+I,p,q) + velocompR* U_R(5+I,p,q)) &
-                  - 0.5*LambdaMax *(U_R(5+I,p,q) -            U_L(5+I,p,q))
+     F(5+L,p,q) =   0.5*(velocompL* U_L(5+L,p,q) + velocompR* U_R(5+L,p,q)) &
+                  - 0.5*LambdaMax *(U_R(5+L,p,q) -            U_L(5+L,p,q))
 
 !     F(1 + iVar*5,p,q) = 0.5*(velocompL* U_L(1 + iVar*5,p,q) + velocompR* U_R(1 + iVar*5,p,q))
 !     F(2 + iVar*5,p,q) = 0.5*(velocompL* U_L(2 + iVar*5,p,q) + velocompR* U_R(2 + iVar*5,p,q))

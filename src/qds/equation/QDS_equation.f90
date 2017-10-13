@@ -15,23 +15,49 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE ExactFuncQDS
-  MODULE PROCEDURE ExactFuncQDS
+INTERFACE QDS_ExactFunc
+  MODULE PROCEDURE QDS_ExactFunc
 END INTERFACE
 
-PUBLIC::ExactFuncQDS
+INTERFACE QDS_InitEquation
+  MODULE PROCEDURE QDS_InitEquation
+END INTERFACE
+
+PUBLIC::QDS_ExactFunc
+PUBLIC::QDS_InitEquation
 !===================================================================================================================================
 CONTAINS
 
 
+SUBROUTINE QDS_InitEquation() 
+!===================================================================================================================================
+! Specifies all the initial conditions. The state in conservative variables is returned.
+!===================================================================================================================================
+! MODULES
+!USE MOD_Globals
+USE MOD_ReadInTools,     ONLY: GETINT
+USE MOD_QDS_Equation_vars, ONLY:QDSIniExactFunc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!===================================================================================================================================
+QDSIniExactFunc = GETINT('QDSIniExactFunc')
+END SUBROUTINE QDS_InitEquation
 
-SUBROUTINE ExactFuncQDS(ExactFunction,t,tDeriv,x,resu) 
+
+SUBROUTINE QDS_ExactFunc(QDSExactFunction,t,tDeriv,x,resu) 
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_QDS_DG_Vars,        ONLY:QDSnVar
+USE MOD_QDS_DG_Vars,        ONLY:QDSnVar_macro
+USE MOD_Particle_Vars,      ONLY:BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -39,17 +65,18 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
 REAL,INTENT(IN)                 :: x(3)              
-INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
+INTEGER,INTENT(IN)              :: QDSExactFunction    ! determines the exact function
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: Resu(1:QDSnVar)    ! state in conservative variables
+REAL,INTENT(OUT)                :: Resu(1:QDSnVar_macro)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL                            :: Resu_t(1:QDSnVar),Resu_tt(1:QDSnVar) ! state in conservative variables
+REAL                            :: Resu_t(1:QDSnVar_macro),Resu_tt(1:QDSnVar_macro) ! state in conservative variables
 REAL                            :: Cent(3)
+REAL                            :: EOS_R
 !===================================================================================================================================
 Cent=x
-SELECT CASE (ExactFunction)
+SELECT CASE (QDSExactFunction)
 #ifdef PARTICLES
 CASE(0) ! Particles
   Resu=0.
@@ -59,10 +86,25 @@ CASE(1) ! Constant
   Resu=1.
   Resu_t=0.
   Resu_tt=0.
+CASE(100) ! SOD test case
+  EOS_R=208.1101 ! [J/(kg K)] for Argon
+  IF(x(1).GT.0.0)THEN ! right side of interface
+    Resu(1)   = 0.125!*EOS_R/BoltzmannConst
+    Resu(2:4) = 0.
+    Resu(5)   = 0. !?
+    Resu(6)   = 0.1E5/(0.125*EOS_R)
+  ELSE ! left side of interface
+    Resu(1)   = 1.!EOS_R/BoltzmannConst
+    Resu(2:4) = 0.
+    Resu(5)   = 0. !?
+    Resu(6)   = 1E5/(EOS_R)
+  END IF
+  !print*,Resu
+  !read*
 
 CASE DEFAULT
   SWRITE(*,*)'Exact function not specified'
-END SELECT ! ExactFunction
+END SELECT ! QDSExactFunction
 
 
 
@@ -85,7 +127,7 @@ CASE DEFAULT
       ,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
 END SELECT
 #endif
-END SUBROUTINE ExactFuncQDS
+END SUBROUTINE QDS_ExactFunc
 
 
 END MODULE MOD_QDS_Equation
