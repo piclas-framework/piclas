@@ -247,24 +247,24 @@ isFace=.FALSE.
 isInterFace=.FALSE.
 
 ! For MPI sides send the info to all other procs
-isFace_Slave=0.
-isFace_Master=0.
-isFace_combined=0.
-CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.)
-#ifdef MPI
-CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)
+isFace_Slave=-3.
+isFace_Master=-3.
+isFace_combined=-3.
+CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! includes Mortar sides 
 
+#ifdef MPI
+CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! includes Mortar sides
 ! send Slave special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Master procs
 CALL StartReceiveMPIData(1,isFace_Slave,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIData(   1,isFace_Slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
-
-! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
-CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
-CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
-CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
 #endif /*MPI*/
+
+print*," "
+print*,minval(isFace_Slave)
+print*,minval(isFace_Master)
+print*,minval(isFace_combined)
+
 
 ! add isFace_Master to isFace_Slave and send
 isFace_combined=2*isFace_Slave+isFace_Master
@@ -272,6 +272,35 @@ isFace_combined=2*isFace_Slave+isFace_Master
 !                                                 2: Slave  side is special (e.g. dielectric)
 !                                                 3: both sides are special (e.g. dielectric) sides
 !                                                 0: normal face in physical region (no special region involved)
+
+
+print*," "
+print*,minval(isFace_Slave)
+print*,minval(isFace_Master)
+print*,minval(isFace_combined)
+
+
+CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
+
+#ifdef MPI
+!CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
+! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
+CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
+#endif /*MPI*/
+
+
+
+
+
+
+print*," "
+print*,minval(isFace_Slave)
+print*,minval(isFace_Master)
+print*,minval(isFace_combined)
+
+
 
 DO iSide=1,nSides
   IF(isFace_combined(1,0,0,iSide).GT.0)THEN
@@ -285,7 +314,7 @@ END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
 
 ! Debugging output (optional)
-DO I=0,NProcs-1
+DO I=0,nProcessors
   IF(I.EQ.myrank)THEN
     DO iSide=nSides,nSides
       WRITE(UNIT_stdOut,'(A8,I10,A15,I10,A2,L5,A15,I10,A8,I10,A2,L5,A12,I10)')&
@@ -313,6 +342,9 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
 USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,          ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars,          ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars,          ONLY: firstMortarMPISide,lastMortarMPISide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -326,6 +358,9 @@ REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
+INTEGER                         :: MortarSideID,locSide
+INTEGER                         :: iMortar,nMortars
+INTEGER                         :: firstMortarSideID,lastMortarSideID
 !===================================================================================================================================
 IF(doMPISides)THEN
   ! only YOUR MPI Sides are filled
@@ -338,6 +373,8 @@ ELSE
   lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
   flip(1)     = 0
 END IF
+firstSideID=1
+lastSideID=nSides
 DO SideID=firstSideID,lastSideID
   ! master side, flip=0
   ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
@@ -347,15 +384,92 @@ DO SideID=firstSideID,lastSideID
   locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip(2)      = SideToElem(S2E_FLIP,SideID)
   DO i=1,2 !first maste then slave side
-    SELECT CASE(Flip(i))
-      CASE(0) ! master side
-        isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-      CASE(1:4) ! slave side
-        isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-    END SELECT
+    IF(ElemID(i).NE.-1)THEN
+      SELECT CASE(Flip(i))
+        CASE(0) ! master side
+          isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+        CASE(1:4) ! slave side
+          isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+      END SELECT
+    END IF
   END DO !i=1,2, masterside & slave side 
 END DO !SideID
+isFace_Slave(:,:,:,1:nBCSides)=isFace_Master(:,:,:,1:nBCSides)
+
+
+! Mortar sides
+firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides) 
+ lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides) 
+
+DO MortarSideID=firstMortarSideID,lastMortarSideID
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide=MortarType(2,MortarSideID)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
+    flip(1)  = MortarInfo(MI_FLIP,iMortar,locSide)
+    SELECT CASE(flip(1))
+      CASE(0) ! master side
+        !U_in_master(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
+        isFace_Master(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID)
+      CASE(1:4) ! slave side
+        isFace_Slave(:,:,:,SideID)=isFace_Slave(:,:,:,MortarSideID)
+        !DO q=0,PP_N; DO p=0,PP_N
+          !U_in_slave(:,p,q,SideID)=U_tmp(:,FS2M(1,p,q,flip), &
+                                           !FS2M(2,p,q,flip),iMortar)
+        !END DO; END DO ! q, p
+    END SELECT !flip(iMortar)
+  END DO !iMortar
+END DO !MortarSideID
 END SUBROUTINE ProlongToFace_ElementInfo
+
+
+
+SUBROUTINE Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides)
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc,     ONLY: PP_N
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,FS2M
+USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT) :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT) :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
+LOGICAL,INTENT(IN) :: doMPISides
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!INTEGER  :: p,q,l
+INTEGER  :: iMortar,nMortars
+INTEGER  :: firstMortarSideID,lastMortarSideID
+INTEGER  :: MortarSideID,SideID,iSide,flip
+!REAL         :: Flux_tmp( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:4)
+!REAL         :: Flux_tmp2(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:2)
+!===================================================================================================================================
+firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
+ lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
+
+DO MortarSideID=firstMortarSideID,lastMortarSideID
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  iSide=MortarType(2,MortarSideID)
+  DO iMortar=1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,iSide)
+    flip   = MortarInfo(MI_FLIP,iMortar,iSide)
+    SELECT CASE(flip)
+    CASE(0) ! master side
+      isFace_Master(:,:,:,MortarSideID)=isFace_Master(:,:,:,SideID)
+    CASE(1:4) ! slave sides (should only occur for MPI)
+      isFace_Slave(:,:,:,MortarSideID)=isFace_Slave(:,:,:,SideID)
+    END SELECT
+  END DO
+END DO
+END SUBROUTINE Flux_Mortar_SideInfo
+
 
 SUBROUTINE CountAndCreateMappings(TypeName,&
                                   isElem,isFace,isInterFace,&
@@ -411,7 +525,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem
 !IF(1.EQ.2)THEN
 !===================================================================================================================================
-! print face number infos
+! display face number infos
 !===================================================================================================================================
 IF(PRESENT(DisplayInfoProcs))THEN
   NProcs=DisplayInfoProcs

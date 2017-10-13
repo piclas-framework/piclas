@@ -135,7 +135,6 @@ DO iBC=1,nBCs
 END DO
 IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
 IF(DoExactFlux)THEN
-  FluxDir = GETINT('FluxDir','3') 
   CALL InitExactFlux()
 END IF
 DO iRefState=1,nTmp
@@ -1066,8 +1065,8 @@ USE MOD_PreProc
 USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot!,iError
 USE MOD_Mesh_Vars,       ONLY:nSides
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
-USE MOD_Equation_Vars,   ONLY:FluxDir,ExactFluxPosition,isExactFluxInterFace
-USE MOD_ReadInTools,     ONLY:GETREAL
+USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
+USE MOD_ReadInTools,     ONLY:GETREAL,GETINT
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1085,9 +1084,13 @@ REAL                :: InterFaceRegion(6)
 INTEGER             :: nExactFluxElems,nExactFluxFaces,nExactFluxInterFaces
 !===================================================================================================================================
 ! get x,y, or z-position of interface
+ExactFluxDir = GETINT('FluxDir','-1') 
+IF(ExactFluxDir.EQ.-1)THEN
+  ExactFluxDir = GETINT('ExactFluxDir','3')
+END IF
 ExactFluxPosition    = GETREAL('ExactFluxPosition','0.')
-! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of FluxDir
-SELECT CASE(ABS(FluxDir))
+! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of ExactFluxDir
+SELECT CASE(ABS(ExactFluxDir))
 CASE(1) ! x
   InterFaceRegion(1:6)=(/-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
 CASE(2) ! y
@@ -1097,7 +1100,7 @@ CASE(3) ! z
 CASE DEFAULT
   CALL abort(&
       __STAMP__&
-      ,' Unknown exact flux direction: FluxDir=',FluxDir)
+      ,' Unknown exact flux direction: ExactFluxDir=',ExactFluxDir)
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
@@ -1114,7 +1117,7 @@ CALL CountAndCreateMappings('ExactFlux',&
                             FaceToExactFlux,ExactFluxToFace,& ! these two are allocated
                             FaceToExactFluxInter,ExactFluxInterToFace) ! these two are allocated
 
-SWRITE(UNIT_StdOut,'(A6,I10,A)') 'Found ',nExactFluxInterFaces,' interfaces for ExactFlux.'
+WRITE(UNIT_StdOut,'(A6,I10,A)') 'Found ',nExactFluxInterFaces,' interfaces for ExactFlux.'
 
 ! Deallocate the vectors (must be deallocated because the used routine require INTENT,IN and ALLOCATABLE)
 SDEALLOCATE(isExactFluxElem)
@@ -1125,6 +1128,7 @@ SDEALLOCATE(ExactFluxInterToFace)
 SDEALLOCATE(ElemToExactFlux)
 SDEALLOCATE(FaceToExactFlux)
 SDEALLOCATE(FaceToExactFluxInter)
+!stop
 END SUBROUTINE InitExactFlux
 
 

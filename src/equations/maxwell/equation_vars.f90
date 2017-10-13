@@ -61,7 +61,7 @@ LOGICAL           :: TEPolarization                         !> linear or circula
 LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
 REAL              :: ExactFluxPosition                      !> x,y, or z-position of interface
 LOGICAL,ALLOCATABLE::isExactFluxInterFace(:)                !> Flag for each side on which an exact flux is added
-INTEGER           :: FluxDir                                !> direction of flux
+INTEGER           :: ExactFluxDir                           !> direction of flux for ExactFlux
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)
