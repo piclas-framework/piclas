@@ -56,6 +56,8 @@ REAL              :: TEScale                                !> scaling of input 
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
 REAL              :: TERadius                               !> Radius of Input TE wave, if wave is inserted over a plane
+INTEGER           :: TEMode(1:2)                            !> input of TE_n,m mode
+REAL              :: TEModeRoot                             !> root for the TEMode_n,m (root of derivative of Bessel function)
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
 LOGICAL           :: TEPolarization                         !> linear or circular polarized
 LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
