@@ -154,6 +154,9 @@ DO iRefState=1,nTmp
     TERotation         = GETINT('TERotation','1') 
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
     TEMode             = GETINTARRAY('TEMode',2,'1,1')
+    IF(.NOT.DoExactFlux)THEN
+      TERadius           =GETREAL('TERadius','1.')
+    END IF
     ! compute required roots
     ALLOCATE(nRoots(1:TEMode(2)))
     CALL RootsOfBesselFunctions(TEMode(1),TEMode(2),0,nRoots)
@@ -1072,8 +1075,8 @@ SUBROUTINE InitExactFlux()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot!,iError
-USE MOD_Mesh_Vars,       ONLY:nSides
+USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError,MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
+USE MOD_Mesh_Vars,       ONLY:nSides,nElems,ElemToSide
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
 USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
 USE MOD_ReadInTools,     ONLY:GETREAL,GETINT
@@ -1092,6 +1095,7 @@ INTEGER,ALLOCATABLE :: ExactFluxToElem(:),ExactFluxToFace(:),ExactFluxInterToFac
 INTEGER,ALLOCATABLE :: ElemToExactFlux(:),FaceToExactFlux(:),FaceToExactFluxInter(:) ! mapping to ExactFlux element/face list
 REAL                :: InterFaceRegion(6)
 INTEGER             :: nExactFluxElems,nExactFluxFaces,nExactFluxInterFaces
+INTEGER             :: iElem,iSide,SideID,nExactFluxMasterInterFaces,sumExactFluxMasterInterFaces
 !===================================================================================================================================
 ! get x,y, or z-position of interface
 ExactFluxDir = GETINT('FluxDir','-1') 
@@ -1119,6 +1123,25 @@ CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,.FALSE.)
 ! find all faces in the ExactFlux region
 CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem)
 
+nExactFluxMasterInterFaces=0
+DO iElem=1,nElems ! loop over all local elems
+  DO iSide=1,6    ! loop over all local sides
+    IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
+      SideID=ElemToSide(E2S_SIDE_ID,iSide,iElem)
+      IF(isExactFluxInterFace(SideID))THEN
+        nExactFluxMasterInterFaces=nExactFluxMasterInterFaces+1
+      END IF
+    END IF
+  END DO
+END DO
+#ifdef MPI
+  sumExactFluxMasterInterFaces=0
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#else
+  sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
+#endif /* MPI */
+SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
+
 ! Get number of ExactFlux Elems, Faces and Interfaces. Create Mappngs ExactFlux <-> physical region
 CALL CountAndCreateMappings('ExactFlux',&
                             isExactFluxElem,isExactFluxFace,isExactFluxInterFace,&
@@ -1126,12 +1149,11 @@ CALL CountAndCreateMappings('ExactFlux',&
                             ElemToExactFlux,ExactFluxToElem,& ! these two are allocated
                             FaceToExactFlux,ExactFluxToFace,& ! these two are allocated
                             FaceToExactFluxInter,ExactFluxInterToFace) ! these two are allocated
-! compute the radius
+
+! compute the outer radius of the mode in the cylindrical waveguide
 CALL GetWaveGuideRadius(isExactFluxInterFace)
 
-WRITE(UNIT_StdOut,'(A6,I10,A)') 'Found ',nExactFluxInterFaces,' interfaces for ExactFlux.'
-
-! Deallocate the vectors (must be deallocated because the used routine require INTENT,IN and ALLOCATABLE)
+! Deallocate the vectors (must be deallocated because the used routine 'CountAndCreateMappings' requires INTENT,IN and ALLOCATABLE)
 SDEALLOCATE(isExactFluxElem)
 SDEALLOCATE(isExactFluxFace)
 SDEALLOCATE(ExactFluxToElem)
@@ -1140,6 +1162,7 @@ SDEALLOCATE(ExactFluxInterToFace)
 SDEALLOCATE(ElemToExactFlux)
 SDEALLOCATE(FaceToExactFlux)
 SDEALLOCATE(FaceToExactFluxInter)
+!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 !stop
 END SUBROUTINE InitExactFlux
 

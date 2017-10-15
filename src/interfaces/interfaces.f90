@@ -30,12 +30,20 @@ END INTERFACE
 INTERFACE FinalizeInterfaces
   MODULE PROCEDURE FinalizeInterfaces
 END INTERFACE
+INTERFACE DisplayRanges
+  MODULE PROCEDURE DisplayRanges
+END INTERFACE
+INTERFACE SelectMinMaxRegion
+  MODULE PROCEDURE SelectMinMaxRegion
+END INTERFACE
 
 PUBLIC::InitInterfaces
 PUBLIC::FindElementInRegion
 PUBLIC::FindInterfacesInRegion
 PUBLIC::CountAndCreateMappings
 PUBLIC::FinalizeInterfaces
+PUBLIC::DisplayRanges
+PUBLIC::SelectMinMaxRegion
 !===================================================================================================================================
 CONTAINS
 
@@ -156,14 +164,25 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 ! LOCAL VARIABLES
 INTEGER             :: iElem,i,j,k,m,NProcs
 !===================================================================================================================================
+! Display debugging output by each rank
+IF(PRESENT(DisplayInfoProcs))THEN
+  NProcs=DisplayInfoProcs
+  IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
+    SWRITE(UNIT_stdOut,'(A)')'  Checking for elements INSIDE region'
+  ELSE
+    SWRITE(UNIT_stdOut,'(A)')'  Checking for elements OUTSIDE region'
+  END IF
+CALL DisplayMinMax(region)
+ELSE
+  NProcs=0
+END IF
 ! set logical vector for each element
 ALLOCATE(isElem(1:PP_nElems))
 isElem=.FALSE.
-IF(ElementIsInside)THEN
-  SWRITE(UNIT_stdOut,'(A,6E15.6)')"Checking for elements INSIDE region:", region
+
+IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
   isElem(:)=.TRUE.
 ELSE
-  SWRITE(UNIT_stdOut,'(A,6E15.6)')"Checking for elements OUTSIDE region:", region
   isElem(:)=.FALSE.
 END IF
 
@@ -176,25 +195,21 @@ DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
   END DO
 END DO; END DO; END DO; END DO !iElem,k,j,i
 
-! Display debugging output by each rank
-IF(PRESENT(DisplayInfoProcs))THEN
-  NProcs=DisplayInfoProcs
-ELSE
-  NProcs=0
-END IF
+IF(NProcs.GT.0)THEN
 #ifdef MPI
-DO I=0,NProcs-1
-  IF(I.EQ.myrank)THEN
+  DO I=0,NProcs-1
+    IF(I.EQ.myrank)THEN
 #endif /*MPI*/
-    IF(ElementIsInside)THEN
-      WRITE(UNIT_stdOut,'(A,I12)')"No. of elements INSIDE region: ",COUNT(isElem)
-    ELSE
-      WRITE(UNIT_stdOut,'(A,I12)')"No. of elements OUTSIDE region: ",COUNT(isElem)
-    END IF
+      IF(ElementIsInside)THEN
+        WRITE(UNIT_stdOut,'(A,I12,A,I12)')'  myrank=',myrank,'  Number of elements INSIDE region: ',COUNT(isElem)
+      ELSE
+        WRITE(UNIT_stdOut,'(A,I12,A,I12)')'  myrank=',myrank,'  Number of elements OUTSIDE region: ',COUNT(isElem)
+      END IF
 #ifdef MPI
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-END DO
+    END IF
+    CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+  END DO
+END IF
 #endif /*MPI*/
 
 END SUBROUTINE  FindElementInRegion
@@ -260,10 +275,10 @@ CALL StartSendMPIData(   1,isFace_Slave,1,nSides,SendRequest_U2,SendID=2) ! Send
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
 #endif /*MPI*/
 
-print*," "
-print*,minval(isFace_Slave)
-print*,minval(isFace_Master)
-print*,minval(isFace_combined)
+!print*," "
+!print*,minval(isFace_Slave)
+!print*,minval(isFace_Master)
+!print*,minval(isFace_combined)
 
 
 ! add isFace_Master to isFace_Slave and send
@@ -274,11 +289,14 @@ isFace_combined=2*isFace_Slave+isFace_Master
 !                                                 0: normal face in physical region (no special region involved)
 
 
-print*," "
-print*,minval(isFace_Slave)
-print*,minval(isFace_Master)
-print*,minval(isFace_combined)
+!print*," "
+!print*,minval(isFace_Slave)
+!print*,minval(isFace_Master)
+!print*,minval(isFace_combined)
 
+
+
+! communicate information to slave sides (currently not needed)
 
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 
@@ -295,10 +313,10 @@ CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -re
 
 
 
-print*," "
-print*,minval(isFace_Slave)
-print*,minval(isFace_Master)
-print*,minval(isFace_combined)
+!print*," "
+!print*,minval(isFace_Slave)
+!print*,minval(isFace_Master)
+!print*,minval(isFace_combined)
 
 
 
@@ -313,21 +331,21 @@ DO iSide=1,nSides
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
 
-! Debugging output (optional)
-DO I=0,nProcessors
-  IF(I.EQ.myrank)THEN
-    DO iSide=nSides,nSides
-      WRITE(UNIT_stdOut,'(A8,I10,A15,I10,A2,L5,A15,I10,A8,I10,A2,L5,A12,I10)')&
-              "myrank=",myrank,&
-       ": isInterFace(",iSide,")=",isInterFace(iSide),&
-       " of total= ",COUNT(isInterFace),&
-       " isFace(",iSide,")=",isFace(iSide),"  of total= ",COUNT(isFace)
-    END DO
-  END IF
-#ifdef MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-#endif /*MPI*/
-END DO
+!      ! Debugging output (optional)
+!      DO I=0,nProcessors
+!        IF(I.EQ.myrank)THEN
+!          DO iSide=nSides,nSides
+!            WRITE(UNIT_stdOut,'(A8,I10,A15,I10,A2,L5,A15,I10,A8,I10,A2,L5,A12,I10)')&
+!                    "myrank=",myrank,&
+!             ": isInterFace(",iSide,")=",isInterFace(iSide),&
+!             " of total= ",COUNT(isInterFace),&
+!             " isFace(",iSide,")=",isFace(iSide),"  of total= ",COUNT(isFace)
+!          END DO
+!        END IF
+!      #ifdef MPI
+!        CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!      #endif /*MPI*/
+!      END DO
 
 END SUBROUTINE FindInterfacesInRegion
 
@@ -357,25 +375,26 @@ REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
+INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2)!,firstSideID,lastSideID
 INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
 INTEGER                         :: firstMortarSideID,lastMortarSideID
 !===================================================================================================================================
-IF(doMPISides)THEN
-  ! only YOUR MPI Sides are filled
-  firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
-  lastSideID  = firstSideID-1+nMPISides_YOUR 
-  flip(1)     = -1
-ELSE
-  ! BCSides, InnerSides and MINE MPISides are filled
-  firstSideID = 1
-  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
-  flip(1)     = 0
-END IF
-firstSideID=1
-lastSideID=nSides
-DO SideID=firstSideID,lastSideID
+!     IF(doMPISides)THEN
+!       ! only YOUR MPI Sides are filled
+!       firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
+!       lastSideID  = firstSideID-1+nMPISides_YOUR 
+!       flip(1)     = -1
+!     ELSE
+!       ! BCSides, InnerSides and MINE MPISides are filled
+!       firstSideID = 1
+!       lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+!       flip(1)     = 0
+!     END IF
+
+
+!DO SideID=firstSideID,lastSideID
+DO SideID=1,nSides
   ! master side, flip=0
   ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
   locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
@@ -384,7 +403,7 @@ DO SideID=firstSideID,lastSideID
   locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip(2)      = SideToElem(S2E_FLIP,SideID)
   DO i=1,2 !first maste then slave side
-    IF(ElemID(i).NE.-1)THEN
+    IF(ElemID(i).NE.-1)THEN ! exclude BC and Mortar sides
       SELECT CASE(Flip(i))
         CASE(0) ! master side
           isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
@@ -477,7 +496,7 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
                                   ElemToX,XToElem,&
                                   FaceToX,XToFace,&
                                   FaceToXInter,XInterToFace,&
-                                  DisplayInfoProcs)
+                                  DisplayInfo)
 !===================================================================================================================================
 !> 1.) Count the number of Elements, Faces and Interfaces of the PML/Dielectric/... region
 !> 2.) Create mappings from general element to PML/Dielectric/... element and vice versa
@@ -486,38 +505,39 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,     ONLY: nSides
+USE MOD_Mesh_Vars,     ONLY: nSides,ElemToSide,nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)                :: isElem(:),isFace(:),isInterFace(:)
 CHARACTER(LEN=*),INTENT(IN)       :: TypeName
-INTEGER,INTENT(IN),OPTIONAL       :: DisplayInfoProcs
+LOGICAL,INTENT(IN),OPTIONAL       :: DisplayInfo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)             :: nFaces,nInterFaces,nElems
 INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:),FaceToXInter(:),XInterToFace(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iElem,iFace,nGlobalElems,nGlobalFaces,nGlobalInterFaces
+INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
 INTEGER                           :: iXElem,iXFace,iXInterFace
 INTEGER                           :: I,NProcs
+INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces,sumGlobalFaces,sumGlobalInterFaces
 !===================================================================================================================================
 ! Get number of Elems
 nFaces = 0
 nInterFaces = 0
 nElems = 0
-DO iFace=1,nSides
-  IF(isFace(iFace))THEN
+DO iSide=1,nSides
+  IF(isFace(iSide))THEN
     nFaces=nFaces+1
   END IF
-END DO ! iFace
-DO iFace=1,nSides
-  IF(isInterFace(iFace))THEN
+END DO ! iSide
+DO iSide=1,nSides
+  IF(isInterFace(iSide))THEN
     nInterFaces=nInterFaces+1
   END IF
-END DO ! iFace
+END DO ! iSide
 DO iElem=1,PP_nElems
   IF(isElem(iElem))THEN
     nElems=nElems+1
@@ -527,72 +547,49 @@ END DO ! iElem
 !===================================================================================================================================
 ! display face number infos
 !===================================================================================================================================
-IF(PRESENT(DisplayInfoProcs))THEN
-  NProcs=DisplayInfoProcs
-ELSE
-  NProcs=0
-END IF
+IF(PRESENT(DisplayInfo))THEN
+  IF(DisplayInfo)THEN 
 #ifdef MPI
-nGlobalElems=0
-nGlobalFaces=0
-nGlobalInterfaces=0
-IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
-DO I=0,NProcs-1
-  IF(I.EQ.myrank)THEN
-    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
-    !" myrank=",myrank," PP_nElems=",PP_nElems," nElems=",nElems," nGlobalElems=",nGlobalElems
-    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
-    !" myrank=",myrank," nSides=",nSides," nFaces=",nFaces," nGlobalFaces=",nGlobalFaces
-    !write(*,'(A8,I10,A11,I10,A11,I10,A17,I10)')&
-    !" myrank=",myrank," nSides=",nSides," nFaces=",nInterFaces," nGlobalFaces=",nGlobalInterFaces
-    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-END DO
-!=======================================================================================================================
-! only send info to root
-CALL MPI_REDUCE(nElems     ,nGlobalElems     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-CALL MPI_REDUCE(nFaces     ,nGlobalFaces     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-CALL MPI_REDUCE(nInterFaces,nGlobalInterFaces,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "============================================================================================"
-IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "CALL MPI_REDUCE(nElems,nGlobalElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)" !testing
-IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "============================================================================================"
-CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-!=======================================================================================================================
-DO I=0,NProcs-1
-  IF(I.EQ.myrank)THEN
-    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-END DO
-IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
+    nMasterFaces      = 0
+    nMasterInterFaces = 0
+    DO iElem=1,nElems ! loop over all local elems
+      DO iSide=1,6    ! loop over all local sides
+        IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
+          SideID=ElemToSide(E2S_SIDE_ID,iSide,iElem)
+          IF(isFace(SideID))THEN
+            nMasterfaces=nMasterfaces+1
+          END IF
+          IF(isInterFace(SideID))THEN
+            nMasterInterFaces=nMasterInterFaces+1
+          END IF
+        END IF
+      END DO
+    END DO
+    sumGlobalFaces      = 0
+    sumGlobalInterFaces = 0
+    CALL MPI_REDUCE(nElems           ,nGlobalSpecialElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(nMasterfaces     ,nGlobalFaces       ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(nMasterInterFaces,nGlobalInterfaces  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 #else
-nGlobalElems=nElems
-nGlobalFaces=nFaces
-nGlobalInterFaces=nInterFaces
-WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-      ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
-WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-      ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
-WRITE(UNIT_stdOut,'(A8,I10,A,I10,A10,A10,A22,A10,A8)') &
-      ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
-#endif /*MPI*/
+    nGlobalSpecialElems = nElems
+    sumGlobalFaces      = nFaces
+    sumGlobalInterFaces = nInterFaces
+#endif /* MPI */
+    SWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
+    '  Found [',nGlobalSpecialElems,'] nGlobal'//TRIM(TypeName)//'-Elems      inside of '//TRIM(TypeName)//'-region of ['&
+    ,nGlobalElems,'] elems in complete domain [',REAL(nGlobalSpecialElems)/REAL(nGlobalElems)*100.,' %]'
+    SWRITE(UNIT_stdOut,'(A,I10,A)')&
+    '  Found [',nGlobalFaces       ,'] nGlobal'//TRIM(TypeName)//'-Faces      inside of '//TRIM(TypeName)//'-region.'
+    SWRITE(UNIT_stdOut,'(A,I10,A)')&
+    '  Found [',nGlobalInterfaces  ,'] nGlobal'//TRIM(TypeName)//'-InterFaces inside of '//TRIM(TypeName)//'-region.'
+  END IF
+END IF
+
 
 !===================================================================================================================================
-! create  mappings: element<->pml-element
-!                      face<->pml-face
-!                      face<->interface
+! create  mappings: element <-> pml-element
+!                      face <-> pml-face
+!                      face <-> interface
 !===================================================================================================================================
 ALLOCATE(ElemToX(PP_nElems))
 ALLOCATE(XToElem(nElems))
@@ -616,23 +613,122 @@ DO iElem=1,PP_nElems
   END IF
 END DO
 iXFace=0
-DO iFace=1,nSides
-  IF(isFace(iFace))THEN
+DO iSide=1,nSides
+  IF(isFace(iSide))THEN
     iXFace=iXFace+1
-    FaceToX(iFace) = iXFace
-    XToFace(iXFace) = iFace
+    FaceToX(iSide) = iXFace
+    XToFace(iXFace) = iSide
   END IF
 END DO
 iXInterFace=0
-DO iFace=1,nSides
-  IF(isInterFace(iFace))THEN
+DO iSide=1,nSides
+  IF(isInterFace(iSide))THEN
     iXInterFace=iXInterFace+1
-    FaceToXInter(iFace) = iXInterFace
-    XInterToFace(iXInterFace) = iFace
+    FaceToXInter(iSide) = iXInterFace
+    XInterToFace(iXInterFace) = iSide
   END IF
 END DO
 
 END SUBROUTINE CountAndCreateMappings
+
+
+SUBROUTINE DisplayRanges(useMinMax_Name,useMinMax,xyzMinMax_name,xyzMinMax,PhysicalMinMax_Name,xyzPhysicalMinMax)
+!===================================================================================================================================
+! display the ranges of the used min-max-regions for, e.g., PMLs, dielectric regions, etc.
+! usually a, e.g., PML/dielectric region is specified or the inverse region, i.e., the physical region is specified
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,               ONLY:myrank,UNIT_stdOut,mpiroot
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)       :: useMinMax_Name,xyzMinMax_name,PhysicalMinMax_Name
+REAL,INTENT(IN)                   :: xyzMinMax(1:6),xyzPhysicalMinMax(1:6)
+LOGICAL,INTENT(IN)                :: useMinMax
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGEr                           :: I
+!===================================================================================================================================
+! display ranges of special region depending on useMinMax
+!SWRITE(UNIT_stdOut,'(A,L,A1)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']'
+IF(useMinMax)THEN
+  SWRITE(UNIT_stdOut,'(A,L,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(xyzMinMax_name)//'(1:6) are'
+  CALL DisplayMinMax(xyzMinMax)
+ELSE
+  SWRITE(UNIT_stdOut,'(A,L,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(PhysicalMinMax_Name)//'(1:6) are'
+  CALL DisplayMinMax(xyzPhysicalMinMax)
+END IF
+END SUBROUTINE DisplayRanges
+
+
+SUBROUTINE DisplayMinMax(MinMax)
+!===================================================================================================================================
+! Display the ranges of a x-y-z min-max region in the vector MinMax(xmin,xmax,ymin,ymax,zmin,zmax)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,               ONLY:myrank,UNIT_stdOut,mpiroot
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: MinMax(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: I
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
+DO I=1,3
+  SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  MinMax(2*I-1)
+END DO
+SWRITE(UNIT_stdOut,'(A)') ''
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
+DO I=1,3
+  SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  MinMax(2*I)
+END DO
+SWRITE(UNIT_stdOut,'(A)') ''
+END SUBROUTINE DisplayMinMax
+
+
+SUBROUTINE SelectMinMaxRegion(TypeName,useMinMax,region1_name,region1,region2_name,region2)
+!===================================================================================================================================
+! check whether a MinMax region was defined by the user.
+! 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,               ONLY:myrank,UNIT_stdOut,mpiroot
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)       :: TypeName,region2_name,region1_name
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(INOUT)             :: useMinMax
+REAL,INTENT(INOUT)                :: region2(1:6),region1(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ALMOSTEQUAL(MAXVAL(region1),MINVAL(region1)))THEN ! if still the initialized values
+  region1(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+  IF(ALMOSTEQUAL(MAXVAL(region2),MINVAL(region2)))THEN ! if still the initialized values
+    region2(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+    useMinMax=.FALSE. ! ! region1 and region2 are undefined -> use HUGE for both
+    SWRITE(UNIT_stdOut,'(A)')'  no '//TRIM(TypeName)//' region supplied, setting '//TRIM(region1_name)//'(1:6): Setting [+-HUGE]'
+    SWRITE(UNIT_stdOut,'(A)')'  no '//TRIM(TypeName)//' region supplied, setting '//TRIM(region2_name)//'(1:6): Setting [+-HUGE]'
+  ELSE
+    SWRITE(UNIT_stdOut,'(A)')'  '//TRIM(TypeName)//' region supplied via '//TRIM(region2_name)//'(1:6)'
+    useMinMax=.TRUE. ! region1 is undefined but region2 is not
+  END IF
+ELSE
+  SWRITE(UNIT_stdOut,'(A)')'  '//TRIM(TypeName)//' region supplied via '//TRIM(region1_name)//'(1:6)'
+END IF
+END SUBROUTINE SelectMinMaxRegion
 
 
 SUBROUTINE FinalizeInterfaces()
