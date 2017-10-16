@@ -138,7 +138,6 @@ TYPE tDSMC
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean             ! Summation of collision probability
   REAL                          :: CollProbMax              ! Maximal collision probability per cell
-  REAL                          :: MeanFreePath
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance

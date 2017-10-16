@@ -854,7 +854,7 @@ END IF
 IF(DoRefMapping) CALL ReshapeBezierSides()
 
 CALL GetElemAndSideType()
-CALL GetPlanarSideBaseVectors()
+CALL GetLinearSideBaseVectors()
 CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
@@ -3701,9 +3701,9 @@ END DO ! iElem=1,nLoop
 END SUBROUTINE GetElemAndSideType
 
 
-SUBROUTINE GetPlanarSideBaseVectors()
+SUBROUTINE GetLinearSideBaseVectors()
 !===================================================================================================================================
-! computes the face base vector for planar face intersection calculation
+! computes the face base vector for linear (planar or bilinear) face intersection calculation
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3791,7 +3791,7 @@ ELSE
   END DO ! iSide
 END IF
 
-END SUBROUTINE GetPlanarSideBaseVectors
+END SUBROUTINE GetLinearSideBaseVectors
 
 
 SUBROUTINE ElemConnectivity() 

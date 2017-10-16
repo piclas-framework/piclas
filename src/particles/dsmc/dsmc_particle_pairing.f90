@@ -356,12 +356,12 @@ SUBROUTINE DSMC_pairing_octree(iElem)
               SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + 1
   END DO
 
-  DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem))
   ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
   IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF((DSMC%MeanFreePath.LT.(GEO%Volume(iElem)**(1./3.))).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+    IF((CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem)).LT.(GEO%Volume(iElem)**(1./3.))) &
+                                                                        .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
       ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:3))
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -419,7 +419,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
   INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
   REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
   INTEGER                       :: PartNumChildNode(8)
-  REAL                          :: NodeVolumeTemp(8), meanfreetemp
+  REAL                          :: NodeVolumeTemp(8)
 !===================================================================================================================================
 
   ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
@@ -510,9 +510,8 @@ __STAMP__&
       END DO
       ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
       ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-      meanfreetemp = CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),NodeVolumeTemp(iLoop))
-      IF (DSMC%MeanFreePath.GT.meanfreetemp) DSMC%MeanFreePath = meanfreetemp
-      IF((meanfreetemp.LT.(NodeVolumeTemp(iLoop)**(1./3.))) &
+      IF((CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),           &
+                           NodeVolumeTemp(iLoop)).LT.(NodeVolumeTemp(iLoop)**(1./3.))) &
                                                                .OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
         NULLIFY(TreeNode%ChildNode)
         ALLOCATE(TreeNode%ChildNode)
