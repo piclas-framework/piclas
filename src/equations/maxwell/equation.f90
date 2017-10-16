@@ -154,9 +154,6 @@ DO iRefState=1,nTmp
     TERotation         = GETINT('TERotation','1') 
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
     TEMode             = GETINTARRAY('TEMode',2,'1,1')
-    IF(.NOT.DoExactFlux)THEN
-      TERadius           =GETREAL('TERadius','1.')
-    END IF
     ! compute required roots
     ALLOCATE(nRoots(1:TEMode(2)))
     CALL RootsOfBesselFunctions(TEMode(1),TEMode(2),0,nRoots)
@@ -322,6 +319,7 @@ USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
                                      , sigma_t, E_0,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
                                      ,BeamOmegaW, BeamAmpFac,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,omega_0,&
                                       TERadius,somega_0_2,xDipole,tActive,TEModeRoot
+USE MOD_Equation_Vars,           ONLY:TEMode
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -349,7 +347,7 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez           ! aux. Variab
 !REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 !REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 !REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
-REAL                            :: MuMN,SqrtN
+REAL                            :: SqrtN
 REAL                            :: omegaG,g,h,B0G
 REAL                            :: Bess_mG_R_R_inv,r_inv
 REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,sin2,cos2,costz2,sintz2,dBess_mG_R
@@ -357,7 +355,7 @@ INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
-REAL                            :: kz,RadiusMax
+REAL                            :: kz
 !===================================================================================================================================
 Cent=x
 SELECT CASE (ExactFunction)
@@ -490,14 +488,26 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   phi = ATAN2(X(2),X(1))
   z=x(3)
   omegaG=2*PI*TEFrequency
-  mG=1 ! TE_mG,nG
-  nG=1
-  MuMN=TEModeRoot
-  RadiusMax=TERadius
-  SqrtN=MuMN/RadiusMax! r0=0.004 is max raidus=0.004 ! hard coded
+
+  ! TE_mG,nG
+  mG=TEMode(1)
+  nG=TEMode(2)
+
+  SqrtN=TEModeRoot/TERadius ! (7.412)
   ! axial wave number
   ! 1/c^2 omegaG^2 - kz^2=mu^2/ro^2
-  kz=SQRT((omegaG*c_inv)**2-SqrtN**2)
+  kz=(omegaG*c_inv)**2-SqrtN**2 ! (7.413)
+  IF(kz.LT.0)THEN
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(omegaG*c_inv)**2 = ',(omegaG*c_inv)**2
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')'SqrtN**2          = ',SqrtN**2
+    SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
+    CALL abort(&
+        __STAMP__&
+        ,'kz=SQRT((omegaG*c_inv)**2-SqrtN**2), but the argument in negative!')
+  END IF
+  kz=SQRT(kz)
+  !print*,kz
+  !read*
   ! precompute coefficients
   Bess_mG_R  = BESSEL_JN(mG  ,r*SqrtN)
   Bess_mGM_R = BESSEL_JN(mG-1,r*SqrtN)
@@ -508,7 +518,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   sin1       = SIN(REAL(mG)*phi)
   cos1       = COS(REAL(mG)*phi)
   ! barrier for small radii
-  IF(r/RadiusMax.LT.1e-4)THEN
+  IF(r/TERadius.LT.1e-4)THEN
     SELECT CASE(mG)
     CASE(0) ! arbitary
       Bess_mG_R_R_inv=1e6
