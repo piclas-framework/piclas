@@ -577,11 +577,8 @@ USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
-USE MOD_Timedisc_Vars,         ONLY:dt, DoDisplayEmissionWarnings
+USE MOD_Timedisc_Vars,         ONLY:dt, DoDisplayEmissionWarnings, iter, IterDisplayStep, DoDisplayIter
 USE MOD_Timedisc_Vars,         ONLY : RKdtFrac
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_Timedisc_Vars,         ONLY:dt, iter, DoDisplayEmissionWarnings,IterDisplayStep, DoDisplayIter
-#endif
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_PICInterpolation,      ONLY:InterpolateVariableExternalField
@@ -818,7 +815,7 @@ mySumOfMatchedParticles = 0
 chunkSize = nbrOfParticle
 ! process myRank=0 generates the complete list of random positions for all emitted particles
 #ifdef MPI
-IF(( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                                ) .AND.  &
+IF(( (nbrOfParticle.GT.PartMPI%InitGroup(InitGroup)%nProcs*10                             ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution').AND.  &
@@ -1886,7 +1883,12 @@ ELSE ! mode.NE.1:
 #ifdef MPI
   ! in order to remove duplicated particles
   IF(nChunksTemp.EQ.1) THEN
-    ALLOCATE(PartFoundInProc(1:2,1:ChunkSize))
+    ALLOCATE(PartFoundInProc(1:2,1:ChunkSize),STAT=ALLOCSTAT)
+      IF (ALLOCSTAT.NE.0) THEN
+        CALL abort(&
+__STAMP__,&
+"abort: Error during emission in PartFoundInProc allocation")
+      END IF
     PartFoundInProc=-1
   END IF
 #endif /*MPI*/
@@ -1927,6 +1929,8 @@ __STAMP__&
     END IF
   END DO
  
+IF(DoDisplayIter)THEN
+IF(MOD(iter,IterDisplayStep).EQ.0) THEN
 #ifdef MPI
   mySumOfRemovedParticles=0
   IF(nChunksTemp.EQ.1) THEN
@@ -2014,7 +2018,8 @@ __STAMP__&
 #ifdef MPI
   END IF ! PartMPI%iProc.EQ.0
 #endif
-
+END IF ! IterDisplayStep
+END IF
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
 #ifdef MPI
