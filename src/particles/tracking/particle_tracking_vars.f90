@@ -14,6 +14,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
+LOGICAL                                 :: TriaTracking                  ! tracking by using surface repräsentation by triangles
 REAL                                    :: tTracking                     ! Tracking time
 REAL                                    :: tLocalization                 ! localization time
 INTEGER                                 :: nTracks                       ! number of tracked particles

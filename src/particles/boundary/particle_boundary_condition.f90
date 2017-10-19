@@ -31,7 +31,8 @@ PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
 
 CONTAINS
 
-SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID,crossedBC)
+SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID,crossedBC&
+                                  ,TriNum)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -46,6 +47,8 @@ USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -66,6 +69,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                   :: iPart,SideID,flip,locSideID
 REAL,INTENT(IN)                      :: xi,eta
+INTEGER,INTENT(IN)                   :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                :: ElemID
@@ -94,15 +98,19 @@ CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     !BCSideID=PartBCSideList(SideID)
-    SELECT CASE(SideType(SideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,SideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    END SELECT 
-    IF(flip.NE.0) n_loc=-n_loc
+    IF (TriaTracking) THEN
+      n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+    ELSE 
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        n_loc=SideNormVec(1:3,SideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      END SELECT 
+      IF(flip.NE.0) n_loc=-n_loc
+    END IF
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
 
@@ -121,7 +129,7 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap)
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap,TriNum=TriNum)
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide if liquid or solid
@@ -138,16 +146,17 @@ CASE(2) !PartBound%ReflectiveBC)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
           ! perfectly reflecting, specular re-emission
           CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-            IsSpeciesSwap,opt_Reflected=crossedBC)
+            IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         ELSE
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-            IsSpeciesSwap,opt_Reflected=crossedBC)
+            IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         END IF
       ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
-        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,opt_Reflected=crossedBC)
+        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,opt_Reflected=crossedBC&
+                                              ,TriNum=TriNum)
         ! assign right treatment
         SELECT CASE (adsorbindex)
         CASE(1,2)
@@ -166,10 +175,10 @@ CASE(2) !PartBound%ReflectiveBC)
   !         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
         CASE(0) ! inelastic reflection
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-            IsSpeciesSwap,opt_Reflected=crossedBC)
+            IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         CASE(-1) ! elastic reflection
           CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-            IsSpeciesSwap,opt_Reflected=crossedBC)
+            IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         CASE DEFAULT ! should not happen
           WRITE(*,*)'Boundary_PIC: Adsorption error.'
           CALL Abort(&
@@ -179,7 +188,7 @@ __STAMP__,&
       END IF
     ELSE
       IF (PartSpecies(iPart).EQ.PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID)))) THEN
-        CALL ParticleCondensationCase(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
+        CALL ParticleCondensationCase(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,TriNum=TriNum)
           IF (adsorbindex.EQ.1) THEN ! condensation (particle is removed)
             IF(CalcPartBalance) THEN
               nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
@@ -189,17 +198,17 @@ __STAMP__,&
             alpha=-1.
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
             CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-              IsSpeciesSwap,opt_Reflected=crossedBC)
+              IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
           END IF
       ELSE
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
           ! perfectly reflecting, specular re-emission
           CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-            IsSpeciesSwap,opt_Reflected=crossedBC)
+            IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         ELSE
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-            IsSpeciesSwap,opt_Reflected=crossedBC)
+            IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         END IF
       END IF
     END IF
@@ -208,7 +217,7 @@ __STAMP__,&
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID &
-                        ,ElemID,opt_perimoved=crossedBC) ! opt_reflected is peri-moved
+                        ,ElemID,opt_perimoved=crossedBC,TriNum=TriNum) ! opt_reflected is peri-moved
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
@@ -232,7 +241,7 @@ __STAMP__&
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
-                                       ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC)
+                                       ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum)
 CASE(100) !PartBound%AnalyzeBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID &
@@ -475,13 +484,15 @@ END SUBROUTINE GetBoundaryInteractionRef
 
 
 SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID, &
-  opt_Symmetry,opt_Reflected)
+  opt_Symmetry,opt_Reflected,TriNum)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
@@ -513,6 +524,7 @@ INTEGER,INTENT(IN)                :: PartID, SideID, flip!,ElemID
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
+INTEGER,INTENT(IN),OPTIONAL       :: TriNum
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
@@ -550,16 +562,20 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   END SELECT 
 ELSE
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,SideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  END SELECT 
+  IF (TriaTracking) THEN
+    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+  ELSE 
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    END SELECT 
+    IF(flip.NE.0) n_loc=-n_loc
+  END IF
 END IF
-IF(flip.NE.0) n_loc=-n_loc
 IF(PRESENT(opt_Symmetry)) THEN
   Symmetry = opt_Symmetry
 ELSE
@@ -597,10 +613,14 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
       ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      Xitild =MIN(MAX(-1.,xi ),0.99)
-      Etatild=MIN(MAX(-1.,eta),0.99)
-      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+      IF (TriaTracking) THEN
+        p=1 ; q=1
+      ELSE
+        Xitild =MIN(MAX(-1.,xi ),0.99)
+        Etatild=MIN(MAX(-1.,eta),0.99)
+        p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+        q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+      END IF
       
     !----  Sampling Forces at walls
 !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
@@ -653,7 +673,7 @@ __STAMP__&
                            +PartTrajectory(2)*PartTrajectory(2) &
                            +PartTrajectory(3)*PartTrajectory(3) )
   PartTrajectory=PartTrajectory/lengthPartTrajectory
-  lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+  !lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -738,7 +758,7 @@ END SUBROUTINE PerfectReflection
 
 
 SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID &
-  ,opt_Reflected)
+  ,opt_Reflected,TriNum)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the diffuse reflection in 3D
 ! only implemented for DoRefMapping tracking
@@ -748,6 +768,8 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
 USE MOD_Globals_Vars,           ONLY:PI
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -771,6 +793,7 @@ REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+INTEGER,INTENT(IN),OPTIONAL       :: TriNum
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: Opt_Reflected
@@ -822,20 +845,26 @@ IF(PRESENT(BCSideID))THEN
   !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
   END SELECT 
 ELSE
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,SideID)
-    tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
-    tang2=CROSSNORM(n_loc,tang1)
-    !tang2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,SideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,SideID)
-  !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
-  END SELECT 
+  IF (TriaTracking) THEN
+    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+    tang1 = TriaSideData(TriNum,flip,SideID)%vec_t1
+    tang2 = TriaSideData(TriNum,flip,SideID)%vec_t2
+  ELSE 
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,SideID)
+      tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
+      tang2=CROSSNORM(n_loc,tang1)
+      !tang2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,SideID)
+    !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
+    END SELECT 
+    IF(flip.NE.0) n_loc=-n_loc
+  END IF
 END IF
-IF(flip.NE.0) n_loc=-n_loc
 
 IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
@@ -871,10 +900,14 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Cal
   SurfSideID=SurfMesh%SideIDToSurfID(SideID)
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  Xitild =MIN(MAX(-1.,XI ),0.99)
-  Etatild=MIN(MAX(-1.,Eta),0.99)
-  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  IF (TriaTracking) THEN
+    p=1 ; q=1
+  ELSE
+    Xitild =MIN(MAX(-1.,xi ),0.99)
+    Etatild=MIN(MAX(-1.,eta),0.99)
+    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  END IF
 
   SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld       &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
@@ -1200,13 +1233,15 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 
 END SUBROUTINE DiffuseReflection
 
-SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID)
+SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID,TriNum)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:abort
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
@@ -1225,6 +1260,7 @@ REAL,INTENT(INOUT)                :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+INTEGER,INTENT(IN),OPTIONAL       :: TriNum
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap
@@ -1247,16 +1283,20 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   END SELECT 
 ELSE
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,SideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  END SELECT 
+  IF (TriaTracking) THEN
+    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+  ELSE 
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    END SELECT 
+    IF(flip.NE.0) n_loc=-n_loc
+  END IF
 END IF
-IF(flip.NE.0) n_loc=-n_loc
 
 IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
   CALL Abort(&
@@ -1280,10 +1320,15 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
       ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      Xitild =MIN(MAX(-1.,xi ),0.99)
-      Etatild=MIN(MAX(-1.,eta),0.99)
-      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+      IF (TriaTracking) THEN
+        p=1 ; q=1
+      ELSE
+        Xitild =MIN(MAX(-1.,xi ),0.99)
+        Etatild=MIN(MAX(-1.,eta),0.99)
+        p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+        q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+      END IF
+
       SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
       IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
         AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
@@ -1330,10 +1375,14 @@ __STAMP__&
     ! sample values of deleted species
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-      Xitild =MIN(MAX(-1.,xi ),0.99)
-      Etatild=MIN(MAX(-1.,eta),0.99)
-      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+      IF (TriaTracking) THEN
+        p=1 ; q=1
+      ELSE
+        Xitild =MIN(MAX(-1.,xi ),0.99)
+        Etatild=MIN(MAX(-1.,eta),0.99)
+        p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+        q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+      END IF
       !----  Sampling Forces at walls
   !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
   !                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
@@ -1362,13 +1411,15 @@ END IF
 END SUBROUTINE SpeciesSwap
 
 
-SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,BCSideID,opt_perimoved)
+SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,BCSideID,opt_perimoved,TriNum)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,GEO,SidePeriodicType
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
@@ -1390,6 +1441,7 @@ REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, 
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+INTEGER,INTENT(IN),OPTIONAL       :: TriNum
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_perimoved
@@ -1418,14 +1470,18 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   END SELECT 
 ELSE
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,SideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  END SELECT 
+  IF (TriaTracking) THEN
+    n_loc = TriaSideData(TriNum,0,SideID)%vec_nIn
+  ELSE 
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    END SELECT 
+  END IF
 END IF
 
 IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
@@ -1528,13 +1584,16 @@ END SUBROUTINE PeriodicBC
 
 SUBROUTINE SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,locSideID,ElemID &
   , IsSpeciesSwap,BCSideID &
-  , opt_crossed)
+  , opt_crossed&
+  , TriNum)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Analyze particle crossing (inner) side
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -1553,6 +1612,7 @@ REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip,locSideID
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+INTEGER,INTENT(IN),OPTIONAL       :: TriNum
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_crossed
@@ -1579,16 +1639,20 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   END SELECT 
 ELSE
-  SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,SideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  END SELECT 
+  IF (TriaTracking) THEN
+    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+  ELSE 
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    END SELECT 
+    IF(flip.NE.0) n_loc=-n_loc
+  END IF
 END IF
-IF(flip.NE.0) n_loc=-n_loc
 
 IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
   IF(PRESENT(opt_crossed)) opt_crossed=.FALSE.
@@ -1723,10 +1787,12 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected) 
+SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected,TriNum) 
 !===================================================================================================================================
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
+  USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+  USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
   USE MOD_Particle_Vars,          ONLY : WriteMacroSurfaceValues, KeepWallParticles
   USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
@@ -1749,6 +1815,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   INTEGER,INTENT(IN)               :: PartID, GlobSideID
   LOGICAL,INTENT(IN)               :: IsSpeciesSwap
   INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
+  INTEGER,INTENT(IN),OPTIONAL      :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
   LOGICAL,INTENT(OUT),OPTIONAL     :: Opt_Reflected
@@ -1795,14 +1862,18 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
       CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
     END SELECT 
   ELSE
-    SELECT CASE(SideType(GlobSideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,GlobSideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
-    END SELECT 
+    IF (TriaTracking) THEN
+      n_loc = TriaSideData(TriNum,0,GlobSideID)%vec_nIn
+    ELSE 
+      SELECT CASE(SideType(GlobSideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        n_loc=SideNormVec(1:3,GlobSideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      END SELECT 
+    END IF
   END IF
   ! check if BC was already crossed
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
@@ -1824,10 +1895,14 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  Xitild =MIN(MAX(-1.,xi ),0.99)
-  Etatild=MIN(MAX(-1.,eta),0.99)
-  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
+  IF (TriaTracking) THEN
+    p=1 ; q=1
+  ELSE
+    Xitild =MIN(MAX(-1.,xi ),0.99)
+    Etatild=MIN(MAX(-1.,eta),0.99)
+    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  END IF
 
   SurfSideID = SurfMesh%SideIDToSurfID(GlobSideID)
   SpecID = PartSpecies(PartID)
@@ -2412,10 +2487,12 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   
 END SUBROUTINE CatalyticTreatment
 
-SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID)
+SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID,TriNum)
 !===================================================================================================================================
 ! Routine for Selection of Liquid interaction (Condensation or Reflection)
 !===================================================================================================================================
+  USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+  USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
   USE MOD_Particle_Vars,          ONLY : WriteMacroSurfaceValues!, KeepWallParticles
   USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
@@ -2437,6 +2514,7 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
   INTEGER,INTENT(IN)               :: PartID, GlobSideID
   LOGICAL,INTENT(IN)               :: IsSpeciesSwap
   INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
+  INTEGER,INTENT(IN),OPTIONAL      :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2488,10 +2566,14 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
 #endif
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  Xitild =MIN(MAX(-1.,xi ),0.99)
-  Etatild=MIN(MAX(-1.,eta),0.99)
-  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  IF (TriaTracking) THEN
+    p=1 ; q=1
+  ELSE
+    Xitild =MIN(MAX(-1.,xi ),0.99)
+    Etatild=MIN(MAX(-1.,eta),0.99)
+    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+  END IF
   
   IF(PRESENT(BCSideID))THEN
     SELECT CASE(SideType(BCSideID))
@@ -2503,14 +2585,18 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
       CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
     END SELECT 
   ELSE
-    SELECT CASE(SideType(GlobSideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,GlobSideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
-    END SELECT 
+    IF (TriaTracking) THEN
+      n_loc = TriaSideData(TriNum,0,GlobSideID)%vec_nIn
+    ELSE 
+      SELECT CASE(SideType(GlobSideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        n_loc=SideNormVec(1:3,GlobSideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      END SELECT 
+    END IF
   END IF
   
   Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)

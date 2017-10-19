@@ -151,10 +151,25 @@ TYPE tGeometry
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
+  REAL, ALLOCATABLE                      :: NodeCoords(:,:,:,:)               ! Node Coordinates (1:nDim,1:nSideNodes,
+                                                                              ! 1:nLocSides,1:nTotalElems)
+  LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
+TYPE tDataTria
+  REAL                                   :: vec_nIn(3)                       ! inwards normal of tria
+  REAL                                   :: vec_t1(3)                        ! first orth. vector in tria
+  REAL                                   :: vec_t2(3)                        ! second orth. vector in tria
+  REAL                                   :: area                             ! area of tria
+!  REAL                                   :: NodeCoords(3,3)                  ! NodeCoords of triangle nodes
+END TYPE tDataTria
+TYPE(tDataTria),ALLOCATABLE              :: TriaSideData(:,:,:)                ! data of triangulated Sides 
+                                                                             ! (e.g. normal+tang. vectors, nodes), 
+                                                                             ! (Tri1:Tri2,nSides/nTotalSides)
+INTEGER                                  :: WeirdElems                       ! Number of Weird Elements (=Elements which are folded
+                                                                             ! into themselves)
 
 TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element
