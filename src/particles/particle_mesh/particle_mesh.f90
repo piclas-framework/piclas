@@ -269,7 +269,6 @@ USE MOD_Particle_Mesh_Vars, ONLY : GEO, PartElemToSide
 INTEGER           :: iElem, iLocSide
 INTEGER           :: NodeNum
 REAL              :: A(3,3),detcon
-LOGICAL           :: ElemExists
 INTEGER           :: flip,p,q
 REAL              :: SideCoord(1:3,0:1,0:1)
 REAL              :: SideCoord_tmp(1:3,0:1,0:1)
@@ -285,10 +284,6 @@ GEO%ConcaveElemSide(:,:)=.FALSE.
 
 DO iElem=1,nElems
   DO iLocSide=1,6
-    flip=PartElemToSide(E2S_FLIP,iLocSide,iElem)
-    ! master side, flip=0
-    ! slave side,  flip=1,..,4
-
 !-----------------------------------------------------------------------------------------------------------------------------------
     SELECT CASE(iLocSide)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -300,15 +295,23 @@ DO iElem=1,nElems
       END DO !q
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(XI_PLUS)
-      SideCoord_tmp(1:3,:,:)=XCL_NGeo(1:3,NGeo,:,:,iElem)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo,p,q,iElem)
+        END DO !p
+      END DO !q
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(ETA_MINUS)
-      SideCoord_tmp(1:3,:,:)=XCL_NGeo(1:3,:,0,:,iElem)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p,0,q,iElem)
+        END DO !p
+      END DO !q
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(ETA_PLUS)
       DO q=0,NGeo
         DO p=0,NGeo
-          SideCoord_tmp(1:3,NGeo-p,q)=XCL_NGeo(1:3,p,NGeo,q,iElem)
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo-p,NGeo,q,iElem)
         END DO !p
       END DO !q
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -328,42 +331,44 @@ DO iElem=1,nElems
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
+    flip=PartElemToSide(E2S_FLIP,iLocSide,iElem)
+    ! master side, flip=0
+    ! slave side,  flip=1,..,4
 !-----------------------------------------------------------------------------------------------------------------------------------
-    !SELECT CASE(flip)
-!---!--------------------------------------------------------------------------------------------------------------------------------
-    !CASE(0) ! master side
-      SideCoord(:,:,:)=SideCoord_tmp
-!---!--------------------------------------------------------------------------------------------------------------------------------
-    !CASE(1) ! slave side, SideID=q,jSide=p
-    !  DO q=0,NGeo
-    !    DO p=0,NGeo
-    !      SideCoord(:,p,q)=SideCoord_tmp(:,q,p)
-    !    END DO ! p
-    !  END DO ! q
-    !  write(*,*)sideCoord(:,:,:),SideCoord_tmp(:,:,:)
-!---!--------------------------------------------------------------------------------------------------------------------------------
-    !CASE(2) ! slave side, SideID=N-p,jSide=q
-    !  DO q=0,NGeo
-    !    DO p=0,NGeo
-    !      SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-p,q)
-    !    END DO ! p
-    !  END DO ! q
-!---!--------------------------------------------------------------------------------------------------------------------------------
-    !CASE(3) ! slave side, SideID=N-q,jSide=N-p
-    !  DO q=0,NGeo
-    !    DO p=0,NGeo
-    !      SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-q,NGeo-p)
-    !    END DO ! p
-    !  END DO ! q
-!---!--------------------------------------------------------------------------------------------------------------------------------
-    !CASE(4) ! slave side, SideID=p,jSide=N-q
-    !  DO q=0,NGeo
-    !    DO p=0,NGeo
-    !      SideCoord(:,p,q)=SideCoord_tmp(:,p,NGeo-q)
-    !    END DO ! p
-    !  END DO ! q
-!---!--------------------------------------------------------------------------------------------------------------------------------
-    !END SELECT
+    SELECT CASE(flip)
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(0) ! master side
+     SideCoord(:,:,:)=SideCoord_tmp
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,p,q)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-q,p)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-p,NGeo-q)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,q,NGeo-p)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
     GEO%NodeCoords(1:3,1,iLocSide,iElem) = SideCoord(:,0   ,0   )
@@ -372,11 +377,12 @@ DO iElem=1,nElems
     GEO%NodeCoords(1:3,4,iLocSide,iElem) = SideCoord(:,0   ,NGeo)
     !write(*,*)'Element: ',iElem
     !write(*,*)'Side: ',iLocSide
+    !write(*,*)'SideID: ', PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     !write(*,*)'flip: ',flip
-    !write(*,*)'Coords 1 ',GEO%NodeCoords(1:3,1,iLocSide,iElem)/4.64e-4
-    !write(*,*)'Coords 2 ',GEO%NodeCoords(1:3,2,iLocSide,iElem)/4.64e-4
-    !write(*,*)'Coords 3 ',GEO%NodeCoords(1:3,3,iLocSide,iElem)/4.64e-4
-    !write(*,*)'Coords 4 ',GEO%NodeCoords(1:3,4,iLocSide,iElem)/4.64e-4
+    !write(*,*)'Coords 1 ',GEO%NodeCoords(1:3,1,iLocSide,iElem)
+    !write(*,*)'Coords 2 ',GEO%NodeCoords(1:3,2,iLocSide,iElem)
+    !write(*,*)'Coords 3 ',GEO%NodeCoords(1:3,3,iLocSide,iElem)
+    !write(*,*)'Coords 4 ',GEO%NodeCoords(1:3,4,iLocSide,iElem)
     !read(*,*)
   END DO
 END DO
@@ -2386,7 +2392,7 @@ SUBROUTINE InitTriaSideData()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY : NormVec, nElems, nSides
+USE MOD_Mesh_Vars,          ONLY : nElems, nSides!, NormVec
 USE MOD_Particle_Mesh_Vars, ONLY : PartElemToSide, TriaSideData, GEO
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -2396,8 +2402,8 @@ USE MOD_Particle_Mesh_Vars, ONLY : PartElemToSide, TriaSideData, GEO
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: SideID,iElem,iLocSide,TriNum,Node1,Node2,q,p, flip
-REAL              :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz, nvSide(3), NVecTest
+INTEGER           :: SideID,iElem,iLocSide,TriNum,Node1,Node2,flip!,q,p
+REAL              :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz!, nvSide(3), NVecTest
 REAL              :: vec_nIn(3), nVal, vec_t1(3), vec_t2(3)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')

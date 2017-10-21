@@ -65,7 +65,6 @@ IMPLICIT NONE
 INTEGER                          :: i
 INTEGER                          :: ElemID,flip,OldElemID
 INTEGER                          :: LocalSide
-INTEGER                          :: hitlocSide
 INTEGER                          :: NrOfThroughSides, ind2
 INTEGER                          :: SideID,TempSideID,iLocSide
 INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6)
@@ -79,7 +78,7 @@ REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
 #ifdef MPI
-REAL                          :: tLBStart,tLBEnd
+REAL                             :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -201,8 +200,6 @@ DO i = 1,PDM%ParticleVecLength
                     END IF
                   END IF
                 END IF
-                !write(*,*)secondNrOfThroughSides
-                !read(*,*)
               END IF
             END DO
             IF (SecondNrOfThroughSides.EQ.0) THEN
@@ -1797,7 +1794,7 @@ LOGICAL,INTENT(OUT)              :: ThroughSide
 ! LOCAL VARIABLES
 INTEGER                          :: n, m
 REAL                             :: Px, Py, Pz
-REAL                             :: Vx, Vy, Vz, Vall
+REAL                             :: Vx, Vy, Vz!, Vall
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
 REAL                             :: det(3)
 REAL                             :: eps
