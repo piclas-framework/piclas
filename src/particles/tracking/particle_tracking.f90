@@ -46,7 +46,6 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
@@ -238,7 +237,6 @@ DO i = 1,PDM%ParticleVecLength
         !SideID=PartElemToSide(E2S_SIDE_ID,LocalSide,ElemID)
         flip  =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
         OldElemID=ElemID
-        CALL IntersectionWithWall(PartTrajectory,lengthPartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
         CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
           ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
 #ifdef MPI
@@ -1203,6 +1201,7 @@ USE MOD_Particle_Tracking_Vars,      ONLY:TriaTracking
 USE MOD_Particle_Mesh_Vars,          ONLY:TriaSideData
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
+USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
 USE MOD_Particle_Vars,               ONLY:PDM
 USE MOD_Particle_Surfaces,           ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Mesh_Vars,                   ONLY:BC
@@ -1233,6 +1232,9 @@ IF(BC(SideID).GT.0)THEN
     TriNumTemp = TriNum
   ELSE
     TriNumTemp = 0
+  END IF
+  IF (TriaTracking) THEN
+    CALL IntersectionWithWall(PartTrajectory,lengthPartTrajectory,alpha,PartID,hitlocSide,ElemID,TriNumtemp)
   END IF
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                  ,xi    &
