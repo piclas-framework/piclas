@@ -687,6 +687,8 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! BezierControlPoints3D
 ! ElemToSide
 ! BC-Type and State
+! GEO%NodeCoords
+! TriaSideData
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -698,8 +700,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToEle
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob,GEO
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -712,6 +714,8 @@ INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 ! LOCAL VARIABLES
 TYPE tMPISideMessage
   REAL,ALLOCATABLE          :: BezierControlPoints3D(:,:,:,:)
+  REAL,ALLOCATABLE          :: NodeCoords(:,:,:,:)
+  REAL,ALLOCATABLE          :: ConcaveElemSide(:,:)
   REAL,ALLOCATABLE          :: XCL_NGeo (:,:,:,:,:)
   REAL,ALLOCATABLE          :: dXCL_NGeo(:,:,:,:,:,:)
 !  REAL,ALLOCATABLE,DIMENSION(:,:,:)   :: ElemSlabNormals    
@@ -871,6 +875,37 @@ IF (RecvMsg%nSides.GT.0) THEN
     __STAMP__&
     ,'Could not allocate RecvMsg%BezierControlPoints3D',RecvMsg%nSides)
   RecvMsg%BezierControlPoints3D=0.
+END IF
+
+IF (TriaTracking) THEN
+  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
+    ALLOCATE(SendMsg%Nodecoords(1:3,1:4,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%Nodecoords',SendMsg%nElems)
+    SendMsg%Nodecoords=0.
+  END IF
+  IF (RecvMsg%nElems.GT.0) THEN
+    ALLOCATE(RecvMsg%NodeCoords(1:3,1:4,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%NodeCoords',RecvMsg%nElems)
+    RecvMsg%NodeCoords=0.
+  END IF
+  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
+    ALLOCATE(SendMsg%ConcaveElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%ConcaveElemSide',SendMsg%nElems)
+    SendMsg%ConcaveElemSide=0.
+  END IF
+  IF (RecvMsg%nElems.GT.0) THEN
+    ALLOCATE(RecvMsg%ConcaveElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%ConcaveElemSide',RecvMsg%nElems)
+    RecvMsg%ConcaveElemSide=0.
+  END IF
 END IF
 
 IF(DoRefMapping)THEN
@@ -1060,6 +1095,10 @@ DO iElem = 1,nElems
       !SendMsg%ElemSlabNormals(:,:,ElemIndex(iElem))=ElemSlabNormals(:,:,iElem)
       !SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
     END IF
+    IF(TriaTracking)THEN
+      SendMsg%NodeCoords(:,:,:,ElemIndex(iElem))=GEO%Nodecoords(:,:,:,iElem)
+      SendMsg%ConcaveElemSide(:,ElemIndex(iElem))=GEO%ConcaveElemSide(:,iElem)
+    END IF
     SendMsg%ElemBaryNGeo(:,ElemIndex(iElem))=ElemBaryNGeo(:,iElem)
     DO iLocSide = 1,6
       SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
@@ -1157,6 +1196,12 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
+  END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToElemGlob,SendMsg%nElems*24,MPI_LONG       ,iProc,1119,PartMPI%COMM,IERROR)
@@ -1195,6 +1240,12 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
+  IF(TriaTracking)THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1236,6 +1287,12 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
@@ -1270,6 +1327,12 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 !        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+  END IF
+  IF(TriaTracking)THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1473,6 +1536,10 @@ ELSE ! DoRefMappping=F
       PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
+      IF (TriaTracking) THEN
+        GEO%NodeCoords(1:3,1:4,1:6,newElemID) = RecvMsg%NodeCoords(1:3,1:4,1:6,iElem)
+        GEO%ConcaveElemSide(1:6,newElemID) = RecvMsg%ConcaveElemSide(1:6,iElem)
+      END IF
       ! list from ElemToElemGlob mapped to process local element
       ! new list points from local-elem-id to global
       PartElemToElemGlob(1:4,1:6,newElemID) = RecvMsg%ElemToElemGlob(1:4,1:6,iElem)

@@ -116,7 +116,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
-USE MOD_Mesh_Vars,              ONLY:useCurveds
+USE MOD_Mesh_Vars,              ONLY:useCurveds,NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -150,11 +150,15 @@ __STAMP__&
 
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
-TriaTracking        = GETLOGICAL('TriaTracking','.FALSE')
-IF ((DoRefMapping.OR.UseCurveds).AND.(TriaTracking)) THEN
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
+TriaTracking       = GETLOGICAL('TriaTracking','.FALSE')
+#else
+TriaTracking       = .FALSE.
+#endif
+IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
   CALL abort(&
 __STAMP__&
-,'DoRefMapping=T or UseCurveds=T and TriaTracking=T not possible at the same time!')
+,'DoRefMapping=T .OR. UseCurveds=T .OR. NGEO>1! Not possible with TriaTracking=T at the same time!')
 END IF
 CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
 nLostParts         = 0 
@@ -447,6 +451,9 @@ SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%DeltaEvMPF)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
+SDEALLOCATE(GEO%NodeCoords)
+SDEALLOCATE(GEO%ConcaveElemSide)
+SDEALLOCATE(TriaSideData)
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
@@ -1037,6 +1044,7 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Vars, ONLY : XCL_NGeo,dXCL_NGeo
 USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
 !USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
@@ -1047,6 +1055,7 @@ USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_Tracking_Vars,             ONLY:TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1130,6 +1139,7 @@ IF(DoRefMapping) CALL ReshapeBezierSides()
 
 CALL GetElemAndSideType()
 CALL GetLinearSideBaseVectors()
+IF (TriaTracking) CALL GetTriaSideData()
 CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
@@ -2384,7 +2394,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
 
 
-SUBROUTINE InitTriaSideData()
+SUBROUTINE GetTriaSideData()
 !===================================================================================================================================
 ! Calculate Data of Triangles for each Side
 ! normalvector, tangential vectors and area
@@ -2392,8 +2402,11 @@ SUBROUTINE InitTriaSideData()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY : nElems, nSides!, NormVec
-USE MOD_Particle_Mesh_Vars, ONLY : PartElemToSide, TriaSideData, GEO
+!USE MOD_Mesh_Vars,             ONLY : NormVec
+USE MOD_Particle_Mesh_Vars,    ONLY : nTotalElems, nTotalSides
+USE MOD_Particle_Mesh_Vars,    ONLY : PartElemToSide, GEO, TriaSideData
+!USE MOD_Particle_Boundary_Vars,ONLY : nTotalSides
+!USE MOD_Particle_Surface_Vars,ONLY:TriaSideData
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2407,11 +2420,11 @@ REAL              :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz!, nvSi
 REAL              :: vec_nIn(3), nVal, vec_t1(3), vec_t2(3)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT TRIANGULATED SIDE DATA...'
+SWRITE(UNIT_stdOut,'(A)') ' GET TRIANGULATED SIDE DATA...'
 
-ALLOCATE(TriaSideData(1:2,0:4,1:nSides)) ! allocate further for ld!
+ALLOCATE(TriaSideData(1:2,0:4,1:nTotalSides)) ! allocate further for ld!
 !ALLOCATE(TriaSideData(1:2,1:nSides)) ! allocate further for ld!
-DO iElem=1,nElems
+DO iElem=1,nTotalElems
   DO iLocSide=1,6               ! -''-
     flip = PartElemToSide(E2S_FLIP,iLocSide,iElem)
     !IF (flip.NE.0) CYCLE
@@ -2499,9 +2512,9 @@ DO iElem=1,nElems
   END DO
 END DO
 
-SWRITE(UNIT_stdOut,'(A)')' INIT TRIANGULATED SIDE DATA DONE!'
+SWRITE(UNIT_stdOut,'(A)')' GET TRIANGULATED SIDE DATA DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitTriaSideData
+END SUBROUTINE GetTriaSideData
 
 
 SUBROUTINE ReShapeBezierSides()
@@ -4266,6 +4279,8 @@ INTEGER                               :: iSide, BCSide
 REAL                                  :: crossVec(3)
 ! INTEGER                               :: iSide_temp
 !===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
 IF(.NOT.DoRefMapping)THEN
 !   ALLOCATE(SideID2PlanarSideID(1:nTotalSides))
 !   SideID2PlanarSideID(:) = 0
@@ -4328,6 +4343,8 @@ ELSE
   END DO ! iSide
 END IF
 
+SWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE GetLinearSideBaseVectors
 
 
@@ -4371,6 +4388,8 @@ INTEGER                       :: iHaloElem
 INTEGER(KIND=8)               :: HaloGlobalElemID
 #endif /*MPI*/
 !===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY ... '
 
 SDEALLOCATE(PartElemToElemAndSide)
 ALLOCATE(PartElemToElemAndSide(1:8,1:6,1:nTotalElems))
@@ -4572,7 +4591,8 @@ END DO
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif
-SWRITE(UNIT_StdOut,'(A)') ' Build of mesh-connectivity is successful!'
+SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY SUCCESSFUL '
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE ElemConnectivity
 

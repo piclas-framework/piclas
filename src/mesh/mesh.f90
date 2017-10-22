@@ -56,7 +56,7 @@ USE MOD_Metrics,                ONLY:CalcMetrics
 USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
 USE MOD_Mappings,               ONLY:InitMappings
 #ifdef PARTICLES
-USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes,InitTriaParticleGeometry,InitTriaSideData ! new
+USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes,InitTriaParticleGeometry!,GetTriaSideData ! new
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking ! new
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
@@ -336,16 +336,16 @@ CALL InitMeshBasis(NGeo,PP_N,xGP)
 
 
 #ifdef PARTICLES
-ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
 XCL_NGeo = 0.
-ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,nElems))
+ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
 dXCL_NGeo = 0.
 CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 ! init element volume
 CALL InitElemVolumes()
 IF (TriaTracking) THEN
   CALL InitTriaParticleGeometry()
-  CALL InitTriaSideData()
+  !CALL GetTriaSideData()
 END IF
 #else
 CALL CalcMetrics()
