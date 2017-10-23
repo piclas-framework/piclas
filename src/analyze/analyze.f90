@@ -363,7 +363,7 @@ USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #ifdef PARTICLES
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_TimeDisc_Vars,         ONLY: dt
-USE MOD_Particle_Vars,         ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
+USE MOD_Particle_Vars,         ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
@@ -690,10 +690,12 @@ IF(OutPut)THEN
   END IF
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
-    IF (.NOT. useLD) THEN
+    IF ((.NOT. useLD).AND.(DSMC%NumOutput.GT.0)) THEN
       CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
     END IF
-    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+    IF ((t.GE.DelayTime).AND.(DSMC%NumOutput.GT.0)) THEN
+      IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+    END IF
   END IF
 #endif
 END IF

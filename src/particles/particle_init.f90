@@ -414,7 +414,7 @@ __STAMP__&
     ,'ERROR: Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
   IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal = .TRUE.
 END IF
-DSMC%NumOutput = GETINT('Particles-NumberOfDSMCOutputs','0')
+DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
 IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
 IF (DSMC%NumOutput.NE.0) THEN
   DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
