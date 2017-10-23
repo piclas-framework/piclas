@@ -906,6 +906,8 @@ ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
 ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
 ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
 ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
+PartBound%SolidState(1:nPartBound)=.FALSE.
+PartBound%LiquidSpec(1:nPartBound)=0
 SolidSimFlag = .FALSE.
 LiquidSimFlag = .FALSE.
 
