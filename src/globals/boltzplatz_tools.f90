@@ -57,6 +57,8 @@ USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+USE MOD_DSMC_SurfModelInit,        ONLY:FinalizeDSMCSurfModel
+USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 #ifdef MPI
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
@@ -101,6 +103,8 @@ CALL FinalizeMesh()
 CALL FinalizeMortar()
 CALL FinalizeFilter()
 #ifdef PARTICLES
+CALL FinalizeDSMCSurfModel()
+CALL FinalizeParticleBoundarySampling()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
