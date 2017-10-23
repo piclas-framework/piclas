@@ -715,7 +715,7 @@ INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 TYPE tMPISideMessage
   REAL,ALLOCATABLE          :: BezierControlPoints3D(:,:,:,:)
   REAL,ALLOCATABLE          :: NodeCoords(:,:,:,:)
-  REAL,ALLOCATABLE          :: ConcaveElemSide(:,:)
+  LOGICAL,ALLOCATABLE       :: ConcaveElemSide(:,:)
   REAL,ALLOCATABLE          :: XCL_NGeo (:,:,:,:,:)
   REAL,ALLOCATABLE          :: dXCL_NGeo(:,:,:,:,:,:)
 !  REAL,ALLOCATABLE,DIMENSION(:,:,:)   :: ElemSlabNormals    
@@ -897,14 +897,14 @@ IF (TriaTracking) THEN
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
       ,'Could not allocate SendMsg%ConcaveElemSide',SendMsg%nElems)
-    SendMsg%ConcaveElemSide=0.
+    SendMsg%ConcaveElemSide=.FALSE.
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%ConcaveElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
       ,'Could not allocate RecvMsg%ConcaveElemSide',RecvMsg%nElems)
-    RecvMsg%ConcaveElemSide=0.
+    RecvMsg%ConcaveElemSide=.FALSE.
   END IF
 END IF
 
@@ -1200,7 +1200,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1245,7 +1245,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1291,7 +1291,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1332,7 +1332,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1574,10 +1574,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
+USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 !USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
 ! IMPLICIT VARIABLE HANDLING
@@ -1597,6 +1597,8 @@ REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)
 REAL,ALLOCATABLE                   :: DummyXCL_NGEO (:,:,:,:,:)                                
 REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)                                
 REAL,ALLOCATABLE                   :: DummyElemBaryNGeo(:,:)                                
+REAL,ALLOCATABLE                   :: DummyNodeCoords(:,:,:,:)                                
+LOGICAL,ALLOCATABLE                :: DummyConcaveElemSide(:,:)                                
 INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)                                 
 INTEGER,ALLOCATABLE                :: DummyMortarType(:,:)                                 
 INTEGER,ALLOCATABLE                :: DummySideToElem(:,:)
@@ -1857,6 +1859,37 @@ ELSE ! no mapping
    ,'Could not allocate ElemIndex')
   BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
+END IF
+
+IF (TriaTracking) THEN
+  ! Resize Nodecoords
+  ALLOCATE(DummyNodeCoords(1:3,1:4,1:6,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyNodeCoords)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyNodeCoords')
+  DummyNodeCoords(1:3,1:4,1:6,1:nOldElems) = GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems)
+  DEALLOCATE(GEO%NodeCoords)
+  ALLOCATE(GEO%NodeCoords(1:3,1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize allocate GEO%NodeCoords')
+  GEO%NodeCoords=0.
+  GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems) = DummyNodeCoords(1:3,1:4,1:6,1:nOldElems)
+  DEALLOCATE(DummyNodeCoords)
+  ! Resize ConcaveElemSides
+  ALLOCATE(DummyConcaveElemSide(1:6,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyConcaveElemSide)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyConcaveElemSide')
+  DummyConcaveElemSide(1:6,1:nOldElems) = GEO%ConcaveElemSide(1:6,1:nOldElems)
+  DEALLOCATE(GEO%ConcaveElemSide)
+  ALLOCATE(GEO%ConcaveElemSide(1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize allocate GEO%ConcaveElemSide')
+  GEO%ConcaveElemSide=.FALSE.
+  GEO%ConcaveElemSide(1:6,1:nOldElems) = DummyConcaveElemSide(1:6,1:nOldElems)
+  DEALLOCATE(DummyConcaveElemSide)
 END IF
 
 ! ElemBaryNGeo
