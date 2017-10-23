@@ -46,7 +46,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
+USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts,CountNbOfLostParts,nLostParts
@@ -143,7 +143,7 @@ DO i = 1,PDM%ParticleVecLength
             WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
             WRITE(*,*) 'Pos:     ', PartState(i,1:3)
             WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.)
+            CALL SingleParticleToExactElementNoMap(i,doHalo=.TRUE.)
             ! Retrace to check through which side the particle went
             DO iLocSide=1,6
               TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
