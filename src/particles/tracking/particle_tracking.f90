@@ -86,8 +86,8 @@ REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 #ifdef MPI
 REAL                          :: tLBStart,tLBEnd
-INTEGER                       :: inElem
 #endif /*MPI*/
+INTEGER                       :: inElem
 INTEGER ::local
 #ifdef CODE_ANALYZE
 REAL                          :: IntersectionPoint(1:3)
@@ -133,7 +133,7 @@ DO iPart=1,PDM%ParticleVecLength
          __STAMP__ &
          ,' LastPartPos outside of mesh. iPart=, iStage',iPart,REAL(iStage))
     END IF
-#endif
+#endif /*CODE_ANALYZE*/
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
@@ -164,7 +164,7 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
 #else
         WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID         ', PEM%LastElement(iPart)+offSetElem
-#endif
+#endif /*MPI*/
       END IF
     END IF
     ! caution: reuse of variable, isHit=TRUE == inside
@@ -515,7 +515,9 @@ END DO ! iPart
 
 #ifdef CODE_ANALYZE
 ! check if particle is still inside of bounding box of domain and in element
+#ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif /*MPI*/
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.DoParticle(iPart)) CYCLE
@@ -645,6 +647,9 @@ DO iPart=1,PDM%ParticleVecLength
     PartIsDone=.FALSE.
     IF(IsBCElem(ElemID))THEN
       lengthPartTrajectory0=0.
+      !IF(GEO%nPeriodicVectors.GT.0.)THEN
+      !  lengthPartTrajectory0=BCELEM(ElemID)%ElemToSideDistance(BCElem(ElemID)%lastSide)
+      !END IF
       CALL ParticleBCTracking(lengthPartTrajectory0 &
                              ,ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved,1)
       IF(PartIsDone) THEN
