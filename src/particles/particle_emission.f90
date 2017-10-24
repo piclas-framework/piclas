@@ -4168,10 +4168,10 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SideType
 USE MOD_Timedisc_Vars          ,ONLY: dt
-
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
@@ -4430,6 +4430,12 @@ __STAMP__&
               EXIT
             END IF
           END DO !Jacobian-based ARM-loop
+          IF(MINVAL(XI).LT.-1.)THEN
+            IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi<-1',XI
+          END IF
+          IF(MAXVAL(XI).GT.1.)THEN
+            IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi>1',XI
+          END IF
           CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
 
           IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
@@ -4550,9 +4556,34 @@ __STAMP__&
           END IF
 #endif /*CODE_ANALYZE*/ 
 #ifdef IMPA
-            ! required for implicit
-            CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
+            IF(DoRefMapping)THEN
+              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
+            END IF
+            ! important for implicit, correct norm, etc.
+            PartState(ParticleIndexNbr,1:3)=LastPartPos(ParticleIndexNbr,1:3)
 #endif /*IMPA*/
+#ifdef CODE_ANALYZE
+            IF(   (LastPartPos(iPart,1).GT.GEO%xmaxglob) &
+              .OR.(LastPartPos(iPart,1).LT.GEO%xminglob) &
+              .OR.(LastPartPos(iPart,2).GT.GEO%ymaxglob) &
+              .OR.(LastPartPos(iPart,2).LT.GEO%yminglob) &
+              .OR.(LastPartPos(iPart,3).GT.GEO%zmaxglob) &
+              .OR.(LastPartPos(iPart,3).LT.GEO%zminglob) ) THEN
+              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(iPart)
+#ifdef IMPA
+              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
+              IPWRITE(UNIt_stdOut,'(I0,A18,E25.14)')                       ' PartDtFrac ', PartDtFrac(iPart)
+#endif /*IMPA*/
+              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
+              IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' x', GEO%xminglob, LastPartPos(iPart,1), GEO%xmaxglob
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' y', GEO%yminglob, LastPartPos(iPart,2), GEO%ymaxglob
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' z', GEO%zminglob, LastPartPos(iPart,3), GEO%zmaxglob
+              CALL abort(&
+                 __STAMP__ &
+                 ,' LastPartPos outside of mesh. iPart=, iStage',iPart,REAL(iStage))
+            END IF
+#endif /*CODE_ANALYZE*/ 
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
             PDM%IsNewPart(ParticleIndexNbr) = .TRUE.

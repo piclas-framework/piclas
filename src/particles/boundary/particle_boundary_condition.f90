@@ -58,8 +58,11 @@ USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:DoPartInNewton
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -112,6 +115,9 @@ CASE(1) !PartBound%OpenBC)
   END IF ! CalcPartBalance
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
+#ifdef IMPA
+  DoPartInNewton(iPart) = .FALSE.
+#endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   PartIsImplicit(iPart) = .FALSE.
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
@@ -161,6 +167,12 @@ CASE(2) !PartBound%ReflectiveBC)
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+            PartIsImplicit(iPart) = .FALSE.
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#ifdef IMPA
+		    DoPartInNewton(iPart) = .FALSE.
+#endif /*IMPA*/
             alpha=-1.
           END IF
   !         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
@@ -187,6 +199,9 @@ __STAMP__,&
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
             alpha=-1.
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+            PartIsImplicit(iPart) = .FALSE.
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
             CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
               IsSpeciesSwap,opt_Reflected=crossedBC)
@@ -386,6 +401,12 @@ CASE(2) !PartBound%ReflectiveBC)
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+            PartIsImplicit(iPart) = .FALSE.
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#ifdef IMPA
+  			DoPartInNewton(iPart) = .FALSE.
+#endif /*IMPA*/
             alpha=-1.
           END IF
         CASE(0) ! inelastic reflection
@@ -410,6 +431,9 @@ __STAMP__,&
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+            PartIsImplicit(iPart) = .FALSE.
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
             alpha=-1.
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
@@ -427,6 +451,9 @@ __STAMP__,&
         END IF
       END IF
     END IF
+  ELSE 
+    ! not inside any-more, removed in last step
+    crossedBC=.TRUE.
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
@@ -1217,6 +1244,12 @@ USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:DoPartInNewton
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1237,6 +1270,7 @@ INTEGER                           :: p,q,SurfSideID,locBCID
 INTEGER                           :: iCC
 REAL                              :: n_loc(1:3)
 !===================================================================================================================================
+#ifndef IMPA
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1263,6 +1297,7 @@ IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
     __STAMP__&
     ,'SpeciesSwap was called for an particle coming from outside of the mesh!')
 END IF
+#endif /*NOT IMPA*/
 
 locBCID = PartBound%MapToPartBC(BC(SideID))
 CALL RANDOM_NUMBER(RanNum)
@@ -1347,6 +1382,12 @@ __STAMP__&
     !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
     PDM%ParticleInside(PartID) = .FALSE.
     alpha=-1.
+#ifdef IMPA
+    DoPartInNewton(PartID) = .FALSE.
+#endif /*IMPA*/
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+    PartIsImplicit(PartID) = .FALSE.
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
   ELSEIF (targetSpecies.gt.0) THEN !swap species
     DO iCC=1,nCollectChargesBCs !-chargeCollect
       IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
