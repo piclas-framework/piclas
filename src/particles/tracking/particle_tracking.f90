@@ -870,7 +870,7 @@ __STAMP__ &
           IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
           !CALL RefTrackFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
           IF(useCurveds)THEN
-            IF(NGeo.GT.2)THEN
+            IF(NGeo.GT.1)THEN
               CALL FallBackFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
             END IF
           END IF
