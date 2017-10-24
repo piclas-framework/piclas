@@ -141,7 +141,6 @@ def getExamples(path, build, log) :
             else :
                 log.info(tools.yellow("  not skipping"))
         examples.append(Example(p, build))
-    #raw_input(tools.red("Press Enter to continue..."))
     return  examples
 
 

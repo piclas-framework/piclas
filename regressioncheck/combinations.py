@@ -31,8 +31,6 @@ def isSubset(a, b) :
 
 def anyIsSubset(alist, b) :
     """Check if any element 'a' of the list 'alist' is a subset of the dictionary 'b'"""
-    # alist: type() is list
-    # b: type() is e.g. class 'collections.OrderedDict'
     tmp = [isSubset(a, b) for a in alist] # build a list of booleans, that contains for every 'a' in alist if 'a' is a subset of 'b'
     return any(tmp)                       # return True, if any 'a' of alist is a subset of 'b'
 
