@@ -1423,6 +1423,9 @@ USE MOD_LinearSolver_Vars,      ONLY:R_PartXk
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1478,8 +1481,29 @@ END IF
 
 PVID = SidePeriodicType(SideID)
 
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(PartID.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition: ',PartState(PartID,1:3)
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(PartID,1:3)
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
 PartState(PartID,1:3)   = PartState(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(PartID.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition-pp: ',PartState(PartID,1:3)
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(PartID,1:3)
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
 
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
