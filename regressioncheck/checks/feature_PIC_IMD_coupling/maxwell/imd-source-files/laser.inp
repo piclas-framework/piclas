@@ -1,0 +1,123 @@
+# param-file in Anlehnung an dennis rapp
+
+ntypes 1
+core_potential_file /zhome/academic/HLRS/ita/itaee88/pot/phi.ercolessi.al.pt
+embedding_energy_file /zhome/academic/HLRS/ita/itaee88/pot/f.ercolessi.al.pt
+atomic_e-density_file /zhome/academic/HLRS/ita/itaee88/pot/rho.ercolessi.al.pt
+
+
+cpu_dim 8 3 2		#edit me
+
+# Zahl der MD-Zellen pro FD-Zelle
+fd_ext  4 4 4
+#fd_ext 44 6 6 # das ist fx_ext_max bei cpu_dim 12 1 1 
+
+simulation 1
+ensemble ttm
+
+outfiles chkpt/laser
+maxsteps 350000
+
+eng_int  100
+dist_int 100
+ttm_int  100
+checkpt_int 100
+
+#coul_eng 14.40  #this is e^2/(4pi*epsilon_0)
+#ew_kappa 1.0;
+#ew_rcut  12.0;
+
+timestep 0.1
+
+coordname ./ofs.pos
+box_from_header 1
+masses 26.98
+use_current_temp
+
+#total_types 2 
+#charge 5 0
+
+do_maxwell 0
+
+pbc_dirs 0 1 1
+
+# Verteilung fuer n 1 1 Scheiben entlang x
+dist_dim 100 1 1 		#edit me
+
+# Ortsbereich auf dem die Verteilungen berechnet werden
+
+#X 622.485 0.0000000000000000e+00 0.0000000000000000e+00
+#Y      0.0000000000000000e+00 4.0508126356151786e+02 0.0000000000000000e+00
+#Z      0.0000000000000000e+00 0.0000000000000000e+00 4.0508126356151786e+02
+dist_ll  0 0 0 
+dist_ur 622.485 405.08126356151786 405.08126356151786
+
+								#flags selecting the distributions
+dist_Ekin_flag 3						#0 = no (default), 1=binary, 2=ASCII with bin coords,	
+dist_dens_flag 3						#3=ASCII no bin coords
+
+
+# Zahl der MD-Zeitschritte pro FD-Zeitschritt			#how many FD timesteps to one MD timestep?
+fd_n_timesteps 3500
+
+# elektr. WärmeKapazitaets-Faktor in IMD-Einheiten
+# C_el=gamma*T_el
+fd_gamma 0.11305						
+
+# El.-Phonon. Kopplungskonstante (IMD-Einheiten)
+fd_g	0.0004196
+
+# el. WärmeLF
+fd_k    17.33
+
+#fd_solid_density 0.0609486009538				#Zur Verwendung von Dichtekonstanten angegebene Teilchenzahldichte,
+								#bei der die obigen Volumenkonstanten definiert sind (pro A^3)
+								#ACHTUNG: Nicht dokumentiert auf ITAP-Seite
+# Dämpfung (pdecay) am Probenende
+xipdecay 0.15 
+pdecay_mode 3        						# quadratisch ansteigende Dämpfung
+ramp_fraction 0.25   						# im letzten Viertel der Probe
+
+# Laser-Parameter:
+# TTM für den Energieeintrag verwenden
+laser_rescale_mode 4						# How to do the temperature rescaling. You probably don't							              					      # have to worry about this, unless you want to play around
+						                # with the source in imd_laser.c. The default is 1. If the
+	  					    		# TTM make option was given, it is automatically set to 4,
+					 			# to make it work with the Two-Temperature-Model code.
+
+# Pulsdauer (2*sigma_t bzw. 2.23*sigma_t bei FWHM)
+# 0.2 ps
+laser_sigma_t 9.823						# Half duration of the laser pulse (sigma of the gaussian).
+
+# Laserfluenz: 1 imdu = 16.02 J/m^2
+#laser_sigma_e 10.12						# Area density of pulse energy (fluence). Default is 0.
+#laser_sigma_e 15.88
+#laser_sigma_e  624.15 #=1 J/cm^2 
+#laser_sigma_e 10000
+laser_sigma_e  20000
+
+# Zeitpunkt der max. Laserintensitaet -> 2036 fs=2.036 ps
+laser_t_0 0
+
+								# simulation. Default is 1.0 IMD units.
+
+# Beginn d. Probe (bei 0 automatisch bestimmt, relevant fuer Lambert-Beer)
+#laser_offset 402.903
+
+# Laserstrahl in x-Richtung
+laser_dir 1 0 0 
+
+# Inverse Absorptionslaenge mu=1/alpha
+# Hier: 100 nm fuer Al (und 80 nm fuer Ni)
+laser_mu   1.25E-2 
+#laser_mu  1.54E-2
+
+
+laser_tem_mode   1 0 0
+laser_sigma_w_y  0.5
+laser_sigma_w_z  0.5    
+laser_sigma_w0   50	# beam radius
+fd_min_atoms 10
+filter_min_x -10
+ramp_start 1300
+ramp_end 1350
