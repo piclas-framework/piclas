@@ -8,7 +8,7 @@ stages:
   - reggie_weekly
 
 cache:
-  key: "$CI_BUILD_SHA"
+  key: "$CI_COMMIT_SHA"
   paths: 
     - build_gnu/    
     - build_intel/    
