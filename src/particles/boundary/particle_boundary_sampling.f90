@@ -1408,10 +1408,16 @@ SDEALLOCATE(SurfExchange%nSidesRecv)
 SDEALLOCATE(SurfExchange%SendRequest)
 SDEALLOCATE(SurfExchange%RecvRequest)
 DO iProc=1,SurfCOMM%nMPINeighbors
-  SDEALLOCATE(SurfSendBuf(iProc)%content)
-  SDEALLOCATE(SurfRecvBuf(iProc)%content)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
+  IF (ALLOCATED(SurfSendBuf))THEN
+    SDEALLOCATE(SurfSendBuf(iProc)%content)
+  END IF
+  IF (ALLOCATED(SurfRecvBuf))THEN
+    SDEALLOCATE(SurfRecvBuf(iProc)%content)
+  END IF
+  IF (ALLOCATED(SurfCOMM%MPINeighbor))THEN
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
+  END IF
 END DO ! iProc=1,PartMPI%nMPINeighbors
 SDEALLOCATE(SurfCOMM%MPINeighbor)
 SDEALLOCATE(SurfSendBuf)
