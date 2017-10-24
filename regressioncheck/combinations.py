@@ -31,6 +31,8 @@ def isSubset(a, b) :
 
 def anyIsSubset(alist, b) :
     """Check if any element 'a' of the list 'alist' is a subset of the dictionary 'b'"""
+    # alist: type() is list
+    # b: type() is e.g. class 'collections.OrderedDict'
     tmp = [isSubset(a, b) for a in alist] # build a list of booleans, that contains for every 'a' in alist if 'a' is a subset of 'b'
     return any(tmp)                       # return True, if any 'a' of alist is a subset of 'b'
 
@@ -39,7 +41,7 @@ def readKeyValueFile(filename) :
     # 1.  Read file line by line:
     # 1.1   get exclusion from line (if line starts with 'exclude:')
     # 1.2   get noCrossCombination from line (if line starts with 'nocrosscombination:')
-    # 1.3   get option and it values from line ( option=value1 [,value2 [,value3 ...]] )
+    # 1.3   get option and its values from line ( option=value1 [,value2 [,value3 ...]] )
     found = os.path.exists(filename) # check if directory exists
     if not found :
         #raise getCombinationException(filename) # file not found
