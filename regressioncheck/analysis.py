@@ -293,7 +293,9 @@ class Analyze_h5diff(Loop) :
 
         # 1.  iterate over all runs
         for run in runs :
-            h5diff = "/opt/hdf5/1.8.18/bin/h5diff"
+            #h5diff = "/opt/hdf5/1.8.18/bin/h5diff"
+            h5diff = "h5diff"
+            # todo: check if h5diff exists on system -> if not deactivate or add failure?
 
             # 1.2   select relative or absolute comparison
             if 1 == 1 :
