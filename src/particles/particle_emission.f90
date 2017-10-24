@@ -4180,6 +4180,9 @@ USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #endif
+#ifdef CODE_ANALYZE
+USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
+#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -4563,25 +4566,28 @@ __STAMP__&
             PartState(ParticleIndexNbr,1:3)=LastPartPos(ParticleIndexNbr,1:3)
 #endif /*IMPA*/
 #ifdef CODE_ANALYZE
-            IF(   (LastPartPos(iPart,1).GT.GEO%xmaxglob) &
-              .OR.(LastPartPos(iPart,1).LT.GEO%xminglob) &
-              .OR.(LastPartPos(iPart,2).GT.GEO%ymaxglob) &
-              .OR.(LastPartPos(iPart,2).LT.GEO%yminglob) &
-              .OR.(LastPartPos(iPart,3).GT.GEO%zmaxglob) &
-              .OR.(LastPartPos(iPart,3).LT.GEO%zminglob) ) THEN
-              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(iPart)
+            IF(   (LastPartPos(ParticleIndexNbr,1).GT.GEO%xmaxglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,1).LT.GEO%xminglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,2).GT.GEO%ymaxglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,2).LT.GEO%yminglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,3).GT.GEO%zmaxglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,3).LT.GEO%zminglob) ) THEN
+              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ',PDM%ParticleInside(ParticleIndexNbr)
 #ifdef IMPA
-              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
-              IPWRITE(UNIt_stdOut,'(I0,A18,E25.14)')                       ' PartDtFrac ', PartDtFrac(iPart)
+              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(ParticleIndexNbr)
+              IPWRITE(UNIt_stdOut,'(I0,A18,E25.14)')                       ' PartDtFrac ', PartDtFrac(ParticleIndexNbr)
 #endif /*IMPA*/
-              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
+              IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(ParticleIndexNbr)
               IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' x', GEO%xminglob, LastPartPos(iPart,1), GEO%xmaxglob
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' y', GEO%yminglob, LastPartPos(iPart,2), GEO%ymaxglob
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' z', GEO%zminglob, LastPartPos(iPart,3), GEO%zmaxglob
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' x', GEO%xminglob, LastPartPos(ParticleIndexNbr,1) &
+                                                                            , GEO%xmaxglob
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' y', GEO%yminglob, LastPartPos(ParticleIndexNbr,2) &
+                                                                            , GEO%ymaxglob
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' z', GEO%zminglob, LastPartPos(ParticleIndexNbr,3) &
+                                                                            , GEO%zmaxglob
               CALL abort(&
                  __STAMP__ &
-                 ,' LastPartPos outside of mesh. iPart=, iStage',iPart,REAL(iStage))
+                 ,' LastPartPos outside of mesh. iPart=, iStage',ParticleIndexNbr,REAL(iStage))
             END IF
 #endif /*CODE_ANALYZE*/ 
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
