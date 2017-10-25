@@ -196,7 +196,7 @@ IF(DoPrintConvInfo)THEN
     CALL MPI_REDUCE(nImp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
   END IF
 #endif /*MPI*/
-  SWRITE(UNIT_StdOut,*) ' Particles explicit/implicit ', nExp, nImp
+  SWRITE(UNIT_StdOut,'(A,I0,x,I0)') ' Particles explicit/implicit ', nExp, nImp
 END IF
   
 END SUBROUTINE SelectImplicitParticles
@@ -227,6 +227,9 @@ USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_P
 USE MOD_Equation_vars,           ONLY:c2_inv
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 !USE MOD_Equation,       ONLY: CalcImplicitSource
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -367,14 +370,13 @@ IF(DoPrintConvInfo)THEN
   !set T if at least 1 proc has to do newton
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
-  SWRITE(*,*) ' Initial particle number in newton: ',Counter
+  SWRITE(UNIT_StdOut,'(A,I0)') ' Initial particle number in newton: ',Counter
 END IF
 
 AbortCritLinSolver=0.999
 nInnerPartNewton=0
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
-  !SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! set abort crit      
@@ -596,7 +598,7 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 USE MOD_Globals
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm2_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
-                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm2_F_PartX0,PartDtFrac !,StagePartPos
+                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm2_F_PartX0,PartDtFrac,Norm2_F_PartXk_old !,StagePartPos
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
 USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -606,12 +608,15 @@ USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #endif /*MPI*/
-
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -629,6 +634,7 @@ REAL                         :: lambda, Norm2_PartX,DeltaX_Norm
 REAL                         :: LorentzFacInv,Xtilde(1:6), DeltaX(1:6)
 LOGICAL                      :: DoSetLambda
 INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=10
+INTEGER                      :: tmpElemID
 !===================================================================================================================================
 
 lambda=1.
@@ -641,9 +647,10 @@ DO iPart=1,PDM%ParticleVecLength
     !LastPartPos(iPart,2)=StagePartPos(iPart,2)
     !LastPartPos(iPart,3)=StagePartPos(iPart,3)
     !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-    LastPartPos(iPart,1)=PartState(iPart,1)
-    LastPartPos(iPart,2)=PartState(iPart,2)
-    LastPartPos(iPart,3)=PartState(iPart,3)
+    ! caution: PartXK has to be used instead of PartState
+    LastPartPos(iPart,1)=PartXK(1,iPart)
+    LastPartPos(iPart,2)=PartXK(2,iPart)
+    LastPartPos(iPart,3)=PartXK(3,iPart)
     PEM%lastElement(iPart)=PEM%Element(iPart)
     ! new part: of Armijo algorithm: check convergence
     ! compute new function value
@@ -666,6 +673,13 @@ DO iPart=1,PDM%ParticleVecLength
 !  ,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
 !     END IF
     END IF
+#ifdef CODE_ANALYZE
+    IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+      IF(iPart.EQ.PARTOUT)THEN
+        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' PartDeltaX: ', PartDeltaX(1:6,iPart)
+      END IF !(iPart.EQ.PARTOUT)THEN
+    END IF !(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+#endif /*CODE_ANALYZE*/
     ! update position
     PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
     PartLambdaAccept(iPart)=.FALSE.
@@ -683,6 +697,10 @@ ELSE
   CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
 END IF
 DO iPart=1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart))THEN
+    DoPartInNewton(iPart)=.FALSE.
+    PartLambdaAccept(iPart)=.TRUE.
+  END IF
   IF(.NOT.PartLambdaAccept(iPart))THEN
     IF(.NOT.PDM%ParticleInside(iPart))THEN
       DoPartInNewton(iPart)=.FALSE.
@@ -707,6 +725,13 @@ NbrOfExtParticles=0
 
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PartLambdaAccept(iPart))THEN
+#ifdef MPI
+    IF(.NOT.PDM%ParticleInside(iPart))THEN
+      DoPartInNewton(iPart)=.FALSE.
+      PartLambdaAccept(iPart)=.TRUE.
+      CYCLE
+    END IF
+#endif /*MPI*/
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
     SELECT CASE(PartLorentzType)
     CASE(0)
@@ -736,6 +761,13 @@ __STAMP__&
     F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
     ! if check, then here!
     DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
+#ifdef CODE_ANALYZE
+    IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+      IF(iPart.EQ.PARTOUT)THEN
+        IPWRITE(UNIT_stdOut,'(I0,A,G0)') ' DeltaX_Norm', DeltaX_Norm
+      END IF !(iPart.EQ.PARTOUT)
+    END IF !(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+#endif /*CODE_ANALYZE*/
     IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
        DoPartInNewton(iPart)=.FALSE.
        PartLambdaAccept(iPart)=.TRUE.
@@ -754,6 +786,13 @@ __STAMP__&
       !ELSE
         ! check if residual is reduced
         CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            IPWRITE(UNIT_stdOut,'(I0,A,G0,x,G0,x,G0)') ' Norms: ', Norm2_PartX, Norm2_F_PartXK(iPart), Norm2_F_PartX0(iPart)
+          END IF !(iPart.EQ.PARTOUT)THEN
+        END IF !(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+#endif /*CODE_ANALYZE*/
         IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
           ! accept lambda
           PartLambdaAccept(iPart)=.TRUE.
@@ -790,20 +829,40 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   END IF
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
+#ifdef MPI
+    IF(.NOT.PDM%ParticleInside(iPart))THEN
+      DoPartInNewton(iPart)=.FALSE.
+      PartLambdaAccept(iPart)=.TRUE.
+      CYCLE
+    END IF
+#endif /*MPI*/
       ! update the last part pos and element for particle movement
       !LastPartPos(iPart,1)=StagePartPos(iPart,1)
       !LastPartPos(iPart,2)=StagePartPos(iPart,2)
       !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      ! step to large, reduced step is performed from PartXK again
+      ! set last-part again to PartXK, last element is still PEM%lastElement(iPart), has not changed yet
       !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
-      PEM%lastElement(iPart)=PEM%Element(iPart)
+      LastPartPos(iPart,1)=PartXK(1,iPart)
+      LastPartPos(iPart,2)=PartXK(2,iPart)
+      LastPartPos(iPart,3)=PartXK(3,iPart)
+      ! verify integrity of lastElement due to MPI communication
+      ! prevent circular definition 
+      IF(PEM%LastElement(iPart).EQ.-1)THEN
+        tmpElemID=PEM%Element(iPart)
+        PartState(iPart,1:3)=PartXK(1:3,iPart)
+        IF(DoRefMapping)THEN
+          CALL SingleParticleToExactElement     (iPart,doHALO=.TRUE.,initFix=.FALSE.)
+        ELSE
+          CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)
+        END IF
+        PEM%LastElement(iPart)=PEM%Element(iPart)
+        PEM%Element(iPart)=tmpElemID
+      END IF
       PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
       PartLambdaAccept(iPart)=.FALSE.
     END IF ! ParticleInside
   END DO ! iPart
-  
   ! move particle
 #ifdef MPI
   ! open receive buffer for number of particles
@@ -815,6 +874,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
   END IF
   DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart))THEN
+      DoPartInNewton(iPart)=.FALSE.
+      PartLambdaAccept(iPart)=.TRUE.
+    END IF
     IF(.NOT.PartLambdaAccept(iPart))THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         DoPartInNewton(iPart)=.FALSE.
@@ -839,6 +902,13 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
 
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
+#ifdef MPI
+      IF(.NOT.PDM%ParticleInside(iPart))THEN
+        DoPartInNewton(iPart)=.FALSE.
+        PartLambdaAccept(iPart)=.TRUE.
+        CYCLE
+      END IF
+#endif /*MPI*/
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
       CASE(0)
@@ -878,9 +948,21 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
           DoPartInNewton(iPart)=.FALSE.
       ELSE
+        ! test not working
+        !IF(Norm2_PartX.GT.Norm2_F_PartX0(iPart))THEN !allow for a local increase in residual
+        !  PartXK(1:6,iPart)=PartState(iPart,1:6)
+        !  Norm2_F_PartXK(iPart)=Norm2_PartX
+        !  Norm2_F_PartX0(iPart)=Norm2_PartX
+        !  Norm2_F_PartXk_old(iPart)=Norm2_PartX
+        !  PartLambdaAccept(iPart)=.TRUE.
+        !END IF
+        ! DO not accept lambda, go to next step
         ! scip particle in current iteration and reiterate
+        ! DO NOT nullify because Armijo iteration will not work
+        ! OR  NO Armijo and particle does is not changed during this step
         PartDeltaX(1:3,iPart)=0.
         DoPartInNewton(iPart)=.FALSE.
+        PartLambdaAccept(iPart)=.TRUE.
       END IF
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
