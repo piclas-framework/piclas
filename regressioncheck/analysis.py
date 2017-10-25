@@ -307,17 +307,27 @@ class Analyze_h5diff(Loop, ExternalCommand) :
 
             # 1.3   execute the command 'cmd' = 'h5diff -r [--type] [number] [ref_file] [file] [DataArrayName]'
             try :
-                self.execute_cmd(cmd, run.target_directory) # run the code
+                self.execute_cmd(cmd, run.target_directory,"h5diff") # run the code
 
                 # 1.4   if the comman 'cmd' return a code != 0, set failed
                 if self.return_code != 0 :
 
                     # 1.4.1   add failed info if return a code != 0 to run
-                    run.analyze_results.append("h5diff failed, self.return_code != 0")
+                    if len(self.stdout) > 20 :
+                        run.analyze_results.append("h5diff failed, self.return_code != 0")
+                        for line in self.stdout[:10] : # print first 10 lines
+                            print line,
+                        print "... leaving out intermediate lines"
+                        for line in self.stdout[-10:] : # print last 10 lines
+                            print line,
+                    else :
+                        print str(self.stdout)
+                        if len(self.stdout) == 1 :
+                            run.analyze_results.append(str(self.stdout))
 
                     # 1.4.2   set analyzes to fail if return a code != 0
                     run.analyze_successful=False
-                    Build.total_errors+=1
+                    run.total_errors+=1
 
                     #global_errors+=1
             except Exception,ex :
