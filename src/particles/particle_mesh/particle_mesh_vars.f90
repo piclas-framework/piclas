@@ -159,17 +159,17 @@ END TYPE
 TYPE (tGeometry)                         :: GEO
 
 TYPE tDataTria
-  REAL                                   :: vec_nIn(3)                       ! inwards normal of tria
-  REAL                                   :: vec_t1(3)                        ! first orth. vector in tria
-  REAL                                   :: vec_t2(3)                        ! second orth. vector in tria
-  REAL                                   :: area                             ! area of tria
+  REAL                                   :: vec_nIn(3,2,0:4)                  ! inwards normal of tria (Coords,Tri1:Tri2,flip)
+  REAL                                   :: vec_t1(3,2,0:4)                   ! first orth. vector in tria (Coords,Tri1:Tri2,flip)
+  REAL                                   :: vec_t2(3,2,0:4)                   ! second orth. vector in tria (Coords,Tri1:Tri2,flip)
+  REAL                                   :: area(2)                           ! area of tria (Tri1:Tri2)
 !  REAL                                   :: NodeCoords(3,3)                  ! NodeCoords of triangle nodes
 END TYPE tDataTria
-TYPE(tDataTria),ALLOCATABLE              :: TriaSideData(:,:,:)                ! data of triangulated Sides 
-                                                                             ! (e.g. normal+tang. vectors, nodes), 
-                                                                             ! (Tri1:Tri2,nSides/nTotalSides)
-INTEGER                                  :: WeirdElems                       ! Number of Weird Elements (=Elements which are folded
-                                                                             ! into themselves)
+TYPE(tDataTria),ALLOCATABLE              :: TriaSideData(:)                   ! data of triangulated Sides 
+                                                                              ! (e.g. normal+tang. vectors, nodes)
+                                                                              ! (nTotalSides)
+INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
+                                                                              ! into themselves)
 
 TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element

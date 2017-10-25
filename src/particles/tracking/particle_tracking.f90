@@ -1252,7 +1252,7 @@ ELSE
   !lengthPartTrajectory=lengthPartTrajectory-alpha
   ! check if particle leaves element
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
   ELSE 
     SELECT CASE(SideType)
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)

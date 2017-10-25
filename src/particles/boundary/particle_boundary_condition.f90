@@ -99,7 +99,7 @@ CASE(1) !PartBound%OpenBC)
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     !BCSideID=PartBCSideList(SideID)
     IF (TriaTracking) THEN
-      n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+      n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
     ELSE 
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -563,7 +563,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -846,9 +846,9 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
-    tang1 = TriaSideData(TriNum,flip,SideID)%vec_t1
-    tang2 = TriaSideData(TriNum,flip,SideID)%vec_t2
+    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
+    tang1 = TriaSideData(SideID)%vec_t1(:,TriNum,flip)
+    tang2 = TriaSideData(SideID)%vec_t2(:,TriNum,flip)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1284,7 +1284,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1471,7 +1471,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(TriNum,0,SideID)%vec_nIn
+    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,0)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1640,7 +1640,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(TriNum,flip,SideID)%vec_nIn
+    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1863,7 +1863,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
     END SELECT 
   ELSE
     IF (TriaTracking) THEN
-      n_loc = TriaSideData(TriNum,0,GlobSideID)%vec_nIn
+      n_loc = TriaSideData(GlobSideID)%vec_nIn(:,TriNum,0)
     ELSE 
       SELECT CASE(SideType(GlobSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -2586,7 +2586,7 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
     END SELECT 
   ELSE
     IF (TriaTracking) THEN
-      n_loc = TriaSideData(TriNum,0,GlobSideID)%vec_nIn
+      n_loc = TriaSideData(GlobSideID)%vec_nIn(:,TriNum,0)
     ELSE 
       SELECT CASE(SideType(GlobSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)

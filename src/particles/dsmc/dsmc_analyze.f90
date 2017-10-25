@@ -1595,12 +1595,12 @@ StrVarNames(nVarCount+8) ='Total_TVib'
 StrVarNames(nVarCount+9) ='Total_TRot'
 StrVarNames(nVarCount+10)='Total_TElec'
 StrVarNames(nVarCount+11)='Total_PointWeight'
-StrVarNames(nVarCount+12)='Total_TempMean'
+StrVarNames(nVarCount+12)='Total_Temp_Mean'
 nVarCount=nVarCount+nVarloc
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
-  StrVarNames(nVarCount+3) ='DSMC_MCD_over_MFD'
+  StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -1815,7 +1815,8 @@ DO iElem = 1, nElems ! element/cell main loop
       IF (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec).GT.0.0) THEN
         ! compute flow velocity
         DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) &
-            + DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec) * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
+            + DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec)
+            !/ DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
         ! compute flow Temperature
         DSMC_MacroVal(nVarCount+4:nVarCount+6,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+4:nVarCount+6,kk,ll,mm, iElem) &
                             + Species(iSpec)%MassIC/ BoltzmannConst &
@@ -1866,7 +1867,7 @@ DO iElem = 1, nElems ! element/cell main loop
           END IF
         END IF
       END IF
-      ! compute number of particles
+      ! compute total number of particles
       DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) &
           + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)              
     END DO

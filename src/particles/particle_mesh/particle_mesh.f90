@@ -2422,12 +2422,10 @@ REAL              :: vec_nIn(3), nVal, vec_t1(3), vec_t2(3)
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' GET TRIANGULATED SIDE DATA...'
 
-ALLOCATE(TriaSideData(1:2,0:4,1:nTotalSides)) ! allocate further for ld!
-!ALLOCATE(TriaSideData(1:2,1:nSides)) ! allocate further for ld!
+ALLOCATE(TriaSideData(1:nTotalSides)) ! allocate further for ld!
 DO iElem=1,nTotalElems
   DO iLocSide=1,6               ! -''-
     flip = PartElemToSide(E2S_FLIP,iLocSide,iElem)
-    !IF (flip.NE.0) CYCLE
     SideID = PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 
     xNod = GEO%NodeCoords(1,1,iLocSide,iElem)
@@ -2498,10 +2496,10 @@ DO iElem=1,nTotalElems
       END IF
       vec_t2 = vec_t2 / SQRT(vec_t2(1)*vec_t2(1) + vec_t2(2)*vec_t2(2) + vec_t2(3)*vec_t2(3))
       !-- store tria data in SideData
-      TriaSideData(TriNum,flip,SideID)%vec_nIn(1:3) = vec_nIn(1:3)
-      TriaSideData(TriNum,flip,SideID)%vec_t1(1:3) = vec_t1(1:3)
-      TriaSideData(TriNum,flip,SideID)%vec_t2(1:3) = vec_t2(1:3)
-      TriaSideData(TriNum,flip,SideID)%area      = nVal/2.
+      TriaSideData(SideID)%vec_nIn(1:3,TriNum,flip) = vec_nIn(1:3)
+      TriaSideData(SideID)%vec_t1(1:3,TriNum,flip) = vec_t1(1:3)
+      TriaSideData(SideID)%vec_t2(1:3,TriNum,flip) = vec_t2(1:3)
+      TriaSideData(SideID)%area(TriNum)      = nVal/2.
       !TriaSideData(TriNum,SideID)%NodeCoords(1,2) = GEO%NodeCoords(1,Node1,iLocSide,iElem)
       !TriaSideData(TriNum,SideID)%NodeCoords(2,2) = GEO%NodeCoords(2,Node1,iLocSide,iElem)
       !TriaSideData(TriNum,SideID)%NodeCoords(3,2) = GEO%NodeCoords(3,Node1,iLocSide,iElem)
