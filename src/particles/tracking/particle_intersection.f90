@@ -3053,7 +3053,7 @@ SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 ! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
 !================================================================================================================================
 #ifdef CODE_ANALYZE
-USE MOD_Globals,            ONLY:UNIT_stdOut
+USE MOD_Globals,            ONLY:UNIT_stdOut,MyRank
 #endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -3259,7 +3259,7 @@ PURE FUNCTION ComputeXi(A1,A2,eta)
 !================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 #ifdef CODE_ANALYZE
-USE MOD_Globals, ONLY: abort
+USE MOD_Globals, ONLY: abort,MyRank
 #endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -3280,6 +3280,16 @@ b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
 IF(ABS(B).GE.ABS(A))THEN
   IF(ABS(B).LE.0.)THEN
 #ifdef CODE_ANALYZE
+  !ComputeXi=10
+  !RETURN
+    IPWRITE(*,*) 'eta',eta
+    IPWRITE(*,*) 'A',a2(1)*a1(3)-a1(1)*a2(3)
+    IPWRITE(*,*) 'B',a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
+    IPWRITE(*,*) 'C', a1(4)*a2(2)-a1(2)*a2(4)
+    IPWRITE(*,*) 'a1', a1(:)
+    IPWRITE(*,*) 'a2', a2(:)
+    IPWRITE(*,*) A2(1),A2(2)
+    IPWRITE(*,*) A1(1),A1(2)
     CALL abort(&
     __STAMP__&
     ,' Division by zero. Invalid b')

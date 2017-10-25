@@ -309,6 +309,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
                        ,AbortTol_In=relTolerancePart)
     ! particle relaxation betweeen old and new position
     IF(DoPartRelaxation)THEN
+      SWRITE(UNIT_stdOut,'(A12)') ' relaxation newton:'
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN  
           ! update the last part pos and element for particle movement
