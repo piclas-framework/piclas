@@ -301,7 +301,6 @@ class Analyze_h5diff(Loop, ExternalCommand) :
                 diffType = "--delta"
             else :
                 diffType = "--relative"
-            #cmd = [h5diff,"-r",diffType,"1e-5",str(self.reference_file),str(self.file),str(self.name)," &> h5diff.out"]
             cmd = [h5diff,"-r",diffType,"1e-5",str(self.reference_file),str(self.file),str(self.name)]
             print "Running ["," ".join(cmd),"]",
 
@@ -340,8 +339,6 @@ class Analyze_h5diff(Loop, ExternalCommand) :
                 # 1.4.2   set analyzes to fail if return a code != 0
                 run.analyze_successful=False
                 run.total_errors+=1
-                #exit(1)
-
 
 
     def __str__(self) :
