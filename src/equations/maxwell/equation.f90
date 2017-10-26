@@ -475,23 +475,21 @@ CASE(4) ! Dipole
   END IF
   
 CASE(5) ! Initialization of TE waves in a circular waveguide
-  ! NEW:
+  ! Book: Springer
   ! Elektromagnetische Feldtheorie fuer Ingenieure und Physicker
   ! p. 500ff
   ! polarization: 
   ! false - linear polarization
   ! true  - cirular polarization
-  !eps=1e-10
-  !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
   phi = ATAN2(X(2),X(1))
   z=x(3)
-  omegaG=2*PI*TEFrequency
+  omegaG=2*PI*TEFrequency ! angular frequency
 
   ! TE_mG,nG
-  mG=TEMode(1)
-  nG=TEMode(2)
+  mG=TEMode(1) ! azimuthal wave number
+  nG=TEMode(2) ! radial wave number
 
   SqrtN=TEModeRoot/TERadius ! (7.412)
   ! axial wave number
@@ -506,8 +504,6 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
         ,'kz=SQRT((omegaG*c_inv)**2-SqrtN**2), but the argument in negative!')
   END IF
   kz=SQRT(kz)
-  !print*,kz
-  !read*
   ! precompute coefficients
   Bess_mG_R  = BESSEL_JN(mG  ,r*SqrtN)
   Bess_mGM_R = BESSEL_JN(mG-1,r*SqrtN)
@@ -1086,7 +1082,7 @@ SUBROUTINE InitExactFlux()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError,MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
-USE MOD_Mesh_Vars,       ONLY:nSides,nElems,ElemToSide
+USE MOD_Mesh_Vars,       ONLY:nSides,nElems,ElemToSide,SideToElem,lastMPISide_MINE
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
 USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
 USE MOD_ReadInTools,     ONLY:GETREAL,GETINT
@@ -1112,7 +1108,7 @@ ExactFluxDir = GETINT('FluxDir','-1')
 IF(ExactFluxDir.EQ.-1)THEN
   ExactFluxDir = GETINT('ExactFluxDir','3')
 END IF
-ExactFluxPosition    = GETREAL('ExactFluxPosition','0.')
+ExactFluxPosition    = GETREAL('ExactFluxPosition') ! initialize empty to force abort when values is not supplied
 ! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of ExactFluxDir
 SELECT CASE(ABS(ExactFluxDir))
 CASE(1) ! x
@@ -1136,7 +1132,7 @@ CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem
 nExactFluxMasterInterFaces=0
 DO iElem=1,nElems ! loop over all local elems
   DO iSide=1,6    ! loop over all local sides
-    IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
+    IF(ElemToSide(E2S_FLIP,iSide,iElem).EQ.0)THEN ! only master sides
       SideID=ElemToSide(E2S_SIDE_ID,iSide,iElem)
       IF(isExactFluxInterFace(SideID))THEN
         nExactFluxMasterInterFaces=nExactFluxMasterInterFaces+1
@@ -1144,6 +1140,7 @@ DO iElem=1,nElems ! loop over all local elems
     END IF
   END DO
 END DO
+
 #ifdef MPI
   sumExactFluxMasterInterFaces=0
   CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
@@ -1151,6 +1148,30 @@ END DO
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /* MPI */
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
+
+
+
+nExactFluxMasterInterFaces=0
+DO iSide=1,lastMPISide_MINE ! nSides
+  IF(SideToElem(S2E_ELEM_ID,iSide).EQ.-1) CYCLE
+  IF(isExactFluxInterFace(SideID))THEN ! if an interface is encountered
+    nExactFluxMasterInterFaces=nExactFluxMasterInterFaces+1
+  END IF
+END DO
+
+#ifdef MPI
+  sumExactFluxMasterInterFaces=0
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#else
+  sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
+#endif /* MPI */
+SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
+
+
+
+
+
+
 
 ! Get number of ExactFlux Elems, Faces and Interfaces. Create Mappngs ExactFlux <-> physical region
 CALL CountAndCreateMappings('ExactFlux',&
