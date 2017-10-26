@@ -336,32 +336,38 @@ INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
 INTEGER                         :: firstMortarSideID,lastMortarSideID
 !===================================================================================================================================
-!1.)   Non-Mortar sides
-DO SideID=1,nSides
-  ! master side, flip=0
-  ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
-  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
-  ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
-  locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-  flip(2)      = SideToElem(S2E_FLIP,SideID)
-  DO i=1,2 !first maste then slave side
-    IF(ElemID(i).NE.-1)THEN ! exclude BC and Mortar sides
-      SELECT CASE(Flip(i))
-        CASE(0) ! master side
-          isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-        CASE(1:4) ! slave side
-          isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-      END SELECT
-    END IF
-  END DO !i=1,2, masterside & slave side 
-END DO !SideID
-isFace_Slave(:,:,:,1:nBCSides)=isFace_Master(:,:,:,1:nBCSides)
+IF(.NOT.doMPISides)THEN
+  ! 1.)   Non-Mortar sides
+  DO SideID=1,nSides
+    ! master side, flip=0
+    ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
+    locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
+    flip(1)=0 ! <<<<<<<<<<<<<<<<<<<<< THIS was not set! WHY?
+    ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+    ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
+    locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+    flip(2)      = SideToElem(S2E_FLIP,SideID)
+    DO i=1,2 !first maste then slave side
+      IF(ElemID(i).NE.-1)THEN ! exclude BC and Mortar sides
+        SELECT CASE(Flip(i))
+          CASE(0) ! master side
+            isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+          CASE(1:4) ! slave side
+            isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+        END SELECT
+      END IF
+    END DO !i=1,2, masterside & slave side 
+  END DO !SideID
+  isFace_Slave(:,:,:,1:nBCSides)=isFace_Master(:,:,:,1:nBCSides)
+END IF
 
 
-!2.)   Mortar sides
+! 2.)   Mortar sides
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides) 
  lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides) 
+ !print*,"ProlongToFace_ElementInfo interface search"
+ !print*,"firstMortarSideID",firstMortarSideID
+ !print*,"lastMortarSideID",lastMortarSideID
 
 DO MortarSideID=firstMortarSideID,lastMortarSideID
   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)

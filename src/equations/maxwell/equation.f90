@@ -1147,10 +1147,12 @@ END DO
 #endif /* MPI */
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
 
-IF(sumExactFluxMasterInterFaces.LE.0)THEN
-  CALL abort(&
-      __STAMP__&
-      ,' [sumExactFluxMasterInterFaces.LE.0]: using ExactFlux but no interfaces found: sumExactFlux=',sumExactFluxMasterInterFaces)
+IF(MPIRoot)THEN
+  IF(sumExactFluxMasterInterFaces.LE.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,' [sumExactFluxMasterInterFaces.LE.0]: using ExactFlux but no interfaces found: sumExactFlux=',sumExactFluxMasterInterFaces)
+  END IF
 END IF
 
 
@@ -1168,7 +1170,7 @@ END DO
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /* MPI */
-SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
+SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
 
 
 
