@@ -377,9 +377,9 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     flip(1)  = MortarInfo(MI_FLIP,iMortar,locSide)
     SELECT CASE(flip(1))
       CASE(0) ! master side
-        isFace_Master(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID)
+        isFace_Master(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID) ! should be taken from master (large mortar side is master)
       CASE(1:4) ! slave side
-        isFace_Slave(:,:,:,SideID)=isFace_Slave(:,:,:,MortarSideID)
+        isFace_Slave(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID)  ! should be taken from master (large mortar side is master)
     END SELECT !flip(iMortar)
   END DO !iMortar
 END DO !MortarSideID
@@ -425,9 +425,9 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     flip   = MortarInfo(MI_FLIP,iMortar,iSide)
     SELECT CASE(flip)
     CASE(0) ! master side
-      isFace_Master(:,:,:,MortarSideID)=isFace_Master(:,:,:,SideID)
+      isFace_Master(:,:,:,MortarSideID)=isFace_Master(:,:,:,SideID) ! should be written to Master (large mortar side is master)
     CASE(1:4) ! slave sides (should only occur for MPI)
-      isFace_Slave(:,:,:,MortarSideID)=isFace_Slave(:,:,:,SideID)
+      isFace_Master(:,:,:,MortarSideID)=isFace_Slave(:,:,:,SideID) ! should be written to Master (large mortar side is master)
     END SELECT
   END DO
 END DO
