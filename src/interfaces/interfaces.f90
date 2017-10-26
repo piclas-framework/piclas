@@ -342,7 +342,7 @@ IF(.NOT.doMPISides)THEN
     ! master side, flip=0
     ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
     locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
-    flip(1)=0 ! <<<<<<<<<<<<<<<<<<<<< THIS was not set! WHY?
+    flip(1)=0 ! <<<<<<<<<<< THIS was not set! WHY? SELECT CASE(Flip(i)) produces random integer because memory is not set correctly
     ! neighbor side !ElemID,locSideID and flip =-1 if not existing
     ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
     locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -377,14 +377,9 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     flip(1)  = MortarInfo(MI_FLIP,iMortar,locSide)
     SELECT CASE(flip(1))
       CASE(0) ! master side
-        !U_in_master(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
         isFace_Master(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID)
       CASE(1:4) ! slave side
         isFace_Slave(:,:,:,SideID)=isFace_Slave(:,:,:,MortarSideID)
-        !DO q=0,PP_N; DO p=0,PP_N
-          !U_in_slave(:,p,q,SideID)=U_tmp(:,FS2M(1,p,q,flip), &
-                                           !FS2M(2,p,q,flip),iMortar)
-        !END DO; END DO ! q, p
     END SELECT !flip(iMortar)
   END DO !iMortar
 END DO !MortarSideID
