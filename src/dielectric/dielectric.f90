@@ -108,7 +108,7 @@ ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
 END IF
 
 ! find all faces in the Dielectric region
-CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricprintInfoProcs)
+CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem)
 
 ! Get number of Dielectric Elems, Faces and Interfaces. Create Mappngs Dielectric <-> physical region
 CALL CountAndCreateMappings('Dielectric',&
