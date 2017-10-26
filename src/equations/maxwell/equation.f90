@@ -1079,7 +1079,10 @@ SUBROUTINE InitExactFlux()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError,MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
+USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
+#ifdef MPI
+USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
+#endif
 USE MOD_Mesh_Vars,       ONLY:nSides,nElems,ElemToSide,SideToElem,lastMPISide_MINE
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
 USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
@@ -1147,7 +1150,7 @@ END DO
 #endif /* MPI */
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
 
-IF(MPIRoot)THEN
+IF(mpiroot)THEN
   IF(sumExactFluxMasterInterFaces.LE.0)THEN
     CALL abort(&
         __STAMP__&
