@@ -137,7 +137,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterfaces
 
 
-SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DisplayInfoProcs)
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DisplayInfo)
 !===================================================================================================================================
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
 !> Note: As soon as only one DOF is not inside/outside of the region, the complete element is excluded 
@@ -149,34 +149,33 @@ USE MOD_Globals,              ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
 USE MOD_Globals,              ONLY:MPI_COMM_WORLD
 #endif /*MPI*/
 USE MOD_Mesh_Vars,            ONLY:Elem_xGP
-USE MOD_Dielectric_Vars,      ONLY:DielectricprintInfoProcs
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)               :: ElementIsInside
 REAL,INTENT(IN)                  :: region(1:6)
-INTEGER,INTENT(IN),OPTIONAL      :: DisplayInfoProcs
+LOGICAL,INTENT(IN),OPTIONAL      :: DisplayInfo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,i,j,k,m,NProcs
+INTEGER             :: iElem,i,j,k,m
 !===================================================================================================================================
 ! Display debugging output by each rank
-IF(PRESENT(DisplayInfoProcs))THEN
-  NProcs=DisplayInfoProcs
-  IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
-    SWRITE(UNIT_stdOut,'(A)')'  Checking for elements INSIDE region'
-  ELSE
-    SWRITE(UNIT_stdOut,'(A)')'  Checking for elements OUTSIDE region'
+IF(PRESENT(DisplayInfo))THEN
+  IF(DisplayInfo)THEN
+    IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
+      SWRITE(UNIT_stdOut,'(A)')'  Checking for elements INSIDE region'
+    ELSE
+      SWRITE(UNIT_stdOut,'(A)')'  Checking for elements OUTSIDE region'
+    END IF
+  CALL DisplayMinMax(region) ! display table with min-max info of region
   END IF
-CALL DisplayMinMax(region)
-ELSE
-  NProcs=0
 END IF
-! set logical vector for each element
+
+! set logical vector for each element with default .FALSE.
 ALLOCATE(isElem(1:PP_nElems))
 isElem=.FALSE.
 
@@ -194,23 +193,6 @@ DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     END IF
   END DO
 END DO; END DO; END DO; END DO !iElem,k,j,i
-
-IF(NProcs.GT.0)THEN
-#ifdef MPI
-  DO I=0,NProcs-1
-    IF(I.EQ.myrank)THEN
-#endif /*MPI*/
-      IF(ElementIsInside)THEN
-        WRITE(UNIT_stdOut,'(A,I12,A,I12)')'  myrank=',myrank,'  Number of elements INSIDE region: ',COUNT(isElem)
-      ELSE
-        WRITE(UNIT_stdOut,'(A,I12,A,I12)')'  myrank=',myrank,'  Number of elements OUTSIDE region: ',COUNT(isElem)
-      END IF
-#ifdef MPI
-    END IF
-    CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-  END DO
-END IF
-#endif /*MPI*/
 
 END SUBROUTINE  FindElementInRegion
 
@@ -517,7 +499,7 @@ DO iElem=1,PP_nElems
     nElems=nElems+1
   END IF
 END DO ! iElem
-!IF(1.EQ.2)THEN
+
 !===================================================================================================================================
 ! display face number infos
 !===================================================================================================================================

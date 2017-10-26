@@ -87,12 +87,6 @@ PMLspread              = GETINT('PMLspread','0')
 PMLwriteFields         = GETINT('PMLwriteFields','0')
 PMLzetaNorm            = GETLOGICAL('PMLzetaNorm','.FALSE.')
 
-PMLprintInfo           = GETINT('PMLprintInfo','0') ! 0=only root prints PML info, 1=all procs print PML info
-IF(PMLprintInfo.EQ.0)THEN
-  PMLprintInfoProcs=0 ! no output
-ELSE
-  PMLprintInfoProcs=nProcessors ! all procs print their infos
-END IF
 DoPMLTimeRamp          = GETLOGICAL('DoPMLTimeRamp','.FALSE.')
 PMLTimeRamptStart      = GETREAL('PMLTimeRamptStart','-1.')
 PMLTimeRamptEnd        = GETREAL('PMLTimeRamptEnd','-1.')
@@ -134,9 +128,9 @@ CALL SelectMinMaxRegion('PML',usePMLMinMax,&
 
 ! find all elements in the PML region
 IF(usePMLMinMax)THEN ! find all elements located inside of 'xyzPMLMinMax'
-  CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,ElementIsInside=.TRUE.,DisplayInfoProcs=PMLprintInfoProcs)
+  CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,ElementIsInside=.TRUE.,DisplayInfo=.TRUE.)
 ELSE ! find all elements located outside of 'xyzPhysicalMinMax'
-  CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.,DisplayInfoProcs=PMLprintInfoProcs)
+  CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.,DisplayInfo=.TRUE.)
 END IF
 
 ! find all faces in the PML region
@@ -297,7 +291,7 @@ USE MOD_PreProc
 USE MOD_Mesh,          ONLY: GetMeshMinMaxBoundaries
 USE MOD_Mesh_Vars,     ONLY: Elem_xGP,xyzMinMax
 USE MOD_PML_Vars,      ONLY: PMLzeta,PMLzetaEff,PMLalpha,usePMLMinMax,xyzPMLzetaShapeOrigin,xyzPMLMinMax
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLprintInfoProcs
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
 USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -324,32 +318,6 @@ PMLalpha=PMLalpha0 ! currently only constant a alpha distribution in the PML reg
 
 ! get xyzMinMax
 CALL GetMeshMinMaxBoundaries()
-
-#ifdef MPI
-DO I=0,PMLprintInfoProcs-1
-  IF(I.EQ.myrank)THEN
-#endif /*MPI*/
-    SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'         xyzMinMax - X',xyzMinMax(1),xyzMinMax(2)
-    SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'         xyzMinMax - Y',xyzMinMax(3),xyzMinMax(4)
-    SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'         xyzMinMax - Z',xyzMinMax(5),xyzMinMax(6)
-#ifdef MPI
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-END DO
-#endif /*MPI*/
-
-#ifdef MPI
-DO I=0,PMLprintInfoProcs-1
-  IF(I.EQ.myrank)THEN
-#endif /*MPI*/
-    SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,' xyzPhysicalMinMax - X',xyzPhysicalMinMax(1),xyzPhysicalMinMax(2)
-    SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,' xyzPhysicalMinMax - Y',xyzPhysicalMinMax(3),xyzPhysicalMinMax(4)
-    SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,' xyzPhysicalMinMax - Z',xyzPhysicalMinMax(5),xyzPhysicalMinMax(6)
-#ifdef MPI
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-END DO
-#endif /*MPI*/
 
 !determine PMLzeta values for each interpolation point according to ramping function (const., linear, sinusoidal, polynomial)
 IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
@@ -588,60 +556,6 @@ SDEALLOCATE(FaceToPMLInter)
 SDEALLOCATE(PMLInterToFace)
 END SUBROUTINE FinalizePML
 
-
-! SUBROUTINE ProlongToFace_PMLInfo(isElem,isFace_Master,isFace_Slave,doMPISides)
-! !===================================================================================================================================
-! ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
-! ! integration points, using fast 1D Interpolation and store in global side structure
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Globals
-! USE MOD_PreProc
-! USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
-! USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
-! LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems) 
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
-! REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES 
-! INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
-! !===================================================================================================================================
-! IF(doMPISides)THEN
-!   ! only YOUR MPI Sides are filled
-!   firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
-!   lastSideID  = firstSideID-1+nMPISides_YOUR 
-!   flip(1)     = -1
-! ELSE
-!   ! BCSides, InnerSides and MINE MPISides are filled
-!   firstSideID = 1
-!   lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
-!   flip(1)     = 0
-! END IF
-! DO SideID=firstSideID,lastSideID
-!   ! master side, flip=0
-!   ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
-!   locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
-!   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
-!   ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
-!   locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-!   flip(2)      = SideToElem(S2E_FLIP,SideID)
-!   DO i=1,2 !first maste then slave side
-!     SELECT CASE(Flip(i))
-!       CASE(0) ! master side
-!         isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-!       CASE(1:4) ! slave side
-!         isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-!     END SELECT
-!   END DO !i=1,2, masterside & slave side 
-! END DO !SideID
-! END SUBROUTINE ProlongToFace_PMLInfo
 END MODULE MOD_PML
 
 

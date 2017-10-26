@@ -76,13 +76,6 @@ DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !      
 eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
 c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
-DielectricprintInfo              = GETINT('DielectricprintInfo','0') ! 0=only root prints Dielectric info
-!                                                                 ! 1=all ranks print Dielectric info
-IF(DielectricprintInfo.EQ.0)THEN
-  DielectricprintInfoProcs=0 ! no output
-ELSE
-  DielectricprintInfoProcs=nProcessors ! all procs print their infos
-END IF
 ! determine Dielectric elements
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
@@ -101,10 +94,10 @@ CALL SelectMinMaxRegion('Dielectric',useDielectricMinMax,&
 ! find all elements in the Dielectric region
 IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
   CALL FindElementInRegion(isDielectricElem,xyzDielectricMinMax,&
-                           ElementIsInside=.TRUE.,DisplayInfoProcs=DielectricprintInfoProcs) ! pure Maxwell simulations
+                           ElementIsInside=.TRUE.,DisplayInfo=.TRUE.) ! pure Maxwell simulations
 ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
   CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
-                           ElementIsInside=.FALSE.,DisplayInfoProcs=DielectricprintInfoProcs)
+                           ElementIsInside=.FALSE.,DisplayInfo=.TRUE.)
 END IF
 
 ! find all faces in the Dielectric region
