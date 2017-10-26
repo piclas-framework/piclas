@@ -336,20 +336,7 @@ INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
 INTEGER                         :: firstMortarSideID,lastMortarSideID
 !===================================================================================================================================
-!     IF(doMPISides)THEN
-!       ! only YOUR MPI Sides are filled
-!       firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
-!       lastSideID  = firstSideID-1+nMPISides_YOUR 
-!       flip(1)     = -1
-!     ELSE
-!       ! BCSides, InnerSides and MINE MPISides are filled
-!       firstSideID = 1
-!       lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
-!       flip(1)     = 0
-!     END IF
-
-
-!DO SideID=firstSideID,lastSideID
+!1.)   Non-Mortar sides
 DO SideID=1,nSides
   ! master side, flip=0
   ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
@@ -372,7 +359,7 @@ END DO !SideID
 isFace_Slave(:,:,:,1:nBCSides)=isFace_Master(:,:,:,1:nBCSides)
 
 
-! Mortar sides
+!2.)   Mortar sides
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides) 
  lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides) 
 

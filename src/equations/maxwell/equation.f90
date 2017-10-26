@@ -138,9 +138,7 @@ DO iBC=1,nBCs
   END IF
 END DO
 IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
-IF(DoExactFlux)THEN
-  CALL InitExactFlux()
-END IF
+IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
   CASE(4,41)
@@ -1149,6 +1147,11 @@ END DO
 #endif /* MPI */
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
 
+IF(sumExactFluxMasterInterFaces.LE.0)THEN
+  CALL abort(&
+      __STAMP__&
+      ,' [sumExactFluxMasterInterFaces.LE.0]: using ExactFlux but no interfaces found: sumExactFlux=',sumExactFluxMasterInterFaces)
+END IF
 
 
 nExactFluxMasterInterFaces=0
