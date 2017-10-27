@@ -4,6 +4,7 @@ import os
 import logging
 import tools
 import check
+from outputdirectory import OutputDirectory
 from timeit import default_timer as timer
 
 print('='*132)
@@ -53,8 +54,9 @@ else :
 tools.setup_logger(args.debug)
 log = logging.getLogger('logger')
 
+
 # delete the building directory when [carryon = False] and [run = False] before getBuilds is called
-if not args.carryon and not args.run : tools.clean_folder("reggie_outdir")
+if not args.carryon and not args.run : tools.clean_folder(OutputDirectory.output_dir)
 
 # get builds from checks directory if no executable is supplied
 if args.exe is None : # if not exe is supplied, get builds
@@ -94,5 +96,7 @@ check.PerformCheck(start,builds,args,log)
 
 
 # print table with summary of errors if all builds where successful
-check.SummaryOfErrors(start,builds)
+check.SummaryOfErrors(builds)
 
+# print the number of errors encountered during build/execution/analyze
+tools.finalize(start, 0, check.Run.total_errors, check.Analyze.total_errors)

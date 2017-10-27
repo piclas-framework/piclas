@@ -2,27 +2,26 @@ import os
 import shutil
 import collections
 import combinations 
-from loop import Loop, ExternalCommand
+from outputdirectory import OutputDirectory
+from externalcommand import ExternalCommand
 import tools
-from timeit import default_timer as timer
-import analysis
+from analysis import Analyze, getAnalyzes
 import collections
 
-class Build(Loop,ExternalCommand) :
-    total_errors = 0
+class Build(OutputDirectory,ExternalCommand) :
 
     def __init__(self, basedir, source_directory,configuration, number, name='build', binary_path=None) :
         self.basedir          = basedir
         self.source_directory = source_directory
         self.configuration    = configuration
-        Loop.__init__(self, None, name, number)  
+        OutputDirectory.__init__(self, None, name, number)  
         ExternalCommand.__init__(self)
 
         # initialize result as empty list
         self.result = tools.yellow("not built")
 
         # initialize examples as empty list
-        #self.examples = []
+        self.examples = []
         
         # set path to binary/executable
         if binary_path :
@@ -103,10 +102,10 @@ class BuildFailedException(Exception) :
 
 #==================================================================================================
 
-class Example(Loop) :
+class Example(OutputDirectory) :
     def __init__(self, source_directory, build) :
         self.source_directory = source_directory
-        Loop.__init__(self, build, os.path.join("examples",os.path.basename(self.source_directory)))
+        OutputDirectory.__init__(self, build, os.path.join("examples",os.path.basename(self.source_directory)))
 
     def __str__(self) :
         s = "EXAMPLE in: " + self.source_directory
@@ -144,10 +143,10 @@ def getExamples(path, build, log) :
 
 
 #==================================================================================================
-class Command_Lines(Loop) :
+class Command_Lines(OutputDirectory) :
     def __init__(self, parameters, example, number) :
         self.parameters = parameters
-        Loop.__init__(self, example, 'cmd', number)
+        OutputDirectory.__init__(self, example, 'cmd', number)
     def __str__(self) :
         s = "command_line parameters:\n"
         s += ",".join(["%s: %s" % (k,v) for k,v in self.parameters.items()])    
@@ -163,18 +162,18 @@ def getCommand_Lines(path, example) :
 
 
 #==================================================================================================
-class Run(Loop, ExternalCommand) :
+class Run(OutputDirectory, ExternalCommand) :
+    total_errors = 0
     total_number_of_runs = 0
 
     def __init__(self, parameters, path, command_line, number) :
-        self.total_errors = 0
         self.successful = True
         self.globalnumber = -1
         self.analyze_results = []
         self.analyze_successful = True
         self.parameters = parameters
         self.source_directory = os.path.dirname(path)
-        Loop.__init__(self, command_line, 'run', number, mkdir=False)
+        OutputDirectory.__init__(self, command_line, 'run', number, mkdir=False)
         ExternalCommand.__init__(self)
 
         self.skip = os.path.exists(self.target_directory)
@@ -223,11 +222,8 @@ class Run(Loop, ExternalCommand) :
             cmd.append(cmd_suffix)
 
         # execute the command 'cmd'
-        start = timer()
         print tools.indent("Running [%s]" % (" ".join(cmd)), 2),
         self.execute_cmd(cmd, self.target_directory) # run the code
-        end = timer()
-        self.execution_time = end - start
 
         if self.return_code != 0 :
             self.successful = False
@@ -285,6 +281,10 @@ def PerformCheck(start,builds,args,log) :
             build.examples = getExamples(args.check, build,log)
             log.info("build.examples"+str(build.examples))
     
+            if len(build.examples) == 0 :
+                s = tools.yellow("No matching examples found for this build!")
+                build.result += ", " + s
+                print s
             # 2.   loop over all example directories
             for example in build.examples :
                 log.info(str(example))
@@ -297,7 +297,7 @@ def PerformCheck(start,builds,args,log) :
                 
                 # 2.2    read the analyze options in 'analyze.ini' within each example directory (e.g. L2 error analyze)
                 example.analyzes = \
-                        analysis.getAnalyzes(os.path.join(example.source_directory,'analyze.ini'), example)
+                        getAnalyzes(os.path.join(example.source_directory,'analyze.ini'), example)
     
                 # 3.   loop over all command_line options
                 for command_line in example.command_lines :
@@ -315,7 +315,7 @@ def PerformCheck(start,builds,args,log) :
                         # 4.1    execute the binary file for one combination of parameters
                         run.execute(build,command_line)
                         if not run.successful :
-                            Build.total_errors+=1 # add error if run fails
+                            Run.total_errors+=1 # add error if run fails
     
                     # 5.   loop over all successfully executed binary results and perform analyze tests
                     runs_successful = [run for run in command_line.runs if run.successful]
@@ -323,8 +323,6 @@ def PerformCheck(start,builds,args,log) :
                         for analyze in example.analyzes :
                             print tools.indent(tools.blue(str(analyze)),2)
                             analyze.perform(runs_successful)
-
-                    Build.total_errors+=sum([run.total_errors for run in command_line.runs]) # add error if analyze fails
     
                     # 6.   rename all run directories for which the analyze step has failed for at least one test
                     for run in runs_successful :         # all successful runs (failed runs are already renamed)
@@ -335,24 +333,25 @@ def PerformCheck(start,builds,args,log) :
     # catch exception if bulding fails
     except BuildFailedException,ex:
         # print table with summary of errors
-        SummaryOfErrors(-1.,builds)
+        SummaryOfErrors(builds)
     
         # display error message
-        print tools.bcolors.YELLOW+"" # activate yellow text color
         print ex # display error msg
         print tools.indent(" ".join(ex.build.cmake_cmd),1)
         print tools.indent(" ".join(ex.build.make_cmd),1)
         print tools.indent("Build failed, see: "+ex.build.stdout_filename,1)
-        print tools.indent("                   "+ex.build.stderr_filename,1)+tools.bcolors.ENDC # de-activate yellow
+        print tools.indent("                   "+ex.build.stderr_filename,1)
         print tools.bcolors.RED
         for line in ex.build.stderr[-20:] :
             print tools.indent(line,4),
         print tools.bcolors.ENDC
-        tools.finalize(start,min(1,Build.total_errors))
+
+        print "run 'reggie' with the command line option '-c/--carryon' to skip successful builds."
+        tools.finalize(start, 1, Run.total_errors, Analyze.total_errors)
         exit(1)
 
 
-def SummaryOfErrors(start,builds) :
+def SummaryOfErrors(builds) :
     # General workflow:
     # 1. loop over all builds, examples, command_lines, runs and for every run set the output strings 
     #    and get the maximal lengths of those strings
@@ -363,9 +362,8 @@ def SummaryOfErrors(start,builds) :
     # 3.2.1  print an empty separation line if number of MPI threads changes
     # 3.2.2  print (only if changes) a line with all run parameters except the inner most, which is printed in 3.2.3
     # 3.2.3  print a line with following information:
-    #          run.globalnumber, run.parameters[0] (the one not printed in 3.2.2), run.target_directory, MPI, run.execution_time, run.result 
+    #          run.globalnumber, run.parameters[0] (the one not printed in 3.2.2), run.target_directory, MPI, run.walltime, run.result 
     # 3.2.4  print the analyze results line by line
-    # 4. print the number of errors encountered during build/execution/analyze
     
     param_str_old = ""
     str_MPI_old   = "-"
@@ -379,14 +377,15 @@ def SummaryOfErrors(start,builds) :
                     run.output_strings = {}
                     run.output_strings['#run']    = str(run.globalnumber)
                     run.output_strings['options'] = "%s=%s"%(run.parameters.items()[0])
-                    run.output_strings['path']    = os.path.relpath(run.target_directory,"reggie_outdir")
+                    run.output_strings['path']    = os.path.relpath(run.target_directory,OutputDirectory.output_dir)
                     run.output_strings['MPI']     = command_line.parameters.get('MPI', '-') 
-                    run.output_strings['time']    = "%2.1f" % run.execution_time
+                    run.output_strings['time']    = "%2.1f" % run.walltime
                     run.output_strings['Info']    = run.result
                     for key in run.output_strings.keys() :
                         max_lens[key] = max(max_lens[key], len(run.output_strings[key]))
     
     # 2. print header
+    print 132*"="
     print " Summary of Errors"+"\n"
     spacing = 1
     for key, value in max_lens.items() :
@@ -401,9 +400,9 @@ def SummaryOfErrors(start,builds) :
         if isinstance(build, Standalone) :
             print "Binary supplied externally under ",build.binary_path
         elif isinstance(build, Build) : 
-            print "Build %d of %d (%s) compiled with:" % (build.number, len(builds), build.result)
+            print "Build %d of %d (%s) compiled with in [%.2f sec]:" % (build.number, len(builds), build.result, build.walltime)
             print " ".join(build.cmake_cmd)
-            if build.result == tools.red("Failed") : break # stop output as soon as a failed build in encountered
+            if build.return_code != 0 : break # stop output as soon as a failed build in encountered
     
         # 3.2 loop over all examples, command_lines and runs
         for example in build.examples :
@@ -433,7 +432,5 @@ def SummaryOfErrors(start,builds) :
                     for result in run.analyze_results :
                         print tools.red(result).rjust(150)
     
-    # 4. print the number of errors encountered during build/execution/analyze
-    tools.finalize(start,Build.total_errors)
 
 
