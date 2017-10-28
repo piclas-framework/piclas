@@ -108,3 +108,4 @@ def finalize(start, build_errors, run_errors, analyze_errors) :
     print "Number of analyze errors: %d" % analyze_errors
 
     print '='*132 + bcolors.ENDC
+
