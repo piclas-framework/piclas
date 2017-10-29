@@ -181,7 +181,7 @@ class Analyze_Convtest_h(Analyze) :
 
             # determine average convergence rate
             mean = [np.mean(L2_order[i]) for i in range(nVar)]
-            print tools.blue("L2 average order for nVar="+str(nVar))
+            print tools.blue("L2 average order for nVar=%s (exprected order = %s)" % (nVar,p+1))
             displayVector(mean,nVar)
             
             # 1.5   determine success rate by comparing the relative convergence error with a tolerance

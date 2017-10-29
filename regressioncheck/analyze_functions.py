@@ -30,6 +30,8 @@ def get_cpu_per_dof(lines) :
          return float(line.split("[")[1].split("sec")[0])
 
 def calcOrder_h(h,E) :
+    h = [float(elem) for elem in h]
+    E = [float(elem) for elem in E]
     if len(h) != len(E) :
         return -1
 
@@ -42,6 +44,8 @@ def calcOrder_h(h,E) :
     return order
 
 def calcOrder_p(p,E) :
+    p = [float(elem) for elem in p]
+    E = [float(elem) for elem in E]
     if len(p) != len(E) :
         return -1
 
