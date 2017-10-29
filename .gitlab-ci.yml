@@ -120,14 +120,14 @@ gnu_tracking:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; python ../regressioncheck/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../regressioncheck/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
 
 intel_tracking:
   stage: reggie_tracking_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; python ../regressioncheck/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../regressioncheck/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
