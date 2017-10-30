@@ -177,6 +177,10 @@ DO iRefState=1,nTmp
     __STAMP__&
     ,' TERotation has to be +-1 for right and left rotating TE modes.')
     END IF
+    IF(TERadius.LT.0.0)THEN ! not set
+      TERadius=GETREAL('TERadius','0.0')
+      SWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
+    END IF
   CASE(12,14,15,16)
     ! planar wave input
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default

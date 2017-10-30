@@ -55,7 +55,7 @@ REAL              :: tActive                                !> active time for l
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
-REAL              :: TERadius                               !> Radius of Input TE wave, if wave is inserted over a plane
+REAL              :: TERadius=-1.                              !> Radius of Input TE wave, if wave is inserted over a plane
 INTEGER           :: TEMode(1:2)                            !> input of TE_n,m mode
 REAL              :: TEModeRoot                             !> root for the TEMode_n,m (root of derivative of Bessel function)
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
