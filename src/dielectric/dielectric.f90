@@ -156,6 +156,7 @@ ALLOCATE(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 DielectricEps=0.
 DielectricMu=0.
 DielectricConstant_inv=0.
+! Fish eye lens: half sphere filled with gradually changing dielectric medium
 IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
   ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
   DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -163,6 +164,16 @@ IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
              Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
              Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
     DielectricEps(i,j,k,iDielectricElem) = 4./((1+(r/DielectricRmax)**2)**2)
+  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
+  DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+! Sphere filled with constant dielectric medium
+ELSEIF(TRIM(DielectricTestCase).EQ.'Sphere')THEN
+  ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
+  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    r = SQRT(Elem_xGP(1,i,j,k,DielectricToElem(iDielectricElem))**2+&
+             Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
+             Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
+    DielectricEps(i,j,k,iDielectricElem) = DielectricRmax
   END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
   DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
 ELSE
