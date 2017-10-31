@@ -4,7 +4,10 @@ from externalcommand import ExternalCommand
 import analyze_functions
 import combinations 
 import tools
-import h5py
+try :
+    import h5py
+except ImportError :
+    raise ImportError('Could not import h5py module. This is needed for anaylze functions.')
 
 def displayTable(mylist,nVar,nRuns) :
     # mylist = [[1 2 3] [1 2 3] [1 2 3] [1 2 3] ] example with 4 nVar and 3 nRuns
