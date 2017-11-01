@@ -39,7 +39,7 @@ USE MOD_Dielectric_Vars
 USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
 #endif /*PP_HDG*/
 USE MOD_Equation_Vars,   ONLY: c_corr,c
-USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings
+USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,6 +56,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
 ! Readin
 !===================================================================================================================================
 DoDielectric                     = GETLOGICAL('DoDielectric','.FALSE.')
+IF(.NOT.DoDielectric) THEN
+  SWRITE(UNIT_stdOut,'(A)') ' Dielectric region deactivated. '
+  nDielectricElems=0
+  RETURN
+END IF
 DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
 DielectricMuR                    = GETREAL('DielectricMuR','1.')
 DielectricTestCase               = GETSTR('DielectricTestCase','default')
@@ -71,79 +76,32 @@ DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !      
 eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
 c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
-
+! determine Dielectric elements
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax: 1.) check for xyzPhysicalMinMaxDielectric 2.) check for xyzDielectricMinMax
-IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMaxDielectric),MINVAL(xyzPhysicalMinMaxDielectric)))THEN ! if still the initialized values
-  xyzPhysicalMinMaxDielectric(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
-  IF(ALMOSTEQUAL(MAXVAL(xyzDielectricMinMax),MINVAL(xyzDielectricMinMax)))THEN ! if still the initialized values
-    xyzDielectricMinMax(1:4)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
-    useDielectricMinMax=.FALSE. ! ! xyzPhysicalMinMaxDielectric and xyzDielectricMinMax are undefined -> use HUGE for both
-    SWRITE(UNIT_stdOut,'(A)')"no Dielectric region supplied, setting xyzPhysicalMinMaxDielectric(1:6): Setting [+-HUGE]"
-    SWRITE(UNIT_stdOut,'(A)')"no Dielectric region supplied, setting xyzDielectricMinMax(1:6)     : Setting [+-HUGE]"
-  ELSE
-    SWRITE(UNIT_stdOut,'(A)')"Dielectric region supplied via xyzDielectricMinMax(1:6)"
-    useDielectricMinMax=.TRUE. ! xyzPhysicalMinMaxDielectric is undefined but xyzDielectricMinMax is not
-  END IF
-ELSE
-  SWRITE(UNIT_stdOut,'(A)')"Dielectric region supplied via xyzPhysicalMinMaxDielectric(1:6)"
-END IF
+! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax: 
+! 1.) check for xyzPhysicalMinMaxDielectric 
+! 2.) check for xyzDielectricMinMax
+CALL SelectMinMaxRegion('Dielectric',useDielectricMinMax,&
+                        'xyzPhysicalMinMaxDielectric',xyzPhysicalMinMaxDielectric,&
+                        'xyzDielectricMinMax',xyzDielectricMinMax)
+
 ! display ranges of Dielectric region depending on useDielectricMinMax
-SWRITE(UNIT_stdOut,'(A,L)') 'useDielectricMinMax=',useDielectricMinMax
-IF(.NOT.useDielectricMinMax)THEN
-  SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMaxDielectric(1:6) are'
-  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
-  DO i=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*i-1)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
-  DO i=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMaxDielectric(2*i)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-ELSE
-  SWRITE(UNIT_stdOut,'(A)') 'Ranges for xyzDielectricMinMax(1:6) are'
-  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
-  DO i=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzDielectricMinMax(2*i-1)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
-  DO i=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzDielectricMinMax(2*i)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-END IF
+!CALL DisplayRanges('useDielectricMinMax',useDielectricMinMax,&
+                   !'xyzDielectricMinMax',xyzDielectricMinMax(1:6),&
+           !'xyzPhysicalMinMaxDielectric',xyzPhysicalMinMaxDielectric(1:6))
 
-DielectricprintInfo           = GETINT('DielectricprintInfo','0') ! 0=only root prints Dielectric info
-!                                                                 ! 1=all ranks print Dielectric info
-IF(DielectricprintInfo.EQ.0)THEN
-  DielectricprintInfoProcs=1 ! only root prints infos
-ELSE
-  DielectricprintInfoProcs=nProcessors ! all procs print their infos
-END IF
-
-IF(.NOT.DoDielectric) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' Dielectric region deactivated. '
-  nDielectricElems=0
-  RETURN
-END IF
-
-! find all elements in the Dielectric region. Here: find all elements located outside of 'xyzPhysicalMinMaxDielectric' 
-IF(useDielectricMinMax)THEN
+! find all elements in the Dielectric region
+IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
   CALL FindElementInRegion(isDielectricElem,xyzDielectricMinMax,&
-                           ElementIsInside=.TRUE.,DisplayInfoProcs=DielectricprintInfoProcs) ! pure Maxwell simulations
-ELSE
+                           ElementIsInside=.TRUE.,DisplayInfo=.TRUE.) ! pure Maxwell simulations
+ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
   CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
-                           ElementIsInside=.FALSE.,DisplayInfoProcs=DielectricprintInfoProcs)
+                           ElementIsInside=.FALSE.,DisplayInfo=.TRUE.)
 END IF
 
 ! find all faces in the Dielectric region
-CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricprintInfoProcs)
+CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem)
 
 ! Get number of Dielectric Elems, Faces and Interfaces. Create Mappngs Dielectric <-> physical region
 CALL CountAndCreateMappings('Dielectric',&
@@ -151,8 +109,8 @@ CALL CountAndCreateMappings('Dielectric',&
                             nDielectricElems,nDielectricFaces, nDielectricInterFaces,&
                             ElemToDielectric,DielectricToElem,& ! these two are allocated
                             FaceToDielectric,DielectricToFace,& ! these two are allocated
-                            FaceToDielectricInter,DielectricInterToFace) ! these two are allocated
-
+                            FaceToDielectricInter,DielectricInterToFace,& ! these two are allocated
+                            DisplayInfo=.TRUE.)
 #ifndef PP_HDG
 ! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell
 CALL SetDielectricVolumeProfile()
@@ -198,6 +156,7 @@ ALLOCATE(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 DielectricEps=0.
 DielectricMu=0.
 DielectricConstant_inv=0.
+! Fish eye lens: half sphere filled with gradually changing dielectric medium
 IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
   ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
   DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -205,6 +164,16 @@ IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
              Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
              Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
     DielectricEps(i,j,k,iDielectricElem) = 4./((1+(r/DielectricRmax)**2)**2)
+  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
+  DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+! Sphere filled with constant dielectric medium
+ELSEIF(TRIM(DielectricTestCase).EQ.'Sphere')THEN
+  ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
+  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    r = SQRT(Elem_xGP(1,i,j,k,DielectricToElem(iDielectricElem))**2+&
+             Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
+             Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
+    DielectricEps(i,j,k,iDielectricElem) = DielectricRmax
   END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
   DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
 ELSE

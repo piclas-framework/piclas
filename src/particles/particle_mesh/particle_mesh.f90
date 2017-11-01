@@ -765,7 +765,7 @@ USE MOD_Preproc
 USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
 !USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
@@ -784,6 +784,7 @@ IMPLICIT NONE
 REAL                     :: StartT,EndT
 INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems)
 INTEGER,ALLOCATABLE      :: HaloElemToBGM(:,:)
+REAL,ALLOCATABLE         :: SideOrigin(:,:), SideRadius(:) 
 !=================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT BASIS...' 
@@ -850,10 +851,18 @@ IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
 
-! remove inner BezierControlPoints3D and SlabNormals, usw.
-IF(DoRefMapping) CALL ReshapeBezierSides()
+IF(DoRefMapping)THEN
+  ! remove inner BezierControlPoints3D and SlabNormals, usw.
+  CALL ReshapeBezierSides()
+  ! compute side origin and radius for all sides in PartBCSideList
+  ALLOCATE( SideOrigin(1:3,1:nTotalBCSides) &
+          , SideRadius(    1:nTotalBCSides) )
+  CALL GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)
+END IF
 
+! get elem and side types
 CALL GetElemAndSideType()
+
 CALL GetPlanarSideBaseVectors()
 CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
@@ -871,7 +880,11 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
-
+IF(DoRefMapping) THEN
+  ! compute distance between each side associated with  the element and its origin
+  CALL GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
+  DEALLOCATE( SideOrigin, SideRadius)
+END IF
 SWRITE(UNIT_stdOut,'(A)')' ... DONE!' 
 SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -2325,6 +2338,7 @@ REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
 ElemRadiusNGeo=0.
+ElemRadius2NGeo=0.
 DO iElem=1,nTotalElems
   ! get point on each side 
   IF((iElem.LE.PP_nElems).OR.(DoRefMapping))THEN
@@ -2778,7 +2792,7 @@ Inside=.TRUE.
 END SUBROUTINE InsideElemBoundingBox
 
 
-SUBROUTINE GetElemAndSideType() 
+SUBROUTINE GetElemAndSideType()
 !===================================================================================================================================
 ! get the element and side type of each element,depending on the 
 ! used tracking method
@@ -2795,7 +2809,7 @@ USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,NGeo,nBCSides,sJ
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
-USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
@@ -4237,17 +4251,26 @@ IF(MapPeriodicSides)THEN
         MinMax(1)=MINVAL(BezierControlPoints3d(iDir,:,:,newSideID))
         MinMax(2)=MAXVAL(BezierControlPoints3d(iDir,:,:,newSideID))
         ! this may be required a tolerance due to periodic displacement
-        IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
-          IPWRITE(UNIT_stdOut,*) ' Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
-          CALL abort(&
-__STAMP__&
-      , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+        IF(.NOT.ALMOSTEQUALRELATIVE(MinMax(1),MinMaxGlob(iDir),1e-10))THEN
+          IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
+            IPWRITE(UNIT_stdOut,*) ' Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
+            CALL abort(&
+             __STAMP__&
+             , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+          END IF
+        ELSE
+          IPWRITE(UNIT_stdOut,*) ' WARNING: Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
         END IF
-        IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
-          IPWRITE(UNIT_stdOut,*) ' Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
-          CALL abort(&
-__STAMP__&
-      , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+        IF(.NOT.ALMOSTEQUALRELATIVE(MinMax(2),MinMaxGlob(iDir+3),1e-10))THEN
+          IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
+            IPWRITE(UNIT_stdOut,*) ' Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
+            CALL abort(&
+             __STAMP__&
+             , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+          END IF
+        ELSE
+            IPWRITE(UNIT_stdOut,*) ' WARNING: Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
+
         END IF
       END DO
 
@@ -4535,5 +4558,100 @@ GEO%zmax=zmax
 #endif   
 
 END SUBROUTINE GetFIBGMMinMax
+
+
+SUBROUTINE GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)
+!===================================================================================================================================
+! ONLY RefMapping
+! Computes the side origin and radius for each BC Side
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Mesh_Vars,              ONLY:NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,nTotalSides
+USE MOD_Basis,                  ONLY:DeCasteljauInterpolation
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3d
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)       :: nTotalBCSides
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)         :: SideOrigin(1:3,1:nTotalBCSides),SideRadius(1:nTotalBCSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iElem, iSide, BCSideID,p,q
+REAL                     :: Xi(1:2), Origin(1:3), Radius, RadiusMax, Vec(1:3)
+!===================================================================================================================================
+
+SideOrigin=0.
+SideRadius=0.
+
+DO iSide=1,nTotalSides
+  BCSideID=PartBCSideList(iSide)
+  IF(BCSideID.LT.1) CYCLE
+  Xi=0.
+  CALL DeCasteljauInterpolation(NGeo,Xi(1:2),BCSideID,Origin)
+  SideOrigin(1:3,BCSideID) = Origin
+  Radius=0.
+  RadiusMax=0.
+  DO q=0,NGeo
+    DO p=0,NGeo
+      Vec(1:3) = BezierControlPoints3d(:,p,q,BCSideID)-Origin
+      Radius=DOT_PRODUCT(Vec,Vec)
+      RadiusMax=MAX(RadiusMax,Radius)
+    END DO ! p=0,NGeo
+  END DO ! q=0,NGeo
+  SideRadius(BCSideID)=SQRT(RadiusMax)
+END DO ! iSide=1,nTotalSides
+
+END SUBROUTINE GetSideOriginAndRadius
+
+
+SUBROUTINE GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
+!===================================================================================================================================
+! computes the distance between each element and it associated sides for DoRefMapping=T
+! only sides for which ElemToSideDistance<lengthPartTrajectory have to be checked during the current tracing step
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc
+USE MOD_Mesh_Vars,              ONLY:NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,IsBCElem,ElemRadiusNGeo,BCElem,nTotalSides,PartBCSideList,nTotalElems
+USE MOD_Utils,                  ONLY:InsertionSort
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)       :: nTotalBCSides
+REAL,INTENT(IN)          :: SideOrigin(1:3,1:nTotalBCSides),SideRadius(1:nTotalBCSides)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iElem,ilocSide,SideID,BCSideID, PVID
+REAL                     :: Vec(1:3)
+REAL                     :: Origin(1:3)
+!===================================================================================================================================
+
+! loop over all  elements
+DO iElem=1,nTotalElems
+  IF(.NOT.isBCElem(iElem)) CYCLE
+  ALLOCATE( BCElem(iElem)%ElemToSideDistance(BCElem(iElem)%lastSide) )
+  BCElem(iElem)%ElemToSideDistance(BCElem(iElem)%lastSide)=0.
+  Origin(1:3) = ElemBaryNGeo(1:3,iElem)
+  ! loop over all associated sides
+  DO iLocSide=1,BCElem(iElem)%lastSide
+    SideID=BCElem(iElem)%BCSideID(ilocSide)
+    BCSideID=PartBCSideList(SideID)
+    Vec=Origin - SideOrigin(1:3,BCSideID)
+    BCElem(iElem)%ElemToSideDistance(ilocSide) = SQRT(DOT_PRODUCT(Vec,Vec))-ElemRadiusNGeo(iElem)-SideRadius(BCSideID)
+  END DO ! iLocSide=1,BCElem(iElem)%lastSide
+  ! sort each side distance for each element according to it's distance
+  CALL InsertionSort(BCElem(iElem)%ElemToSideDistance(:),BCElem(iElem)%BCSideID(:),BCElem(iElem)%lastSide)
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE GetElemToSideDistance
 
 END MODULE MOD_Particle_Mesh
