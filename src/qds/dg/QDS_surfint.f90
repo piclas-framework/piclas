@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 #include "boltzplatz.h"
 
 MODULE MOD_QDS_SurfInt
@@ -440,3 +441,4 @@ END SUBROUTINE CalcSurfInt2
 
 
 END MODULE MOD_QDS_SurfInt
+#endif /*USE_QDS_DG*/

@@ -196,7 +196,9 @@ USE MOD_HDG,                     ONLY:RestartHDG
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
 USE MOD_TTM_Vars,                ONLY:DoImportTTMFile,TTM_DG
 #endif /*PARTICLES*/
+#if USE_QDS_DG
 USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
+#endif /*USE_QDS_DG*/
 USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -240,8 +242,10 @@ CHARACTER(255)           :: TTMRestartFile !> TTM Data file for restart
 LOGICAL                  :: TTM_DG_SolutionExists
 #endif /*PARTICLES*/
 INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
+#if USE_QDS_DG
 CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
 LOGICAL                  :: QDS_DG_SolutionExists
+#endif /*USE_QDS_DG*/
 INTEGER                  :: i,j,k
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -281,6 +285,7 @@ IF(DoRestart)THEN
   END IF
 #endif /*PARTICLES*/
 
+#if USE_QDS_DG
   IF(DoQDS)THEN ! read QDS data from "XXXXX_QDS_000.0XXXXXXXXXXX.h5"
     IndNum=INDEX(RestartFile,'State')
     IF(IndNum.LE.0)CALL abort(&
@@ -323,6 +328,7 @@ IF(DoRestart)THEN
       DEALLOCATE(U_local)
     END IF
   END IF
+#endif /*USE_QDS_DG*/
 
 #ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)

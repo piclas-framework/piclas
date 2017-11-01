@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 MODULE MOD_QDS_DG_Vars
 !===================================================================================================================================
 ! QDS-DG variables needed for the DG method
@@ -68,3 +69,4 @@ CHARACTER(LEN=255),DIMENSION(40),PARAMETER :: StrVarNames(40)=(/ CHARACTER(LEN=2
                                                                                       'Energy8'/)
 
 END MODULE MOD_QDS_DG_Vars
+#endif /*USE_QDS_DG*/

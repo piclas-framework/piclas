@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 #include "boltzplatz.h"
 
 MODULE MOD_QDS_GetBoundaryFlux
@@ -166,3 +167,4 @@ END IF
 END SUBROUTINE GetBoundaryFluxQDS
 
 END MODULE MOD_QDS_GetBoundaryFlux
+#endif /*USE_QDS_DG*/

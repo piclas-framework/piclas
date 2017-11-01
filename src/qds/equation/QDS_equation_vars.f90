@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 MODULE MOD_QDS_Equation_Vars
 !===================================================================================================================================
 ! Contains the constant Advection Velocity Vector used for the linear scalar advection equation
@@ -13,3 +14,4 @@ SAVE
 INTEGER           :: QDSIniExactFunc
 !===================================================================================================================================
 END MODULE MOD_QDS_Equation_Vars
+#endif /*USE_QDS_DG*/

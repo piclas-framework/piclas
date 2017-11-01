@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 #include "boltzplatz.h"
 
 MODULE MOD_QDS_VolInt
@@ -312,3 +313,4 @@ END SUBROUTINE VolIntQDS3
 
 
 END MODULE MOD_QDS_VolInt
+#endif /*USE_QDS_DG*/

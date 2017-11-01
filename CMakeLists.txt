@@ -88,6 +88,7 @@ OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 CN ImplicitO3 ImplicitO4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
 
+OPTION(BOLTZPLATZ_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
 OPTION(BOLTZPLATZ_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(BOLTZPLATZ_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
@@ -519,6 +520,16 @@ IF(BOLTZPLATZ_PAPI)
   MESSAGE(STATUS "Building Boltzplatz with PAPI benchmark support.") 
 ENDIF()
 
+# ========================================================================= 
+# QDS with DGSEM
+# ========================================================================= 
+IF(BOLTZPLATZ_QDS_DG)
+  MESSAGE(STATUS "Building Boltzplatz with QDS-DGSEM")
+  ADD_DEFINITIONS(-DUSE_QDS_DG=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_QDS_DG=0)
+ENDIF()
+
 # =========================================================================
 # Boltzplatz sources & targets
 # =========================================================================
@@ -549,7 +560,6 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/loadbalance/*.f90
                                 ./src/mesh/*.f90
                                 ./src/interfaces/*.f90
-                                ./src/qds/*.f90
                                 ./src/dielectric/*.f90
                                 ./src/mpi/*.f90
                                 ./src/output/*.f90
@@ -608,6 +618,9 @@ FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
+
+FILE(GLOB QDSF90 ./src/qds/*.f90)
+
 IF(BOLTZPLATZ_HDG)
   LIST(APPEND boltzplatzF90 ${hdgF90})
   IF(BOLTZPLATZ_IMPLICIT)
@@ -627,6 +640,9 @@ IF (BOLTZPLATZ_PARTICLES)
  ELSE()
    LIST(APPEND boltzplatzF90 ${noparticlesF90})
 ENDIF(BOLTZPLATZ_PARTICLES)
+IF(BOLTZPLATZ_QDS_DG)
+  LIST(APPEND boltzplatzF90 ${QDSF90}) 
+ENDIF()
 
 # define libs
 ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )

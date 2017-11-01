@@ -41,9 +41,12 @@ INTERFACE ApplyJacobian
    MODULE PROCEDURE ApplyJacobian
 END INTERFACE
 
+#if USE_QDS_DG
 INTERFACE ApplyJacobianQDS
    MODULE PROCEDURE ApplyJacobianQDS
 END INTERFACE
+PUBLIC::ApplyJacobianQDS
+#endif /*USE_QDS_DG*/
 
 INTERFACE InitInterpolationBasis
    MODULE PROCEDURE InitInterpolationBasis
@@ -51,7 +54,6 @@ END INTERFACE
 
 PUBLIC::InitInterpolation
 PUBLIC::ApplyJacobian
-PUBLIC::ApplyJacobianQDS
 PUBLIC::FinalizeInterpolation
 PUBLIC::GetNodesAndWeights
 PUBLIC::GetDerivativeMatrix
@@ -391,6 +393,7 @@ END IF
 END SUBROUTINE ApplyJacobian
 
 
+#if USE_QDS_DG
 SUBROUTINE ApplyJacobianQDS(U,toPhysical,toSwap)
 !===================================================================================================================================
 ! Convert solution between physical <-> reference space
@@ -440,6 +443,7 @@ ELSE
   END IF
 END IF
 END SUBROUTINE ApplyJacobianQDS
+#endif /*USE_QDS_DG*/
 
 SUBROUTINE FinalizeInterpolation()
 !============================================================================================================================

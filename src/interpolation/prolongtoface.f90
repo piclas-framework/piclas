@@ -26,6 +26,7 @@ END INTERFACE
 !  MODULE PROCEDURE ProlongToFace_Elementlocal
 !END INTERFACE
 
+#if USE_QDS_DG
 INTERFACE ProlongToFaceQDS
   MODULE PROCEDURE ProlongToFaceQDS
 END INTERFACE
@@ -33,11 +34,12 @@ END INTERFACE
 INTERFACE ProlongToFace_BCQDS
   MODULE PROCEDURE ProlongToFace_BCQDS
 END INTERFACE
+PUBLIC::ProlongToFaceQDS
+PUBLIC::ProlongToFace_BCQDS
+#endif /*USE_QDS_DG*/
 
 PUBLIC::ProlongToFace
 PUBLIC::ProlongToFace_BC
-PUBLIC::ProlongToFaceQDS
-PUBLIC::ProlongToFace_BCQDS
 PUBLIC::ProlongToFace_Elementlocal
 !===================================================================================================================================
 
@@ -498,6 +500,7 @@ END SELECT
 
 END SUBROUTINE ProlongToFace_Elementlocal
 
+#if USE_QDS_DG
 SUBROUTINE ProlongToFaceQDS(Uvol,Uface_master,Uface_slave,doMPISides)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
@@ -896,6 +899,7 @@ DO SideID=1,nBCSides
 #endif /*(PP_NodeType==1)*/
 END DO !SideID
 END SUBROUTINE ProlongToFace_BCQDS
+#endif /*USE_QDS_DG*/
 
 
 END MODULE MOD_ProlongToFace

@@ -184,8 +184,11 @@ USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
-USE MOD_HDF5_output,           ONLY: WriteStateToHDF5,WriteQDSToHDF5
+#if USE_QDS_DG
+USE MOD_HDF5_output,           ONLY: WriteQDSToHDF5
 USE MOD_QDS_DG_Vars,           ONLY: DoQDS
+#endif /*USE_QDS_DG*/
+USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh,                  ONLY: SwapMesh
 USE MOD_Filter,                ONLY: Filter
@@ -296,7 +299,9 @@ IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to stat
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5)THEN 
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+#if USE_QDS_DG
   IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+#endif /*USE_QDS_DG*/
 END IF
 
 ! if measurement of particle tracking time
@@ -607,7 +612,9 @@ DO !iter_t=0,MaxIter
       ! Write state to file
       IF(DoWriteStateToHDF5)THEN 
         CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+#if USE_QDS_DG
         IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+#endif /*USE_QDS_DG*/
       END IF
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tFuture)
 #ifndef PP_HDG
@@ -663,8 +670,10 @@ USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
 USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
+#if USE_QDS_DG
 USE MOD_QDS_DG_Vars,             ONLY: UQDS,UQDSt,nQDSElems,DoQDS,QDSnVar
 USE MOD_QDS_DG,                  ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
+#endif /*USE_QDS_DG*/
 USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
 USE MOD_Equation,                ONLY: CalcSource
@@ -712,7 +721,9 @@ INTEGER(KIND=8),INTENT(INOUT) :: iter
 !INTEGER                       :: iPart
 REAL                          :: Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 REAL                          :: U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+#if USE_QDS_DG
 REAL                          :: UQDSt_temp(1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems) ! temporal variable for UQDSt
+#endif /*USE_QDS_DG*/
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
@@ -810,10 +821,12 @@ IF(DoPML) THEN
   CALL CalcPMLSource()
   CALL PMLTimeDerivative()
 END IF
+#if USE_QDS_DG
 IF(DoQDS) THEN
   CALL QDSReCalculateDGValues()
   CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.)
 END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -860,10 +873,12 @@ IF(DoPML) THEN
   U2t_temp = U2t
   U2 = U2 + U2t*b_dt(1)
 END IF
+#if USE_QDS_DG
 IF(DoQDS) THEN
   UQDSt_temp = UQDSt
   UQDS = UQDS + UQDSt*b_dt(1)
 END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -1005,10 +1020,12 @@ DO iStage=2,nRKStages
     CALL CalcPMLSource()
     CALL PMLTimeDerivative()
   END IF
+#if USE_QDS_DG
   IF(DoQDS) THEN
     !CALL QDSReCalculateDGValues()
     CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.)
   END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -1045,10 +1062,12 @@ DO iStage=2,nRKStages
     U2t_temp = U2t - U2t_temp*RK_a(iStage)
     U2 = U2 + U2t_temp*b_dt(iStage)
   END IF
+#if USE_QDS_DG
   IF(DoQDS)THEN
     UQDSt_temp = UQDSt - UQDSt_temp*RK_a(iStage)
     UQDS = UQDS + UQDSt_temp*b_dt(iStage)
   END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -1124,9 +1143,11 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
 
 END DO
+#if USE_QDS_DG
 IF(DoQDS) THEN
   CALL QDSCalculateMacroValues()
 END IF
+#endif /*USE_QDS_DG*/
 
 #ifdef PARTICLES
 IF (t.GE.DelayTime) THEN

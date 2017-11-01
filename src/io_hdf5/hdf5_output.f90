@@ -61,9 +61,12 @@ INTERFACE WriteDielectricGlobalToHDF5
 END INTERFACE
 #endif /*PP_HDG*/
 
+#if USE_QDS_DG
 INTERFACE WriteQDSToHDF5
   MODULE PROCEDURE WriteQDSToHDF5
 END INTERFACE
+PUBLIC :: WriteQDSToHDF5
+#endif /*USE_QDS_DG*/
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
@@ -75,7 +78,6 @@ PUBLIC :: WriteDielectricGlobalToHDF5
 #ifdef PARTICLES
 PUBLIC :: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
-PUBLIC :: WriteQDSToHDF5
 !===================================================================================================================================
 
 CONTAINS
@@ -1209,7 +1211,9 @@ USE MOD_HDF5_Input,        ONLY:GetHDF5NextFileName
 #ifdef MPI
 USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
 #endif /*MPI*/
+#if USE_QDS_DG
 USE MOD_QDS_DG_Vars,       ONLY:DoQDS
+#endif /*USE_QDS_DG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1258,6 +1262,7 @@ DO
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
 
+#if USE_QDS_DG
 ! delete QDS state files
 IF(DoQDS)THEN
   NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',FlushTime))//'.h5'
@@ -1281,6 +1286,7 @@ IF(DoQDS)THEN
     IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
   END DO
 END IF
+#endif /*USE_QDS_DG*/
 
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 
@@ -2108,6 +2114,7 @@ END SUBROUTINE WriteDielectricGlobalToHDF5
 #endif /*PP_HDG*/
 
 
+#if USE_QDS_DG
 SUBROUTINE WriteQDSToHDF5(OutputTime,FutureTime)
 !===================================================================================================================================
 ! write QDS field to HDF5 file
@@ -2201,6 +2208,7 @@ END IF
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteQDSToHDF5
+#endif /*USE_QDS_DG*/
 
 
 END MODULE MOD_HDF5_output

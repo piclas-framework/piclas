@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 #include "boltzplatz.h"
 
 MODULE MOD_QDS_DG
@@ -474,3 +475,4 @@ END SUBROUTINE QDS_FinalizeDG
 
 
 END MODULE MOD_QDS_DG
+#endif /*USE_QDS_DG*/

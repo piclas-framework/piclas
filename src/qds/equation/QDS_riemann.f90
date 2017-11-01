@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 #include "boltzplatz.h"
 
 MODULE MOD_QDS_Riemann
@@ -125,3 +126,4 @@ END SUBROUTINE RiemannQDS
 
 
 END MODULE MOD_QDS_Riemann
+#endif /*USE_QDS_DG*/

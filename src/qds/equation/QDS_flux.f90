@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 #include "boltzplatz.h"
 
 MODULE MOD_QDS_Flux
@@ -110,3 +111,4 @@ END SUBROUTINE EvalFlux3DQDS
 
 
 END MODULE MOD_QDS_Flux
+#endif /*USE_QDS_DG*/

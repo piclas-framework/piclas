@@ -1,3 +1,4 @@
+#if USE_QDS_DG
 #include "boltzplatz.h"
 
 MODULE MOD_QDS_Equation
@@ -131,3 +132,4 @@ END SUBROUTINE QDS_ExactFunc
 
 
 END MODULE MOD_QDS_Equation
+#endif /*USE_QDS_DG*/
