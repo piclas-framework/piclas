@@ -160,6 +160,8 @@ TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element
   INTEGER                                :: lastSide                          ! total number of BC-Sides in eps-vicinity of element
   INTEGER, ALLOCATABLE                   :: BCSideID(:)                       ! List of elements in BGM cell
+  REAL,ALLOCATABLE                       :: ElemToSideDistance(:)             ! stores the distance between each element and the
+                                                                              ! sides associated with this element
 END TYPE
 
 TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)

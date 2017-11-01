@@ -2638,9 +2638,19 @@ USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIPar
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
 USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts,PartMPI
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+#ifdef CODE_ANALYZE
+USE MOD_MPI_Vars,                ONLY:offsetElemMPI
+USE MOD_Mesh_Vars,               ONLY:OffSetElem
+#endif /*CODE_ANALYZE*/
 #endif /*MPI*/
 USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo,ElemBaryNGeo
+USE MOD_Particle_Mesh,           ONLY:PartInElemCheck
+USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
+USE MOD_Globals_Vars,            ONLY:EpsMach
+#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2670,6 +2680,11 @@ INTEGER            :: iCounter, iStage2
 REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 REAL               :: dtFrac,RandVal, LorentzFac,PartState_tmp(1:6), Pt_loc(1:6), v_tild(1:3),rtmp
 INTEGER            :: iPart,nParts
+#ifdef CODE_ANALYZE
+REAL               :: IntersectionPoint(1:3)
+INTEGER            :: ElemID
+LOGICAL            :: ishit
+#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -2875,6 +2890,8 @@ IF(t.GE.DelayTime)THEN
           ! set DtFrac to unity
           PartDtFrac(iPart)=1.0
         END IF ! IsNewPart
+      ELSE
+        PartIsImplicit(iPart)=.FALSE.
       END IF ! ParticleInside
     END DO ! iPart
     IF(DoPrintConvInfo)THEN
@@ -2927,7 +2944,11 @@ DO iStage=2,nRKStages
     END IF
     ! normal
     DO iPart=1,PDM%ParticleVecLength
-      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      IF(.NOT.PDM%ParticleInside(iPart))THEN
+        PartIsImplicit(iPart)=.FALSE.
+        PDM%IsNewPart(iPart) =.FALSE.
+        CYCLE
+      END IF
       IF(PDM%IsNewPart(iPart)) CYCLE ! ignore surface flux particles
       IF(PartIsImplicit(iPart))THEN
         IF(PartLorentzType.NE.5)THEN
@@ -3064,6 +3085,11 @@ DO iStage=2,nRKStages
   END IF
   IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart))THEN
+        PartIsImplicit(iPart)=.FALSE.
+        PDM%IsNewPart(iPart) =.FALSE.
+        CYCLE
+      END IF
       IF(PartIsImplicit(iPart))THEN
         ! ignore surface flux particle
         ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
@@ -3119,7 +3145,7 @@ DO iStage=2,nRKStages
           END SELECT
           !Pt(iPart,1:3) = PartStage(iPart,4:6,1)
           PartIsImplicit(iPart)=.FALSE.
-          PartDtFrac(iPart)=1.
+          ! no setting of partdtfrac!!!!!!
         ELSE
          ! compute Q and U
          PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
@@ -3128,7 +3154,13 @@ DO iStage=2,nRKStages
          END DO ! iCounter=1,iStage-2
          PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
          ! do not use a predictor
-         PartState(iPart,1:6)=PartQ(1:6,iPart)
+         ! position is already safed
+         ! caution: has to use 4:6 because particle is not tracked
+         IF(PredictorType.GT.0)THEN
+           PartState(iPart,1:6)=PartQ(1:6,iPart)
+         ELSE
+           PartState(iPart,4:6)=PartQ(4:6,iPart)
+         END IF
         END IF
       END IF ! PartIsImplicit
     END DO ! iPart
@@ -3166,6 +3198,7 @@ DO iStage=2,nRKStages
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN
           IF(.NOT.PDM%ParticleInside(iPart)) PartIsImplicit(iPart)=.FALSE.
+          IF(.NOT.PDM%ParticleInside(iPart)) PDM%IsNewPart(iPart)=.FALSE.
         END IF ! PartIsImplicit
       END DO ! iPart
     END IF
@@ -3200,9 +3233,10 @@ DO iStage=2,nRKStages
                 dtFrac=RandVal*RK_fillSF 
                 ! overwrite time slab information by implicit coefficient
                 PartDtFrac(iPart)=dtFrac
-                LastPartPos(iPart,1)=PartState(iPart,1)
-                LastPartPos(iPart,2)=PartState(iPart,2)
-                LastPartPos(iPart,3)=PartState(iPart,3)
+                ! particle is ALREADY located at boundary, DO not do it HERE!!!
+                !LastPartPos(iPart,1)=PartState(iPart,1)
+                !LastPartPos(iPart,2)=PartState(iPart,2)
+                !LastPartPos(iPart,3)=PartState(iPart,3)
                 PEM%lastElement(iPart)=PEM%Element(iPart)
                 ! reconstruct velocity changes and velocity of missing stage
                 DO iStage2=2,iStage-1
@@ -3348,10 +3382,85 @@ DO iStage=2,nRKStages
               PartDtFrac(iPart)=1.
             END IF
           END IF
+        ELSE
+          IF(PartIsImplicit(iPart)) PartIsImplicit(iPart)=.FALSE.
+          IF(PDM%IsNewPart(iPart)) PDM%IsNewPart(iPart)=.FALSE.
         END IF ! ParticleInside
       END DO ! iPart
     END IF ! DoSurfaceFlux
   END IF
+
+#ifdef CODE_ANALYZE
+  SWRITE(*,*) 'sanity check'
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(   (LastPartPos(iPart,1).GT.GEO%xmaxglob) &
+      .OR.(LastPartPos(iPart,1).LT.GEO%xminglob) &
+      .OR.(LastPartPos(iPart,2).GT.GEO%ymaxglob) &
+      .OR.(LastPartPos(iPart,2).LT.GEO%yminglob) &
+      .OR.(LastPartPos(iPart,3).GT.GEO%zmaxglob) &
+      .OR.(LastPartPos(iPart,3).LT.GEO%zminglob) ) THEN
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(iPart)
+#ifdef IMPA
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
+      IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
+#endif /*IMPA*/
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
+      IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
+      IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' x', GEO%xminglob, LastPartPos(iPart,1), GEO%xmaxglob
+      IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' y', GEO%yminglob, LastPartPos(iPart,2), GEO%ymaxglob
+      IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' z', GEO%zminglob, LastPartPos(iPart,3), GEO%zmaxglob
+      CALL abort(&
+         __STAMP__ &
+         ,' LastPartPos outside of mesh. iPart=, iStage',iPart,REAL(iStage))
+    END IF
+    IF(   (PartState(iPart,1).GT.GEO%xmaxglob) &
+      .OR.(PartState(iPart,1).LT.GEO%xminglob) &
+      .OR.(PartState(iPart,2).GT.GEO%ymaxglob) &
+      .OR.(PartState(iPart,2).LT.GEO%yminglob) &
+      .OR.(PartState(iPart,3).GT.GEO%zmaxglob) &
+      .OR.(PartState(iPart,3).LT.GEO%zminglob) ) THEN
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(iPart)
+#ifdef IMPA
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
+      IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
+#endif /*IMPA*/
+      IPWRITE(UNIt_stdOut,'(I0,A18,3(X,E27.16))')                  ' LastPartPos    ', LastPartPos(iPart,1:3)
+      IPWRITE(UNIt_stdOut,'(I0,A18,3(X,E27.16))')                  ' Velocity       ', PartState(iPart,4:6)
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
+      IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
+      IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' x', GEO%xminglob, PartState(iPart,1), GEO%xmaxglob
+      IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' y', GEO%yminglob, PartState(iPart,2), GEO%ymaxglob
+      IPWRITE(UNIt_stdOut,'(I0,A2,x,E27.16,x,E27.16,x,E27.16)') ' z', GEO%zminglob, PartState(iPart,3), GEO%zmaxglob
+      CALL abort(&
+         __STAMP__ &
+         ,' PartPos outside of mesh. iPart=, iStage',iPart,REAL(iStage))
+    END IF
+    IF(.NOT.DoRefMapping)THEN
+      ElemID=PEM%Element(iPart)
+      CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
+      IF(.NOT.isHit)THEN  ! particle not inside
+        IPWRITE(UNIT_stdOut,'(A)') ' PartPos not inside of element! '
+        IF(ElemID.LE.PP_nElems)THEN
+          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
+        ELSE
+#ifdef MPI
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
+                                                  + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
+#endif /*MPI*/
+        END IF
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' LastPartPos:       ', LastPartPos(iPart,1:3)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartPos:           ', PartState(iPart,1:3)
+        CALL abort(&
+        __STAMP__ &
+        ,'iPart=. ',iPart)
+      END IF
+    END IF
+  END DO
+#endif
+
 #endif /*PARTICLES*/
 END DO
 
