@@ -55,11 +55,11 @@ END INTERFACE
 INTERFACE WritePMLzetaGlobalToHDF5
   MODULE PROCEDURE WritePMLzetaGlobalToHDF5
 END INTERFACE
+#endif /*PP_HDG*/
 
 INTERFACE WriteDielectricGlobalToHDF5
   MODULE PROCEDURE WriteDielectricGlobalToHDF5
 END INTERFACE
-#endif /*PP_HDG*/
 
 #if USE_QDS_DG
 INTERFACE WriteQDSToHDF5
@@ -73,8 +73,8 @@ PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage
 #ifndef PP_HDG
 PUBLIC :: WritePMLzetaGlobalToHDF5
-PUBLIC :: WriteDielectricGlobalToHDF5
 #endif /*PP_HDG*/
+PUBLIC :: WriteDielectricGlobalToHDF5
 #ifdef PARTICLES
 PUBLIC :: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
@@ -2031,7 +2031,6 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*PP_HDG*/
 
 
-#ifndef PP_HDG
 SUBROUTINE WriteDielectricGlobalToHDF5()
 !===================================================================================================================================
 ! write DielectricGlobal field to HDF5 file
@@ -2111,7 +2110,6 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
-#endif /*PP_HDG*/
 
 
 #if USE_QDS_DG

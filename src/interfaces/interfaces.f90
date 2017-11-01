@@ -137,9 +137,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterfaces
 
 
-SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DisplayInfo)
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo)
 !===================================================================================================================================
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
+!> Additionally, a radius can be supplied for determining if an element belongs to a special region or not
 !> Note: As soon as only one DOF is not inside/outside of the region, the complete element is excluded 
 !===================================================================================================================================
 ! MODULES
@@ -153,15 +154,18 @@ USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)               :: ElementIsInside
-REAL,INTENT(IN)                  :: region(1:6)
-LOGICAL,INTENT(IN),OPTIONAL      :: DisplayInfo
+LOGICAL,INTENT(IN)               :: ElementIsInside  ! check whether and element DOF in inside/outside of a region or radius
+REAL,INTENT(IN)                  :: region(1:6)      ! MIN/MAX for x,y,z of bounding box region
+LOGICAL,INTENT(IN)               :: DoRadius         ! check if DOF is inside/outside of radius
+REAL,INTENT(IN)                  :: Radius           ! check if DOF is inside/outside of radius
+LOGICAL,INTENT(IN),OPTIONAL      :: DisplayInfo      ! output to stdOut with region size info
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iElem,i,j,k,m
+REAL                :: r
 !===================================================================================================================================
 ! Display debugging output by each rank
 IF(PRESENT(DisplayInfo))THEN
@@ -185,6 +189,8 @@ ELSE
   isElem(:)=.FALSE.
 END IF
 
+! 1.) use standard bounding box region
+! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded
 DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
   DO m=1,3 ! m=x,y,z
     IF ( (Elem_xGP(m,i,j,k,iElem) .LT. region(2*m-1)) .OR. & ! 1,3,5
@@ -193,6 +199,23 @@ DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     END IF
   END DO
 END DO; END DO; END DO; END DO !iElem,k,j,i
+
+! 2.) Additionally check radius (e.g. half sphere regions)
+! if option 'DoRadius' is applied, elements are double checked if they are within a certain radius
+IF(DoRadius.AND.Radius.GT.0.0)THEN
+  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
+             Elem_xGP(2,i,j,k,iElem)**2+&
+             Elem_xGP(3,i,j,k,iElem)**2  )
+    ! check if r is larger than the supplied value .AND.
+    ! if r is not almost euqal to the radius
+    IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
+      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
+        isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+      END IF
+    END IF
+  END DO; END DO; END DO; END DO !iElem,k,j,i
+END IF
 
 END SUBROUTINE  FindElementInRegion
 

@@ -619,7 +619,7 @@ FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
 
-FILE(GLOB QDSF90 ./src/qds/*.f90)
+FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90)
 
 IF(BOLTZPLATZ_HDG)
   LIST(APPEND boltzplatzF90 ${hdgF90})

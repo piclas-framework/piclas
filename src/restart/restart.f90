@@ -189,13 +189,13 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #endif /*MPI*/
+USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
+USE MOD_TTM_Vars,                ONLY:DoImportTTMFile,TTM_DG
+#endif /*PARTICLES*/
 #ifdef PP_HDG
 USE MOD_HDG_Vars,                ONLY:lambda, nGP_face
 USE MOD_HDG,                     ONLY:RestartHDG
 #endif /*PP_HDG*/
-USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
-USE MOD_TTM_Vars,                ONLY:DoImportTTMFile,TTM_DG
-#endif /*PARTICLES*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
 #endif /*USE_QDS_DG*/
