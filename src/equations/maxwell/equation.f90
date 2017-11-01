@@ -181,6 +181,14 @@ DO iRefState=1,nTmp
       TERadius=GETREAL('TERadius','0.0')
       SWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
     END IF
+
+    ! display cut-off freequncy for this mode
+    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
+           '  Cut-off frequency in circular waveguide for TE_[',1,',',0,'] is ',1.8412*c/(2*PI*TERadius),' Hz (lowest mode)'
+    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
+           '  Cut-off frequency in circular waveguide for TE_[',TEMode(1),',',TEMode(2),'] is ',(TEModeRoot/TERadius)*c/(2*PI),&
+           ' Hz (chosen mode)'
+    stop
   CASE(12,14,15,16)
     ! planar wave input
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
