@@ -246,7 +246,7 @@ REAL                         :: tEndDiff, tAnalyzeDiff
 REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 INTEGER(KIND=8)              :: iter_loc
-REAL                         :: CalcTimeStart,CalcTimeEnd
+REAL                         :: CalcTimeStart,CalcTimeEnd,eta
 INTEGER                      :: TimeArray(8)              ! Array for system time
 REAL                         :: CurrentImbalance
 LOGICAL                      :: PerformLoadBalance
@@ -557,6 +557,8 @@ DO !iter_t=0,MaxIter
     END IF
 #endif /*PARICLES*/
       IF(MPIroot)THEN
+        ! simulation time per CPUh efficiency
+        eta = (time-RestartTime)/((CalcTimeEnd-CalcTimeStart)*nProcessors/3600) ! in [s] / [h]
         ! Get calculation time per DOF
         CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
         CALL DATE_AND_TIME(values=TimeArray) ! get System time
@@ -564,6 +566,7 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_stdOut,'(A,I2.2,A1,I2.2,A1,I4.4,A1,I2.2,A1,I2.2,A1,I2.2)') &
           ' Sys date  :    ',timeArray(3),'.',timeArray(2),'.',timeArray(1),' ',timeArray(5),':',timeArray(6),':',timeArray(7)
         WRITE(UNIT_stdOut,'(A,ES12.5,A)')' CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
+        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' SIMULATION TIME PER CALCULATION in [s]/[CPUh]: [',eta,' sec/h ]'
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
