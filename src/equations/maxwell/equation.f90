@@ -188,7 +188,6 @@ DO iRefState=1,nTmp
     SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
            '  Cut-off frequency in circular waveguide for TE_[',TEMode(1),',',TEMode(2),'] is ',(TEModeRoot/TERadius)*c/(2*PI),&
            ' Hz (chosen mode)'
-    stop
   CASE(12,14,15,16)
     ! planar wave input
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default

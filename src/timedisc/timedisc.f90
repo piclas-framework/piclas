@@ -557,8 +557,8 @@ DO !iter_t=0,MaxIter
     END IF
 #endif /*PARICLES*/
       IF(MPIroot)THEN
-        ! simulation time per CPUh efficiency
-        eta = (time-RestartTime)/((CalcTimeEnd-CalcTimeStart)*nProcessors/3600) ! in [s] / [h]
+        ! simulation time per CPUh efficiency in [s]/[CPUh]
+        eta = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
         ! Get calculation time per DOF
         CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
         CALL DATE_AND_TIME(values=TimeArray) ! get System time
