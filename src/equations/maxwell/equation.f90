@@ -43,10 +43,11 @@ USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars 
 USE MOD_TimeDisc_Vars,           ONLY:TEnd
-USE MOD_Mesh_Vars,               ONLY:BoundaryType,nBCs
+USE MOD_Mesh_Vars,               ONLY:BoundaryType,nBCs,BC
 USE MOD_Globals_Vars,            ONLY:EpsMach
-USE MOD_Mesh_Vars,               ONLY:xyzMinMax
+USE MOD_Mesh_Vars,               ONLY:xyzMinMax,nSides,nBCSides
 USE MOD_Mesh,                    ONLY:GetMeshMinMaxBoundaries
+USE MOD_Utils,                   ONLY:RootsOfBesselFunctions
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,6 +61,9 @@ INTEGER                          :: nRefStates,iBC,ntmp,iRefState
 INTEGER,ALLOCATABLE              :: RefStates(:)
 LOGICAL                          :: isNew
 REAL                             :: PulseCenter
+REAL,ALLOCATABLE                 :: nRoots(:)
+LOGICAL                          :: DoSide(1:nSides)
+INTEGER                          :: locType,locState,iSide
 !===================================================================================================================================
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
@@ -134,10 +138,7 @@ DO iBC=1,nBCs
   END IF
 END DO
 IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
-IF(DoExactFlux)THEN
-  FluxDir = GETINT('FluxDir','3') 
-  CALL InitExactFlux()
-END IF
+IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
   CASE(4,41)
@@ -150,11 +151,25 @@ DO iRefState=1,nTmp
     TEPolarization     = GETLOGICAL('TEPolarization','.TRUE.') 
     TERotation         = GETINT('TERotation','1') 
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
+    TEMode             = GETINTARRAY('TEMode',2,'1,1')
+    ! compute required roots
+    ALLOCATE(nRoots(1:TEMode(2)))
+    CALL RootsOfBesselFunctions(TEMode(1),TEMode(2),0,nRoots)
+    TEModeRoot=nRoots(TEMode(2))
+    DEALLOCATE(nRoots)
     ! check if it is a BC condition
     DO iBC=1,nBCs
       IF(BoundaryType(iBC,BC_STATE).EQ.5)THEN
+        DoSide=.FALSE.
+        DO iSide=1,nBCSides
+          locType =BoundaryType(BC(iSide),BC_TYPE)
+          locState=BoundaryType(BC(iSide),BC_STATE)
+          IF(locState.EQ.5)THEN
+            DoSide(iSide)=.TRUE.
+          END IF ! locState.EQ.BCIn
+        END DO
         ! call function to get radius
-        CALL GetWaveGuideRadius(5)
+        CALL GetWaveGuideRadius(DoSide)
       END IF
     END DO
     IF((TERotation.NE.-1).AND.(TERotation.NE.1))THEN
@@ -162,6 +177,17 @@ DO iRefState=1,nTmp
     __STAMP__&
     ,' TERotation has to be +-1 for right and left rotating TE modes.')
     END IF
+    IF(TERadius.LT.0.0)THEN ! not set
+      TERadius=GETREAL('TERadius','0.0')
+      SWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
+    END IF
+
+    ! display cut-off freequncy for this mode
+    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
+           '  Cut-off frequency in circular waveguide for TE_[',1,',',0,'] is ',1.8412*c/(2*PI*TERadius),' Hz (lowest mode)'
+    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
+           '  Cut-off frequency in circular waveguide for TE_[',TEMode(1),',',TEMode(2),'] is ',(TEModeRoot/TERadius)*c/(2*PI),&
+           ' Hz (chosen mode)'
   CASE(12,14,15,16)
     ! planar wave input
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
@@ -301,7 +327,8 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
                                      , sigma_t, E_0,BeamIdir1,BeamIdir2,BeamIdir3,BeamWaveNumber &
                                      ,BeamOmegaW, BeamAmpFac,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,omega_0,&
-                                      TERadius,somega_0_2,xDipole,tActive
+                                      TERadius,somega_0_2,xDipole,tActive,TEModeRoot
+USE MOD_Equation_Vars,           ONLY:TEMode
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -329,7 +356,7 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez           ! aux. Variab
 !REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 !REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 !REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
-REAL                            :: MuMN,SqrtN
+REAL                            :: SqrtN
 REAL                            :: omegaG,g,h,B0G
 REAL                            :: Bess_mG_R_R_inv,r_inv
 REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,sin2,cos2,costz2,sintz2,dBess_mG_R
@@ -337,7 +364,7 @@ INTEGER                         :: MG,nG
 REAL                            :: spatialWindow,tShift,tShiftBC!> electromagnetic wave shaping vars
 REAL                            :: timeFac,temporalWindow
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
-REAL                            :: kz,RadiusMax
+REAL                            :: kz
 !===================================================================================================================================
 Cent=x
 SELECT CASE (ExactFunction)
@@ -457,31 +484,35 @@ CASE(4) ! Dipole
   END IF
   
 CASE(5) ! Initialization of TE waves in a circular waveguide
-  ! NEW:
+  ! Book: Springer
   ! Elektromagnetische Feldtheorie fuer Ingenieure und Physicker
   ! p. 500ff
   ! polarization: 
   ! false - linear polarization
   ! true  - cirular polarization
-  !eps=1e-10
-  !IF (x(3).GT.eps) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
   phi = ATAN2(X(2),X(1))
   z=x(3)
-  omegaG=2*PI*TEFrequency
-  mG=1 ! TE_mG,nG
-  nG=1
-  MuMN=1.8411837813  ! root TE_1,1 hard coded
-  IF(TERadius.LT.1e-12)THEN
-    RadiusMax=0.004
-  ELSE
-    RadiusMax=TERadius
-  END IF
-  SqrtN=MuMN/RadiusMax! r0=0.004 is max raidus=0.004 ! hard coded
+  omegaG=2*PI*TEFrequency ! angular frequency
+
+  ! TE_mG,nG
+  mG=TEMode(1) ! azimuthal wave number
+  nG=TEMode(2) ! radial wave number
+
+  SqrtN=TEModeRoot/TERadius ! (7.412)
   ! axial wave number
   ! 1/c^2 omegaG^2 - kz^2=mu^2/ro^2
-  kz=SQRT((omegaG*c_inv)**2-SqrtN**2)
+  kz=(omegaG*c_inv)**2-SqrtN**2 ! (7.413)
+  IF(kz.LT.0)THEN
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(omegaG*c_inv)**2 = ',(omegaG*c_inv)**2
+    SWRITE(UNIT_stdOut,'(A,E25.14E3)')'SqrtN**2          = ',SqrtN**2
+    SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
+    CALL abort(&
+        __STAMP__&
+        ,'kz=SQRT((omegaG*c_inv)**2-SqrtN**2), but the argument in negative!')
+  END IF
+  kz=SQRT(kz)
   ! precompute coefficients
   Bess_mG_R  = BESSEL_JN(mG  ,r*SqrtN)
   Bess_mGM_R = BESSEL_JN(mG-1,r*SqrtN)
@@ -492,7 +523,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   sin1       = SIN(REAL(mG)*phi)
   cos1       = COS(REAL(mG)*phi)
   ! barrier for small radii
-  IF(r/RadiusMax.LT.1e-4)THEN
+  IF(r/TERadius.LT.1e-4)THEN
     SELECT CASE(mG)
     CASE(0) ! arbitary
       Bess_mG_R_R_inv=1e6
@@ -982,7 +1013,7 @@ FUNCTION beta(z,w)
 END FUNCTION beta 
 
 
-SUBROUTINE GetWaveGuideRadius(BCStateIn) 
+SUBROUTINE GetWaveGuideRadius(DoSide) 
 !===================================================================================================================================
 ! routine to find the maximum radius of a  wave-guide at a given BC plane
 ! radius computation requires interpolation points on the surface, hence
@@ -992,7 +1023,7 @@ SUBROUTINE GetWaveGuideRadius(BCStateIn)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars    ,  ONLY:nBCSides,BoundaryType,Face_xGP,BC
+USE MOD_Mesh_Vars    ,  ONLY:nSides,Face_xGP
 USE MOD_Equation_Vars,  ONLY:TERadius
 #if (PP_NodeType==1)
 USE MOD_ChangeBasis,    ONLY:ChangeBasis2D
@@ -1004,14 +1035,13 @@ USE MOD_Interpolation_Vars, ONLY:xGP,wBary
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES 
-INTEGER,INTENT(IN)      :: BCStateIn
+LOGICAL,INTENT(IN)      :: DoSide(1:nSides)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Radius
 INTEGER                 :: iSide,p,q
-INTEGER                 :: locType,locState
 #if (PP_NodeType==1)
 REAL                    :: xGP_tmp(0:PP_N),wBary_tmp(0:PP_N),wGP_tmp(0:PP_N)
 REAL                    :: Vdm_PolN_GL(0:PP_N,0:PP_N)
@@ -1030,22 +1060,19 @@ CALL InitializeVandermonde(PP_N,PP_N,wBary,xGP,xGP_tmp,Vdm_PolN_GL)
 
 TERadius=0.
 Radius   =0.
-DO iSide=1,nBCSides
-  locType =BoundaryType(BC(iSide),BC_TYPE)
-  locState=BoundaryType(BC(iSide),BC_STATE)
-  IF(locState.EQ.BCStateIn)THEN
+DO iSide=1,nSides
+  IF(.NOT.DoSide(iSide)) CYCLE
 #if (PP_NodeType==1)
-    CALL ChangeBasis2D(2,PP_N,PP_N,Vdm_PolN_GL,Face_xGP(1:2,:,:,iSide),Face_xGL)
+  CALL ChangeBasis2D(2,PP_N,PP_N,Vdm_PolN_GL,Face_xGP(1:2,:,:,iSide),Face_xGL)
 #else
-    Face_xGL(1:2,:,:)=Face_xGP(1:2,:,:,iSide)
+  Face_xGL(1:2,:,:)=Face_xGP(1:2,:,:,iSide)
 #endif
-    DO q=0,PP_N
-      DO p=0,PP_N
-        Radius=SQRT(Face_xGL(1,p,q)**2+Face_xGL(2,p,q)**2)
-        TERadius=MAX(Radius,TERadius)
-      END DO ! p
-    END DO ! q
-  END IF ! locState.EQ.BCIn
+  DO q=0,PP_N
+    DO p=0,PP_N
+      Radius=SQRT(Face_xGL(1,p,q)**2+Face_xGL(2,p,q)**2)
+      TERadius=MAX(Radius,TERadius)
+    END DO ! p
+  END DO ! q
 END DO
 
 #ifdef MPI
@@ -1063,11 +1090,14 @@ SUBROUTINE InitExactFlux()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot!,iError
-USE MOD_Mesh_Vars,       ONLY:nSides
+USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
+#ifdef MPI
+USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
+#endif
+USE MOD_Mesh_Vars,       ONLY:nSides,nElems,ElemToSide,SideToElem,lastMPISide_MINE
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
-USE MOD_Equation_Vars,   ONLY:FluxDir,ExactFluxPosition,isExactFluxInterFace
-USE MOD_ReadInTools,     ONLY:GETREAL
+USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
+USE MOD_ReadInTools,     ONLY:GETREAL,GETINT
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1083,11 +1113,16 @@ INTEGER,ALLOCATABLE :: ExactFluxToElem(:),ExactFluxToFace(:),ExactFluxInterToFac
 INTEGER,ALLOCATABLE :: ElemToExactFlux(:),FaceToExactFlux(:),FaceToExactFluxInter(:) ! mapping to ExactFlux element/face list
 REAL                :: InterFaceRegion(6)
 INTEGER             :: nExactFluxElems,nExactFluxFaces,nExactFluxInterFaces
+INTEGER             :: iElem,iSide,SideID,nExactFluxMasterInterFaces,sumExactFluxMasterInterFaces
 !===================================================================================================================================
 ! get x,y, or z-position of interface
-ExactFluxPosition    = GETREAL('ExactFluxPosition','0.')
-! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of FluxDir
-SELECT CASE(ABS(FluxDir))
+ExactFluxDir = GETINT('FluxDir','-1') 
+IF(ExactFluxDir.EQ.-1)THEN
+  ExactFluxDir = GETINT('ExactFluxDir','3')
+END IF
+ExactFluxPosition    = GETREAL('ExactFluxPosition') ! initialize empty to force abort when values is not supplied
+! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of ExactFluxDir
+SELECT CASE(ABS(ExactFluxDir))
 CASE(1) ! x
   InterFaceRegion(1:6)=(/-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
 CASE(2) ! y
@@ -1097,14 +1132,65 @@ CASE(3) ! z
 CASE DEFAULT
   CALL abort(&
       __STAMP__&
-      ,' Unknown exact flux direction: FluxDir=',FluxDir)
+      ,' Unknown exact flux direction: ExactFluxDir=',ExactFluxDir)
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
-CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,.FALSE.)
+CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DisplayInfo=.FALSE.)
 
 ! find all faces in the ExactFlux region
 CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem)
+
+nExactFluxMasterInterFaces=0
+DO iElem=1,nElems ! loop over all local elems
+  DO iSide=1,6    ! loop over all local sides
+    IF(ElemToSide(E2S_FLIP,iSide,iElem).EQ.0)THEN ! only master sides
+      SideID=ElemToSide(E2S_SIDE_ID,iSide,iElem)
+      IF(isExactFluxInterFace(SideID))THEN
+        nExactFluxMasterInterFaces=nExactFluxMasterInterFaces+1
+      END IF
+    END IF
+  END DO
+END DO
+
+#ifdef MPI
+  sumExactFluxMasterInterFaces=0
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#else
+  sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
+#endif /* MPI */
+SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
+
+IF(mpiroot)THEN
+  IF(sumExactFluxMasterInterFaces.LE.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,' [sumExactFluxMasterInterFaces.LE.0]: using ExactFlux but no interfaces found: sumExactFlux=',sumExactFluxMasterInterFaces)
+  END IF
+END IF
+
+
+nExactFluxMasterInterFaces=0
+DO iSide=1,lastMPISide_MINE ! nSides
+  IF(SideToElem(S2E_ELEM_ID,iSide).EQ.-1) CYCLE
+  IF(isExactFluxInterFace(SideID))THEN ! if an interface is encountered
+    nExactFluxMasterInterFaces=nExactFluxMasterInterFaces+1
+  END IF
+END DO
+
+#ifdef MPI
+  sumExactFluxMasterInterFaces=0
+  CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#else
+  sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
+#endif /* MPI */
+SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
+
+
+
+
+
+
 
 ! Get number of ExactFlux Elems, Faces and Interfaces. Create Mappngs ExactFlux <-> physical region
 CALL CountAndCreateMappings('ExactFlux',&
@@ -1114,9 +1200,10 @@ CALL CountAndCreateMappings('ExactFlux',&
                             FaceToExactFlux,ExactFluxToFace,& ! these two are allocated
                             FaceToExactFluxInter,ExactFluxInterToFace) ! these two are allocated
 
-SWRITE(UNIT_StdOut,'(A6,I10,A)') 'Found ',nExactFluxInterFaces,' interfaces for ExactFlux.'
+! compute the outer radius of the mode in the cylindrical waveguide
+CALL GetWaveGuideRadius(isExactFluxInterFace)
 
-! Deallocate the vectors (must be deallocated because the used routine require INTENT,IN and ALLOCATABLE)
+! Deallocate the vectors (must be deallocated because the used routine 'CountAndCreateMappings' requires INTENT,IN and ALLOCATABLE)
 SDEALLOCATE(isExactFluxElem)
 SDEALLOCATE(isExactFluxFace)
 SDEALLOCATE(ExactFluxToElem)
@@ -1125,6 +1212,8 @@ SDEALLOCATE(ExactFluxInterToFace)
 SDEALLOCATE(ElemToExactFlux)
 SDEALLOCATE(FaceToExactFlux)
 SDEALLOCATE(FaceToExactFluxInter)
+!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!stop
 END SUBROUTINE InitExactFlux
 
 

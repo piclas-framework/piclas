@@ -4251,17 +4251,26 @@ IF(MapPeriodicSides)THEN
         MinMax(1)=MINVAL(BezierControlPoints3d(iDir,:,:,newSideID))
         MinMax(2)=MAXVAL(BezierControlPoints3d(iDir,:,:,newSideID))
         ! this may be required a tolerance due to periodic displacement
-        IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
-          IPWRITE(UNIT_stdOut,*) ' Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
-          CALL abort(&
-__STAMP__&
-      , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+        IF(.NOT.ALMOSTEQUALRELATIVE(MinMax(1),MinMaxGlob(iDir),1e-10))THEN
+          IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
+            IPWRITE(UNIT_stdOut,*) ' Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
+            CALL abort(&
+             __STAMP__&
+             , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+          END IF
+        ELSE
+          IPWRITE(UNIT_stdOut,*) ' WARNING: Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
         END IF
-        IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
-          IPWRITE(UNIT_stdOut,*) ' Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
-          CALL abort(&
-__STAMP__&
-      , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+        IF(.NOT.ALMOSTEQUALRELATIVE(MinMax(2),MinMaxGlob(iDir+3),1e-10))THEN
+          IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
+            IPWRITE(UNIT_stdOut,*) ' Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
+            CALL abort(&
+             __STAMP__&
+             , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+          END IF
+        ELSE
+            IPWRITE(UNIT_stdOut,*) ' WARNING: Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
+
         END IF
       END DO
 
