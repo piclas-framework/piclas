@@ -55,6 +55,8 @@ USE MOD_TimeDisc_Vars,           ONLY:TEnd
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                         :: chitensValue,chitensRadius  ! depricated variables, remove in future (by the end of 2017)
+INTEGER                      :: chitensWhichField           ! depricated variables, remove in future (by the end of 2017)
 !===================================================================================================================================
 TEnd=GetReal('TEnd') 
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
@@ -96,17 +98,16 @@ ALLOCATE(chitens(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 ALLOCATE(chitensInv(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 ALLOCATE(chitens_face(3,3,0:PP_N,0:PP_N,nSides))
 
-! chitens values are set in dielectric.f90
-
-!chitens=0.
-!chitens(1,1,:,:,:,:)=1.
-!chitens(2,2,:,:,:,:)=1.
-!chitens(3,3,:,:,:,:)=1.
-!chitensInv=chitens
-!chitens_face=0.
-!chitens_face(1,1,:,:,:)=1.
-!chitens_face(2,2,:,:,:)=1.
-!chitens_face(3,3,:,:,:)=1.
+! initialize
+chitens=0.
+chitens(1,1,:,:,:,:)=1.
+chitens(2,2,:,:,:,:)=1.
+chitens(3,3,:,:,:,:)=1.
+chitensInv=chitens
+chitens_face=0.
+chitens_face(1,1,:,:,:)=1.
+chitens_face(2,2,:,:,:)=1.
+chitens_face(3,3,:,:,:)=1.
 
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')

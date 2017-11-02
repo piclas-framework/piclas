@@ -46,7 +46,6 @@ USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountA
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: i
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
@@ -307,8 +306,10 @@ USE MOD_Dielectric_Vars, ONLY:isDielectricElem,DielectricEpsR
 !USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 !#endif
 USE MOD_Equation_Vars,   ONLY:chitens,chitensInv,chitens_face
-USE MOD_Mesh_Vars,       ONLY:nSides,nInnerSides
-USE MOD_Mesh_Vars,       ONLY:Elem_xGP,ElemToSide
+!USE MOD_Mesh_Vars,       ONLY:nSides
+USE MOD_Mesh_Vars,       ONLY:nInnerSides
+!USE MOD_Mesh_Vars,       ONLY:Elem_xGP
+USE MOD_Mesh_Vars,       ONLY:ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -327,7 +328,7 @@ IMPLICIT NONE
 !   INTEGER                                                  :: iElem,I,J,iSide
 INTEGER :: i,j,k,iElem
 INTEGER :: p,q,flip,locSideID,SideID
-REAL    :: Face_xGP(3,0:PP_N,0:PP_N)
+!REAL    :: Face_xGP(3,0:PP_N,0:PP_N)
 REAL    :: Invdummy(3,3)
 !===================================================================================================================================
 IF(.NOT.mpiroot)THEN
@@ -335,24 +336,15 @@ IF(.NOT.mpiroot)THEN
        __STAMP__,&
        'dielectric HDG not implement for MPI!')
 END IF
-chitens=0. ! initizalize
 
 DO iElem=1,PP_nElems
-
-  ! default
-  chitens(1,1,:,:,:,iElem)=1.
-  chitens(2,2,:,:,:,iElem)=1.
-  chitens(3,3,:,:,:,iElem)=1.
-
-  ! chitens^-1
-  chitensInv(:,:,:,:,:,iElem) = chitens(:,:,:,:,:,iElem) ! inverted unit matrix
-
   ! cycle the loop if no dielectric element is connected to the side
   IF(.NOT.isDielectricElem(iElem)) CYCLE
 
   !compute field on Gauss-Lobatto points (continuous!)
   DO k=0,PP_N ; DO j=0,PP_N ; DO i=0,PP_N
-    CALL calcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
+    !CALL calcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
+    CALL calcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
   END DO; END DO; END DO !i,j,k
 
   DO locSideID=1,6
@@ -360,7 +352,8 @@ DO iElem=1,PP_nElems
     SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
     IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
       DO q=0,PP_N; DO p=0,PP_N
-        CALL calcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
+        !CALL calcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
+        CALL calcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
       END DO; END DO !p, q
     END IF
   END DO !locSideID
@@ -368,26 +361,24 @@ END DO
 END SUBROUTINE SetDielectricFaceProfile_HDG
 
 
-SUBROUTINE CalcChiTens(x,chitens,chitensInv,DielectricEpsR)
+SUBROUTINE CalcChiTens(chitens,chitensInv,DielectricEpsR)
 !===================================================================================================================================
 ! calculate diffusion tensor, diffusion coefficient chi1/chi0 along B vector field plus isotropic diffusion 1. 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars, ONLY:chitensWhichField,chitensValue,chitensRadius
 USE MOD_Basis,         ONLY:GetInverse
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: x(3),DielectricEpsR
+REAL,INTENT(IN)                 :: DielectricEpsR
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: chitens(3,3)
 REAL,INTENT(OUT),OPTIONAL       :: chitensInv(3,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL :: radius
 !===================================================================================================================================
 ! default
 chitens=0.
@@ -395,30 +386,13 @@ chitens(1,1)=1.
 chitens(2,2)=1.
 chitens(3,3)=1.
 
-!          ! set chitens depending on geometry (i.e. location of DOF position x(1:3) in domain)
-!          SELECT CASE(chitensWhichField)
-!          CASE(1) ! default - vacuum
-!          CASE(2) ! sphere with radius, inner DOF receive chitensValue
-!            radius=sqrt( x(1)**2 + x(2)**2 + x(3)**2 )
-!            IF(radius.LT.chitensRadius)THEN
-!              chitens(1,1)=chitensValue
-!              chitens(2,2)=chitensValue
-!              chitens(3,3)=chitensValue
-!            END IF
-!          CASE DEFAULT
-!            ! Stop, works only for 3 Stage O3 LS RK
-!            CALL abort(&
-!                 __STAMP__,&
-!                 'chitensWhichField not known!',chitensWhichField,999.)
-!          END SELECT
+! set diffusion tensor: currently only constant distribution
 chitens(1,1)=DielectricEpsR
 chitens(2,2)=DielectricEpsR
 chitens(3,3)=DielectricEpsR
 
-
 ! inverse of diffusion 3x3 tensor on each gausspoint
 chitensInv(:,:)=getInverse(3,chitens(:,:))
-
 
 END SUBROUTINE calcChiTens
 #endif /*PP_HDG*/
