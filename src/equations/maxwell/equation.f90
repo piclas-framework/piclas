@@ -1136,7 +1136,7 @@ CASE DEFAULT
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
-CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DisplayInfo=.FALSE.)
+CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.FALSE.)
 
 ! find all faces in the ExactFlux region
 CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem)

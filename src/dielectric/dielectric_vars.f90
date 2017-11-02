@@ -18,6 +18,8 @@ LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! true if iFace is a Face 
 !                                                     ! Dielectric region
 LOGICAL,ALLOCATABLE :: isDielectricInterFace(:)       ! true if iFace is a Face located on the boarder (interface) of the Dielectric
 !                                                     ! region
+LOGICAL             :: DielectricCheckRadius          ! instead of a bounding box region for setting a dielectric area, use radius
+REAL                :: DielectricRadiusValue          ! radius for setting dielectric element ON/OFF
 INTEGER             :: DielectricwriteFields          ! output Eps field for debug
 INTEGER             :: Dielectricspread               ! if true Eps_x=Eps_y=Eps_z for all Dielectric cells
 REAL,DIMENSION(6)   :: xyzPhysicalMinMaxDielectric    ! physical   boundary coordinates, outside = Dielectric region

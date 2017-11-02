@@ -128,9 +128,11 @@ CALL SelectMinMaxRegion('PML',usePMLMinMax,&
 
 ! find all elements in the PML region
 IF(usePMLMinMax)THEN ! find all elements located inside of 'xyzPMLMinMax'
-  CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,ElementIsInside=.TRUE.,DisplayInfo=.TRUE.)
+  CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,&
+                           ElementIsInside=.TRUE. ,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
 ELSE ! find all elements located outside of 'xyzPhysicalMinMax'
-  CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.,DisplayInfo=.TRUE.)
+  CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,&
+                           ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
 END IF
 
 ! find all faces in the PML region
