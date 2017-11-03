@@ -4581,7 +4581,7 @@ INTEGER,INTENT(IN)       :: nTotalBCSides
 REAL,INTENT(OUT)         :: SideOrigin(1:3,1:nTotalBCSides),SideRadius(1:nTotalBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iElem, iSide, BCSideID,p,q
+INTEGER                  :: iSide, BCSideID,p,q
 REAL                     :: Xi(1:2), Origin(1:3), Radius, RadiusMax, Vec(1:3)
 !===================================================================================================================================
 
@@ -4617,8 +4617,7 @@ SUBROUTINE GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,IsBCElem,ElemRadiusNGeo,BCElem,nTotalSides,PartBCSideList,nTotalElems
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,IsBCElem,ElemRadiusNGeo,BCElem,PartBCSideList,nTotalElems
 USE MOD_Utils,                  ONLY:InsertionSort
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -4630,7 +4629,7 @@ REAL,INTENT(IN)          :: SideOrigin(1:3,1:nTotalBCSides),SideRadius(1:nTotalB
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iElem,ilocSide,SideID,BCSideID, PVID
+INTEGER                  :: iElem,ilocSide,SideID,BCSideID
 REAL                     :: Vec(1:3)
 REAL                     :: Origin(1:3)
 !===================================================================================================================================

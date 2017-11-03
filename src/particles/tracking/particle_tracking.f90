@@ -613,7 +613,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                           :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                           :: iPart, ElemID,oldElemID,newElemID
 INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
-REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3),loc_distance
+REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3)!,loc_distance
 !REAL                              :: epsOne
 #ifdef MPI
 INTEGER                           :: InElem
