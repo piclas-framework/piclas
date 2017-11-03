@@ -175,10 +175,11 @@ return
   Resu(:)=ACamplitude*SIN(Omega*t-Pi)
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
-CASE(103) !dipole
+CASE(103) ! dipole
   r1=SQRT(SUM((x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   r2=SQRT(SUM((x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   resu(:)=IniAmplitude*(1/r2-1/r1)
+CASE(200) ! Dielectric Sphere
 CASE DEFAULT
   CALL abort(&
 __STAMP__&
