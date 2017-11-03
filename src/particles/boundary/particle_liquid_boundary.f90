@@ -43,9 +43,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! OUTPUT VARIABLES
 !===================================================================================================================================
 ! LOCAL VARIABLES
-  CHARACTER(32)                    :: hilf
   INTEGER                          :: iSpec
-  REAL                             :: PartAds, PartEvap, RanNum, Tpois
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 ! allocate info and constants
@@ -162,7 +160,7 @@ SUBROUTINE ExchangeCondensNum()
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_DSMC_Vars                   ,ONLY:Liquid
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,nSurfSample,PartBound
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars           ,ONLY:CondensSendBuf,CondensRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -267,12 +265,6 @@ SUBROUTINE Finalize_Liquid_Boundary()
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY : Liquid
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
-! #ifdef MPI
-! USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-! USE MOD_Particle_MPI_Vars,      ONLY : SurfExchange
-! USE MOD_Particle_MPI_Vars,      ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
-! #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -281,10 +273,6 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! INTEGER                      :: subsurfxi,subsurfeta,iSurfSide
-! #ifdef MPI
-! INTEGER                      :: iProc
-! #endif /*MPI*/
 !===================================================================================================================================
 #if (PP_TimeDiscMethod==42)
 SDEALLOCATE(Liquid%Info)

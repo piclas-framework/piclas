@@ -670,17 +670,17 @@ FOREACH (def ${comp_defs})
 ENDFOREACH()
 ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 
-# =========================================================================
-# RegressionCheck tool && Examples
-# =========================================================================
-add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
-                         ./regressioncheck/regressioncheck_vars.f90 
-                         ./regressioncheck/regressioncheck_build.f90 
-                         ./regressioncheck/regressioncheck_compare.f90 
-                         ./regressioncheck/regressioncheck_run.f90 
-                         ./regressioncheck/regressioncheck_tools.f90 )
-ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
-SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
+#   # =========================================================================
+#   # RegressionCheck tool && Examples
+#   # =========================================================================
+#   add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
+#                            ./regressioncheck/regressioncheck_vars.f90 
+#                            ./regressioncheck/regressioncheck_build.f90 
+#                            ./regressioncheck/regressioncheck_compare.f90 
+#                            ./regressioncheck/regressioncheck_run.f90 
+#                            ./regressioncheck/regressioncheck_tools.f90 )
+#   ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
+#   SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
 
 # =========================================================================
 # Userblock

@@ -165,11 +165,10 @@ CASE(2) !sinus
   Omega=2.*Pi*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
 CASE(31) !sinus
-!Print*,"here 31"
   Omega=2.*Pi*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t)
 CASE(32) !sinus
-resu=0.
+  resu=0.
 return
   Omega=2.*Pi*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t-Pi)
@@ -179,11 +178,29 @@ CASE(103) ! dipole
   r1=SQRT(SUM((x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   r2=SQRT(SUM((x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   resu(:)=IniAmplitude*(1/r2-1/r1)
-CASE(200) ! Dielectric Sphere
+CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book: 
+  ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
+  ! E_0       : constant electric field in z-direction far away from sphere
+  ! R         : constant radius of the sphere
+  ! eps_outer : dielectric constant of surrouding medium
+  ! eps_inner : dielectric constant of sphere
+  !
+  !   Phi_inner = - (3 / i(2 + eps_inner / eps_outer)) * E_0 * r * cos(Theta)
+  !             = - (3 / i(2 + eps_inner / eps_outer)) * E_1 * z
+  !  
+  !   Phi_outer = ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   - 1 ) * E_0 * z
+  !
+  ! E = - grad(Phi)
+  !
+  !   E_r,inner = 0
+  !   E_z,inner = (3 / (2 + eps_inner / eps_outer)) * E_0
+  !  
+  !   E_r,outer = 3 * ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^4 ) ) * E_0 * z
+  !   E_z,inner =   ( - (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   + 1 ) * E_0
 CASE DEFAULT
   CALL abort(&
-__STAMP__&
-,'Exactfunction not specified!')
+  __STAMP__&
+  ,'Exactfunction not specified!')
 END SELECT ! ExactFunction
 
 

@@ -66,7 +66,7 @@ USE MOD_PML_vars,        ONLY:DoPML,isPMLFace,isPMLInterFace
 #endif /*NOT HDG*/
 USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
-USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
+USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
 USE MOD_Mesh_Vars,       ONLY:SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -145,7 +145,7 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,              ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
+USE MOD_Globals,              ONLY:abort,UNIT_stdOut,mpiroot
 #ifdef MPI
 USE MOD_Globals,              ONLY:MPI_COMM_WORLD
 #endif /*MPI*/
@@ -253,7 +253,7 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: speci
 ! LOCAL VARIABLES
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
                                                                                       ! the prolong to face routine and MPI logic
-INTEGER                                 :: iSide,I
+INTEGER                                 :: iSide
 !===================================================================================================================================
 ! General workflow:
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
@@ -338,7 +338,7 @@ SUBROUTINE ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISide
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
-USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,          ONLY: nBCSides
 USE MOD_Mesh_Vars,          ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,          ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMortarMPISide,lastMortarMPISide
@@ -417,7 +417,7 @@ SUBROUTINE Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides)
 ! MODULES
 USE MOD_Preproc,     ONLY: PP_N
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,FS2M
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -488,7 +488,6 @@ INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:)
 ! LOCAL VARIABLES
 INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
 INTEGER                           :: iXElem,iXFace,iXInterFace
-INTEGER                           :: I,NProcs
 INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces,sumGlobalFaces,sumGlobalInterFaces
 !===================================================================================================================================
 ! Get number of Elems
@@ -605,7 +604,7 @@ SUBROUTINE DisplayRanges(useMinMax_Name,useMinMax,xyzMinMax_name,xyzMinMax,Physi
 ! usually a, e.g., PML/dielectric region is specified or the inverse region, i.e., the physical region is specified
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:myrank,UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -617,7 +616,6 @@ LOGICAL,INTENT(IN)                :: useMinMax
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGEr                           :: I
 !===================================================================================================================================
 ! display ranges of special region depending on useMinMax
 !SWRITE(UNIT_stdOut,'(A,L,A1)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']'
@@ -636,7 +634,7 @@ SUBROUTINE DisplayMinMax(MinMax)
 ! Display the ranges of a x-y-z min-max region in the vector MinMax(xmin,xmax,ymin,ymax,zmin,zmax)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:myrank,UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -668,7 +666,7 @@ SUBROUTINE SelectMinMaxRegion(TypeName,useMinMax,region1_name,region1,region2_na
 ! 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:myrank,UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
