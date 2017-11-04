@@ -127,7 +127,8 @@ intel_tracking:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../regressioncheck/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then echo "skipping because 'make' stops working after some time and does not issue a return code" ; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../regressioncheck/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
