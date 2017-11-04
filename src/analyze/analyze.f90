@@ -372,8 +372,9 @@ USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution, useDSMC
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-#if (PP_TimeDiscMethod!=42)
+#if (PP_TimeDiscMethod==42)
 #elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#else
 USE MOD_LD_Vars,               ONLY: useLD
 #endif
 USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
