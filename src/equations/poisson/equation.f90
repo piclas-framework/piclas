@@ -197,6 +197,8 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
   !  
   !   E_r,outer = 3 * ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^4 ) ) * E_0 * z
   !   E_z,inner =   ( - (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   + 1 ) * E_0
+  r     = SQRT(x(1)**2+x(2)**2)
+  theta = ATAN2(x(2),x(1))
 CASE DEFAULT
   CALL abort(&
   __STAMP__&
