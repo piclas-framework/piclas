@@ -148,7 +148,7 @@ gnu_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic -d1 ; fi
        
 #       gnu_PIC:
 #         stage: reggie_nightly
@@ -227,7 +227,7 @@ intel_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic -d1 ; fi
        
 #       intel_PIC:
 #         stage: reggie_nightly

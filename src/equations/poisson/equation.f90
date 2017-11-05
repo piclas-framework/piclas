@@ -148,6 +148,7 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
 REAL                            :: r1,r2
+REAL                            :: r,theta
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(0)
