@@ -148,7 +148,7 @@ gnu_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic -d1 ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic ; fi
        
 #       gnu_PIC:
 #         stage: reggie_nightly
@@ -227,7 +227,8 @@ intel_mpi:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic -d1 ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then echo "skipping because 'make' stops working after some time and does not issue a return code" ; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../regressioncheck/reggie.py ../regressioncheck/checks/run_basic ; fi
        
 #       intel_PIC:
 #         stage: reggie_nightly
