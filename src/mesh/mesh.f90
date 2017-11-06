@@ -349,6 +349,10 @@ DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
+! compute elem bary and elem radius
+ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
+CALL BuildElementOrigin()
+
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -699,6 +703,51 @@ GetMeshMinMaxBoundariesIsDone=.TRUE.
 END SUBROUTINE GetMeshMinMaxBoundaries
 
 
+SUBROUTINE BuildElementOrigin()
+!================================================================================================================================
+! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars,                ONLY:ElemBaryNGeo
+USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
+USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem,i,j,k
+REAL                    :: Xi(3),XPos(3),buf
+REAL                    :: Lag(1:3,0:NGeo)
+!================================================================================================================================
+
+ElemBaryNGeo=0.
+DO iElem=1,PP_nElems
+  ! evaluate the polynomial at origin
+  Xi=(/0.0,0.0,0.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      buf=Lag(2,j)*Lag(3,k)
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*buf
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  ElemBaryNGeo(:,iElem)=xPos
+END DO ! iElem
+
+END SUBROUTINE BuildElementOrigin
+
+
 SUBROUTINE FinalizeMesh()
 !============================================================================================================================
 ! Deallocate all global interpolation variables.
@@ -774,6 +823,7 @@ SDEALLOCATE(XiCL_NGeo1)
 SDEALLOCATE(CurvedElem)
 SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
+SDEALLOCATE(ElemBaryNGeo)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh

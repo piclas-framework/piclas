@@ -4180,7 +4180,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
@@ -4192,7 +4192,7 @@ USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
-USE MOD_Mesh_Vars,              ONLY : BC
+USE MOD_Mesh_Vars,              ONLY : BC, ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4809,8 +4809,8 @@ USE MOD_Timedisc_Vars          ,ONLY: dt
 
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo, ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages

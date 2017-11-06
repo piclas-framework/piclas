@@ -38,6 +38,9 @@ USE MOD_Dielectric_Vars
 USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Equation_Vars,   ONLY: c_corr,c
 USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_Mesh,            ONLY: GetMeshMinMaxBoundaries
+USE MOD_Mesh_Vars,       ONLY: xyzMinMax
+USE MOD_Equation_Vars,   ONLY: IniExactFunc
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -125,6 +128,17 @@ CALL SetDielectricFaceProfile()
 #else /*if PP_HDG*/
 ! Set HDG diffusion tensor 'chitens' on faces (TODO: MPI and mortar sides)
 CALL SetDielectricFaceProfile_HDG()
+IF(IniExactFunc.EQ.200)THEN ! for dielectric sphere case
+  ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
+  ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
+  IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
+    DielectricRatio=DielectricEpsR
+  ELSE ! dielectric elements outside of sphere, hence, the inverse value is taken
+    DielectricRatio=DielectricEpsR_inv
+  END IF
+  ! get the axial electric field strength in x-direction of the dielectric sphere setup
+  Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
+END IF
 #endif /*PP_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell

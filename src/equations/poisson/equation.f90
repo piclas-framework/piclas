@@ -124,21 +124,24 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu,t) 
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort
-USE MOD_Equation_Vars,ONLY:Pi
-USE MOD_Equation_Vars,ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Equation_Vars,ONLY: ACfrequency,ACamplitude
+USE MOD_Globals,         ONLY:Abort
+USE MOD_Equation_Vars,   ONLY:Pi
+USE MOD_Equation_Vars,   ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Equation_Vars,   ONLY: ACfrequency,ACamplitude
+USE MOD_Dielectric_Vars, ONLY:DielectricRatio,Dielectric_E_0,DielectricRadiusValue
+USE MOD_Mesh_Vars,       ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: x(3)              
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
+INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
 REAL,INTENT(IN),OPTIONAl        :: t ! time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -148,7 +151,7 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
 REAL                            :: r1,r2
-REAL                            :: r,theta
+REAL                            :: r_2D,r_3D,varphi,r_bary
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(0)
@@ -185,21 +188,38 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
   ! R         : constant radius of the sphere
   ! eps_outer : dielectric constant of surrouding medium
   ! eps_inner : dielectric constant of sphere
+  ! DielectricRatio = eps_inner / eps_outer (set in dielectric init)
   !
-  !   Phi_inner = - (3 / i(2 + eps_inner / eps_outer)) * E_0 * r * cos(Theta)
-  !             = - (3 / i(2 + eps_inner / eps_outer)) * E_1 * z
-  !  
-  !   Phi_outer = ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   - 1 ) * E_0 * z
-  !
-  ! E = - grad(Phi)
-  !
+  ! set radius and angle for DOF position x(1:3)
+  varphi = ATAN2(x(2),x(1))
+  r_2D   = SQRT(x(1)**2+x(2)**2)
+  r_3D   = SQRT(x(1)**2+x(2)**2+x(3)**2)
+  r_bary = SQRT(ElemBaryNGeo(1,ElemID)**2+ElemBaryNGeo(2,ElemID)**2+ElemBaryNGeo(3,ElemID)**2)
+
+  ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
+  IF(r_bary.LE.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
+    ! Phi_inner = - (3 / (2 + eps_inner / eps_outer)) * E_1 * z
+    resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*Dielectric_E_0*x(3)
+  ELSEIF(r_bary.GT.DielectricRadiusValue)THEN ! outside sphere
+    ! Phi_outer = ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   - 1 ) * E_0 * z
+    resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
+                       ( (DielectricRadiusValue**3) / ((r_2D**2+x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
+  ELSE
+    SWRITE(*,*) ElemID
+    SWRITE(*,*) x(1),x(2),x(3),r_3D
+    SWRITE(*,*) ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID),r_bary
+    SWRITE(*,*) DielectricRadiusValue
+    CALL abort(&
+    __STAMP__&
+    ,'Dielectric sphere. Invalid radius for exact function!')
+  END IF
+
   !   E_r,inner = 0
   !   E_z,inner = (3 / (2 + eps_inner / eps_outer)) * E_0
   !  
   !   E_r,outer = 3 * ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^4 ) ) * E_0 * z
   !   E_z,inner =   ( - (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   + 1 ) * E_0
-  r     = SQRT(x(1)**2+x(2)**2)
-  theta = ATAN2(x(2),x(1))
+
 CASE DEFAULT
   CALL abort(&
   __STAMP__&

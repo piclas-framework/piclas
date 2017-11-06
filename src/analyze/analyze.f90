@@ -180,7 +180,7 @@ DO iElem=1,PP_nElems
      DO l=0,NAnalyze
        DO k=0,NAnalyze
 #ifdef PP_HDG
-         CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact)
+         CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
 #else
          CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
 #endif

@@ -50,10 +50,6 @@ INTERFACE BuildElementBasis
   MODULE PROCEDURE BuildElementBasis
 END INTERFACE
 
-INTERFACE BuildElementOrigin
-  MODULE PROCEDURE BuildElementOrigin
-END INTERFACE
-
 INTERFACE CountPartsPerElem
   MODULE PROCEDURE CountPartsPerElem
 END INTERFACE
@@ -80,7 +76,7 @@ END INTERFACE
 
 
 PUBLIC::CountPartsPerElem
-PUBLIC::BuildElementBasis,CheckIfCurvedElem,BuildElementOrigin
+PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
@@ -270,7 +266,6 @@ SDEALLOCATE(GEO%TFIBGM)
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
-SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemRadiusNGeo)
 SDEALLOCATE(ElemRadius2NGeo)
 SDEALLOCATE(EpsOneCell)
@@ -291,16 +286,16 @@ SUBROUTINE SingleParticleToExactElement(iPart,doHalo,initFix)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
-USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell,ElemBaryNGeo,IsBCElem,ElemRadius2NGeo
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,Distance,ListDistance
+USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef
+USE MOD_Particle_Mesh_Vars,          ONLY:Geo
+USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsBCElem,ElemRadius2NGeo
+USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
+USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
-USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:ElemToSide,BC
+USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
+USE MOD_Mesh_Vars,                   ONLY:ElemToSide,BC,ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -495,10 +490,11 @@ SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
+USE MOD_Mesh_Vars,              ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -600,7 +596,7 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -766,12 +762,13 @@ USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
 !USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides
-USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Mesh_Vars,                          ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -793,10 +790,7 @@ GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
-! compute elem bary and elem radius
 StartT=BOLTZPLATZTIME()
-ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
-CALL BuildElementOrigin()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
@@ -2141,7 +2135,8 @@ SUBROUTINE MapRegionToElem()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,          ONLY:NbrOfRegions, RegionBounds,GEO,ElemBaryNgeo
+USE MOD_Particle_Mesh_Vars,     ONLY:NbrOfRegions, RegionBounds,GEO
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -2184,10 +2179,11 @@ SUBROUTINE PointToExactElement(X_In,Element,isInSide,doHalo)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars, ONLY:ListDistance,Distance
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2262,51 +2258,6 @@ END DO ! iBGMElem
 END SUBROUTINE PointToExactElement
 
 
-SUBROUTINE BuildElementOrigin()
-!================================================================================================================================
-! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
-!================================================================================================================================
-USE MOD_Globals!,                  ONLY:CROSS
-USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Particle_Mesh_Vars,       ONLY:ElemBaryNGeo
-USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
-USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!--------------------------------------------------------------------------------------------------------------------------------
-!OUTPUT VARIABLES
-!--------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 :: iElem,i,j,k
-REAL                    :: Xi(3),XPos(3),buf
-REAL                    :: Lag(1:3,0:NGeo)
-!================================================================================================================================
-
-ElemBaryNGeo=0.
-DO iElem=1,PP_nElems
-  ! evaluate the polynomial at origin
-  Xi=(/0.0,0.0,0.0/)
-  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
-  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
-  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
-  xPos=0.
-  DO k=0,NGeo
-    DO j=0,NGeo
-      buf=Lag(2,j)*Lag(3,k)
-      DO i=0,NGeo
-        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*buf
-      END DO !i=0,NGeo
-    END DO !j=0,NGeo
-  END DO !k=0,NGeo
-  ElemBaryNGeo(:,iElem)=xPos
-END DO ! iElem
-
-END SUBROUTINE BuildElementOrigin
-
-
 SUBROUTINE BuildElementBasis()
 !================================================================================================================================
 ! build the element local basis system 
@@ -2318,7 +2269,8 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
 USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
-USE MOD_Particle_Mesh_Vars,       ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars,       ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_Mesh_Vars,                ONLY:ElemBaryNgeo
 USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
@@ -2811,10 +2763,10 @@ USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElem
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo,BC
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo,BC,ElemBaryNGeo
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
 USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
@@ -4617,7 +4569,8 @@ SUBROUTINE GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,IsBCElem,ElemRadiusNGeo,BCElem,PartBCSideList,nTotalElems
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:IsBCElem,ElemRadiusNGeo,BCElem,PartBCSideList,nTotalElems
 USE MOD_Utils,                  ONLY:InsertionSort
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
