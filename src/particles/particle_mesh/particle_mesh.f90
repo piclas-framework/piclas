@@ -473,13 +473,13 @@ SUBROUTINE SingleParticleToExactElement(iPart,doHalo,initFix)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef,KeepWallParticles
-USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
-USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell,ElemBaryNGeo,IsBCElem,ElemRadius2NGeo
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,Distance,ListDistance
+USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef,KeepWallParticles
+USE MOD_Particle_Mesh_Vars,          ONLY:Geo
+USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,TriaTracking
+USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsBCElem,ElemRadius2NGeo
+USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
+USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,                   ONLY:ElemToSide,BC,ElemBaryNGeo
