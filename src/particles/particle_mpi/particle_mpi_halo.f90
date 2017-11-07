@@ -318,7 +318,7 @@ INTEGER                  :: iBGM,jBGM,kBGM,iPBGM,jPBGM,kPBGM,PVID
 LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
 REAL                     :: distance(1:3)
-INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint,flip,AdjointLocSideID(2)
+INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint!,flip,AdjointLocSideID(2)
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
