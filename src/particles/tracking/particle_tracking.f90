@@ -261,8 +261,10 @@ DO i = 1,PDM%ParticleVecLength
         END IF
       END IF
     END DO
+#ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     IF(PEM%Element(i).LE.PP_nElems) ElemTime(PEM%Element(i))=ElemTime(PEM%Element(i))+tLBEnd-tLBStart
+#endif /*MPI*/
   END IF
 END DO
 
