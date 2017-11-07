@@ -159,12 +159,16 @@ def getCombinations(filename) :
         combinations.append(combination)
 
     logging.getLogger('logger').debug("  Number of valid combinations = %d" % len(combinations))
-    return combinations
+    return combinations, digits
 
 
 def writeCombinationsToFile(combinations, path) : # write one set of parameters to a file, e.g., parameter.ini
     f = open(path, 'w')
     for key, value in combinations.items() :
+        # for parameters with value 'crosscombinations' in the key-value pair, replace it with the value from 'crosscombinations'
+        # example: N                 = crosscombinations
+        #          N_Geo             = crosscombinations
+        #          crosscombinations = 1,2,3,4,5
         if value == 'crosscombinations' :
             f.write("%s=%s\n" % (key,combinations.get('crosscombinations')))
         else :
