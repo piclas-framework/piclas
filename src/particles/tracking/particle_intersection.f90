@@ -36,6 +36,112 @@ PUBLIC::ComputeCurvedIntersection
 CONTAINS
 
 
+SUBROUTINE IntersectionWithWall(PartTrajectory,lengthPartTrajectory,alpha,iPart,iLocSide,Element,TriNum)!, IntersectionPos)
+!===================================================================================================================================
+! Compute the Intersection with bilinear surface by approximating the surface with two triangles
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars,          ONLY : lastPartPos,PartState
+USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: iPart
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element  
+INTEGER,INTENT(IN)               :: TriNum
+REAL, INTENT(IN)                 :: PartTrajectory(1:3), lengthPartTrajectory
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)               :: alpha !,IntersectionPos(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: Node1, Node2
+REAL                             :: PoldX, PoldY, PoldZ, PnewX, PnewY, PnewZ, nx, ny, nz, nVal
+REAL                             :: bx,by,bz, ax,ay,az, dist!, PoldStarX, PoldStarY, PoldStarZ
+REAL                             :: xNod, yNod, zNod
+REAL                             :: Vector1(1:3), Vector2(1:3), VectorShift(1:3)
+!===================================================================================================================================
+
+PoldX = lastPartPos(iPart,1)
+PoldY = lastPartPos(iPart,2)
+PoldZ = lastPartPos(iPart,3)
+PnewX = PartState(iPart,1)
+PnewY = PartState(iPart,2)
+PnewZ = PartState(iPart,3)
+
+xNod = GEO%NodeCoords(1,1,iLocSide,Element)
+yNod = GEO%NodeCoords(2,1,iLocSide,Element)
+zNod = GEO%NodeCoords(3,1,iLocSide,Element)
+
+!---- Calculate normal vector:
+
+Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+
+Vector1(1) = GEO%NodeCoords(1,Node1,iLocSide,Element) - xNod
+Vector1(2) = GEO%NodeCoords(2,Node1,iLocSide,Element) - yNod
+Vector1(3) = GEO%NodeCoords(3,Node1,iLocSide,Element) - zNod
+
+Vector2(1) = GEO%NodeCoords(1,Node2,iLocSide,Element) - xNod
+Vector2(2) = GEO%NodeCoords(2,Node2,iLocSide,Element) - yNod
+Vector2(3) = GEO%NodeCoords(3,Node2,iLocSide,Element) - zNod
+
+nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2)
+ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
+nz = Vector1(1) * Vector2(2) - Vector1(2) * Vector2(1)
+
+nVal = SQRT(nx*nx + ny*ny + nz*nz)
+
+nx = nx/nVal
+ny = ny/nVal
+nz = nz/nVal
+
+!---- Calculate Intersection
+
+!--- the following has been used for impulse computations, not implemented yet?
+!   IF (nx.NE.0) PIC%InverseImpulseX(iPart) = .NOT.(PIC%InverseImpulseX(iPart))
+!   IF (ny.NE.0) PIC%InverseImpulseY(iPart) = .NOT.(PIC%InverseImpulseY(iPart))
+!   IF (nz.NE.0) PIC%InverseImpulseZ(iPart) = .NOT.(PIC%InverseImpulseZ(iPart))
+
+bx = PoldX - xNod
+by = PoldY - yNod
+bz = PoldZ - zNod
+
+ax = bx - nx * (bx * nx + by * ny + bz * nz)
+ay = by - ny * (bx * nx + by * ny + bz * nz)
+az = bz - nz * (bx * nx + by * ny + bz * nz)
+
+dist = SQRT(((ay * bz - az * by) * (ay * bz - az * by) +   &
+      (az * bx - ax * bz) * (az * bx - ax * bz) +   &
+      (ax * by - ay * bx) * (ax * by - ay * bx))/   &
+      (ax * ax + ay * ay + az * az))
+
+! If vector from old point to new point goes through the node, a will be zero
+! dist is then simply length of vector b instead of |axb|/|a|
+IF (dist.NE.dist) dist = SQRT(bx*bx+by*by+bz*bz)
+
+!   PoldStarX = PoldX + 2 * dist * nx
+!   PoldStarY = PoldY + 2 * dist * ny
+!   PoldStarZ = PoldZ + 2 * dist * nz
+
+!VectorShift(1) = PnewX - PoldX
+!VectorShift(2) = PnewY - PoldY
+!VectorShift(3) = PnewZ - PoldZ
+
+alpha = PartTrajectory(1) * nx + PartTrajectory(2) * ny + PartTrajectory(3) * nz
+alpha = dist / alpha
+
+!IntersectionPos(1) = PoldX + alpha * PartTrajectory(1)
+!IntersectionPos(2) = PoldY + alpha * PartTrajectory(2)
+!IntersectionPos(3) = PoldZ + alpha * PartTrajectory(3)
+
+RETURN
+
+END SUBROUTINE IntersectionWithWall
+
+
 SUBROUTINE ComputePlanarRectIntersection(isHit                       &
                                         ,PartTrajectory              &
                                         ,lengthPartTrajectory        &
@@ -381,6 +487,131 @@ END SELECT
 END SUBROUTINE ComputePlanarCurvedIntersection
 
 
+SUBROUTINE ComputePlanarNonRectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
+                                                   ,iPart,flip,SideID,ElemCheck_Opt)
+!===================================================================================================================================
+! Compute the Intersection with planar surface
+! robust version
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
+USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+USE MOD_Mesh_Vars,               ONLY:NGeo
+#endif /*CODE_ANALYZE*/
+#ifdef MPI
+USE MOD_Mesh_Vars,               ONLY:BC
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+INTEGER,INTENT(IN)                :: iPart,SideID,flip
+LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xitild,etatild
+LOGICAL,INTENT(OUT)               :: isHit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(4)                 :: a1,a2
+REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
+REAL                              :: A,B,C,alphaNorm
+REAL                              :: xi(2),eta(2),t(2), scaleFac
+INTEGER                           :: InterType,nRoot
+LOGICAL                           :: ElemCheck
+!===================================================================================================================================
+
+! set alpha to minus one // no interesction
+alpha=-1.0
+xitild=-2.0
+etatild=-2.0
+isHit=.FALSE.
+
+! compute initial vectors
+BiLinearCoeff(:,1) = 0.25*BaseVectors3(:,SideID)
+BiLinearCoeff(:,2) = 0.25*BaseVectors1(:,SideID)
+BiLinearCoeff(:,3) = 0.25*BaseVectors2(:,SideID)
+BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
+
+! compute product with particle trajectory
+a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+
+a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+
+!A = a2(1)*a1(3)-a1(1)*a2(3)
+B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
+C = a1(4)*a2(2)-a1(2)*a2(4)
+
+!scale with <PartTraj.,NormVec>^2 and cell-scale (~area) for getting coefficients at least approx. in the order of 1
+scaleFac = DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)) !both vectors are already normalized
+IF(scaleFac.NE.0.)THEN
+  scaleFac = scaleFac**2 * BaseVectorsScale(SideID) !<...>^2 * cell-scale
+  !A = A d/ scaleFac
+  B = B / scaleFac
+  C = C / scaleFac
+END IF
+
+IF(ABS(B).GT.0.)THEN
+  nRoot=1
+  Eta(1)=-C/B
+  Eta(2)=0.
+ELSE
+  nRoot=0
+  Eta(1)=0.
+  Eta(2)=0.
+END IF
+!CALL QuadraticSolver(A,B,C,nRoot,Eta(1),Eta(2))
+
+IF(nRoot.EQ.0)THEN
+  RETURN
+END IF
+IF (nRoot.EQ.1) THEN
+  IF(ABS(eta(1)).LT.BezierClipHit)THEN
+    ! check for Xi only, if eta is possible
+    xi(1)=ComputeXi(a1,a2,eta(1))
+    IF(ABS(xi(1)).LT.BezierClipHit)THEN
+      ! compute alpha only with valid xi and eta
+      t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+      alphaNorm=t(1)/lengthPartTrajectory
+      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
+        alpha=t(1)!/LengthPartTrajectory
+        xitild=xi(1)
+        etatild=eta(1)
+        isHit=.TRUE.
+        RETURN
+      ELSE ! t is not in range
+        RETURN
+      END IF
+    ELSE ! xi not in range
+      RETURN
+    END IF ! xi .lt. OnePlusEps
+  ELSE ! eta not in reange
+    RETURN 
+  END IF ! eta .lt. OnePlusEps
+END IF
+
+END SUBROUTINE ComputePlanarNonRectIntersection
+
+
 SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
                                                    ,iPart,flip,SideID,ElemCheck_Opt)
 !===================================================================================================================================
@@ -421,11 +652,10 @@ REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
 REAL                              :: xi(2),eta(2),t(2), scaleFac
-INTEGER                           :: InterType,nRoot, flipdummy
+INTEGER                           :: InterType,nRoot
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
 
-flipdummy=flip
 ! set alpha to minus one // no interesction
 alpha=-1.0
 xitild=-2.0

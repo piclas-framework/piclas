@@ -18,6 +18,10 @@ INTERFACE InitParticleMesh
   MODULE PROCEDURE InitParticleMesh
 END INTERFACE
 
+INTERFACE InitTriaParticleGeometry
+  MODULE PROCEDURE InitTriaParticleGeometry
+END INTERFACE
+
 INTERFACE FinalizeParticleMesh
   MODULE PROCEDURE FinalizeParticleMesh
 END INTERFACE
@@ -74,6 +78,10 @@ INTERFACE PartInElemCheck
   MODULE PROCEDURE PartInElemCheck
 END INTERFACE
 
+INTERFACE ParticleInsideQuad3D
+  MODULE PROCEDURE ParticleInsideQuad3D
+END INTERFACE
+
 
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
@@ -81,6 +89,8 @@ PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
 PUBLIC::PartInElemCheck
+PUBLIC::ParticleInsideQuad3D
+PUBLIC::InitTriaParticleGeometry
 !===================================================================================================================================
 !
 CONTAINS
@@ -95,13 +105,14 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
-USE MOD_Mesh_Vars,              ONLY:useCurveds
+USE MOD_Mesh_Vars,              ONLY:useCurveds,NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -135,6 +146,16 @@ __STAMP__&
 
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
+TriaTracking       = GETLOGICAL('TriaTracking','.FALSE')
+#else
+TriaTracking       = .FALSE.
+#endif
+IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
+  CALL abort(&
+__STAMP__&
+,'DoRefMapping=T .OR. UseCurveds=T .OR. NGEO>1! Not possible with TriaTracking=T at the same time!')
+END IF
 CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
 nLostParts         = 0 
 
@@ -228,6 +249,169 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleMesh
 
 
+SUBROUTINE InitTriaParticleGeometry()
+!===================================================================================================================================
+! Subroutine for particle initialization 
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars,          ONLY : nElems, XCL_NGeo, NGeo
+USE MOD_Particle_Mesh_Vars, ONLY : GEO, PartElemToSide
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iElem, iLocSide
+INTEGER           :: NodeNum
+REAL              :: A(3,3),detcon
+INTEGER           :: flip,p,q
+REAL              :: SideCoord(1:3,0:1,0:1)
+REAL              :: SideCoord_tmp(1:3,0:1,0:1)
+!===================================================================================================================================
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE TRIANGLE GEOMETRY INFORMATION...'
+
+ALLOCATE(GEO%NodeCoords(1:3,1:4,1:6,1:nElems), &
+         GEO%ConcaveElemSide(1:6,1:nElems))
+GEO%NodeCoords(:,:,:,:)=0.
+GEO%ConcaveElemSide(:,:)=.FALSE.
+
+DO iElem=1,nElems
+  DO iLocSide=1,6
+!-----------------------------------------------------------------------------------------------------------------------------------
+    SELECT CASE(iLocSide)
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(XI_MINUS)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,0,q,p,iElem)
+        END DO !p
+      END DO !q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(XI_PLUS)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo,p,q,iElem)
+        END DO !p
+      END DO !q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(ETA_MINUS)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p,0,q,iElem)
+        END DO !p
+      END DO !q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(ETA_PLUS)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo-p,NGeo,q,iElem)
+        END DO !p
+      END DO !q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(ZETA_MINUS)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,q,p)=XCL_NGeo(1:3,p,q,0,iElem)
+        END DO !p
+      END DO !q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(ZETA_PLUS)
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p,q,NGeo,iElem)
+        END DO !p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    END SELECT
+!-----------------------------------------------------------------------------------------------------------------------------------
+    flip=PartElemToSide(E2S_FLIP,iLocSide,iElem)
+    ! master side, flip=0
+    ! slave side,  flip=1,..,4
+!-----------------------------------------------------------------------------------------------------------------------------------
+    SELECT CASE(flip)
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(0) ! master side
+     SideCoord(:,:,:)=SideCoord_tmp
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,p,q)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-q,p)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-p,NGeo-q)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NGeo
+        DO p=0,NGeo
+          SideCoord(:,p,q)=SideCoord_tmp(:,q,NGeo-p)
+        END DO ! p
+      END DO ! q
+!-----------------------------------------------------------------------------------------------------------------------------------
+    END SELECT
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+    GEO%NodeCoords(1:3,1,iLocSide,iElem) = SideCoord(:,0   ,0   )
+    GEO%NodeCoords(1:3,2,iLocSide,iElem) = SideCoord(:,NGeo,0   )
+    GEO%NodeCoords(1:3,3,iLocSide,iElem) = SideCoord(:,NGeo,NGeo)
+    GEO%NodeCoords(1:3,4,iLocSide,iElem) = SideCoord(:,0   ,NGeo)
+    !write(*,*)'Element: ',iElem
+    !write(*,*)'Side: ',iLocSide
+    !write(*,*)'SideID: ', PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    !write(*,*)'flip: ',flip
+    !write(*,*)'Coords 1 ',GEO%NodeCoords(1:3,1,iLocSide,iElem)
+    !write(*,*)'Coords 2 ',GEO%NodeCoords(1:3,2,iLocSide,iElem)
+    !write(*,*)'Coords 3 ',GEO%NodeCoords(1:3,3,iLocSide,iElem)
+    !write(*,*)'Coords 4 ',GEO%NodeCoords(1:3,4,iLocSide,iElem)
+    !read(*,*)
+  END DO
+END DO
+
+!--- Save whether Side is concave or convex
+DO iElem = 1,nElems
+  DO iLocSide = 1,6
+    !--- Check whether the bilinear side is concave
+    !--- Node Number 4 and triangle 1-2-3
+    DO NodeNum = 1,3               ! for all 3 nodes of triangle
+      A(:,NodeNum) = GEO%NodeCoords(:,NodeNum,iLocSide,iElem) &
+                   - GEO%NodeCoords(:,4      ,iLocSide,iElem)
+    END DO
+    !--- concave if detcon < 0:
+    detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
+              (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
+              (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
+    IF (detcon.LT.0) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
+  END DO
+END DO
+
+!--- check for elements with intersecting sides (e.g. very flat elements)
+CALL TriaWeirdElementCheck()
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE TRIANGLE GEOMETRY INFORMATION DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitTriaParticleGeometry
+
+
 SUBROUTINE FinalizeParticleMesh()
 !===================================================================================================================================
 ! read required parameters
@@ -263,6 +447,9 @@ SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%DeltaEvMPF)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
+SDEALLOCATE(GEO%NodeCoords)
+SDEALLOCATE(GEO%ConcaveElemSide)
+SDEALLOCATE(TriaSideData)
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
@@ -286,13 +473,13 @@ SUBROUTINE SingleParticleToExactElement(iPart,doHalo,initFix)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef
-USE MOD_Particle_Mesh_Vars,          ONLY:Geo
-USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsBCElem,ElemRadius2NGeo
-USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
-USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
-USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
+USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef,KeepWallParticles
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
+USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell,ElemBaryNGeo,IsBCElem,ElemRadius2NGeo
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,                   ONLY:ElemToSide,BC,ElemBaryNGeo
@@ -312,171 +499,197 @@ LOGICAL,INTENT(IN)                :: initFix
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                           :: InElementCheck,ParticleFound                                
-REAL                              :: xi(1:3),Distance2
+REAL                              :: xi(1:3),Distance2,Det(6,2)
 #ifdef MPI
 INTEGER                           :: XiDir,locSideID,flip,SideID
 REAL                              :: locXi,locEta,tmpXi
 INTEGER                           :: Moved(2)
 #endif /*MPI*/
 !===================================================================================================================================
-
-!epsOne=1.0+epsInCell
-!OneMeps=1.0-eps
 ParticleFound = .FALSE.
-IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
-     (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
-     (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
-   PDM%ParticleInside(iPart) = .FALSE.
-   RETURN
+IF (KeepWallParticles) THEN
+  IF (PDM%ParticleAtWall(iPart)) THEN
+    PEM%Element(iPart) = PEM%lastElement(iPart)
+    ParticleFound = .TRUE.
+  END IF
 END IF
 
-! --- get background mesh cell of particle
-CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
-CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
-CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
-
-!--- check all cells associated with this beckground mesh cell
-nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
-
-! get closest element barycenter
-Distance=-1.
-ListDistance=0
-DO iBGMElem = 1, nBGMElems
-  ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-  Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
-           +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
-           +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
-  IF(Distance2.GT.ElemRadius2NGeo(ElemID))THEN
-    Distance(iBGMElem)=-1.
-  ELSE
-    Distance(iBGMElem)=Distance2
-  END IF
-  ListDistance(iBGMElem)=ElemID
-END DO ! nBGMElems
-
-IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
-  PDM%ParticleInside(iPart) = .FALSE.
-  RETURN
-END IF
-
-!CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
-
-! loop through sorted list and start by closest element  
-DO iBGMElem=1,nBGMElems
-  IF(ALMOSTEQUAL(Distance(iBGMElem),-1.))CYCLE
-  ElemID=ListDistance(iBGMElem)
-  IF(.NOT.DoHALO)THEN
-    IF(ElemID.GT.PP_nElems) CYCLE
-  END IF
-  IF(IsBCElem(ElemID))THEN
-    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,InElementCheck)
-    IF(.NOT.InElementCheck) CYCLE
+IF (.NOT.ParticleFound) THEN
+  IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
+       (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
+       (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+     PDM%ParticleInside(iPart) = .FALSE.
+     RETURN
   END IF
 
-  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-  IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
-    IF(.NOT.InitFix)THEN
-      InElementCheck=.TRUE.
+  ! --- get background mesh cell of particle
+  CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+  CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
+  CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
+  CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
+
+
+  IF (TriaTracking) THEN
+    !--- check all cells associated with this background mesh cell
+    DO iBGMElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
+      ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+      CALL ParticleInsideQuad3D(PartState(iPart,1:3),ElemID,InElementCheck,Det)
+      IF (InElementCheck) THEN
+         PEM%Element(iPart) = ElemID
+         ParticleFound = .TRUE.
+         EXIT
+      END IF
+    END DO
+    IF (.NOT.ParticleFound) THEN
+      PDM%ParticleInside(iPart) = .FALSE.
+    END IF
+    RETURN
+  END IF
+
+  !--- check all cells associated with this beckground mesh cell
+  nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
+
+  ! get closest element barycenter
+  Distance=-1.
+  ListDistance=0
+  DO iBGMElem = 1, nBGMElems
+    ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+    Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
+             +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+             +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
+    IF(Distance2.GT.ElemRadius2NGeo(ElemID))THEN
+      Distance(iBGMElem)=-1.
     ELSE
-     InElementCheck=.TRUE.
-     ! inelementcheck can only be set to false in the following part
+      Distance(iBGMElem)=Distance2
+    END IF
+    ListDistance(iBGMElem)=ElemID
+  END DO ! nBGMElems
+
+  IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
+    PDM%ParticleInside(iPart) = .FALSE.
+    RETURN
+  END IF
+
+  !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+  IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
+
+  ! loop through sorted list and start by closest element  
+  DO iBGMElem=1,nBGMElems
+    IF(ALMOSTEQUAL(Distance(iBGMElem),-1.))CYCLE
+    ElemID=ListDistance(iBGMElem)
+    IF(.NOT.DoHALO)THEN
+      IF(ElemID.GT.PP_nElems) CYCLE
+    END IF
+    IF(IsBCElem(ElemID))THEN
+      CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,InElementCheck)
+      IF(.NOT.InElementCheck) CYCLE
+    END IF
+
+    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+    IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
+      IF(.NOT.InitFix)THEN
+        InElementCheck=.TRUE.
+      ELSE
+       InElementCheck=.TRUE.
+       ! inelementcheck can only be set to false in the following part
 #ifdef MPI
-!     ! check if xi is larger than unity, than the
-!     ! particle is found at least twice
-     IF(MAXVAL(ABS(Xi)).GT.0.99999999)THEN ! particle possible outside
-       XiDir = MAXLOC(ABS(Xi),1)
-       ! now, get neighbor-side id
-       SELECT CASE(XiDir)
-       CASE(1) ! Xi
-         IF(Xi(XiDir).GT.0)THEN
-           ! XI_PLUS
-           locSideID=XI_PLUS
-           locXi=Xi(3)
-           locEta=Xi(2)
-         ELSE
-           ! XI_MINUS
-           locSideID=XI_MINUS
-           locXi=Xi(2)
-           locEta=Xi(3)
-         END IF
-       CASE(2) ! Eta
-         IF(Xi(XiDir).GT.0)THEN
-           locSideID=ETA_PLUS
-           locXi=-Xi(1)
-           locEta=Xi(3)
-         ELSE
-           locSideID=ETA_MINUS
-           locXi=Xi(1)
-           locEta=Xi(3)
-         END IF
-       CASE(3) ! Zeta
-         IF(Xi(XiDir).GT.0)THEN
-           locSideID=ZETA_PLUS
-           locXi =Xi(1)
-           locEta=Xi(2)
-         ELSE
-           locSideID=ZETA_MINUS
-           locXi=Xi(2)
-           locEta=Xi(1)
-         END IF
-       CASE DEFAULT
-         CALL abort(&
+!       ! check if xi is larger than unity, than the
+!       ! particle is found at least twice
+       IF(MAXVAL(ABS(Xi)).GT.0.99999999)THEN ! particle possible outside
+         XiDir = MAXLOC(ABS(Xi),1)
+         ! now, get neighbor-side id
+         SELECT CASE(XiDir)
+         CASE(1) ! Xi
+           IF(Xi(XiDir).GT.0)THEN
+             ! XI_PLUS
+             locSideID=XI_PLUS
+             locXi=Xi(3)
+             locEta=Xi(2)
+           ELSE
+             ! XI_MINUS
+             locSideID=XI_MINUS
+             locXi=Xi(2)
+             locEta=Xi(3)
+           END IF
+         CASE(2) ! Eta
+           IF(Xi(XiDir).GT.0)THEN
+             locSideID=ETA_PLUS
+             locXi=-Xi(1)
+             locEta=Xi(3)
+           ELSE
+             locSideID=ETA_MINUS
+             locXi=Xi(1)
+             locEta=Xi(3)
+           END IF
+         CASE(3) ! Zeta
+           IF(Xi(XiDir).GT.0)THEN
+             locSideID=ZETA_PLUS
+             locXi =Xi(1)
+             locEta=Xi(2)
+           ELSE
+             locSideID=ZETA_MINUS
+             locXi=Xi(2)
+             locEta=Xi(1)
+           END IF
+         CASE DEFAULT
+           CALL abort(&
 __STAMP__&
 , ' Error in  mesh-connectivity!')
-       END SELECT
-       ! get flip and rotate xi and eta into side-master system
-       flip     =ElemToSide(E2S_FLIP,locSideID,ElemID)
-       SideID   =ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
-       SELECT CASE(Flip)
-       CASE(1) ! slave side, SideID=q,jSide=p
-         tmpXi=locEta
-         locEta=locXi
-         locXi=tmpXi
-       CASE(2) ! slave side, SideID=N-p,jSide=q
-         locXi=-locXi
-         locEta=locEta
-       CASE(3) ! slave side, SideID=N-q,jSide=N-p
-         tmpXi =-locEta
-         locEta=-locXi
-         locXi=tmpXi
-       CASE(4) ! slave side, SideID=p,jSide=N-q
-         locXi =locXi
-         locEta=-locEta
-       END SELECT
-       IF(BC(SideID).GT.0)THEN
-         InElementCheck=.FALSE.
-       ELSE
-!         ! check if neighbor element is an mpi-element and if yes,
-!         ! only take the particle if I am the lower rank
-         Moved = PARTSWITCHELEMENT(locxi,loceta,locSideID,SideID,ElemID)
-         IF(Moved(1).GT.PP_nElems)THEN
-           IF(PartHaloElemToProc(NATIVE_PROC_ID,Moved(1)).LT.MyRank)THEN
-             InElementCheck=.FALSE.
+         END SELECT
+         ! get flip and rotate xi and eta into side-master system
+         flip     =ElemToSide(E2S_FLIP,locSideID,ElemID)
+         SideID   =ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
+         SELECT CASE(Flip)
+         CASE(1) ! slave side, SideID=q,jSide=p
+           tmpXi=locEta
+           locEta=locXi
+           locXi=tmpXi
+         CASE(2) ! slave side, SideID=N-p,jSide=q
+           locXi=-locXi
+           locEta=locEta
+         CASE(3) ! slave side, SideID=N-q,jSide=N-p
+           tmpXi =-locEta
+           locEta=-locXi
+           locXi=tmpXi
+         CASE(4) ! slave side, SideID=p,jSide=N-q
+           locXi =locXi
+           locEta=-locEta
+         END SELECT
+         IF(BC(SideID).GT.0)THEN
+           InElementCheck=.FALSE.
+         ELSE
+!           ! check if neighbor element is an mpi-element and if yes,
+!           ! only take the particle if I am the lower rank
+           Moved = PARTSWITCHELEMENT(locxi,loceta,locSideID,SideID,ElemID)
+           IF(Moved(1).GT.PP_nElems)THEN
+             IF(PartHaloElemToProc(NATIVE_PROC_ID,Moved(1)).LT.MyRank)THEN
+               InElementCheck=.FALSE.
+             END IF
            END IF
          END IF
        END IF
-     END IF
 #endif /*MPI*/      
+      END IF
+    ELSE ! particle at face,edge or node, check most possible point
+      InElementCheck=.FALSE.
     END IF
-  ELSE ! particle at face,edge or node, check most possible point
-    InElementCheck=.FALSE.
-  END IF
-  IF (InElementCheck) THEN 
-    PEM%Element(iPart) = ElemID
-    IF(DoRefMapping) PartPosRef(1:3,iPart) = Xi
-    ParticleFound = .TRUE.
-    EXIT
-  END IF
-END DO ! iBGMElem
+    IF (InElementCheck) THEN 
+      PEM%Element(iPart) = ElemID
+      IF(DoRefMapping) PartPosRef(1:3,iPart) = Xi
+      ParticleFound = .TRUE.
+      EXIT
+    END IF
+  END DO ! iBGMElem
+END IF
 
 ! particle not found
 IF (.NOT.ParticleFound) THEN
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
+RETURN
+
 END SUBROUTINE SingleParticleToExactElement
 
 
@@ -750,6 +963,75 @@ LastPartPos(PartID,1:3) = LastPosTmp(1:3)
 END SUBROUTINE PartInElemCheck
 
 
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)                                      !
+!===================================================================================================================================
+! checks if particle is inside of linear element with planar faces
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Mesh_Vars,  ONLY : GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL   ,INTENT(OUT)           :: Det(6,2)
+LOGICAL,INTENT(OUT)           :: InElementCheck
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, NodeNum
+LOGICAL                       :: PosCheck, NegCheck
+REAL                          :: A(1:3,1:4), cross(3)
+!===================================================================================================================================
+  InElementCheck = .TRUE.
+  DO iLocSide = 1,6                 ! for all 6 sides of the element
+     !--- initialize flags for side checks
+     PosCheck = .FALSE.
+     NegCheck = .FALSE.
+     !--- A = vector from particle to node coords
+     DO NodeNum = 1,4
+       A(:,NodeNum) = GEO%NodeCoords(:,NodeNum,iLocSide,ElemID) - PartStateLoc(1:3)
+     END DO
+
+     !--- compute cross product for vector 1 and 3
+     cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+     cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+     cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+
+     !--- negative determinant of triangle 1 (points 1,3,2):
+     Det(iLocSide,1) = cross(1) * A(1,2) + &
+                       cross(2) * A(2,2) + &
+                       cross(3) * A(3,2)
+     Det(iLocSide,1) = -det(iLocSide,1)
+     !--- determinant of triangle 2 (points 1,3,4):
+     Det(iLocSide,2) = cross(1) * A(1,4) + &
+                       cross(2) * A(2,4) + &
+                       cross(3) * A(3,4)
+     IF (Det(iLocSide,1).LT.0) THEN
+       NegCheck = .TRUE.
+     ELSE
+       PosCheck = .TRUE.
+     END IF
+     IF (Det(iLocSide,2).LT.0) THEN
+       NegCheck = .TRUE.
+     ELSE
+       PosCheck = .TRUE.
+     END IF
+
+     !--- final determination whether particle is in element
+     IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+       IF (.NOT.PosCheck) InElementCheck = .FALSE.
+     ELSE
+       IF (NegCheck) InElementCheck = .FALSE.
+     END IF
+  END DO
+ RETURN
+END SUBROUTINE ParticleInsideQuad3D
+
+
 SUBROUTINE InitFIBGM()
 !===================================================================================================================================
 ! Build Fast-Init-Background-Mesh.
@@ -758,6 +1040,7 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Vars, ONLY : XCL_NGeo,dXCL_NGeo
 USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
 !USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
@@ -769,6 +1052,7 @@ USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Mesh_Vars,                          ONLY:ElemBaryNGeo
+USE MOD_Particle_Tracking_Vars,             ONLY:TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -857,7 +1141,8 @@ END IF
 ! get elem and side types
 CALL GetElemAndSideType()
 
-CALL GetPlanarSideBaseVectors()
+CALL GetLinearSideBaseVectors()
+IF (TriaTracking) CALL GetTriaSideData()
 CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
@@ -1908,6 +2193,148 @@ ALLOCATE(Distance    (1:maxnBGMElems) &
 END SUBROUTINE AddHALOCellsToFIBGM
 
 
+SUBROUTINE TriaWeirdElementCheck()
+!===================================================================================================================================
+! Calculate whether element edges intersect other sides
+! If this is the case it means that part of the element is turned inside-out
+! which results in a warning so the user can decide whether it is a problem that 
+! necessitates a new mesh. 
+! Fixing the problem would involve defining the bilinear edge between nodes 2 and 4
+! (instead of 1 and 3). This information would need to be stored and used throughout
+! the particle treatment. Additionally, since the edge would need to be changed 
+! for both neighboring elements, it is possible that both element might have the problem
+! hence no solution exists.
+! tl;dr: Hard/maybe impossible to fix, hence only a warning is given so the user can decide
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars,          ONLY : nElems
+USE MOD_Particle_Mesh_Vars, ONLY : GEO, WeirdElems
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iElem, iLocSide, kLocSide, iNode, WeirdElemNbrs(1:nElems)
+REAL              :: vec(1:3), Node(1:3,1:4),det(1:3)
+LOGICAL           :: WEIRD, TRICHECK, TRIABSCHECK
+!===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
+
+WeirdElems = 0
+DO iElem = 1, nElems ! go through all elements
+  WEIRD = .FALSE.
+  DO iLocSide = 1,5  ! go through local sides
+    IF (.not.WEIRD) THEN  ! if one is found there is no need to continue
+      IF (GEO%ConcaveElemSide(iLocSide,iElem)) THEN  ! only concave elements need to be checked
+        ! build vector from node 1 to node 3
+        vec(:) = GEO%NodeCoords(:,3,iLocSide,iElem) &
+               - GEO%NodeCoords(:,1,iLocSide,iElem)
+        ! check all other sides
+        DO kLocSide = iLocSide + 1, 6
+          IF (GEO%ConcaveElemSide(kLocSide,iElem)) THEN  ! only concave elements need to be checked
+            ! build 4 vectors from point 1 of edge to 4 nodes of kLocSide
+            DO iNode = 1,4
+              Node(:,iNode) = GEO%NodeCoords(:,1,iLocSide,iElem) &
+                            - GEO%NodeCoords(:,iNode,kLocSide,iElem)
+            END DO
+            ! Compute whether any of the triangle intersects with the vector vec:
+            ! If all three volumes built by the vector vec and the vectors Node
+            ! are either positive or negative then there is an intersection
+
+            ! Triangle 1 (Nodes 1,2,3)
+            ! Only check this if neither point of vec is part of the triangle.
+            ! If points of vec correspont to point 1 or 3 or triangle then both
+            ! triangles can be skipped (triabscheck = true), else point 4 needs to be checked
+            ! separately for triangle 2 (see below)
+            TRICHECK = .FALSE.
+            TRIABSCHECK = .FALSE.
+            DO iNode = 1,3
+              det(:) = GEO%NodeCoords(:,1,iLocSide,iElem) &
+                     - GEO%NodeCoords(:,iNode,kLocSide,iElem)
+              IF (SUM(abs(det(:))).EQ.0) THEN
+                TRICHECK = .TRUE.
+                IF(iNode.NE.2)TRIABSCHECK = .TRUE.
+              END IF
+              det(:) = GEO%NodeCoords(:,3,iLocSide,iElem) &
+                     - GEO%NodeCoords(:,iNode,kLocSide,iElem)
+              IF (SUM(abs(det(:))).EQ.0) THEN
+                TRICHECK = .TRUE.
+                IF(iNode.NE.2)TRIABSCHECK = .TRUE.
+              END IF
+            END DO
+            IF (.not.TRICHECK) THEN
+              det(1) = ((Node(2,1) * Node(3,2) - Node(3,1) * Node(2,2)) * vec(1)  + &
+                        (Node(3,1) * Node(1,2) - Node(1,1) * Node(3,2)) * vec(2)  + & 
+                        (Node(1,1) * Node(2,2) - Node(2,1) * Node(1,2)) * vec(3))
+              det(2) = ((Node(2,2) * Node(3,3) - Node(3,2) * Node(2,3)) * vec(1)  + &
+                        (Node(3,2) * Node(1,3) - Node(1,2) * Node(3,3)) * vec(2)  + & 
+                        (Node(1,2) * Node(2,3) - Node(2,2) * Node(1,3)) * vec(3))
+              det(3) = ((Node(2,3) * Node(3,1) - Node(3,3) * Node(2,1)) * vec(1)  + &
+                        (Node(3,3) * Node(1,1) - Node(1,3) * Node(3,1)) * vec(2)  + & 
+                        (Node(1,3) * Node(2,1) - Node(2,3) * Node(1,1)) * vec(3))
+              IF ((det(1).LT.0).AND.(det(2).LT.0).AND.(det(3).LT.0)) WEIRD = .TRUE.
+              IF ((det(1).GT.0).AND.(det(2).GT.0).AND.(det(3).GT.0)) WEIRD = .TRUE.
+            END IF
+
+            ! Triangle 2 (Nodes 1,3,4)
+            TRICHECK = .FALSE.
+            IF (.not.TRIABSCHECK) THEN
+              ! Node 4 needs to be checked separately (see above)
+              det(:) = GEO%NodeCoords(:,1,iLocSide,iElem) &
+                     - GEO%NodeCoords(:,4,kLocSide,iElem)
+              IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
+              det(:) = GEO%NodeCoords(:,3,iLocSide,iElem) &
+                     - GEO%NodeCoords(:,4,kLocSide,iElem)
+              IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
+              IF (.not.TRICHECK) THEN
+                det(1) = ((Node(2,1) * Node(3,3) - Node(3,1) * Node(2,3)) * vec(1)  + &
+                          (Node(3,1) * Node(1,3) - Node(1,1) * Node(3,3)) * vec(2)  + & 
+                          (Node(1,1) * Node(2,3) - Node(2,1) * Node(1,3)) * vec(3))
+                det(2) = ((Node(2,3) * Node(3,4) - Node(3,3) * Node(2,4)) * vec(1)  + &
+                          (Node(3,3) * Node(1,4) - Node(1,3) * Node(3,4)) * vec(2)  + & 
+                          (Node(1,3) * Node(2,4) - Node(2,3) * Node(1,4)) * vec(3))
+                det(3) = ((Node(2,4) * Node(3,1) - Node(3,4) * Node(2,1)) * vec(1)  + &
+                          (Node(3,4) * Node(1,1) - Node(1,4) * Node(3,1)) * vec(2)  + & 
+                          (Node(1,4) * Node(2,1) - Node(2,4) * Node(1,1)) * vec(3))
+                IF ((det(1).LT.0).AND.(det(2).LT.0).AND.(det(3).LT.0)) WEIRD = .TRUE.
+                IF ((det(1).GT.0).AND.(det(2).GT.0).AND.(det(3).GT.0)) WEIRD = .TRUE.
+              END IF
+            END IF
+          END IF
+        END DO
+      END IF
+    END IF
+  END DO
+  IF (WEIRD) THEN 
+    WeirdElems = WeirdElems + 1
+    WeirdElemNbrs(WeirdElems) = iElem
+  END IF
+END DO
+              
+SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
+IF(WeirdElems.GT.0) THEN
+  IPWRITE(UNIT_stdOut,*)' FOUND', WeirdElems, 'ELEMENTS!'
+  IPWRITE(UNIT_stdOut,*)' WEIRD ELEM NUMBERS:'
+  DO iElem = 1,WeirdElems
+    IPWRITE(UNIT_stdOut,*) WeirdElemNbrs(iElem)
+  !  DO iLocSide = 1,6
+  !    DO iNode = 1,4
+  !      SWRITE(UNIT_stdOut,*) GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,iLocSide,WeirdElemNbrs(iElem)))
+  !    END DO
+  !  END DO
+  !  STOP
+  END DO
+END IF
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE TriaWeirdElementCheck
+
+
 SUBROUTINE InitElemVolumes()
 !===================================================================================================================================
 ! Calculate Element volumes for later use in particle routines
@@ -1972,6 +2399,127 @@ SWRITE(UNIT_StdOut,'(A,E18.8)') ' |           Total Volume of Mesh |            
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
+
+
+SUBROUTINE GetTriaSideData()
+!===================================================================================================================================
+! Calculate Data of Triangles for each Side
+! normalvector, tangential vectors and area
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+!USE MOD_Mesh_Vars,             ONLY : NormVec
+USE MOD_Particle_Mesh_Vars,    ONLY : nTotalElems, nTotalSides
+USE MOD_Particle_Mesh_Vars,    ONLY : PartElemToSide, GEO, TriaSideData
+!USE MOD_Particle_Boundary_Vars,ONLY : nTotalSides
+!USE MOD_Particle_Surface_Vars,ONLY:TriaSideData
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: SideID,iElem,iLocSide,TriNum,Node1,Node2,flip!,q,p
+REAL              :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz!, nvSide(3), NVecTest
+REAL              :: vec_nIn(3), nVal, vec_t1(3), vec_t2(3)
+!===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' GET TRIANGULATED SIDE DATA...'
+
+ALLOCATE(TriaSideData(1:nTotalSides)) ! allocate further for ld!
+DO iElem=1,nTotalElems
+  DO iLocSide=1,6               ! -''-
+    flip = PartElemToSide(E2S_FLIP,iLocSide,iElem)
+    SideID = PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+
+    xNod = GEO%NodeCoords(1,1,iLocSide,iElem)
+    yNod = GEO%NodeCoords(2,1,iLocSide,iElem)
+    zNod = GEO%NodeCoords(3,1,iLocSide,iElem)
+    !TriaSideData(1:2,SideID)%NodeCoords(1,1) = xNod
+    !TriaSideData(1:2,SideID)%NodeCoords(2,1) = yNod
+    !TriaSideData(1:2,SideID)%NodeCoords(3,1) = zNod
+
+    DO TriNum = 1,2
+      Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+      Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+      Vector1(1) = GEO%NodeCoords(1,Node1,iLocSide,iElem) - xNod
+      Vector1(2) = GEO%NodeCoords(2,Node1,iLocSide,iElem) - yNod
+      Vector1(3) = GEO%NodeCoords(3,Node1,iLocSide,iElem) - zNod
+      Vector2(1) = GEO%NodeCoords(1,Node2,iLocSide,iElem) - xNod
+      Vector2(2) = GEO%NodeCoords(2,Node2,iLocSide,iElem) - yNod
+      Vector2(3) = GEO%NodeCoords(3,Node2,iLocSide,iElem) - zNod
+      nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+      ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+      nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+      nVal = SQRT(nx*nx + ny*ny + nz*nz)
+      vec_nIn(1:3) = -(/nx,ny,nz/) / nVal
+      !nvSide(:)=0.
+      !DO q=0,PP_N
+      !  DO p=0,PP_N
+      !    nvSide(:)=nvSide(:)+NormVec(:,p,q,SideID)
+      !  END DO
+      !END DO
+      !nvSide(:)=nvSide(:)/REAL((PP_N+1)*(PP_N+1)) !average nv of side (outwards)
+      !NVecTest = nvSide(1)*nx + nvSide(2)*ny + nvSide(3)*nz
+      !IF (NVecTest.GE.0.0) THEN !NV is directed outwards
+      !  CALL abort(__STAMP__,&
+      !    'ERROR in Calculation of NormVec in Init Particle_Mesh!',999,NVecTest)
+      !END IF
+      !-- build arbitrary vectors normal to vec_nIn (and prep. for projected velos)
+      IF (.NOT.ALMOSTEQUAL(vec_nIn(3),0.)) THEN
+        vec_t1(1) = 1.0
+        vec_t1(2) = 1.0
+        vec_t1(3) = -(vec_nIn(1)+vec_nIn(2))/vec_nIn(3)
+        vec_t2(1) = vec_nIn(2) * vec_t1(3) - vec_nIn(3)
+        vec_t2(2) = vec_nIn(3) - vec_nIn(1) * vec_t1(3)
+        vec_t2(3) = vec_nIn(1) - vec_nIn(2)
+        vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(3)*vec_t1(3))
+      ELSE
+        IF (.NOT.ALMOSTEQUAL(vec_nIn(2),0.)) THEN
+          vec_t1(1) = 1.0
+          vec_t1(3) = 1.0
+          vec_t1(2) = -(vec_nIn(1)+vec_nIn(3))/vec_nIn(2)
+          vec_t2(1) = vec_nIn(2) - vec_nIn(3) * vec_t1(2)
+          vec_t2(2) = vec_nIn(3) - vec_nIn(1)
+          vec_t2(3) = vec_nIn(1) * vec_t1(2) - vec_nIn(2)
+          vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(2)*vec_t1(2))
+        ELSE
+          IF (.NOT.ALMOSTEQUAL(vec_nIn(1),0.)) THEN
+            vec_t1(2) = 1.0
+            vec_t1(3) = 1.0
+            vec_t1(1) = -(vec_nIn(2)+vec_nIn(3))/vec_nIn(1)
+            vec_t2(1) = vec_nIn(2) - vec_nIn(3)
+            vec_t2(2) = vec_nIn(3) * vec_t1(1) - vec_nIn(1)
+            vec_t2(3) = vec_nIn(1) - vec_nIn(2) * vec_t1(1)
+            vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(1)*vec_t1(1))
+          ELSE
+            CALL abort(__STAMP__,&
+              'Error in InitParticles: vec_nIn is zero!')
+          END IF
+        END IF
+      END IF
+      vec_t2 = vec_t2 / SQRT(vec_t2(1)*vec_t2(1) + vec_t2(2)*vec_t2(2) + vec_t2(3)*vec_t2(3))
+      !-- store tria data in SideData
+      TriaSideData(SideID)%vec_nIn(1:3,TriNum,flip) = vec_nIn(1:3)
+      TriaSideData(SideID)%vec_t1(1:3,TriNum,flip) = vec_t1(1:3)
+      TriaSideData(SideID)%vec_t2(1:3,TriNum,flip) = vec_t2(1:3)
+      TriaSideData(SideID)%area(TriNum)      = nVal/2.
+      !TriaSideData(TriNum,SideID)%NodeCoords(1,2) = GEO%NodeCoords(1,Node1,iLocSide,iElem)
+      !TriaSideData(TriNum,SideID)%NodeCoords(2,2) = GEO%NodeCoords(2,Node1,iLocSide,iElem)
+      !TriaSideData(TriNum,SideID)%NodeCoords(3,2) = GEO%NodeCoords(3,Node1,iLocSide,iElem)
+      !TriaSideData(TriNum,SideID)%NodeCoords(1,3) = GEO%NodeCoords(1,Node2,iLocSide,iElem)
+      !TriaSideData(TriNum,SideID)%NodeCoords(2,3) = GEO%NodeCoords(2,Node2,iLocSide,iElem)
+      !TriaSideData(TriNum,SideID)%NodeCoords(3,3) = GEO%NodeCoords(3,Node2,iLocSide,iElem)
+    END DO
+  END DO
+END DO
+
+SWRITE(UNIT_stdOut,'(A)')' GET TRIANGULATED SIDE DATA DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE GetTriaSideData
 
 
 SUBROUTINE ReShapeBezierSides()
@@ -3667,9 +4215,9 @@ END DO ! iElem=1,nLoop
 END SUBROUTINE GetElemAndSideType
 
 
-SUBROUTINE GetPlanarSideBaseVectors()
+SUBROUTINE GetLinearSideBaseVectors()
 !===================================================================================================================================
-! computes the face base vector for planar face intersection calculation
+! computes the face base vector for linear (planar or bilinear) face intersection calculation
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3695,6 +4243,8 @@ INTEGER                               :: iSide, BCSide
 REAL                                  :: crossVec(3)
 ! INTEGER                               :: iSide_temp
 !===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
 IF(.NOT.DoRefMapping)THEN
 !   ALLOCATE(SideID2PlanarSideID(1:nTotalSides))
 !   SideID2PlanarSideID(:) = 0
@@ -3757,7 +4307,9 @@ ELSE
   END DO ! iSide
 END IF
 
-END SUBROUTINE GetPlanarSideBaseVectors
+SWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE GetLinearSideBaseVectors
 
 
 SUBROUTINE ElemConnectivity() 
@@ -3800,6 +4352,8 @@ INTEGER                       :: iHaloElem
 INTEGER(KIND=8)               :: HaloGlobalElemID
 #endif /*MPI*/
 !===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY ... '
 
 SDEALLOCATE(PartElemToElemAndSide)
 ALLOCATE(PartElemToElemAndSide(1:8,1:6,1:nTotalElems))
@@ -4001,7 +4555,8 @@ END DO
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif
-SWRITE(UNIT_StdOut,'(A)') ' Build of mesh-connectivity is successful!'
+SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY SUCCESSFUL '
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE ElemConnectivity
 

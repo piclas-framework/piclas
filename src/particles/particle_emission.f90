@@ -577,13 +577,10 @@ USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
-USE MOD_Timedisc_Vars,         ONLY:dt, DoDisplayEmissionWarnings
+USE MOD_Timedisc_Vars,         ONLY:dt, DoDisplayEmissionWarnings, iter, IterDisplayStep, DoDisplayIter
 USE MOD_Timedisc_Vars,         ONLY : RKdtFrac
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_Timedisc_Vars,         ONLY:dt, iter, DoDisplayEmissionWarnings,IterDisplayStep, DoDisplayIter
-#endif
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping, TriaTracking
 USE MOD_PICInterpolation,      ONLY:InterpolateVariableExternalField
 USE MOD_PICInterpolation_Vars ,ONLY:VariableExternalField
 USE MOD_PICInterpolation_vars, ONLY:useVariableExternalField
@@ -818,7 +815,7 @@ mySumOfMatchedParticles = 0
 chunkSize = nbrOfParticle
 ! process myRank=0 generates the complete list of random positions for all emitted particles
 #ifdef MPI
-IF(( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                                ) .AND.  &
+IF(( (nbrOfParticle.GT.PartMPI%InitGroup(InitGroup)%nProcs*10                             ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution').AND.  &
@@ -1473,7 +1470,7 @@ __STAMP__&
          IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-            IF(DoRefMapping)THEN
+            IF(DoRefMapping.OR.TriaTracking)THEN
               CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFix=.TRUE.)
             ELSE
               CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
@@ -1886,7 +1883,12 @@ ELSE ! mode.NE.1:
 #ifdef MPI
   ! in order to remove duplicated particles
   IF(nChunksTemp.EQ.1) THEN
-    ALLOCATE(PartFoundInProc(1:2,1:ChunkSize))
+    ALLOCATE(PartFoundInProc(1:2,1:ChunkSize),STAT=ALLOCSTAT)
+      IF (ALLOCSTAT.NE.0) THEN
+        CALL abort(&
+__STAMP__,&
+"abort: Error during emission in PartFoundInProc allocation")
+      END IF
     PartFoundInProc=-1
   END IF
 #endif /*MPI*/
@@ -1901,12 +1903,11 @@ ELSE ! mode.NE.1:
     IF (ParticleIndexNbr .ne. 0) THEN
        PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-       IF(DoRefMapping)THEN
+       IF(DoRefMapping.OR.TriaTracking)THEN
          CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,InitFix=.TRUE.)
        ELSE
          CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
        END IF
-       !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
 #ifdef MPI
@@ -1927,6 +1928,8 @@ __STAMP__&
     END IF
   END DO
  
+IF(DoDisplayIter)THEN
+IF(MOD(iter,IterDisplayStep).EQ.0) THEN
 #ifdef MPI
   mySumOfRemovedParticles=0
   IF(nChunksTemp.EQ.1) THEN
@@ -2014,7 +2017,8 @@ __STAMP__&
 #ifdef MPI
   END IF ! PartMPI%iProc.EQ.0
 #endif
-
+END IF ! IterDisplayStep
+END IF
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
 #ifdef MPI
@@ -2804,7 +2808,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
@@ -2857,7 +2861,11 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
         !PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
-          CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+          IF (TriaTracking) THEN
+            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.)
+          ELSE
+            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+          END IF
         ELSE
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
         END IF
@@ -2901,7 +2909,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
 USE MOD_DSMC_Vars,              ONLY:CollisMode
 ! IMPLICIT VARIABLE HANDLING
@@ -2964,7 +2972,11 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
                            XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
-          CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+          IF (TriaTracking) THEN
+            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.)
+          ELSE
+            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+          END IF
         ELSE
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
         END IF
@@ -4333,10 +4345,14 @@ __STAMP__&
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
       DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
         IF (useDSMC .AND. (.NOT. KeepWallParticles)) THEN !to be checked!!!
-          IF ((DSMC%WallModel.GT.0).AND.(SurfMesh%SideIDToSurfID(SideID).GT.0)) THEN
-            ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-          ELSE IF ((PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0).AND.(SurfMesh%SideIDToSurfID(SideID).GT.0)) THEN
-            ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+          IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) THEN
+            IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
+              ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+            END IF
+          ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0))THEN
+            IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
+              ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+            END IF
           ELSE
             ExtraParts = 0
           END IF

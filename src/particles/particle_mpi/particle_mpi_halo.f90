@@ -344,110 +344,172 @@ IF(SQRT(DOT_PRODUCT(Vec1,Vec1)).LE.halo_eps) THEN
   RETURN
 END IF 
 
-! now, check all boundary faces
-DO iElem=1,PP_nElems
-  IF(ElemIndex(iElem).GT.0)CYCLE
-  leave=.FALSE.
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.LT.1) CYCLE
-    IF(SideID.GT.nPartSides) CYCLE
-    flip  =PartElemToSide(E2S_FLIP,ilocSide,iElem)
-    ! get elemid of neighbor elem
-    !ElemID=SideToElem(S2E_NB_ELEM_ID,SideID)
-    !neighbor_ElemID=-1
-    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
-    !ElemID=SideToElem(S2E_ELEM_ID,SideID)
-    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
-    !IF(SideID.LE.0) CYCLE
-    !IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
-    ! reduce the number of sides which are compared to the received sides
-    ! for xi-minus,xi_plus check all 8 nodes to the element and the interior BezierControlPoints
-    ! for all other sides: only check the side-interior BezierControlPoints 
-    SELECT CASE(ilocSide)
-    CASE(XI_MINUS,XI_PLUS)
-      firstBezierPoint=0
-      lastBezierPoint=NGeo
-    CASE DEFAULT
-      firstBezierPoint=1
-      lastBezierPoint=NGeo-1
-    END SELECT
-    ! loop over all send sides, you do not have to check the halo mesh like in the svn-trunk
-    ! the distance-x,y,z check is cheaper than a modified check here and similar fast
-    DO iSide=1,nExternalSides
-      DO q=firstBezierPoint,lastBezierPoint
-        DO p=firstBezierPoint,lastBezierPoint
-          NodeX(:) = BezierSides3D(:,p,q,iSide)
-          DO s=firstBezierPoint,lastBezierPoint
-            DO r=firstBezierPoint,lastBezierPoint
-              distance(1)=ABS(BezierControlPoints3D(1,r,s,SideID)-NodeX(1))
-              IF(distance(1).GT.halo_eps) CYCLE
-              distance(2)=ABS(BezierControlPoints3D(2,r,s,SideID)-NodeX(2))
-              IF(distance(2).GT.halo_eps) CYCLE
-              distance(3)=ABS(BezierControlPoints3D(3,r,s,SideID)-NodeX(3))
-              IF(distance(3).GT.halo_eps) CYCLE
-              IF(SQRT(DOT_Product(Distance,Distance)).LE.halo_eps)THEN
-                IF(SideIndex(SideID).GT.0)THEN
-                  NbOfSides=NbOfSides+1
-                  SideIndex(SideID)=NbOfSides
-                END IF
-                NbOfElems=NbOfElems+1
-                ElemIndex(iElem)=NbofElems
-                leave=.TRUE.
-                ! mark potential Inner elements on the other side
-                DO iMortar=1,4
-                  NBElemID=INT(ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)-offSetElem,4)
-                  CHECKSAFEINT(NBElemID,4)
-                  IF(NBElemID.LE.0) CYCLE
-                  IF(NBElemID.GT.PP_nElems) CYCLE
-                  ! check if NBElem is already marked, if not, mark it!
-                  IF(ElemIndex(NbElemID).EQ.0)THEN
-                    NbOfElems=NbOfElems+1
-                    ElemIndex(NbElemID)=NbofElems
-                  END IF
-                END DO ! iMortar=1,4
-                EXIT
-              END IF ! Distance <halo_eps
-            END DO ! r=firstBezierPoint,lastBezierPoint
-            IF(leave) EXIT
-          END DO ! s=firstBezierPoint,lastBezierPoint
-          IF(leave) EXIT
-        END DO ! p=firstBezierPoint,lastBezierPoint
-        IF(leave) EXIT
-      END DO ! q=firstBezierPoint,lastBezierPoint
-      IF(leave) EXIT
-    END DO ! iSide=1,nExternalSides
-    IF(leave) THEN
-      ! for xi_plus,xi_minus sides (the 8 nodes of an element) the local neighbor can be marked
-      IF(((s.EQ.0).AND.(r.EQ.0)).OR.((s.EQ.0).AND.(r.EQ.NGeo)).OR.((s.EQ.NGeo).AND.(r.EQ.0)).OR.((s.EQ.NGeo).AND.(r.EQ.NGeo)))THEN
-        AdjointLocSideID = SideToAdjointLocSide(r,s,flip,ilocSide)
-        DO iMortar=1,4
-          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(1),offSetElem+iElem)-offSetElem,4)
-          CHECKSAFEINT(NBElemID,4)
-          IF(NBElemID.LE.0) CYCLE
-          IF(NBElemID.GT.PP_nElems) CYCLE
-          ! check if NBElem is already marked, if not, mark it!
-          IF(ElemIndex(NbElemID).EQ.0)THEN
-            NbOfElems=NbOfElems+1
-            ElemIndex(NbElemID)=NbofElems
-          END IF
-        END DO ! iMortar=1,4
-        DO iMortar=1,4
-          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(2),offSetElem+iElem)-offSetElem,4)
-          CHECKSAFEINT(NBElemID,4)
-          IF(NBElemID.LE.0) CYCLE
-          IF(NBElemID.GT.PP_nElems) CYCLE
-          ! check if NBElem is already marked, if not, mark it!
-          IF(ElemIndex(NbElemID).EQ.0)THEN
-            NbOfElems=NbOfElems+1
-            ElemIndex(NbElemID)=NbofElems
-          END IF
-        END DO ! iMortar=1,4
-      END IF
-      EXIT
-    END IF
-  END DO ! ilocSide=1,6
-END DO ! ! iElem=1,PP_nElems
+DO iSide=1,nExternalSides
+  DO q=0,NGeo
+    DO p=0,NGeo
+      NodeX(:) = BezierSides3d(:,p,q,iSide)
+      iBGM = INT((NodeX(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+      jBGM = INT((NodeX(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+      kBGM = INT((NodeX(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+      DO iPBGM = iBGM-FIBGMCellPadding(1),iBGM+FIBGMCellPadding(1)
+        DO jPBGM = jBGM-FIBGMCellPadding(2),jBGM+FIBGMCellPadding(2)
+          DO kPBGM = kBGM-FIBGMCellPadding(3),kBGM+FIBGMCellPadding(3)
+            IF((iPBGM.GT.GEO%FIBGMimax).OR.(iPBGM.LT.GEO%FIBGMimin) .OR. &
+               (jPBGM.GT.GEO%FIBGMjmax).OR.(jPBGM.LT.GEO%FIBGMjmin) .OR. &
+               (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
+            DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
+              ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
+              IF(ElemIndex(ElemID).GT.0) CYCLE ! element is already marked
+              DO ilocSide=1,6
+                SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+                IF(SideID.LT.1) CYCLE
+                IF(SideID.GT.nPartSides) CYCLE
+                ! caution, not save if corect
+                leave=.FALSE.
+                IF(SideIndex(SideID).EQ.0)THEN
+                  DO s=0,NGeo
+                    DO r=0,NGeo
+                      IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,SideID)-NodeX &
+                                         ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
+                        NbOfSides=NbOfSides+1
+                        SideIndex(SideID)=NbOfSides
+                        IF(ElemIndex(ElemID).EQ.0)THEN
+                          NbOfElems=NbOfElems+1
+                          ElemIndex(ElemID)=NbofElems
+                        END IF
+                        leave=.TRUE.
+                        ! mark potential Inner elements on the other side
+                        DO iMortar=1,4
+                          NBElemID=INT(ElemToElemGlob(iMortar,ilocSide,offSetElem+ElemID)-offSetElem,4)
+                          CHECKSAFEINT(NBElemID,4)
+                          IF(NBElemID.LE.0) CYCLE
+                          IF(NBElemID.GT.PP_nElems) CYCLE
+                          ! check if NBElem is already marked, if not, mark it!
+                          IF(ElemIndex(NbElemID).EQ.0)THEN
+                            NbOfElems=NbOfElems+1
+                            ElemIndex(NbElemID)=NbofElems
+                          END IF
+                        END DO ! iMortar=1,4
+                        EXIT
+                      END IF
+                    END DO ! r
+                    IF(leave) EXIT
+                  END DO ! s
+                END IF ! SideIndex(SideID).EQ.0
+                IF(leave) EXIT
+              END DO ! ilocSide
+            END DO ! iElem
+          END DO ! kPBGM
+        END DO ! jPBGM
+      END DO ! i PBGM
+    END DO ! p
+  END DO ! q
+END DO ! iSide
+
+!! now, check all boundary faces
+!DO iElem=1,PP_nElems
+!  IF(ElemIndex(iElem).GT.0)CYCLE
+!  leave=.FALSE.
+!  DO ilocSide=1,6
+!    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    IF(SideID.LT.1) CYCLE
+!    IF(SideID.GT.nPartSides) CYCLE
+!    flip  =PartElemToSide(E2S_FLIP,ilocSide,iElem)
+!    ! get elemid of neighbor elem
+!    !ElemID=SideToElem(S2E_NB_ELEM_ID,SideID)
+!    !neighbor_ElemID=-1
+!    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
+!    !ElemID=SideToElem(S2E_ELEM_ID,SideID)
+!    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
+!    !IF(SideID.LE.0) CYCLE
+!    !IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
+!    ! reduce the number of sides which are compared to the received sides
+!    ! for xi-minus,xi_plus check all 8 nodes to the element and the interior BezierControlPoints
+!    ! for all other sides: only check the side-interior BezierControlPoints 
+!    SELECT CASE(ilocSide)
+!    CASE(XI_MINUS,XI_PLUS)
+!      firstBezierPoint=0
+!      lastBezierPoint=NGeo
+!    CASE DEFAULT
+!      firstBezierPoint=1
+!      lastBezierPoint=NGeo-1
+!    END SELECT
+!    ! loop over all send sides, you do not have to check the halo mesh like in the svn-trunk
+!    ! the distance-x,y,z check is cheaper than a modified check here and similar fast
+!    DO iSide=1,nExternalSides
+!      DO q=firstBezierPoint,lastBezierPoint
+!        DO p=firstBezierPoint,lastBezierPoint
+!          NodeX(:) = BezierSides3D(:,p,q,iSide)
+!          DO s=firstBezierPoint,lastBezierPoint
+!            DO r=firstBezierPoint,lastBezierPoint
+!              distance(1)=ABS(BezierControlPoints3D(1,r,s,SideID)-NodeX(1))
+!              IF(distance(1).GT.halo_eps) CYCLE
+!              distance(2)=ABS(BezierControlPoints3D(2,r,s,SideID)-NodeX(2))
+!              IF(distance(2).GT.halo_eps) CYCLE
+!              distance(3)=ABS(BezierControlPoints3D(3,r,s,SideID)-NodeX(3))
+!              IF(distance(3).GT.halo_eps) CYCLE
+!              IF(SQRT(DOT_Product(Distance,Distance)).LE.halo_eps)THEN
+!                IF(SideIndex(SideID).GT.0)THEN
+!                  NbOfSides=NbOfSides+1
+!                  SideIndex(SideID)=NbOfSides
+!                END IF
+!                NbOfElems=NbOfElems+1
+!                ElemIndex(iElem)=NbofElems
+!                leave=.TRUE.
+!                ! mark potential Inner elements on the other side
+!                DO iMortar=1,4
+!                  NBElemID=INT(ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)-offSetElem,4)
+!                  CHECKSAFEINT(NBElemID,4)
+!                  IF(NBElemID.LE.0) CYCLE
+!                  IF(NBElemID.GT.PP_nElems) CYCLE
+!                  ! check if NBElem is already marked, if not, mark it!
+!                  IF(ElemIndex(NbElemID).EQ.0)THEN
+!                    NbOfElems=NbOfElems+1
+!                    ElemIndex(NbElemID)=NbofElems
+!                  END IF
+!                END DO ! iMortar=1,4
+!                EXIT
+!              END IF ! Distance <halo_eps
+!            END DO ! r=firstBezierPoint,lastBezierPoint
+!            IF(leave) EXIT
+!          END DO ! s=firstBezierPoint,lastBezierPoint
+!          IF(leave) EXIT
+!        END DO ! p=firstBezierPoint,lastBezierPoint
+!        IF(leave) EXIT
+!      END DO ! q=firstBezierPoint,lastBezierPoint
+!      IF(leave) EXIT
+!    END DO ! iSide=1,nExternalSides
+!    IF(leave) THEN
+!      ! for xi_plus,xi_minus sides (the 8 nodes of an element) the local neighbor can be marked
+!      IF(((s.EQ.0).AND.(r.EQ.0)).OR.((s.EQ.0).AND.(r.EQ.NGeo)).OR.((s.EQ.NGeo).AND.(r.EQ.0)).OR.((s.EQ.NGeo).AND.(r.EQ.NGeo)))THEN
+!        AdjointLocSideID = SideToAdjointLocSide(r,s,flip,ilocSide)
+!        DO iMortar=1,4
+!          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(1),offSetElem+iElem)-offSetElem,4)
+!          CHECKSAFEINT(NBElemID,4)
+!          IF(NBElemID.LE.0) CYCLE
+!          IF(NBElemID.GT.PP_nElems) CYCLE
+!          ! check if NBElem is already marked, if not, mark it!
+!          IF(ElemIndex(NbElemID).EQ.0)THEN
+!            NbOfElems=NbOfElems+1
+!            ElemIndex(NbElemID)=NbofElems
+!          END IF
+!        END DO ! iMortar=1,4
+!        DO iMortar=1,4
+!          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(2),offSetElem+iElem)-offSetElem,4)
+!          CHECKSAFEINT(NBElemID,4)
+!          IF(NBElemID.LE.0) CYCLE
+!          IF(NBElemID.GT.PP_nElems) CYCLE
+!          ! check if NBElem is already marked, if not, mark it!
+!          IF(ElemIndex(NbElemID).EQ.0)THEN
+!            NbOfElems=NbOfElems+1
+!            ElemIndex(NbElemID)=NbofElems
+!          END IF
+!        END DO ! iMortar=1,4
+!      END IF
+!      EXIT
+!    END IF
+!  END DO ! ilocSide=1,6
+!END DO ! ! iElem=1,PP_nElems
 
 
 !--- if there are periodic boundaries, they need to be taken into account as well:
@@ -625,6 +687,8 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! BezierControlPoints3D
 ! ElemToSide
 ! BC-Type and State
+! GEO%NodeCoords
+! TriaSideData
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -636,8 +700,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToEle
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob,GEO
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -650,6 +714,8 @@ INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 ! LOCAL VARIABLES
 TYPE tMPISideMessage
   REAL,ALLOCATABLE          :: BezierControlPoints3D(:,:,:,:)
+  REAL,ALLOCATABLE          :: NodeCoords(:,:,:,:)
+  LOGICAL,ALLOCATABLE       :: ConcaveElemSide(:,:)
   REAL,ALLOCATABLE          :: XCL_NGeo (:,:,:,:,:)
   REAL,ALLOCATABLE          :: dXCL_NGeo(:,:,:,:,:,:)
 !  REAL,ALLOCATABLE,DIMENSION(:,:,:)   :: ElemSlabNormals    
@@ -809,6 +875,37 @@ IF (RecvMsg%nSides.GT.0) THEN
     __STAMP__&
     ,'Could not allocate RecvMsg%BezierControlPoints3D',RecvMsg%nSides)
   RecvMsg%BezierControlPoints3D=0.
+END IF
+
+IF (TriaTracking) THEN
+  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
+    ALLOCATE(SendMsg%Nodecoords(1:3,1:4,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%Nodecoords',SendMsg%nElems)
+    SendMsg%Nodecoords=0.
+  END IF
+  IF (RecvMsg%nElems.GT.0) THEN
+    ALLOCATE(RecvMsg%NodeCoords(1:3,1:4,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%NodeCoords',RecvMsg%nElems)
+    RecvMsg%NodeCoords=0.
+  END IF
+  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
+    ALLOCATE(SendMsg%ConcaveElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%ConcaveElemSide',SendMsg%nElems)
+    SendMsg%ConcaveElemSide=.FALSE.
+  END IF
+  IF (RecvMsg%nElems.GT.0) THEN
+    ALLOCATE(RecvMsg%ConcaveElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%ConcaveElemSide',RecvMsg%nElems)
+    RecvMsg%ConcaveElemSide=.FALSE.
+  END IF
 END IF
 
 IF(DoRefMapping)THEN
@@ -998,6 +1095,10 @@ DO iElem = 1,nElems
       !SendMsg%ElemSlabNormals(:,:,ElemIndex(iElem))=ElemSlabNormals(:,:,iElem)
       !SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
     END IF
+    IF(TriaTracking)THEN
+      SendMsg%NodeCoords(:,:,:,ElemIndex(iElem))=GEO%Nodecoords(:,:,:,iElem)
+      SendMsg%ConcaveElemSide(:,ElemIndex(iElem))=GEO%ConcaveElemSide(:,iElem)
+    END IF
     SendMsg%ElemBaryNGeo(:,ElemIndex(iElem))=ElemBaryNGeo(:,iElem)
     DO iLocSide = 1,6
       SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
@@ -1095,6 +1196,12 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
+  END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToElemGlob,SendMsg%nElems*24,MPI_LONG       ,iProc,1119,PartMPI%COMM,IERROR)
@@ -1133,6 +1240,12 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
+  IF(TriaTracking)THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1174,6 +1287,12 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
@@ -1208,6 +1327,12 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 !        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+  END IF
+  IF(TriaTracking)THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1411,6 +1536,10 @@ ELSE ! DoRefMappping=F
       PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
+      IF (TriaTracking) THEN
+        GEO%NodeCoords(1:3,1:4,1:6,newElemID) = RecvMsg%NodeCoords(1:3,1:4,1:6,iElem)
+        GEO%ConcaveElemSide(1:6,newElemID) = RecvMsg%ConcaveElemSide(1:6,iElem)
+      END IF
       ! list from ElemToElemGlob mapped to process local element
       ! new list points from local-elem-id to global
       PartElemToElemGlob(1:4,1:6,newElemID) = RecvMsg%ElemToElemGlob(1:4,1:6,iElem)
@@ -1445,10 +1574,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
+USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 !USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
 ! IMPLICIT VARIABLE HANDLING
@@ -1468,6 +1597,8 @@ REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)
 REAL,ALLOCATABLE                   :: DummyXCL_NGEO (:,:,:,:,:)                                
 REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)                                
 REAL,ALLOCATABLE                   :: DummyElemBaryNGeo(:,:)                                
+REAL,ALLOCATABLE                   :: DummyNodeCoords(:,:,:,:)                                
+LOGICAL,ALLOCATABLE                :: DummyConcaveElemSide(:,:)                                
 INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)                                 
 INTEGER,ALLOCATABLE                :: DummyMortarType(:,:)                                 
 INTEGER,ALLOCATABLE                :: DummySideToElem(:,:)
@@ -1728,6 +1859,37 @@ ELSE ! no mapping
    ,'Could not allocate ElemIndex')
   BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
+END IF
+
+IF (TriaTracking) THEN
+  ! Resize Nodecoords
+  ALLOCATE(DummyNodeCoords(1:3,1:4,1:6,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyNodeCoords)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyNodeCoords')
+  DummyNodeCoords(1:3,1:4,1:6,1:nOldElems) = GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems)
+  DEALLOCATE(GEO%NodeCoords)
+  ALLOCATE(GEO%NodeCoords(1:3,1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize allocate GEO%NodeCoords')
+  GEO%NodeCoords=0.
+  GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems) = DummyNodeCoords(1:3,1:4,1:6,1:nOldElems)
+  DEALLOCATE(DummyNodeCoords)
+  ! Resize ConcaveElemSides
+  ALLOCATE(DummyConcaveElemSide(1:6,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyConcaveElemSide)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyConcaveElemSide')
+  DummyConcaveElemSide(1:6,1:nOldElems) = GEO%ConcaveElemSide(1:6,1:nOldElems)
+  DEALLOCATE(GEO%ConcaveElemSide)
+  ALLOCATE(GEO%ConcaveElemSide(1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize allocate GEO%ConcaveElemSide')
+  GEO%ConcaveElemSide=.FALSE.
+  GEO%ConcaveElemSide(1:6,1:nOldElems) = DummyConcaveElemSide(1:6,1:nOldElems)
+  DEALLOCATE(DummyConcaveElemSide)
 END IF
 
 ! ElemBaryNGeo

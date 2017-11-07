@@ -553,17 +553,17 @@ DO !iter_t=0,MaxIter
     IF( iAnalyze.EQ.nSkipAnalyze .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #endif /*MPI*/
 #ifdef PARTICLES
-    IF(CountNbOfLostParts)THEN
+      IF(CountNbOfLostParts)THEN
 #ifdef MPI
-      IF(MPIRoot) THEN
-        CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-      ELSE ! no Root
-        CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-      END IF
+        IF(MPIRoot) THEN
+          CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+        ELSE ! no Root
+          CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+        END IF
 #else
-      nLostPartsTot=nLostParts
+        nLostPartsTot=nLostParts
 #endif /*MPI*/
-    END IF
+      END IF
 #endif /*PARICLES*/
       IF(MPIroot)THEN
         ! simulation time per CPUh efficiency in [s]/[CPUh]
@@ -625,7 +625,7 @@ DO !iter_t=0,MaxIter
 !#ifdef MPI
       IF(iAnalyze.EQ.nSkipAnalyze) iAnalyze=0
 !#endif /*MPI*/
-      SWRITE(UNIT_StdOut,'(132("-"))')
+    SWRITE(UNIT_StdOut,'(132("-"))')
     END IF
     iAnalyze=iAnalyze+1
     iter_loc=0
@@ -642,11 +642,11 @@ DO !iter_t=0,MaxIter
         CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
       IF(PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
 !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
-      ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
+    ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
     END IF
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
-  ENDIF   
+  END IF   
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t
 !CALL FinalizeAnalyze
@@ -1321,8 +1321,8 @@ USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux,ParticleAdaptiveSurfaceflux
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_Liquid_Boundary,  ONLY: Evaporation
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb !, AnalyzePartitionTemp
 USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
@@ -1391,7 +1391,11 @@ REAL    :: RandVal, dtFrac
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTracing()
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1643,8 +1647,8 @@ USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC!, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_Liquid_Boundary,  ONLY: Evaporation
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb
 USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
@@ -1766,7 +1770,11 @@ ELSE
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTracing()
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)

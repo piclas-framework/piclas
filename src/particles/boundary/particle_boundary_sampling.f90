@@ -57,14 +57,14 @@ USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
 USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis
-USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides, TriaSideData
 USE MOD_Particle_Vars           ,ONLY:nSpecies
 USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
-USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
@@ -233,29 +233,33 @@ DO iSide=1,nTotalSides
   ELSE
     SideID=iSide
   END IF
-  ! call here stephens algorithm to compute area 
-  DO jSample=1,nSurfSample
-    DO iSample=1,nSurfSample
-      area=0.
-      tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
-      tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
-      DO q=0,NGeo
-        DO p=0,NGeo
-          XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
-          XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
-          CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-                                                  ,Gradient=gradXiEta3D)
-          ! calculate first fundamental form
-          E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-          F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-          G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-          D=SQRT(E*G-F*F)
-          area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)      
+  IF (TriaTracking) THEN
+    SurfMesh%SurfaceArea(1,1,SurfSideID) = TriaSideData(SideID)%area(1) + TriaSideData(SideID)%area(2)
+  ELSE
+    ! call here stephens algorithm to compute area 
+    DO jSample=1,nSurfSample
+      DO iSample=1,nSurfSample
+        area=0.
+        tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
+        tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
+        DO q=0,NGeo
+          DO p=0,NGeo
+            XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
+            XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
+            CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                                                    ,Gradient=gradXiEta3D)
+            ! calculate first fundamental form
+            E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+            F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+            G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+            D=SQRT(E*G-F*F)
+            area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)      
+          END DO
         END DO
-      END DO
-      SurfMesh%SurfaceArea(iSample,jSample,SurfSideID) = area 
-    END DO ! iSample=1,nSurfSample
-  END DO ! jSample=1,nSurfSample
+        SurfMesh%SurfaceArea(iSample,jSample,SurfSideID) = area 
+      END DO ! iSample=1,nSurfSample
+    END DO ! jSample=1,nSurfSample
+  END IF
 END DO ! iSide=1,nTotalSides
 
 ! get the full area of the BC's of all faces
@@ -1401,14 +1405,23 @@ SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
 #ifdef MPI
 SDEALLOCATE(PartHaloSideToProc)
-SDEALLOCATE(SurfExchange%nSidesSend )
-SDEALLOCATE(SurfExchange%nSidesRecv )
+SDEALLOCATE(SurfExchange%nSidesSend)
+SDEALLOCATE(SurfExchange%nSidesRecv)
+SDEALLOCATE(SurfExchange%SendRequest)
+SDEALLOCATE(SurfExchange%RecvRequest)
 DO iProc=1,SurfCOMM%nMPINeighbors
-  SDEALLOCATE(SurfSendBuf(iProc)%content)
-  SDEALLOCATE(SurfRecvBuf(iProc)%content)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
+  IF (ALLOCATED(SurfSendBuf))THEN
+    SDEALLOCATE(SurfSendBuf(iProc)%content)
+  END IF
+  IF (ALLOCATED(SurfRecvBuf))THEN
+    SDEALLOCATE(SurfRecvBuf(iProc)%content)
+  END IF
+  IF (ALLOCATED(SurfCOMM%MPINeighbor))THEN
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
+  END IF
 END DO ! iProc=1,PartMPI%nMPINeighbors
+SDEALLOCATE(SurfCOMM%MPINeighbor)
 SDEALLOCATE(SurfSendBuf)
 SDEALLOCATE(SurfRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)

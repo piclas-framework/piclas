@@ -414,7 +414,7 @@ __STAMP__&
     ,'ERROR: Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
   IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal = .TRUE.
 END IF
-DSMC%NumOutput = GETINT('Particles-NumberOfDSMCOutputs','0')
+DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
 IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
 IF (DSMC%NumOutput.NE.0) THEN
   DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
@@ -885,9 +885,11 @@ ALLOCATE(PartBound%WallTemp(1:nPartBound))
 ALLOCATE(PartBound%TransACC(1:nPartBound))
 ALLOCATE(PartBound%VibACC(1:nPartBound))
 ALLOCATE(PartBound%RotACC(1:nPartBound))
+ALLOCATE(PartBound%ElecACC(1:nPartBound))
 ALLOCATE(PartBound%Resample(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientCondition(1:nPartBound))
+ALLOCATE(PartBound%AmbientConditionFix(1:nPartBound))
 ALLOCATE(PartBound%AmbientTemp(1:nPartBound))
 ALLOCATE(PartBound%AmbientMeanPartMass(1:nPartBound))
 ALLOCATE(PartBound%AmbientBeta(1:nPartBound))
@@ -904,6 +906,8 @@ ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
 ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
 ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
 ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
+PartBound%SolidState(1:nPartBound)=.FALSE.
+PartBound%LiquidSpec(1:nPartBound)=0
 SolidSimFlag = .FALSE.
 LiquidSimFlag = .FALSE.
 
@@ -918,6 +922,7 @@ PartBound%AdaptiveTemp(:) = -1.
 PartBound%AdaptivePressure(:) = -1.
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
+ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
 PartBound%Voltage_CollectCharges(:)=0.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
@@ -941,6 +946,7 @@ DO iPartBound=1,nPartBound
      PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
      PartBound%AmbientCondition(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-AmbientCondition','.FALSE.')
      IF(PartBound%AmbientCondition(iPartBound)) THEN
+       PartBound%AmbientConditionFix(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-AmbientConditionFix','.TRUE.')
        PartBound%AmbientTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientTemp','0')
        PartBound%AmbientMeanPartMass(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientMeanPartMass','0')
        PartBound%AmbientBeta(iPartBound) = &
@@ -972,6 +978,7 @@ __STAMP__&
      PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC','0')
      PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC','0')
      PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC','0')
+     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC','0')
      PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
@@ -1034,6 +1041,8 @@ __STAMP__&
          ,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
+  PartBound%UseForQCrit(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
+  SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
 END DO
 
 DEALLOCATE(PartBound%AmbientMeanPartMass)
@@ -1156,9 +1165,9 @@ iseeds(:)=0
 CALL RANDOM_SEED(GET = iseeds(1:SeedSize))
 ! to be stored in HDF5-state file!!!
 IF(printRandomSeeds)THEN
-  IPWRITE(UNIT_stdOut,*) 'Random seeds in PIC_init:'
+  IPWRITE(UNIT_StdOut,*) 'Random seeds in PIC_init:'
   DO iSeed = 1,SeedSize
-     IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
+     IPWRITE(UNIT_StdOut,*) iseeds(iSeed)
   END DO
 END IF
 DEALLOCATE(iseeds)
@@ -1336,6 +1345,8 @@ SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
+SDEALLOCATE(IMDSpeciesID)
+SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartBound%SourceBoundName)
 SDEALLOCATE(PartBound%TargetBoundCond)
 SDEALLOCATE(PartBound%MomentumACC)
@@ -1343,9 +1354,11 @@ SDEALLOCATE(PartBound%WallTemp)
 SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)
+SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%AmbientCondition)
+SDEALLOCATE(PartBound%AmbientConditionFix)
 SDEALLOCATE(PartBound%AmbientTemp)
 SDEALLOCATE(PartBound%AmbientMeanPartMass)
 SDEALLOCATE(PartBound%AmbientBeta)
@@ -1358,6 +1371,7 @@ SDEALLOCATE(PartBound%AdaptiveType)
 SDEALLOCATE(PartBound%AdaptiveTemp)
 SDEALLOCATE(PartBound%AdaptivePressure)
 SDEALLOCATE(PartBound%Voltage)
+SDEALLOCATE(PartBound%UseForQCrit)
 SDEALLOCATE(PartBound%Voltage_CollectCharges)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
