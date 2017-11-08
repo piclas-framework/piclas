@@ -143,7 +143,7 @@ intel_tracking:
 #                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_mpi:
+gnu_build_all:
   stage: reggie_nightly
   tags:
     - withmodules
@@ -222,7 +222,7 @@ gnu_mpi:
        
        
        
-intel_mpi:
+intel_build_all:
   stage: reggie_nightly
   tags:
     - withmodules
