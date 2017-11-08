@@ -4274,7 +4274,6 @@ USE MOD_Analyze,               ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,         ONLY: dt,iStage,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,         ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,               ONLY: U
-USE MOD_Particle_Tracking_vars,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo,               ONLY: Deposition
 USE MOD_PICInterpolation,      ONLY: InterpolateFieldToParticle

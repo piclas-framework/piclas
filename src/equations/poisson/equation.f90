@@ -129,7 +129,7 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,         ONLY:Abort
+USE MOD_Globals,         ONLY:Abort,mpiroot
 USE MOD_Equation_Vars,   ONLY:Pi
 USE MOD_Equation_Vars,   ONLY: IniCenter,IniHalfwidth,IniAmplitude
 USE MOD_Equation_Vars,   ONLY: ACfrequency,ACamplitude
@@ -328,13 +328,15 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 ! MODULES
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
-USE MOD_PICDepo_Vars,ONLY:PartSource,DoDeposition
-USE MOD_Equation_Vars,ONLY: eps0
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
-USE MOD_Particle_Mesh_Vars, ONLY : GEO,NbrOfRegions
-USE MOD_Particle_Vars, ONLY : RegionElectronRef
+USE MOD_Mesh_Vars,           ONLY:Elem_xGP
+#ifdef PARTICLES
+USE MOD_PICDepo_Vars,        ONLY:PartSource,DoDeposition
+USE MOD_Particle_Mesh_Vars,  ONLY:GEO,NbrOfRegions
+USE MOD_Particle_Vars,       ONLY:RegionElectronRef
+USE MOD_Equation_Vars,       ONLY:eps0
+#endif /*PARTICLES*/
+USE MOD_Equation_Vars,       ONLY:IniExactFunc
+USE MOD_Equation_Vars,       ONLY:IniCenter,IniHalfwidth,IniAmplitude
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

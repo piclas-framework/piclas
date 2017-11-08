@@ -247,7 +247,9 @@ CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
 LOGICAL                  :: QDS_DG_SolutionExists
 INTEGER                  :: j,k
 #endif /*USE_QDS_DG*/
+#if (USE_QDS_DG) || (PARTICLES)
 INTEGER                  :: i
+#endif
 !===================================================================================================================================
 IF(DoRestart)THEN
   SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)

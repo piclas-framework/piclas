@@ -28,7 +28,7 @@ SUBROUTINE DSMC_main()
 ! Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_TimeDisc_Vars,         ONLY : time, iter, TEnd, dt
+  USE MOD_TimeDisc_Vars,         ONLY : time, iter, TEnd
   USE MOD_Globals
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems, MeshFile
