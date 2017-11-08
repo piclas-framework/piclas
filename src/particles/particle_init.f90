@@ -78,10 +78,11 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
+    ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))         
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
+    ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
   END IF     
-  ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
   DSMC_HOSolution = 0.0
   CALL InitHODSMC()
 END IF

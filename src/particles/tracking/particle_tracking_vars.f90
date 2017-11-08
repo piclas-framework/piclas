@@ -28,6 +28,22 @@ INTEGER                                 :: nLostParts                    ! Count
 REAL,ALLOCATABLE                        :: Distance(:)                   ! list of distance between particle and element-origin
                                                                          ! to all elements in the same background element
 INTEGER,ALLOCATABLE                     :: ListDistance(:)               ! the corresponding element id
+
+TYPE tTrackingInfo
+  INTEGER                               :: CurrElem
+  INTEGER                               :: LocSide
+  INTEGER                               :: GlobSide
+  INTEGER                               :: flip
+  INTEGER                               :: TriNum
+  REAL                                  :: xi
+  REAL                                  :: eta
+  REAL                                  :: alpha
+  REAL                                  :: PartTrajectory(1:3)
+  REAL                                  :: LengthPartTrajectory
+END TYPE
+
+TYPE(tTrackingInfo)                     :: TrackInfo
+  
 #ifdef CODE_ANALYZE
 INTEGER                                 :: PartOut
 INTEGER                                 :: MPIRankOut

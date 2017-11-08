@@ -688,7 +688,6 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! ElemToSide
 ! BC-Type and State
 ! GEO%NodeCoords
-! TriaSideData
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

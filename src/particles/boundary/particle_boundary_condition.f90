@@ -48,7 +48,6 @@ USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -100,10 +99,7 @@ SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
-    !BCSideID=PartBCSideList(SideID)
-    IF (TriaTracking) THEN
-      n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
-    ELSE 
+    IF (.NOT.TriaTracking) THEN
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
         n_loc=SideNormVec(1:3,SideID)
@@ -113,8 +109,8 @@ CASE(1) !PartBound%OpenBC)
         CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
       END SELECT 
       IF(flip.NE.0) n_loc=-n_loc
+      IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
     END IF
-    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
 
   IF(CalcPartBalance) THEN
@@ -519,11 +515,10 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
@@ -590,7 +585,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
+    CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -796,10 +791,9 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies,WriteMacroSurfaceValues
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:PDM
@@ -873,9 +867,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
-    tang1 = TriaSideData(SideID)%vec_t1(:,TriNum,flip)
-    tang2 = TriaSideData(SideID)%vec_t2(:,TriNum,flip)
+    CALL CalcNormAndTangTriangle(n_loc,tang1,tang2,TriNum,SideID)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1268,12 +1260,11 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesS
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:abort
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
@@ -1318,7 +1309,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
+    CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1460,9 +1451,8 @@ SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,Si
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,GEO,SidePeriodicType
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
@@ -1515,7 +1505,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,0)
+    CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1658,10 +1648,9 @@ SUBROUTINE SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,WriteMacroSurfaceValues
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
@@ -1705,7 +1694,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   IF (TriaTracking) THEN
-    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
+    CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
   ELSE 
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1857,7 +1846,6 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
   USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-  USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
   USE MOD_Particle_Vars,          ONLY : WriteMacroSurfaceValues, KeepWallParticles
   USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
@@ -1868,7 +1856,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
   USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
-  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBilinear,CalcNormAndTangBezier
+  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
   USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcBackgndPartAdsorb
 ! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE
@@ -1928,7 +1916,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
     END SELECT 
   ELSE
     IF (TriaTracking) THEN
-      n_loc = TriaSideData(GlobSideID)%vec_nIn(:,TriNum,0)
+      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=GlobSideID)
     ELSE 
       SELECT CASE(SideType(GlobSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -2557,7 +2545,6 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
 ! Routine for Selection of Liquid interaction (Condensation or Reflection)
 !===================================================================================================================================
   USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-  USE MOD_Particle_Mesh_Vars,     ONLY:TriaSideData
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
   USE MOD_Particle_Vars,          ONLY : WriteMacroSurfaceValues!, KeepWallParticles
   USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
@@ -2568,7 +2555,7 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
   USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
   USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
-  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBilinear,CalcNormAndTangBezier
+  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 ! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2651,7 +2638,7 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
     END SELECT 
   ELSE
     IF (TriaTracking) THEN
-      n_loc = TriaSideData(GlobSideID)%vec_nIn(:,TriNum,0)
+      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=GlobSideID)
     ELSE 
       SELECT CASE(SideType(GlobSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)

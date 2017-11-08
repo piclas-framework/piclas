@@ -453,7 +453,7 @@ SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
 SDEALLOCATE(GEO%NodeCoords)
 SDEALLOCATE(GEO%ConcaveElemSide)
-SDEALLOCATE(TriaSideData)
+!SDEALLOCATE(TriaSideData)
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
@@ -1148,7 +1148,7 @@ END IF
 CALL GetElemAndSideType()
 
 CALL GetLinearSideBaseVectors()
-IF (TriaTracking) CALL GetTriaSideData()
+!IF (TriaTracking) CALL GetTriaSideData()
 CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
