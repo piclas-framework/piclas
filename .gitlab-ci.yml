@@ -180,14 +180,14 @@ gnu_build_all:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_TWT_recordpoints -j no-debug ; fi
-#       
-#       gnu_convtest:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_convtest -j no-debug ; fi
-#       
+       
+       gnu_convtest:
+         stage: reggie_nightly
+         tags:
+           - withmodules
+         script:
+           - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/convtest ; fi
+       
 #       gnu_HDG_turner:
 #         stage: reggie_nightly
 #         tags:
@@ -260,14 +260,14 @@ intel_build_all:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_TWT_recordpoints -j no-debug ; fi
-#       
-#       intel_convtest:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_convtest -j no-debug ; fi
-#       
+       
+       intel_convtest:
+         stage: reggie_nightly
+         tags:
+           - withmodules
+         script:
+           - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/convtest ; fi
+       
 #       intel_HDG_turner:
 #         stage: reggie_nightly
 #         tags:
