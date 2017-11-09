@@ -23,10 +23,7 @@ checkout_reggie:
   tags:
     - withmodules
   script:
-    - pwd
-    - ls -l
     - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-    - ls -l
 
 build_gnu:
   stage: build
@@ -54,6 +51,7 @@ clean:
   script:
     - rm -rf build_gnu
     - rm -rf build_intel
+    - rm -rf share
     - rm -rf reggie
   when: on_failure
 
