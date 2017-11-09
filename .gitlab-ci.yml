@@ -3,6 +3,7 @@ stages:
   - error_clean
   - reggie_checkin
   - reggie_feature_checkin
+  - reggie_chemistry_nightly
   - reggie_tracking_nightly
   - reggie_nightly
   - reggie_weekly
@@ -99,6 +100,13 @@ gnu__PIC_IMD_coupling:
     - withmodules
   script:
     - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+    
+gnu_chemistry_DSMC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_checkin # maybe move this to nightly and the nightly test to weekly? -> if it takes too long
 
 
     
@@ -122,6 +130,13 @@ intel__PIC_IMD_coupling:
     - withmodules
   script:
     - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+    
+intel_chemistry_DSMC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_checkin # maybe move this to nightly and the nightly test to weekly? -> if it takes too long
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
@@ -140,6 +155,24 @@ intel_tracking:
   script:
     #- if [ -n "${DO_NIGHTLY}" ]; then echo "skipping because 'make' stops working after some time and does not issue a return code" ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_chemistry_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu_chemistry:
+  stage: reggie_chemistry_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
+
+intel_chemistry:
+  stage: reggie_chemistry_nightly
+  tags:
+    - withmodules
+  script:
+    #- if [ -n "${DO_NIGHTLY}" ]; then echo "skipping because 'make' stops working after some time and does not issue a return code" ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run

@@ -252,7 +252,9 @@ SUBROUTINE AnalyzeParticles(Time)
   REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
   REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum, MeanFreePath
 #ifdef MPI
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
   REAL                :: sumMeanCollProb
+#endif
   REAL                :: RECBR(nSpecies),RECBR1
   INTEGER             :: RECBIM(nSpecies)
 #endif /*MPI*/
@@ -727,7 +729,7 @@ SUBROUTINE AnalyzeParticles(Time)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
-  IF(((CalcTemp.OR.CalcEint).AND.CollisMode.GT.1).OR.(DSMC%CalcQualityFactors)) THEN
+  IF(CalcTemp .OR. CalcEint .OR. DSMC%CalcQualityFactors) THEN
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
       CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -2432,7 +2434,7 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY: PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
-USE MOD_DSMC_Vars,             ONLY: PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars,             ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_DSMC_Analyze,          ONLY: CalcTVib, CalcTelec, CalcTVibPoly
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars, ONLY: nSpecAnalyze
@@ -2446,7 +2448,7 @@ REAL, INTENT(IN)               :: NumSpec(nSpecAnalyze)    ! number of real part
 REAL,INTENT(OUT)               :: IntTemp(nSpecies,3) , IntEn(nSpecAnalyze,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iPart, iSpec, iDOF, iPolyatMole
+INTEGER                        :: iPart, iSpec
 REAL                           :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), tempVib, NumSpecTemp
 #ifdef MPI
 REAL                           :: RD(nSpecies)
