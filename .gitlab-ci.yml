@@ -22,7 +22,10 @@ checkout_reggie:
   tags:
     - withmodules
   script:
+    - pwd
+    - ls -l
     - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
+    - ls -l
 
 build_gnu:
   stage: build
