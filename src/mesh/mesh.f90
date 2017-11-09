@@ -334,29 +334,32 @@ crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 CALL InitMeshBasis(NGeo,PP_N,xGP)
 
-
-#ifdef PARTICLES
+! get XCL_NGeo
 ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
 XCL_NGeo = 0.
-ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-dXCL_NGeo = 0.
-CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+
+! compute elem bary and elem radius
+ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
+CALL BuildElementOrigin()
+
+! dXCL_NGeo is used nowhere in the code, hence, commented out
+!ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+!dXCL_NGeo = 0.
+!CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+
+#ifdef PARTICLES
 ! init element volume
 CALL InitElemVolumes()
 IF (TriaTracking) THEN
   CALL InitTriaParticleGeometry()
   !CALL GetTriaSideData()
 END IF
-#else
-CALL CalcMetrics()
 #endif
 DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
-! compute elem bary and elem radius
-ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
-CALL BuildElementOrigin()
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -717,7 +720,6 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Vars,                ONLY:ElemBaryNGeo
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
-USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -727,18 +729,18 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem,i,j,k
-REAL                    :: Xi(3),XPos(3),buf
+REAL                    :: XPos(3),buf
 REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
 ElemBaryNGeo=0.
 DO iElem=1,PP_nElems
-  ! evaluate the polynomial at origin
-  Xi=(/0.0,0.0,0.0/)
-  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
-  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
-  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  ! evaluate the polynomial at origin: Xi=(/0.0,0.0,0.0/)
+  CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
   xPos=0.
+  print*, iElem
   DO k=0,NGeo
     DO j=0,NGeo
       buf=Lag(2,j)*Lag(3,k)
