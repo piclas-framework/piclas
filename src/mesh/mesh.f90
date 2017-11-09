@@ -337,16 +337,17 @@ CALL InitMeshBasis(NGeo,PP_N,xGP)
 ! get XCL_NGeo
 ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
 XCL_NGeo = 0.
+#ifdef PARTICLES
+ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+dXCL_NGeo = 0.
+CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+#else
 CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+#endif
 
 ! compute elem bary and elem radius
 ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
 CALL BuildElementOrigin()
-
-! dXCL_NGeo is used nowhere in the code, hence, commented out
-!ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-!dXCL_NGeo = 0.
-!CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 
 #ifdef PARTICLES
 ! init element volume
