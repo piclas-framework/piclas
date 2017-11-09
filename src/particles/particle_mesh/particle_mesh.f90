@@ -86,6 +86,9 @@ INTERFACE ParticleInsideQuad3D
   MODULE PROCEDURE ParticleInsideQuad3D
 END INTERFACE
 
+INTERFACE MarkAuxBCElems
+  MODULE PROCEDURE MarkAuxBCElems
+END INTERFACE
 
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem,BuildElementOrigin
@@ -95,6 +98,7 @@ PUBLIC::InsideElemBoundingBox
 PUBLIC::PartInElemCheck
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitTriaParticleGeometry
+PUBLIC::MarkAuxBCElems
 !===================================================================================================================================
 !
 CONTAINS
@@ -5199,5 +5203,159 @@ DO iElem=1,nTotalElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE GetElemToSideDistance
+
+
+SUBROUTINE MarkAuxBCElems()
+!===================================================================================================================================
+! check if auxBCs are inside BoundingBox of Elems
+! -- plane: use plane equation f=a1*x+a2*y+a3*z+a4=0 and insert corresponding intervals of box -> fmin and fmax
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemHasAuxBCs
+USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iElem,iAuxBC,icoord
+REAL                     :: r_vec(3),n_vec(3),fmin,fmax,Bounds(1:2,1:3)
+!===================================================================================================================================
+
+ALLOCATE(ElemHasAuxBCs(1:PP_nElems , 1:nAuxBCs))
+ElemHasAuxBCs=.FALSE.
+
+DO iAuxBC=1,nAuxBCs
+  SELECT CASE (TRIM(AuxBCType(iAuxBC)))
+  CASE ('plane')
+    r_vec=AuxBC_plane(AuxBCMap(iAuxBC))%r_vec
+    n_vec=AuxBC_plane(AuxBCMap(iAuxBC))%n_vec
+    ! loop over all  elements
+    DO iElem=1,PP_nElems
+      CALL BoundsOfElement(iElem,Bounds)
+      fmin=-DOT_PRODUCT(r_vec,n_vec)
+      fmax=fmin
+      DO icoord=1,3
+        IF (n_vec(icoord).GE.0) THEN
+          fmin = fmin + n_vec(icoord)*Bounds(1,icoord)
+          fmax = fmax + n_vec(icoord)*Bounds(2,icoord)
+        ELSE
+          fmin = fmin + n_vec(icoord)*Bounds(2,icoord)
+          fmax = fmax + n_vec(icoord)*Bounds(1,icoord)
+        END IF
+      END DO
+      IF ((fmin.LE.0 .AND. fmax.GT.0).OR.(fmin.LT.0 .AND. fmax.GE.0)) THEN !plane intersects the box!
+        ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
+      ELSE IF ((fmin.LT.0 .AND. fmax.LT.0).OR.(fmin.GT.0 .AND. fmax.GT.0)) THEN !plane does not intersect the box!
+        ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+      ELSE !e.g. if elem has zero volume...
+        CALL abort(&
+          __STAMP__&
+          ,'Error in MarkAuxBCElems for AuxBC:',iAuxBC)
+      END IF
+    END DO
+  CASE DEFAULT
+    SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
+    CALL abort(&
+      __STAMP__&
+      ,'AuxBC does not exist')
+  END SELECT
+END DO
+
+END SUBROUTINE MarkAuxBCElems
+
+SUBROUTINE BoundsOfElement(ElemID,Bounds)
+!===================================================================================================================================
+! computes the min/max of element in xyz (Based on BGMIndexOfElement)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
+USE MOD_Mesh_Vars,                          ONLY:NGeo
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN)        :: ElemID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)          :: Bounds(1:2,1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: ilocSide, SideID
+REAL                      :: xmin,xmax,ymin,ymax,zmin,zmax
+REAL                      :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
+!===================================================================================================================================
+
+xmin = HUGE(1.0)
+xmax =-HUGE(1.0)
+ymin = HUGE(1.0)
+ymax =-HUGE(1.0)
+zmin = HUGE(1.0)
+zmax =-HUGE(1.0)
+
+! get min,max of BezierControlPoints of Element
+DO iLocSide = 1,6
+  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, ElemID)
+  IF(DoRefMapping)THEN
+    IF(SideID.GT.0)THEN
+      IF(PartElemToSide(E2S_FLIP,ilocSide,ElemID).EQ.0)THEN
+        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      ELSE
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(XI_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ZETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+        CASE(ZETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+        END SELECT
+      END IF
+    ELSE
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(XI_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ZETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+      CASE(ZETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+      END SELECT
+    END IF
+  ELSE ! pure tracing
+    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+  END IF
+  xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
+  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
+  ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
+  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
+  zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
+  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
+END DO ! ilocSide
+Bounds(:,1)=(/xmin,xmax/)
+Bounds(:,2)=(/ymin,ymax/)
+Bounds(:,3)=(/zmin,zmax/)
+
+END SUBROUTINE BoundsOfElement
 
 END MODULE MOD_Particle_Mesh

@@ -22,11 +22,15 @@ INTERFACE GetBoundaryInteractionRef
   MODULE PROCEDURE GetBoundaryInteractionRef
 END INTERFACE
 
+INTERFACE GetBoundaryInteractionAuxBC
+  MODULE PROCEDURE GetBoundaryInteractionAuxBC
+END INTERFACE
+
 INTERFACE PartSwitchElement
   MODULE PROCEDURE PartSwitchElement
 END INTERFACE
 
-PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
+PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,GetBoundaryInteractionAuxBC,PartSwitchElement
 !===================================================================================================================================
 
 CONTAINS
@@ -506,8 +510,103 @@ END SELECT !PartBound%MapToPartBC(BC(SideID)
 END SUBROUTINE GetBoundaryInteractionRef
 
 
+SUBROUTINE GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,alpha,iPart,AuxBCIdx,crossedBC)
+!===================================================================================================================================
+! Computes the post boundary state of a particle that interacts with an auxBC
+!  OpenBC                  = 1  
+!  ReflectiveBC            = 2
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals,                ONLY:Abort
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
+USE MOD_Particle_Boundary_Vars, ONLY:PartAuxBC
+!USE MOD_Particle_Surfaces_vars, ONLY:epsilontol
+USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
+#if defined(LSERK)
+USE MOD_TimeDisc_Vars,          ONLY:RK_a
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                   :: iPart,AuxBCIdx
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
+LOGICAL,INTENT(OUT)                  :: crossedBC
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: RanNum
+LOGICAL                              :: isSpeciesSwap
+!===================================================================================================================================
+
+IsSpeciesSwap=.FALSE.
+crossedBC    =.FALSE.
+! Select the corresponding boundary condition and calculate particle treatment
+SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(1) !PartAuxBC%OpenBC
+!-----------------------------------------------------------------------------------------------------------------------------------
+!  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
+!    IF (.NOT.TriaTracking) THEN
+!      SELECT CASE(SideType(SideID))
+!      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+!        n_loc=SideNormVec(1:3,SideID)
+!      CASE(BILINEAR)
+!        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+!      CASE(CURVED)
+!        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+!      END SELECT 
+!      IF(flip.NE.0) n_loc=-n_loc
+!      IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
+!    END IF
+!  END IF
+  IF(CalcPartBalance) THEN
+      nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+      PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+  END IF ! CalcPartBalance
+  PDM%ParticleInside(iPart) = .FALSE.
+  alpha=-1.
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(2) !PartAuxBC%ReflectiveBC)
+!-----------------------------------------------------------------------------------------------------------------------------------
+  !---- swap species?
+  IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
+    CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
+      IsSpeciesSwap=IsSpeciesSwap,AuxBCIdx=AuxBCIdx)
+  END IF
+  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+      ! simple reflection (previously used wall interaction model, maxwellian scattering)
+        CALL RANDOM_NUMBER(RanNum)
+        IF(RanNum.GE.PartAuxBC%MomentumACC(AuxBCIdx)) THEN
+          ! perfectly reflecting, specular re-emission
+          CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
+            IsSpeciesSwap=IsSpeciesSwap,opt_Reflected=crossedBC,AuxBCIdx=AuxBCIdx)
+        ELSE
+          CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
+            IsSpeciesSwap=IsSpeciesSwap,opt_Reflected=crossedBC,AuxBCIdx=AuxBCIdx)
+        END IF
+  END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE DEFAULT
+CALL abort(&
+__STAMP__&
+,' ERROR: AuxBC bound not associated!. (unknown case)',999,999.)
+END SELECT
+
+! compiler warnings
+IF(1.EQ.2)THEN
+  WRITE(*,*) 'AuxBCIdx', AuxBCIdx
+END IF
+
+END SUBROUTINE GetBoundaryInteractionAuxBC
+
+
 SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID, &
-  opt_Symmetry,opt_Reflected,TriNum)
+  opt_Symmetry,opt_Reflected,TriNum,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -547,6 +646,7 @@ LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
@@ -780,7 +880,7 @@ END SUBROUTINE PerfectReflection
 
 
 SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID &
-  ,opt_Reflected,TriNum)
+  ,opt_Reflected,TriNum,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the diffuse reflection in 3D
 ! only implemented for DoRefMapping tracking
@@ -815,6 +915,7 @@ INTEGER,INTENT(IN)                :: PartID, SideID, flip
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: Opt_Reflected
@@ -1252,7 +1353,7 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 
 END SUBROUTINE DiffuseReflection
 
-SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID,TriNum)
+SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID,TriNum,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1285,6 +1386,7 @@ REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap

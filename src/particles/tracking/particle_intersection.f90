@@ -25,10 +25,15 @@ INTERFACE ComputeCurvedIntersection
   MODULE PROCEDURE ComputeCurvedIntersection
 END INTERFACE
 
+INTERFACE ComputeAuxBCIntersection
+  MODULE PROCEDURE ComputeAuxBCIntersection
+END INTERFACE
+
 PUBLIC::ComputePlanarRectInterSection
 PUBLIC::ComputePlanarCurvedIntersection
 PUBLIC::ComputeBilinearIntersection
 PUBLIC::ComputeCurvedIntersection
+PUBLIC::ComputeAuxBCIntersection
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -3311,6 +3316,92 @@ ELSE
 END IF
 
 END FUNCTION ComputeXi
+
+
+SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
+                                        ,PartTrajectory              &
+                                        ,lengthPartTrajectory        &
+                                        ,AuxBCIdx                    &
+                                        ,alpha                       &
+                                        ,iPart                       &
+                                        ,opt_CriticalParllelInSide   )  
+!===================================================================================================================================
+! Compute the Intersection with auxBC. (based partly on PlanarRect)
+! Implemtented types:
+! - 1.: plane
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+!USE MOD_Globals_Vars,            ONLY:epsMach
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
+USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+INTEGER,INTENT(IN)                :: AuxBCIdx,iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha
+LOGICAL,INTENT(OUT)               :: isHit
+LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA
+LOGICAL                           :: CriticalParallelInSide
+!===================================================================================================================================
+isHit=.FALSE.
+SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
+CASE ('plane')
+  r_vec=AuxBC_plane(AuxBCMap(AuxBCIdx))%r_vec
+  n_vec=AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+  coeffA=DOT_PRODUCT(n_vec,PartTrajectory)
+  CriticalParallelInSide=.FALSE.
+  IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
+  locSideDistance = DOT_PRODUCT(n_vec,r_vec) - DOT_PRODUCT(LastPartPos(iPart,1:3),n_vec)
+  IF(CriticalParallelInSide)THEN ! particle parallel to side
+    IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
+      IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+      ! move particle eps into interior (?!)
+      alpha=-1.
+      RETURN
+    END IF
+    IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+    alpha=-1.
+    RETURN
+  ELSE
+    IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+    alpha=locSideDistance/coeffA
+  END IF
+!  alphaNorm=alpha/lengthPartTrajectory
+!  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
+!    ishit=.FALSE.
+!    alpha=-1.0
+!    RETURN
+!  END IF
+!  epsLoc=1.0+100.*epsMach
+!  xi=...
+!  IF(ABS(xi).GT.epsLoc)THEN
+!    alpha=-1.0
+!    RETURN
+!  END IF
+!  IF(ABS(eta).GT.epsLoc)THEN
+!    alpha=-1.0
+!    RETURN
+!  END IF
+  isHit=.TRUE.
+CASE DEFAULT
+  SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(AuxBCIdx))
+  CALL abort(&
+    __STAMP__&
+    ,'AuxBC does not exist')
+END SELECT
+
+END SUBROUTINE ComputeAuxBCIntersection
 
 
 END MODULE MOD_Particle_Intersection

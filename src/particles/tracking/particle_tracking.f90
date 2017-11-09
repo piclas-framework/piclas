@@ -284,7 +284,9 @@ USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo,ElemHasAuxBCs
+USE MOD_Particle_Boundary_Vars,      ONLY:nAuxBCs
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionAuxBC
 USE MOD_Utils,                       ONLY:InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
@@ -292,6 +294,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
 #ifdef MPI
@@ -319,10 +322,12 @@ INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
-INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem
+INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
+LOGICAL                       :: HasAuxBC,OnlyAuxBC
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
+REAL,ALLOCATABLE              :: locAlphaAux(:)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 #ifdef MPI
@@ -439,19 +444,32 @@ DO iPart=1,PDM%ParticleVecLength
     dolocSide=.TRUE.
     local=0
     firstElem=ElemID
+    OnlyAuxBC=.FALSE.
+    HasAuxBC=.FALSE.
+    IF (nAuxBCs.GT.0) THEN
+      ALLOCATE(locAlphaAux(1:nAuxBCs))
+      IF (ANY(ElemHasAuxBCs(ElemID,:))) THEN
+        HasAuxBC=.TRUE.
+      END IF
+    END IF
     IF (ElemType(ElemID).EQ.1) THEN
       CALL CheckPlanarInside(iPart,ElemID,lengthPartTrajectory,PartisDone)
       IF (PartisDone) THEN
-        PEM%Element(iPart) = ElemID
-        CYCLE
-      END IF
-    END IF
+        IF (HasAuxBC) THEN
+          OnlyAuxBC=.TRUE.
+        ELSE
+          PEM%Element(iPart) = ElemID
+          CYCLE
+        END IF !HasAuxBC
+      END IF !inside
+    END IF !planar elem
     markTol =.FALSE.
     DO WHILE (.NOT.PartisDone)
       locAlpha=-1.
       nInterSections=0
       markTol =.FALSE.
       DO ilocSide=1,6
+        IF(OnlyAuxBC) EXIT
         locSideList(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
@@ -513,6 +531,43 @@ DO iPart=1,PDM%ParticleVecLength
           IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
         END IF
       END DO ! ilocSide
+      IF (HasAuxBC) THEN
+        locAlphaAux=-1.
+        DO iAuxBC=1,nAuxBCs
+          IF (ElemHasAuxBCs(ElemID,iAuxBC)) THEN
+            CALL ComputeAuxBCIntersection(isHit,PartTrajectory,lengthPartTrajectory &
+              ,iAuxBC,locAlphaAux(iAuxBC) &
+              ,iPart &
+              ,isCriticalParallelInFace)
+          ELSE
+            isHit=.FALSE.
+          END IF
+#ifdef CODE_ANALYZE
+          IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+            IF(iPart.EQ.PARTOUT)THEN
+              WRITE(UNIT_stdout,'(30("-"))')
+              WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (particle tracing): '
+              WRITE(UNIT_stdout,'(A,I0,A,L)') '     | AuxBC: ',iAuxBC,' | Hit: ',isHit
+              WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlphaAux(iAuxBC),' | LengthPartTrajectory: ', lengthPartTrajectory
+            END IF
+          END IF
+#endif /*CODE_ANALYZE*/
+          IF(isCriticalParallelInFace)THEN
+            IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of BC and moves parallel to side. Undefined position. '
+            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+            PartIsDone=.TRUE.
+            PDM%ParticleInside(iPart)=.FALSE.
+            DoParticle(iPart)=.FALSE.
+            IF(CountNbOfLostParts) nLostParts=nLostParts+1
+            EXIT
+          END IF
+          IF(isHit) THEN
+            nInterSections=nInterSections+1
+            IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
+          END IF
+        END DO !iAuxBC
+      END IF !HasAuxBC
+
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
@@ -579,6 +634,19 @@ DO iPart=1,PDM%ParticleVecLength
             END IF
           END IF
         END DO ! ilocSide
+
+        IF (HasAuxBC) THEN
+          DO iAuxBC=1,nAuxBCs
+            IF(locAlphaAux(iAuxBC).GT.-1.0) THEN
+              CALL GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,locAlphaAux(iAuxBC),iPart,iAuxBC,crossedBC)
+              IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
+              IF(crossedBC) THEN
+                EXIT
+              END IF
+            END IF
+          END DO !iAuxBC
+        END IF !HasAuxBC
+
         IF((.NOT.CrossedBC).AND.(.NOT.SwitchedElement)) THEN
           PartIsDone=.TRUE.
           PEM%Element(iPart)=ElemID !periodic BC always exits with one hit from outside

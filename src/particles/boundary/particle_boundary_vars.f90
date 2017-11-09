@@ -165,6 +165,33 @@ INTEGER                                  :: nPartBound                       ! n
 INTEGER                                  :: nAdaptiveBC
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
+INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing
+CHARACTER(LEN=200), ALLOCATABLE          :: AuxBCType(:)                ! type of BC (plane, ...)
+INTEGER           , ALLOCATABLE          :: AuxBCMap(:)                 ! index of AuxBC in respective Type
+TYPE tAuxBC_plane
+  REAL                                   :: r_vec(3)
+  REAL                                   :: n_vec(3)
+END TYPE tAuxBC_plane
+TYPE(tAuxBC_plane), ALLOCATABLE          :: AuxBC_plane(:)
+
+TYPE tPartAuxBC
+  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
+  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)
+  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
+  REAL    , ALLOCATABLE                  :: WallTemp(:)     
+  REAL    , ALLOCATABLE                  :: TransACC(:)     
+  REAL    , ALLOCATABLE                  :: VibACC(:) 
+  REAL    , ALLOCATABLE                  :: RotACC(:) 
+  REAL    , ALLOCATABLE                  :: ElecACC(:)
+  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
+  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
+  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
+  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
+END TYPE
+TYPE(tPartAuxBC)                         :: PartAuxBC                         ! auxBC Data for Particles
+
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars
