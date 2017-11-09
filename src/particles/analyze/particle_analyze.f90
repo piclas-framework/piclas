@@ -727,7 +727,7 @@ SUBROUTINE AnalyzeParticles(Time)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
-  IF(((CalcTemp.OR.CalcEint).AND.CollisMode.GT.1).OR.(DSMC%CalcQualityFactors)) THEN
+  IF(CalcTemp.OR.CalcEint.OR.DSMC%CalcQualityFactors) THEN
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
       CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
