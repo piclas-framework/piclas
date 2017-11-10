@@ -204,8 +204,10 @@ IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ELSE ! simply set values const.
 ! ----------------------------------------------------------------------------------------------------------------------------------
-  DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricEpsR
-  DielectricMu( 0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DielectricEps(i,j,k,1:iDielectricElem) = DielectricEpsR
+    DielectricMu( i,j,k,1:iDielectricElem) = DielectricMuR
+  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
 END IF
 DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(EpsR*MuR)
                                                                  (DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems)*&
