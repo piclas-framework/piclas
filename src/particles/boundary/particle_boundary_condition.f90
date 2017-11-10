@@ -527,6 +527,7 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a
 #endif
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -574,6 +575,10 @@ CASE(1) !PartAuxBC%OpenBC
 CASE(2) !PartAuxBC%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- swap species?
+!print*,'*********************'
+!print*,AuxBCIdx
+!print*,iPart,alpha,PartState(iPart,4:6)
+!print*,iPart,alpha,LastPartPos(iPart,1:3),PartState(iPart,1:3)
   IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
     CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
       IsSpeciesSwap=IsSpeciesSwap,AuxBCIdx=AuxBCIdx)
@@ -590,6 +595,9 @@ CASE(2) !PartAuxBC%ReflectiveBC)
             IsSpeciesSwap=IsSpeciesSwap,opt_Reflected=crossedBC,AuxBCIdx=AuxBCIdx)
         END IF
   END IF
+!print*,iPart,alpha,LastPartPos(iPart,1:3),PartState(iPart,1:3)
+!print*,iPart,alpha,PartState(iPart,4:6)
+!print*,'*********************'
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT
 CALL abort(&
@@ -685,10 +693,12 @@ IF (IsAuxBC) THEN
       __STAMP__&
       ,'AuxBC does not exist')
   END SELECT
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-  IF(DOT_PRODUCT(PartTrajectory,n_loc).LT.0.) THEN
-    n_loc=-n_loc !ensure correct direction of vec for following calculations
-  ELSE IF(DOT_PRODUCT(PartTrajectory,n_loc).EQ.0.) THEN
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    RETURN
+  ELSE IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+  ELSE
     CALL abort(&
       __STAMP__&
       ,'Error in PerfectReflection: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)
@@ -986,10 +996,12 @@ IF (IsAuxBC) THEN
       __STAMP__&
       ,'AuxBC does not exist')
   END SELECT
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-  IF(DOT_PRODUCT(PartTrajectory,n_loc).LT.0.) THEN
-    n_loc=-n_loc !ensure correct direction of vec for following calculations
-  ELSE IF(DOT_PRODUCT(PartTrajectory,n_loc).EQ.0.) THEN
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    RETURN
+  ELSE IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+  ELSE
     CALL abort(&
       __STAMP__&
       ,'Error in DiffuseReflection: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)

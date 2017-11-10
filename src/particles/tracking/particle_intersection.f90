@@ -3334,7 +3334,7 @@ SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
 USE MOD_Globals
 !USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3351,7 +3351,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA
+REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm
 LOGICAL                           :: CriticalParallelInSide
 !===================================================================================================================================
 isHit=.FALSE.
@@ -3377,12 +3377,12 @@ CASE ('plane')
     IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
     alpha=locSideDistance/coeffA
   END IF
-!  alphaNorm=alpha/lengthPartTrajectory
-!  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
-!    ishit=.FALSE.
-!    alpha=-1.0
-!    RETURN
-!  END IF
+  alphaNorm=alpha/lengthPartTrajectory
+  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
+    ishit=.FALSE.
+    alpha=-1.0
+    RETURN
+  END IF
 !  epsLoc=1.0+100.*epsMach
 !  xi=...
 !  IF(ABS(xi).GT.epsLoc)THEN

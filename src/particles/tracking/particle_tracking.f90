@@ -322,12 +322,13 @@ INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
-INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC
+INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC,AuxBCsToCheck
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
-LOGICAL                       :: HasAuxBC,OnlyAuxBC
+LOGICAL                       :: HasAuxBC,OnlyAuxBC,IsIntersec,IsAuxBC
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
-REAL,ALLOCATABLE              :: locAlphaAux(:)
+REAL,ALLOCATABLE              :: locAlphaAll(:)
+INTEGER,ALLOCATABLE           :: locListAll(:)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 #ifdef MPI
@@ -344,6 +345,10 @@ IF(PRESENT(DoParticle_IN))THEN
   DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
 ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+IF (nAuxBCs.GT.0) THEN
+  ALLOCATE(locAlphaAll(1:6+nAuxBCs) &
+    ,locListAll(1:6+nAuxBCs))
 END IF
 
 DO iPart=1,PDM%ParticleVecLength
@@ -416,7 +421,7 @@ DO iPart=1,PDM%ParticleVecLength
     ! caution: reuse of variable, isHit=TRUE == inside
     CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
     IF(.NOT.isHit)THEN  ! particle not inside
-     IPWRITE(UNIT_stdOut,'(A)') ' LastPartPos not inside of element! '
+     IPWRITE(UNIT_stdOut,'(I0,A)') ' LastPartPos not inside of element! '
 #ifdef IMPA
      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%ParticleInside ', PDM%ParticleInside(iPart)
@@ -447,16 +452,24 @@ DO iPart=1,PDM%ParticleVecLength
     OnlyAuxBC=.FALSE.
     HasAuxBC=.FALSE.
     IF (nAuxBCs.GT.0) THEN
-      ALLOCATE(locAlphaAux(1:nAuxBCs))
       IF (ANY(ElemHasAuxBCs(ElemID,:))) THEN
         HasAuxBC=.TRUE.
       END IF
     END IF
     IF (ElemType(ElemID).EQ.1) THEN
       CALL CheckPlanarInside(iPart,ElemID,lengthPartTrajectory,PartisDone)
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(110("="))')
+          WRITE(UNIT_stdout,'(A,L)')    '     | Elem has AuxBC: ',HasAuxBC
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
       IF (PartisDone) THEN
         IF (HasAuxBC) THEN
           OnlyAuxBC=.TRUE.
+          PartisDone=.FALSE.
         ELSE
           PEM%Element(iPart) = ElemID
           CYCLE
@@ -469,7 +482,10 @@ DO iPart=1,PDM%ParticleVecLength
       nInterSections=0
       markTol =.FALSE.
       DO ilocSide=1,6
-        IF(OnlyAuxBC) EXIT
+        IF (HasAuxBC) THEN
+          locListAll(ilocSide)=ilocSide
+          IF (OnlyAuxBC) CYCLE
+        END IF
         locSideList(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
@@ -532,11 +548,13 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       END DO ! ilocSide
       IF (HasAuxBC) THEN
-        locAlphaAux=-1.
+        locAlphaAll=-1.
         DO iAuxBC=1,nAuxBCs
+          locListAll(6+iAuxBC)=6+iAuxBC
+          isCriticalParallelInFace=.FALSE.
           IF (ElemHasAuxBCs(ElemID,iAuxBC)) THEN
             CALL ComputeAuxBCIntersection(isHit,PartTrajectory,lengthPartTrajectory &
-              ,iAuxBC,locAlphaAux(iAuxBC) &
+              ,iAuxBC,locAlphaAll(6+iAuxBC) &
               ,iPart &
               ,isCriticalParallelInFace)
           ELSE
@@ -548,7 +566,7 @@ DO iPart=1,PDM%ParticleVecLength
               WRITE(UNIT_stdout,'(30("-"))')
               WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (particle tracing): '
               WRITE(UNIT_stdout,'(A,I0,A,L)') '     | AuxBC: ',iAuxBC,' | Hit: ',isHit
-              WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlphaAux(iAuxBC),' | LengthPartTrajectory: ', lengthPartTrajectory
+              WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlphaAll(6+iAuxBC),' | LengthPartTrajectory: ',lengthPartTrajectory
             END IF
           END IF
 #endif /*CODE_ANALYZE*/
@@ -563,7 +581,7 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
           IF(isHit) THEN
             nInterSections=nInterSections+1
-            IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
+            IF(ALMOSTZERO(locAlphaAll(6+iAuxBC))) markTol=.TRUE.
           END IF
         END DO !iAuxBC
       END IF !HasAuxBC
@@ -634,13 +652,16 @@ DO iPart=1,PDM%ParticleVecLength
             END IF
           END IF
         END DO ! ilocSide
-
+        !-- check for AuxBC interactions (if one exists, ilocSide-loop could not have found one, since nInterSections=1)
         IF (HasAuxBC) THEN
           DO iAuxBC=1,nAuxBCs
-            IF(locAlphaAux(iAuxBC).GT.-1.0) THEN
-              CALL GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,locAlphaAux(iAuxBC),iPart,iAuxBC,crossedBC)
+            IF(locAlphaAll(6+iAuxBC).GT.-1.0) THEN
+              CALL GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,locAlphaAll(6+iAuxBC),iPart,iAuxBC,crossedBC)
               IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
+              dolocSide=.TRUE. !important when before there was an elemchange !
+              OnlyAuxBC=.FALSE. !important, since a new elem could have been reached now !
               IF(crossedBC) THEN
+                firstElem=ElemID
                 EXIT
               END IF
             END IF
@@ -657,55 +678,99 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       CASE DEFAULT ! two or more hits
         ! more careful witEh bc elems
-          CALL InsertionSort(locAlpha,locSideList,6)
+          IF (HasAuxBC) THEN
+            locAlphaAll(1:6)=locAlpha
+            CALL InsertionSort(locAlphaAll,locListAll,6+nAuxBCs)
+            AuxBCsToCheck=nAuxBCs
+!#ifdef CODE_ANALYZE
+!            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+!              IF(iPart.EQ.PARTOUT)THEN
+!print*,'locAlphaAll:',locAlphaAll
+!print*,'locListAll:',locListAll
+!              END IF
+!            END IF
+!#endif /*CODE_ANALYZE*/
+          ELSE
+            CALL InsertionSort(locAlpha,locSideList,6)
+            AuxBCsToCheck=0
+          END IF
           SwitchedElement=.FALSE.
           crossedBC=.FALSE.
-          DO ilocSide=1,6
-            IF(locAlpha(ilocSide).GT.-1.0)THEN
-              hitlocSide=locSideList(ilocSide)
-              SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-              flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
-              OldElemID=ElemID
-              CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
-                ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
-              IF(ElemID.NE.OldElemID)THEN
-                IF((firstElem.EQ.ElemID).AND.(.NOT.CrossedBC))THEN
-                  IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located at undefined location. '
-                  IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
-                  PartIsDone=.TRUE.
-                  PDM%ParticleInside(iPart)=.FALSE.
-                  DoParticle(iPart)=.FALSE.
-                  IF(CountNbOfLostParts) nLostParts=nLostParts+1
+          DO ilocSide=1,6+AuxBCsToCheck
+            IsIntersec=.FALSE.
+            IsAuxBC=.FALSE.
+            IF (HasAuxBC) THEN
+              IF (locAlphaAll(ilocSide).GT.-1.0) IsIntersec=.TRUE.
+              IF (locListAll(ilocSide).GT.6) IsAuxBC=.TRUE.
+            ELSE
+              IF (locAlpha(ilocSide).GT.-1.0) IsIntersec=.TRUE.
+            END IF
+            IF(IsIntersec)THEN
+              IF (.NOT.IsAuxBC) THEN
+                IF (HasAuxBC) THEN
+                  hitlocSide=locListAll(ilocSide)
+                ELSE
+                  hitlocSide=locSideList(ilocSide)
+                END IF
+                SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+                flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
+                OldElemID=ElemID
+                IF (HasAuxBC) THEN
+                  CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
+                    ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),locAlphaAll(ilocSide),iPart,SideID,SideType(SideID),ElemID)
+                ELSE
+                  CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
+                    ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
+                END IF
+                IF(ElemID.NE.OldElemID)THEN
+                  IF((firstElem.EQ.ElemID).AND.(.NOT.CrossedBC))THEN
+                    IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located at undefined location. '
+                    IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+                    PartIsDone=.TRUE.
+                    PDM%ParticleInside(iPart)=.FALSE.
+                    DoParticle(iPart)=.FALSE.
+                    IF(CountNbOfLostParts) nLostParts=nLostParts+1
+                    EXIT
+                  END IF
+                  !markTol=.FALSE.
+                  IF(.NOT.CrossedBC) SwitchedElement=.TRUE.
+                  ! already done
+                  ! move particle to intersection
+                  !LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
+                  !PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+                  !lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                  !                         +PartTrajectory(2)*PartTrajectory(2) &
+                  !                         +PartTrajectory(3)*PartTrajectory(3) )
+                  IF(ALMOSTZERO(lengthPartTrajectory))THEN
+                    PartisDone=.TRUE.
+                  END IF
+                  !PartTrajectory=PartTrajectory/lengthPartTrajectory
+#ifdef MPI
+                  IF(OldElemID.LE.PP_nElems)THEN
+                    tLBEnd = LOCALTIME() ! LB Time End
+                    ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+                    tLBStart = LOCALTIME() ! LB Time Start
+                  END IF
+#endif /*MPI*/
+                  !EXIT
+                END IF
+                IF(SwitchedElement) EXIT
+                IF(crossedBC) THEN
+                  firstElem=ElemID
                   EXIT
                 END IF
-                !markTol=.FALSE.
-                IF(.NOT.CrossedBC) SwitchedElement=.TRUE.
-                ! already done
-                ! move particle to intersection
-                !LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
-                !PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-                !lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                !                         +PartTrajectory(2)*PartTrajectory(2) &
-                !                         +PartTrajectory(3)*PartTrajectory(3) )
-                IF(ALMOSTZERO(lengthPartTrajectory))THEN
-                  PartisDone=.TRUE.
+              ELSE !IsAuxBC=.TRUE.
+                CALL GetBoundaryInteractionAuxBC(&
+                  PartTrajectory,lengthPartTrajectory,locAlphaAll(ilocSide),iPart,locListAll(ilocSide)-6,crossedBC)
+                IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
+                dolocSide=.TRUE. !important when before there was an elemchange !
+                OnlyAuxBC=.FALSE. !important, since a new elem could have been reached now !
+                IF(crossedBC) THEN
+                  firstElem=ElemID
+                  EXIT
                 END IF
-                !PartTrajectory=PartTrajectory/lengthPartTrajectory
-#ifdef MPI    
-                IF(OldElemID.LE.PP_nElems)THEN
-                  tLBEnd = LOCALTIME() ! LB Time End
-                  ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-                  tLBStart = LOCALTIME() ! LB Time Start
-                END IF
-#endif /*MPI*/
-                !EXIT
-              END IF
-              IF(SwitchedElement) EXIT
-              IF(crossedBC) THEN
-                firstElem=ElemID
-                EXIT
-              END IF
-            END IF
+              END IF !IsAuxBC
+            END IF !IsIntersec
           END DO ! ilocSide
           IF((.NOT.crossedBC).AND.(.NOT.SwitchedElement)) THEN
             PartIsDone=.TRUE.
@@ -858,7 +923,7 @@ DO iPart=1,PDM%ParticleVecLength
     ElemID=PEM%Element(iPart)
     CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
     IF(.NOT.isHit)THEN  ! particle not inside
-     IPWRITE(UNIT_stdOut,'(A)') ' PartPos not inside of element! '
+     IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IF(ElemID.LE.PP_nElems)THEN
        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
      ELSE
