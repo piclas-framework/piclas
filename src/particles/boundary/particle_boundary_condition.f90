@@ -688,7 +688,6 @@ IF (IsAuxBC) THEN
   CASE ('plane')
     n_loc=AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
   CASE DEFAULT
-    SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(AuxBCIdx))
     CALL abort(&
       __STAMP__&
       ,'AuxBC does not exist')
@@ -991,7 +990,6 @@ IF (IsAuxBC) THEN
   CASE ('plane')
     n_loc=AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
   CASE DEFAULT
-    SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(AuxBCIdx))
     CALL abort(&
       __STAMP__&
       ,'AuxBC does not exist')
