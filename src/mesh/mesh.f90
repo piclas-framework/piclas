@@ -741,7 +741,6 @@ DO iElem=1,PP_nElems
   CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
   CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
   xPos=0.
-  print*, iElem
   DO k=0,NGeo
     DO j=0,NGeo
       buf=Lag(2,j)*Lag(3,k)
