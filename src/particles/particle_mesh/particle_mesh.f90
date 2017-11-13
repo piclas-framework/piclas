@@ -453,7 +453,6 @@ SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
 SDEALLOCATE(GEO%NodeCoords)
 SDEALLOCATE(GEO%ConcaveElemSide)
-!SDEALLOCATE(TriaSideData)
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
@@ -1148,7 +1147,6 @@ END IF
 CALL GetElemAndSideType()
 
 CALL GetLinearSideBaseVectors()
-!IF (TriaTracking) CALL GetTriaSideData()
 CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
@@ -2405,127 +2403,6 @@ SWRITE(UNIT_StdOut,'(A,E18.8)') ' |           Total Volume of Mesh |            
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
-
-
-SUBROUTINE GetTriaSideData()
-!===================================================================================================================================
-! Calculate Data of Triangles for each Side
-! normalvector, tangential vectors and area
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-!USE MOD_Mesh_Vars,             ONLY : NormVec
-USE MOD_Particle_Mesh_Vars,    ONLY : nTotalElems, nTotalSides
-USE MOD_Particle_Mesh_Vars,    ONLY : PartElemToSide, GEO, TriaSideData
-!USE MOD_Particle_Boundary_Vars,ONLY : nTotalSides
-!USE MOD_Particle_Surface_Vars,ONLY:TriaSideData
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: SideID,iElem,iLocSide,TriNum,Node1,Node2,flip!,q,p
-REAL              :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz!, nvSide(3), NVecTest
-REAL              :: vec_nIn(3), nVal, vec_t1(3), vec_t2(3)
-!===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' GET TRIANGULATED SIDE DATA...'
-
-ALLOCATE(TriaSideData(1:nTotalSides)) ! allocate further for ld!
-DO iElem=1,nTotalElems
-  DO iLocSide=1,6               ! -''-
-    flip = PartElemToSide(E2S_FLIP,iLocSide,iElem)
-    SideID = PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-
-    xNod = GEO%NodeCoords(1,1,iLocSide,iElem)
-    yNod = GEO%NodeCoords(2,1,iLocSide,iElem)
-    zNod = GEO%NodeCoords(3,1,iLocSide,iElem)
-    !TriaSideData(1:2,SideID)%NodeCoords(1,1) = xNod
-    !TriaSideData(1:2,SideID)%NodeCoords(2,1) = yNod
-    !TriaSideData(1:2,SideID)%NodeCoords(3,1) = zNod
-
-    DO TriNum = 1,2
-      Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-      Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-      Vector1(1) = GEO%NodeCoords(1,Node1,iLocSide,iElem) - xNod
-      Vector1(2) = GEO%NodeCoords(2,Node1,iLocSide,iElem) - yNod
-      Vector1(3) = GEO%NodeCoords(3,Node1,iLocSide,iElem) - zNod
-      Vector2(1) = GEO%NodeCoords(1,Node2,iLocSide,iElem) - xNod
-      Vector2(2) = GEO%NodeCoords(2,Node2,iLocSide,iElem) - yNod
-      Vector2(3) = GEO%NodeCoords(3,Node2,iLocSide,iElem) - zNod
-      nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
-      ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
-      nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
-      nVal = SQRT(nx*nx + ny*ny + nz*nz)
-      vec_nIn(1:3) = -(/nx,ny,nz/) / nVal
-      !nvSide(:)=0.
-      !DO q=0,PP_N
-      !  DO p=0,PP_N
-      !    nvSide(:)=nvSide(:)+NormVec(:,p,q,SideID)
-      !  END DO
-      !END DO
-      !nvSide(:)=nvSide(:)/REAL((PP_N+1)*(PP_N+1)) !average nv of side (outwards)
-      !NVecTest = nvSide(1)*nx + nvSide(2)*ny + nvSide(3)*nz
-      !IF (NVecTest.GE.0.0) THEN !NV is directed outwards
-      !  CALL abort(__STAMP__,&
-      !    'ERROR in Calculation of NormVec in Init Particle_Mesh!',999,NVecTest)
-      !END IF
-      !-- build arbitrary vectors normal to vec_nIn (and prep. for projected velos)
-      IF (.NOT.ALMOSTEQUAL(vec_nIn(3),0.)) THEN
-        vec_t1(1) = 1.0
-        vec_t1(2) = 1.0
-        vec_t1(3) = -(vec_nIn(1)+vec_nIn(2))/vec_nIn(3)
-        vec_t2(1) = vec_nIn(2) * vec_t1(3) - vec_nIn(3)
-        vec_t2(2) = vec_nIn(3) - vec_nIn(1) * vec_t1(3)
-        vec_t2(3) = vec_nIn(1) - vec_nIn(2)
-        vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(3)*vec_t1(3))
-      ELSE
-        IF (.NOT.ALMOSTEQUAL(vec_nIn(2),0.)) THEN
-          vec_t1(1) = 1.0
-          vec_t1(3) = 1.0
-          vec_t1(2) = -(vec_nIn(1)+vec_nIn(3))/vec_nIn(2)
-          vec_t2(1) = vec_nIn(2) - vec_nIn(3) * vec_t1(2)
-          vec_t2(2) = vec_nIn(3) - vec_nIn(1)
-          vec_t2(3) = vec_nIn(1) * vec_t1(2) - vec_nIn(2)
-          vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(2)*vec_t1(2))
-        ELSE
-          IF (.NOT.ALMOSTEQUAL(vec_nIn(1),0.)) THEN
-            vec_t1(2) = 1.0
-            vec_t1(3) = 1.0
-            vec_t1(1) = -(vec_nIn(2)+vec_nIn(3))/vec_nIn(1)
-            vec_t2(1) = vec_nIn(2) - vec_nIn(3)
-            vec_t2(2) = vec_nIn(3) * vec_t1(1) - vec_nIn(1)
-            vec_t2(3) = vec_nIn(1) - vec_nIn(2) * vec_t1(1)
-            vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(1)*vec_t1(1))
-          ELSE
-            CALL abort(__STAMP__,&
-              'Error in InitParticles: vec_nIn is zero!')
-          END IF
-        END IF
-      END IF
-      vec_t2 = vec_t2 / SQRT(vec_t2(1)*vec_t2(1) + vec_t2(2)*vec_t2(2) + vec_t2(3)*vec_t2(3))
-      !-- store tria data in SideData
-      TriaSideData(SideID)%vec_nIn(1:3,TriNum,flip) = vec_nIn(1:3)
-      TriaSideData(SideID)%vec_t1(1:3,TriNum,flip) = vec_t1(1:3)
-      TriaSideData(SideID)%vec_t2(1:3,TriNum,flip) = vec_t2(1:3)
-      TriaSideData(SideID)%area(TriNum)      = nVal/2.
-      !TriaSideData(TriNum,SideID)%NodeCoords(1,2) = GEO%NodeCoords(1,Node1,iLocSide,iElem)
-      !TriaSideData(TriNum,SideID)%NodeCoords(2,2) = GEO%NodeCoords(2,Node1,iLocSide,iElem)
-      !TriaSideData(TriNum,SideID)%NodeCoords(3,2) = GEO%NodeCoords(3,Node1,iLocSide,iElem)
-      !TriaSideData(TriNum,SideID)%NodeCoords(1,3) = GEO%NodeCoords(1,Node2,iLocSide,iElem)
-      !TriaSideData(TriNum,SideID)%NodeCoords(2,3) = GEO%NodeCoords(2,Node2,iLocSide,iElem)
-      !TriaSideData(TriNum,SideID)%NodeCoords(3,3) = GEO%NodeCoords(3,Node2,iLocSide,iElem)
-    END DO
-  END DO
-END DO
-
-SWRITE(UNIT_stdOut,'(A)')' GET TRIANGULATED SIDE DATA DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE GetTriaSideData
 
 
 SUBROUTINE ReShapeBezierSides()

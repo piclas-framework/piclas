@@ -1344,7 +1344,7 @@ SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars,      ONLY:TriaTracking,TrackInfo
-USE MOD_Particle_Mesh_Vars,          ONLY:TriaSideData,PartSideToElem
+USE MOD_Particle_Mesh_Vars,          ONLY:PartSideToElem
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
