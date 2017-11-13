@@ -168,11 +168,20 @@ TYPE(tPartBoundary)                      :: PartBound                         ! 
 INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing
 CHARACTER(LEN=200), ALLOCATABLE          :: AuxBCType(:)                ! type of BC (plane, ...)
 INTEGER           , ALLOCATABLE          :: AuxBCMap(:)                 ! index of AuxBC in respective Type
+
 TYPE tAuxBC_plane
   REAL                                   :: r_vec(3)
   REAL                                   :: n_vec(3)
 END TYPE tAuxBC_plane
 TYPE(tAuxBC_plane), ALLOCATABLE          :: AuxBC_plane(:)
+
+TYPE tAuxBC_cylinder
+  REAL                                   :: r_vec(3)
+  REAL                                   :: axis(3)
+  REAL                                   :: radius
+  LOGICAL                                :: inwards
+END TYPE tAuxBC_cylinder
+TYPE(tAuxBC_cylinder), ALLOCATABLE       :: AuxBC_cylinder(:)
 
 TYPE tPartAuxBC
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition

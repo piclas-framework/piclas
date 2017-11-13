@@ -3328,14 +3328,15 @@ SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
 !===================================================================================================================================
 ! Compute the Intersection with auxBC. (based partly on PlanarRect)
 ! Implemtented types:
-! - 1.: plane
+! - plane
+! - cylinder
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 !USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane
+USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -3351,7 +3352,9 @@ LOGICAL,INTENT(OUT)               :: isHit
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm
+REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm,radius
+REAL                              :: axis(3),tang1(3),tang2(3),trajTang(2),originTang(2),roots(2),intersec(3),alphadir(2)!,origindist(2)
+INTEGER                           :: nRoot
 LOGICAL                           :: CriticalParallelInSide
 !===================================================================================================================================
 isHit=.FALSE.
@@ -3378,7 +3381,8 @@ CASE ('plane')
     alpha=locSideDistance/coeffA
   END IF
   alphaNorm=alpha/lengthPartTrajectory
-  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
+  ! check besides alpha already here the direction of trajectory since no inner auxBCs possible (can happen due to tolerances)
+  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol) .OR. DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
     ishit=.FALSE.
     alpha=-1.0
     RETURN
@@ -3393,6 +3397,112 @@ CASE ('plane')
 !    alpha=-1.0
 !    RETURN
 !  END IF
+  isHit=.TRUE.
+CASE ('cylinder')
+  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE. !not used for cylinder
+  r_vec=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
+  axis=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
+  IF (axis(3).NE.0.) THEN
+    tang1(1) = 1.0
+    tang1(2) = 1.0
+    tang1(3) = -(axis(1)+axis(2))/axis(3)
+  ELSE
+    IF (axis(2).NE.0.) THEN
+      tang1(1) = 1.0
+      tang1(3) = 1.0
+      tang1(2) = -(axis(1)+axis(3))/axis(2)
+    ELSE
+      IF (axis(1).NE.0.) THEN
+        tang1(2) = 1.0
+        tang1(3) = 1.0
+        tang1(1) = -(axis(2)+axis(3))/axis(1)
+      ELSE
+        CALL abort(&
+__STAMP__&
+,'Error in ComputeAuxBCIntersection, axis is zero for AuxBC',AuxBCIdx)
+      END IF
+    END IF
+  END IF
+  tang1=UNITVECTOR(tang1)
+  tang2=CROSSNORM(axis,tang1)
+  radius=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%radius
+  !- project trajectory and origin into circle-area of cylinder
+  trajTang(1)=DOT_PRODUCT(tang1,PartTrajectory)
+  trajTang(2)=DOT_PRODUCT(tang2,PartTrajectory)
+  originTang(1)=DOT_PRODUCT(tang1,LastPartPos(iPart,1:3)-r_vec)
+  originTang(2)=DOT_PRODUCT(tang2,LastPartPos(iPart,1:3)-r_vec)
+  !- solve quadratic equation from trajectory inserted in circle-equation
+  CALL QuadraticSolver(trajTang(1)*trajTang(1)+trajTang(2)*trajTang(2) &
+    ,2.*originTang(1)*trajTang(1)+2.*originTang(2)*trajTang(2) &
+    ,originTang(1)*originTang(1)+originTang(2)*originTang(2)-radius*radius &
+    ,nRoot,roots(1),roots(2))
+  SELECT CASE (nRoot)
+  CASE (1)
+    alpha=roots(1)
+    !- check for normal vec / trajectory direction
+    ! (already here since no inner auxBCs possible (can happen due to tolerances)
+    intersec = LastPartPos(iPart,1:3) + alpha*PartTrajectory
+    n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
+    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_vec=-n_vec
+    IF(DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
+      ishit=.FALSE.
+      alpha=-1.0
+      RETURN
+    END IF
+    !origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
+    !IF (origindist(1).LT.lmin .OR. origindist(1).GT.lmax) THEN
+    !  ishit=.FALSE.
+    !  alpha=-1.0
+    !  RETURN
+    !END IF
+  CASE (2)
+    !- 2 roots: check for smallest alpha>-eps
+    IF (roots(1).LT.roots(2)) THEN
+      IF (roots(1).GE.-epsilontol*lengthPartTrajectory) THEN
+        alpha=roots(1)
+      ELSE
+        alpha=roots(2)
+        roots(2)=roots(1)
+        roots(1)=alpha
+      END IF
+    ELSE
+      IF (roots(2).GE.-epsilontol*lengthPartTrajectory) THEN
+        alpha=roots(2)
+        roots(2)=roots(1)
+        roots(1)=alpha
+      ELSE
+        alpha=roots(1)
+      END IF
+    END IF
+    !- check for normal vec / trajectory direction
+    ! (already here since no inner auxBCs possible (can happen due to tolerances)
+    intersec = LastPartPos(iPart,1:3) + roots(1)*PartTrajectory
+    n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
+    alphadir(1)=DOT_PRODUCT(n_vec,PartTrajectory)
+    intersec = LastPartPos(iPart,1:3) + roots(2)*PartTrajectory
+    n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
+    alphadir(2)=DOT_PRODUCT(n_vec,PartTrajectory)
+    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) alphadir=-alphadir
+    IF (alphadir(1).GE.0.) THEN
+      ! alpha stays alpha
+    ELSE IF (alphadir(2).GE.0.) THEN
+      alpha=roots(2)
+    ELSE
+      ishit=.FALSE.
+      alpha=-1.0
+      RETURN
+    END IF
+  CASE DEFAULT
+    ishit=.FALSE.
+    alpha=-1.0
+    RETURN
+  END SELECT
+  alphaNorm=alpha/lengthPartTrajectory
+  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
+    ishit=.FALSE.
+    alpha=-1.0
+    RETURN
+  END IF
   isHit=.TRUE.
 CASE DEFAULT
   SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(AuxBCIdx))

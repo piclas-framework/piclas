@@ -5259,6 +5259,8 @@ DO iAuxBC=1,nAuxBCs
           ,'Error in MarkAuxBCElems for AuxBC:',iAuxBC)
       END IF
     END DO
+  CASE ('cylinder')
+    ElemHasAuxBCs(:,iAuxBC)=.TRUE. !actual intersection with box check to-be implemented!!!
   CASE DEFAULT
     SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
     CALL abort(&

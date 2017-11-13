@@ -122,7 +122,7 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
-USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane
+USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
@@ -151,7 +151,7 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
-INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, iAuxBC, nAuxBCplanes
+INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, iAuxBC, nAuxBCplanes, nAuxBCcylinders
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
@@ -1272,6 +1272,7 @@ IF (nAuxBCs.GT.0) THEN
   END DO
   !- read and count types
   nAuxBCplanes = 0
+  nAuxBCcylinders = 0
   DO iAuxBC=1,nAuxBCs
     WRITE(UNIT=hilf,FMT='(I2)') iAuxBC
     AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
@@ -1279,6 +1280,9 @@ IF (nAuxBCs.GT.0) THEN
     CASE ('plane')
       nAuxBCplanes = nAuxBCplanes + 1
       AuxBCMap(iAuxBC) = nAuxBCplanes
+    CASE ('cylinder')
+      nAuxBCcylinders = nAuxBCcylinders + 1
+      AuxBCMap(iAuxBC) = nAuxBCcylinders
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
       CALL abort(&
@@ -1289,6 +1293,9 @@ IF (nAuxBCs.GT.0) THEN
   !- allocate type-specifics
   IF (nAuxBCplanes.GT.0) THEN
     ALLOCATE (AuxBC_plane(1:nAuxBCplanes))
+  END IF
+  IF (nAuxBCcylinders.GT.0) THEN
+    ALLOCATE (AuxBC_cylinder(1:nAuxBCcylinders))
   END IF
   !- read type-specifics
   DO iAuxBC=1,nAuxBCs
@@ -1304,6 +1311,18 @@ IF (nAuxBCs.GT.0) THEN
       ELSE !scale vector
         AuxBC_plane(AuxBCMap(iAuxBC))%n_vec = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
       END IF
+    CASE ('cylinder')
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                                  = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_cylinder(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%radius  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius','1.')
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
       CALL abort(&

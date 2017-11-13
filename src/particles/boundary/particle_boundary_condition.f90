@@ -644,7 +644,7 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -662,7 +662,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), WallVelo(3)
+REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), WallVelo(3), intersec(3), r_vec(3), axis(3)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !#if defined(LSERK)
 !REAL                                 :: absPt_temp
@@ -686,7 +686,13 @@ END IF
 IF (IsAuxBC) THEN
   SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
   CASE ('plane')
-    n_loc=AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+    n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+  CASE ('cylinder')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
+    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT
     CALL abort(&
       __STAMP__&
@@ -694,7 +700,10 @@ IF (IsAuxBC) THEN
   END SELECT
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
     IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-    RETURN
+    !RETURN
+    CALL abort(&
+      __STAMP__&
+      ,'Error in PerfectReflection: Particle coming from outside!')
   ELSE IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0.)  THEN
     IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
   ELSE
@@ -746,7 +755,6 @@ ELSE
     IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
   END IF
 END IF !IsAuxBC
-
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
 
@@ -942,7 +950,7 @@ USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -979,6 +987,7 @@ INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:),
 ! REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
 !REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 LOGICAL                              :: IsAuxBC
+REAL                                 :: intersec(3), r_vec(3), axis(3)
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -988,7 +997,13 @@ END IF
 IF (IsAuxBC) THEN
   SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
   CASE ('plane')
-    n_loc=AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+    n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+  CASE ('cylinder')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
+    n_loc = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
+    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT
     CALL abort(&
       __STAMP__&
@@ -996,7 +1011,10 @@ IF (IsAuxBC) THEN
   END SELECT
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
     IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-    RETURN
+    !RETURN
+    CALL abort(&
+      __STAMP__&
+      ,'Error in DiffuseReflection: Particle coming from outside!')
   ELSE IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0.)  THEN
     IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
   ELSE
@@ -1471,7 +1489,6 @@ USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
