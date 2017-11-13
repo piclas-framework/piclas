@@ -1070,6 +1070,7 @@ INTEGER,ALLOCATABLE      :: HaloElemToBGM(:,:)
 REAL,ALLOCATABLE         :: SideOrigin(:,:), SideRadius(:) 
 !=================================================================================================================================
 
+SWRITE(UNIT_StdOut,'(66("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT BASIS...' 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
 GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
@@ -1090,6 +1091,7 @@ IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' INIT ELEMENT-BASIS TOOK          [',EndT-StartT,'s]'
 END IF
 
+SWRITE(UNIT_StdOut,'(66("-"))')
 StartT=BOLTZPLATZTIME()
 ! get new min max
 SWRITE(UNIT_stdOut,'(A)')' Getting FIBGM-minmax ...' 
@@ -1105,9 +1107,14 @@ EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
 END IF
+SWRITE(UNIT_StdOut,'(66("-"))')
 
 CALL DuplicateSlavePeriodicSides()
 CALL MarkAllBCSides()
+! get elem and side types
+!CALL GetElemAndSideType()
+IF (.NOT.DoRefMapping) CALL GetElemAndSideType2()
+
 StartT=BOLTZPLATZTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
@@ -1144,8 +1151,7 @@ IF(DoRefMapping)THEN
 END IF
 
 ! get elem and side types
-CALL GetElemAndSideType()
-
+IF (DoRefMapping) CALL GetElemAndSideType()
 CALL GetLinearSideBaseVectors()
 CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
@@ -3076,7 +3082,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)      :: XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-LOGICAL              :: IsCurved
+LOGICAL,INTENT(OUT)  :: IsCurved
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                 :: XCL_NGeo1(1:3,0:1,0:1,0:1)
@@ -3217,6 +3223,330 @@ Inside=.TRUE.
 END SUBROUTINE InsideElemBoundingBox
 
 
+SUBROUTINE GetElemAndSideType2()
+!===================================================================================================================================
+! get the element and side type of each element,depending on the 
+! used tracking method (no mpi communication, this is done in exchange_halo_geometry)
+! 1) Get Elem Type
+! 2) Get Side Type
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,NGeo,nBCSides,sJ,nElems,nSides
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo,BC
+USE MOD_ChangeBasis,                        ONLY:changeBasis3D
+USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
+USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
+#ifdef MPI
+!USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticleMappingPartitionInformation
+USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticlePartitionInformation
+#endif /*MPI*/
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                  :: iElem,firstBezierPoint,lastBezierPoint
+INTEGER                                  :: iSide,p,q, nDummy,SideID,TrueSideID,ilocSide,BCSideID2,BCSideID
+INTEGER                                  :: flip
+INTEGER                                  :: nSideCount, s,r
+INTEGER,ALLOCATABLE                      :: SideIndex(:)
+REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
+REAL                                     :: length
+LOGICAL                                  :: isLinear,leave
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
+LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
+REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo),Vec1(1:3)
+INTEGER                                  :: NGeo3,NGeo2, nLoop,iTest,nTest,PVID
+REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
+REAL                                     :: Distance ,maxScaleJ
+REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
+LOGICAL                                  :: isCurvedSide,isRectangular
+!===================================================================================================================================
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A)') ' Get Element and Side Type ...'
+
+! elements
+ALLOCATE(CurvedElem(1:nElems))
+CurvedElem=.FALSE.
+IF (.NOT.DoRefMapping) THEN
+  ALLOCATE(ElemType(1:nElems))
+  ElemType=-1
+END IF
+
+! sides
+IF(DoRefMapping)THEN
+  ALLOCATE( SideType(nBCSides)        &
+          , SideDistance(nBCSides)    &
+          , SideIsDone(nSides)        &
+          , SideNormVec(1:3,nBCSides) )
+ELSE
+  ALLOCATE( SideType(nSides)        &
+          , SideDistance(nSides)    &
+          , SideIsDone(nSides)      &
+          , SideNormVec(1:3,nSides) )
+END IF
+SideIsDone=.FALSE.
+SideType=-1
+
+SideDistance=-0.
+SideNormVec=0.
+
+NGeo2=(NGeo+1)*(NGeo+1)
+NGeo3=NGeo2*(NGeo+1)
+! set loop index for DoRefMapping and Tracing
+nLoop=nElems
+
+! decide if element is (bi-)linear or curved
+! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved 
+DO iElem=1,nLoop
+  ! 1) check if elem is curved
+  !   a) get the coordinates of the eight nodes of the hexahedral
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,iElem)
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,iElem)
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,iElem)
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,iElem)
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,iElem)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,iElem)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,iElem)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,iElem)
+
+  !  b) interpolate from the nodes to NGeo
+  !     Compare the bi-linear mapping with the used mapping
+  !     For NGeo=1, this should always be true, because the mappings are identical
+  CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
+  ! check the coordinates of all Chebychev-Lobatto geometry points between the bi-linear and used
+  ! mapping
+  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),CurvedElem(iElem))
+
+  ! 2) check sides
+  ! loop over all 6 sides of element
+  ! a) check if the sides are straight
+  ! b) use curved information to decide side type
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    flip  =PartElemToSide(E2S_FLIP,ilocSide,iElem)
+    IF (SideID.LE.0) CYCLE
+    IF (SideIsDone(SideID)) CYCLE
+    IF(DoRefMapping)THEN
+      TrueSideID=PartBCSideList(SideID)
+      IF(TrueSideID.EQ.-1)CYCLE
+    ELSE
+      TrueSideID=SideID
+    END IF
+    IF(.NOT.CurvedElem(iElem))THEN
+      ! linear element
+      IF(BoundingBoxIsEmpty(TrueSideID))THEN
+        v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        
+        v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+        v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
+                +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
+                +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
+                +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+        ! check if normal vector points outwards
+        v2=v1-ElemBaryNGeo(:,iElem)
+        IF(flip.EQ.0)THEN
+          IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+        ELSE IF(flip.EQ.-1)THEN
+          SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
+        ELSE
+          IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+        END IF
+        SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        ! check if it is rectangular
+        isRectangular=.TRUE.
+        v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+        v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+        v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        IF(isRectangular)THEN
+          v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        END IF
+        IF(isRectangular)THEN
+          SideType(TrueSideID)=PLANAR_RECT
+        ELSE
+          SideType(TrueSideID)=PLANAR_NONRECT
+        END IF
+      ELSE
+        v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+        SideType(TrueSideID)=BILINEAR
+      END IF
+    ELSE
+      ! possible curved face
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0,0:NGeo,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0,0:NGeo,0:NGeo)
+      CASE(XI_PLUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,NGeo,0:NGeo,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,NGeo,0:NGeo,0:NGeo)
+      CASE(ETA_MINUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,0,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,0,0:NGeo)
+      CASE(ETA_PLUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,NGeo,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,NGeo,0:NGeo)
+      CASE(ZETA_MINUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,0:NGeo,0,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0)
+      CASE(ZETA_PLUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,0:NGeo,NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNEw(1:3,0:NGeo,0:NGeo,NGeo)
+      END SELECT
+      CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
+      IF(isCurvedSide)THEn
+        IF(BoundingBoxIsEmpty(TrueSideID))THEN
+          SideType(TrueSideID)=PLANAR_CURVED
+          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          
+          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+          v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
+                  +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
+                  +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
+                  +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          ! check if normal vector points outwards
+          v2=v1-ElemBaryNGeo(:,iElem)
+          IF(flip.EQ.0)THEN
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          ELSE IF(flip.EQ.-1)THEN
+            SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+            PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
+          ELSE
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+          END IF
+          SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        ELSE
+          SideType(TrueSideID)=CURVED
+        END IF
+      ELSE
+        IF(BoundingBoxIsEmpty(TrueSideID))THEN
+          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          
+          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+          v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
+                  +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
+                  +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
+                  +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          ! check if normal vector points outwards
+          v2=v1-ElemBaryNGeo(:,iElem)
+          IF(flip.EQ.0)THEN
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          ELSE IF(flip.EQ.-1)THEN
+            SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+            PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
+          ELSE
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+          END IF
+          SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+          ! check if it is rectangular
+          isRectangular=.TRUE.
+          v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+          v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+          v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          IF(isRectangular)THEN
+            v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          END IF
+          IF(isRectangular)THEN
+            SideType(TrueSideID)=PLANAR_RECT
+          ELSE
+            SideType(TrueSideID)=PLANAR_NONRECT
+          END IF
+        ELSE
+          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+          SideType(TrueSideID)=BILINEAR
+        END IF
+      END IF
+    END IF
+    SideIsDone(SideID)=.TRUE.
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,nTotalElems
+
+! sanity check for side periodic type
+DO iSide=1,nPartSides
+  IF(DoRefmapping)THEN
+    BCSideID  =PartBCSideList(iSide)
+    IF(BCSideID.LE.0) CYCLE
+  ELSE
+    BCSideID  =iSide
+  END IF
+  PVID=SidePeriodicType(iSide)
+  IF(PVID.EQ.0) CYCLE
+  Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+  IF(DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1).GT.0) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+END DO ! iSide=1,nPartSides
+
+! fill Element type checking sides
+IF (.NOT.DoRefMapping) THEN
+  DO iElem=1,nElems
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT)
+        IF (ElemType(iElem).GE.1) THEN
+          CYCLE
+        ELSE
+          ElemType(iElem) = 1
+        END IF
+      CASE(BILINEAR)
+        IF (ElemType(iElem).GE.2) THEN
+          CYCLE
+        ELSE
+          ElemType(iElem) = 2
+        END IF
+      CASE(PLANAR_CURVED,CURVED)
+        ElemType(iElem) = 3
+        EXIT
+      END SELECT
+    END DO ! ilocSide=1,6
+  END DO ! iElem=1,nTotalElems
+END IF
+
+END SUBROUTINE GetElemAndSideType2
+
+
 SUBROUTINE GetElemAndSideType()
 !===================================================================================================================================
 ! get the element and side type of each element,depending on the 
@@ -3343,7 +3673,7 @@ NGeo3=NGeo2*(NGeo+1)
 nLoop=nTotalElems
 IF(.NOT.DoRefMapping) nLoop=PP_nElems
 
-! decide if element is (bi-)linear or curbed
+! decide if element is (bi-)linear or curved
 ! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved 
 test=0
 DO iElem=1,nLoop
@@ -3359,7 +3689,7 @@ DO iElem=1,nLoop
   XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,iElem)
 
   !  b) interpolate from the nodes to NGeo
-  !     Compare the bi-liner mapping with the used mapping
+  !     Compare the bi-linear mapping with the used mapping
   !     For NGeo=1, this should always be true, because the mappings are identical
   CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
   ! check the coordinates of all Chebychev-Lobatto geometry points between the bi-linear and used
@@ -3708,7 +4038,7 @@ IF (.NOT.DoRefMapping)THEN
           IF(SideID.GT.nPartSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
 
-        END IF ! bounding bos is empty
+        END IF ! bounding box is empty
       ELSE  ! non-linear edges
         IF(BoundingBoxIsEmpty(SideID))THEN
           SideType(SideID)=PLANAR_CURVED
