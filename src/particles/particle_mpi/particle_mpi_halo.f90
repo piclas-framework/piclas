@@ -887,11 +887,13 @@ IF (SendMsg%nElems.GT.0) THEN
     __STAMP__&
     ,'Could not allocate SendMsg%CurvedElem',SendMsg%nElems)
   SendMsg%CurvedElem=.FALSE.
-  ALLOCATE(SendMsg%ElemType(1:SendMsg%nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'Could not allocate SendMsg%ElemType',SendMsg%nElems)
-  SendMsg%ElemType=-1
+  IF (.NOT.DoRefMapping) THEN
+    ALLOCATE(SendMsg%ElemType(1:SendMsg%nElems),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%ElemType',SendMsg%nElems)
+    SendMsg%ElemType=-1
+  END IF
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%CurvedElem(1:RecvMsg%nElems),STAT=ALLOCSTAT)
@@ -899,11 +901,13 @@ IF (RecvMsg%nElems.GT.0) THEN
     __STAMP__&
     ,'Could not allocate ResvMsg%CurvedElem',RecvMsg%nElems)
   RecvMsg%CurvedElem=.FALSE.
-  ALLOCATE(RecvMsg%ElemType(1:RecvMsg%nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'Could not allocate RecvMsg%ElemType',RecvMsg%nElems)
-  RecvMsg%ElemType=-1
+  IF (.NOT.DoRefMapping) THEN
+    ALLOCATE(RecvMsg%ElemType(1:RecvMsg%nElems),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%ElemType',RecvMsg%nElems)
+    RecvMsg%ElemType=-1
+  END IF
 END IF
 
 IF (TriaTracking) THEN
@@ -1160,7 +1164,9 @@ DO iElem = 1,nElems
       !SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
     END IF
     SendMsg%CurvedElem(ElemIndex(iElem))=CurvedElem(iElem)
-    SendMsg%ElemType(ElemIndex(iElem))=ElemType(iElem)
+    IF (.NOT.DoRefMapping) THEN
+      SendMsg%ElemType(ElemIndex(iElem))=ElemType(iElem)
+    END IF
     IF(TriaTracking)THEN
       SendMsg%NodeCoords(:,:,:,ElemIndex(iElem))=GEO%Nodecoords(:,:,:,iElem)
       SendMsg%ConcaveElemSide(:,ElemIndex(iElem))=GEO%ConcaveElemSide(:,iElem)
@@ -1278,8 +1284,10 @@ IF (PartMPI%MyRank.LT.iProc) THEN
         CALL MPI_SEND(SendMsg%MortarType,SendMsg%nSides*2,MPI_INTEGER       ,iProc,1120,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%CurvedElem,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
-  IF (SendMsg%nElems.GT.0) &
-      CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
+  END IF
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SideType    ,SendMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
@@ -1334,8 +1342,10 @@ IF (PartMPI%MyRank.LT.iProc) THEN
         CALL MPI_RECV(RecvMsg%MortarType,RecvMsg%nSides*2,MPI_INTEGER,iProc,1120,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%CurvedElem,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
-  IF (RecvMsg%nElems.GT.0) &
-      CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SideType    ,RecvMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
@@ -1389,8 +1399,10 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
         CALL MPI_RECV(RecvMsg%MortarType,RecvMsg%nSides*2,MPI_INTEGER,iProc,1120,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%CurvedElem,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
-  IF (RecvMsg%nElems.GT.0) &
-      CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SideType    ,RecvMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
@@ -1440,8 +1452,10 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
         CALL MPI_SEND(SendMsg%MortarType,SendMsg%nSides*2,MPI_INTEGER       ,iProc,1120,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%CurvedElem,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
-  IF (SendMsg%nElems.GT.0) &
-      CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
+  END IF
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SideType    ,SendMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
@@ -1648,7 +1662,9 @@ ELSE ! DoRefMappping=F
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
       CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
-      ElemType(newElemID)         = RecvMsg%ElemType(iElem)
+      IF (.NOT.DoRefMapping) THEN
+        ElemType(newElemID)         = RecvMsg%ElemType(iElem)
+      END IF
       IF (TriaTracking) THEN
         GEO%NodeCoords(1:3,1:4,1:6,newElemID) = RecvMsg%NodeCoords(1:3,1:4,1:6,iElem)
         GEO%ConcaveElemSide(1:6,newElemID) = RecvMsg%ConcaveElemSide(1:6,iElem)
@@ -1923,6 +1939,46 @@ IF(DoRefMapping)THEN
   BoundingBoxIsEmpty(1:nOldBCSides) =DummyBoundingBoxIsEmpty(1:nOldBCSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
 
+  ! side type
+  ALLOCATE(DummySideType(1:nOldBCSides))
+  IF (.NOT.ALLOCATED(DummySideType)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideType')
+  DummySideType=SideType
+  DEALLOCATE(SideType)
+  ALLOCATE(SideType(1:nTotalBCSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideType')
+  SideType=-1
+  SideType(1:nOldBCSides) =DummySideType(1:nOldBCSides)
+
+  ALLOCATE(DummySideDistance(1:nOldBCSides))
+  IF (.NOT.ALLOCATED(DummySideDistance)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideDistance')
+  DummySideDistance=SideDistance
+  DEALLOCATE(SideDistance)
+  ALLOCATE(SideDistance(1:nTotalBCSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideDistance')
+  SideDistance=0.
+  SideDistance(1:nOldBCSides) =DummySideDistance(1:nOldBCSides)
+
+  ALLOCATE(DummySideNormVec(1:3,1:nOldBCSides))
+  IF (.NOT.ALLOCATED(DummySideNormVec)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideNormVec')
+  DummySideNormVec=SideNormVec
+  DEALLOCATE(SideNormVec)
+  ALLOCATE(SideNormVec(1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideNormVec')
+  SideNormVec=0.
+  SideNormVec(1:3,1:nOldBCSides) =DummySideNormVec(1:3,1:nOldBCSides)
+
 ELSE ! no mapping
   ! BezierControlPoints3D
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldSides))
@@ -1978,6 +2034,46 @@ ELSE ! no mapping
    ,'Could not reallocate ElemIndex')
   BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
+
+  ! side type
+  ALLOCATE(DummySideType(1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideType)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideType')
+  DummySideType=SideType
+  DEALLOCATE(SideType)
+  ALLOCATE(SideType(1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideType')
+  SideType=-1
+  SideType(1:nOldSides) =DummySideType(1:nOldSides)
+
+  ALLOCATE(DummySideDistance(1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideDistance)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideDistance')
+  DummySideDistance=SideDistance
+  DEALLOCATE(SideDistance)
+  ALLOCATE(SideDistance(1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideDistance')
+  SideDistance=0.
+  SideDistance(1:nOldSides) =DummySideDistance(1:nOldSides)
+
+  ALLOCATE(DummySideNormVec(1:3,1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideNormVec)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideNormVec')
+  DummySideNormVec=SideNormVec
+  DEALLOCATE(SideNormVec)
+  ALLOCATE(SideNormVec(1:3,1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideNormVec')
+  SideNormVec=0.
+  SideNormVec(1:3,1:nOldSides) =DummySideNormVec(1:3,1:nOldSides)
 END IF
 
 IF (TriaTracking) THEN
@@ -2025,7 +2121,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 ElemBaryNGeo=0.
 ElemBaryNGeo(1:3,1:nOldElems) =DummyElemBaryNGeo(1:3,1:nOldElems)
 
-! Elem Type
+! curved elem
 ALLOCATE(DummyCurvedElem(1:nOldElems))
 IF (.NOT.ALLOCATED(DummyCurvedElem)) CALL abort(&
     __STAMP__&
@@ -2039,58 +2135,21 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 CurvedElem=.FALSE.
 CurvedElem(1:nOldElems) =DummyCurvedElem(1:nOldElems)
 
-ALLOCATE(DummyElemType(1:nOldElems))
-IF (.NOT.ALLOCATED(DummyElemType)) CALL abort(&
-    __STAMP__&
- ,'Could not allocate DummyElemType')
-DummyElemType=ElemType
-DEALLOCATE(ElemType)
-ALLOCATE(ElemType(1:nTotalElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'Could not reallocate ElemType')
-ElemType=-1
-ElemType(1:nOldElems) =DummyElemType(1:nOldElems)
-
-!SideType
-ALLOCATE(DummySideType(1:nOldSides))
-IF (.NOT.ALLOCATED(DummySideType)) CALL abort(&
-    __STAMP__&
- ,'Could not allocate DummySideType')
-DummySideType=SideType
-DEALLOCATE(SideType)
-ALLOCATE(SideType(1:nTotalSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'Could not reallocate SideType')
-SideType=-1
-SideType(1:nOldSides) =DummySideType(1:nOldSides)
-
-ALLOCATE(DummySideDistance(1:nOldSides))
-IF (.NOT.ALLOCATED(DummySideDistance)) CALL abort(&
-    __STAMP__&
- ,'Could not allocate DummySideDistance')
-DummySideDistance=SideDistance
-DEALLOCATE(SideDistance)
-ALLOCATE(SideDistance(1:nTotalSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'Could not reallocate SideDistance')
-SideDistance=0.
-SideDistance(1:nOldSides) =DummySideDistance(1:nOldSides)
-
-ALLOCATE(DummySideNormVec(1:3,1:nOldSides))
-IF (.NOT.ALLOCATED(DummySideNormVec)) CALL abort(&
-    __STAMP__&
- ,'Could not allocate DummySideNormVec')
-DummySideNormVec=SideNormVec
-DEALLOCATE(SideNormVec)
-ALLOCATE(SideNormVec(1:3,1:nTotalSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'Could not reallocate SideNormVec')
-SideNormVec=0.
-SideNormVec(1:3,1:nOldSides) =DummySideNormVec(1:3,1:nOldSides)
+! Elem Type
+IF (.NOT.DoRefMapping) THEN
+  ALLOCATE(DummyElemType(1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyElemType)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummyElemType')
+  DummyElemType=ElemType
+  DEALLOCATE(ElemType)
+  ALLOCATE(ElemType(1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate ElemType')
+  ElemType=-1
+  ElemType(1:nOldElems) =DummyElemType(1:nOldElems)
+END IF
 
 ! SideBCType
 ALLOCATE(DummySideBCType(1:nOldSides))
