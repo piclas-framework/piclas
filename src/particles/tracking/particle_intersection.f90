@@ -3352,8 +3352,9 @@ LOGICAL,INTENT(OUT)               :: isHit
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm,radius
-REAL                              :: axis(3),tang1(3),tang2(3),trajTang(2),originTang(2),roots(2),intersec(3),alphadir(2)!,origindist(2)
+REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm,radius,lmin,lmax
+REAL                              :: axis(3),tang1(3),tang2(3)
+REAL                              :: trajTang(2),originTang(2),roots(2),intersec(3),alphadir(2),origindist(2)
 INTEGER                           :: nRoot
 LOGICAL                           :: CriticalParallelInSide
 !===================================================================================================================================
@@ -3362,6 +3363,7 @@ SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
 CASE ('plane')
   r_vec=AuxBC_plane(AuxBCMap(AuxBCIdx))%r_vec
   n_vec=AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+  radius=AuxBC_plane(AuxBCMap(AuxBCIdx))%radius
   coeffA=DOT_PRODUCT(n_vec,PartTrajectory)
   CriticalParallelInSide=.FALSE.
   IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
@@ -3381,8 +3383,10 @@ CASE ('plane')
     alpha=locSideDistance/coeffA
   END IF
   alphaNorm=alpha/lengthPartTrajectory
-  ! check besides alpha already here the direction of trajectory since no inner auxBCs possible (can happen due to tolerances)
-  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol) .OR. DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
+  intersec = LastPartPos(iPart,1:3) + alpha*PartTrajectory - r_vec !intersec from basepoint, not origin!
+  ! check besides alpha and radius already here the dir. of trajectory since no inner auxBCs possible (can happen due to tolerances)
+  IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol) .OR. SQRT(DOT_PRODUCT(intersec,intersec)).GT.radius &
+    .OR. DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
     ishit=.FALSE.
     alpha=-1.0
     RETURN
@@ -3402,6 +3406,8 @@ CASE ('cylinder')
   IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE. !not used for cylinder
   r_vec=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
   axis=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
+  lmin=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmin
+  lmax=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmax
   IF (axis(3).NE.0.) THEN
     tang1(1) = 1.0
     tang1(2) = 1.0
@@ -3449,12 +3455,13 @@ __STAMP__&
       alpha=-1.0
       RETURN
     END IF
-    !origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
-    !IF (origindist(1).LT.lmin .OR. origindist(1).GT.lmax) THEN
-    !  ishit=.FALSE.
-    !  alpha=-1.0
-    !  RETURN
-    !END IF
+    !- check for lmin and lmax of cylinder
+    origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
+    IF (origindist(1).LT.lmin .OR. origindist(1).GT.lmax) THEN
+      ishit=.FALSE.
+      alpha=-1.0
+      RETURN
+    END IF
   CASE (2)
     !- 2 roots: check for smallest alpha>-eps
     IF (roots(1).LT.roots(2)) THEN
@@ -3474,18 +3481,20 @@ __STAMP__&
         alpha=roots(1)
       END IF
     END IF
-    !- check for normal vec / trajectory direction
+    !- check for lmin and lmax of cylinder and normal vec / trajectory direction
     ! (already here since no inner auxBCs possible (can happen due to tolerances)
     intersec = LastPartPos(iPart,1:3) + roots(1)*PartTrajectory
+    origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
     n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
     alphadir(1)=DOT_PRODUCT(n_vec,PartTrajectory)
     intersec = LastPartPos(iPart,1:3) + roots(2)*PartTrajectory
+    origindist(2) = DOT_PRODUCT(intersec-r_vec,axis)
     n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
     alphadir(2)=DOT_PRODUCT(n_vec,PartTrajectory)
     IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) alphadir=-alphadir
-    IF (alphadir(1).GE.0.) THEN
+    IF (alphadir(1).GE.0. .AND. origindist(1).GE.lmin .AND. origindist(1).LE.lmax) THEN
       ! alpha stays alpha
-    ELSE IF (alphadir(2).GE.0.) THEN
+    ELSE IF (alphadir(2).GE.0. .AND. origindist(2).GE.lmin .AND. origindist(2).LE.lmax) THEN
       alpha=roots(2)
     ELSE
       ishit=.FALSE.

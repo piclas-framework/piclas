@@ -172,6 +172,7 @@ INTEGER           , ALLOCATABLE          :: AuxBCMap(:)                 ! index 
 TYPE tAuxBC_plane
   REAL                                   :: r_vec(3)
   REAL                                   :: n_vec(3)
+  REAL                                   :: radius
 END TYPE tAuxBC_plane
 TYPE(tAuxBC_plane), ALLOCATABLE          :: AuxBC_plane(:)
 
@@ -179,6 +180,8 @@ TYPE tAuxBC_cylinder
   REAL                                   :: r_vec(3)
   REAL                                   :: axis(3)
   REAL                                   :: radius
+  REAL                                   :: lmin
+  REAL                                   :: lmax
   LOGICAL                                :: inwards
 END TYPE tAuxBC_cylinder
 TYPE(tAuxBC_cylinder), ALLOCATABLE       :: AuxBC_cylinder(:)
