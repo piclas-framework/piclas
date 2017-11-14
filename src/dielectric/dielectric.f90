@@ -72,9 +72,11 @@ END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     !             1./(EpsR*MuR)
 DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !         1./sqrt(EpsR*MuR)
-eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
-c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
-c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
+#ifndef PP_HDG
+  eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
+#endif /*if PP_HDG*/
+  c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
+  c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
 DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius','.FALSE.')
 DielectricRadiusValue            = GETREAL('DielectricRadiusValue','-1.')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
@@ -122,22 +124,22 @@ CALL CountAndCreateMappings('Dielectric',&
 CALL SetDielectricVolumeProfile()
 
 #ifndef PP_HDG
-! Determine dielectric Values on faces and communicate them: only for Maxwell
-CALL SetDielectricFaceProfile()
+  ! Determine dielectric Values on faces and communicate them: only for Maxwell
+  CALL SetDielectricFaceProfile()
 #else /*if PP_HDG*/
-! Set HDG diffusion tensor 'chitens' on faces (TODO: MPI and mortar sides)
-CALL SetDielectricFaceProfile_HDG()
-IF(IniExactFunc.EQ.200)THEN ! for dielectric sphere case
-  ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
-  ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
-  IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
-    DielectricRatio=DielectricEpsR
-  ELSE ! dielectric elements outside of sphere, hence, the inverse value is taken
-    DielectricRatio=DielectricEpsR_inv
+  ! Set HDG diffusion tensor 'chitens' on faces (TODO: MPI and mortar sides)
+  CALL SetDielectricFaceProfile_HDG()
+  IF(IniExactFunc.EQ.200)THEN ! for dielectric sphere case
+    ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
+    ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
+    IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
+      DielectricRatio=DielectricEpsR
+    ELSE ! dielectric elements outside of sphere, hence, the inverse value is taken
+      DielectricRatio=DielectricEpsR_inv
+    END IF
+    ! get the axial electric field strength in x-direction of the dielectric sphere setup
+    Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
   END IF
-  ! get the axial electric field strength in x-direction of the dielectric sphere setup
-  Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
-END IF
 #endif /*PP_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell

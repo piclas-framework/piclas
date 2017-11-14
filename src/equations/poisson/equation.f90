@@ -36,7 +36,7 @@ CONTAINS
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Init Poisson euqation system
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
