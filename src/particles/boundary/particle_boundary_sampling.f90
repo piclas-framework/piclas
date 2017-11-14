@@ -88,14 +88,14 @@ REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,area,tmpI2,tmpJ2
 REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
 REAL                                   :: nVal, SurfaceVal
-CHARACTER(2)                           :: hilf, hilf2
+CHARACTER(20)                          :: hilf, hilf2
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
 !===================================================================================================================================
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 WRITE(UNIT=hilf,FMT='(I2)') NGeo
-nSurfSample = GETINT('DSMC-nSurfSample',hilf)
+nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo
 ! END IF
@@ -124,6 +124,7 @@ DO iBC=1,nBCs
   BCName=''
 END DO
 DO iBC=1,nBCs
+  IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE !inner side (can be just in the name list from preproc although already sorted out)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
   nSurfBC = nSurfBC + 1
   BCName(nSurfBC) = BoundaryName(iBC)
@@ -332,7 +333,7 @@ IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       hilf2=TRIM(hilf2)//TRIM(hilf)
       IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
     END DO
-    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,hilf2)
+    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
   END IF
   ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
   ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
@@ -350,7 +351,7 @@ IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
 END IF
 ! Species-dependent calculations
 ALLOCATE(CalcSurfCollis%SpeciesFlags(1:nSpecies))
-CalcSurfCollis%NbrOfSpecies = GETINT('Particles-DSMC-CalcSurfCollis_NbrOfSpecies','0')
+CalcSurfCollis%NbrOfSpecies = GETINT('Particles-CalcSurfCollis_NbrOfSpecies','0')
 IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nSpecies) ) THEN
   ALLOCATE(CalcSurfCollis_SpeciesRead(1:CalcSurfCollis%NbrOfSpecies))
   hilf2=''
@@ -359,7 +360,7 @@ IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nS
     hilf2=TRIM(hilf2)//TRIM(hilf)
     IF (ispec.NE.CalcSurfCollis%NbrOfSpecies) hilf2=TRIM(hilf2)//','
   END DO
-  CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,hilf2)
+  CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,TRIM(hilf2))
   CalcSurfCollis%SpeciesFlags(:)=.FALSE.
   DO iSpec=1,CalcSurfCollis%NbrOfSpecies
     CalcSurfCollis%SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
