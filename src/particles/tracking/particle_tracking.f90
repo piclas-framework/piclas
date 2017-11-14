@@ -853,7 +853,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                           :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                           :: iPart, ElemID,oldElemID,newElemID
 INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
-REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3),loc_distance
+REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3)!,loc_distance
 !REAL                              :: epsOne
 #ifdef MPI
 INTEGER                           :: InElem
@@ -1344,11 +1344,10 @@ SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars,      ONLY:TriaTracking,TrackInfo
-USE MOD_Particle_Mesh_Vars,          ONLY:PartSideToElem
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
-USE MOD_Particle_Vars,               ONLY:PDM,PEM
+USE MOD_Particle_Vars,               ONLY:PDM
 USE MOD_Particle_Surfaces,           ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Mesh_Vars,                   ONLY:BC
 ! IMPLICIT VARIABLE HANDLING

@@ -1043,9 +1043,7 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars, ONLY : XCL_NGeo,dXCL_NGeo
 USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
-!USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
@@ -1054,7 +1052,6 @@ USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_Tracking_Vars,             ONLY:TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2417,7 +2414,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,BC
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2434,8 +2431,10 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySideSlabNormals                  ! no
 REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySideSlabIntervals               ! intervalls beta1, beta2, beta3
 LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)                                
+INTEGER,ALLOCATABLE                :: DummySideType(:)
+REAL,ALLOCATABLE                   :: DummySideDistance(:)
+REAL,ALLOCATABLE                   :: DummySideNormVec(:,:)
 !===================================================================================================================================
-
 
 nPeriodicSidesTmp=0
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
@@ -2456,50 +2455,87 @@ IF(nTotalBCSides.EQ.0) RETURN
 ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate DummyBezierControlPoints3D in ReshapeBezierSides')
 DummyBezierControlPoints3d=BezierControlPoints3d
 DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
 BezierControlPoints3d=0.
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate BezierControlPoints3D in ReshapeBezierSides')
 ! SideSlabNormals
 ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate DummySideSlabNormals in ReshapeBezierSides')
 DummySideSlabNormals=SideSlabNormals
 DEALLOCATE(SideSlabNormals)
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate SideSlabNormals in ReshapeBezierSides')
 SideSlabNormals=0.
 ! SideSlabIntervals
 ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate DummySideSlabIntervals in ReshapeBezierSides')
 DummySideSlabIntervals=SideSlabIntervals
 DEALLOCATE(SideSlabIntervals)
 ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate ElemIndex in ReshapeBezierSides')
 SideSlabIntervals=0.
 ! BoundingBoxIsEmpty
 ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate DummyBoundingBoxIsEmpty in ReshapeBezierSides')
 DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
 DEALLOCATE(BoundingBoxIsEmpty)
 ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__& !wunderschoen!!!
-,'Could not allocate ElemIndex')
+,'Could not allocate BoundingBoxIsEmpty in ReshapeBezierSides')
 BoundingBoxIsEmpty=.FALSE.
+! side type
+ALLOCATE(DummySideType(1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummySideType)) CALL abort(&
+    __STAMP__&
+ ,'Could not allocate DummySideType in ReshapeBezierSides')
+DummySideType=SideType
+DEALLOCATE(SideType)
+ALLOCATE(SideType(1:nTotalBCSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+ ,'Could not reallocate SideType in ReshapeBezierSides')
+SideType=-1
+
+ALLOCATE(DummySideDistance(1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummySideDistance)) CALL abort(&
+    __STAMP__&
+ ,'Could not allocate DummySideDistance in ReshapeBezierSides')
+DummySideDistance=SideDistance
+DEALLOCATE(SideDistance)
+ALLOCATE(SideDistance(1:nTotalBCSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+ ,'Could not reallocate SideDistance in ReshapeBezierSides')
+SideDistance=0.
+
+ALLOCATE(DummySideNormVec(1:3,1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummySideNormVec)) CALL abort(&
+    __STAMP__&
+ ,'Could not allocate DummySideNormVec in ReshapeBezierSides')
+DummySideNormVec=SideNormVec
+DEALLOCATE(SideNormVec)
+ALLOCATE(SideNormVec(1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+ ,'Could not reallocate SideNormVec in ReshapeBezierSides')
+SideNormVec=0.
+
 
 BCInc=0
 !DO iSide=1,nSides
@@ -2510,6 +2546,9 @@ DO iSide=1,nBCSides
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
+  SideType(newBCSideID) = DummySideType(iSide)
+  SideDistance(newBCSideID) = DummySideDistance(iSide)
+  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,iSide)
 END DO ! iSide
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
@@ -2519,6 +2558,9 @@ DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
+  SideType(newBCSideID) = DummySideType(iSide)
+  SideDistance(newBCSideID) = DummySideDistance(iSide)
+  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,iSide)
 END DO ! iSide
 
 DO iSide=nSides+nPartPeriodicSides+1,nTotalSides
@@ -2527,6 +2569,9 @@ DO iSide=nSides+nPartPeriodicSides+1,nTotalSides
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
+  SideType(newBCSideID) = DummySideType(iSide)
+  SideDistance(newBCSideID) = DummySideDistance(iSide)
+  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,iSide)
 END DO ! iSide
 
 ! create new mapping
@@ -2556,6 +2601,9 @@ DEALLOCATE(DummyBezierControlPoints3D)
 DEALLOCATE(DummySideSlabNormals)
 DEALLOCATE(DummySideSlabIntervals)
 DEALLOCATE(DummyBoundingBoxIsEmpty)
+DEALLOCATE(DummySideType)
+DEALLOCATE(DummySideDistance)
+DEALLOCATE(DummySideNormVec)
 
 END SUBROUTINE ReShapeBezierSides
 
@@ -3231,19 +3279,12 @@ SUBROUTINE GetElemAndSideType()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,NGeo,nBCSides,sJ,Vdm_CLNGeo1_CLNGeo,BC
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,NGeo,Vdm_CLNGeo1_CLNGeo
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
-USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
-USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
-USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3251,22 +3292,17 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: iElem, firstBezierPoint,lastBezierPoint
-INTEGER                                  :: iSide,p,q,SideID,TrueSideID,ilocSide,BCSideID
+INTEGER                                  :: iElem
+INTEGER                                  :: iSide,SideID,TrueSideID,ilocSide,BCSideID
 INTEGER                                  :: flip
-INTEGER,ALLOCATABLE                      :: SideIndex(:)
-REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
-REAL                                     :: length
-LOGICAL                                  :: isLinear,leave
-REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
+REAL,DIMENSION(1:3)                      :: v1,v2,v3
 LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
 REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo),Vec1(1:3)
-INTEGER                                  :: NGeo3,NGeo2, nLoop,iTest,nTest,PVID
-REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
-REAL                                     :: Distance ,maxScaleJ
-REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
-LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh
+INTEGER                                  :: NGeo3,NGeo2,PVID
+REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
+REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
+LOGICAL                                  :: isCurvedSide,isRectangular
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -3544,16 +3580,13 @@ SUBROUTINE GetBCElemMap()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,NGeo,nBCSides,sJ,Vdm_CLNGeo1_CLNGeo,BC
-USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
-USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems,SidePeriodicType
-USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo,nSides,NGeo,nBCSides,sJ,BC
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,GEO
 USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
 USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
-USE MOD_ChangeBasis,                        ONLY:changeBasis3D
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -3562,41 +3595,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot,firstBezierPoint,lastBezierPoint
-INTEGER                                  :: iSide,p,q, nDummy,SideID,TrueSideID,ilocSide,nBCElems,nBCelemsTot,BCSideID2,BCSideID
-INTEGER                                  :: flip
+INTEGER                                  :: iElem,firstBezierPoint,lastBezierPoint
+INTEGER                                  :: iSide,p,q,SideID,ilocSide,BCSideID2,BCSideID
 INTEGER                                  :: nSideCount, s,r
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
-REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
-REAL                                     :: length
-LOGICAL                                  :: isLinear,leave
+REAL,DIMENSION(1:3)                      :: v1,NodeX,Vec1
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
-LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
-REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
-REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo),Vec1(1:3)
-INTEGER                                  :: NGeo3,NGeo2, nLoop,iTest,nTest,PVID
-REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
-REAL                                     :: Distance ,maxScaleJ
-REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
-LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh
+INTEGER                                  :: nLoop,iTest,nTest
+REAL                                     :: scaleJ, Distance ,maxScaleJ,dx,dy,dz
+LOGICAL                                  :: fullMesh, leave
 !===================================================================================================================================
-!USE MOD_Globals
-!USE MOD_Preproc
-!USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-!USE MOD_Mesh_Vars,                          ONLY:sJ
-!USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalElems
-!USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!IMPLICIT NONE
-!! INPUT VARIABLES 
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                                  :: iElem
-!INTEGER                                  :: nLoop
-!REAL                                     :: maxScaleJ,scaleJ
-!!===================================================================================================================================
 ALLOCATE(IsBCElem(nTotalElems))
 
 ! decide if element:  
@@ -3750,17 +3758,8 @@ IF(DoRefMapping)THEN
           IF(SideIndex(iSide).EQ.0)THEN
             leave=.FALSE.
             nTest=1
-            !PVID=SidePeriodicType(iSide)
-            !IF(PVID.NE.0)THEN
-            !  nTest=2
-            !END IF
             DO iTest=1,nTest
               Vec1=0.
-              !IF(iTest.EQ.1)THEN
-              !  Vec1=0.
-              !ELSE
-              !  Vec1=-SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-              !END IF
               ! all points of bc side
               DO q=firstBezierPoint,lastBezierPoint
                 DO p=firstBezierPoint,lastBezierPoint
@@ -3880,24 +3879,15 @@ SUBROUTINE CalcElemAndSideNum()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,NGeo,nBCSides,sJ,Vdm_CLNGeo1_CLNGeo,BC
-USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
-USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems,SidePeriodicType
-USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
-USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,nGlobalElems
+USE MOD_Particle_Surfaces_Vars,             ONLY:SideType
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:nPartSides
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalBCSides
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
-USE MOD_ChangeBasis,                        ONLY:changeBasis3D
-USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 #ifdef MPI
-!USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticleMappingPartitionInformation
 USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticlePartitionInformation
 #endif /*MPI*/
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3905,29 +3895,17 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot,firstBezierPoint,lastBezierPoint
-INTEGER                                  :: iSide,p,q, nDummy,SideID,TrueSideID,ilocSide,nBCElems,nBCelemsTot,BCSideID2,BCSideID
+INTEGER                                  :: iElem
+INTEGER                                  :: iSide, nDummy
+INTEGER                                  :: nBCElems,nBCelemsTot
 INTEGER                                  :: nPlanarRectangular, nPlanarNonRectangular,nPlanarCurved,nBilinear,nCurved
 INTEGER                                  :: nPlanarRectangularTot, nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
-INTEGER                                  :: nCurvedElemsHalo,nLinearElems,nLinearElemsHalo,nBCElemsHalo,flip
+INTEGER                                  :: nLinearElems, nCurvedElems, nCurvedElemsTot
 #ifdef MPI
 INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
-                                            nBilinearHalo,nCurvedHalo
+                                            nBilinearHalo,nCurvedHalo,nCurvedElemsHalo,nLinearElemsHalo,nBCElemsHalo
 #endif /*MPI*/
-INTEGER                                  :: nSideCount, s,r
-INTEGER,ALLOCATABLE                      :: SideIndex(:)
-REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
-REAL                                     :: length
-LOGICAL                                  :: isLinear,leave
-REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
-LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
-REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
-REAL                                     :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo),Vec1(1:3)
-INTEGER                                  :: NGeo3,NGeo2, nLoop,iTest,nTest,PVID
-REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
-REAL                                     :: Distance ,maxScaleJ
-REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo),dx,dy,dz
-LOGICAL                                  :: isCurvedSide,isRectangular, fullMesh
+INTEGER                                  :: nLoop
 !===================================================================================================================================
 
 ! zero counter for side and elem types
@@ -3937,16 +3915,17 @@ nPlanarCurved              = 0
 nBilinear                  = 0
 nCurved                    = 0
 nBCElems                   = 0
+nCurvedElems               = 0
 #ifdef MPI
 nPlanarRectangularHalo     = 0
 nPlanarNonRectangularHalo  = 0
 nPlanarCurvedHalo          = 0
 nBilinearHalo              = 0
 nCurvedHalo                = 0
-#endif /*MPI*/
 nCurvedElemsHalo           = 0
 nLinearElemsHalo           = 0
 nBCElemsHalo               = 0
+#endif /*MPI*/
 
 DO iElem=1,nTotalElems
   ! count elements by type and in own and halo region
@@ -3959,8 +3938,9 @@ DO iElem=1,nTotalElems
     IF(IsBCElem(iElem))THEN
       nBCElems=nBCElems+1
     END IF ! count only single
+#ifdef MPI
   ELSE
-    IF(Curvedelem(iElem)) THEN
+    IF(CurvedElem(iElem)) THEN
       nCurvedElemsHalo=nCurvedElemsHalo+1
     ELSE
       nLinearElemsHalo=nLinearElemsHalo+1
@@ -3968,9 +3948,12 @@ DO iElem=1,nTotalElems
     IF(IsBCElem(iElem))THEN
       nBCElemsHalo=nBCElemsHalo+1
     END IF ! count only single
+#endif /*MPI*/
   END IF
 END DO
-DO iSide=1,nTotalSides
+nLoop = nTotalSides
+IF (DoRefMapping) nLoop = nTotalBCSides
+DO iSide=1,nLoop
   IF (iSide.LE.nPartSides) THEN
     SELECT CASE(SideType(iSide))
     CASE (PLANAR_RECT)
@@ -4915,7 +4898,7 @@ INTEGER,INTENT(IN)       :: nTotalBCSides
 REAL,INTENT(OUT)         :: SideOrigin(1:3,1:nTotalBCSides),SideRadius(1:nTotalBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iElem, iSide, BCSideID,p,q
+INTEGER                  :: iSide, BCSideID,p,q
 REAL                     :: Xi(1:2), Origin(1:3), Radius, RadiusMax, Vec(1:3)
 !===================================================================================================================================
 
@@ -4951,8 +4934,7 @@ SUBROUTINE GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,IsBCElem,ElemRadiusNGeo,BCElem,nTotalSides,PartBCSideList,nTotalElems
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,IsBCElem,ElemRadiusNGeo,BCElem,PartBCSideList,nTotalElems
 USE MOD_Utils,                  ONLY:InsertionSort
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -4964,7 +4946,7 @@ REAL,INTENT(IN)          :: SideOrigin(1:3,1:nTotalBCSides),SideRadius(1:nTotalB
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iElem,ilocSide,SideID,BCSideID, PVID
+INTEGER                  :: iElem,ilocSide,SideID,BCSideID
 REAL                     :: Vec(1:3)
 REAL                     :: Origin(1:3)
 !===================================================================================================================================

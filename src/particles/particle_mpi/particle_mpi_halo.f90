@@ -318,7 +318,7 @@ INTEGER                  :: iBGM,jBGM,kBGM,iPBGM,jPBGM,kPBGM,PVID
 LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
 REAL                     :: distance(1:3)
-INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint,flip,AdjointLocSideID(2)
+INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint!,flip,AdjointLocSideID(2)
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
@@ -1521,6 +1521,7 @@ IF(DoRefMapping)THEN
       XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
+      CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
     END DO
 
     ! loop over all sides and add them
@@ -1537,6 +1538,10 @@ IF(DoRefMapping)THEN
       MortarType(1:2,newSideID) =RecvMsg%MortarType(1:2,iSide)
       SidePeriodicType(newSideID)=RecvMsg%SideBCType(iSide)
       PartBCSideList(newSideID)=tmpBCSides+iSide 
+      newSideID = tmpBCSides+iSide
+      SideType(newSideID)        =RecvMsg%SideType(iSide)
+      SideDistance(newSideID)    =RecvMsg%SideDistance(iSide)
+      SideNormVec(1:3,newSideID) =RecvMsg%SideNormVec(1:3,iSide)
     END DO 
 
     ! fill lists 
@@ -1662,9 +1667,7 @@ ELSE ! DoRefMappping=F
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
       CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
-      IF (.NOT.DoRefMapping) THEN
-        ElemType(newElemID)         = RecvMsg%ElemType(iElem)
-      END IF
+      ElemType(newElemID)         = RecvMsg%ElemType(iElem)
       IF (TriaTracking) THEN
         GEO%NodeCoords(1:3,1:4,1:6,newElemID) = RecvMsg%NodeCoords(1:3,1:4,1:6,iElem)
         GEO%ConcaveElemSide(1:6,newElemID) = RecvMsg%ConcaveElemSide(1:6,iElem)
@@ -1755,7 +1758,7 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(&
   __STAMP__&
-  ,'Could not allocate ElemIndex')
+  ,'Could not allocate DummyElemToSide')
 DummyElemToSide=PartElemToSide
 !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
 DEALLOCATE(PartElemToSide)
@@ -1788,7 +1791,7 @@ IF(DoRefMapping)THEN
   ALLOCATE(DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
   IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(&
     __STAMP__&
-    ,'Could not allocate ElemIndex')
+    ,'Could not allocate DummyXCL_NGeo')
   DummyXCL_NGeo=XCL_NGeo
   !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
   DEALLOCATE(XCL_NGeo)
@@ -1818,13 +1821,13 @@ IF(DoRefMapping)THEN
   ALLOCATE(DummyPartBCSideList(1:nOldSides))
   IF (.NOT.ALLOCATED(DummyPartBCSideList)) CALL abort(&
     __STAMP__&
-    ,'Could not allocate PartBCSideList')
+    ,'Could not allocate DummyPartBCSideList')
   DummyPartBCSideList(1:nOldSides)=PartBCSideList(1:nOldSides)
   DEALLOCATE(PartBCSideList)
   ALLOCATE(PartBCSideList(1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
-    ,'Could not reallocate ElemIndex')
+    ,'Could not reallocate PartBCSideList')
   PartBCSideList=-1 !HUGE(1)
   PartBCSideList(1:nOldSides) =DummyPartBCSideList(1:nOldSides)
   DEALLOCATE(DummyPartBCSideList)
@@ -1843,7 +1846,7 @@ ELSE
   ALLOCATE(DummyHaloToProc(1:3,nLower:nOldElems))                                 
   IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(&
     __STAMP__&
-    ,'Could not allocate DummyPartHaloElemToProc')
+    ,'Could not allocate DummyHaloToProc')
   DummyHaloToProc=PartHaloElemToProc
   DEALLOCATE(PartHaloElemToProc)
   ALLOCATE(PartHaloElemToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
@@ -1859,7 +1862,7 @@ END IF
 ALLOCATE(DummySideToElem(1:5,1:nOldSides))
 IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(&
   __STAMP__&
-  ,'Could not allocate ElemIndex')
+  ,'Could not allocate DummySideToElem')
 DummySideToElem=PartSideToElem
 DEALLOCATE(PartSideToElem)
 ALLOCATE(PartSideToElem(1:5,1:nTotalSides),STAT=ALLOCSTAT)
@@ -1873,41 +1876,41 @@ DEALLOCATE(DummySideToElem)
 ALLOCATE(DummyElemToElem(1:4,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToElem)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummySideToElem')
 DummyElemToElem=PartElemToElemGlob
 DEALLOCATE(PartElemToElemGlob)
 ALLOCATE(PartElemToElemGlob(1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not reallocate ElemIndex')
+ ,'Could not reallocate PartElemToElemGlob')
 PartElemToElemGlob=-1
 PartElemToElemGlob(1:4,1:6,1:nOldElems)            =DummyElemToElem(1:4,1:6,1:nOldElems)
 DEALLOCATE(DummyElemToElem)
 IF(DoRefMapping)THEN
   ! BezierControlPoints3D
-  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
-  IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
+  ALLOCATE(DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
+  IF (.NOT.ALLOCATED(DummyBezierControlPoints3D)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
-  DummyBezierControlPoints3d=BezierControlPoints3d
+   ,'Could not allocate DummyBezierControlPoints3D')
+  DummyBezierControlPoints3D=BezierControlPoints3D
   DEALLOCATE(BezierControlPoints3D)
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
+   ,'Could not reallocate BezierControlPoints3d')
   BezierControlPoints3d(:,:,:,1:nOldBCSides) =DummyBezierControlPoints3D(:,:,:,1:nOldBCSides)
   DEALLOCATE(DummyBezierControlPoints3D)
   ! SideSlabNormals
   ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
   IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummySideSlabNormals')
   DummySideSlabNormals=SideSlabNormals
   DEALLOCATE(SideSlabNormals)
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
+   ,'Could not reallocate SideSlabNormals')
   SideSlabNormals=0
   SideSlabNormals(1:3,1:3,1:nOldBCSides) =DummySideSlabNormals(1:3,1:3,1:nOldBCSides)
   DEALLOCATE(DummySideSlabNormals)
@@ -1915,13 +1918,13 @@ IF(DoRefMapping)THEN
   ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
   IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummySideSlabIntervals')
   DummySideSlabIntervals=SideSlabIntervals
   DEALLOCATE(SideSlabIntervals)
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
+   ,'Could not reallocate SideSlabIntervals')
   SideSlabIntervals=0
   SideSlabIntervals(1:6,1:nOldBCSides) =DummySideSlabIntervals(1:6,1:nOldBCSides)
   DEALLOCATE(DummySideSlabIntervals)
@@ -1929,13 +1932,13 @@ IF(DoRefMapping)THEN
   ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
   IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummyBoundingBoxIsEmpty')
   DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
   DEALLOCATE(BoundingBoxIsEmpty)
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
+   ,'Could not reallocate BoundingBoxIsEmpty')
   BoundingBoxIsEmpty(1:nOldBCSides) =DummyBoundingBoxIsEmpty(1:nOldBCSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
 
@@ -1981,29 +1984,29 @@ IF(DoRefMapping)THEN
 
 ELSE ! no mapping
   ! BezierControlPoints3D
-  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldSides))
-  IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
+  ALLOCATE(DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nOldSides))
+  IF (.NOT.ALLOCATED(DummyBezierControlPoints3D)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
-  DummyBezierControlPoints3d=BezierControlPoints3d
+   ,'Could not allocate DummyBezierControlPoints3D')
+  DummyBezierControlPoints3D=BezierControlPoints3D
   DEALLOCATE(BezierControlPoints3D)
-  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
+  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
-  BezierControlPoints3d(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
+   ,'Could not reallocate BezierControlPoints3D')
+  BezierControlPoints3D(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
   DEALLOCATE(DummyBezierControlPoints3D)
   ! SideSlabNormals
   ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldSides))
   IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
     __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummySideSlabNormals')
   DummySideSlabNormals=SideSlabNormals
   DEALLOCATE(SideSlabNormals)
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
+   ,'Could not reallocate SideSlabNormals')
   SideSlabNormals=0
   SideSlabNormals(1:3,1:3,1:nOldSides) =DummySideSlabNormals(1:3,1:3,1:nOldSides)
   DEALLOCATE(DummySideSlabNormals)
@@ -2011,13 +2014,13 @@ ELSE ! no mapping
   ALLOCATE(DummySideSlabIntervals(1:6,1:nOldSides))
   IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummySideSlabIntervals')
   DummySideSlabIntervals=SideSlabIntervals
   DEALLOCATE(SideSlabIntervals)
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
+   ,'Could not reallocate SideSlabIntervals')
   SideSlabIntervals=0
   SideSlabIntervals(1:6,1:nOldSides) =DummySideSlabIntervals(1:6,1:nOldSides)
   DEALLOCATE(DummySideSlabIntervals)
@@ -2025,13 +2028,13 @@ ELSE ! no mapping
   ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldSides))
   IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummyBoundingBoxIsEmpty')
   DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
   DEALLOCATE(BoundingBoxIsEmpty)
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate ElemIndex')
+   ,'Could not reallocate BoundingBoxIsEmpty')
   BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
 
@@ -2111,7 +2114,7 @@ END IF
 ALLOCATE(DummyElemBaryNGeo(1:3,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemBaryNGeo)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemBaryNGeo')
+ ,'Could not allocate DummyElemBaryNGeo')
 DummyElemBaryNGeo=ElemBaryNGeo
 DEALLOCATE(ElemBaryNGeo)
 ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems),STAT=ALLOCSTAT)
@@ -2155,13 +2158,13 @@ END IF
 ALLOCATE(DummySideBCType(1:nOldSides))
 IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummySideBCType')
 DummySideBCType(1:nOldSides)=SidePeriodicType(1:nOldSides)
 DEALLOCATE(SidePeriodicType)
 ALLOCATE(SidePeriodicType(1:nTotalSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not reallocate ElemIndex')
+ ,'Could not reallocate SidePeriodicType')
 SidePeriodicType=-1
 SidePeriodicType(1:nOldSides) =DummySideBCType(1:nOldSides)
 DEALLOCATE(DummySideBCType)
@@ -2169,14 +2172,14 @@ DEALLOCATE(DummySideBCType)
 ALLOCATE(DummyBC(1:nOldSides))
 IF (.NOT.ALLOCATED(DummyBC)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummyBC')
 ! check
 DummyBC(1:nOldSides)=BC(1:nOldSides)
 DEALLOCATE(BC)
 ALLOCATE(BC(1:nTotalSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not reallocate ElemIndex')
+ ,'Could not reallocate BC')
 BC=0
 BC(1:nOldSides) =DummyBC(1:nOldSides)
 DEALLOCATE(DummyBC)
@@ -2185,14 +2188,14 @@ DEALLOCATE(DummyBC)
 ALLOCATE(DummyMortarType(1:2,1:nOldSides))
 IF (.NOT.ALLOCATED(DummyMortarType)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummyMortarType')
 ! check
 DummyMortarType(1:2,1:nOldSides)=MortarType(1:2,1:nOldSides)
 DEALLOCATE(MortarType)
 ALLOCATE(MortarType(1:2,1:nTotalSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not reallocate ElemIndex')
+ ,'Could not reallocate MortarType')
 MortarType=-1
 MortarType(1:2,1:nOldSides) =DummyMortarType(1:2,1:nOldSides)
 DEALLOCATE(DummyMortarType)
