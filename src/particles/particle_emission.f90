@@ -3938,11 +3938,11 @@ DO iSpec=1,nSpecies
             ELSE
               ! all points are outside of rmax, but when rmax is smaller than box, it can intersect it:
               IF ( Species(iSpec)%Surfaceflux(iSF)%origin(1) + Species(iSpec)%Surfaceflux(iSF)%rmax &
-                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .OR. &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
                    Species(iSpec)%Surfaceflux(iSF)%origin(1) - Species(iSpec)%Surfaceflux(iSF)%rmax &
-                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .OR. &
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
                    Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmax &
-                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .OR. &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
                    Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmax &
                 .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) ) THEN !circle completely or partly inside box
                 Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
