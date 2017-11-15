@@ -129,7 +129,7 @@ CALL SetDielectricVolumeProfile()
 #else /*if PP_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces (TODO: MPI and mortar sides)
   CALL SetDielectricFaceProfile_HDG()
-  IF(IniExactFunc.EQ.200)THEN ! for dielectric sphere case
+  IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
     ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
     IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
@@ -315,17 +315,9 @@ SUBROUTINE SetDielectricFaceProfile_HDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-!USE MOD_Dielectric_Vars, ONLY:DielectricConstant_inv,dielectric_Master,dielectric_Slave
 USE MOD_Dielectric_Vars, ONLY:isDielectricElem,DielectricEpsR
-!USE MOD_ProlongToFace,   ONLY:ProlongToFace
-!#ifdef MPI
-!USE MOD_MPI_Vars
-!USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-!#endif
 USE MOD_Equation_Vars,   ONLY:chitens,chitensInv,chitens_face
-!USE MOD_Mesh_Vars,       ONLY:nSides
 USE MOD_Mesh_Vars,       ONLY:nInnerSides
-!USE MOD_Mesh_Vars,       ONLY:Elem_xGP
 USE MOD_Mesh_Vars,       ONLY:ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
