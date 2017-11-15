@@ -450,9 +450,11 @@ END IF
 ! Calculate error norms
 IF(forceAnalyze.OR.Output)THEN
   WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',t
-  IF(DoCalcErrorNorms) CALL CalcError(t,L_2_Error)
-  CalcTime=BOLTZPLATZTIME()
-  IF (t.GE.tEnd) CALL AnalyzeToFile(t,CalcTime,iter,L_2_Error)
+    CalcTime=BOLTZPLATZTIME()
+  IF(DoCalcErrorNorms) THEN
+    CALL CalcError(t,L_2_Error)
+    IF (t.GE.tEnd) CALL AnalyzeToFile(t,CalcTime,iter,L_2_Error)
+  END IF
   IF (t.GT.0.) THEN
     WRITE(UNIT_StdOut,'(132("."))')
     WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
