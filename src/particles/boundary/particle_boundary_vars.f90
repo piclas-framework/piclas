@@ -186,6 +186,17 @@ TYPE tAuxBC_cylinder
 END TYPE tAuxBC_cylinder
 TYPE(tAuxBC_cylinder), ALLOCATABLE       :: AuxBC_cylinder(:)
 
+TYPE tAuxBC_cone
+  REAL                                   :: r_vec(3)
+  REAL                                   :: axis(3)
+  REAL                                   :: halfangle
+  REAL                                   :: lmin
+  REAL                                   :: lmax
+  REAL                                   :: geomatrix(3,3)
+  LOGICAL                                :: inwards
+END TYPE tAuxBC_cone
+TYPE(tAuxBC_cone), ALLOCATABLE       :: AuxBC_cone(:)
+
 TYPE tPartAuxBC
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition

@@ -3330,13 +3330,14 @@ SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
 ! Implemtented types:
 ! - plane
 ! - cylinder
+! - cone
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-!USE MOD_Globals_Vars,            ONLY:epsMach
+USE MOD_Globals_Vars,            ONLY:PI !epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
+USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -3352,11 +3353,11 @@ LOGICAL,INTENT(OUT)               :: isHit
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm,radius,lmin,lmax
-REAL                              :: axis(3),tang1(3),tang2(3)
+REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm,radius,lmin,lmax,halfangle
+REAL                              :: axis(3),tang1(3),tang2(3),geomatrix(3,3),matU(3,1),matLambda(3,1),A(1,1),B(1,1),C(1,1),cos2inv
 REAL                              :: trajTang(2),originTang(2),roots(2),intersec(3),alphadir(2),origindist(2)
 INTEGER                           :: nRoot
-LOGICAL                           :: CriticalParallelInSide
+LOGICAL                           :: CriticalParallelInSide,inwards
 !===================================================================================================================================
 isHit=.FALSE.
 SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
@@ -3402,61 +3403,85 @@ CASE ('plane')
 !    RETURN
 !  END IF
   isHit=.TRUE.
-CASE ('cylinder')
-  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE. !not used for cylinder
-  r_vec=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
-  axis=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
-  lmin=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmin
-  lmax=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmax
-  IF (axis(3).NE.0.) THEN
-    tang1(1) = 1.0
-    tang1(2) = 1.0
-    tang1(3) = -(axis(1)+axis(2))/axis(3)
-  ELSE
-    IF (axis(2).NE.0.) THEN
+CASE ('cylinder','cone')
+  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE. !not used for cylinder and cone
+  IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
+    r_vec=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
+    axis=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
+    lmin=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmin
+    lmax=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%lmax
+    IF (axis(3).NE.0.) THEN
       tang1(1) = 1.0
-      tang1(3) = 1.0
-      tang1(2) = -(axis(1)+axis(3))/axis(2)
+      tang1(2) = 1.0
+      tang1(3) = -(axis(1)+axis(2))/axis(3)
     ELSE
-      IF (axis(1).NE.0.) THEN
-        tang1(2) = 1.0
+      IF (axis(2).NE.0.) THEN
+        tang1(1) = 1.0
         tang1(3) = 1.0
-        tang1(1) = -(axis(2)+axis(3))/axis(1)
+        tang1(2) = -(axis(1)+axis(3))/axis(2)
       ELSE
-        CALL abort(&
+        IF (axis(1).NE.0.) THEN
+          tang1(2) = 1.0
+          tang1(3) = 1.0
+          tang1(1) = -(axis(2)+axis(3))/axis(1)
+        ELSE
+          CALL abort(&
 __STAMP__&
 ,'Error in ComputeAuxBCIntersection, axis is zero for AuxBC',AuxBCIdx)
+        END IF
       END IF
     END IF
-  END IF
-  tang1=UNITVECTOR(tang1)
-  tang2=CROSSNORM(axis,tang1)
-  radius=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%radius
-  !- project trajectory and origin into circle-area of cylinder
-  trajTang(1)=DOT_PRODUCT(tang1,PartTrajectory)
-  trajTang(2)=DOT_PRODUCT(tang2,PartTrajectory)
-  originTang(1)=DOT_PRODUCT(tang1,LastPartPos(iPart,1:3)-r_vec)
-  originTang(2)=DOT_PRODUCT(tang2,LastPartPos(iPart,1:3)-r_vec)
-  !- solve quadratic equation from trajectory inserted in circle-equation
-  CALL QuadraticSolver(trajTang(1)*trajTang(1)+trajTang(2)*trajTang(2) &
-    ,2.*originTang(1)*trajTang(1)+2.*originTang(2)*trajTang(2) &
-    ,originTang(1)*originTang(1)+originTang(2)*originTang(2)-radius*radius &
-    ,nRoot,roots(1),roots(2))
+    tang1=UNITVECTOR(tang1)
+    tang2=CROSSNORM(axis,tang1)
+    radius=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%radius
+    inwards=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards
+    !- project trajectory and origin into circle-area of cylinder
+    trajTang(1)=DOT_PRODUCT(tang1,PartTrajectory)
+    trajTang(2)=DOT_PRODUCT(tang2,PartTrajectory)
+    originTang(1)=DOT_PRODUCT(tang1,LastPartPos(iPart,1:3)-r_vec)
+    originTang(2)=DOT_PRODUCT(tang2,LastPartPos(iPart,1:3)-r_vec)
+    !- solve quadratic equation from trajectory inserted in circle-equation
+    CALL QuadraticSolver(trajTang(1)*trajTang(1)+trajTang(2)*trajTang(2) &
+      ,2.*originTang(1)*trajTang(1)+2.*originTang(2)*trajTang(2) &
+      ,originTang(1)*originTang(1)+originTang(2)*originTang(2)-radius*radius &
+      ,nRoot,roots(1),roots(2))
+  ELSE !cone
+    r_vec=AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
+    axis=AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
+    lmin=AuxBC_cone(AuxBCMap(AuxBCIdx))%lmin
+    lmax=AuxBC_cone(AuxBCMap(AuxBCIdx))%lmax
+    halfangle=AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle
+    cos2inv=1./COS(halfangle*PI/180.)**2
+    inwards=AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards
+    !- coefficients and matrices according to "Intersection of a Line and a Cone" by David Eberly 2000/2014, Geometric Tools, CC
+    geomatrix=AuxBC_cone(AuxBCMap(AuxBCIdx))%geomatrix
+    matU(:,1)=PartTrajectory
+    matLambda(:,1)=LastPartPos(iPart,1:3)-r_vec
+    A=MATMUL(MATMUL(TRANSPOSE(matU),geomatrix),matU)
+    B=2.*MATMUL(MATMUL(TRANSPOSE(matU),geomatrix),matLambda)
+    C=MATMUL(MATMUL(TRANSPOSE(matLambda),geomatrix),matLambda)
+    !- solve quadratic equation from trajectory inserted in cone-equation
+    CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot,roots(1),roots(2))
+  END IF !cylinder or cone
   SELECT CASE (nRoot)
   CASE (1)
     alpha=roots(1)
     !- check for normal vec / trajectory direction
     ! (already here since no inner auxBCs possible (can happen due to tolerances)
     intersec = LastPartPos(iPart,1:3) + alpha*PartTrajectory
-    n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
-    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_vec=-n_vec
+    origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
+    IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
+      n_vec = intersec - ( r_vec + axis*origindist(1) )
+    ELSE !cone
+      n_vec = intersec - ( r_vec + axis*origindist(1)*cos2inv )
+    END IF
+    IF (.NOT.inwards) n_vec=-n_vec
     IF(DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
       ishit=.FALSE.
       alpha=-1.0
       RETURN
     END IF
-    !- check for lmin and lmax of cylinder
-    origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
+    !- check for lmin and lmax
     IF (origindist(1).LT.lmin .OR. origindist(1).GT.lmax) THEN
       ishit=.FALSE.
       alpha=-1.0
@@ -3485,13 +3510,21 @@ __STAMP__&
     ! (already here since no inner auxBCs possible (can happen due to tolerances)
     intersec = LastPartPos(iPart,1:3) + roots(1)*PartTrajectory
     origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
-    n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
+    IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
+      n_vec = intersec - ( r_vec + axis*origindist(1) )
+    ELSE !cone
+      n_vec = intersec - ( r_vec + axis*origindist(1)*cos2inv )
+    END IF
     alphadir(1)=DOT_PRODUCT(n_vec,PartTrajectory)
     intersec = LastPartPos(iPart,1:3) + roots(2)*PartTrajectory
     origindist(2) = DOT_PRODUCT(intersec-r_vec,axis)
-    n_vec = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
+    IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
+      n_vec = intersec - ( r_vec + axis*origindist(2) )
+    ELSE !cone
+      n_vec = intersec - ( r_vec + axis*origindist(2)*cos2inv )
+    END IF
     alphadir(2)=DOT_PRODUCT(n_vec,PartTrajectory)
-    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) alphadir=-alphadir
+    IF (.NOT.inwards) alphadir=-alphadir
     IF (alphadir(1).GE.0. .AND. origindist(1).GE.lmin .AND. origindist(1).LE.lmax) THEN
       ! alpha stays alpha
     ELSE IF (alphadir(2).GE.0. .AND. origindist(2).GE.lmin .AND. origindist(2).LE.lmax) THEN

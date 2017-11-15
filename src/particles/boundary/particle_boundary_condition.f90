@@ -621,6 +621,7 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 
@@ -644,7 +645,7 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -662,7 +663,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), WallVelo(3), intersec(3), r_vec(3), axis(3)
+REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3),WallVelo(3),intersec(3),r_vec(3),axis(3),cos2inv
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !#if defined(LSERK)
 !REAL                                 :: absPt_temp
@@ -693,6 +694,13 @@ IF (IsAuxBC) THEN
     axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
     IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('cone')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
+    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle*PI/180.)**2
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
+    IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT
     CALL abort(&
       __STAMP__&
@@ -950,7 +958,7 @@ USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -987,7 +995,7 @@ INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:),
 ! REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
 !REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 LOGICAL                              :: IsAuxBC
-REAL                                 :: intersec(3), r_vec(3), axis(3)
+REAL                                 :: intersec(3), r_vec(3), axis(3), cos2inv
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -1004,6 +1012,13 @@ IF (IsAuxBC) THEN
     axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
     n_loc = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
     IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('cone')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
+    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle*PI/180.)**2
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
+    IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT
     CALL abort(&
       __STAMP__&

@@ -122,7 +122,7 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
-USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder
+USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
@@ -151,14 +151,14 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
-INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, iAuxBC, nAuxBCplanes, nAuxBCcylinders
+INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
 LOGICAL               :: TrueRandom, PartDens_OnlyInit                                                  !
 INTEGER,ALLOCATABLE   :: iSeeds(:)
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
-REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3)
+REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
 #ifdef MPI
@@ -1273,6 +1273,7 @@ IF (nAuxBCs.GT.0) THEN
   !- read and count types
   nAuxBCplanes = 0
   nAuxBCcylinders = 0
+  nAuxBCcones = 0
   DO iAuxBC=1,nAuxBCs
     WRITE(UNIT=hilf,FMT='(I2)') iAuxBC
     AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
@@ -1283,6 +1284,9 @@ IF (nAuxBCs.GT.0) THEN
     CASE ('cylinder')
       nAuxBCcylinders = nAuxBCcylinders + 1
       AuxBCMap(iAuxBC) = nAuxBCcylinders
+    CASE ('cone')
+      nAuxBCcones = nAuxBCcones + 1
+      AuxBCMap(iAuxBC) = nAuxBCcones
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
       CALL abort(&
@@ -1296,6 +1300,9 @@ IF (nAuxBCs.GT.0) THEN
   END IF
   IF (nAuxBCcylinders.GT.0) THEN
     ALLOCATE (AuxBC_cylinder(1:nAuxBCcylinders))
+  END IF
+  IF (nAuxBCcones.GT.0) THEN
+    ALLOCATE (AuxBC_cone(1:nAuxBCcones))
   END IF
   !- read type-specifics
   DO iAuxBC=1,nAuxBCs
@@ -1329,6 +1336,40 @@ IF (nAuxBCs.GT.0) THEN
       WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
       AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
       AuxBC_cylinder(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+    CASE ('cone')
+      AuxBC_cone(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_cone(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_cone(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
+      IF (AuxBC_cone(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-lminis .lt. zero for AuxBC',iAuxBC)
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cone(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_cone(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      rmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-rmax','0.')
+      ! either define rmax at lmax or the halfangle
+      IF (rmax.EQ.0.) THEN
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')
+      ELSE
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)*180/PI
+      END IF
+      IF (AuxBC_cone(AuxBCMap(iAuxBC))%halfangle.LE.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-halfangle is .le. zero for AuxBC',iAuxBC)
+      AuxBC_cone(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle*PI/180.)**2
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,1) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(1)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/cos2,0.,0./)
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,2) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
       CALL abort(&
