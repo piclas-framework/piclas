@@ -698,7 +698,7 @@ IF (IsAuxBC) THEN
     intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
     r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
-    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle*PI/180.)**2
+    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
     IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT
@@ -1016,7 +1016,7 @@ IF (IsAuxBC) THEN
     intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
     r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
-    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle*PI/180.)**2
+    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
     IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT

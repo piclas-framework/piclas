@@ -3451,7 +3451,7 @@ __STAMP__&
     lmin=AuxBC_cone(AuxBCMap(AuxBCIdx))%lmin
     lmax=AuxBC_cone(AuxBCMap(AuxBCIdx))%lmax
     halfangle=AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle
-    cos2inv=1./COS(halfangle*PI/180.)**2
+    cos2inv=1./COS(halfangle)**2
     inwards=AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards
     !- coefficients and matrices according to "Intersection of a Line and a Cone" by David Eberly 2000/2014, Geometric Tools, CC
     geomatrix=AuxBC_cone(AuxBCMap(AuxBCIdx))%geomatrix

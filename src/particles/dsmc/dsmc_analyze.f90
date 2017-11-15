@@ -1510,6 +1510,7 @@ USE MOD_Particle_Vars,        ONLY: Species, BoltzmannConst, nSpecies, WriteMacr
 USE MOD_Particle_Mesh_Vars,   ONLY: GEO
 USE MOD_TimeDisc_Vars,        ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars,         ONLY: RestartTime
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemHasAuxBCs
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1595,9 +1596,14 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
       END IF
       DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)              
       ! mean flow Temperature
-      DSMC_MacroVal(nVarCount+12,kk,ll,mm, iElem) = (DSMC_MacroVal(nVarCount+4,kk,ll,mm, iElem) &
-                                                  + DSMC_MacroVal(nVarCount+5,kk,ll,mm, iElem) &
-                                                  + DSMC_MacroVal(nVarCount+6,kk,ll,mm, iElem)) / 3.
+IF (ElemHasAuxBCs(iElem,iSpec)) THEN
+DSMC_MacroVal(nVarCount+12,kk,ll,mm, iElem) = 1.
+ELSE
+DSMC_MacroVal(nVarCount+12,kk,ll,mm, iElem) = 0.
+END IF
+      !DSMC_MacroVal(nVarCount+12,kk,ll,mm, iElem) = (DSMC_MacroVal(nVarCount+4,kk,ll,mm, iElem) &
+!                                                  + DSMC_MacroVal(nVarCount+5,kk,ll,mm, iElem) &
+!                                                  + DSMC_MacroVal(nVarCount+6,kk,ll,mm, iElem)) / 3.
     END DO
     ! set counter for species    
     nVarCount=nVarCount+nVarloc

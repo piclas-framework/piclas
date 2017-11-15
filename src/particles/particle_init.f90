@@ -1355,15 +1355,15 @@ IF (nAuxBCs.GT.0) THEN
       rmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-rmax','0.')
       ! either define rmax at lmax or the halfangle
       IF (rmax.EQ.0.) THEN
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')*PI/180.
       ELSE
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)*180/PI
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)
       END IF
       IF (AuxBC_cone(AuxBCMap(iAuxBC))%halfangle.LE.0.) CALL abort(&
           __STAMP__&
           ,'Part-AuxBC-halfangle is .le. zero for AuxBC',iAuxBC)
       AuxBC_cone(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle*PI/180.)**2
+      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle)**2
       AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,1) &
         = AuxBC_cone(AuxBCMap(iAuxBC))%axis(1)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/cos2,0.,0./)
       AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,2) &
