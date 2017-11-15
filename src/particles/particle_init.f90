@@ -418,7 +418,12 @@ END IF
 DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
 IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
 IF (DSMC%NumOutput.NE.0) THEN
-  DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+  IF (DSMC%TimeFracSamp.GT.0.0) THEN
+    DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+  ELSE
+    DSMC%NumOutput=0
+    SWRITE(UNIT_STDOUT,*)'DSMC_NumOutput was set to 0 because timefracsamp is 0.0'
+  END IF
 END IF
 
 !ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')

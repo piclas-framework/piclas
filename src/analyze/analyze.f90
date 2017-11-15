@@ -361,6 +361,9 @@ USE MOD_Recordpoints_Vars,     ONLY: RPSkip
 #endif /*LSERK*/
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #ifdef PARTICLES
+#if (PP_TimeDiscMethod==42 || PP_TimeDiscMethod==4)
+USE MOD_Globals_Vars,ONLY:ProjectName
+#endif
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_TimeDisc_Vars,         ONLY: dt
 USE MOD_Particle_Vars,         ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
@@ -418,6 +421,9 @@ REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 CHARACTER(LEN=255)            :: outfile
 LOGICAL                       :: LastIter
+#if (PP_TimeDiscMethod==42 || PP_TimeDiscMethod==4)
+REAL                          :: CalcTime
+#endif
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load blaaaance
@@ -451,8 +457,25 @@ END IF
 ! DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
 
-! Calculate error norms
-IF(forceAnalyze.OR.Output) CALL CalcError(t)
+IF(forceAnalyze.OR.Output) THEN
+#if (PP_TimeDiscMethod!=42 && PP_TimeDiscMethod!=4)
+  ! Calculate error norms
+  CALL CalcError(t)
+#else
+  ! Graphical output
+  CalcTime=BOLTZPLATZTIME()
+  IF(MPIroot) THEN
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',t
+    IF (t.GT.0.) THEN
+      WRITE(UNIT_StdOut,'(132("."))')
+      WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
+      WRITE(UNIT_StdOut,'(132("-"))')
+    ELSE
+      WRITE(UNIT_StdOut,'(132("="))')
+    END IF
+  END IF
+#endif /*(PP_TimeDiscMethod!=42 && PP_TimeDiscMethod!=4)*/
+END IF
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
@@ -653,8 +676,10 @@ END IF
 IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
-    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+    IF (DSMC%NumOutput.GT.0) THEN
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+      IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+    END IF
   END IF
 #elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
   !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
