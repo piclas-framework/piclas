@@ -176,7 +176,7 @@ USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
 USE MOD_PML_Vars,              ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML,                   ONLY: PMLTimeRamping
 #endif /*PP_HDG*/
-USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
+USE MOD_Analyze,               ONLY: PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles

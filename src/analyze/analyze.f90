@@ -46,7 +46,7 @@ SUBROUTINE InitAnalyze()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt
+USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
 USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
@@ -74,6 +74,7 @@ IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
+DoCalcErrorNorms  =GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
 WRITE(DefStr,'(i4)') 2*(PP_N+1)
 NAnalyze=GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
@@ -125,21 +126,20 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
-SUBROUTINE CalcError(Time)
+SUBROUTINE CalcError(Time,L_2_Error)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY:tEnd, iter
-USE MOD_Mesh_Vars,ONLY:Elem_xGP,sJ
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Analyze_Vars,ONLY:NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_DG_Vars,ONLY:U
-USE MOD_Equation,ONLY:ExactFunc
-USE MOD_ChangeBasis,ONLY:ChangeBasis3D
-USE MOD_Globals_Vars,ONLY:ProjectName
+USE MOD_TimeDisc_Vars,  ONLY:iter
+USE MOD_Mesh_Vars,      ONLY:Elem_xGP,sJ
+USE MOD_Equation_Vars,  ONLY:IniExactFunc
+USE MOD_Analyze_Vars,   ONLY:NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_DG_Vars,        ONLY:U
+USE MOD_Equation,       ONLY:ExactFunc
+USE MOD_ChangeBasis,    ONLY:ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -147,11 +147,11 @@ IMPLICIT NONE
 REAL,INTENT(IN)               :: Time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: L_2_Error(PP_nVar)   !< L2 error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                       :: iElem,k,l,m
-REAL                          :: CalcTime
-REAL                          :: L_Inf_Error(PP_nVar),L_2_Error(PP_nVar),U_exact(PP_nVar),L_2_Error2(PP_nVar),L_Inf_Error2(PP_nVar)
+REAL                          :: L_Inf_Error(PP_nVar),U_exact(PP_nVar),L_2_Error2(PP_nVar),L_Inf_Error2(PP_nVar)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -210,20 +210,10 @@ END DO ! iElem=1,PP_nElems
 L_2_Error = SQRT(L_2_Error/Volume)
 
 ! Graphical output
-CalcTime=BOLTZPLATZTIME()
 IF(MPIroot) THEN
-  WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',Time
   WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar,'ES16.7)'
   WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
   WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
-  IF (Time.GE.tEnd) CALL AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
-  IF (Time.GT.0.) THEN
-    WRITE(UNIT_StdOut,'(132("."))')
-    WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
-    WRITE(UNIT_StdOut,'(132("-"))')
-  ELSE
-    WRITE(UNIT_StdOut,'(132("="))')
-  END IF
 END IF
 END SUBROUTINE CalcError
 
@@ -347,7 +337,7 @@ SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
+USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms
 USE MOD_Restart_Vars,          ONLY: DoRestart
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
@@ -390,6 +380,8 @@ USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundi
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #endif /*MPI*/
+USE MOD_Globals_Vars,          ONLY:ProjectName
+USE MOD_TimeDisc_Vars,         ONLY:tEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -420,6 +412,8 @@ REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 CHARACTER(LEN=255)            :: outfile
 LOGICAL                       :: LastIter
+REAL                          :: L_2_Error(PP_nVar)
+REAL                          :: CalcTime
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load blaaaance
@@ -454,7 +448,19 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ! Calculate error norms
-IF(forceAnalyze.OR.Output) CALL CalcError(t)
+IF(forceAnalyze.OR.Output)THEN
+  WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',t
+  IF(DoCalcErrorNorms) CALL CalcError(t,L_2_Error)
+  CalcTime=BOLTZPLATZTIME()
+  IF (t.GE.tEnd) CALL AnalyzeToFile(t,CalcTime,iter,L_2_Error)
+  IF (t.GT.0.) THEN
+    WRITE(UNIT_StdOut,'(132("."))')
+    WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
+    WRITE(UNIT_StdOut,'(132("-"))')
+  ELSE
+    WRITE(UNIT_StdOut,'(132("="))')
+  END IF
+END IF
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
