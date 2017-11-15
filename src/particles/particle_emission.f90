@@ -3936,8 +3936,21 @@ DO iSpec=1,nSpecies
               Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=0
               nType0(iSF,iSpec)=nType0(iSF,iSpec)+1
             ELSE
-              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=1
-              nType1(iSF,iSpec)=nType1(iSF,iSpec)+1
+              ! all points are outside of rmax, but when rmax is smaller than box, it can intersect it:
+              IF ( Species(iSpec)%Surfaceflux(iSF)%origin(1) + Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .OR. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(1) - Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .OR. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .OR. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) ) THEN !circle completely or partly inside box
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
+                nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
+              ELSE !points are really outside
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=1
+                nType1(iSF,iSpec)=nType1(iSF,iSpec)+1
+              END IF
             END IF
           END IF
         END IF !SimpleRadialVeloFit: check r-bounds
