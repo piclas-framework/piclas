@@ -1209,7 +1209,7 @@ DO iSide = 1,nPartSides
     IF(DoRefMapping)THEN
       SendMsg%SideType(SideIndex(iSide)) = SideType(PartBCSideList(iSide))
       SendMsg%SideDistance(SideIndex(iSide)) = SideDistance(PartBCSideList(iSide))
-      SendMsg%SideNormVec(1:3,SideIndex(iSide)) = SideNormVec(1:3,PartBCSideList(iSide))
+      SendMsg%SideNormVec(1:3,SideIndex(iSide)) = SideNormVec(1:3,(PartBCSideList(iSide))
     ELSE
       SendMsg%SideType(SideIndex(iSide)) = SideType(iSide)
       SendMsg%SideDistance(SideIndex(iSide)) = SideDistance(iSide)

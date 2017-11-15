@@ -934,6 +934,7 @@ DO ilocSide=1,6
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,*) '     | alpha          ',alpha
       WRITE(UNIT_stdout,*) '     | Normal vector  ',NormVec
       WRITE(UNIT_stdout,*) '     | PartTrajectory ',PartTrajectory
       WRITE(UNIT_stdout,*) '     | Dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
@@ -1109,7 +1110,7 @@ SWRITE(UNIT_StdOut,'(66("-"))')
 CALL DuplicateSlavePeriodicSides()
 CALL MarkAllBCSides()
 ! get elem and side types
-CALL GetElemAndSideType()
+CALL GetElemAndSideType() ! normally called AFTER reshape
 
 StartT=BOLTZPLATZTIME()
 #ifdef MPI
@@ -2412,7 +2413,7 @@ SUBROUTINE ReShapeBezierSides()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides,PartSideToElem
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,BC
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -2546,9 +2547,9 @@ DO iSide=1,nBCSides
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
-  SideType(newBCSideID) = DummySideType(iSide)
-  SideDistance(newBCSideID) = DummySideDistance(iSide)
-  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,iSide)
+  SideType(newBCSideID) = DummySideType(newBCSideID)
+  SideDistance(newBCSideID) = DummySideDistance(newBCSideID)
+  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,newBCSideID)
 END DO ! iSide
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
@@ -2558,9 +2559,9 @@ DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
-  SideType(newBCSideID) = DummySideType(iSide)
-  SideDistance(newBCSideID) = DummySideDistance(iSide)
-  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,iSide)
+  SideType(newBCSideID) = DummySideType(newBCSideID)
+  SideDistance(newBCSideID) = DummySideDistance(newBCSideID)
+  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,newBCSideID)
 END DO ! iSide
 
 DO iSide=nSides+nPartPeriodicSides+1,nTotalSides
@@ -2569,9 +2570,9 @@ DO iSide=nSides+nPartPeriodicSides+1,nTotalSides
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
-  SideType(newBCSideID) = DummySideType(iSide)
-  SideDistance(newBCSideID) = DummySideDistance(iSide)
-  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,iSide)
+  SideType(newBCSideID) = DummySideType(newBCSideID)
+  SideDistance(newBCSideID) = DummySideDistance(newBCSideID)
+  SideNormVec(1:3,newBCSideID) = DummySideNormVec(1:3,newBCSideID)
 END DO ! iSide
 
 ! create new mapping
@@ -2604,6 +2605,7 @@ DEALLOCATE(DummyBoundingBoxIsEmpty)
 DEALLOCATE(DummySideType)
 DEALLOCATE(DummySideDistance)
 DEALLOCATE(DummySideNormVec)
+
 
 END SUBROUTINE ReShapeBezierSides
 
@@ -3279,7 +3281,7 @@ SUBROUTINE GetElemAndSideType()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,NGeo,Vdm_CLNGeo1_CLNGeo
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,NGeo,Vdm_CLNGeo1_CLNGeo,nSides
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
@@ -3376,17 +3378,17 @@ DO iElem=1,nTotalElems
     END IF
     IF(.NOT.CurvedElem(iElem))THEN
       ! linear element
-      IF(BoundingBoxIsEmpty(TrueSideID))THEN
-        v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-            -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+      IF(BoundingBoxIsEmpty(SideID))THEN
+        v1=(-BezierControlPoints3D(:,0,0   ,    SideID)+BezierControlPoints3D(:,NGeo,0   ,    SideID)   &
+            -BezierControlPoints3D(:,0,NGeo,    SideID)+BezierControlPoints3D(:,NGeo,NGeo,    SideID) )
         
-        v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-            +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        v2=(-BezierControlPoints3D(:,0,0   ,    SideID)-BezierControlPoints3D(:,NGeo,0   ,    SideID)   &
+            +BezierControlPoints3D(:,0,NGeo,    SideID)+BezierControlPoints3D(:,NGeo,NGeo,    SideID) )
         SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
-        v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
-                +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
-                +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
-                +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+        v1=0.25*(BezierControlPoints3D(:,0,0      ,SideID)     &
+                +BezierControlPoints3D(:,NGeo,0   ,SideID)  &
+                +BezierControlPoints3D(:,0,NGeo   ,SideID)  &
+                +BezierControlPoints3D(:,NGeo,NGeo,SideID))
         ! check if normal vector points outwards
         v2=v1-ElemBaryNGeo(:,iElem)
         IF(flip.EQ.0)THEN
@@ -3400,13 +3402,13 @@ DO iElem=1,nTotalElems
         SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
         ! check if it is rectangular
         isRectangular=.TRUE.
-        v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
-        v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
-        v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+        v1=BezierControlPoints3D(:,0   ,NGeo,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
+        v2=BezierControlPoints3D(:,NGeo,0   ,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
+        v3=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID)
         IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
         IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         IF(isRectangular)THEN
-          v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+          v1=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         END IF
@@ -3416,10 +3418,10 @@ DO iElem=1,nTotalElems
           SideType(TrueSideID)=PLANAR_NONRECT
         END IF
       ELSE
-        v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-            -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
-        v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-            +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+            -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+        v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+            +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
         SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
         SideType(TrueSideID)=BILINEAR
       END IF
@@ -3447,18 +3449,18 @@ DO iElem=1,nTotalElems
       END SELECT
       CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
       IF(isCurvedSide)THEn
-        IF(BoundingBoxIsEmpty(TrueSideID))THEN
+        IF(BoundingBoxIsEmpty(SideID))THEN
           SideType(TrueSideID)=PLANAR_CURVED
-          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
           
-          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
           SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
-          v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
-                  +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
-                  +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
-                  +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          v1=0.25*(BezierControlPoints3D(:,0,0,SideID)     &
+                  +BezierControlPoints3D(:,NGeo,0,SideID)  &
+                  +BezierControlPoints3D(:,0,NGeo,SideID)  &
+                  +BezierControlPoints3D(:,NGeo,NGeo,SideID))
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
@@ -3474,17 +3476,17 @@ DO iElem=1,nTotalElems
           SideType(TrueSideID)=CURVED
         END IF
       ELSE
-        IF(BoundingBoxIsEmpty(TrueSideID))THEN
-          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        IF(BoundingBoxIsEmpty(SideID))THEN
+          v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
           
-          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
           SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
-          v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
-                  +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
-                  +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
-                  +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          v1=0.25*(BezierControlPoints3D(:,0,0,SideID)     &
+                  +BezierControlPoints3D(:,NGeo,0,SideID)  &
+                  +BezierControlPoints3D(:,0,NGeo,SideID)  &
+                  +BezierControlPoints3D(:,NGeo,NGeo,SideID))
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
@@ -3498,13 +3500,13 @@ DO iElem=1,nTotalElems
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
           ! check if it is rectangular
           isRectangular=.TRUE.
-          v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
-          v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
-          v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+          v1=BezierControlPoints3D(:,0   ,NGeo,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
+          v2=BezierControlPoints3D(:,NGeo,0   ,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
+          v3=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID)
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
           IF(isRectangular)THEN
-            v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+            v1=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)
             IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
             IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
           END IF
@@ -3514,10 +3516,10 @@ DO iElem=1,nTotalElems
             SideType(TrueSideID)=PLANAR_NONRECT
           END IF
         ELSE
-          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
-          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
-              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          v1=(-BezierControlPoints3D(:,0,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+          v2=(-BezierControlPoints3D(:,0,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+              +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
           SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
           SideType(TrueSideID)=BILINEAR
         END IF
@@ -4144,7 +4146,7 @@ SUBROUTINE ElemConnectivity()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
-                                 ,SidePeriodicType
+                                 ,SidePeriodicType,nPartSides,nTotalSides
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,           ONLY:OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:SideNormVec
@@ -4152,6 +4154,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_MPI_Vars,            ONLY:OffSetElemMPI
 #endif /*MPI*/
+USE MOD_Mesh_vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4182,6 +4185,7 @@ ALLOCATE(PartElemToElemAndSide(1:8,1:6,1:nTotalElems))
                       ! [3]    - nTotalElems 
                       ! if the connections points to an element which is not in MY region (MY elems + halo elems)
                       ! then this connection points to -1
+
 ! now, map the PartElemToElemGlob to local elemids
 PartElemToElemAndSide=-1
 ! loop over all Elems and map the neighbor element to local coordinates
@@ -4211,6 +4215,7 @@ DO iElem=1,nTotalElems
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 ! which local side of neighbor element is connected to MY element
 DO iElem=1,nTotalElems
   DO ilocSide=1,6
@@ -4228,6 +4233,9 @@ DO iElem=1,nTotalElems
     IF(BCSideID.GT.0)THEN ! only BC faces 
       IF(SidePeriodicType(SideID).NE.0)THEN ! only periodic sides
         Vec1=SideNormVec(1:3,BCSideID)
+        IF(ALMOSTZERO(DOT_PRODUCT(Vec1,Vec1))) CALL abort(&
+__STAMP__&
+        , ' Error in ElemConnectivity. No SideNormVec!',iElem,REAL(ilocSide))
       ELSE ! disable non-periodic  sides
         BCSideID=-1
       END IF
@@ -4331,6 +4339,7 @@ DO iElem=1,nTotalElems
         IPWRITE(UNIT_StdOut,*) ' iElem:     ', iElem
         IPWRITE(UNIT_StdOut,*) ' ilocSide:  ', ilocSide
         IPWRITE(UNIT_StdOut,*) ' NBElem-ID: ', PartElemToElemAndSide(iMortar,ilocSide,iElem)
+        IPWRITE(UNIT_StdOut,*) ' NBElem-ID: ', PartElemToElemAndSide(iMortar+4,ilocSide,iElem)
         CALL abort(&
 __STAMP__&
         , ' Error in ElemConnectivity. Found no neighbor locSideID. iElem,ilocSide',iElem,REAL(ilocSide))
@@ -4511,6 +4520,7 @@ IF(MapPeriodicSides)THEN
   ALLOCATE(MortarType(1:2,1:nTotalSides))
   ALLOCATE(PartSideToElem(1:5,1:nTotalSides))
   ALLOCATE(SidePeriodicType(1:nTotalSides))
+  PartSideToElem=-1
   !ALLOCATE(SidePeriodicDisplacement(1:3,1:nTotalSides))
 
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides) = DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides)
@@ -4648,7 +4658,8 @@ SUBROUTINE MarkAllBCSides()
 ! mark all bc-sides for ref-mapping
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides
+USE MOD_Mesh_Vars,               ONLY:nSides
+USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,SidePeriodicType
 USE MOD_Mesh_Vars,               ONLY:BC,nBCSides,BoundaryType
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4661,7 +4672,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSide, nBCSidesAdd,BCID
+INTEGER             :: iSide, newBCSideID,BCID
 !===================================================================================================================================
 
 ! PartBCSideList is increased, due to the periodic sides
@@ -4669,26 +4680,19 @@ IF(.NOT.DoRefMapping) RETURN
 
 DEALLOCATE(PartBCSideList)
 ALLOCATE(PartBCSideList(1:nTotalSides))
-! NON-BC Sides 
+! BC Sides 
 PartBCSideList=-1
+newBCSideID=0
 DO iSide=1,nBCSides
-  PartBCSideList(iSide)=iSide
+  newBCSideID=newBCSideID+1
+  PartBCSideList(iSide)=newBCSideID
 END DO
 
-! add periodic and analyze/inner-bcs
-nBCSidesAdd=0
-DO iSide=nBCSides+1,nTotalSides
-  BCID=BC(iSide)
-  IF(BCID.GT.0)THEN
-    IF(BoundaryType(BCID,BC_TYPE).EQ.1)THEN ! periodic sides
-      nBCSidesAdd=nBCSidesAdd+1
-      PartBCSideList(iSide)=nBCSidesAdd
-    ELSE ! analyze or inner sides
-      nBCSidesAdd=nBCSidesAdd+1
-      PartBCSideList(iSide)=nBCSidesAdd
-    END IF
-  END IF
-END DO
+DO iSide=nBCSides+1,nSides+nPartPeriodicSides
+  IF(BC(iSide).EQ.0) CYCLE
+  newBCSideID=newBCSideID+1
+  PartBCSideList(iSide)=newBCSideID
+END DO ! iSide
 
 END SUBROUTINE MarkAllBCSides
 
