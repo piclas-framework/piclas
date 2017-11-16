@@ -3318,6 +3318,7 @@ IF (.NOT.DoRefMapping) THEN
   ElemType=-1
 END IF
 
+print*,'nTotalBCSides',nTotalBCSides,nSides,nTotalSides
 ! sides
 IF(DoRefMapping)THEN
   ALLOCATE( SideType(nTotalBCSides)        &
@@ -3528,6 +3529,10 @@ DO iElem=1,nTotalElems
     SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
+
+DO iSide=1,nTotalBCSides
+  print*,'iSide',iSide,SUM(SideNormVec(:,iSide))
+END DO 
 
 ! sanity check for side periodic type
 DO iSide=1,nPartSides
@@ -4460,6 +4465,8 @@ __STAMP__&
   END DO
 END IF
 
+print*,'nSides',nSides,'nPartPeriodicSides',nPartPeriodicSides
+
 !IF(nPartPeriodicSides.GT.0)THEN
 IF(MapPeriodicSides)THEN
   ! map min-max glob to local array
@@ -4628,8 +4635,8 @@ __STAMP__&
   DEALLOCATE(DummySidePeriodicType)
 
 END IF ! nPartPeriodicSides .GT.0
-nTotalBCSides=nPartPeriodicSides+nSides
-nPartSides   =nPartPeriodicSides+nSides
+nPartSides     =nPartPeriodicSides+nSides
+nTotalBCSides =nPartPeriodicSides+nSides
 
 ! sanity check for PartElemToSide
 DO iElem=1,nElems
@@ -4659,9 +4666,11 @@ SUBROUTINE MarkAllBCSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Mesh_Vars,               ONLY:nSides
-USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,SidePeriodicType,nTotalBCSides,nPartSides
 USE MOD_Mesh_Vars,               ONLY:BC,nBCSides,BoundaryType
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+
+USE MOD_Globals
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4672,7 +4681,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSide, newBCSideID,BCID
+INTEGER             :: iSide, BCID
 !===================================================================================================================================
 
 ! PartBCSideList is increased, due to the periodic sides
@@ -4682,17 +4691,31 @@ DEALLOCATE(PartBCSideList)
 ALLOCATE(PartBCSideList(1:nTotalSides))
 ! BC Sides 
 PartBCSideList=-1
-newBCSideID=0
+nTotalBCSides=0
 DO iSide=1,nBCSides
-  newBCSideID=newBCSideID+1
-  PartBCSideList(iSide)=newBCSideID
+  nTotalBCSides=nTotalBCSides+1
+  PartBCSideList(iSide)=nTotalBCSides
 END DO
 
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   IF(BC(iSide).EQ.0) CYCLE
-  newBCSideID=newBCSideID+1
-  PartBCSideList(iSide)=newBCSideID
+  nTotalBCSides=nTotalBCSides+1
+  PartBCSideList(iSide)=nTotalBCSides
 END DO ! iSide
+
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+IPWRITE(*,*) 'nSides,nTotalBCSiedes,nTotalSides,nPartPeriodicSides,nPartSides',nSides,nTotalBCSides,nTotalSides,nPartPeriodicSides &
+                  ,nPartSides
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+! nPartsides 
+nPartSides   =nPartPeriodicSides+nSides
+IF(DorefMapping)THEN
+  ! nothing?
+ELSE
+  nTotalBCSides=nPartSides
+END IF
 
 END SUBROUTINE MarkAllBCSides
 

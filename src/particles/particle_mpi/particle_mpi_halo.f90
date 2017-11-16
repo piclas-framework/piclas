@@ -1508,7 +1508,7 @@ IF(DoRefMapping)THEN
     END DO ! iHaloSide
     
     ! new number of sides
-    !IPWRITE(*,*) 'nTotalSides,ntotBCSides,ntotalelems',nTotalSides,nTotalBCSides,nTotalElems
+    IPWRITE(*,*) 'nTotalSides,ntotBCSides,ntotalelems',nTotalSides,nTotalBCSides,nTotalElems
     tmpnSides    =nTotalSides
     tmpnElems    =nTotalElems
     tmpBCSides   =nTotalBCSides
@@ -1516,7 +1516,7 @@ IF(DoRefMapping)THEN
     nTotalBCSides=nTotalBCSides+RecvMsg%nSides-nDoubleSides
     nTotalElems  =nTotalElems+RecvMsg%nElems
     !tmpnSides    =nTotalSides
-    !IPWRITE(*,*) 'NewnTotalSides,Newntotalbcsides,Newntotalelesm',nTotalSides,nTotalBCSides,nTotalElems
+    IPWRITE(*,*) 'NewnTotalSides,Newntotalbcsides,Newntotalelesm',nTotalSides,nTotalBCSides,nTotalElems
     CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems,tmpBCSides,nTotalBCSides)
 
     ! loop over all elements and add them
@@ -1894,58 +1894,58 @@ PartElemToElemGlob(1:4,1:6,1:nOldElems)            =DummyElemToElem(1:4,1:6,1:nO
 DEALLOCATE(DummyElemToElem)
 IF(DoRefMapping)THEN
   ! BezierControlPoints3D
-  ALLOCATE(DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
+  ALLOCATE(DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nOldSides))
   IF (.NOT.ALLOCATED(DummyBezierControlPoints3D)) CALL abort(&
       __STAMP__&
    ,'Could not allocate DummyBezierControlPoints3D')
   DummyBezierControlPoints3D=BezierControlPoints3D
   DEALLOCATE(BezierControlPoints3D)
-  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
+  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
    ,'Could not reallocate BezierControlPoints3d')
-  BezierControlPoints3d(:,:,:,1:nOldBCSides) =DummyBezierControlPoints3D(:,:,:,1:nOldBCSides)
+  BezierControlPoints3d(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
   DEALLOCATE(DummyBezierControlPoints3D)
   ! SideSlabNormals
-  ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
+  ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldSides))
   IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
       __STAMP__&
    ,'Could not allocate DummySideSlabNormals')
   DummySideSlabNormals=SideSlabNormals
   DEALLOCATE(SideSlabNormals)
-  ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
+  ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
    ,'Could not reallocate SideSlabNormals')
   SideSlabNormals=0
-  SideSlabNormals(1:3,1:3,1:nOldBCSides) =DummySideSlabNormals(1:3,1:3,1:nOldBCSides)
+  SideSlabNormals(1:3,1:3,1:nOldSides) =DummySideSlabNormals(1:3,1:3,1:nOldSides)
   DEALLOCATE(DummySideSlabNormals)
   ! SideSlabIntervals
-  ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
+  ALLOCATE(DummySideSlabIntervals(1:6,1:nOldSides))
   IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
       __STAMP__&
    ,'Could not allocate DummySideSlabIntervals')
   DummySideSlabIntervals=SideSlabIntervals
   DEALLOCATE(SideSlabIntervals)
-  ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
+  ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
    ,'Could not reallocate SideSlabIntervals')
   SideSlabIntervals=0
-  SideSlabIntervals(1:6,1:nOldBCSides) =DummySideSlabIntervals(1:6,1:nOldBCSides)
+  SideSlabIntervals(1:6,1:nOldSides) =DummySideSlabIntervals(1:6,1:nOldSides)
   DEALLOCATE(DummySideSlabIntervals)
   ! BoundingBoxIsEmpty
-  ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
+  ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldSides))
   IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
       __STAMP__&
    ,'Could not allocate DummyBoundingBoxIsEmpty')
   DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
   DEALLOCATE(BoundingBoxIsEmpty)
-  ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
+  ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
    ,'Could not reallocate BoundingBoxIsEmpty')
-  BoundingBoxIsEmpty(1:nOldBCSides) =DummyBoundingBoxIsEmpty(1:nOldBCSides)
+  BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
 
   ! side type
