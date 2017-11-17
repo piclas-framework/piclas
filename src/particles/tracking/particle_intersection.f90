@@ -345,7 +345,7 @@ IF(failed)THEN
   nInterSections=0
   ClipMode=1
   LineNormVec=0.
-  CALL BezierClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory&
+  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory&
                 ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
   IF(nInterSections.GT.1)THEN
     nInterSections=1
@@ -1018,7 +1018,7 @@ rPerformBezierClip=rPerformBezierClip+1.
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
-  CALL BezierClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory&
+  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory&
                 ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 ELSE!BezierNewtonAngle
 #ifdef CODE_ANALYZE
@@ -1031,7 +1031,7 @@ nEtaClip=0
 nInterSections=0
 ClipMode=1
 LineNormVec=0.
-CALL BezierClip(ClipMode,BezierControlPoints2D_tmp,LineNormVec,PartTrajectory,lengthPartTrajectory&
+CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_tmp,LineNormVec,PartTrajectory,lengthPartTrajectory&
               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 IF(nInterSections.GT.1)THEN
   CALL abort(&
@@ -1217,7 +1217,7 @@ IF(PRESENT(ElemCheck_Opt)) ClipMode=0
 END SUBROUTINE ComputeCurvedIntersection
 
 
-RECURSIVE SUBROUTINE BezierClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory &
+RECURSIVE SUBROUTINE BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory &
                                ,iClipIter,nXiClip,nEtaClip&
                                ,nInterSections,iPart,SideID)
 !================================================================================================================================
@@ -1306,788 +1306,16 @@ DO iClipIter=iClipIter,BezierClipMaxIter
   CASE(4)
 
   CASE(5)
-
+    ! validate found intersection
+    CALL ComputeBezierIntersectionPoint(nXiClip,nEtaClip,PartID) 
   CASE DEFAULT
     CALL abort(&
 __STAMP__ &
       ,' ClipMode is defined in [1-5]! ', ClipMode)
   END SELECT
-
-
-  ! a) xi-direction
-  IF(DoXiClip)THEN
-    ! projection onto Xi direction 
-    DO q=0,NGeo 
-      DO p=0,NGeo
-        BezierControlPoints1D(p,q)=DOT_PRODUCT(BezierControlPoints2D(:,p,q),LineNormVec(:,1))
-      END DO
-    END DO
-    DO l=0,NGeo
-      minmax(1,l)=MINVAL(BezierControlPoints1D(l,:)) 
-      minmax(2,l)=MAXVAL(BezierControlPoints1D(l,:)) 
-    END DO ! l
-    dmin=MINVAL(minmax(1,:))
-    dmax=MAXVAL(minmax(2,:))
-#ifdef CODE_ANALYZE
-     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-       IF(iPart.EQ.PARTOUT)THEN
-         IPWRITE(UNIT_stdout,*) ' dmax-dmin-xi ',ABS(dmax-dmin)
-       END IF
-     END IF
-#endif /*CODE_ANALYZE*/
-
-    !print*,'dmax,min,...',dmax,dmin,ABS(dmax-dmin),BezierClipTolerance
-    ! 1D abort criterion from
-    !      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                  
-    !      TITLE = {Robust and Numerically Stable Bezier Clipping Method for Ray Tracing NURBS Surfaces},               
-    !      YEAR = {2005},
-    IF(ABS(dmax-dmin).LT.BezierClipLocalTol)THEN 
-      DoXiClip=.FALSE.
-      FirstClip=0
-    END IF
-  END IF
-
-  IF(DoXiClip)THEN
-    IF(.NOT.DoCheck) EXIT
-    ! calc Smin and Smax and check boundaries
-    CALL CalcSminSmax(minmax,XiMin,XiMax)
-#ifdef CODE_ANALYZE
-     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-       IF(iPart.EQ.PARTOUT)THEN
-         IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiMin,XiMax
-       END IF
-     END IF
-#endif /*CODE_ANALYZE*/
-
-    IF(nXiClip.EQ.0)THEN
-      XiMin=MIN(-1.0,XiMin)
-      XiMax=Max( 1.0,XiMax)
-    END IF
-    IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
-    IF(XiMin.GT.XiMax)THEN
-      tmpXi=XiMax
-      XiMax=XiMin
-      XiMin=tmpXi
-    END IF
-
-    nXiClip=nXiClip+1
-    ! 1.) CLIPPING xi
-    IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
-      XiSplit=0.5*(XiMax+XiMin)
-      ! first split
-      XiArray(:,nXiClip)=(/XiSplit,XiMax/)
-      BezierControlPoints2D_temp=0.
-      ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-      IF(XiMax.NE.1.0)THEN
-        PlusXi=1.0+XiMax
-        MinusXi=1.0-XiMax
-        ! compute the required stuff || pseudo Horner or precomputation
-        xiup(0)=1.0
-        ! caution, here the indicies are switched from n-j to j  for **down
-        xidown(0)=1.0
-        DO l=1,NGeo
-          xiup   (l)     =xiup   (l-1)*PlusXi
-          xidown (l)     =xidown (l-1)*MinusXi
-        END DO ! l=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
-          END DO ! l=0,p
-        END DO ! p=0,NGeo
-
-        DO q=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-!              BezierControlPoints2D_temp(:,p,q)=&
-!              BezierControlPoints2D_temp(:,p,q)+&
-!              !BezierControlPoints2D(:,l,q)*B(p,l,Smax)
-!              BezierControlPoints2D     (:,l,q)*(1./(2.**p))       &
-!                                               *arrayNchooseK(p,l) &
-!                                               *PlusXi**l        &
-!                                               *MinusXi**(p-l)
-              !DEBUG: optimize this !
-              !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-              !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
-              !                                 *(PlusXi**l)*(MinusXi**(p-l))
-              ! not Horner!
-              !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-              !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
-              !                                 *xiup(l)*XiDown(p-l)
-
-              BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-                                               +BezierControlPoints2D     (:,l,q)*XiBuf(p,l)
-            END DO
-          END DO
-        END DO
-      ELSE
-        BezierControlPoints2D_temp=BezierControlPoints2D
-      END IF ! XiMax
-      ! BOTTOM (mirrored Bernstein Basis evaluation)
-      ! s = (smin+1)/(smax+1) for [-1, +1]
-      ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
-      BezierControlPoints2D_temp2=0.
-      PlusXi=(XiSplit+1.0)/(XiMax+1.0)
-      ! MinusXi= 2.0*(1-PlusXi)-1
-      ! MinusXi= 1.0-2.0*(1.0-s)+1.0
-      MinusXi=2.0*PlusXi
-      ! PlusXi=1+ 2.0*(1-s)-1
-      PlusXi=2.0-2.0*PlusXi
-      ! compute the required stuff || pseudo Horner or precomputation
-      xiup(0)=1.0
-      ! caution, here the indicies are switched from n-j to j  for **down
-      xidown(0)=1.0
-      DO l=1,NGeo
-        xiup   (l)     =xiup   (l-1)*PlusXi
-        xidown (l)     =xidown (l-1)*MinusXi
-      END DO ! l=0,NGeo
-      DO p=0,NGeo
-        DO l=0,p
-          XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
-        END DO ! l=0,p
-      END DO ! p=0,NGeo
-
-      DO q=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            !BezierControlPoints2D_temp2(:,NGeo-p,q)=&
-            !BezierControlPoints2D_temp2(:,NGeo-p,q)+&
-            !!BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
-            !BezierControlPoints2D_temp  (:,NGeo-l,q)*(1./(2.**p))                        &
-            !                                      *arrayNchooseK(p,l)                  &
-            !                                      *PlusXi**l &
-            !                                      *MinusXi**(p-l)
-            !DEBUG: optimize this !
-            !BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
-            !                                 +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
-            !                                 *(PlusXi**l)*(MinusXi**(p-l))
-            BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)                  &
-                                                   +BezierControlPoints2D_temp(:,NGeo-l,q)*XiBuf(p,l)
-          END DO
-        END DO
-      END DO
-
-      tmpnClip=iClipIter+1
-      tmpnXi   =nXiClip
-      tmpnEta  =nEtaClip
-      firstClip=2
-      !print*,'split-xi1'
-#ifdef CODE_ANALYZE
-!      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!        IF(iPart.EQ.PARTOUT)THEN
-!          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!          IPWRITE(UNIT_stdout,*) ' split xi-upper '
-!          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!        END IF
-!      END IF
-#endif /*CODE_ANALYZE*/
-      CALL BezierClip(firstClip,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory &
-                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
-
-      ! second split
-      XiArray(:,nXiClip)=(/XiMin,XiSplit/)
-      ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-      BezierControlPoints2D_temp=0.
-      PlusXi=1.0+XiSplit
-      MinusXi=1.0-XiSplit
-      ! compute the required stuff || pseudo Horner or precomputation
-      xiup(0)=1.0
-      ! caution, here the indicies are switched from n-j to j  for **down
-      xidown(0)=1.0
-      DO l=1,NGeo
-        xiup   (l)     =xiup   (l-1)*PlusXi
-        xidown (l)     =xidown (l-1)*MinusXi
-      END DO ! l=0,NGeo
-      DO p=0,NGeo
-        DO l=0,p
-          XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
-        END DO ! l=0,p
-      END DO ! p=0,NGeo
-
-      DO q=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            !BezierControlPoints2D_temp(:,p,q)=&
-            !BezierControlPoints2D_temp(:,p,q)+&
-            !!BezierControlPoints2D(:,l,q)*B(p,l,Smax)
-            !BezierControlPoints2D     (:,l,q)*(1./(2.**p))       &
-            !                                 *arrayNchooseK(p,l) &
-            !                                 *(1+XiSplit)**l        &
-            !                                 *(1-XiSplit)**(p-l)
-            !DEBUG: optimize this !
-            !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-            !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
-            !                                 *(PlusXi**l)*(MinusXi**(p-l))
-
-            BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-                                             +BezierControlPoints2D     (:,l,q)*XiBuf(p,l)
-          END DO
-        END DO
-      END DO
-      ! BOTTOM (mirrored Bernstein Basis evaluation)
-      ! s = (smin+1)/(smax+1) for [-1, +1]
-      ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
-      IF(XiMin.NE.-1.0)THEN
-        BezierControlPoints2D_temp2=0.
-        PlusXi=(XiMin+1.0)/(XiSplit+1.0)
-        ! MinusXi= 2.0*(1-PlusXi)-1
-        ! MinusXi= 1.0-2.0*(1.0-s)+1.0
-        MinusXi=2.0*PlusXi
-        ! PlusXi=1+ 2.0*(1-s)-1
-        PlusXi=2.0-2.0*PlusXi
-        ! compute the required stuff || pseudo Horner or precomputation
-        xiup(0)=1.0
-        ! caution, here the indicies are switched from n-j to j  for **down
-        xidown(0)=1.0
-        DO l=1,NGeo
-          xiup   (l)     =xiup   (l-1)*PlusXi
-          xidown (l)     =xidown (l-1)*MinusXi
-        END DO ! l=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
-          END DO ! l=0,p
-        END DO ! p=0,NGeo
-
-        DO q=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-        !      BezierControlPoints2D_temp2(:,NGeo-p,q)=&
-        !      BezierControlPoints2D_temp2(:,NGeo-p,q)+&
-        !      !BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
-        !      BezierControlPoints2D_temp (:,NGeo-l,q)*(1./(2.**p))                        &
-        !                                            *arrayNchooseK(p,l)                  &
-        !                                            *(1.+2*((XiMin+1.)/(XiSplit+1.)))**(l-1) &
-        !                                            *(1.-2*((XiMin+1.)/(XiSplit+1.)))**(p-l)
-              !DEBUG: optimize this !
-              !BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
-              !                                 +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
-              !                                 *(PlusXi**l)*(MinusXi**(p-l))
-              BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)                  &
-                                                     +BezierControlPoints2D_temp(:,NGeo-l,q)*XiBuf(p,l)
-            END DO
-          END DO
-        END DO
-      ELSE
-        BezierControlPoints2D_temp2=BezierControlPoints2D_temp
-      END IF
-      tmpnClip=iClipIter+1
-      tmpnXi   =nXiClip
-      tmpnEta  =nEtaClip
-      !IF(firstClip.GT.0) FirstClip=2
-      firstClip=2
-#ifdef CODE_ANALYZE
-!      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!        IF(iPart.EQ.PARTOUT)THEN
-!          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!          IPWRITE(UNIT_stdout,*) ' split xi-lower '
-!          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!        END IF
-!      END IF
-#endif /*CODE_ANALYZE*/
-      !print*,'split-xi2'
-      CALL BezierClip(firstClip,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
-                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
-      DoCheck=.FALSE.
-      EXIT
-    ELSE ! only one possible intersection
-      XiArray(:,nXiClip)=(/XiMin,XiMax/)
-      ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-      ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-      IF(XiMax.NE.1.0)THEN
-        BezierControlPoints2D_temp=0.
-        PlusXi=1.0+XiMax
-        MinusXi=1.0-XiMax
-        ! compute the required stuff || pseudo Horner or precomputation
-        xiup(0)=1.0
-        ! caution, here the indicies are switched from n-j to j  for **down
-        xidown(0)=1.0
-        DO l=1,NGeo
-          xiup   (l)     =xiup   (l-1)*PlusXi
-          xidown (l)     =xidown (l-1)*MinusXi
-        END DO ! l=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
-          END DO ! l=0,p
-        END DO ! p=0,NGeo
-
-        DO q=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              !BezierControlPoints2D_temp(:,p,q)=&
-              !BezierControlPoints2D_temp(:,p,q)+&
-              !!BezierControlPoints2D(:,l,q)*B(p,l,Smax)
-              !BezierControlPoints2D     (:,l,q)*(1./(2.**p))       &
-              !                                 *arrayNchooseK(p,l) &
-              !                                 *(1+XiMax)**l        &
-              !                                 *(1-XiMax)**(p-l)
-              !DEBUG: optimize this !
-              !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-              !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
-              !                                 *(PlusXi**l)*(MinusXi**(p-l))
-              BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-                                               +BezierControlPoints2D     (:,l,q)*XiBuf(p,l)
-            END DO
-          END DO
-        END DO
-        BezierControlPoints2D=BezierControlPoints2D_temp
-      END IF
-      ! BOTTOM (mirrored Bernstein Basis evaluation)
-      ! s = (smin+1)/(smax+1) for [-1, +1]
-      ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
-      IF(XiMin.NE.-1.0)THEN
-        BezierControlPoints2D_temp=0.
-        PlusXi=(XiMin+1.0)/(XiMax+1.0)
-        ! MinusXi= 2.0*(1-PlusXi)-1
-        ! MinusXi= 1.0-2.0*(1.0-s)+1.0
-        MinusXi=2.0*PlusXi
-        ! PlusXi=1+ 2.0*(1-s)-1
-        PlusXi=2.0-2.0*PlusXi
-        ! compute the required stuff || pseudo Horner or precomputation
-        xiup(0)=1.0
-        ! caution, here the indicies are switched from n-j to j  for **down
-        xidown(0)=1.0
-        DO l=1,NGeo
-          xiup   (l)     =xiup   (l-1)*PlusXi
-          xidown (l)     =xidown (l-1)*MinusXi
-        END DO ! l=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
-          END DO ! l=0,p
-        END DO ! p=0,NGeo
-
-        DO q=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              !BezierControlPoints2D_temp(:,NGeo-p,q)=&
-              !BezierControlPoints2D_temp(:,NGeo-p,q)+&
-              !!BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
-              !BezierControlPoints2D     (:,NGeo-l,q)*(1./(2.**p))                        &
-              !                                      *arrayNchooseK(p,l)                  &
-              !                                      *(1.+2*((XiMin+1.)/(XiMax+1.)))**(l-1) &
-              !                                      *(1.-2*((XiMin+1.)/(XiMax+1.)))**(p-l)
-              !DEBUG: optimize this !
-              !BezierControlPoints2D_temp(:,NGeo-p,q)=BezierControlPoints2D_temp(:,NGeo-p,q)             &
-              !                                +BezierControlPoints2D  (:,NGeo-l,q)*FacNchooseK(p,l) &
-              !                                *(PlusXi**l)*(MinusXi**(p-l))
-              BezierControlPoints2D_temp(:,NGeo-p,q)=BezierControlPoints2D_temp(:,NGeo-p,q)                  &
-                                                    +BezierControlPoints2D(:,NGeo-l,q)*XiBuf(p,l)
-            END DO
-          END DO
-        END DO
-        BezierControlPoints2D=BezierControlPoints2D_temp
-      END IF
-
-      ! c) check Tolerance
-       ! check via mean value
-      !x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
-      !y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
-      !IF(SQRT(x*x+y*y).LT.BezierClipTolerance)EXIT
-      !! check via distance
-      !ZeroDistance=0.
-      !DO q=0,NGeo                                                                                   
-      !  DO p=0,NGeo
-      !    ZeroDistance=ZeroDistance+BezierControlPoints2D(1,p,q)*BezierControlPoints2d(1,p,q) &
-      !                             +BezierControlPoints2D(2,p,q)*BezierControlPoints2d(2,p,q)
-      !  END DO
-      !END DO
-      !ZeroDistance=ZeroDistance*PatchDOF2D ! divide by number of points
-      !!IF(ZeroDistance.LT.BezierClipTolerance2) EXIT
-      !IF(SQRT(ZeroDistance).LT.BezierClipTolerance) EXIT
-
-      IF(ABS(XiMax-XiMin).LT.BezierClipLocalTol) DoXiClip=.FALSE.
-
-
-    END IF ! check clip size
-  END IF!DoXiClip
-
-  ! b) eta-direction
-  IF(DoEtaClip)THEN
-    IF(.NOT.DoCheck) EXIT
-    DO q=0,NGeo
-      DO p=0,NGeo
-        BezierControlPoints1D(p,q)=DOT_PRODUCT(BezierControlPoints2D(:,p,q),LineNormVec(:,2))
-      END DO
-    END DO
-    DO l=0,NGeo
-      minmax(1,l)=MINVAL(BezierControlPoints1D(:,l)) 
-      minmax(2,l)=MAXVAL(BezierControlPoints1D(:,l)) 
-    END DO ! l
-    dmin=MINVAL(minmax(1,:))
-    dmax=MAXVAL(minmax(2,:))
-#ifdef CODE_ANALYZE
-     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-       IF(iPart.EQ.PARTOUT)THEN
-         IPWRITE(UNIT_stdout,*) ' dmax-dmin-eta ',ABS(dmax-dmin)
-       END IF
-     END IF
-#endif /*CODE_ANALYZE*/
-    !print*,'eta'
-    !print*,'dmax,min,...',dmax,dmin,ABS(dmax-dmin),BezierClipTolerance
-    IF(ABS(dmax-dmin).LT.BezierClipLocalTol)THEN
-      DoEtaClip=.FALSE.
-      IF(FirstClip.EQ.2) DoXiClip=.TRUE.
-      FirstClip=0
-    END IF
-  END IF
-  IF(DoEtaClip)THEN
-    IF(FirstClip.EQ.2)THEN
-      DoXiClip=.TRUE.
-      FirstClip=1
-    END IF
-    ! calc Smin and Smax and check boundaries
-    CALL CalcSminSmax(minmax,Etamin,Etamax)
-#ifdef CODE_ANALYZE
-     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-       IF(iPart.EQ.PARTOUT)THEN
-         IPWRITE(UNIT_stdout,*) ' EtaMin,EtaMax ',EtaMin,EtaMax
-       END IF
-     END IF
-#endif /*CODE_ANALYZE*/
-      IF(nEtaClip.EQ.0)THEN
-        EtaMin=MIN(-1.0,EtaMin)
-        EtaMax=Max( 1.0,EtaMax)
-      END IF
-      IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5))RETURN
-      IF(EtaMin.GT.EtaMax)THEN
-        print*,'swwwaaaaaaaap etta',etamin,etamax
-      END IF
-      nEtaClip=nEtaClip+1
-      ! 2.) CLIPPING eta
-      IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
-        EtaSplit=0.5*(EtaMax+EtaMin)
-        ! first clip
-        EtaArray(:,nEtaClip)=(/EtaSplit,EtaMax/)
-        ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-        IF(EtaMax.NE.1.0)THEN
-          BezierControlPoints2D_temp=0.
-          PlusEta=1.0+EtaMax
-          MinusEta=1.0-EtaMax
-          ! compute the required stuff || pseudo Horner or precomputation
-          Etaup(0)=1.0
-          ! caution, here the indicies are switched from n-j to j  for **down
-          Etadown(0)=1.0
-          DO l=1,NGeo
-            Etaup   (l)     =Etaup   (l-1)*PlusEta
-            Etadown (l)     =Etadown (l-1)*MinusEta
-          END DO ! l=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
-            END DO ! l=0,p
-          END DO ! p=0,NGeo
-
-          DO q=0,NGeo
-            DO p=0,NGeo
-              DO l=0,p
-!                BezierControlPoints2D_temp(:,q,p)=&
-!                BezierControlPoints2D_temp(:,q,p)+&
-!                !BezierControlPoints2D(:,l,q)*B(p,l,Smax)
-!                BezierControlPoints2D     (:,q,l)*(1./(2.**p))       &
-!                                                 *arrayNchooseK(p,l) &
-!                                                 *(1.+Etamax)**l       &
-!                                                 *(1.-Etamax)**(p-l)
-                !DEBUG: optimize this !
-!                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-!                                                 +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
-!                                                 *(PlusEta**l)*(MinusEta**(p-l))
-
-                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-                                                 +BezierControlPoints2D     (:,q,l)*EtaBuf(p,l)
-              END DO
-            END DO
-          END DO
-        ELSE
-          BezierControlPoints2D_temp=BezierControlPoints2D
-        END IF
-        ! BOTTOM (mirrored Bernstein Basis evaluation)
-        ! s = (smin+1)/(smax+1) for [-1, +1]
-        ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
-        BezierControlPoints2D_temp2=0.
-        PlusEta=(EtaSplit+1.0)/(EtaMax+1.0)
-        ! MinusXi= 2.0*(1-PlusXi)-1
-        ! MinusXi= 1.0-2.0*(1.0-s)+1.0
-        MinusEta=2.0*PlusEta
-        ! PlusXi=1+ 2.0*(1-s)-1
-        PlusEta=2.0-2.0*PlusEta
-        ! compute the required stuff || pseudo Horner or precomputation
-        Etaup(0)=1.0
-        ! caution, here the indicies are switched from n-j to j  for **down
-        Etadown(0)=1.0
-        DO l=1,NGeo
-          Etaup   (l)     =Etaup   (l-1)*PlusEta
-          Etadown (l)     =Etadown (l-1)*MinusEta
-        END DO ! l=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
-          END DO ! l=0,p
-        END DO ! p=0,NGeo
-
-        DO q=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              !BezierControlPoints2D_temp2(:,q,p)=&
-              !BezierControlPoints2D_temp2(:,q,p)+&
-              !!BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
-              !BezierControlPoints2D_temp(:,q,NGeo-l)*(1./(2.**p))                     &
-              !                                      *arrayNchooseK(p,l)               &
-              !                                      *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
-              !                                      *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
-              !  !DEBUG: optimize this !
-              !BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
-              !                                 +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
-              !                                 *(PlusEta**l)*(MinusEta**(p-l))
-              BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
-                                                     +BezierControlPoints2D_temp(:,q,NGeo-l)*EtaBuf(p,l)
-            END DO
-          END DO
-        END DO
-        ! new bezier-clip
-        tmpnClip=iClipIter+1
-        tmpnXi   =nXiClip
-        tmpnEta  =nEtaClip
-        firstClip=1
-#ifdef CODE_ANALYZE
-!        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!          IF(iPart.EQ.PARTOUT)THEN
-!            IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!            IPWRITE(UNIT_stdout,*) ' split eta-upper '
-!            CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!          END IF
-!        END IF
-#endif /*CODE_ANALYZE*/
-        !print*,'split-eta1'
-        CALL BezierClip(firstClip,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory &
-                       ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
-        ! second split
-        EtaArray(:,nEtaClip)=(/EtaMin,EtaSplit/)
-        ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-        BezierControlPoints2D_temp=0.
-        PlusEta=1.0+EtaSplit
-        MinusEta=1.0-EtaSplit
-        ! compute the required stuff || pseudo Horner or precomputation
-        Etaup(0)=1.0
-        ! caution, here the indicies are switched from n-j to j  for **down
-        Etadown(0)=1.0
-        DO l=1,NGeo
-          Etaup   (l)     =Etaup   (l-1)*PlusEta
-          Etadown (l)     =Etadown (l-1)*MinusEta
-        END DO ! l=0,NGeo
-        DO p=0,NGeo
-          DO l=0,p
-            EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
-          END DO ! l=0,p
-        END DO ! p=0,NGeo
-
-        DO q=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              !BezierControlPoints2D_temp(:,q,p)=&
-              !BezierControlPoints2D_temp(:,q,p)+&
-              !!BezierControlPoints2D(:,l,q)*B(p,l,Smax)
-              !BezierControlPoints2D     (:,q,l)*(1./(2.**p))       &
-              !                                 *arrayNchooseK(p,l) &
-              !                                 *(1.+EtaSplit)**l       &
-              !                                 *(1.-EtaSplit)**(p-l)
-              !DEBUG: optimize this !
-!              BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-!                                               +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
-!                                               *(PlusEta**l)*(MinusEta**(p-l))
-!
-              BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-                                               +BezierControlPoints2D     (:,q,l)*EtaBuf(p,l)
-            END DO
-          END DO
-        END DO
-        ! BOTTOM (mirrored Bernstein Basis evaluation)
-        ! s = (smin+1)/(smax+1) for [-1, +1]
-        ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
-        IF(EtaMin.NE.-1.0)THEN
-          BezierControlPoints2D_temp2=0.
-          PlusEta=(EtaMin+1.0)/(EtaSplit+1.0)
-          ! MinusXi= 2.0*(1-PlusXi)-1
-          ! MinusXi= 1.0-2.0*(1.0-s)+1.0
-          MinusEta=2.0*PlusEta
-          ! PlusXi=1+ 2.0*(1-s)-1
-          PlusEta=2.0-2.0*PlusEta
-          ! compute the required stuff || pseudo Horner or precomputation
-          Etaup(0)=1.0
-          ! caution, here the indicies are switched from n-j to j  for **down
-          Etadown(0)=1.0
-          DO l=1,NGeo
-            Etaup   (l)     =Etaup   (l-1)*PlusEta
-            Etadown (l)     =Etadown (l-1)*MinusEta
-          END DO ! l=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
-            END DO ! l=0,p
-          END DO ! p=0,NGeo
-
-          DO q=0,NGeo
-            DO p=0,NGeo
-              DO l=0,p
-              !  BezierControlPoints2D_temp2(:,q,p)=&
-              !  BezierControlPoints2D_temp2(:,q,p)+&
-              !  !BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
-              !  BezierControlPoints2D_temp(:,q,NGeo-l)*(1./(2.**p))                     &
-              !                                        *arrayNchooseK(p,l)               &
-              !                                        *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
-              !                                        *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
-              !DEBUG: optimize this !
-                !BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
-                !                                 +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
-                !                                 *(PlusEta**l)*(MinusEta**(p-l))
-                BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
-                                                       +BezierControlPoints2D_temp(:,q,NGeo-l)*EtaBuf(p,l)
-              END DO
-            END DO
-          END DO
-        ELSE
-          BezierControlPoints2D_temp2=BezierControlPoints2D_temp
-        END IF
-        ! new bezier-clip
-        tmpnClip=iClipIter+1
-        tmpnXi   =nXiClip
-        tmpnEta  =nEtaClip
-        firstClip=1
-#ifdef CODE_ANALYZE
-!        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!          IF(iPart.EQ.PARTOUT)THEN
-!            IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!            IPWRITE(UNIT_stdout,*) ' split eta-lower '
-!            CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!          END IF
-!        END IF
-#endif /*CODE_ANALYZE*/
-        !print*,'split-eta2'
-        CALL BezierClip(firstClip,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory &
-                       ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
-        DoCheck=.FALSE.
-        EXIT
-      ELSE ! only one possible clip in eta direction
-        EtaArray(:,nEtaClip)=(/EtaMin,EtaMax/)
-        ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-        IF(EtaMax.NE.1.0)THEN
-          BezierControlPoints2D_temp=0.
-          PlusEta=1.0+EtaMax
-          MinusEta=1.0-EtaMax
-          ! compute the required stuff || pseudo Horner or precomputation
-          Etaup(0)=1.0
-          ! caution, here the indicies are switched from n-j to j  for **down
-          Etadown(0)=1.0
-          DO l=1,NGeo
-            Etaup   (l)     =Etaup   (l-1)*PlusEta
-            Etadown (l)     =Etadown (l-1)*MinusEta
-          END DO ! l=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
-            END DO ! l=0,p
-          END DO ! p=0,NGeo
-
-          DO q=0,NGeo
-            DO p=0,NGeo
-              DO l=0,p
-!                BezierControlPoints2D_temp(:,q,p)=&
-!                BezierControlPoints2D_temp(:,q,p)+&
-!                !BezierControlPoints2D(:,l,q)*B(p,l,Smax)
-!                BezierControlPoints2D     (:,q,l)*(1./(2.**p))       &
-!                                                 *arrayNchooseK(p,l) &
-!                                                 *(1.+Etamax)**l       &
-!                                                 *(1.-Etamax)**(p-l)
-               !DEBUG: optimize this !
-!                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-!                                                 +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
-!                                                 *(PlusEta**l)*(MinusEta**(p-l))
-!
-                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-                                                 +BezierControlPoints2D     (:,q,l)*EtaBuf(p,l)
-              END DO
-            END DO
-          END DO
-          BezierControlPoints2D=BezierControlPoints2D_temp
-        END IF
-        ! BOTTOM (mirrored Bernstein Basis evaluation)
-        ! s = (smin+1)/(smax+1) for [-1, +1]
-        ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
-        IF(EtaMin.NE.-1.0)THEN
-          BezierControlPoints2D_temp=0.
-          PlusEta=(EtaMin+1.0)/(EtaMax+1.0)
-          ! MinusXi= 2.0*(1-PlusXi)-1
-          ! MinusXi= 1.0-2.0*(1.0-s)+1.0
-          MinusEta=2.0*PlusEta
-          ! PlusXi=1+ 2.0*(1-s)-1
-          PlusEta=2.0-2.0*PlusEta
-          ! compute the required stuff || pseudo Horner or precomputation
-          Etaup(0)=1.0
-          ! caution, here the indicies are switched from n-j to j  for **down
-          Etadown(0)=1.0
-          DO l=1,NGeo
-            Etaup   (l)     =Etaup   (l-1)*PlusEta
-            Etadown (l)     =Etadown (l-1)*MinusEta
-          END DO ! l=0,NGeo
-          DO p=0,NGeo
-            DO l=0,p
-              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
-            END DO ! l=0,p
-          END DO ! p=0,NGeo
-
-          DO q=0,NGeo
-            DO p=0,NGeo
-              DO l=0,p
-                !BezierControlPoints2D_temp(:,q,p)=&
-                !BezierControlPoints2D_temp(:,q,p)+&
-                !!BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
-                !BezierControlPoints2D     (:,q,NGeo-l)*(1./(2.**p))                     &
-                !                                      *arrayNchooseK(p,l)               &
-                !                                      *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
-                !                                      *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
-                !DEBUG: optimize this !
-                !BezierControlPoints2D_temp(:,q,NGeo-p)=BezierControlPoints2D_temp(:,q,NGeo-p)        &
-                !                                 +BezierControlPoints2D(:,q,NGeo-l)*FacNchooseK(p,l) &
-                !                                 *(PlusEta**l)*(MinusEta**(p-l))
-                BezierControlPoints2D_temp(:,q,NGeo-p)=BezierControlPoints2D_temp(:,q,NGeo-p)             &
-                                                       +BezierControlPoints2D     (:,q,NGeo-l)*EtaBuf(p,l)
-              END DO
-            END DO
-          END DO
-          BezierControlPoints2D=BezierControlPoints2D_temp
-
-         ! check via mean value
-         !x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
-         !y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
-         !IF(SQRT(x*x+y*y).LT.BezierClipTolerance)EXIT
-         ! check via distance
-         !ZeroDistance=0.
-         !DO q=0,NGeo
-         !  DO p=0,NGeo
-         !    ZeroDistance=ZeroDistance+BezierControlPoints2D(1,p,q)*BezierControlPoints2d(1,p,q) &
-         !                             +BezierControlPoints2D(2,p,q)*BezierControlPoints2d(2,p,q)
-         !  END DO
-         !END DO
-         !ZeroDistance=ZeroDistance*PatchDOF2D ! divide by number of points
-         !!IF(ZeroDistance.LT.BezierClipTolerance2) EXIT
-         !IF(SQRT(ZeroDistance).LT.BezierClipTolerance) EXIT
-
-         !IF(ABS(EtaMax-EtaMin).LT.BezierClipTolerance) DoEtaClip=.FALSE.
-
-        END IF ! EtaMin.NE.-1.0
-      END IF ! (EtaMax-EtaMin).GT.BezierSplitLimit 
-!    END IF ! MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance
-  END IF ! DoEtaClip 
-
-  ! check if intersection is found
-  IF(firstClip.EQ.0)THEN
-    IF(.NOT.DoXiClip .AND. .NOT.DoEtaClip) EXIT
-  END IF
-
+ 
 END DO ! iClipIter=iClipIter,BezierClipMaxIter
-  !IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance)THEN ! which tolerance is best used?
-    !print*,"3"
-  !END IF
+
 
 IF(iClipIter.GE.BezierClipMaxIter)THEN
   WRITE(*,*) 'Iter',iClipIter
@@ -2095,143 +1323,6 @@ IF(iClipIter.GE.BezierClipMaxIter)THEN
   STOP
 END IF
 
-IF(DoCheck)THEN
-  ! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
-  !   xi-direction
-  IF(nXiClip.EQ.0)THEN
-    Xi=0.
-  ELSE
-    Xi=0.5*SUM(XiArray(:,nXiClip))
-    DO iClip=nXiClip-1,1,-1
-      Xi=XiArray(1,iClip)+0.5*(Xi+1)*(XiArray(2,iClip)-XiArray(1,iClip))
-    END DO
-  END IF ! nXIClip
-  !   eta-direction
-  IF(nEtaClip.EQ.0)THEN
-    Eta=0.
-  ELSE
-    Eta=0.5*SUM(EtaArray(:,nEtaClip))
-    DO iClip=nEtaClip-1,1,-1
-      Eta=EtaArray(1,iClip)+0.5*(Eta+1)*(EtaArray(2,iClip)-EtaArray(1,iClip))
-    END DO
-  END IF ! nEtaclip
-  ! Calculate intersection value in 3D (De Casteljau)
-  tmpXi=XI
-  tmpEta=Eta
-
-
-  Xi=0.5*(Xi+1)
-  Eta=0.5*(Eta+1)
-
-#ifdef CODE_ANALYZE
-     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-       IF(iPart.EQ.PARTOUT)THEN
-         IPWRITE(UNIT_stdout,*) ' xi,eta ',xi,eta
-       END IF
-     END IF
-#endif /*CODE_ANALYZE*/
-
-  IF((ABS(eta).GT.BezierClipHit).OR.(ABS(xi).GT.BezierClipHit))THEN
-    RETURN
-  END IF
-
-
-  MinusXi =1.0-Xi
-  MinusEta=1.0-Eta
-  
-  ! BEGIN DECASTELJAU ------------------------------------
-  ! Wikipedia: "Although the algorithm is slower for most architectures 
-  !             when compared with the direct approach, it is more numerically stable."
-  ! DEBUG: keep decastejau or implement horner for direct evaluation
-  ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
-  l=NGeo-1
-  DO iDeCasteljau=1,NGeo
-    DO q=0,l
-      DO p=0,l
-        !ReducedBezierControlPoints_temp(:,p,q)=DOT_PRODUCT((/1-.Smean(1), Smean(1)/),MATMUL(
-                                         ![ReducedBezierControlPoints(p,q  ,:),ReducedBezierControlPoints(p  ,q+1,:);
-                                         ! ReducedBezierControlPoints(p,q+1,:),ReducedBezierControlPoints(p+1,q+1,:)]
-                                                          !,(/1-.Smean(2), Smean(2)/))
-        !ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )          &
-        !                                 +    Xi *ReducedBezierControlPoints(:,p,q+1)*MinusEta &
-        !                                 +MinusXi*ReducedBezierControlPoints(:,p  ,q+1)        &
-        !                                 +    Xi *ReducedBezierControlPoints(:,p+1,q+1)*Eta
-        ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )  *MinusEta & ! A
-                                         +MinusXi*ReducedBezierControlPoints(:,p,q+1)  *Eta      & ! B
-                                         +     Xi*ReducedBezierControlPoints(:,p+1,q)  *MinusEta & ! C
-                                         +     Xi*ReducedBezierControlPoints(:,p+1,q+1)*Eta        ! D
-  
-      END DO
-    END DO
-    l=l-1
-  END DO
-  
-
-  ! resulting point is ReducedBezierControlPoints(:,1,1)
-  IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
-  ! END DECASTELJAU ------------------------------------
-  alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
-
-  ! funny hard coded tolerance :), obtained by numerical experiments
-  !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.MinusEps))THEN
-  alphaNorm=alpha/lengthPartTrajectory
-
-#ifdef CODE_ANALYZE
-     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-       IF(iPart.EQ.PARTOUT)THEN
-         IPWRITE(UNIT_stdout,*) ' alpha,alphanorm ',alpha,alphaNorm
-       END IF
-     END IF
-#endif /*CODE_ANALYZE*/
-
-
-  !IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
-  IF((alphaNorm.LE.1.0).AND.(alphaNorm.GT.-epsilontol))THEN
-    ! found additional intersection point
-    IF(nInterSections.GE.BezierClipMaxIntersec)THEN
-      !nInterSections=nInterSections-1
-      !locAlpha=-1
-      IPWRITE(UNIT_stdout,'(I0,A)') ' nInterSections > BezierClipMaxIntersec'
-      IPWRITE(UNIT_stdout,'(I0,A,I0)') ' PartID ', iPart
-      IPWRITE(UNIT_stdout,'(I0,A,I0)') ' SideID ', SideID
-      IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipTolerance  ', BezierClipTolerance
-      IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipLocalTol ', BezierClipLocalTol
-      IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
-      IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
-      IPWRITE(UNIT_stdout,'(I0,A)') ' locAlpha / lengthPartTrajectory '
-      DO iInter=1,nInterSections
-        WRITE(UNIT_stdout,'(E18.12)') locAlpha(iInter)/lengthPartTrajectory
-      END DO
-      STOP 
-      RETURN
-    END IF
-    IF(nInterSections.EQ.0)THEN
-     nInterSections=nIntersections+1
-     locAlpha(nInterSections)=alpha
-     locXi (nInterSections)=tmpXi
-     locEta(nInterSections)=tmpEta
-   ELSE
-     ! check if new intersection is possible
-     isNew=.TRUE.
-     DO iInter=1,nInterSections
-       ! remove multiple found intersections
-       ! compare the found alpha value absolute and relative to find duplicate intersections
-       ! locAlpha are all accepted intersection, and alpha is the new one
-       !IF((locAlpha(iInter)-alpha).LT.10*SQRT(BezierClipTolerance0)) isNew=.FALSE.
-       !IF(ALMOSTEQUALRELATIVE(locAlpha(iInter),alpha,10*SQRT(BezierClipTolerance0))) isNew=.FALSE.
-       IF((locAlpha(iInter)-alpha).LT.(BezierClipTolerance)*lengthPartTrajectory) isNew=.FALSE.
-       IF(ALMOSTEQUALRELATIVE(locAlpha(iInter),alpha,(BezierClipTolerance)*lengthPartTrajectory)) isNew=.FALSE.
-     END DO ! iInter=1,nInterSections
-     IF(isNew)THEN
-       nInterSections=nIntersections+1
-       locAlpha(nInterSections)=alpha
-       locXi (nInterSections)=tmpXi
-       locEta(nInterSections)=tmpEta
-     END IF
-   END IF
-  END IF
-
-END IF ! docheck
 
 END SUBROUTINE BezierClip
 
@@ -3171,6 +2262,171 @@ ELSE
 END IF
 
 END FUNCTION ComputeXi
+
+SUBROUTINE ComputeBezierIntersectionPoint(nXiClip,nEtaClip,PartID,nInterSections,lengthPartTrajectory) 
+!===================================================================================================================================
+! Compute the BezierInterSectionPoint in 3D, and verify if this intersection is satisfies
+! a) alpha in [0,lenghtPartTrajectrory]  ! intersection point is between LastPartPos and PartPos
+! b) alpha is not a multiple intersection
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
+#ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:MyRank
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)                 :: nXiClip
+INTEGER,INTENT(IN)                 :: nEtaClip
+INTEGER,INTENT(IN)                 :: PartID
+REAL,INTENT(IN)                    :: lengthPartTrajectory
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)              :: nInterSections
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                               :: tmpXi,tmpEta,Xi,Eta,alpha,alphaNorm,MinusXi,MinusEta
+REAL,DIMENSION(3,0:NGeo,0:NGeo)    :: ReducedBezierControlPoints
+REAL,DIMENSION(3)                  :: IntersectionVector
+INTEGER                            :: p,q,l,iDeCasteljau
+REAL                               :: Xi,Eta,alpha
+LOGICAL                            :: isNewIntersection
+INTEGER                            :: iInter
+REAL                               :: alphaNorm
+REAL                               :: MinusXi,MinusEta,tmpXi,tmpEta
+!===================================================================================================================================
+
+! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
+!   xi-direction
+IF(nXiClip.EQ.0)THEN
+  Xi=0.
+ELSE
+  Xi=0.5*SUM(XiArray(:,nXiClip))
+  DO iClip=nXiClip-1,1,-1
+    Xi=XiArray(1,iClip)+0.5*(Xi+1)*(XiArray(2,iClip)-XiArray(1,iClip))
+  END DO
+END IF ! nXIClip
+!   eta-direction
+IF(nEtaClip.EQ.0)THEN
+  Eta=0.
+ELSE
+  Eta=0.5*SUM(EtaArray(:,nEtaClip))
+  DO iClip=nEtaClip-1,1,-1
+    Eta=EtaArray(1,iClip)+0.5*(Eta+1)*(EtaArray(2,iClip)-EtaArray(1,iClip))
+  END DO
+END IF ! nEtaclip
+
+! Calculate intersection value in 3D (De Casteljau)
+tmpXi=XI
+tmpEta=Eta
+
+! shift from [-1,1] to [0,1]
+Xi=0.5*(Xi+1)
+Eta=0.5*(Eta+1)
+
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(PartID.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,*) ' xi,eta ',xi,eta
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
+IF((ABS(eta).GT.BezierClipHit).OR.(ABS(xi).GT.BezierClipHit))THEN
+  RETURN
+END IF
+
+MinusXi =1.0-Xi
+MinusEta=1.0-Eta
+! BEGIN DECASTELJAU ------------------------------------
+! Wikipedia: "Although the algorithm is slower for most architectures 
+!             when compared with the direct approach, it is more numerically stable."
+! DEBUG: keep decastejau or implement horner for direct evaluation
+ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
+l=NGeo-1
+DO iDeCasteljau=1,NGeo
+  DO q=0,l
+    DO p=0,l
+      !ReducedBezierControlPoints_temp(:,p,q)=DOT_PRODUCT((/1-.Smean(1), Smean(1)/),MATMUL(
+                                       ![ReducedBezierControlPoints(p,q  ,:),ReducedBezierControlPoints(p  ,q+1,:);
+                                       ! ReducedBezierControlPoints(p,q+1,:),ReducedBezierControlPoints(p+1,q+1,:)]
+                                                        !,(/1-.Smean(2), Smean(2)/))
+      !ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )          &
+      !                                 +    Xi *ReducedBezierControlPoints(:,p,q+1)*MinusEta &
+      !                                 +MinusXi*ReducedBezierControlPoints(:,p  ,q+1)        &
+      !                                 +    Xi *ReducedBezierControlPoints(:,p+1,q+1)*Eta
+      ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )  *MinusEta & ! A
+                                       +MinusXi*ReducedBezierControlPoints(:,p,q+1)  *Eta      & ! B
+                                       +     Xi*ReducedBezierControlPoints(:,p+1,q)  *MinusEta & ! C
+                                       +     Xi*ReducedBezierControlPoints(:,p+1,q+1)*Eta        ! D
+
+    END DO
+  END DO
+  l=l-1
+END DO
+  
+! resulting point is ReducedBezierControlPoints(:,1,1)
+IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
+! END DECASTELJAU ------------------------------------
+! verify alpha and alphanorm
+alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
+print*,'alpha-test',alpha,SQRT(DOT_PRODUCT(IntersectionVector,IntersectionVector))
+alphaNorm=alpha/lengthPartTrajectory
+
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(iPart.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,*) ' alpha,alphanorm ',alpha,alphaNorm
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
+IF((alphaNorm.LE.1.0).AND.(alphaNorm.GT.-epsilontol))THEN
+  ! found additional intersection point
+  IF(nInterSections.GE.BezierClipMaxIntersec)THEN
+    IPWRITE(UNIT_stdout,'(I0,A)') ' nInterSections > BezierClipMaxIntersec'
+    IPWRITE(UNIT_stdout,'(I0,A,I0)') ' PartID ', iPart
+    IPWRITE(UNIT_stdout,'(I0,A,I0)') ' SideID ', SideID
+    IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipTolerance  ', BezierClipTolerance
+    IPWRITE(UNIT_stdout,'(I0,A,E24.12)') ' BezierClipLocalTol ', BezierClipLocalTol
+    IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
+    IPWRITE(UNIT_stdout,'(I0,A,E18.12,x,E18.12)') ' critical error! ',alpha,alphaNorm
+    IPWRITE(UNIT_stdout,'(I0,A)') ' locAlpha / lengthPartTrajectory '
+    DO iInter=1,nInterSections
+      WRITE(UNIT_stdout,'(E18.12)') locAlpha(iInter)/lengthPartTrajectory
+    END DO
+    STOP 
+    RETURN
+  END IF
+  IF(nInterSections.EQ.0)THEN ! first intersection is always taken
+    nInterSections=nIntersections+1
+    locAlpha(nInterSections)=alpha
+    locXi (nInterSections)=tmpXi
+    locEta(nInterSections)=tmpEta
+  ELSE
+   ! check if new intersection does not coincidence with with any other intersection
+   isNewIntersection=.TRUE.
+   DO iInter=1,nInterSections
+     ! remove multiple found intersections
+     ! compare the found alpha value absolute and relative to find duplicate intersections
+     IF((locAlpha(iInter)-alpha).LT.(BezierClipTolerance)*lengthPartTrajectory) isNewIntersection=.FALSE.
+     IF(ALMOSTEQUALRELATIVE(locAlpha(iInter),alpha,(BezierClipTolerance)*lengthPartTrajectory)) isNewIntersection=.FALSE.
+   END DO ! iInter=1,nInterSections
+   IF(isNewIntersection)THEN
+     nInterSections=nIntersections+1
+     locAlpha(nInterSections)=alpha
+     locXi (nInterSections)=tmpXi
+     locEta(nInterSections)=tmpEta
+   END IF
+ END IF
+END IF
+
+END SUBROUTINE ComputeBezierIntersectionPoint
 
 
 END MODULE MOD_Particle_Intersection
