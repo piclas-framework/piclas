@@ -55,7 +55,7 @@
     IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
 
     IF(XiMin.GT.XiMax)THEN
-        print*,'swwwaaaaaaaap etta',etamin,etamax
+        print*,'swwwaaaaaaaap xi',XiMin,XiMax
     END IF
 
     nXiClip=nXiClip+1
@@ -158,7 +158,7 @@
       END DO
 
       ! Bezier Split
-      tmpnClip =iClipIter+1
+      tmpnClip =iClipIter
       ! backup current split level to compute correct intersection, required for back-trafo of intervals
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
@@ -177,8 +177,9 @@
 #endif /*CODE_ANALYZE*/
       ! HERE, ClipMode currently set above
       ! Perform split xi-upper
-      CALL BezierClip(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory &
-                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
+      CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
+                     ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+
 
       ! second split: xi lower
       ! restore values to allow for correct back-trafo of intervals (required for intersectionpoint)
@@ -274,7 +275,7 @@
       ELSE
         BezierControlPoints2D_temp2=BezierControlPoints2D_temp
       END IF
-      tmpnClip      =iClipIter+1
+      tmpnClip      =iClipIter
       tmpnXi        =nXiClip
       tmpnEta       =nEtaClip
 	  tmpLineNormVec=LineNormVec
@@ -292,9 +293,10 @@
 #endif /*CODE_ANALYZE*/
       ! HERE, ClipMode currently set above
       ! Perform split xi-lower
-      CALL BezierClip(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory &
-                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
-      EXIT ! after recursive steps, we are done!
+      CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
+                     ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+
+      ! after recursive steps, we are done!
     ELSE  ! no split necessary, only a clip
 
       ! set mapping array
@@ -386,4 +388,8 @@
         END DO
         BezierControlPoints2D=BezierControlPoints2D_temp
       END IF
+      CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
+                     ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+
+      ! after recursive steps, we are done!
     END IF ! decision between Clip or Split
