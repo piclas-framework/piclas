@@ -1285,7 +1285,7 @@ PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
 ! outcome: no intersection, single intersection, multiple intersection with patch
 DO WHILE(iClipIter.LE.BezierClipMaxIter)
-  !print*,'iClipIter',iClipIter
+  print*,'iClipIter',iClipIter,clipmode
   iClipIter=iClipIter+1
 
   SELECT CASE(ClipMode) 
@@ -2671,13 +2671,13 @@ tmpLineNormVec=LineNormVec
   ! MAYBE set ClipMode for NEXT clip
   ! HERE, ClipMode currently set above
 #ifdef CODE_ANALYZE
-!      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!        IF(iPart.EQ.PARTOUT)THEN
-!          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!          IPWRITE(UNIT_stdout,*) ' split xi-upper '
-!          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!        END IF
-!      END IF
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+          IPWRITE(UNIT_stdout,*) ' split xi-upper '
+          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+        END IF
+      END IF
 #endif /*CODE_ANALYZE*/
   ! HERE, ClipMode currently set above
   ! Perform split xi-upper
@@ -2787,13 +2787,13 @@ tmpLineNormVec=LineNormVec
   ! MAYBE set ClipMode for NEXT clip
   ! HERE, ClipMode currently set above
 #ifdef CODE_ANALYZE
-!      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!        IF(iPart.EQ.PARTOUT)THEN
-!          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!          IPWRITE(UNIT_stdout,*) ' split xi-lower '
-!          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!        END IF
-!      END IF
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+          IPWRITE(UNIT_stdout,*) ' split xi-lower '
+          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+        END IF
+      END IF
 #endif /*CODE_ANALYZE*/
   ! HERE, ClipMode currently set above
   ! Perform split xi-lower
@@ -2892,7 +2892,7 @@ ELSE  ! no split necessary, only a clip
     END DO
     BezierControlPoints2D=BezierControlPoints2D_temp
   END IF
-  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
+  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory&
                  ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
   ! after recursive steps, we are done!
@@ -3133,13 +3133,13 @@ IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split 
   ! MAYBE set ClipMode for NEXT clip
   ! HERE, ClipMode currently set above
 #ifdef CODE_ANALYZE
-!      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!        IF(iPart.EQ.PARTOUT)THEN
-!          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!          IPWRITE(UNIT_stdout,*) ' split eta-upper '
-!          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!        END IF
-!      END IF
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+          IPWRITE(UNIT_stdout,*) ' split eta-upper '
+          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+        END IF
+      END IF
 #endif /*CODE_ANALYZE*/
   ! HERE, ClipMode currently set above
   ! Perform split eta-upper
@@ -3248,13 +3248,13 @@ tmpLineNormVec=LineNormVec
   ! MAYBE set ClipMode for NEXT clip
   ! HERE, ClipMode currently set above
 #ifdef CODE_ANALYZE
-!      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!        IF(iPart.EQ.PARTOUT)THEN
-!          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
-!          IPWRITE(UNIT_stdout,*) ' split eta-lower '
-!          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
-!        END IF
-!      END IF
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(iPart.EQ.PARTOUT)THEN
+          IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
+          IPWRITE(UNIT_stdout,*) ' split eta-lower '
+          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+        END IF
+      END IF
 #endif /*CODE_ANALYZE*/
   ! HERE, ClipMode currently set above
   ! Perform split eta-lower
@@ -3353,7 +3353,7 @@ ELSE  ! no split necessary, only a clip
     END DO
     BezierControlPoints2D=BezierControlPoints2D_temp
   END IF
-  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
+  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory&
                  ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
   ! after recursive steps, we are done!
