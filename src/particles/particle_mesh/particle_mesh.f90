@@ -652,6 +652,30 @@ PartTrajectory=PartPos - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
+
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' --------------------------------------------- '
+      IPWRITE(UNIT_stdout,*) ' PartInElemCheck '
+      WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos = [ ',LastpartPos(PartID,1), ','  &
+                                                              ,LastpartPos(PartID,2), ','  &
+                                                              ,LastpartPos(PartID,3), '];'
+
+      WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition = [ ',PartPos(1), ','  &
+                                                               ,PartPos(2), ','  &
+                                                               ,PartPos(3), '];'
+
+      WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartTrajectory = [ ',PartTrajectory(1) ,','  &
+                                                                 ,PartTrajectory(2) ,','  &
+                                                                 ,PartTrajectory(3) ,'];'
+
+      WRITE(UNIT_stdout,*) ' lengthPartTrajectory = ', lengthPartTrajectory
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   FoundInElem =.TRUE.
   LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
@@ -722,6 +746,7 @@ DO ilocSide=1,6
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,*) '     | alpha          ',alpha
       WRITE(UNIT_stdout,*) '     | Normal vector  ',NormVec
       WRITE(UNIT_stdout,*) '     | PartTrajectory ',PartTrajectory
       WRITE(UNIT_stdout,*) '     | Dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)

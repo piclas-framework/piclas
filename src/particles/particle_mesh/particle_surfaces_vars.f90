@@ -60,6 +60,7 @@ REAL                                    :: BezierNewtonAngle            ! switch
                                                                         ! smallest angle of impact of particle trajectory on face
 REAL                                    :: BezierClipHit                ! value for clip hit
 REAL                                    :: BezierClipTolerance          ! tolerance for root of bezier clipping
+REAL                                    :: BezierClipLocalTol           ! abort tolerance for bezier clipping
 REAL                                    :: BezierNewtonTolerance2       ! tolerance for root of bezier Newton
 INTEGER                                 :: BezierNewtonGuess            ! guess of bezier newton
 REAL                                    :: BezierNewtonHit              ! value for bezier Newton hit

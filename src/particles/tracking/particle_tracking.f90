@@ -236,7 +236,7 @@ DO iPart=1,PDM%ParticleVecLength
                                                                                         ,eta(ilocSide)   ,iPart,flip,SideID &
                                                                                         ,isCriticalParallelInFace)
 
-        CASE(CURVED)
+       CASE(CURVED)
           CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)      ,iPart,SideID &
@@ -446,6 +446,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
 #endif /*CODE_ANALYZE*/
     END DO ! PartisDone=.FALSE.
+    markTol=.FALSE.
     IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         DoParticle(iPart)=.FALSE.
@@ -453,7 +454,10 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
       PEM%Element(iPart)=ElemID
-      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
+      IF(.NOT.isHit) THEN
+        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating....' 
+        CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
+      END IF
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         !WRITE(UNIT_stdOut,'(20(=))')
@@ -865,7 +869,8 @@ CALL abort(&
 __STAMP__ &
 ,'Particle Not inSide of Element, iPart',iPart)
         ELSE ! BCElem
-          IPWRITE(UNIT_stdOut,'(I0,A,x,I0)') ' fallback', iPart
+          IPWRITE(UNIT_stdOut,'(I0,A,X,I0)') ' fallback for particle', iPart
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' particlepos            ', partstate(ipart,1:3)
           Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
           IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
           !CALL RefTrackFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
