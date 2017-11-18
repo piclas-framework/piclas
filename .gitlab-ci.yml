@@ -209,14 +209,14 @@ gnu_feature_dielectric:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_PIC_single_particle/ -j no-debug ; fi
-#       
-#       gnu_emission_gyro:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; ./regressioncheck build feature_emission_gyrotron -j no-debug ; fi
-#       
+
+gnu_emission_gyro:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/bin/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_emission_gyrotron -j no-debug ; fi
+
 #       gnu_TWT:
 #         stage: reggie_nightly
 #         tags:
@@ -296,14 +296,14 @@ intel_feature_dielectric:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_PIC_single_particle/ -j no-debug ; fi
-#       
-#       intel_emission_gyro:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; ./regressioncheck build feature_emission_gyrotron -j no-debug ; fi
-#       
+
+intel_emission_gyro:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/bin/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_emission_gyrotron -j no-debug ; fi
+
 #       intel_TWT:
 #         stage: reggie_nightly
 #         tags:
