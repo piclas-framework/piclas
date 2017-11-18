@@ -152,6 +152,7 @@ REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
 REAL                            :: r1,r2
 REAL                            :: r_2D,r_3D,varphi,r_bary
+REAL                            :: cos_theta
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(0)
@@ -189,36 +190,93 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
   ! eps_outer : dielectric constant of surrouding medium
   ! eps_inner : dielectric constant of sphere
   ! DielectricRatio = eps_inner / eps_outer (set in dielectric init)
-  !
+  
   ! set radius and angle for DOF position x(1:3)
-  varphi = ATAN2(x(2),x(1))
   r_2D   = SQRT(x(1)**2+x(2)**2)
   r_3D   = SQRT(x(1)**2+x(2)**2+x(3)**2)
-  r_bary = SQRT(ElemBaryNGeo(1,ElemID)**2+ElemBaryNGeo(2,ElemID)**2+ElemBaryNGeo(3,ElemID)**2)
+  IF(r_3D.EQ.0.0)THEN
+    cos_theta = 0.0
+  ELSE
+    cos_theta = x(3) / r_3D
+  END IF
+  IF(PRESENT(ElemID))THEN ! if ElemID is present, use for bary center determination versus sphere radius
+    r_bary = SQRT(ElemBaryNGeo(1,ElemID)**2+ElemBaryNGeo(2,ElemID)**2+ElemBaryNGeo(3,ElemID)**2)
+  ELSE
+    r_bary = r_3D
+  END IF
 
   ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
-  IF(r_bary.LE.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
+  IF(r_bary.LT.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
     ! Phi_inner = - (3 / (2 + eps_inner / eps_outer)) * E_1 * z
-    resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*Dielectric_E_0*x(3)
-  ELSEIF(r_bary.GT.DielectricRadiusValue)THEN ! outside sphere
+    !resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*Dielectric_E_0*x(3)
+    resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*r_3D*cos_theta*Dielectric_E_0
+  ELSEIF(r_bary.GE.DielectricRadiusValue)THEN ! outside sphere
     ! Phi_outer = ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   - 1 ) * E_0 * z
-    resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
-                       ( (DielectricRadiusValue**3) / ((r_2D**2+x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
+    resu(1:PP_nVar) =  ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
+                       Dielectric_E_0*(DielectricRadiusValue**3/r_3D**2)*cos_theta-Dielectric_E_0 * r_3D*cos_theta
+                         
+                       !( (DielectricRadiusValue**3) / (r_3D**3) ) - 1 )*(Dielectric_E_0 * x(3))
+                       !( (DielectricRadiusValue**3) / ((r_2D**2+x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
   ELSE
-    SWRITE(*,*) ElemID
-    SWRITE(*,*) x(1),x(2),x(3),r_3D
-    SWRITE(*,*) ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID),r_bary
-    SWRITE(*,*) DielectricRadiusValue
+    IF(PRESENT(ElemID))THEN
+      SWRITE(*,*) "ElemID                ",ElemID
+      SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID),r_bary
+    END IF
+    SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
+    SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
     CALL abort(&
     __STAMP__&
     ,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 
+  ! varphi = ATAN2(x(2),x(1)) ! only needed for the electric field
   !   E_r,inner = 0
   !   E_z,inner = (3 / (2 + eps_inner / eps_outer)) * E_0
   !  
   !   E_r,outer = 3 * ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^4 ) ) * E_0 * z
   !   E_z,inner =   ( - (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   + 1 ) * E_0
+CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric field E_0: adjusted from CASE(200)
+  ! R = DielectricRadiusValue
+  ! DielectricRatio = eps/eps0
+
+  ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
+  IF(ABS(ElemBaryNGeo(3,ElemID)).LT.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
+    ! Phi_inner = 
+
+    ! marcel
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(1 - (DielectricRatio-1)/(DielectricRatio+2))
+
+    ! linear
+    !resu(1:PP_nVar) = -(1./(DielectricRatio))*Dielectric_E_0*x(3)
+
+
+
+  ELSEIF(ABS(ElemBaryNGeo(3,ElemID)).GT.DielectricRadiusValue)THEN ! outside sphere
+    ! Phi_outer = 
+    !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
+                       !( (DielectricRadiusValue**3) / (x(3)**(3.)) ) - 1 )*(Dielectric_E_0 * x(3))
+                       !( (DielectricRadiusValue**3) / ((x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
+
+
+    ! marcel
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
+
+    ! linear
+    !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+
+    !resu(1:PP_nVar) = -Dielectric_E_0*(x(3) - sign(1.0,x(3))*((DielectricRatio-1)/(DielectricRatio+2))*((2**3)/(x(3)**2)) )
+    !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
+                       !( (2.0**3) / ((x(3)**3) ) - 1 )*(Dielectric_E_0 * x(3))
+  ELSE
+    SWRITE(*,*) "ElemID                ",ElemID
+    SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
+    SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID)
+    SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
+    CALL abort(&
+    __STAMP__&
+    ,'Dielectric sphere. Invalid radius for exact function!')
+  END IF
+
 
 CASE DEFAULT
   CALL abort(&
