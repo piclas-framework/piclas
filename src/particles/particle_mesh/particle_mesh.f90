@@ -3234,12 +3234,11 @@ SUBROUTINE GetElemAndSideType()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,NGeo,Vdm_CLNGeo1_CLNGeo,nSides
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,BC,ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,BC,NGeo,Vdm_CLNGeo1_CLNGeo,nSides,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,PartBCSideList,nTotalBCSides,GEO
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -4388,7 +4387,7 @@ REAL                                 :: MinMax(1:2),MinMaxGlob(1:6)
 
 nPartPeriodicSides=0
 MapPeriodicSides=.FALSE.
-IF(.NOT.CartesianPeriodic)THEN
+IF(.NOT.CartesianPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
   DO iSide=1,nSides
     IF(SidePeriodicType(iSide).NE.0)THEN
       ! abort if particles are traced over mortar sides

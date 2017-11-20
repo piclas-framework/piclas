@@ -3041,8 +3041,8 @@ USE MOD_PICDepo,             ONLY:Deposition
 USE MOD_DG_Vars,             ONLY:U
 #else
 #if PP_nVar==1
-#else
 USE MOD_Equation_Vars,       ONLY:E
+#else
 #endif
 #endif
 #ifdef MPI
@@ -3127,11 +3127,11 @@ DO iSpec=1,nSpecies
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
-          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
-#else
           PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
           PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
           PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+#else
+          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif
