@@ -1471,9 +1471,9 @@ __STAMP__&
             PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             IF(DoRefMapping.OR.TriaTracking)THEN
-              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFix=.TRUE.)
+              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFix=.TRUE.,doRelocate=.FALSE.)
             ELSE
-              CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+              CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
             END IF
             IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
                mySumOfMatchedParticles = mySumOfMatchedParticles + 1
@@ -1904,9 +1904,9 @@ __STAMP__,&
        PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
        IF(DoRefMapping.OR.TriaTracking)THEN
-         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,InitFix=.TRUE.)
+         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,InitFix=.TRUE.,doRelocate=.FALSE.)
        ELSE
-         CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+         CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
        END IF
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
@@ -1928,8 +1928,8 @@ __STAMP__&
     END IF
   END DO
  
-IF(DoDisplayIter)THEN
-IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+! we want always warnings to know if the emission has failed. if a timedisc does not require this, this
+! timedisc has to be handled separately
 #ifdef MPI
   mySumOfRemovedParticles=0
   IF(nChunksTemp.EQ.1) THEN
@@ -2017,8 +2017,7 @@ IF(MOD(iter,IterDisplayStep).EQ.0) THEN
 #ifdef MPI
   END IF ! PartMPI%iProc.EQ.0
 #endif
-END IF ! IterDisplayStep
-END IF
+
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
 #ifdef MPI
@@ -2862,9 +2861,9 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
           IF (TriaTracking) THEN
-            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.)
+            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.,doRelocate=.FALSE.)
           ELSE
-            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
           END IF
         ELSE
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
@@ -2973,9 +2972,9 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
           IF (TriaTracking) THEN
-            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.)
+            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.,doRelocate=.FALSE.)
           ELSE
-            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
+            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
           END IF
         ELSE
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
@@ -3428,6 +3427,9 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
+#endif
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox
@@ -4144,6 +4146,9 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   SWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
 END IF
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE')
+#endif
 
 END SUBROUTINE InitializeParticleSurfaceflux
 

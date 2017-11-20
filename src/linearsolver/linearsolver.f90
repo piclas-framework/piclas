@@ -81,10 +81,13 @@ nDOFGlobal=nDOFelem*PP_nElems
 #endif /*NOT HDG*/
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ImplicitSource=0.
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 ALLOCATE(ExplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ExplicitSource=0.
 #endif
 ALLOCATE(LinSolverRHS  (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+
 !#if (PP_TimeDiscMethod==100)
 !  ALLOCATE(FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1))
 !#endif

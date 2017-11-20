@@ -463,7 +463,7 @@ ParticleMeshInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMesh
 
 
-SUBROUTINE SingleParticleToExactElement(iPart,doHalo,initFix)                                                         
+SUBROUTINE SingleParticleToExactElement(iPart,doHalo,initFix,doRelocate)
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -490,6 +490,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)                :: iPart
 LOGICAL,INTENT(IN)                :: doHalo
 LOGICAL,INTENT(IN)                :: initFix
+LOGICAL,INTENT(IN)                :: doRelocate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -510,189 +511,195 @@ IF (KeepWallParticles) THEN
   IF (PDM%ParticleAtWall(iPart)) THEN
     PEM%Element(iPart) = PEM%lastElement(iPart)
     ParticleFound = .TRUE.
+    RETURN 
   END IF
 END IF
 
-IF (.NOT.ParticleFound) THEN
+IF (.NOT.DoRelocate) THEN
   IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
        (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
        (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
      PDM%ParticleInside(iPart) = .FALSE.
      RETURN
   END IF
+END IF
 
-  ! --- get background mesh cell of particle
-  CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-  CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
-  CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
-  CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
+! --- get background mesh cell of particle
+CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
+CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
+CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
 
 
-  IF (TriaTracking) THEN
-    !--- check all cells associated with this background mesh cell
-    DO iBGMElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
-      ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-      CALL ParticleInsideQuad3D(PartState(iPart,1:3),ElemID,InElementCheck,Det)
-      IF (InElementCheck) THEN
-         PEM%Element(iPart) = ElemID
-         ParticleFound = .TRUE.
-         EXIT
-      END IF
-    END DO
-    IF (.NOT.ParticleFound) THEN
-      PDM%ParticleInside(iPart) = .FALSE.
+IF (TriaTracking) THEN
+  !--- check all cells associated with this background mesh cell
+  DO iBGMElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
+    ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+    CALL ParticleInsideQuad3D(PartState(iPart,1:3),ElemID,InElementCheck,Det)
+    IF (InElementCheck) THEN
+       PEM%Element(iPart) = ElemID
+       ParticleFound = .TRUE.
+       EXIT
     END IF
-    RETURN
-  END IF
-
-  !--- check all cells associated with this beckground mesh cell
-  nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
-
-  ! get closest element barycenter
-  Distance=-1.
-  ListDistance=0
-  DO iBGMElem = 1, nBGMElems
-    ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-    Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
-             +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
-             +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
-    IF(Distance2.GT.ElemRadius2NGeo(ElemID))THEN
-      Distance(iBGMElem)=-1.
-    ELSE
-      Distance(iBGMElem)=Distance2
-    END IF
-    ListDistance(iBGMElem)=ElemID
-  END DO ! nBGMElems
-
-  IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
+  END DO
+  IF (.NOT.ParticleFound) THEN
     PDM%ParticleInside(iPart) = .FALSE.
-    RETURN
+  END IF
+   RETURN
+END IF
+
+!--- check all cells associated with this beckground mesh cell
+nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
+
+! get closest element barycenter
+Distance=-1.
+ListDistance=0
+DO iBGMElem = 1, nBGMElems
+  ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
+           +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+           +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
+  IF(Distance2.GT.ElemRadius2NGeo(ElemID))THEN
+    Distance(iBGMElem)=-1.
+  ELSE
+    Distance(iBGMElem)=Distance2
+  END IF
+  ListDistance(iBGMElem)=ElemID
+END DO ! nBGMElems
+
+IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
+  PDM%ParticleInside(iPart) = .FALSE.
+  IF(DoRelocate) CALL abort(&
+__STAMP__&
+, ' halo mesh to small. increase halo distance')
+  RETURN
+END IF
+
+!CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
+
+! loop through sorted list and start by closest element  
+DO iBGMElem=1,nBGMElems
+  IF(ALMOSTEQUAL(Distance(iBGMElem),-1.))CYCLE
+  ElemID=ListDistance(iBGMElem)
+  IF(.NOT.DoHALO)THEN
+    IF(ElemID.GT.PP_nElems) CYCLE
+  END IF
+  IF(IsBCElem(ElemID))THEN
+    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,InElementCheck)
+    IF(.NOT.InElementCheck) CYCLE
   END IF
 
-  !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-  IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
-
-  ! loop through sorted list and start by closest element  
-  DO iBGMElem=1,nBGMElems
-    IF(ALMOSTEQUAL(Distance(iBGMElem),-1.))CYCLE
-    ElemID=ListDistance(iBGMElem)
-    IF(.NOT.DoHALO)THEN
-      IF(ElemID.GT.PP_nElems) CYCLE
-    END IF
-    IF(IsBCElem(ElemID))THEN
-      CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,InElementCheck)
-      IF(.NOT.InElementCheck) CYCLE
-    END IF
-
-    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-    IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
-      IF(.NOT.InitFix)THEN
-        InElementCheck=.TRUE.
-      ELSE
-       InElementCheck=.TRUE.
-       ! inelementcheck can only be set to false in the following part
+  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+  IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
+    IF(.NOT.InitFix)THEN
+      InElementCheck=.TRUE.
+    ELSE
+     InElementCheck=.TRUE.
+     ! inelementcheck can only be set to false in the following part
 #ifdef MPI
-!       ! check if xi is larger than unity, than the
-!       ! particle is found at least twice
-       IF(MAXVAL(ABS(Xi)).GT.0.99999999)THEN ! particle possible outside
-         XiDir = MAXLOC(ABS(Xi),1)
-         ! now, get neighbor-side id
-         SELECT CASE(XiDir)
-         CASE(1) ! Xi
-           IF(Xi(XiDir).GT.0)THEN
-             ! XI_PLUS
-             locSideID=XI_PLUS
-             locXi=Xi(3)
-             locEta=Xi(2)
-           ELSE
-             ! XI_MINUS
-             locSideID=XI_MINUS
-             locXi=Xi(2)
-             locEta=Xi(3)
-           END IF
-         CASE(2) ! Eta
-           IF(Xi(XiDir).GT.0)THEN
-             locSideID=ETA_PLUS
-             locXi=-Xi(1)
-             locEta=Xi(3)
-           ELSE
-             locSideID=ETA_MINUS
-             locXi=Xi(1)
-             locEta=Xi(3)
-           END IF
-         CASE(3) ! Zeta
-           IF(Xi(XiDir).GT.0)THEN
-             locSideID=ZETA_PLUS
-             locXi =Xi(1)
-             locEta=Xi(2)
-           ELSE
-             locSideID=ZETA_MINUS
-             locXi=Xi(2)
-             locEta=Xi(1)
-           END IF
-         CASE DEFAULT
-           CALL abort(&
+!     ! check if xi is larger than unity, than the
+!     ! particle is found at least twice
+     IF(MAXVAL(ABS(Xi)).GT.0.99999999)THEN ! particle possible outside
+       XiDir = MAXLOC(ABS(Xi),1)
+       ! now, get neighbor-side id
+       SELECT CASE(XiDir)
+       CASE(1) ! Xi
+         IF(Xi(XiDir).GT.0)THEN
+           ! XI_PLUS
+           locSideID=XI_PLUS
+           locXi=Xi(3)
+           locEta=Xi(2)
+         ELSE
+           ! XI_MINUS
+           locSideID=XI_MINUS
+           locXi=Xi(2)
+           locEta=Xi(3)
+         END IF
+       CASE(2) ! Eta
+         IF(Xi(XiDir).GT.0)THEN
+           locSideID=ETA_PLUS
+           locXi=-Xi(1)
+           locEta=Xi(3)
+         ELSE
+           locSideID=ETA_MINUS
+           locXi=Xi(1)
+           locEta=Xi(3)
+         END IF
+       CASE(3) ! Zeta
+         IF(Xi(XiDir).GT.0)THEN
+           locSideID=ZETA_PLUS
+           locXi =Xi(1)
+           locEta=Xi(2)
+         ELSE
+           locSideID=ZETA_MINUS
+           locXi=Xi(2)
+           locEta=Xi(1)
+         END IF
+       CASE DEFAULT
+         CALL abort(&
 __STAMP__&
 , ' Error in  mesh-connectivity!')
-         END SELECT
-         ! get flip and rotate xi and eta into side-master system
-         flip     =ElemToSide(E2S_FLIP,locSideID,ElemID)
-         SideID   =ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
-         SELECT CASE(Flip)
-         CASE(1) ! slave side, SideID=q,jSide=p
-           tmpXi=locEta
-           locEta=locXi
-           locXi=tmpXi
-         CASE(2) ! slave side, SideID=N-p,jSide=q
-           locXi=-locXi
-           locEta=locEta
-         CASE(3) ! slave side, SideID=N-q,jSide=N-p
-           tmpXi =-locEta
-           locEta=-locXi
-           locXi=tmpXi
-         CASE(4) ! slave side, SideID=p,jSide=N-q
-           locXi =locXi
-           locEta=-locEta
-         END SELECT
-         IF(BC(SideID).GT.0)THEN
-           InElementCheck=.FALSE.
-         ELSE
-!           ! check if neighbor element is an mpi-element and if yes,
-!           ! only take the particle if I am the lower rank
-           Moved = PARTSWITCHELEMENT(locxi,loceta,locSideID,SideID,ElemID)
-           IF(Moved(1).GT.PP_nElems)THEN
-             IF(PartHaloElemToProc(NATIVE_PROC_ID,Moved(1)).LT.MyRank)THEN
-               InElementCheck=.FALSE.
-             END IF
+       END SELECT
+       ! get flip and rotate xi and eta into side-master system
+       flip     =ElemToSide(E2S_FLIP,locSideID,ElemID)
+       SideID   =ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
+       SELECT CASE(Flip)
+       CASE(1) ! slave side, SideID=q,jSide=p
+         tmpXi=locEta
+         locEta=locXi
+         locXi=tmpXi
+       CASE(2) ! slave side, SideID=N-p,jSide=q
+         locXi=-locXi
+         locEta=locEta
+       CASE(3) ! slave side, SideID=N-q,jSide=N-p
+         tmpXi =-locEta
+         locEta=-locXi
+         locXi=tmpXi
+       CASE(4) ! slave side, SideID=p,jSide=N-q
+         locXi =locXi
+         locEta=-locEta
+       END SELECT
+       IF(BC(SideID).GT.0)THEN
+         InElementCheck=.FALSE.
+       ELSE
+!         ! check if neighbor element is an mpi-element and if yes,
+!         ! only take the particle if I am the lower rank
+         Moved = PARTSWITCHELEMENT(locxi,loceta,locSideID,SideID,ElemID)
+         IF(Moved(1).GT.PP_nElems)THEN
+           IF(PartHaloElemToProc(NATIVE_PROC_ID,Moved(1)).LT.MyRank)THEN
+             InElementCheck=.FALSE.
            END IF
          END IF
        END IF
+     END IF
 #endif /*MPI*/      
-      END IF
-    ELSE ! particle at face,edge or node, check most possible point
-      InElementCheck=.FALSE.
     END IF
-    IF (InElementCheck) THEN 
-      PEM%Element(iPart) = ElemID
-      IF(DoRefMapping) PartPosRef(1:3,iPart) = Xi
-      ParticleFound = .TRUE.
-      EXIT
-    END IF
-  END DO ! iBGMElem
-END IF
+  ELSE ! particle at face,edge or node, check most possible point
+    InElementCheck=.FALSE.
+  END IF
+  IF (InElementCheck) THEN 
+    PEM%Element(iPart) = ElemID
+    IF(DoRefMapping) PartPosRef(1:3,iPart) = Xi
+    ParticleFound = .TRUE.
+    EXIT
+  END IF
+END DO ! iBGMElem
 
 ! particle not found
 IF (.NOT.ParticleFound) THEN
+  IF(DoRelocate) CALL abort(&
+__STAMP__&
+, ' halo mesh to small. increase halo distance')
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
-RETURN
 
 END SUBROUTINE SingleParticleToExactElement
 
 
-SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO)
+SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO,doRelocate)
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -714,6 +721,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: iPart
 LOGICAL,INTENT(IN)                :: doHalo
+LOGICAL,INTENT(IN)                :: doRelocate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -726,11 +734,13 @@ REAL                              :: Distance2
 !===================================================================================================================================
 
 ParticleFound = .FALSE.
-IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
-     (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
-     (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
-   PDM%ParticleInside(iPart) = .FALSE.
-   RETURN
+IF(.NOT.DoRelocate)THEN
+  IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
+       (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
+       (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+     PDM%ParticleInside(iPart) = .FALSE.
+     RETURN
+  END IF
 END IF
 
 ! --- get background mesh cell of particle
@@ -768,6 +778,9 @@ END DO ! nBGMElems
 
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   PDM%ParticleInside(iPart) = .FALSE.
+  IF(DoRelocate) CALL abort(&
+__STAMP__&
+, ' halo mesh to small. increase halo distance')
   RETURN
 END IF
 
@@ -793,6 +806,9 @@ END DO ! iBGMElem
 
 ! particle not found
 IF (.NOT.ParticleFound) THEN
+  IF(DoRelocate) CALL abort(&
+__STAMP__&
+, ' halo mesh to small. increase halo distance')
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
