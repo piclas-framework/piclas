@@ -49,7 +49,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts,CountNbOfLostParts,nLostParts
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts,CountNbOfLostParts,nLostParts,TrackInfo
 #ifdef MPI
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 #endif /*MPI*/
@@ -90,6 +90,7 @@ DO i = 1,PDM%ParticleVecLength
     nCurrentParts=nCurrentParts+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
+    TrackInfo%CurrElem = ElemID
     SideID = 0
     DoneSideID(:) = 0
     DoneLastElem(:,:) = 0
@@ -98,7 +99,7 @@ DO i = 1,PDM%ParticleVecLength
       CALL ParticleInsideQuad3D(PartState(i,1:3),ElemID,InElementCheck,det)
       !---- If it is, set new ElementNumber = lement and LocalizeOn = .FALSE. ->PartisDone
       IF (InElementCheck) THEN
-        PEM%Element(i) = ElemID
+        PEM%Element(i) = TrackInfo%CurrElem !ElemID
         PartisDone = .TRUE.
       !---- If it is not, check through which side it moved
       ELSE
@@ -236,6 +237,7 @@ DO i = 1,PDM%ParticleVecLength
         doLocSide=.FALSE.
         !SideID=PartElemToSide(E2S_SIDE_ID,LocalSide,ElemID)
         flip  =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
+        TrackInfo%LocSide = LocalSide
         OldElemID=ElemID
         CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
           ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
@@ -1341,8 +1343,7 @@ SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars,      ONLY:TriaTracking
-USE MOD_Particle_Mesh_Vars,          ONLY:TriaSideData
+USE MOD_Particle_Tracking_Vars,      ONLY:TriaTracking,TrackInfo
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
@@ -1384,6 +1385,7 @@ IF(BC(SideID).GT.0)THEN
                                                                  ,xi    &
                                                                  ,eta   ,PartID,SideID,flip,hitlocSide,ElemID,crossedBC&
                                                                  ,TriNumTemp)
+  TrackInfo%CurrElem=ElemID
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
   !dolocSide(hitlocSide)=.FALSE.
@@ -1395,9 +1397,7 @@ ELSE
   !! recompute remaining particle trajectory
   !lengthPartTrajectory=lengthPartTrajectory-alpha
   ! check if particle leaves element
-  IF (TriaTracking) THEN
-    n_loc = TriaSideData(SideID)%vec_nIn(:,TriNum,flip)
-  ELSE 
+  IF (.NOT.TriaTracking) THEN
     SELECT CASE(SideType)
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc=SideNormVec(1:3,SideID)
@@ -1407,12 +1407,13 @@ ELSE
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     END SELECT 
     IF(flip.NE.0) n_loc=-n_loc
+    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN 
   END IF
-  IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN 
   ! update particle element
   dolocSide=.TRUE.
   Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
   ElemID=Moved(1)
+  TrackInfo%CurrElem=ElemID
   dolocSide(Moved(2))=.FALSE.
 END IF
 

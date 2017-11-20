@@ -1,0 +1,23 @@
+Metadata-Version: 1.1
+Name: gprof2dot
+Version: 2017.9.19
+Summary: Generate a dot graph from the output of several profilers.
+Home-page: https://github.com/jrfonseca/gprof2dot
+Author: Jose Fonseca
+Author-email: jose.r.fonseca@gmail.com
+License: LGPL
+Description: 
+                gprof2dot.py is a Python script to convert the output from many
+                profilers into a dot graph.
+                
+Platform: UNKNOWN
+Classifier: Development Status :: 6 - Mature
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Topic :: Software Development

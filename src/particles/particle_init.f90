@@ -78,10 +78,11 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
+    ALLOCATE(DSMC_HOSolution(1:10,1,1,1,1:nElems,1:nSpecies))         
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
+    ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
   END IF     
-  ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
   DSMC_HOSolution = 0.0
   CALL InitHODSMC()
 END IF
@@ -417,7 +418,12 @@ END IF
 DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
 IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
 IF (DSMC%NumOutput.NE.0) THEN
-  DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+  IF (DSMC%TimeFracSamp.GT.0.0) THEN
+    DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+  ELSE
+    DSMC%NumOutput=0
+    SWRITE(UNIT_STDOUT,*)'DSMC_NumOutput was set to 0 because timefracsamp is 0.0'
+  END IF
 END IF
 
 !ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')

@@ -4197,9 +4197,9 @@ USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #endif
-#ifdef CODE_ANALYZE
-USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
-#endif /*CODE_ANALYZE*/
+!#ifdef CODE_ANALYZE
+!USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
+!#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -4608,7 +4608,11 @@ __STAMP__&
                                                                             , GEO%zmaxglob
               CALL abort(&
                  __STAMP__ &
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
                  ,' LastPartPos outside of mesh. iPart=, iStage',ParticleIndexNbr,REAL(iStage))
+#else
+                 ,' LastPartPos outside of mesh. iPart=',ParticleIndexNbr)
+#endif
             END IF
 #endif /*CODE_ANALYZE*/ 
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.

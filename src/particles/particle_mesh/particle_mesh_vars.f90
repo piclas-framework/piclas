@@ -157,16 +157,6 @@ END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
-TYPE tDataTria
-  REAL                                   :: vec_nIn(3,2,0:4)                  ! inwards normal of tria (Coords,Tri1:Tri2,flip)
-  REAL                                   :: vec_t1(3,2,0:4)                   ! first orth. vector in tria (Coords,Tri1:Tri2,flip)
-  REAL                                   :: vec_t2(3,2,0:4)                   ! second orth. vector in tria (Coords,Tri1:Tri2,flip)
-  REAL                                   :: area(2)                           ! area of tria (Tri1:Tri2)
-!  REAL                                   :: NodeCoords(3,3)                  ! NodeCoords of triangle nodes
-END TYPE tDataTria
-TYPE(tDataTria),ALLOCATABLE              :: TriaSideData(:)                   ! data of triangulated Sides 
-                                                                              ! (e.g. normal+tang. vectors, nodes)
-                                                                              ! (nTotalSides)
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
 
