@@ -3318,7 +3318,6 @@ IF (.NOT.DoRefMapping) THEN
   ElemType=-1
 END IF
 
-print*,'nTotalBCSides',nTotalBCSides,nSides,nTotalSides
 ! sides
 IF(DoRefMapping)THEN
   ALLOCATE( SideType(nTotalBCSides)        &
@@ -3529,10 +3528,6 @@ DO iElem=1,nTotalElems
     SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
-
-DO iSide=1,nTotalBCSides
-  print*,'iSide',iSide,SUM(SideNormVec(:,iSide))
-END DO 
 
 ! sanity check for side periodic type
 DO iSide=1,nPartSides
@@ -4220,9 +4215,6 @@ DO iElem=1,nTotalElems
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
-#ifdef MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-#endif /*MPI*/
 ! which local side of neighbor element is connected to MY element
 DO iElem=1,nTotalElems
   DO ilocSide=1,6
@@ -4467,8 +4459,6 @@ __STAMP__&
   END DO
 END IF
 
-print*,'nSides',nSides,'nPartPeriodicSides',nPartPeriodicSides
-
 !IF(nPartPeriodicSides.GT.0)THEN
 IF(MapPeriodicSides)THEN
   ! map min-max glob to local array
@@ -4704,24 +4694,9 @@ DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   nTotalBCSides=nTotalBCSides+1
   PartBCSideList(iSide)=nTotalBCSides
 END DO ! iSide
-#ifdef MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-#endif /*MPI*/
-IPWRITE(*,*) 'nSides,nTotalBCSiedes,nTotalSides,nPartPeriodicSides,nPartSides',nSides,nTotalBCSides,nTotalSides,nPartPeriodicSides &
-                  ,nPartSides
-#ifdef MPI
-!-- wtf?!? --
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-#endif /*MPI*/
+
 ! nPartsides 
 nPartSides   =nPartPeriodicSides+nSides
-IF(DorefMapping)THEN
-  ! nothing?
-ELSE
-  nTotalBCSides=nPartSides
-END IF
 
 END SUBROUTINE MarkAllBCSides
 

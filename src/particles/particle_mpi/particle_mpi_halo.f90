@@ -1508,7 +1508,7 @@ IF(DoRefMapping)THEN
     END DO ! iHaloSide
     
     ! new number of sides
-    IPWRITE(*,*) 'nTotalSides,ntotBCSides,ntotalelems',nTotalSides,nTotalBCSides,nTotalElems
+    !IPWRITE(*,*) 'nTotalSides,ntotBCSides,ntotalelems',nTotalSides,nTotalBCSides,nTotalElems
     tmpnSides    =nTotalSides
     tmpnElems    =nTotalElems
     tmpBCSides   =nTotalBCSides
@@ -1516,7 +1516,7 @@ IF(DoRefMapping)THEN
     nTotalBCSides=nTotalBCSides+RecvMsg%nSides-nDoubleSides
     nTotalElems  =nTotalElems+RecvMsg%nElems
     !tmpnSides    =nTotalSides
-    IPWRITE(*,*) 'NewnTotalSides,Newntotalbcsides,Newntotalelesm',nTotalSides,nTotalBCSides,nTotalElems
+    !IPWRITE(*,*) 'NewnTotalSides,Newntotalbcsides,Newntotalelesm',nTotalSides,nTotalBCSides,nTotalElems
     CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems,tmpBCSides,nTotalBCSides)
 
     ! loop over all elements and add them
