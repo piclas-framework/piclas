@@ -4220,7 +4220,9 @@ DO iElem=1,nTotalElems
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
+#ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif /*MPI*/
 ! which local side of neighbor element is connected to MY element
 DO iElem=1,nTotalElems
   DO ilocSide=1,6
@@ -4702,13 +4704,17 @@ DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   nTotalBCSides=nTotalBCSides+1
   PartBCSideList(iSide)=nTotalBCSides
 END DO ! iSide
-
+#ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif /*MPI*/
 IPWRITE(*,*) 'nSides,nTotalBCSiedes,nTotalSides,nPartPeriodicSides,nPartSides',nSides,nTotalBCSides,nTotalSides,nPartPeriodicSides &
                   ,nPartSides
+#ifdef MPI
+!-- wtf?!? --
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+#endif /*MPI*/
 ! nPartsides 
 nPartSides   =nPartPeriodicSides+nSides
 IF(DorefMapping)THEN
