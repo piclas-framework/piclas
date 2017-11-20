@@ -250,6 +250,13 @@ gnu_maxwell_cylinder_PML:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
+
+gnu_maxwell_cylinder_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_plasma_wave/ ; fi
 #       
 #       gnu_maxwell_sphere_dielectric:
 #         stage: reggie_nightly
@@ -257,13 +264,13 @@ gnu_maxwell_cylinder_PML:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_dielectric/ ; fi
-#       
-#       gnu_maxwell_ExactFlux_PML:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
+
+gnu_maxwell_ExactFlux_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
 #       
 #       gnu_poisson_implicit_surface_flux:
 #         stage: reggie_nightly
@@ -271,13 +278,13 @@ gnu_maxwell_cylinder_PML:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
-#       
-#       gnu_PIC_maxwell_bgfield:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
+
+gnu_PIC_maxwell_bgfield:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
        
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
        
@@ -345,33 +352,40 @@ intel_maxwell_cylinder_PML:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
 
+intel_maxwell_cylinder_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_plasma_wave/ ; fi
+
 #       intel_maxwell_sphere_dielectric:
 #         stage: reggie_nightly
 #         tags:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_dielectric/ ; fi
-#       
-#       intel_maxwell_ExactFlux_PML:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
-#       
+
+intel_maxwell_ExactFlux_PML:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
+
 #       intel_poisson_implicit_surface_flux:
 #         stage: reggie_nightly
 #         tags:
 #           - withmodules
 #         script:
 #           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
-#       
-#       intel_PIC_maxwell_bgfield:
-#         stage: reggie_nightly
-#         tags:
-#           - withmodules
-#         script:
-#           - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
+
+intel_PIC_maxwell_bgfield:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
