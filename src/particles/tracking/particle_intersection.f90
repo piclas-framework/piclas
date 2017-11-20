@@ -1285,10 +1285,13 @@ PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
 ! outcome: no intersection, single intersection, multiple intersection with patch
 DO WHILE(iClipIter.LE.BezierClipMaxIter)
-  !print*,'iClipIter',iClipIter
+  print*,'iClipIter',iClipIter,ClipMode
   iClipIter=iClipIter+1
 
   SELECT CASE(ClipMode) 
+  CASE(-1)
+    ! no intersection possible
+    EXIT
   CASE(1)
     ! LineNormVec is only computed, if a Xi and Eta Clip is performed. 
     ! we compute LineNormVecs only until one direction is converged, than we keep the vector to report the correct 
@@ -1318,6 +1321,7 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
     CALL ComputeBezierIntersectionPoint(nXiClip,nEtaClip,PartID,SideID,nInterSections,PartTrajectory,lengthPartTrajectory) 
     EXIT ! leave, because convergence
   CASE DEFAULT
+
     CALL abort(&
 __STAMP__ &
       ,' ClipMode is defined in [1-5]! ')
@@ -1572,9 +1576,6 @@ REAL,INTENT(OUT)                     :: LineNormVec(1:2,1:2)
 REAL                                 :: Length,alpha(2),dalpha, doPro,dcorr
 REAL,DIMENSION(2)                    :: LXi, Leta
 !================================================================================================================================
-
-print*,'test',BezierControlPoints2D(:,a,b),BezierControlPoints2D(:,0,0)
-print*,'test1',BezierControlPoints2D(:,NGeo,NGeo),BezierControlPoints2D(:,b,a)
 
 LXi=(BezierControlPoints2D(:,a,b)-BezierControlPoints2D(:,0,0))+&
     (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,b,a))
@@ -2556,7 +2557,10 @@ IF(nXiClip.EQ.0)THEN
   XiMin=MIN(-1.0,XiMin)
   XiMax=Max( 1.0,XiMax)
 END IF
-IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
+IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))THEN
+  ClipMode=-1
+  RETURN
+END IF
 
 IF(XiMin.GT.XiMax)THEN
     print*,'swwwaaaaaaaap xi',XiMin,XiMax
@@ -2892,8 +2896,8 @@ ELSE  ! no split necessary, only a clip
     END DO
     BezierControlPoints2D=BezierControlPoints2D_temp
   END IF
-  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
-                 ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+  !CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
+  !               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
   ! after recursive steps, we are done!
 END IF ! decision between Clip or Split
@@ -3018,10 +3022,13 @@ IF(nEtaClip.EQ.0)THEN
   EtaMin=MIN(-1.0,EtaMin)
   EtaMax=Max( 1.0,EtaMax)
 END IF
-IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5))RETURN
+IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5)) THEN
+  ClipMode=-1
+  RETURN
+END IF
 
 IF(EtaMin.GT.EtaMax)THEN
-    print*,'swwwaaaaaaaap etta',etamin,etamax
+  print*,'swwwaaaaaaaap etta',etamin,etamax
 END IF
 
 nEtaClip=nEtaClip+1
@@ -3353,8 +3360,8 @@ ELSE  ! no split necessary, only a clip
     END DO
     BezierControlPoints2D=BezierControlPoints2D_temp
   END IF
-  CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
-                 ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+  !CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
+  !               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
   ! after recursive steps, we are done!
 END IF ! decision between Clip or Split
