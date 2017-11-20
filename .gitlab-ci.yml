@@ -236,6 +236,13 @@ gnu_HDG_turner:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_turner/ ; fi
+       
+gnu_power_density:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_poisson_powerdensity/ ; fi
 #       
 #       gnu_maxwell_cylinder_PML:
 #         stage: reggie_nightly
@@ -277,7 +284,7 @@ gnu_HDG_turner:
 intel_build_all:
   stage: reggie_nightly
   tags:
-    - withmodules
+    
   script:
     #- if [ -n "${DO_NIGHTLY}" ]; then echo "skipping because 'make' stops working after some time and does not issue a return code" ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
@@ -323,6 +330,13 @@ intel_HDG_turner:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_turner/ ; fi
+       
+intel_power_density:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_poisson_powerdensity/ ; fi
 #       
 #       intel_maxwell_cylinder_PML:
 #         stage: reggie_nightly
