@@ -1316,7 +1316,7 @@ IF (ManualTimeStep.EQ.0.0) THEN
 #else
    CALL abort(&
 __STAMP__&
-, 'ManualTimeStep is not defined correctly!')
+, 'ManualTimeStep is not defined correctly! Particles-ManualTimeStep = ',ManualTimeStep)
 #endif /*PP_HDG*/
 ELSE
   deltaT=ManualTimeStep
