@@ -144,7 +144,7 @@ DO i = 1,PDM%ParticleVecLength
             WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
             WRITE(*,*) 'Pos:     ', PartState(i,1:3)
             WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.)
+            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
             ! Retrace to check through which side the particle went
             DO iLocSide=1,6
               TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
@@ -209,7 +209,7 @@ DO i = 1,PDM%ParticleVecLength
               WRITE(*,*) 'Velo:    ', PartState(i,4:6)
               WRITE(*,*) 'Element  ', ElemID
               SideID = 0
-              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.)
+              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
               ! Retrace to check through which side the particle went
               DO iLocSide=1,6
                 TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
@@ -693,7 +693,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
       PEM%Element(iPart)=ElemID
-      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
+      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         !WRITE(UNIT_stdOut,'(20(=))')
@@ -1127,7 +1127,7 @@ __STAMP__ &
           ! false, reallocate particle
           IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element, relocating!! '
-            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.)                                                             
+            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', partposref(1:3,ipart)

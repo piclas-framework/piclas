@@ -2675,13 +2675,13 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
 USE MOD_Predictor,               ONLY:PartPredictor,PredictorType
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType, doParticleMerge,PartPressureCell,PartDtFrac
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac & 
+                                      ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
+                                      , Pt,LastPartPos,DelayTime,PartState
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux!, StagePartPos
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
@@ -2935,7 +2935,7 @@ IF(t.GE.DelayTime)THEN
           CASE DEFAULT
           END SELECT
           ! f(u^n) for velocity
-          PartStage(iPart,4:6,1)=Pt(iPart,1:3)
+          IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(iPart,1:3)
           ! position NOT known but we backup the state
           PartStateN(iPart,1:3) = PartState(iPart,1:3)
           ! initial velocity equals velocity of surface flux
@@ -3300,46 +3300,54 @@ DO iStage=2,nRKStages
                 !LastPartPos(iPart,3)=PartState(iPart,3)
                 PEM%lastElement(iPart)=PEM%Element(iPart)
                 ! reconstruct velocity changes and velocity of missing stage
-                DO iStage2=2,iStage-1
-                  v_tild = PartStateN(iPart,4:6)
-                  DO iCounter=1,iStage2-1
-                    v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iCounter)*PartStage(iPart,4:6,iCounter)
-                  END DO ! iCounter=1,iStage2
-                  ! here: NEWTON for velocity required, we use an approximation instead
-                  v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iStage2)*PartStage(iPart,4:6,iStage-1)
-                  ! compute new RHS 
-                  IF(PartLorentzType.NE.5)THEN
-                    Pt_loc(1:3) = v_tild(:) 
-                    LorentzFacInv=1.0
-                  ELSE
-                    LorentzFacInv=1.0+DOT_PRODUCT(v_tild(:),v_tild(:))*c2_inv      
-                    LorentzFacInv=1.0/SQRT(LorentzFacInv)
-                    Pt_loc(1  ) = v_tild(1) * lorentzfacinv
-                    pt_loc(2  ) = v_tild(2) * LorentzFacInv
-                    Pt_loc(3  ) = v_tild(3) * LorentzFacInv
-                  END IF
-                  ! set partstate for force computation
-                  PartState(iPart,4:6) = v_tild
-                  SELECT CASE(PartLorentzType)
-                  CASE(0)                                                                                                               
-                    Pt_loc(4:6) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-                  CASE(1)
-                    Pt_loc(4:6) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-                  CASE(3)
-                    Pt_loc(4:6) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-                  CASE(5)
-                    Pt_loc(4:6) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-                  CASE DEFAULT
-                  END SELECT
-                  PartStage(iPart,1:6,iStage2)=Pt_loc(1:6)
-                END DO ! iStage2=2,iStage-1
-                ! next, contribution of stage update
-                PartQ(1:6,iPart) = ESDIRK_a(iStage,1)*PartStage(iPart,1:6,1)
-                DO iCounter=2,iStage-1
-                  PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-                END DO
-                PartQ(1:3,iPart) = PartStateN(iPart,1:3) + dtFrac*dt*PartQ(1:3,iPart)
-                PartQ(4:6,iPart) = PartStateN(iPart,4:6) + dtFrac*dt*PartQ(4:6,iPart)
+                IF(DoForceFreeSurfaceFlux)THEN
+                  DO iCounter=2,iStage-1
+                    PartStage(iPart,1:6,iCounter)=PartStage(iPart,1:6,iCounter-1)
+                  END DO
+                  PartQ(1:3,iPart) = PartStateN(iPart,1:3)
+                  PartQ(4:6,iPart) = PartStateN(iPart,4:6)
+                ELSE
+                  DO iStage2=2,iStage-1
+                    v_tild = PartStateN(iPart,4:6)
+                    DO iCounter=1,iStage2-1
+                      v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iCounter)*PartStage(iPart,4:6,iCounter)
+                    END DO ! iCounter=1,iStage2
+                    ! here: NEWTON for velocity required, we use an approximation instead
+                    v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iStage2)*PartStage(iPart,4:6,iStage-1)
+                    ! compute new RHS 
+                    IF(PartLorentzType.NE.5)THEN
+                      Pt_loc(1:3) = v_tild(:) 
+                      LorentzFacInv=1.0
+                    ELSE
+                      LorentzFacInv=1.0+DOT_PRODUCT(v_tild(:),v_tild(:))*c2_inv      
+                      LorentzFacInv=1.0/SQRT(LorentzFacInv)
+                      Pt_loc(1  ) = v_tild(1) * lorentzfacinv
+                      pt_loc(2  ) = v_tild(2) * LorentzFacInv
+                      Pt_loc(3  ) = v_tild(3) * LorentzFacInv
+                    END IF
+                    ! set partstate for force computation
+                    PartState(iPart,4:6) = v_tild
+                    SELECT CASE(PartLorentzType)
+                    CASE(0)                                                                                                               
+                      Pt_loc(4:6) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+                    CASE(1)
+                      Pt_loc(4:6) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+                    CASE(3)
+                      Pt_loc(4:6) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+                    CASE(5)
+                      Pt_loc(4:6) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
+                    CASE DEFAULT
+                    END SELECT
+                    PartStage(iPart,1:6,iStage2)=Pt_loc(1:6)
+                  END DO ! iStage2=2,iStage-1
+                  ! next, contribution of stage update
+                  PartQ(1:6,iPart) = ESDIRK_a(iStage,1)*PartStage(iPart,1:6,1)
+                  DO iCounter=2,iStage-1
+                    PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+                  END DO
+                  PartQ(1:3,iPart) = PartStateN(iPart,1:3) + dtFrac*dt*PartQ(1:3,iPart)
+                  PartQ(4:6,iPart) = PartStateN(iPart,4:6) + dtFrac*dt*PartQ(4:6,iPart)
+                END IF
                 ! set velocity guess 
                 PartState(iPart,4:6) = PartQ(4:6,iPart)
                 ! switch particle to implicit treating, to give source terms, ets.
@@ -3609,11 +3617,11 @@ IF (t.GE.DelayTime) THEN
 #endif /*MPI*/
   IF(DoRefMapping)THEN
     ! tracking routines has to be extended for optional flag, like deposition
-    CALL ParticleRefTracking()
-    !CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    !CALL ParticleRefTracking()
+    CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   ELSE
-    CALL ParticleTracing()
-    !CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    !CALL ParticleTracing()
+    CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
 #ifdef MPI
   ! send number of particles

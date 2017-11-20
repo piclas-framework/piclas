@@ -847,6 +847,9 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,       ONLY:ExplicitSource
+#endif
 USE MOD_Equation_Vars,     ONLY:IniExactFunc, eps0
 USE MOD_Equation_Vars,     ONLY:chitens_face
 USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
@@ -943,6 +946,9 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
     CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+    RHS_vol(1:PP_nVar,r,iElem)=RHS_vol(1:PP_nVar,r,iElem)+ExplicitSource(1:PP_nVar,i,j,k,iElem)
+#endif
   END DO; END DO; END DO !i,j,k
   RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
 END DO !iElem 

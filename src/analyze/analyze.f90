@@ -548,7 +548,11 @@ IF (DoAnalyze)  THEN
   ELSE
     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+      IF(iter.GE.1)THEN
+#else
       IF(iter.GT.1)THEN
+#endif
         IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
           .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
            CALL AnalyzeParticles(t)

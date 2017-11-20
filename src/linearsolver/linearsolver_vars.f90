@@ -78,6 +78,8 @@ LOGICAL              :: DoUpdateInStage                                         
 INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
                                                                                     ! due to overflow of free positions...
                                                                                     ! UNFP each nth iteration
+LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration 
+                                                                                    ! scheme
 #endif /*PARTICLES*/
 #endif
 !===================================================================================================================================

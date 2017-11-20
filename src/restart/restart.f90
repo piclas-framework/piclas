@@ -556,7 +556,7 @@ __STAMP__&
         IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
           COUNTER = COUNTER + 1
           !CALL SingleParticleToExactElement(i)
-          CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.)
+          CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
           IF (.NOT.PDM%ParticleInside(i)) THEN
             COUNTER2 = COUNTER2 + 1
             PartPosRef(1:3,i) = -888.
@@ -577,7 +577,7 @@ __STAMP__&
         IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
           COUNTER = COUNTER + 1
           !CALL SingleParticleToExactElement(i)
-          CALL SingleParticleToExactElementNoMap(i,doHALO=.FALSE.)
+          CALL SingleParticleToExactElementNoMap(i,doHALO=.FALSE.,doRelocate=.FALSE.)
           IF (.NOT.PDM%ParticleInside(i)) THEN
             COUNTER2 = COUNTER2 + 1
           ELSE
@@ -642,9 +642,9 @@ __STAMP__&
         PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
         PDM%ParticleInside(CurrentPartNum) = .true.
         IF(DoRefMapping)THEN
-          CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.,initFix=.FALSE.)
+          CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
         ELSE
-          CALL SingleParticleToExactElementNoMap(CurrentPartNum,doHALO=.FALSE.)
+          CALL SingleParticleToExactElementNoMap(CurrentPartNum,doHALO=.FALSE.,doRelocate=.FALSE.)
         END IF
         !CALL SingleParticleToExactElement(CurrentPartNum)
         IF (PDM%ParticleInside(CurrentPartNum)) THEN
@@ -747,6 +747,9 @@ USE MOD_PICDepo,                 ONLY: Deposition
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange,DoExternalParts
 #endif /*MPI*/
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,       ONLY:ExplicitSource
+#endif
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -766,6 +769,10 @@ IF(DoExternalParts)THEN
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()  ! finish communication
 END IF
+#endif
+
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+ExplicitSource=0.
 #endif
 
 ! Deposition of particles
