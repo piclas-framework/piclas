@@ -1010,7 +1010,7 @@ IF (IsAuxBC) THEN
     intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
     r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
-    n_loc = intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) )
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
     IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE ('cone')
     intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
@@ -1588,9 +1588,10 @@ ELSE
 END IF
 
 IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,'SpeciesSwap was called for an particle coming from outside of the mesh!')
+  RETURN
+!  CALL Abort(&
+!    __STAMP__&
+!    ,'SpeciesSwap was called for an particle coming from outside of the mesh!')
 END IF
 #endif /*NOT IMPA*/
 
