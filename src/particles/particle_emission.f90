@@ -3639,7 +3639,7 @@ __STAMP__&
           CALL abort(__STAMP__&
             ,'ERROR in init: axialDir for SFradial must be between 1 and 3!')
         END IF
-        IF ( Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(2)).NE.0. .AND. &
+        IF ( Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(2)).NE.0. .OR. &
              Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(3)).NE.0. ) THEN
           CALL abort(__STAMP__&
             ,'ERROR in init: axialDir for SFradial do not correspond to VeloVecIC!')
@@ -4559,24 +4559,25 @@ __STAMP__&
 !IF (.NOT.ALMOSTEQUAL(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
 !!
             ! shift lastpartpos minimal into cell for fail-safe tracking
-            SELECT CASE(SideType(SideID))
-            CASE(PLANAR_RECT,PLANAR_NONRECT)
-              LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
-              + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
-            CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
-              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
-              DO iLoop=1,3 !shift border-RefCoords into elem
-                IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
-                  Particle_pos(iLoop)=SIGN(1.0-epsInCell,Particle_pos(iLoop))
-                END IF
-              END DO
-              CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
-                ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
-            CASE DEFAULT
-              CALL abort(&
-__STAMP__&
-,'unknown SideType!')
-            END SELECT
+LastPartPos(ParticleIndexNbr,1:3)=PartState(ParticleIndexNbr,1:3)
+!            SELECT CASE(SideType(SideID))
+!            CASE(PLANAR_RECT,PLANAR_NONRECT)
+!              LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
+!              + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
+!            CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
+!              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
+!              DO iLoop=1,3 !shift border-RefCoords into elem
+!                IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
+!                  Particle_pos(iLoop)=SIGN(1.0-epsInCell,Particle_pos(iLoop))
+!                END IF
+!              END DO
+!              CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
+!                ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
+!            CASE DEFAULT
+!              CALL abort(&
+!__STAMP__&
+!,'unknown SideType!')
+!            END SELECT
 
 #ifdef CODE_ANALYZE
           CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
@@ -5312,8 +5313,13 @@ END IF !.NOT.SimpleRadialVeloFit
 !-- 0b.: initialize DataTriaSF if particle-dependent (as in case of SimpleRadialVeloFit), drift vector is already in PartState!!!
       ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
         VeloIC = SQRT(DOT_PRODUCT(PartState(PositionNbr,4:6),PartState(PositionNbr,4:6)))
-        projFak = DOT_PRODUCT(vec_nIn,PartState(PositionNbr,4:6)) / VeloIC
-        a = VeloIC * projFak / SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC) !speed ratio proj. to inwards n (can be negative!)
+        IF (ALMOSTZERO(VeloIC)) THEN
+          projFak = 1. !dummy
+          a = 0.
+        ELSE
+          projFak = DOT_PRODUCT(vec_nIn,PartState(PositionNbr,4:6)) / VeloIC
+          a = VeloIC * projFak / SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC) !speed ratio proj. to inwards n (can be negative!)
+        END IF
         Velo_t1 = DOT_PRODUCT(vec_t1,PartState(PositionNbr,4:6)) !v in t1-dir
         Velo_t2 = DOT_PRODUCT(vec_t2,PartState(PositionNbr,4:6)) !v in t2-dir
         !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
