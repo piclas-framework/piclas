@@ -4579,15 +4579,15 @@ LastPartPos(ParticleIndexNbr,1:3)=PartState(ParticleIndexNbr,1:3)
 !,'unknown SideType!')
 !            END SELECT
 
-#ifdef CODE_ANALYZE
-          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
-          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
-            IPWRITE(*,*) 'Particle_pos: ',Particle_pos
-            CALL abort(&
-__STAMP__&
-,'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
-          END IF
-#endif /*CODE_ANALYZE*/ 
+!#ifdef CODE_ANALYZE
+!          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
+!          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
+!            IPWRITE(*,*) 'Particle_pos: ',Particle_pos
+!            CALL abort(&
+!__STAMP__&
+!,'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
+!          END IF
+!#endif /*CODE_ANALYZE*/ 
 #ifdef IMPA
             IF(DoRefMapping)THEN
               CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
