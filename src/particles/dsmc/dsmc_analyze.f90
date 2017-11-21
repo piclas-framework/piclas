@@ -432,7 +432,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
     MacroSurfaceSpecVal=0.
   END IF
   IF (CalcSurfCollis%Output) THEN
-    ALLOCATE(CounterTotal(1:nSpecies+1))
+    ALLOCATE(CounterTotal(1:nSpecies))
     ALLOCATE(SumCounterTotal(1:nSpecies+1))
     CounterTotal(1:nSpecies)=0
     SumCounterTotal(1:nSpecies+1)=0
@@ -494,7 +494,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 #ifdef MPI
     CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
 #else
-    SumCounterTotal=CounterTotal
+    SumCounterTotal(1:nSpecies)=CounterTotal
 #endif
     DO iSpec=1,nSpecies
       IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
