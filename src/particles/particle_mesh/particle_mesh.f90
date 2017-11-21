@@ -1332,7 +1332,7 @@ IF (ManualTimeStep.EQ.0.0) THEN
 #else
    CALL abort(&
 __STAMP__&
-, 'ManualTimeStep is not defined correctly! Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+, 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*PP_HDG*/
 ELSE
   deltaT=ManualTimeStep
@@ -1342,7 +1342,7 @@ IF (halo_eps_velo.EQ.0) halo_eps_velo = c
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
 __STAMP__&
-, 'Halo Eps Velocity for MPI not defined')
+, 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 END IF
 #endif
 #if (PP_TimeDiscMethod==201)
