@@ -251,7 +251,7 @@ gnu_maxwell_cylinder_PML:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
 
-gnu_maxwell_cylinder_PML:
+gnu_PIC_HDG_plasma_wave:
   stage: reggie_nightly
   tags:
     - withmodules
@@ -351,7 +351,7 @@ intel_maxwell_cylinder_PML:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
 
-intel_maxwell_cylinder_PML:
+intel_PIC_HDG_plasma_wave:
   stage: reggie_nightly
   tags:
     - withmodules
