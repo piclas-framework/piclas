@@ -156,7 +156,7 @@ USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else
 USE MOD_HDG,                     ONLY:HDG
-USE MOD_HDG_Vars,                ONLY:EpsCG
+USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 #endif /*PP_HDG*/
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearSolver
@@ -400,7 +400,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #ifndef PP_HDG
   CALL LinearSolver(tStage,coeff,relTolerance)
 #else
-  IF(FullEisenstatWalker.GT.0) EpsCG=relTolerance
+  IF(FullEisenstatWalker.GT.0) THEN
+    IF(useRelativeAbortCrit) EpsCG=relTolerance 
+  END IF 
   CALL HDG(tStage,U,iter)
 #endif /*HDG*/
 

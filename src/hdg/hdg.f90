@@ -114,6 +114,7 @@ END IF
 !CG parameters
 PrecondType=GETINT('PrecondType','2')
 epsCG=GETREAL('epsCG','1.0E-6')
+useRelativeAbortCrit=GETLOGICAL('useRelativeAbortCrit','.FALSE.')
 maxIterCG=GETINT('maxIterCG','500')
 
 OnlyPostProc=GETLOGICAL('OnlyPostProc','.FALSE.')
@@ -1200,7 +1201,7 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars           ,ONLY: nGP_face
-USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType
+USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit
 USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1237,19 +1238,28 @@ ELSE
 END IF
 
 CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
+IF(useRelativeAbortCrit)THEN
+#ifdef MPI
+  IF(MPIroot) converged=(Norm_R2.LT.1e-16)
+  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+#else
+  converged=(Norm_R2.LT.1e-16)
+#endif /*MPI*/
+ELSE
 #ifdef MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsCG**2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.EpsCG**2)
 #endif /*MPI*/
+END IF
 IF(converged) THEN !converged
 !  SWRITE(*,*)'CG not needed, residual already =0'
 !  SWRITE(UNIT_StdOut,'(132("-"))')
   RETURN
 END IF !converged
-!AbortCrit2=Norm_R2*EpsCG**2
 AbortCrit2=EpsCG**2
+IF(useRelativeAbortCrit) AbortCrit2=Norm_R2*EpsCG**2
 
 IF(PrecondType.NE.0) THEN
   CALL ApplyPrecond(R,V)
