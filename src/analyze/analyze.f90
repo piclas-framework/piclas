@@ -553,13 +553,13 @@ IF (DoAnalyze)  THEN
 #else
       IF(iter.GT.1)THEN
 #endif
-        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+        IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+           .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
            CALL AnalyzeParticles(t)
       END IF
     ELSE
-      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+      IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+         .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
          CALL AnalyzeParticles(t)
    END IF
   END IF
@@ -581,14 +581,14 @@ IF (DoAnalyze)  THEN
     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
       IF(iter.GT.1)THEN
         ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
-        IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+        IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+           .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
            CALL AnalyzeField(t)
       END IF
     ELSE
       ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
-      IF((MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-        .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter))&
+      IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+         .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
          CALL AnalyzeField(t)
     END IF
   END IF
