@@ -290,6 +290,8 @@ DO iPart=1,PDM%ParticleVecLength
       CASE(0) ! no intersection
         PEM%Element(iPart)=ElemID
         PartisDone=.TRUE.
+        SwitchedElement=.FALSE.
+        crossedBC=.FALSE.
       CASE(1) ! one intersection
         ! get intersection side
         SwitchedElement=.FALSE.
@@ -443,6 +445,12 @@ DO iPart=1,PDM%ParticleVecLength
 #else
             WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID         ', ElemID+offSetElem
 #endif
+          END IF
+          IF( crossedBC) THEN
+            WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos:       ',lastPartPos(iPart,1:3)
+            WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Current PartPos:       ',PartState(iPart,1:3)
+            WRITE(UNIT_stdout,'(A,3(X,G0))') '     | PartTrajectory:        ',PartTrajectory(1:3)
+            WRITE(UNIT_stdout,'(A,(G0))')    '     | Length PartTrajectory: ',lengthPartTrajectory
           END IF
         END IF
       END IF
