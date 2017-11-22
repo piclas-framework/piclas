@@ -252,8 +252,10 @@ REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd,eta
 INTEGER                      :: TimeArray(8)              ! Array for system time
+#ifdef MPI
 REAL                         :: CurrentImbalance
 LOGICAL                      :: PerformLoadBalance
+#endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
 LOGICAL                      :: NoPartInside
@@ -671,7 +673,8 @@ USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
 USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
 #if USE_QDS_DG
-USE MOD_QDS_DG_Vars,             ONLY: UQDS,UQDSt,nQDSElems,DoQDS,QDSnVar
+USE MOD_QDS_DG_Vars,             ONLY: UQDS,UQDSt,nQDSElems,DoQDS
+USE MOD_QDS_Equation_vars,       ONLY: QDSnVar
 USE MOD_QDS_DG,                  ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
 #endif /*USE_QDS_DG*/
 USE MOD_Filter,                  ONLY: Filter
@@ -824,7 +827,7 @@ END IF
 #if USE_QDS_DG
 IF(DoQDS) THEN
   CALL QDSReCalculateDGValues()
-  CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.)
+  CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.,doPrintInfo=.TRUE.)
 END IF
 #endif /*USE_QDS_DG*/
 #ifdef MPI

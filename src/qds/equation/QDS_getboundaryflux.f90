@@ -34,13 +34,16 @@ SUBROUTINE GetBoundaryFluxQDS(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVe
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,        ONLY:Abort,CROSS
-USE MOD_Equation,       ONLY:ExactFunc
-USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
-USE MOD_Equation_Vars,  ONLY:nBCByType
-USE MOD_QDS_DG_Vars,    ONLY:QDSnVar
-USE MOD_QDS_Riemann,    ONLY:RiemannQDS
+USE MOD_Globals,            ONLY:Abort,CROSS
+USE MOD_QDS_Equation,       ONLY:QDS_ExactFunc
+USE MOD_Mesh_Vars    ,      ONLY:nBCSides,nBCs,BoundaryType
+USE MOD_Equation_Vars,      ONLY:nBCByType,BCSideID
+USE MOD_Equation_Vars,      ONLY:nBCByType
+USE MOD_QDS_Equation_Vars,  ONLY:U_Face_old
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
+USE MOD_QDS_Riemann,        ONLY:RiemannQDS
+USE MOD_QDS_Equation,       ONLY:QDS_Q2U
+USE MOD_QDS_DG_vars,        ONLY:QDSnVar_macro
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,7 +57,7 @@ REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:PP_N,0:PP_N,1:nBC
 REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux( QDSnVar,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux(1:QDSnVar,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,p,q,SideID
@@ -63,6 +66,7 @@ REAL                                 :: epsBC
 REAL                                 :: U_Face_loc(QDSnVar,0:PP_N,0:PP_N),v_nor(3), V_par(3), v_nor_abs
 INTEGER                              :: iPart, iPart1, iPart2, iPart3, locPartNum
 REAL                                 :: Temp
+REAL                                 :: QDSMacroValues(1:QDSnVar_macro)
 !===================================================================================================================================
 
 DO iBC=1,nBCs
@@ -78,17 +82,25 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       DO q=0,PP_N
         DO p=0,PP_N
-          CALL ExactFunc(BCState,t,tDeriv,BCFace_xGP(:,p,q,SideID),U_Face_loc(:,p,q))
-        END DO ! p
+          CALL QDS_ExactFunc(BCState,t,tDeriv,BCFace_xGP(:,p,q,SideID), QDSMacroValues(1:QDSnVar_macro))
+          IF (QDSMacroValues(1).GT.0.0) THEN
+            IF (QDSMacroValues(6).LT.0.0) QDSMacroValues(6) = 0.0
+              CALL QDS_Q2U(QDSMacroValues(1:QDSnVar_macro), U_Face_loc(:,p,q))
+          ELSE
+            U_Face_loc(:,p,q) = 0.0
+          END IF
+          END DO ! p
       END DO ! q
-      ! Dirichlet means that we use the gradients from inside the grid cell
-      CALL RiemannQDS(Flux(1:QDSnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+      CALL RiemannQDS(Flux(1:QDSnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
    END DO
 
   CASE(3) ! 1st order absorbing BC 
-    U_Face_loc=0.
+    ! U_Face_loc=0.
+    ! CALL RiemannQDS(Flux(1:QDSnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
+    ! Flux = 0.0
+    U_Face_loc               = 0.5*(U_Minus(:,:,:,SideID)+U_Face_old(:,:,:,SideID))
+    U_Face_old(:,:,:,SideID) = U_Minus(:,:,:,SideID)
     CALL RiemannQDS(Flux(1:QDSnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-    Flux = 0.0
   
   CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
 !    ! Determine the exact BC state

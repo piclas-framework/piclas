@@ -30,7 +30,7 @@ SUBROUTINE RiemannQDS(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_QDS_DG_Vars,     ONLY:QDSnVar!,QDSMaxVelo
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -52,12 +52,17 @@ SUBROUTINE QDS_InitDG
 ! MODULES
 USE MOD_PreProc
 USE MOD_QDS_DG_Vars
-USE MOD_Particle_Vars,   ONLY:BoltzmannConst
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
-USE MOD_ReadInTools,     ONLY:GETLOGICAL
-USE MOD_Mesh_Vars,       ONLY:nSides
-USE MOD_Globals_Vars,    ONLY:PI
-USE MOD_Restart_Vars,    ONLY:DoRestart
+#ifdef PARTICLES
+USE MOD_Particle_Vars,      ONLY:BoltzmannConst
+#else
+USE MOD_Globals_Vars,       ONLY:BoltzmannConst
+#endif
+USE MOD_Globals,            ONLY:abort,UNIT_stdOut,mpiroot
+USE MOD_ReadInTools,        ONLY:GETLOGICAL
+USE MOD_Mesh_Vars,          ONLY:nSides
+USE MOD_Globals_Vars,       ONLY:PI
+USE MOD_Restart_Vars,       ONLY:DoRestart
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,14 +77,13 @@ REAL    :: Velo(3), Temp, Dens, Mass
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT QDS-DG...' 
-IF(QDSInitIsDone)THEN
+IF(QDSInitDGIsDone)THEN
   CALL abort(&
       __STAMP__&
       ,'QDS_InitDG (DG method) not ready to be called or already called.')
 END IF
 DoQDS                      = GETLOGICAL('DoQDS','.FALSE.')
 IF(DoQDS)THEN
-  QDSnVar=40
   QDSnVar_macro=6
   nQDSElems=PP_nElems
 
@@ -163,16 +167,16 @@ IF(DoQDS)THEN
   END IF
 
 ELSE
-  QDSnVar=0
+  !QDSnVar=0
   QDSnVar_macro=0
 END IF
-QDSInitIsDone=.TRUE.
+QDSInitDGIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT QDS-DG DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE QDS_InitDG
 
 
-SUBROUTINE QDSTimeDerivative(t,tStage,tDeriv,doSource)
+SUBROUTINE QDSTimeDerivative(t,tStage,tDeriv,doSource,doPrintInfo)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
 ! UQDS and UQDSt are allocated
@@ -180,8 +184,8 @@ SUBROUTINE QDSTimeDerivative(t,tStage,tDeriv,doSource)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_QDS_DG_Vars,      ONLY: UQDS,UQDSt,QDSMacroValues,QDSSpeciesMass
-USE MOD_QDS_DG_Vars,      ONLY: QDSnVar
+USE MOD_QDS_DG_Vars,      ONLY:UQDS,UQDSt,QDSMacroValues,QDSSpeciesMass
+USE MOD_QDS_Equation_vars,ONLY:QDSnVar
 USE MOD_Vector
 USE MOD_QDS_DG_Vars,      ONLY:UQDS,UQDSt,UQDS_master,UQDS_Slave,FluxQDS_Master,FluxQDS_Slave
 USE MOD_ProlongToFace,    ONLY:ProlongToFaceQDS
@@ -201,17 +205,20 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t,tStage
 INTEGER,INTENT(IN)              :: tDeriv
 LOGICAL,INTENT(IN)              :: doSource
+LOGICAL,INTENT(IN),OPTIONAL     :: doPrintInfo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(mpiroot)THEN
-  WRITE(UNIT_stdOut,'(A,ES12.5,A)')' max number density:',MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass,' [1/m^3]'
-  IF(MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass.GT.1E50)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'density too high!!!')
+IF(mpiroot.AND.(PRESENT(doPrintInfo)))THEN
+  IF(doPrintInfo)THEN
+    WRITE(UNIT_stdOut,'(A,ES12.5,A)')' max number density:',MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass,' [1/m^3]'
+    IF(MAXVAL(ABS(QDSMacroValues(1,:,:,:,:)))/QDSSpeciesMass.GT.1E50)THEN
+      CALL abort(&
+      __STAMP__&
+      ,'density too high!!! >1e50')
+    END IF
   END IF
 END IF
 ! prolong the solution to the face integration points for flux computation
@@ -311,11 +318,18 @@ SUBROUTINE QDSReCalculateDGValues()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,       ONLY:PI
-USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
+#ifdef PARTICLES
+USE MOD_Particle_Vars,      ONLY:BoltzmannConst
+#else
+USE MOD_Globals_Vars,       ONLY:BoltzmannConst
+#endif
 USE MOD_PreProc
-USE MOD_QDS_DG_Vars,        ONLY : QDSSpeciesMass,UQDS,GaussHermitWeiAbs,QDSMacroValues,nQDSElems,QDSSpecDOF
-USE MOD_Mesh_Vars,          ONLY : sJ
-USE MOD_Interpolation_Vars, ONLY : wGP
+USE MOD_QDS_DG_Vars,        ONLY:QDSSpeciesMass,UQDS,GaussHermitWeiAbs,QDSMacroValues,nQDSElems,QDSSpecDOF
+USE MOD_Mesh_Vars,          ONLY:sJ
+USE MOD_Interpolation_Vars, ONLY:wGP
+USE MOD_QDS_DG_Vars,        ONLY:QDSnVar_macro
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
+USE MOD_QDS_Equation,       ONLY:QDS_Q2U
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -324,7 +338,7 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, k, j, i, L, iPart1, iPart2, iPart3
+INTEGER           :: iElem, k, j, i!, L
 !===================================================================================================================================
 !QDSSpeciesMass=Species(QDS_Species)%MassIC
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
@@ -350,34 +364,36 @@ DO iElem = 1, nQDSElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-        L = 0
+        !L = 0
         IF (QDSMacroValues(1,i,j,k,iElem).GT.0.0) THEN
           IF (QDSMacroValues(6,i,j,k,iElem).LT.0.0) QDSMacroValues(6,i,j,k,iElem) = 0.0
-          DO iPart1=1,2; DO iPart2=1,2; DO iPart3=1,2
-            UQDS(1+L,i,j,k,iElem) =     QDSMacroValues(1,i,j,k,iElem)*&
-                                     GaussHermitWeiAbs(1,iPart1)     *&
-                                     GaussHermitWeiAbs(1,iPart2)     *&
-                                     GaussHermitWeiAbs(1,iPart3)/(PI*SQRT(PI))
+            CALL QDS_Q2U(QDSMacroValues(1:QDSnVar_macro,i,j,k,iElem), UQDS(1:QDSnVar,i,j,k,iElem))
 
-            UQDS(2+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
-                                     * (QDSMacroValues(2  ,i,j,k,iElem) /&
-                                        QDSMacroValues(1  ,i,j,k,iElem) &
-                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart1))
+          !DO iPart1=1,2; DO iPart2=1,2; DO iPart3=1,2
+          !  UQDS(1+L,i,j,k,iElem) =     QDSMacroValues(1,i,j,k,iElem)*&
+          !                           GaussHermitWeiAbs(1,iPart1)     *&
+          !                           GaussHermitWeiAbs(1,iPart2)     *&
+          !                           GaussHermitWeiAbs(1,iPart3)/(PI*SQRT(PI))
 
-            UQDS(3+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
-                                     * (QDSMacroValues(3  ,i,j,k,iElem) /&
-                                        QDSMacroValues(1  ,i,j,k,iElem) &
-                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart2))
+          !  UQDS(2+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
+          !                           * (QDSMacroValues(2  ,i,j,k,iElem) /&
+          !                              QDSMacroValues(1  ,i,j,k,iElem) &
+          !       + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart1))
 
-            UQDS(4+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
-                                     * (QDSMacroValues(4  ,i,j,k,iElem) /&
-                                        QDSMacroValues(1  ,i,j,k,iElem) &
-                 + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart3))
+          !  UQDS(3+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
+          !                           * (QDSMacroValues(3  ,i,j,k,iElem) /&
+          !                              QDSMacroValues(1  ,i,j,k,iElem) &
+          !       + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart2))
 
-            UQDS(5+L,i,j,k,iElem) =(QDSSpecDOF-3.)*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/(QDSSpeciesMass*2.)
+          !  UQDS(4+L,i,j,k,iElem) =               UQDS(1+L,i,j,k,iElem) &
+          !                           * (QDSMacroValues(4  ,i,j,k,iElem) /&
+          !                              QDSMacroValues(1  ,i,j,k,iElem) &
+          !       + SQRT(2.*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/QDSSpeciesMass)*GaussHermitWeiAbs(2,iPart3))
 
-            L = L + 5
-          END DO; END DO; END DO
+          !  UQDS(5+L,i,j,k,iElem) =(QDSSpecDOF-3.)*BoltzmannConst*QDSMacroValues(6,i,j,k,iElem)/(QDSSpeciesMass*2.)
+
+          !  L = L + 5
+          !END DO; END DO; END DO
         ELSE
           UQDS(:,i,j,k,iElem) = 0.0
         END IF
@@ -388,13 +404,18 @@ END DO
 !read*
 END SUBROUTINE QDSReCalculateDGValues
 
+
 SUBROUTINE QDSCalculateMacroValues()
 !===================================================================================================================================
 ! Get the constant advection velocity vector from the ini file 
 !===================================================================================================================================
 ! MODULES
 USE MOD_QDS_DG_Vars 
-USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
+#ifdef PARTICLES
+USE MOD_Particle_Vars,      ONLY:BoltzmannConst
+#else
+USE MOD_Globals_Vars,       ONLY:BoltzmannConst
+#endif
 !USE MOD_QDS_DG_Vars,           ONLY : QDS_Species
 USE MOD_QDS_DG_Vars,           ONLY : QDSSpeciesMass
 USE MOD_PreProc
@@ -463,7 +484,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-QDSInitIsDone = .FALSE.
+QDSInitDGIsDone = .FALSE.
 SDEALLOCATE(UQDS)
 SDEALLOCATE(UQDSt)
 SDEALLOCATE(UQDS_Master)

@@ -773,9 +773,11 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
 CASE(41) ! pulsed Dipole
   resu = 0.0
   RETURN
-
+CASE(100) ! QDS
+  resu = 0.0
+  RETURN
 CASE DEFAULT
-  SWRITE(*,*)'Exact function not specified'
+  SWRITE(*,*)'Exact function not specified. ExactFunction = ',ExactFunction
 END SELECT ! ExactFunction
 
 # if (PP_TimeDiscMethod==1)
@@ -939,7 +941,7 @@ CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
   CALL abort(&
       __STAMP__&
-      ,'Exactfunction not specified!',999,999.)
+      ,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
 END SELECT ! ExactFunction
 
 #if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
