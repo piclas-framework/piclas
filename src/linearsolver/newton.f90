@@ -41,7 +41,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U
 #ifndef PP_HDG
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS,mass
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Equation,                ONLY:CalcSource
@@ -71,7 +71,6 @@ REAL                       :: Norm_e, rTmp(1:8), locMass
 #ifndef PP_HDG
 ! compute error-norm-version1, non-optimized
 CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
-ImplicitSource=ExplicitSource
 CALL CalcSource(t,1.,ImplicitSource)
 
 IF(DoParabolicDamping)THEN
@@ -159,7 +158,7 @@ USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 #endif /*PP_HDG*/
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
@@ -394,7 +393,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #endif /*PARTICLES*/
 
   ! solve field to new stage 
-  ImplicitSource=ExplicitSource
+  ImplicitSource=0.
   ! store old value of U
   Uold=U
 #ifndef PP_HDG

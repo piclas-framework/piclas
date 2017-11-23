@@ -393,7 +393,7 @@ USE MOD_Particle_Mesh_Vars,  ONLY:GEO,NbrOfRegions
 USE MOD_Particle_Vars,       ONLY:RegionElectronRef
 USE MOD_Equation_Vars,       ONLY:eps0
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-USE MOD_LinearSolver_Vars,   ONLY:ExplicitSource
+USE MOD_LinearSolver_Vars,   ONLY:ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars,       ONLY:IniExactFunc
@@ -434,7 +434,7 @@ IF(DoDeposition)THEN
       END IF
   END IF
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitSource(1,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
   resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
 #endif

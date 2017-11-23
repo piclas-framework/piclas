@@ -807,19 +807,22 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,        ONLY: abort
-USE MOD_Globals_Vars,   ONLY: PI
+USE MOD_Globals,           ONLY: abort
+USE MOD_Globals_Vars,      ONLY: PI
 USE MOD_PreProc
-USE MOD_Equation_Vars,  ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
+USE MOD_Equation_Vars,     ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,   ONLY: PartSource,DoDeposition
-USE MOD_Dielectric_Vars,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric!DielectricEpsR_inv
+USE MOD_PICDepo_Vars,      ONLY: PartSource,DoDeposition
+USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric!DielectricEpsR_inv
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars, ONLY:ExplicitPartSource
+#endif
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars,      ONLY: Elem_xGP                  ! for shape function: xyz position of the Gauss points
+USE MOD_Mesh_Vars,         ONLY: Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
-USE MOD_Equation_Vars,  ONLY: DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,  ONLY: sdtCFLOne!, RK_B, iStage  
-USE MOD_DG_Vars,        ONLY: U
+USE MOD_Equation_Vars,     ONLY: DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars,     ONLY: sdtCFLOne!, RK_B, iStage  
+USE MOD_DG_Vars,           ONLY: U
 #endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -835,6 +838,7 @@ INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r                                                 ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
+REAL                            :: PartSourceLoc(1:4)
 !===================================================================================================================================
 eps0inv = 1./eps0
 #ifdef PARTICLES
@@ -843,28 +847,43 @@ IF(DoDeposition)THEN
     DO iElem=1,PP_nElems
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
+#else
+          PartSourceLoc=PartSource(:,i,j,k,iElem)
+#endif
           !  Get PartSource from Particles
           !Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
           !Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr * DielectricEpsR_inv
-          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) &
+          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3) &
                                                       / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr &
+          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr &
                                                       / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
         END DO; END DO; END DO
       ELSE
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
+#else
+          PartSourceLoc=PartSource(:,i,j,k,iElem)
+#endif
           !  Get PartSource from Particles
-          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem)
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr 
+          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
+          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr 
         END DO; END DO; END DO
       END IF
     END DO
   ELSE
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+        PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
+#else
+        PartSourceLoc=PartSource(:,i,j,k,iElem)
+#endif
         !  Get PartSource from Particles
-        Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem)
-        Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr 
+        Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
+        Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr 
       END DO; END DO; END DO
     END DO
   END IF
