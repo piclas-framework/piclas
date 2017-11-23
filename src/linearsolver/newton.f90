@@ -40,8 +40,8 @@ SUBROUTINE ImplicitNorm(t,coeff,Norm_R)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
 #ifndef PP_HDG
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Equation,                ONLY:CalcSource
@@ -49,6 +49,7 @@ USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,           ONLY:sdtCFLOne
 #else /* HDG */
 USE MOD_Equation,                ONLY:CalcSourceHDG
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
 #endif /*DG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -105,7 +106,6 @@ END DO ! iElem=1,PP_nElems
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
-    ImplicitSource(1:PP_nVar,i,j,k,iElem)= ImplicitSource(1:PP_nVar,i,j,k,iElem)! + ExplicitSource(1:PP_nVar,i,j,k,iElem)
   END DO; END DO; END DO !i,j,k    
 END DO !iElem 
 Norm_R=0.

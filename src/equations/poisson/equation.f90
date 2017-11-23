@@ -435,8 +435,6 @@ IF(DoDeposition)THEN
   END IF
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitSource(1,i,j,k,iElem)-source_e)/eps0
-  ! but
-  ! resu(1) = resu(old) + resu(1) is not working???
 #else
   resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
 #endif

@@ -2660,7 +2660,6 @@ USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U
 #ifdef PP_HDG
-USE MOD_Equation,                ONLY:CalcSourceHDG
 USE MOD_HDG,                     ONLY:HDG
 USE MOD_PICDepo_Vars,            ONLY:PartSource
 #else /*pure DG*/
@@ -2867,11 +2866,6 @@ CALL CalcSource(tStage,1.,ImplicitSource)
 ! step required for fluid model
 ExplicitSource=0.
 CALL HDG(t,U,iter)
-!DO iElem=1,PP_nElems
-!  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-!    CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
-!  END DO; END DO; END DO !i,j,k    
-!END DO !iElem 
 #endif
 IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 
@@ -3121,7 +3115,6 @@ DO iStage=2,nRKStages
 #else
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        !CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
         ExplicitSource(1:PP_nVar,i,j,k,iElem)=PartSource(4,i,j,k,iElem)
       END DO; END DO; END DO !i,j,k    
     END DO !iElem 
