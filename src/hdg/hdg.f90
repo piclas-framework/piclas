@@ -714,7 +714,7 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
     CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem))
-    RHS_vol(1:PP_nVar,r,iElem)=RHS_vol(1:PP_nVar,r,iElem)+ExplicitSource(1:PP_nVar,i,j,k,iElem)
+    !RHS_vol(1:PP_nVar,r,iElem)=RHS_vol(1:PP_nVar,r,iElem)+ExplicitSource(1:PP_nVar,i,j,k,iElem)
   END DO; END DO; END DO !i,j,k    
   DO iVar = 1, PP_nVar
     RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
@@ -849,7 +849,8 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-USE MOD_LinearSolver_Vars,       ONLY:ExplicitSource
+USE MOD_LinearSolver_Vars, ONLY:ExplicitSource
+USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
 #endif
 USE MOD_Equation_Vars,     ONLY:IniExactFunc, eps0
 USE MOD_Equation_Vars,     ONLY:chitens_face
@@ -947,9 +948,9 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
     CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-    RHS_vol(1:PP_nVar,r,iElem)=RHS_vol(1:PP_nVar,r,iElem)+ExplicitSource(1:PP_nVar,i,j,k,iElem)
-#endif
+!#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+!    RHS_vol(1:PP_nVar,r,iElem)=RHS_vol(1:PP_nVar,r,iElem)+ExplicitSource(1:PP_nVar,i,j,k,iElem)
+!#endif
   END DO; END DO; END DO !i,j,k
   RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
 END DO !iElem 
@@ -1114,11 +1115,17 @@ DO iter=1,MaxIterFixPoint
   ! SOLVE 
   CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
   IF (converged) THEN
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+    IF(DoPrintConvInfo)THEN
+      SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
+    END IF
+#else
     IF(DoDisplayIter)THEN
       IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
         SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
       END IF
     END IF
+#endif
     EXIT
   ELSE IF (iter.EQ.MaxIterFixPoint) THEN
     STOP 'Newton Iteration has NOT converged!'

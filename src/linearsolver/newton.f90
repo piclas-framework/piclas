@@ -105,7 +105,7 @@ END DO ! iElem=1,PP_nElems
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
-    ImplicitSource(1:PP_nVar,i,j,k,iElem)= ImplicitSource(1:PP_nVar,i,j,k,iElem) + ExplicitSource(1:PP_nVar,i,j,k,iElem)
+    ImplicitSource(1:PP_nVar,i,j,k,iElem)= ImplicitSource(1:PP_nVar,i,j,k,iElem)! + ExplicitSource(1:PP_nVar,i,j,k,iElem)
   END DO; END DO; END DO !i,j,k    
 END DO !iElem 
 Norm_R=0.
