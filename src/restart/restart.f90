@@ -747,9 +747,6 @@ USE MOD_PICDepo,                 ONLY: Deposition
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange,DoExternalParts
 #endif /*MPI*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-USE MOD_LinearSolver_Vars,       ONLY:ExplicitSource
-#endif
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -769,10 +766,6 @@ IF(DoExternalParts)THEN
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()  ! finish communication
 END IF
-#endif
-
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-ExplicitSource=0.
 #endif
 
 ! Deposition of particles

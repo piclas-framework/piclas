@@ -392,6 +392,9 @@ USE MOD_PICDepo_Vars,        ONLY:PartSource,DoDeposition
 USE MOD_Particle_Mesh_Vars,  ONLY:GEO,NbrOfRegions
 USE MOD_Particle_Vars,       ONLY:RegionElectronRef
 USE MOD_Equation_Vars,       ONLY:eps0
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,   ONLY:ExplicitPartSource
+#endif
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars,       ONLY:IniExactFunc
 USE MOD_Equation_Vars,       ONLY:IniCenter,IniHalfwidth,IniAmplitude
@@ -430,7 +433,11 @@ IF(DoDeposition)THEN
         !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
       END IF
   END IF
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+#else
   resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
+#endif
 END IF
 #endif /*PARTICLES*/
 

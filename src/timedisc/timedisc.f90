@@ -2657,11 +2657,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,DoPrintConvInfo
-#ifdef PP_HDG
-USE MOD_Equation,                ONLY:CalcSourceHDG
-#else /*pure DG*/
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U
+#ifdef PP_HDG
+USE MOD_HDG,                     ONLY:HDG
+#else /*pure DG*/
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
@@ -2675,6 +2675,8 @@ USE MOD_Precond,                 ONLY:BuildPrecond
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
+USE MOD_PICDepo_Vars,            ONLY:PartSource
+USE MOD_LinearSolver_Vars,       ONLY:ExplicitPartSource
 USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
 USE MOD_Predictor,               ONLY:PartPredictor,PredictorType
@@ -2729,12 +2731,11 @@ REAL               :: tstage
 ! implicit 
 REAL               :: alpha
 REAL               :: sgamma
+INTEGER            :: iElem,i,j,k
 #ifndef PP_HDG
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-#else 
-INTEGER            :: iElem,i,j,k
 #endif /*DG*/
 REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
@@ -2859,14 +2860,14 @@ IF (t.GE.DelayTime) THEN
 END IF
 
 ImplicitSource=0.
+#ifdef PARTICLES
+ExplicitPartSource=0.
+#endif
 #ifndef PP_HDG
 CALL CalcSource(tStage,1.,ImplicitSource)
 #else
-DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
-  END DO; END DO; END DO !i,j,k    
-END DO !iElem 
+! set required for fluid model and HDG, because field may have changed due to different particle distribution
+CALL HDG(t,U,iter)
 #endif
 IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 
@@ -3062,7 +3063,7 @@ DO iStage=2,nRKStages
     SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
     SWRITE(UNIT_StdOut,'(A)') ' explicit particles'
   END IF
-  ExplicitSource=0.
+  ExplicitPartSource=0.
   ! particle step || only explicit particles
   IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
@@ -3111,15 +3112,11 @@ DO iStage=2,nRKStages
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
     !PartMPIExchange%nMPIParticles=0
-#ifndef PP_HDG
-    CALL CalcSource(tStage,1.,ExplicitSource)
-#else
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
+        ExplicitPartSource(1:4,i,j,k,iElem)=PartSource(1:4,i,j,k,iElem)
       END DO; END DO; END DO !i,j,k    
     END DO !iElem 
-#endif
     ! map particle from v to gamma*v
     CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 

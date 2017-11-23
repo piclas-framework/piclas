@@ -14,7 +14,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                 :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver    ! abort tolerance for DG linear solver
 REAL,ALLOCATABLE     :: ImplicitSource(:,:,:,:,:)                                   ! temp. storage of source terms
-REAL,ALLOCATABLE     :: ExplicitSource(:,:,:,:,:)                                   ! temp. storage of source terms 121,122
 REAL,ALLOCATABLE     :: LinSolverRHS  (:,:,:,:,:)                                   ! RHS for linear solver
 REAL,ALLOCATABLE     :: FieldSource(:,:,:,:,:,:)                                    ! FieldSource, don't no of used
 REAL,ALLOCATABLE     :: Upast(:,:,:,:,:,:)                                          ! history of upast, required for predictor
@@ -56,7 +55,8 @@ LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
-LOGICAL              :: DoPrintConvInfo                                             ! flag to print current norm in outer iteration
+REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122
+LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
                                                                                     ! and number of parts in Newton
 INTEGER              :: maxFullNewtonIter                                           ! limit of fullnewton iterations
 INTEGER              :: TotalFullNewtonIter                                         ! counter for all total full newton iters
