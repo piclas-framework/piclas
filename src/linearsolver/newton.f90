@@ -71,6 +71,7 @@ REAL                       :: Norm_e, rTmp(1:8), locMass
 #ifndef PP_HDG
 ! compute error-norm-version1, non-optimized
 CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+ImplicitSource=0.
 CALL CalcSource(t,1.,ImplicitSource)
 
 IF(DoParabolicDamping)THEN
