@@ -238,16 +238,25 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
 CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric field E_0: adjusted from CASE(200)
   ! R = DielectricRadiusValue
   ! DielectricRatio = eps/eps0
+  IF(.NOT.PRESENT(ElemID))THEN
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+    RETURN
+  END IF
 
   ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
-  IF(ABS(ElemBaryNGeo(3,ElemID)).LT.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
+  IF(ABS(ElemBaryNGeo(3,ElemID)).LT.DielectricRadiusValue)THEN ! inside box: DOF and element bary center
     ! Phi_inner = 
 
     ! marcel
-    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(1 - (DielectricRatio-1)/(DielectricRatio+2))
+    !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(1 - (DielectricRatio-1)/(DielectricRatio+2))
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
 
     ! linear
     !resu(1:PP_nVar) = -(1./(DielectricRatio))*Dielectric_E_0*x(3)
+
+    ! from sphere
+    ! Phi_inner = - (3 / (2 + eps_inner / eps_outer)) * E_1 * z
+    !resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*x(3)*Dielectric_E_0
 
 
 
@@ -259,10 +268,10 @@ CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric 
 
 
     ! marcel
-    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
 
     ! linear
-    !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
 
     !resu(1:PP_nVar) = -Dielectric_E_0*(x(3) - sign(1.0,x(3))*((DielectricRatio-1)/(DielectricRatio+2))*((2**3)/(x(3)**2)) )
     !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
