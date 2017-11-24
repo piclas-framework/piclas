@@ -64,7 +64,6 @@ INTEGER,ALLOCATABLE :: PartBCSideList(:)                                        
 
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis                                 ! element local basis vector (linear elem)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis                             ! inverse of length of basis vector
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                                   ! element local basis: origin
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                                 ! radius of element 
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadius2NGeo                                ! radius of element + 2% tolerance
 INTEGER                                 :: RefMappingGuess                                ! select guess for mapping into reference
@@ -151,10 +150,15 @@ TYPE tGeometry
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
+  REAL, ALLOCATABLE                      :: NodeCoords(:,:,:,:)               ! Node Coordinates (1:nDim,1:nSideNodes,
+                                                                              ! 1:nLocSides,1:nTotalElems)
+  LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
+INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
+                                                                              ! into themselves)
 
 TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element

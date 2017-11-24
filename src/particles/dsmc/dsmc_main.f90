@@ -28,7 +28,7 @@ SUBROUTINE DSMC_main()
 ! Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_TimeDisc_Vars,         ONLY : time, iter, TEnd, dt
+  USE MOD_TimeDisc_Vars,         ONLY : time, iter, TEnd
   USE MOD_Globals
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems, MeshFile
@@ -203,7 +203,7 @@ SUBROUTINE DSMC_main()
       ENDIF
     ELSE
       ! Use user given TimeFracSamp
-      IF((Time+dt.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
         SamplingActive=.TRUE.
         SWRITE(*,*)'Sampling active'
       ENDIF
@@ -217,11 +217,11 @@ SUBROUTINE DSMC_main()
       CALL DSMCHO_data_sampling()
       IF(DSMC%NumOutput.NE.0) THEN
         nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
-        IF(Time+dt.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
+        IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
           DSMC%NumOutput = DSMC%NumOutput - 1
           ! Skipping outputs immediately after the first few iterations
           IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
-            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time+dt)
+            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
             IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
           END IF
         END IF

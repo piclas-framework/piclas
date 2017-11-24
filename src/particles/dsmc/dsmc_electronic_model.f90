@@ -92,11 +92,11 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 END SUBROUTINE InitElectronShell
 
 
-SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
+SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 !===================================================================================================================================
 ! Electronic energy exchange
 !===================================================================================================================================
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, Coll_pData
   USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, usevMPF,PartMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : Geo
 #if (PP_TimeDiscMethod==42)
@@ -106,22 +106,20 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart1
+  INTEGER, INTENT(IN)           :: iPair, iPart1
   INTEGER, INTENT(IN), OPTIONAL :: iPart2,iElem
   REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  REAL, INTENT(INOUT)           :: CollisionEnergy                                                !
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iQuaMax, MaxElecQuant, iQua
-  REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp
+  REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy
 ! vMPF
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
 #if ( PP_TimeDiscMethod==42 )
   INTEGER                       :: iQuaold
 #endif
 !===================================================================================================================================
+  CollisionEnergy = Coll_pData(iPair)%Ec
   iQuaMax  = 0
   ! Determine max electronic quant
   MaxElecQuant = SpecDSMC(PartSpecies(iPart1))%MaxElecQuant - 1
@@ -172,7 +170,7 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
     IF (PartMPF( iPart1).GT.PartMPF( iPart2)) THEN
       Phi = PartMPF( iPart2) / PartMPF( iPart1)
       PartStateIntEnTemp = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-      CollisionEnergy = CollisionEnergy - PartStateIntEnTemp
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
       PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn( iPart1,3) + Phi * PartStateIntEnTemp
       PartStateTemp = PartStateIntEnTemp / BoltzmannConst
       ! searche for new vib quant

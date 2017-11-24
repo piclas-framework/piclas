@@ -29,7 +29,8 @@ SUBROUTINE EvalFlux3DQDS(iElem,f,g,h)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_QDS_DG_Vars, ONLY:QDSnVar,UQDS
+USE MOD_QDS_DG_Vars,        ONLY:UQDS
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

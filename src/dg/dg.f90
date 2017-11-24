@@ -497,7 +497,7 @@ DO iElem=1,PP_nElems
     DO j=0,PP_N
       DO i=0,PP_N
 #ifdef PP_HDG
-        CALL ExactFunc(IniExactFunc,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))
+        CALL ExactFunc(IniExactFunc,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem),ElemID=iElem)
 #else
         CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))
 #endif

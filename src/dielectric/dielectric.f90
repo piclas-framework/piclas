@@ -38,6 +38,8 @@ USE MOD_Dielectric_Vars
 USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Equation_Vars,   ONLY: c_corr,c
 USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_Mesh,            ONLY: GetMeshMinMaxBoundaries
+USE MOD_Equation_Vars,   ONLY: IniExactFunc
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -70,9 +72,11 @@ END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     !             1./(EpsR*MuR)
 DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !         1./sqrt(EpsR*MuR)
-eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
-c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
-c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
+#ifndef PP_HDG
+  eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
+#endif /*if PP_HDG*/
+  c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
+  c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
 DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius','.FALSE.')
 DielectricRadiusValue            = GETREAL('DielectricRadiusValue','-1.')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
@@ -120,11 +124,22 @@ CALL CountAndCreateMappings('Dielectric',&
 CALL SetDielectricVolumeProfile()
 
 #ifndef PP_HDG
-! Determine dielectric Values on faces and communicate them: only for Maxwell
-CALL SetDielectricFaceProfile()
+  ! Determine dielectric Values on faces and communicate them: only for Maxwell
+  CALL SetDielectricFaceProfile()
 #else /*if PP_HDG*/
-! Set HDG diffusion tensor 'chitens' on faces (TODO: MPI and mortar sides)
-CALL SetDielectricFaceProfile_HDG()
+  ! Set HDG diffusion tensor 'chitens' on faces (TODO: MPI and mortar sides)
+  CALL SetDielectricFaceProfile_HDG()
+  IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
+    ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
+    ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
+    IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
+      DielectricRatio=DielectricEpsR
+    ELSE ! dielectric elements outside of sphere, hence, the inverse value is taken
+      DielectricRatio=DielectricEpsR_inv
+    END IF
+    ! get the axial electric field strength in x-direction of the dielectric sphere setup
+    Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
+  END IF
 #endif /*PP_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell
@@ -191,8 +206,10 @@ IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ELSE ! simply set values const.
 ! ----------------------------------------------------------------------------------------------------------------------------------
-  DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricEpsR
-  DielectricMu( 0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
+  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DielectricEps(i,j,k,1:iDielectricElem) = DielectricEpsR
+    DielectricMu( i,j,k,1:iDielectricElem) = DielectricMuR
+  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
 END IF
 DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(EpsR*MuR)
                                                                  (DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems)*&
@@ -298,17 +315,9 @@ SUBROUTINE SetDielectricFaceProfile_HDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-!USE MOD_Dielectric_Vars, ONLY:DielectricConstant_inv,dielectric_Master,dielectric_Slave
 USE MOD_Dielectric_Vars, ONLY:isDielectricElem,DielectricEpsR
-!USE MOD_ProlongToFace,   ONLY:ProlongToFace
-!#ifdef MPI
-!USE MOD_MPI_Vars
-!USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-!#endif
 USE MOD_Equation_Vars,   ONLY:chitens,chitensInv,chitens_face
-!USE MOD_Mesh_Vars,       ONLY:nSides
 USE MOD_Mesh_Vars,       ONLY:nInnerSides
-!USE MOD_Mesh_Vars,       ONLY:Elem_xGP
 USE MOD_Mesh_Vars,       ONLY:ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

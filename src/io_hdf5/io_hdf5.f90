@@ -40,7 +40,7 @@ SUBROUTINE InitIO_HDF5()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR, GETSTR
+USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETSTR
 #ifdef INTEL
 USE IFPORT
 #endif

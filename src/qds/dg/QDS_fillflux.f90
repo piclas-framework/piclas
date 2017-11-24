@@ -38,7 +38,7 @@ USE MOD_Mesh_Vars,           ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_Mesh_Vars,           ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 USE MOD_QDS_Riemann,         ONLY:RiemannQDS
 USE MOD_QDS_GetBoundaryFlux, ONLY:GetBoundaryFluxQDS
-USE MOD_QDS_DG_Vars,         ONLY:QDSnVar
+USE MOD_QDS_Equation_vars,   ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,7 +89,7 @@ END IF
 ! Apply surface element size
 DO SideID=firstSideID,lastSideID
   DO q=0,PP_N; DO p=0,PP_N
-    FluxQDS_Master(:,p,q,SideID)=FluxQDS_Master(:,p,q,SideID)*SurfElem(p,q,SideID)
+    FluxQDS_Master(:,p,q,SideID) = FluxQDS_Master(:,p,q,SideID)*SurfElem(p,q,SideID)
   END DO; END DO
 END DO
 

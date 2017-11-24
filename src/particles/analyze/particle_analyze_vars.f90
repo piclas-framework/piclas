@@ -32,7 +32,7 @@ LOGICAL                       :: CalcVelos                             ! Compute
 LOGICAL                       :: VeloDirs(4)                           ! select the direction for velo computation
 LOGICAL                       :: TrackParticlePosition                 ! track the particle movement
                                                                        ! stored in .csv format, debug only, no MPI 
-INTEGER                       :: nSpeciesAnalyze                       ! number of analyzed species 1 or nSpecies+1
+INTEGER                       :: nSpecAnalyze                          ! number of analyzed species 1 or nSpecies+1
 LOGICAL                       :: IsRestart                             ! check if restart, add data to Database
 LOGICAL                       :: ChargeCalcDone                        ! check flag
 LOGICAL                       :: CalcShapeEfficiency                   ! efficiency of shape function
@@ -54,5 +54,6 @@ REAL                          :: PartCharge(3)                         ! contain
 LOGICAL                       :: printDiff
 REAL                          :: printDiffTime
 REAL                          :: printDiffVec(6)
+REAL                          :: ChemEnergySum
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

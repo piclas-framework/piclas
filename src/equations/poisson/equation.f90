@@ -36,7 +36,7 @@ CONTAINS
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Init Poisson euqation system
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -124,21 +124,24 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu,t) 
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort
-USE MOD_Equation_Vars,ONLY:Pi
-USE MOD_Equation_Vars,ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Equation_Vars,ONLY: ACfrequency,ACamplitude
+USE MOD_Globals,         ONLY:Abort,mpiroot
+USE MOD_Equation_Vars,   ONLY:Pi
+USE MOD_Equation_Vars,   ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Equation_Vars,   ONLY: ACfrequency,ACamplitude
+USE MOD_Dielectric_Vars, ONLY:DielectricRatio,Dielectric_E_0,DielectricRadiusValue
+USE MOD_Mesh_Vars,       ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: x(3)              
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
+INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
 REAL,INTENT(IN),OPTIONAl        :: t ! time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -148,6 +151,8 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
 REAL                            :: r1,r2
+REAL                            :: r_2D,r_3D,varphi,r_bary
+REAL                            :: cos_theta
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(0)
@@ -165,24 +170,118 @@ CASE(2) !sinus
   Omega=2.*Pi*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
 CASE(31) !sinus
-!Print*,"here 31"
   Omega=2.*Pi*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t)
 CASE(32) !sinus
-resu=0.
+  resu=0.
 return
   Omega=2.*Pi*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t-Pi)
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
-CASE(103) !dipole
+CASE(103) ! dipole
   r1=SQRT(SUM((x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   r2=SQRT(SUM((x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   resu(:)=IniAmplitude*(1/r2-1/r1)
+CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book: 
+  ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
+  ! E_0       : constant electric field in z-direction far away from sphere
+  ! R         : constant radius of the sphere
+  ! eps_outer : dielectric constant of surrouding medium
+  ! eps_inner : dielectric constant of sphere
+  ! DielectricRatio = eps_inner / eps_outer (set in dielectric init)
+  
+  ! set radius and angle for DOF position x(1:3)
+  r_2D   = SQRT(x(1)**2+x(2)**2)
+  r_3D   = SQRT(x(1)**2+x(2)**2+x(3)**2)
+  IF(r_3D.EQ.0.0)THEN
+    cos_theta = 0.0
+  ELSE
+    cos_theta = x(3) / r_3D
+  END IF
+  IF(PRESENT(ElemID))THEN ! if ElemID is present, use for bary center determination versus sphere radius
+    r_bary = SQRT(ElemBaryNGeo(1,ElemID)**2+ElemBaryNGeo(2,ElemID)**2+ElemBaryNGeo(3,ElemID)**2)
+  ELSE
+    r_bary = r_3D
+  END IF
+
+  ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
+  IF(r_bary.LT.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
+    ! Phi_inner = - (3 / (2 + eps_inner / eps_outer)) * E_1 * z
+    !resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*Dielectric_E_0*x(3)
+    resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*r_3D*cos_theta*Dielectric_E_0
+  ELSEIF(r_bary.GE.DielectricRadiusValue)THEN ! outside sphere
+    ! Phi_outer = ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   - 1 ) * E_0 * z
+    resu(1:PP_nVar) =  ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
+                       Dielectric_E_0*(DielectricRadiusValue**3/r_3D**2)*cos_theta-Dielectric_E_0 * r_3D*cos_theta
+                         
+                       !( (DielectricRadiusValue**3) / (r_3D**3) ) - 1 )*(Dielectric_E_0 * x(3))
+                       !( (DielectricRadiusValue**3) / ((r_2D**2+x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
+  ELSE
+    IF(PRESENT(ElemID))THEN
+      SWRITE(*,*) "ElemID                ",ElemID
+      SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID),r_bary
+    END IF
+    SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
+    SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
+    CALL abort(&
+    __STAMP__&
+    ,'Dielectric sphere. Invalid radius for exact function!')
+  END IF
+
+  ! varphi = ATAN2(x(2),x(1)) ! only needed for the electric field
+  !   E_r,inner = 0
+  !   E_z,inner = (3 / (2 + eps_inner / eps_outer)) * E_0
+  !  
+  !   E_r,outer = 3 * ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^4 ) ) * E_0 * z
+  !   E_z,inner =   ( - (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   + 1 ) * E_0
+CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric field E_0: adjusted from CASE(200)
+  ! R = DielectricRadiusValue
+  ! DielectricRatio = eps/eps0
+
+  ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
+  IF(ABS(ElemBaryNGeo(3,ElemID)).LT.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
+    ! Phi_inner = 
+
+    ! marcel
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(1 - (DielectricRatio-1)/(DielectricRatio+2))
+
+    ! linear
+    !resu(1:PP_nVar) = -(1./(DielectricRatio))*Dielectric_E_0*x(3)
+
+
+
+  ELSEIF(ABS(ElemBaryNGeo(3,ElemID)).GT.DielectricRadiusValue)THEN ! outside sphere
+    ! Phi_outer = 
+    !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
+                       !( (DielectricRadiusValue**3) / (x(3)**(3.)) ) - 1 )*(Dielectric_E_0 * x(3))
+                       !( (DielectricRadiusValue**3) / ((x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
+
+
+    ! marcel
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
+
+    ! linear
+    !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+
+    !resu(1:PP_nVar) = -Dielectric_E_0*(x(3) - sign(1.0,x(3))*((DielectricRatio-1)/(DielectricRatio+2))*((2**3)/(x(3)**2)) )
+    !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
+                       !( (2.0**3) / ((x(3)**3) ) - 1 )*(Dielectric_E_0 * x(3))
+  ELSE
+    SWRITE(*,*) "ElemID                ",ElemID
+    SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
+    SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID)
+    SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
+    CALL abort(&
+    __STAMP__&
+    ,'Dielectric sphere. Invalid radius for exact function!')
+  END IF
+
+
 CASE DEFAULT
   CALL abort(&
-__STAMP__&
-,'Exactfunction not specified!')
+  __STAMP__&
+  ,'Exactfunction not specified!')
 END SELECT ! ExactFunction
 
 
@@ -287,13 +386,18 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 ! MODULES
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
-USE MOD_PICDepo_Vars,ONLY:PartSource,DoDeposition
-USE MOD_Equation_Vars,ONLY: eps0
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
-USE MOD_Particle_Mesh_Vars, ONLY : GEO,NbrOfRegions
-USE MOD_Particle_Vars, ONLY : RegionElectronRef
+USE MOD_Mesh_Vars,           ONLY:Elem_xGP
+#ifdef PARTICLES
+USE MOD_PICDepo_Vars,        ONLY:PartSource,DoDeposition
+USE MOD_Particle_Mesh_Vars,  ONLY:GEO,NbrOfRegions
+USE MOD_Particle_Vars,       ONLY:RegionElectronRef
+USE MOD_Equation_Vars,       ONLY:eps0
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,   ONLY:ExplicitPartSource
+#endif
+#endif /*PARTICLES*/
+USE MOD_Equation_Vars,       ONLY:IniExactFunc
+USE MOD_Equation_Vars,       ONLY:IniCenter,IniHalfwidth,IniAmplitude
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -329,7 +433,11 @@ IF(DoDeposition)THEN
         !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
       END IF
   END IF
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+#else
   resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
+#endif
 END IF
 #endif /*PARTICLES*/
 

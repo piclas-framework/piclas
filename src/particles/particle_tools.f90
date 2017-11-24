@@ -19,7 +19,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector
 !===================================================================================================================================
 
 CONTAINS
@@ -46,8 +46,8 @@ SUBROUTINE UpdateNextFreePosition()
   IF(PDM%maxParticleNumber.EQ.0) RETURN
   counter1 = 1
   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
-   PEM%pNumber(:) = 0
-   IF (KeepWallParticles) PEM%wNumber(:) = 0
+    PEM%pNumber(:) = 0
+    IF (KeepWallParticles) PEM%wNumber(:) = 0
   END IF
   n = PDM%ParticleVecLength !PDM%maxParticleNumber
   PDM%ParticleVecLength = 0
@@ -97,5 +97,33 @@ SUBROUTINE UpdateNextFreePosition()
 
   RETURN
 END SUBROUTINE UpdateNextFreePosition
+
+FUNCTION DiceUnitVector()
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+  USE MOD_Globals_Vars,           ONLY : Pi
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                     :: DiceUnitVector(3)
+  REAL                     :: iRan, bVec, aVec
+!===================================================================================================================================
+  CALL RANDOM_NUMBER(iRan)
+  bVec              = 1. - 2.*iRan
+  aVec              = SQRT(1. - bVec**2.)
+  DiceUnitVector(3) = bVec
+  CALL RANDOM_NUMBER(iRan)
+  bVec              = Pi *2. * iRan
+  DiceUnitVector(1) = aVec * COS(bVec)
+  DiceUnitVector(2) = aVec * SIN(bVec)
+
+END FUNCTION DiceUnitVector 
 
 END MODULE MOD_part_tools

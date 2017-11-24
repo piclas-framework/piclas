@@ -234,7 +234,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   DO iLoop = 1, nPart
     ! check if particle is on wall and chose next particle until particle is not at wall 
     IF (KeepWallParticles) THEN
-      DO WHILE (PDM%ParticleAtWall(iPart)) ! Attention please! Endlosschleife? no, nPart=0 if all particles on wall
+      DO WHILE (PDM%ParticleAtWall(iPart))
         iPart = PEM%pNext(iPart)
       END DO
     END IF
@@ -409,17 +409,17 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                     :: iElem
-  TYPE(tTreeNode),INTENT(INOUT), POINTER     :: TreeNode
+  TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
   TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, SpecPartNum(nSpecies)
-  INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
-  REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
+  INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
+  REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
   INTEGER                       :: PartNumChildNode(8)
-  REAL                            :: NodeVolumeTemp(8)
+  REAL                          :: NodeVolumeTemp(8)
 !===================================================================================================================================
 
   ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))

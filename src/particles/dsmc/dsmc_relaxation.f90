@@ -14,7 +14,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_VibRelaxDiatomic, SetMeanVibQua, CalcXiVibPart
+PUBLIC :: DSMC_VibRelaxDiatomic, SetMeanVibQua, CalcXiVibPart, CalcXiTotalEqui
 !===================================================================================================================================
 
 CONTAINS
@@ -47,7 +47,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
   CALL RANDOM_NUMBER(iRan)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
-  DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
+  DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
    !laux diss page 31
    CALL RANDOM_NUMBER(iRan)
    iQua = INT(iRan * iQuaMax)
@@ -119,14 +119,15 @@ SUBROUTINE SetMeanVibQua()
               PolyatomMolDSMC(iPolyatMole)%TVib = CalcTVibPoly(ChemReac%MeanEVib_PerIter(iSpec), iSpec)
               PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean = 2*(ChemReac%MeanEVib_PerIter(iSpec)-SpecDSMC(iSpec)%EZeroPoint) &
                                                             / (BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%TVib)
-            ELSEIF(ALMOSTEQUAL(ChemReac%MeanEVib_PerIter(iSpec),SpecDSMC(iSpec)%EZeroPoint)) THEN
+            ELSEIF(ABS(ChemReac%MeanEVib_PerIter(iSpec)-SpecDSMC(iSpec)%EZeroPoint)/SpecDSMC(iSpec)%EZeroPoint.LT.1E-9) THEN
+              ! Check relative difference between vibrational energy and zero-point energy
               PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean = 0.0
               PolyatomMolDSMC(iPolyatMole)%TVib = 0.0
             ELSE
               IPWRITE(*,*) ChemReac%MeanEVib_PerIter(iSpec), CollInf%Coll_SpecPartNum(iSpec), SpecDSMC(iSpec)%EZeroPoint
               CALL abort(&
                 __STAMP__&
-                ,'ERROR in Calc_XiVib_Poly, energy less than zero-point energy, Species: ',iSpec)
+                ,'ERROR in SetMeanVibQua, energy less than zero-point energy, Species: ',iSpec)
             END IF
           ELSE
             ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
@@ -185,5 +186,101 @@ SUBROUTINE CalcXiVibPart(TVib, iSpec, XiVibPart)
   RETURN
 
 END SUBROUTINE CalcXiVibPart
+
+
+SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
+!===================================================================================================================================
+! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
+!===================================================================================================================================
+! MODULES
+  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC, ChemReac, Coll_pData, DSMC
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)             :: iReac, iPair      ! Reaction Number, Grow a pair number
+  REAL, INTENT(IN)                :: Xi_rel
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+  REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+  INTEGER                         :: iDOF, iPolyatMole, nProd, iProd, iQua
+  INTEGER                         :: ProductReac(1:3)
+  REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp
+  REAL                            :: SumOne, SumTwo
+  REAl(KIND=8)                    :: eps_prec=1.0E-5
+!===================================================================================================================================
+
+  ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
+
+  IF(ProductReac(3).EQ.0) THEN
+    Xi_Total = Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot + SpecDSMC(ProductReac(2))%Xi_Rot
+    nProd = 2
+  ELSE
+    Xi_Total = Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot + SpecDSMC(ProductReac(2))%Xi_Rot + SpecDSMC(ProductReac(3))%Xi_Rot
+    nProd = 3
+  END IF
+
+  ETotal = Coll_pData(iPair)%Ec               ! Total collision energy
+  EZeroPoint = 0.0
+
+  DO iProd = 1, nProd
+    EZeroPoint = EZeroPoint + SpecDSMC(ProductReac(iProd))%EZeroPoint
+  END DO
+
+  LowerTemp = 1.0
+  UpperTemp = 2.*(ETotal - EZeroPoint) / (Xi_Total * BoltzmannConst)
+  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
+    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
+    Xi_TotalTemp = Xi_Total
+    DO iProd = 1, nProd
+      IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+        IF(SpecDSMC(ProductReac(iProd))%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(ProductReac(iProd))%SpecToPolyArray
+          XiVibPart(iProd,:) = 0.0
+          ! The vibrational energy of the dissociating molecule and the char. vib. temps of the product are used to determine a
+          ! first guess for the vibrational degree of freedom
+          DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
+            XiVibPart(iProd,iDOF) = (2.0*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / MiddleTemp) &
+                      / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/ MiddleTemp) - 1.0)
+            Xi_TotalTemp = Xi_TotalTemp + XiVibPart(iProd,iDOF)
+          END DO
+        ELSE
+          XiVibPart(iProd,1) = (2.0*SpecDSMC(ProductReac(iProd))%CharaTVib / MiddleTemp) &
+                    / (EXP(SpecDSMC(ProductReac(iProd))%CharaTVib / MiddleTemp) - 1.0)
+          Xi_TotalTemp = Xi_TotalTemp + XiVibPart(iProd,1)
+        END IF
+      ELSE
+        IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
+      END IF
+      IF(DSMC%ElectronicModel.AND.(SpecDSMC(ProductReac(iProd))%InterID.NE.4)) THEN
+        SumOne = 0.0
+        SumTwo = 0.0
+        DO iQua = 0, SpecDSMC(ProductReac(iProd))%MaxElecQuant-1
+          SumOne = SumOne + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua)*BoltzmannConst &
+                          * SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)  &
+                          * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)
+          SumTwo = SumTwo + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua) &
+                          * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)
+        END DO
+        XiElecPart(iProd) = 2 * SumOne / (SumTwo * BoltzmannConst * MiddleTemp)
+        Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
+      ELSE IF(SpecDSMC(ProductReac(iProd))%InterID.EQ.4) THEN
+        IF(PRESENT(XiElecPart)) XiElecPart(iProd) = 0.0
+      END IF
+    END DO
+    EGuess = EZeroPoint + Xi_TotalTemp / 2. * BoltzmannConst * MiddleTemp
+    IF (EGuess .GT. ETotal) THEN
+      UpperTemp = MiddleTemp
+    ELSE
+      LowerTemp = MiddleTemp
+    END IF
+  END DO
+  RETURN
+
+END SUBROUTINE CalcXiTotalEqui
 
 END MODULE MOD_DSMC_Relaxation
