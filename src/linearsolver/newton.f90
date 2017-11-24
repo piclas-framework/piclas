@@ -516,6 +516,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   Norm_Diff_old=Norm_Diff
   Norm_Diff=Norm_Rold-Norm_R
   IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
+  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
   IF(Norm_R.LT.1e-14) IsConverged=.TRUE.
 
   IF(nFullNewtonIter.GT.5)THEN
