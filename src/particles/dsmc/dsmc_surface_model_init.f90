@@ -128,32 +128,36 @@ DO iSpec = 1,nSpecies
     Adsorption%RecombData(1,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-PartnerSpec','-1')
     Adsorption%RecombData(2,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-ResultSpec','-1')
     DO iPartBound=1,nPartBound
-      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidCatalytic(iPartBound))THEN
-        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
-        hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-        Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
-        Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
-        Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation','1.')
-        IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
-          CALL abort(&
+      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
+        IF(PartBound%SolidCatalytic(iPartBound))THEN
+          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
+          Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
+          Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
+          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation','1.')
+          IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
+            CALL abort(&
 __STAMP__,&
 'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
-        END IF
+          END IF
+        END IF  
       END IF
     END DO
   ELSE IF (DSMC%WallModel.EQ.3) THEN 
     DO iPartBound=1,nPartBound
-      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidCatalytic(iPartBound))THEN
-        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
-        hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-        Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
-        Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
-        Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
-        IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
-        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
-          CALL abort(&
+      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
+        IF(PartBound%SolidCatalytic(iPartBound))THEN
+          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
+          Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
+          Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
+          Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
+          IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
+          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+            CALL abort(&
 __STAMP__,&
 'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
+          END IF
         END IF
       END IF
     END DO
