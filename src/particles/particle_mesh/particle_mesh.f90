@@ -3840,6 +3840,7 @@ END DO ! iElem=1,nLoop
 DO iElem=PP_nElems+1,nLoop
   epsOneCell(iElem)=1.0+SQRT(maxScaleJ*RefMappingEps)
 END DO ! iElem=1,nLoop
+CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
 
 END SUBROUTINE GetBCElemMap
 
