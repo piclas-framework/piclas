@@ -37,7 +37,7 @@ CONTAINS
 
 SUBROUTINE InitPML()
 !===================================================================================================================================
-!  Initialize perfectly matched layer
+! Initialize perfectly matched layer
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -46,7 +46,7 @@ USE MOD_ReadInTools
 USE MOD_PML_Vars
 USE MOD_HDF5_output,     ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
 USE MOD_HDF5_output,     ONLY: WritePMLzetaGlobalToHDF5
-USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings
+USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -62,71 +62,30 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
-DoPML                      = GETLOGICAL('DoPML','.FALSE.')
-PMLzeta0                   = GETREAL('PMLzeta0','0.')
-PMLalpha0                  = GETREAL('PMLalpha0','0.')
-xyzPhysicalMinMax(1:6)     = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-xyzPMLzetaShapeOrigin(1:3) = GETREALARRAY('xyzPMLzetaShapeOrigin',3,'0.0,0.0,0.0')
-xyzPMLMinMax(1:6)          = GETREALARRAY('xyzPMLMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-! use xyzPhysicalMinMax before xyzPMLMinMax: 1.) check for xyzPhysicalMinMax 2.) check for xyzPMLMinMax
-IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMax),MINVAL(xyzPhysicalMinMax)))THEN ! if still the initialized values
-  xyzPhysicalMinMax(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
-  IF(ALMOSTEQUAL(MAXVAL(xyzPMLMinMax),MINVAL(xyzPMLMinMax)))THEN ! if still the initialized values
-    xyzPMLMinMax(1:4)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
-    usePMLMinMax=.FALSE. ! ! xyzPhysicalMinMax and xyzPMLMinMax are undefined -> use HUGE for both
-    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPhysicalMinMax(1:6): Setting [+-HUGE]"
-    SWRITE(UNIT_stdOut,'(A)')"no PML region supplied, setting xyzPMLMinMax(1:6)     : Setting [+-HUGE]"
-  ELSE
-    SWRITE(UNIT_stdOut,'(A)')"PML region supplied via xyzPMLMinMax(1:6)"
-    usePMLMinMax=.TRUE. ! xyzPhysicalMinMax is undefined but xyzPMLMinMax is not
-  END IF
+DoPML                  = GETLOGICAL('DoPML','.FALSE.')
+IF(.NOT.DoPML) THEN
+  SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
+  PMLnVar=0
+  nPMLElems=0
+  RETURN
 ELSE
-  SWRITE(UNIT_stdOut,'(A)')"PML region supplied via xyzPhysicalMinMax(1:6)"
+#if PP_nVar == 1
+  CALL abort(__STAMP__,&
+      'Equation system does not support a PML!',999,999.)
+#endif
+#if PP_nVar == 4
+  CALL abort(__STAMP__,&
+      'Equation system does not support a PML!',999,999.)
+#endif
+  PMLnVar=24
 END IF
-! display ranges of PML region depending on usePMLMinMax
-SWRITE(UNIT_stdOut,'(A,L)') 'usePMLMinMax=',usePMLMinMax
-IF(.NOT.usePMLMinMax)THEN
-  SWRITE(UNIT_stdOut,'(A)') '  Ranges for xyzPhysicalMinMax(1:6) are'
-  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I-1)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPhysicalMinMax(2*I)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-ELSE
-  SWRITE(UNIT_stdOut,'(A)') 'Ranges for xyzPMLMinMax(1:6) are'
-  SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPMLMinMax(2*I-1)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
-  DO I=1,3
-    SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  xyzPMLMinMax(2*I)
-  END DO
-  SWRITE(UNIT_stdOut,'(A)') ''
-END IF
-
+PMLzeta0               = GETREAL('PMLzeta0','0.')
+PMLalpha0              = GETREAL('PMLalpha0','0.')
 PMLzetaShape           = GETINT('PMLzetaShape','0')
 PMLRampLength          = GETREAL('PMLRampLength','1.')
 PMLspread              = GETINT('PMLspread','0')
 PMLwriteFields         = GETINT('PMLwriteFields','0')
 PMLzetaNorm            = GETLOGICAL('PMLzetaNorm','.FALSE.')
-
-PMLprintInfo           = GETINT('PMLprintInfo','0') ! 0=only root prints PML info, 1=all procs print PML info
-IF(PMLprintInfo.EQ.0)THEN
-  PMLprintInfoProcs=1 ! only root prints infos
-ELSE
-  PMLprintInfoProcs=nProcessors ! all procs print their infos
-END IF
-! caution, in current version read in in mesh
-! only for Maxwell, PP_nVar=8
 
 DoPMLTimeRamp          = GETLOGICAL('DoPMLTimeRamp','.FALSE.')
 PMLTimeRamptStart      = GETREAL('PMLTimeRamptStart','-1.')
@@ -153,32 +112,31 @@ ELSE
 END IF
 PMLTimeRamp            = 1.0 ! init
 
-IF(.NOT.DoPML) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
-  PMLnVar=0
-  nPMLElems=0
-  RETURN
-ELSE
-#if PP_nVar == 1
-  CALL abort(__STAMP__,&
-      'Equation system does not support a PML!',999,999.)
-#endif
-#if PP_nVar == 4
-  CALL abort(__STAMP__,&
-      'Equation system does not support a PML!',999,999.)
-#endif
-  PMLnVar=24
-END IF
+! determine PML elements
+xyzPhysicalMinMax(1:6)     = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+xyzPMLzetaShapeOrigin(1:3) = GETREALARRAY('xyzPMLzetaShapeOrigin',3,'0.0,0.0,0.0')
+xyzPMLMinMax(1:6)          = GETREALARRAY('xyzPMLMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+! use xyzPhysicalMinMax before xyzPMLMinMax: 
+! 1.) check for xyzPhysicalMinMax 
+! 2.) check for xyzPMLMinMax
+CALL SelectMinMaxRegion('PML',usePMLMinMax,&
+                        'xyzPhysicalMinMax',xyzPhysicalMinMax,&
+                        'xyzPMLMinMax',xyzPMLMinMax)
 
-! find all elements in the PML region. Here: find all elements located outside of 'xyzPhysicalMinMax' 
-IF(usePMLMinMax)THEN
-  CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,ElementIsInside=.TRUE.,DisplayInfoProcs=PMLprintInfoProcs)
-ELSE
-  CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.,DisplayInfoProcs=PMLprintInfoProcs)
+! display ranges of PML region depending on usePMLMinMax
+!CALL DisplayRanges('usePMLMinMax',usePMLMinMax,'xyzPMLMinMax',xyzPMLMinMax(1:6),'xyzPhysicalMinMax',xyzPhysicalMinMax(1:6))
+
+! find all elements in the PML region
+IF(usePMLMinMax)THEN ! find all elements located inside of 'xyzPMLMinMax'
+  CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,&
+                           ElementIsInside=.TRUE. ,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
+ELSE ! find all elements located outside of 'xyzPhysicalMinMax'
+  CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,&
+                           ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
 END IF
 
 ! find all faces in the PML region
-CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem,PMLprintInfoProcs)
+CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem)
 
 ! Get number of PML Elems, Faces and Interfaces. Create Mappngs PML <-> physical region
 CALL CountAndCreateMappings('PML',&
@@ -186,12 +144,13 @@ CALL CountAndCreateMappings('PML',&
                             nPMLElems,nPMLFaces, nPMLInterFaces,&
                             ElemToPML,PMLToElem,&
                             FaceToPML,PMLToFace,&
-                            FaceToPMLInter,PMLInterToFace)
+                            FaceToPMLInter,PMLInterToFace,&
+                            DisplayInfo=.TRUE.)
 
 ! nPMLElems is determined, now allocate the PML field correnspondingly
 ALLOCATE(U2       (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))        
 ALLOCATE(U2t      (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
-U2=0.
+U2 =0.
 U2t=0.
 
 ! Set the damping profile function zeta=f(x,y) in the PML region
@@ -334,7 +293,7 @@ USE MOD_PreProc
 USE MOD_Mesh,          ONLY: GetMeshMinMaxBoundaries
 USE MOD_Mesh_Vars,     ONLY: Elem_xGP,xyzMinMax
 USE MOD_PML_Vars,      ONLY: PMLzeta,PMLzetaEff,PMLalpha,usePMLMinMax,xyzPMLzetaShapeOrigin,xyzPMLMinMax
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLprintInfoProcs
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
 USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -361,32 +320,6 @@ PMLalpha=PMLalpha0 ! currently only constant a alpha distribution in the PML reg
 
 ! get xyzMinMax
 CALL GetMeshMinMaxBoundaries()
-
-#ifdef MPI
-DO I=0,PMLprintInfoProcs-1
-  IF(I.EQ.myrank)THEN
-#endif /*MPI*/
-  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'          xyzMinMax - X',xyzMinMax(1),xyzMinMax(2)
-  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'          xyzMinMax - Y',xyzMinMax(3),xyzMinMax(4)
-  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'          xyzMinMax - Z',xyzMinMax(5),xyzMinMax(6)
-#ifdef MPI
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-END DO
-#endif /*MPI*/
-
-#ifdef MPI
-DO I=0,PMLprintInfoProcs-1
-  IF(I.EQ.myrank)THEN
-#endif /*MPI*/
-  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'  xyzPhysicalMinMax - X',xyzPhysicalMinMax(1),xyzPhysicalMinMax(2)
-  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'  xyzPhysicalMinMax - Y',xyzPhysicalMinMax(3),xyzPhysicalMinMax(4)
-  SWRITE(UNIT_stdOut,'(A,I10,A,E25.14E3,E25.14E3)') 'myrank=',I,'  xyzPhysicalMinMax - Z',xyzPhysicalMinMax(5),xyzPhysicalMinMax(6)
-#ifdef MPI
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-END DO
-#endif /*MPI*/
 
 !determine PMLzeta values for each interpolation point according to ramping function (const., linear, sinusoidal, polynomial)
 IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
@@ -625,60 +558,6 @@ SDEALLOCATE(FaceToPMLInter)
 SDEALLOCATE(PMLInterToFace)
 END SUBROUTINE FinalizePML
 
-
-! SUBROUTINE ProlongToFace_PMLInfo(isElem,isFace_Master,isFace_Slave,doMPISides)
-! !===================================================================================================================================
-! ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
-! ! integration points, using fast 1D Interpolation and store in global side structure
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Globals
-! USE MOD_PreProc
-! USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
-! USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
-! LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems) 
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
-! REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES 
-! INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
-! !===================================================================================================================================
-! IF(doMPISides)THEN
-!   ! only YOUR MPI Sides are filled
-!   firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
-!   lastSideID  = firstSideID-1+nMPISides_YOUR 
-!   flip(1)     = -1
-! ELSE
-!   ! BCSides, InnerSides and MINE MPISides are filled
-!   firstSideID = 1
-!   lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
-!   flip(1)     = 0
-! END IF
-! DO SideID=firstSideID,lastSideID
-!   ! master side, flip=0
-!   ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
-!   locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
-!   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
-!   ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
-!   locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-!   flip(2)      = SideToElem(S2E_FLIP,SideID)
-!   DO i=1,2 !first maste then slave side
-!     SELECT CASE(Flip(i))
-!       CASE(0) ! master side
-!         isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-!       CASE(1:4) ! slave side
-!         isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
-!     END SELECT
-!   END DO !i=1,2, masterside & slave side 
-! END DO !SideID
-! END SUBROUTINE ProlongToFace_PMLInfo
 END MODULE MOD_PML
 
 

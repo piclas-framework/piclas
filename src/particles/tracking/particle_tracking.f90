@@ -144,7 +144,7 @@ DO i = 1,PDM%ParticleVecLength
             WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
             WRITE(*,*) 'Pos:     ', PartState(i,1:3)
             WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.)
+            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
             ! Retrace to check through which side the particle went
             DO iLocSide=1,6
               TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
@@ -209,7 +209,7 @@ DO i = 1,PDM%ParticleVecLength
               WRITE(*,*) 'Velo:    ', PartState(i,4:6)
               WRITE(*,*) 'Element  ', ElemID
               SideID = 0
-              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.)
+              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
               ! Retrace to check through which side the particle went
               DO iLocSide=1,6
                 TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
@@ -292,7 +292,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
-USE MOD_Mesh_Vars,                   ONLY:OffSetElem
+USE MOD_Mesh_Vars,                   ONLY:OffSetElem,ElemBaryNGeo
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
@@ -304,7 +304,7 @@ USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 USE MOD_Particle_Vars,               ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
 USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
-USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo,GEO
+USE MOD_Particle_Mesh_Vars,          ONLY:GEO
 USE MOD_TimeDisc_Vars,               ONLY:iStage
 USE MOD_Globals_Vars,                ONLY:epsMach
 #endif /*CODE_ANALYZE*/
@@ -693,7 +693,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
       PEM%Element(iPart)=ElemID
-      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
+      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         !WRITE(UNIT_stdOut,'(20(=))')
@@ -824,12 +824,12 @@ SUBROUTINE ParticleRefTracking(doParticle_In)
 USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
-USE MOD_Mesh_Vars,               ONLY:OffSetElem,useCurveds,NGeo
+USE MOD_Mesh_Vars,               ONLY:OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemRadius2NGeo
 USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,PartInElemCheck
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
@@ -1127,7 +1127,7 @@ __STAMP__ &
           ! false, reallocate particle
           IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element, relocating!! '
-            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.)                                                             
+            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', partposref(1:3,ipart)
@@ -1791,7 +1791,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
-USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
+USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort

@@ -21,6 +21,7 @@ REAL,ALLOCATABLE  :: PosPoyntingInt(:)           ! z-coordinate of plane
 REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   ! plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     ! vector, abs for TEM waves
 LOGICAL           :: DoAnalyze                   ! perform analyze
+LOGICAL           :: DoCalcErrorNorms            ! perform L2, LInf error calculation
 !===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars

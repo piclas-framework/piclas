@@ -4,6 +4,8 @@
 
 ## Which examples?
 
+## Old reggie
+
 | **No.** |            **Example**            | **When** |     **CMAKE-CONFIG**    |      **Feature**               |         **Execution**                       |           **Comparing**          |
 |:-------:|:---------------------------------:|:--------:|:-----------------------:|:------------------------------:|:-------------------------------------------:|:--------------------------------:|
 |    1    |             run_basic             |  checkin |       maxwell,RK4       |      DG-Operator               |        nProcs=1,2,5,8                       |              L2,Linf             |
@@ -18,3 +20,26 @@
 |   10    |      feature_TWT_recordpoints     |  nightly |       maxwell,RK4       | RPs, ExactFlux                 | nProcs=1,4, RPs, interior TE-Inflow         |  RP_State, RP_Daata              |
 |   11    |    feature_PIC_HDG_plasma_wave    |  nightly |       poisson,RK4,CN    | Poisson-PIC,Shape-Function-1D  | nProcs=2, Imex for CN                       |  W_el LineIntegration over 2Per  |
 |   12    |  feature_PIC_maxwell_plasma_wave  |  weekly  | maxwell,RK4,ImplicitO4  | Maxwell-PIC,SF1D, FastPeriodic | nProcs=2, IMEX for ImplicitO4               |  W_el LineIntegration over 2Per  |
+
+## Reggie2.0 (new reggie)
+
+| **No.** |            **Check**              | **When** |     **CMAKE-CONFIG**    |      **Examples**              |      **Feature**               |         **Execution**                       |           **Comparing**          |
+|:-------:|:----------------------------------|:--------:|:-----------------------:|:------------------------------:|:------------------------------:|:-------------------------------------------:|:--------------------------------:|
+|    1    | run_basic (flexi)                 | checkin  | default                 | freestream_2D                  |  DG-Operator                   |  MPI=1,2                                    | L2                               |
+|         |                                   |          |                         | freestream_3D                  |  DG-Operator                   |  MPI=1,2                                    | L2                               |
+|    2    | convtest (flexi)                  | nighlty  | FLEXI_2D=ON             | h_2D                           |  h-convergece                  |  single                                     | L2                               |
+|         |                                   |          |                         | h_3D                           |  h-convergece                  |  single                                     | L2                               |
+|         |                                   |          | FLEXI_FV=ON             | h_3D_FV                        |  h-convergece                  |  single                                     | L2                               |
+|         |                                   |          |                         | h_3D_mortar                    |  h-convergece                  |  single                                     | L2                               |
+|         |                                   |          | FLEXI_PARABOLIC=OFF     | h_3D_parabolic_off             |  h-convergece                  |  single                                     | L2                               |
+|         |                                   |          | FLEXI_2D=ON             | p_2D                           |  p-convergece                  |  single                                     | L2                               |
+|         |                                   |          |                         | p_3D                           |  p-convergece                  |  single                                     | L2                               |
+|         |                                   |          |                         | p_3D_mortar                    |  p-convergece                  |  single                                     | L2                               |
+|         |                                   |          | FLEXI_PARABOLIC=OFF     | p_3D_parabolic_off             |  p-convergece                  |  single                                     | L2                               |
+|         |                                   |          |                         |                                |                                |                                             |                                  |
+|         |                                   |          |                         |                                |                                |                                             |                                  |
+|         |                                   |          |                         |                                |                                |                                             |                                  |
+
+## Analyze routines
+
+see [the reggie repository](https://gitlab.iag.uni-stuttgart.de/reggie/reggie/blob/master/README.md)

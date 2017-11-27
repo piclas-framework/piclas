@@ -160,8 +160,7 @@ REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
-#ifdef MPI
-#endif
+INTEGER               :: dummy_int
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -878,8 +877,9 @@ END DO
 PartLorentzType = GETINT('Part-LorentzType','3')
 
 ! Read in boundary parameters
-nPartBound = GETINT('Part-nBounds','1.')
-IF (nPartBound.LE.0) THEN
+dummy_int = CNTSTR('Part-nBounds')       ! check if Part-nBounds is present in .ini file
+nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
+IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
 __STAMP__&
   ,'ERROR: nPartBound .LE. 0:', nPartBound)

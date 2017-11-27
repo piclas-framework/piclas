@@ -252,7 +252,9 @@ SUBROUTINE AnalyzeParticles(Time)
   REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
   REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum, MeanFreePath
 #ifdef MPI
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
   REAL                :: sumMeanCollProb
+#endif
   REAL                :: RECBR(nSpecies),RECBR1
   INTEGER             :: RECBIM(nSpecies)
 #endif /*MPI*/
@@ -2432,7 +2434,7 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY: PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
-USE MOD_DSMC_Vars,             ONLY: PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars,             ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_DSMC_Analyze,          ONLY: CalcTVib, CalcTelec, CalcTVibPoly
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars, ONLY: nSpecAnalyze
@@ -2446,7 +2448,7 @@ REAL, INTENT(IN)               :: NumSpec(nSpecAnalyze)    ! number of real part
 REAL,INTENT(OUT)               :: IntTemp(nSpecies,3) , IntEn(nSpecAnalyze,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iPart, iSpec, iDOF, iPolyatMole
+INTEGER                        :: iPart, iSpec
 REAL                           :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), tempVib, NumSpecTemp
 #ifdef MPI
 REAL                           :: RD(nSpecies)
@@ -3039,8 +3041,8 @@ USE MOD_PICDepo,             ONLY:Deposition
 USE MOD_DG_Vars,             ONLY:U
 #else
 #if PP_nVar==1
-#else
 USE MOD_Equation_Vars,       ONLY:E
+#else
 #endif
 #endif
 #ifdef MPI
@@ -3125,11 +3127,11 @@ DO iSpec=1,nSpecies
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
-          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
-#else
           PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
           PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
           PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+#else
+          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif

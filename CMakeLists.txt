@@ -88,6 +88,7 @@ OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 CN ImplicitO3 ImplicitO4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
 
+OPTION(BOLTZPLATZ_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
 OPTION(BOLTZPLATZ_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(BOLTZPLATZ_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
@@ -519,6 +520,16 @@ IF(BOLTZPLATZ_PAPI)
   MESSAGE(STATUS "Building Boltzplatz with PAPI benchmark support.") 
 ENDIF()
 
+# ========================================================================= 
+# QDS with DGSEM
+# ========================================================================= 
+IF(BOLTZPLATZ_QDS_DG)
+  MESSAGE(STATUS "Building Boltzplatz with QDS-DGSEM")
+  ADD_DEFINITIONS(-DUSE_QDS_DG=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_QDS_DG=0)
+ENDIF()
+
 # =========================================================================
 # Boltzplatz sources & targets
 # =========================================================================
@@ -607,6 +618,9 @@ FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
+
+FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90)
+
 IF(BOLTZPLATZ_HDG)
   LIST(APPEND boltzplatzF90 ${hdgF90})
   IF(BOLTZPLATZ_IMPLICIT)
@@ -626,6 +640,9 @@ IF (BOLTZPLATZ_PARTICLES)
  ELSE()
    LIST(APPEND boltzplatzF90 ${noparticlesF90})
 ENDIF(BOLTZPLATZ_PARTICLES)
+IF(BOLTZPLATZ_QDS_DG)
+  LIST(APPEND boltzplatzF90 ${QDSF90}) 
+ENDIF()
 
 # define libs
 ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )
@@ -653,17 +670,17 @@ FOREACH (def ${comp_defs})
 ENDFOREACH()
 ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 
-# =========================================================================
-# RegressionCheck tool && Examples
-# =========================================================================
-add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
-                         ./regressioncheck/regressioncheck_vars.f90 
-                         ./regressioncheck/regressioncheck_build.f90 
-                         ./regressioncheck/regressioncheck_compare.f90 
-                         ./regressioncheck/regressioncheck_run.f90 
-                         ./regressioncheck/regressioncheck_tools.f90 )
-ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
-SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
+#   # =========================================================================
+#   # RegressionCheck tool && Examples
+#   # =========================================================================
+#   add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
+#                            ./regressioncheck/regressioncheck_vars.f90 
+#                            ./regressioncheck/regressioncheck_build.f90 
+#                            ./regressioncheck/regressioncheck_compare.f90 
+#                            ./regressioncheck/regressioncheck_run.f90 
+#                            ./regressioncheck/regressioncheck_tools.f90 )
+#   ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
+#   SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
 
 # =========================================================================
 # Userblock

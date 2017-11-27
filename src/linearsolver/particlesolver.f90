@@ -94,6 +94,13 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Cannot allocate R_PartXK')
 
+DoFullNewton = GETLOGICAL('DoFullNewton','.FALSE.')
+IF(DoFullNewton)THEN
+  SWRITE(UNIT_stdOut,'(A)') ' Using a full Newton for Particle and Field instead of Piccardi-Iteration.'
+  nPartNewtonIter=1
+  SWRITE(UNIT_stdOut,'(A,I0)') ' Setting nPartNewtonIter to: ', nPartNewtonIter
+END IF
+
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PartImplicitMethod =GETINT('Part-ImplicitMethod','0')
 #endif
@@ -609,6 +616,7 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
@@ -852,9 +860,9 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         tmpElemID=PEM%Element(iPart)
         PartState(iPart,1:3)=PartXK(1:3,iPart)
         IF(DoRefMapping)THEN
-          CALL SingleParticleToExactElement     (iPart,doHALO=.TRUE.,initFix=.FALSE.)
+          CALL SingleParticleToExactElement     (iPart,doHALO=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
         ELSE
-          CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)
+          CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
         END IF
         PEM%LastElement(iPart)=PEM%Element(iPart)
         PEM%Element(iPart)=tmpElemID
@@ -939,31 +947,41 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
       !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
-      IF(Norm2_PartX .LE. Norm2_F_PartXK(iPart))THEN
+      IF(DoFullNewton)THEN
         ! accept lambda
         PartLambdaAccept(iPart)=.TRUE.
         ! set  new position
         PartXK(1:6,iPart)=PartState(iPart,1:6)
         Norm2_F_PartXK(iPart)=Norm2_PartX
         IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+           DoPartInNewton(iPart)=.FALSE.
+      ELSE ! .NOT.DoFullNewton
+        IF(Norm2_PartX .LE. Norm2_F_PartXK(iPart))THEN
+          ! accept lambda
+          PartLambdaAccept(iPart)=.TRUE.
+          ! set  new position
+          PartXK(1:6,iPart)=PartState(iPart,1:6)
+          Norm2_F_PartXK(iPart)=Norm2_PartX
+          IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+            DoPartInNewton(iPart)=.FALSE.
+        ELSE
+          ! test not working
+          !IF(Norm2_PartX.GT.Norm2_F_PartX0(iPart))THEN !allow for a local increase in residual
+          !  PartXK(1:6,iPart)=PartState(iPart,1:6)
+          !  Norm2_F_PartXK(iPart)=Norm2_PartX
+          !  Norm2_F_PartX0(iPart)=Norm2_PartX
+          !  Norm2_F_PartXk_old(iPart)=Norm2_PartX
+          !  PartLambdaAccept(iPart)=.TRUE.
+          !END IF
+          ! DO not accept lambda, go to next step
+          ! scip particle in current iteration and reiterate
+          ! DO NOT nullify because Armijo iteration will not work
+          ! OR  NO Armijo and particle does is not changed during this step
+          PartDeltaX(1:3,iPart)=0.
           DoPartInNewton(iPart)=.FALSE.
-      ELSE
-        ! test not working
-        !IF(Norm2_PartX.GT.Norm2_F_PartX0(iPart))THEN !allow for a local increase in residual
-        !  PartXK(1:6,iPart)=PartState(iPart,1:6)
-        !  Norm2_F_PartXK(iPart)=Norm2_PartX
-        !  Norm2_F_PartX0(iPart)=Norm2_PartX
-        !  Norm2_F_PartXk_old(iPart)=Norm2_PartX
-        !  PartLambdaAccept(iPart)=.TRUE.
-        !END IF
-        ! DO not accept lambda, go to next step
-        ! scip particle in current iteration and reiterate
-        ! DO NOT nullify because Armijo iteration will not work
-        ! OR  NO Armijo and particle does is not changed during this step
-        PartDeltaX(1:3,iPart)=0.
-        DoPartInNewton(iPart)=.FALSE.
-        PartLambdaAccept(iPart)=.TRUE.
-      END IF
+          PartLambdaAccept(iPart)=.TRUE.
+        END IF
+      END IF ! DoFullNewton
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
   ! detect  convergence

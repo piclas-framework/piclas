@@ -693,9 +693,9 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,CurvedElem
+USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemBaryNGeo,ElemType
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -1711,9 +1711,9 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,CurvedElem
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO,ElemType
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty

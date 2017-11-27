@@ -1164,8 +1164,7 @@ SUBROUTINE Init_ChemistrySampling()
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Mesh_Vars,              ONLY : BC
-USE MOD_Particle_Vars,          ONLY : nSpecies, Species
+USE MOD_Particle_Vars,          ONLY : nSpecies
 USE MOD_DSMC_Vars,              ONLY : Adsorption
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
 #ifdef MPI
@@ -1218,7 +1217,7 @@ SUBROUTINE Init_TST_Coeff(TST_Case)
 ! MODULES
 USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
 USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_DSMC_Vars,              ONLY : Adsorption, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY : Adsorption
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
@@ -1230,7 +1229,7 @@ INTEGER , INTENT(IN)            :: TST_Case
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: PartitionArraySize
+!REAL                            :: PartitionArraySize
 INTEGER                         :: iSpec, iReactNum
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'

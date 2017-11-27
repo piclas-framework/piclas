@@ -270,6 +270,7 @@ INTEGER                           :: IntInfo         ! Error info (integer)
 REAL                              :: RealInfo        ! Error info (real)
 #ifdef MPI
 INTEGER                           :: errOut          ! Output of MPI_ABORT
+INTEGER                           :: signalout       ! Output errorcode
 #endif /*MPI*/
 !===================================================================================================================================
 #ifdef MPI
@@ -299,9 +300,11 @@ WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
 #ifdef MPI
-CALL MPI_ABORT(MPI_COMM_WORLD,iError,errOut)
+signalout=2 ! MPI_ABORT requires an output error-code /=0
+errOut = 1
+CALL MPI_ABORT(MPI_COMM_WORLD,signalout,errOut)
 #endif
-STOP 0001
+STOP 2
 END SUBROUTINE AbortProg
 
 !==================================================================================================================================

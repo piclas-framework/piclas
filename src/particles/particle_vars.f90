@@ -59,6 +59,7 @@ REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! d
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 !REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (1:NParts,1:3) with 2nd index: x,y,z
+LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
 #endif
 #ifdef IMPA

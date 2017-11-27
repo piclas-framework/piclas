@@ -167,7 +167,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
 USE MOD_TimeAverage_vars,      ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,           ONLY: CalcTimeAverage
-#if (PP_TimeDiscMethod==201)                                                                                                         
+#if (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars,         ONLY: dt_temp, MaximumIterNum 
 #endif
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
@@ -176,7 +176,7 @@ USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
 USE MOD_PML_Vars,              ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML,                   ONLY: PMLTimeRamping
 #endif /*PP_HDG*/
-USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
+USE MOD_Analyze,               ONLY: PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
@@ -184,6 +184,10 @@ USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
+#if USE_QDS_DG
+USE MOD_HDF5_output,           ONLY: WriteQDSToHDF5
+USE MOD_QDS_DG_Vars,           ONLY: DoQDS
+#endif /*USE_QDS_DG*/
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh,                  ONLY: SwapMesh
@@ -246,10 +250,12 @@ REAL                         :: tEndDiff, tAnalyzeDiff
 REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 INTEGER(KIND=8)              :: iter_loc
-REAL                         :: CalcTimeStart,CalcTimeEnd
+REAL                         :: CalcTimeStart,CalcTimeEnd,eta
 INTEGER                      :: TimeArray(8)              ! Array for system time
+#ifdef MPI
 REAL                         :: CurrentImbalance
 LOGICAL                      :: PerformLoadBalance
+#endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
 LOGICAL                      :: NoPartInside
@@ -293,7 +299,12 @@ IF(DoRestart) CALL EvalGradient()
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+IF(DoWriteStateToHDF5)THEN 
+  CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+#if USE_QDS_DG
+  IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+#endif /*USE_QDS_DG*/
+END IF
 
 ! if measurement of particle tracking time
 #ifdef PARTICLES
@@ -557,6 +568,8 @@ DO !iter_t=0,MaxIter
       END IF
 #endif /*PARICLES*/
       IF(MPIroot)THEN
+        ! simulation time per CPUh efficiency in [s]/[CPUh]
+        eta = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
         ! Get calculation time per DOF
         CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
         CALL DATE_AND_TIME(values=TimeArray) ! get System time
@@ -564,6 +577,7 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_stdOut,'(A,I2.2,A1,I2.2,A1,I4.4,A1,I2.2,A1,I2.2,A1,I2.2)') &
           ' Sys date  :    ',timeArray(3),'.',timeArray(2),'.',timeArray(1),' ',timeArray(5),':',timeArray(6),':',timeArray(7)
         WRITE(UNIT_stdOut,'(A,ES12.5,A)')' CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
+        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' SIMULATION TIME PER CALCULATION in [s]/[CPUh]: [',eta,' sec/h ]'
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
@@ -598,7 +612,12 @@ DO !iter_t=0,MaxIter
 #ifndef PP_HDG
 #endif /*PP_HDG*/
       ! Write state to file
-      IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+      IF(DoWriteStateToHDF5)THEN 
+        CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+#if USE_QDS_DG
+        IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+#endif /*USE_QDS_DG*/
+      END IF
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tFuture)
 #ifndef PP_HDG
       ! Write state to file
@@ -653,6 +672,11 @@ USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
 USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
+#if USE_QDS_DG
+USE MOD_QDS_DG_Vars,             ONLY: UQDS,UQDSt,nQDSElems,DoQDS
+USE MOD_QDS_Equation_vars,       ONLY: QDSnVar
+USE MOD_QDS_DG,                  ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
+#endif /*USE_QDS_DG*/
 USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
 USE MOD_Equation,                ONLY: CalcSource
@@ -698,8 +722,11 @@ INTEGER(KIND=8),INTENT(INOUT) :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !INTEGER                       :: iPart
-REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
-REAL                          :: U2t_temp(1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+REAL                          :: Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+REAL                          :: U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+#if USE_QDS_DG
+REAL                          :: UQDSt_temp(1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems) ! temporal variable for UQDSt
+#endif /*USE_QDS_DG*/
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
@@ -797,6 +824,12 @@ IF(DoPML) THEN
   CALL CalcPMLSource()
   CALL PMLTimeDerivative()
 END IF
+#if USE_QDS_DG
+IF(DoQDS) THEN
+  CALL QDSReCalculateDGValues()
+  CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.,doPrintInfo=.TRUE.)
+END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -843,6 +876,12 @@ IF(DoPML) THEN
   U2t_temp = U2t
   U2 = U2 + U2t*b_dt(1)
 END IF
+#if USE_QDS_DG
+IF(DoQDS) THEN
+  UQDSt_temp = UQDSt
+  UQDS = UQDS + UQDSt*b_dt(1)
+END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -984,6 +1023,12 @@ DO iStage=2,nRKStages
     CALL CalcPMLSource()
     CALL PMLTimeDerivative()
   END IF
+#if USE_QDS_DG
+  IF(DoQDS) THEN
+    !CALL QDSReCalculateDGValues()
+    CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.)
+  END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -1020,6 +1065,12 @@ DO iStage=2,nRKStages
     U2t_temp = U2t - U2t_temp*RK_a(iStage)
     U2 = U2 + U2t_temp*b_dt(iStage)
   END IF
+#if USE_QDS_DG
+  IF(DoQDS)THEN
+    UQDSt_temp = UQDSt - UQDSt_temp*RK_a(iStage)
+    UQDS = UQDS + UQDSt_temp*b_dt(iStage)
+  END IF
+#endif /*USE_QDS_DG*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
@@ -1095,6 +1146,11 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
 
 END DO
+#if USE_QDS_DG
+IF(DoQDS) THEN
+  CALL QDSCalculateMacroValues()
+END IF
+#endif /*USE_QDS_DG*/
 
 #ifdef PARTICLES
 IF (t.GE.DelayTime) THEN
@@ -2601,11 +2657,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,DoPrintConvInfo
-#ifdef PP_HDG
-USE MOD_Equation,                ONLY:CalcSourceHDG
-#else /*pure DG*/
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U
+#ifdef PP_HDG
+USE MOD_HDG,                     ONLY:HDG
+#else /*pure DG*/
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
@@ -2619,16 +2675,18 @@ USE MOD_Precond,                 ONLY:BuildPrecond
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
+USE MOD_PICDepo_Vars,            ONLY:PartSource,DoDeposition
+USE MOD_LinearSolver_Vars,       ONLY:ExplicitPartSource
 USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
 USE MOD_Predictor,               ONLY:PartPredictor,PredictorType
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType, doParticleMerge,PartPressureCell,PartDtFrac
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac & 
+                                      ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
+                                      , Pt,LastPartPos,DelayTime,PartState
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux!, StagePartPos
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
@@ -2673,12 +2731,11 @@ REAL               :: tstage
 ! implicit 
 REAL               :: alpha
 REAL               :: sgamma
+INTEGER            :: iElem,i,j,k
 #ifndef PP_HDG
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-#else 
-INTEGER            :: iElem,i,j,k
 #endif /*DG*/
 REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
@@ -2803,14 +2860,14 @@ IF (t.GE.DelayTime) THEN
 END IF
 
 ImplicitSource=0.
+#ifdef PARTICLES
+ExplicitPartSource=0.
+#endif
 #ifndef PP_HDG
 CALL CalcSource(tStage,1.,ImplicitSource)
 #else
-DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
-  END DO; END DO; END DO !i,j,k    
-END DO !iElem 
+! set required for fluid model and HDG, because field may have changed due to different particle distribution
+CALL HDG(t,U,iter)
 #endif
 IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 
@@ -2882,7 +2939,7 @@ IF(t.GE.DelayTime)THEN
           CASE DEFAULT
           END SELECT
           ! f(u^n) for velocity
-          PartStage(iPart,4:6,1)=Pt(iPart,1:3)
+          IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(iPart,1:3)
           ! position NOT known but we backup the state
           PartStateN(iPart,1:3) = PartState(iPart,1:3)
           ! initial velocity equals velocity of surface flux
@@ -3006,7 +3063,7 @@ DO iStage=2,nRKStages
     SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
     SWRITE(UNIT_StdOut,'(A)') ' explicit particles'
   END IF
-  ExplicitSource=0.
+  ExplicitPartSource=0.
   ! particle step || only explicit particles
   IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
@@ -3055,15 +3112,13 @@ DO iStage=2,nRKStages
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
     !PartMPIExchange%nMPIParticles=0
-#ifndef PP_HDG
-    CALL CalcSource(tStage,1.,ExplicitSource)
-#else
-    DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        CALL CalcSourceHDG(i,j,k,iElem,ExplicitSource(1:PP_nVar,i,j,k,iElem))
-      END DO; END DO; END DO !i,j,k    
-    END DO !iElem 
-#endif
+    IF(DoDeposition) THEN
+      DO iElem=1,PP_nElems
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+          ExplicitPartSource(1:4,i,j,k,iElem)=PartSource(1:4,i,j,k,iElem)
+        END DO; END DO; END DO !i,j,k
+      END DO !iElem
+    END IF
     ! map particle from v to gamma*v
     CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 
@@ -3247,46 +3302,54 @@ DO iStage=2,nRKStages
                 !LastPartPos(iPart,3)=PartState(iPart,3)
                 PEM%lastElement(iPart)=PEM%Element(iPart)
                 ! reconstruct velocity changes and velocity of missing stage
-                DO iStage2=2,iStage-1
-                  v_tild = PartStateN(iPart,4:6)
-                  DO iCounter=1,iStage2-1
-                    v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iCounter)*PartStage(iPart,4:6,iCounter)
-                  END DO ! iCounter=1,iStage2
-                  ! here: NEWTON for velocity required, we use an approximation instead
-                  v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iStage2)*PartStage(iPart,4:6,iStage-1)
-                  ! compute new RHS 
-                  IF(PartLorentzType.NE.5)THEN
-                    Pt_loc(1:3) = v_tild(:) 
-                    LorentzFacInv=1.0
-                  ELSE
-                    LorentzFacInv=1.0+DOT_PRODUCT(v_tild(:),v_tild(:))*c2_inv      
-                    LorentzFacInv=1.0/SQRT(LorentzFacInv)
-                    Pt_loc(1  ) = v_tild(1) * lorentzfacinv
-                    pt_loc(2  ) = v_tild(2) * LorentzFacInv
-                    Pt_loc(3  ) = v_tild(3) * LorentzFacInv
-                  END IF
-                  ! set partstate for force computation
-                  PartState(iPart,4:6) = v_tild
-                  SELECT CASE(PartLorentzType)
-                  CASE(0)                                                                                                               
-                    Pt_loc(4:6) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-                  CASE(1)
-                    Pt_loc(4:6) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-                  CASE(3)
-                    Pt_loc(4:6) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-                  CASE(5)
-                    Pt_loc(4:6) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-                  CASE DEFAULT
-                  END SELECT
-                  PartStage(iPart,1:6,iStage2)=Pt_loc(1:6)
-                END DO ! iStage2=2,iStage-1
-                ! next, contribution of stage update
-                PartQ(1:6,iPart) = ESDIRK_a(iStage,1)*PartStage(iPart,1:6,1)
-                DO iCounter=2,iStage-1
-                  PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-                END DO
-                PartQ(1:3,iPart) = PartStateN(iPart,1:3) + dtFrac*dt*PartQ(1:3,iPart)
-                PartQ(4:6,iPart) = PartStateN(iPart,4:6) + dtFrac*dt*PartQ(4:6,iPart)
+                IF(DoForceFreeSurfaceFlux)THEN
+                  DO iCounter=2,iStage-1
+                    PartStage(iPart,1:6,iCounter)=PartStage(iPart,1:6,iCounter-1)
+                  END DO
+                  PartQ(1:3,iPart) = PartStateN(iPart,1:3)
+                  PartQ(4:6,iPart) = PartStateN(iPart,4:6)
+                ELSE
+                  DO iStage2=2,iStage-1
+                    v_tild = PartStateN(iPart,4:6)
+                    DO iCounter=1,iStage2-1
+                      v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iCounter)*PartStage(iPart,4:6,iCounter)
+                    END DO ! iCounter=1,iStage2
+                    ! here: NEWTON for velocity required, we use an approximation instead
+                    v_tild(:)=v_tild(:)+dt*dtFrac*ESDIRK_a(iStage2,iStage2)*PartStage(iPart,4:6,iStage-1)
+                    ! compute new RHS 
+                    IF(PartLorentzType.NE.5)THEN
+                      Pt_loc(1:3) = v_tild(:) 
+                      LorentzFacInv=1.0
+                    ELSE
+                      LorentzFacInv=1.0+DOT_PRODUCT(v_tild(:),v_tild(:))*c2_inv      
+                      LorentzFacInv=1.0/SQRT(LorentzFacInv)
+                      Pt_loc(1  ) = v_tild(1) * lorentzfacinv
+                      pt_loc(2  ) = v_tild(2) * LorentzFacInv
+                      Pt_loc(3  ) = v_tild(3) * LorentzFacInv
+                    END IF
+                    ! set partstate for force computation
+                    PartState(iPart,4:6) = v_tild
+                    SELECT CASE(PartLorentzType)
+                    CASE(0)                                                                                                               
+                      Pt_loc(4:6) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+                    CASE(1)
+                      Pt_loc(4:6) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+                    CASE(3)
+                      Pt_loc(4:6) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+                    CASE(5)
+                      Pt_loc(4:6) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
+                    CASE DEFAULT
+                    END SELECT
+                    PartStage(iPart,1:6,iStage2)=Pt_loc(1:6)
+                  END DO ! iStage2=2,iStage-1
+                  ! next, contribution of stage update
+                  PartQ(1:6,iPart) = ESDIRK_a(iStage,1)*PartStage(iPart,1:6,1)
+                  DO iCounter=2,iStage-1
+                    PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+                  END DO
+                  PartQ(1:3,iPart) = PartStateN(iPart,1:3) + dtFrac*dt*PartQ(1:3,iPart)
+                  PartQ(4:6,iPart) = PartStateN(iPart,4:6) + dtFrac*dt*PartQ(4:6,iPart)
+                END IF
                 ! set velocity guess 
                 PartState(iPart,4:6) = PartQ(4:6,iPart)
                 ! switch particle to implicit treating, to give source terms, ets.
@@ -3556,11 +3619,11 @@ IF (t.GE.DelayTime) THEN
 #endif /*MPI*/
   IF(DoRefMapping)THEN
     ! tracking routines has to be extended for optional flag, like deposition
-    CALL ParticleRefTracking()
-    !CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    !CALL ParticleRefTracking()
+    CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   ELSE
-    CALL ParticleTracing()
-    !CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    !CALL ParticleTracing()
+    CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
 #ifdef MPI
   ! send number of particles
@@ -4221,7 +4284,6 @@ USE MOD_Analyze,               ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,         ONLY: dt,iStage,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,         ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,               ONLY: U
-USE MOD_Particle_Tracking_vars,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo,               ONLY: Deposition
 USE MOD_PICInterpolation,      ONLY: InterpolateFieldToParticle
