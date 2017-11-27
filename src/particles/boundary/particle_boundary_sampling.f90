@@ -202,6 +202,74 @@ SurfCOMM%nOutputProcs=1
 OffSetSurfSide=0
 #endif /*MPI*/
 
+! Initialize surface collision sampling and analyze
+CalcSurfCollis%OnlySwaps = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps','.FALSE.')
+CalcSurfCollis%Only0Swaps = GETLOGICAL('Particles-CalcSurfCollis_Only0Swaps','.FALSE.')
+CalcSurfCollis%Output = GETLOGICAL('Particles-CalcSurfCollis_Output','.FALSE.')
+IF (CalcSurfCollis%Only0Swaps) CalcSurfCollis%OnlySwaps=.TRUE.
+CalcSurfCollis%AnalyzeSurfCollis = GETLOGICAL('Particles-AnalyzeSurfCollis','.FALSE.')
+AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
+ALLOCATE(AnalyzeSurfCollis%BCs(1))
+AnalyzeSurfCollis%BCs = 0
+IF (.NOT.CalcSurfCollis%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) THEN
+  CALL abort(__STAMP__,&
+    'ERROR: SFResampleAnalyzeSurfCollis was set without CalcSurfCollis%AnalyzeSurfCollis!')
+END IF
+IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
+  AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
+  AnalyzeSurfCollis%NumberOfBCs = GETINT('Particles-DSMC-NumberOfBCs','1')
+  IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
+    AnalyzeSurfCollis%BCs = GETINT('Particles-DSMC-SurfCollisBC','0') ! 0 means all...
+  ELSE
+    DEALLOCATE(AnalyzeSurfCollis%BCs)
+    ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
+    hilf2=''
+    DO iBC=1,AnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...
+      WRITE(UNIT=hilf,FMT='(I0)') 0
+      hilf2=TRIM(hilf2)//TRIM(hilf)
+      IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
+    END DO
+    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
+  END IF
+  ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
+  ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
+  ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
+  ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
+  IF (LastAnalyzeSurfCollis%Restart) THEN
+    CALL ReadAnalyzeSurfCollisToHDF5()
+  END IF
+  !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
+  AnalyzeSurfCollis%Data=0.
+  AnalyzeSurfCollis%Spec=0
+  AnalyzeSurfCollis%BCid=0
+  AnalyzeSurfCollis%Number=0
+  !AnalyzeSurfCollis%Rate=0.
+END IF
+! Species-dependent calculations
+ALLOCATE(CalcSurfCollis%SpeciesFlags(1:nSpecies))
+CalcSurfCollis%NbrOfSpecies = GETINT('Particles-CalcSurfCollis_NbrOfSpecies','0')
+IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nSpecies) ) THEN
+  ALLOCATE(CalcSurfCollis_SpeciesRead(1:CalcSurfCollis%NbrOfSpecies))
+  hilf2=''
+  DO iSpec=1,CalcSurfCollis%NbrOfSpecies !build default string: 1 - CSC_NoS
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    hilf2=TRIM(hilf2)//TRIM(hilf)
+    IF (ispec.NE.CalcSurfCollis%NbrOfSpecies) hilf2=TRIM(hilf2)//','
+  END DO
+  CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,TRIM(hilf2))
+  CalcSurfCollis%SpeciesFlags(:)=.FALSE.
+  DO iSpec=1,CalcSurfCollis%NbrOfSpecies
+    CalcSurfCollis%SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
+  END DO
+  DEALLOCATE(CalcSurfCollis_SpeciesRead)
+ELSE IF (CalcSurfCollis%NbrOfSpecies.EQ.0) THEN !default
+  CalcSurfCollis%SpeciesFlags(:)=.TRUE.
+ELSE
+  CALL abort(&
+  __STAMP__&
+  ,'Error in Particles-CalcSurfCollis_NbrOfSpecies!')
+END IF
+
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 
@@ -305,74 +373,6 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COM
 SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Surface-Area: ', Area
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
-
-! Initialize surface collision sampling and analyze
-CalcSurfCollis%OnlySwaps = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps','.FALSE.')
-CalcSurfCollis%Only0Swaps = GETLOGICAL('Particles-CalcSurfCollis_Only0Swaps','.FALSE.')
-CalcSurfCollis%Output = GETLOGICAL('Particles-CalcSurfCollis_Output','.FALSE.')
-IF (CalcSurfCollis%Only0Swaps) CalcSurfCollis%OnlySwaps=.TRUE.
-CalcSurfCollis%AnalyzeSurfCollis = GETLOGICAL('Particles-AnalyzeSurfCollis','.FALSE.')
-AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
-ALLOCATE(AnalyzeSurfCollis%BCs(1))
-AnalyzeSurfCollis%BCs = 0
-IF (.NOT.CalcSurfCollis%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) THEN
-  CALL abort(__STAMP__,&
-    'ERROR: SFResampleAnalyzeSurfCollis was set without CalcSurfCollis%AnalyzeSurfCollis!')
-END IF
-IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-  AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
-  AnalyzeSurfCollis%NumberOfBCs = GETINT('Particles-DSMC-NumberOfBCs','1')
-  IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
-    AnalyzeSurfCollis%BCs = GETINT('Particles-DSMC-SurfCollisBC','0') ! 0 means all...
-  ELSE
-    DEALLOCATE(AnalyzeSurfCollis%BCs)
-    ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
-    hilf2=''
-    DO iBC=1,AnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...
-      WRITE(UNIT=hilf,FMT='(I0)') 0
-      hilf2=TRIM(hilf2)//TRIM(hilf)
-      IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
-    END DO
-    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
-  END IF
-  ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
-  ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
-  ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
-  ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
-  IF (LastAnalyzeSurfCollis%Restart) THEN
-    CALL ReadAnalyzeSurfCollisToHDF5()
-  END IF
-  !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
-  AnalyzeSurfCollis%Data=0.
-  AnalyzeSurfCollis%Spec=0
-  AnalyzeSurfCollis%BCid=0
-  AnalyzeSurfCollis%Number=0
-  !AnalyzeSurfCollis%Rate=0.
-END IF
-! Species-dependent calculations
-ALLOCATE(CalcSurfCollis%SpeciesFlags(1:nSpecies))
-CalcSurfCollis%NbrOfSpecies = GETINT('Particles-CalcSurfCollis_NbrOfSpecies','0')
-IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nSpecies) ) THEN
-  ALLOCATE(CalcSurfCollis_SpeciesRead(1:CalcSurfCollis%NbrOfSpecies))
-  hilf2=''
-  DO iSpec=1,CalcSurfCollis%NbrOfSpecies !build default string: 1 - CSC_NoS
-    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    hilf2=TRIM(hilf2)//TRIM(hilf)
-    IF (ispec.NE.CalcSurfCollis%NbrOfSpecies) hilf2=TRIM(hilf2)//','
-  END DO
-  CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,TRIM(hilf2))
-  CalcSurfCollis%SpeciesFlags(:)=.FALSE.
-  DO iSpec=1,CalcSurfCollis%NbrOfSpecies
-    CalcSurfCollis%SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
-  END DO
-  DEALLOCATE(CalcSurfCollis_SpeciesRead)
-ELSE IF (CalcSurfCollis%NbrOfSpecies.EQ.0) THEN !default
-  CalcSurfCollis%SpeciesFlags(:)=.TRUE.
-ELSE
-  CALL abort(&
-  __STAMP__&
-  ,'Error in Particles-CalcSurfCollis_NbrOfSpecies!')
-END IF
 
 SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
 
