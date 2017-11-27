@@ -34,6 +34,9 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
 USE MOD_ReadInTools
+USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars,                  ONLY: nElems
+USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
@@ -63,6 +66,12 @@ IF(ParticlesInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
+
+IF(.NOT.ALLOCATED(nPartsPerElem))THEN
+  ALLOCATE(nPartsPerElem(1:nElems))
+  nPartsPerElem=0
+  CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
+END IF
 
 CALL InitializeVariables()
 IF(useBGField) CALL InitializeBackgroundField()

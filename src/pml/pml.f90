@@ -47,6 +47,7 @@ USE MOD_PML_Vars
 USE MOD_HDF5_output,     ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
 USE MOD_HDF5_output,     ONLY: WritePMLzetaGlobalToHDF5
 USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_IO_HDF5,         ONLY:AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -152,6 +153,8 @@ ALLOCATE(U2       (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(U2t      (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 U2 =0.
 U2t=0.
+
+CALL AddToElemData(ElementOut,'PMLElem',LogArray=isPMLElem(:))
 
 ! Set the damping profile function zeta=f(x,y) in the PML region
 CALL SetPMLdampingProfile()
