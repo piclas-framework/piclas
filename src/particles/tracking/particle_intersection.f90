@@ -3331,13 +3331,14 @@ SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
 ! - plane
 ! - cylinder
 ! - cone
+! - parabol(oid)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:PI !epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
+USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -3355,8 +3356,9 @@ LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
 ! LOCAL VARIABLES
 REAL                              :: r_vec(3),n_vec(3),locSideDistance,coeffA,alphaNorm,radius,lmin,lmax,halfangle
 REAL                              :: axis(3),tang1(3),tang2(3),geomatrix(3,3),matU(3,1),matLambda(3,1),A(1,1),B(1,1),C(1,1),cos2inv
-REAL                              :: trajTang(2),originTang(2),roots(2),intersec(3),alphadir(2),origindist(2)
-INTEGER                           :: nRoot
+REAL                              :: geomatrix4(4,4),rotmatrix(3,3),matU4(4,1),matLambda4(4,1),zfac
+REAL                              :: trajTang(2),originTang(2),roots(2),intersec(3),alphadir(2),origindist(2) !,roots2(2)
+INTEGER                           :: nRoot !,nRoot2
 LOGICAL                           :: CriticalParallelInSide,inwards
 !===================================================================================================================================
 isHit=.FALSE.
@@ -3403,7 +3405,7 @@ CASE ('plane')
 !    RETURN
 !  END IF
   isHit=.TRUE.
-CASE ('cylinder','cone')
+CASE ('cylinder','cone','parabol')
   IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE. !not used for cylinder and cone
   IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
     r_vec=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
@@ -3445,7 +3447,7 @@ __STAMP__&
       ,2.*originTang(1)*trajTang(1)+2.*originTang(2)*trajTang(2) &
       ,originTang(1)*originTang(1)+originTang(2)*originTang(2)-radius*radius &
       ,nRoot,roots(1),roots(2))
-  ELSE !cone
+  ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
     r_vec=AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
     axis=AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
     lmin=AuxBC_cone(AuxBCMap(AuxBCIdx))%lmin
@@ -3455,6 +3457,8 @@ __STAMP__&
     inwards=AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards
     !- coefficients and matrices according to "Intersection of a Line and a Cone" by David Eberly 2000/2014, Geometric Tools, CC
     geomatrix=AuxBC_cone(AuxBCMap(AuxBCIdx))%geomatrix
+    !geomatrix2=AuxBC_cone(AuxBCMap(AuxBCIdx))%geomatrix2
+    !rotmatrix=AuxBC_cone(AuxBCMap(AuxBCIdx))%rotmatrix
     matU(:,1)=PartTrajectory
     matLambda(:,1)=LastPartPos(iPart,1:3)-r_vec
     A=MATMUL(MATMUL(TRANSPOSE(matU),geomatrix),matU)
@@ -3462,9 +3466,53 @@ __STAMP__&
     C=MATMUL(MATMUL(TRANSPOSE(matLambda),geomatrix),matLambda)
     !- solve quadratic equation from trajectory inserted in cone-equation
     CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot,roots(1),roots(2))
-  END IF !cylinder or cone
+    !matU=MATMUL(rotmatrix,matU)
+    !matLambda=MATMUL(rotmatrix,matLambda)
+    !A=MATMUL(MATMUL(TRANSPOSE(matU),geomatrix2),matU)
+    !B=2.*MATMUL(MATMUL(TRANSPOSE(matU),geomatrix2),matLambda)
+    !C=MATMUL(MATMUL(TRANSPOSE(matLambda),geomatrix2),matLambda)
+    !!- solve quadratic equation from trajectory inserted in cone-equation
+    !CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot2,roots2(1),roots2(2))
+!IF (nRoot.NE.nRoot2) THEN
+!print*,roots(:),roots2(:)
+!STOP "nRoot.NE.nRoot2!!!"
+!END IF
+  ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
+    r_vec=AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
+    axis=AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
+    lmin=AuxBC_parabol(AuxBCMap(AuxBCIdx))%lmin
+    lmax=AuxBC_parabol(AuxBCMap(AuxBCIdx))%lmax
+    zfac=AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac
+    inwards=AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards
+    geomatrix4=AuxBC_parabol(AuxBCMap(AuxBCIdx))%geomatrix4
+    rotmatrix=AuxBC_parabol(AuxBCMap(AuxBCIdx))%rotmatrix
+    matU(:,1)=PartTrajectory
+    matLambda(:,1)=LastPartPos(iPart,1:3)-r_vec
+    matU=MATMUL(rotmatrix,matU)
+    matLambda=MATMUL(rotmatrix,matLambda)
+    matU4(1:3,1)=matU(1:3,1)
+    matU4(4,1)=0.
+    matLambda4(1:3,1)=matLambda(1:3,1)
+    matLambda4(4,1)=1.
+    A=MATMUL(MATMUL(TRANSPOSE(matU4),geomatrix4),matU4)
+    B=2.*MATMUL(MATMUL(TRANSPOSE(matU4),geomatrix4),matLambda4)
+    C=MATMUL(MATMUL(TRANSPOSE(matLambda4),geomatrix4),matLambda4)
+    !- solve quadratic equation from trajectory inserted in parabol-equation
+    CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot,roots(1),roots(2))
+  ELSE
+    CALL abort(&
+      __STAMP__&
+      ,'AuxBC does not exist')
+  END IF !cylinder, cone, or paraboloid
   SELECT CASE (nRoot)
   CASE (1)
+!IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
+!    IF (.NOT.ALMOSTEQUALRELATIVE(roots(1),roots2(1),1e-6) &
+!        .AND. .NOT.(ALMOSTZERO(0.001*roots(1)).AND.ALMOSTZERO(0.001*roots2(1))) ) THEN
+!print*,roots(1),roots2(1)
+!STOP "Roots1.NE.Roots1!!!"
+!END IF
+!END IF
     alpha=roots(1)
     !- check for normal vec / trajectory direction
     ! (already here since no inner auxBCs possible (can happen due to tolerances)
@@ -3472,8 +3520,14 @@ __STAMP__&
     origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
     IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
       n_vec = intersec - ( r_vec + axis*origindist(1) )
-    ELSE !cone
+    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
       n_vec = intersec - ( r_vec + axis*origindist(1)*cos2inv )
+    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
+      n_vec = intersec - ( r_vec + axis*(origindist(1)+0.5*zfac) )
+    ELSE
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC does not exist')
     END IF
     IF (.NOT.inwards) n_vec=-n_vec
     IF(DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
@@ -3488,6 +3542,19 @@ __STAMP__&
       RETURN
     END IF
   CASE (2)
+!IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
+!    IF((.NOT.ALMOSTEQUALRELATIVE(roots(1),roots2(1),1e-6) &
+!        .AND. .NOT.(100.<ABS(roots(1)).AND.100.<ABS(roots2(1))) ).OR.&
+!(.NOT.ALMOSTEQUALRELATIVE(roots(2),roots2(2),1e-6) &
+!        .AND. .NOT.(ALMOSTZERO(0.001*roots(2)).AND.ALMOSTZERO(0.001*roots2(2))) ) )THEN
+!print*,roots(:),roots2(:)
+!print*,.NOT.ALMOSTEQUALRELATIVE(roots(1),roots2(1),1e-6) &
+!        , .NOT.(100.<ABS(roots(1)).AND.100.<ABS(roots2(1))) ,&
+!       .NOT.ALMOSTEQUALRELATIVE(roots(2),roots2(2),1e-6) &
+!        , .NOT.(ALMOSTZERO(0.001*roots(2)).AND.ALMOSTZERO(0.001*roots2(2))) ,"last",ABS((roots(2))-(roots2(2)))/MAX(ABS(roots(2)),ABS(roots2(2)))
+!STOP "Roots12.NE.Roots12!!!"
+!END IF
+!END IF
     !- 2 roots: check for smallest alpha>-eps
     IF (roots(1).LT.roots(2)) THEN
       IF (roots(1).GE.-epsilontol*lengthPartTrajectory) THEN
@@ -3512,16 +3579,28 @@ __STAMP__&
     origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
     IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
       n_vec = intersec - ( r_vec + axis*origindist(1) )
-    ELSE !cone
+    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
       n_vec = intersec - ( r_vec + axis*origindist(1)*cos2inv )
+    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
+      n_vec = intersec - ( r_vec + axis*(origindist(1)+0.5*zfac) )
+    ELSE
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC does not exist')
     END IF
     alphadir(1)=DOT_PRODUCT(n_vec,PartTrajectory)
     intersec = LastPartPos(iPart,1:3) + roots(2)*PartTrajectory
     origindist(2) = DOT_PRODUCT(intersec-r_vec,axis)
     IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
       n_vec = intersec - ( r_vec + axis*origindist(2) )
-    ELSE !cone
+    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
       n_vec = intersec - ( r_vec + axis*origindist(2)*cos2inv )
+    ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
+      n_vec = intersec - ( r_vec + axis*(origindist(2)+0.5*zfac) )
+    ELSE
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC does not exist')
     END IF
     alphadir(2)=DOT_PRODUCT(n_vec,PartTrajectory)
     IF (.NOT.inwards) alphadir=-alphadir

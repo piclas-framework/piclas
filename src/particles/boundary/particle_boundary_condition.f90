@@ -645,7 +645,7 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -701,6 +701,12 @@ IF (IsAuxBC) THEN
     cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
     IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('parabol')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
+    IF (.NOT.AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT
     CALL abort(&
       __STAMP__&
@@ -958,7 +964,7 @@ USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1019,6 +1025,12 @@ IF (IsAuxBC) THEN
     cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
     IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('parabol')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
+    IF (.NOT.AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE DEFAULT
     CALL abort(&
       __STAMP__&

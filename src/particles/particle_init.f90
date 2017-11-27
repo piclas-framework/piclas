@@ -22,6 +22,22 @@ INTERFACE FinalizeParticles
   MODULE PROCEDURE FinalizeParticles
 END INTERFACE
 
+INTERFACE rotx
+  MODULE PROCEDURE rotx
+END INTERFACE
+
+INTERFACE roty
+  MODULE PROCEDURE roty
+END INTERFACE
+
+INTERFACE rotz
+  MODULE PROCEDURE rotz
+END INTERFACE
+
+INTERFACE Ident
+  MODULE PROCEDURE Ident
+END INTERFACE
+
 PUBLIC::InitParticles,FinalizeParticles
 !===================================================================================================================================
 
@@ -122,7 +138,7 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
-USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
+USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
@@ -151,7 +167,8 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
-INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones
+INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude
+INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAuxBCparabols
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
@@ -161,6 +178,9 @@ REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
+REAL, DIMENSION(3,1)  :: n,n1,n2
+REAL, DIMENSION(3,3)  :: rot1, rot2
+REAL                  :: alpha1, alpha2
 #ifdef MPI
 #endif
 !===================================================================================================================================
@@ -1274,6 +1294,7 @@ IF (nAuxBCs.GT.0) THEN
   nAuxBCplanes = 0
   nAuxBCcylinders = 0
   nAuxBCcones = 0
+  nAuxBCparabols = 0
   DO iAuxBC=1,nAuxBCs
     WRITE(UNIT=hilf,FMT='(I2)') iAuxBC
     AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
@@ -1287,6 +1308,9 @@ IF (nAuxBCs.GT.0) THEN
     CASE ('cone')
       nAuxBCcones = nAuxBCcones + 1
       AuxBCMap(iAuxBC) = nAuxBCcones
+    CASE ('parabol')
+      nAuxBCparabols = nAuxBCparabols + 1
+      AuxBCMap(iAuxBC) = nAuxBCparabols
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
       CALL abort(&
@@ -1303,6 +1327,9 @@ IF (nAuxBCs.GT.0) THEN
   END IF
   IF (nAuxBCcones.GT.0) THEN
     ALLOCATE (AuxBC_cone(1:nAuxBCcones))
+  END IF
+  IF (nAuxBCparabols.GT.0) THEN
+    ALLOCATE (AuxBC_parabol(1:nAuxBCparabols))
   END IF
   !- read type-specifics
   DO iAuxBC=1,nAuxBCs
@@ -1370,6 +1397,82 @@ IF (nAuxBCs.GT.0) THEN
         = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
       AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
         = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
+
+      !testing approach with coordtrafo:
+      !n(:,1)=AuxBC_cone(AuxBCMap(iAuxBC))%axis
+      !IF (.NOT.ALMOSTZERO(SQRT(n(1,1)**2+n(3,1)**2))) THEN !collinear with y?
+      !  alpha1=ATAN2(n(1,1),n(3,1))
+      !  CALL roty(rot1,alpha1)
+      !  n1=MATMUL(rot1,n)
+      !ELSE
+      !  alpha1=0.
+      !  CALL ident(rot1)
+      !  n1=n
+      !END IF
+      !!print*,'alpha1=',alpha1/PI*180.,'n1=',n1
+      !IF (.NOT.ALMOSTZERO(SQRT(n1(2,1)**2+n1(3,1)**2))) THEN !collinear with x?
+      !  alpha2=-ATAN2(n1(2,1),n1(3,1))
+      !  CALL rotx(rot2,alpha2)
+      !  n2=MATMUL(rot2,n1)
+      !ELSE
+      !  CALL abort(&
+      !    __STAMP__&
+      !    ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
+      !END IF
+      !!print*,'alpha2=',alpha2/PI*180.,'n2=',n2
+      !AuxBC_cone(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
+      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(:,:)=0.
+      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(1,1)=1.
+      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(2,2)=1.
+      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(3,3)=1. - 1./cos2
+
+    CASE ('parabol')
+      AuxBC_parabol(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_parabol(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_parabol(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
+      IF (AuxBC_parabol(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-lmin is .lt. zero for AuxBC',iAuxBC)
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_parabol(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_parabol(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
+      AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+
+      n(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
+      IF (.NOT.ALMOSTZERO(SQRT(n(1,1)**2+n(3,1)**2))) THEN !collinear with y?
+        alpha1=ATAN2(n(1,1),n(3,1))
+        CALL roty(rot1,alpha1)
+        n1=MATMUL(rot1,n)
+      ELSE
+        alpha1=0.
+        CALL ident(rot1)
+        n1=n
+      END IF
+      !print*,'alpha1=',alpha1/PI*180.,'n1=',n1
+      IF (.NOT.ALMOSTZERO(SQRT(n1(2,1)**2+n1(3,1)**2))) THEN !collinear with x?
+        alpha2=-ATAN2(n1(2,1),n1(3,1))
+        CALL rotx(rot2,alpha2)
+        n2=MATMUL(rot2,n1)
+      ELSE
+        CALL abort(&
+          __STAMP__&
+          ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
+      END IF
+      !print*,'alpha2=',alpha2/PI*180.,'n2=',n2
+      AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(2,2)=1.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,3)=0.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,4)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(4,3)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
       CALL abort(&
@@ -1570,5 +1673,38 @@ SDEALLOCATE(seeds)
 SDEALLOCATE(RegionBounds)
 SDEALLOCATE(RegionElectronRef)
 END SUBROUTINE FinalizeParticles
+
+!-- matrices for coordtrafo:
+SUBROUTINE rotz(mat,a)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+REAL, INTENT(IN) :: a
+mat(:,1)=(/COS(a) ,-SIN(a) , 0./)
+mat(:,2)=(/SIN(a) , COS(a) , 0./)
+mat(:,3)=(/0.     , 0.     , 1./)
+END SUBROUTINE
+SUBROUTINE rotx(mat,a)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+REAL, INTENT(IN) :: a
+mat(:,1)=(/1.0 , 0.     , 0.  /)
+mat(:,2)=(/0.0 , COS(a) ,-SIN(a)/)
+mat(:,3)=(/0.0 , SIN(a) , COS(a)/)
+END SUBROUTINE
+SUBROUTINE roty(mat,a)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+REAL, INTENT(IN) :: a
+mat(:,1)=(/ COS(a) , 0., SIN(a)/)
+mat(:,2)=(/ 0.     , 1., 0.  /)
+mat(:,3)=(/-SIN(a) , 0., COS(a)/)
+END SUBROUTINE
+SUBROUTINE ident(mat)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+INTEGER :: j
+mat = 0.
+FORALL(j = 1:3) mat(j,j) = 1.
+END SUBROUTINE
 
 END MODULE MOD_ParticleInit

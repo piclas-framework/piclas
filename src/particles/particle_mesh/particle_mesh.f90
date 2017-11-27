@@ -5214,7 +5214,7 @@ SUBROUTINE MarkAuxBCElems()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemHasAuxBCs
-USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
+USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -5358,6 +5358,8 @@ DO iAuxBC=1,nAuxBCs
         END IF !check for lmin and lmax
       END DO !iElem
     END IF !cartesian
+  CASE('parabol')
+    ElemHasAuxBCs(:,iAuxBC)=.TRUE. ! to be implemented!!!
   CASE DEFAULT
     SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
     CALL abort(&

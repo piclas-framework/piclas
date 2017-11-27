@@ -193,9 +193,23 @@ TYPE tAuxBC_cone
   REAL                                   :: lmin
   REAL                                   :: lmax
   REAL                                   :: geomatrix(3,3)
+  !REAL                                   :: geomatrix2(3,3)
+  REAL                                   :: rotmatrix(3,3)
   LOGICAL                                :: inwards
 END TYPE tAuxBC_cone
 TYPE(tAuxBC_cone), ALLOCATABLE       :: AuxBC_cone(:)
+
+TYPE tAuxBC_parabol
+  REAL                                   :: r_vec(3)
+  REAL                                   :: axis(3)
+  REAL                                   :: zfac
+  REAL                                   :: lmin
+  REAL                                   :: lmax
+  REAL                                   :: geomatrix4(4,4)
+  REAL                                   :: rotmatrix(3,3)
+  LOGICAL                                :: inwards
+END TYPE tAuxBC_parabol
+TYPE(tAuxBC_parabol), ALLOCATABLE       :: AuxBC_parabol(:)
 
 TYPE tPartAuxBC
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
