@@ -361,12 +361,12 @@ DO iPart=1,PDM%ParticleVecLength
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
 #ifdef CODE_ANALYZE
-    IF(   (LastPartPos(iPart,1).GT.GEO%xmaxglob) &
-      .OR.(LastPartPos(iPart,1).LT.GEO%xminglob) &
-      .OR.(LastPartPos(iPart,2).GT.GEO%ymaxglob) &
-      .OR.(LastPartPos(iPart,2).LT.GEO%yminglob) &
-      .OR.(LastPartPos(iPart,3).GT.GEO%zmaxglob) &
-      .OR.(LastPartPos(iPart,3).LT.GEO%zminglob) ) THEN
+    IF(   (LastPartPos(iPart,1).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,1),GEO%xmaxglob) &
+      .OR.(LastPartPos(iPart,1).LT.GEO%xminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,1),GEO%xminglob) &
+      .OR.(LastPartPos(iPart,2).GT.GEO%ymaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,2),GEO%ymaxglob) &
+      .OR.(LastPartPos(iPart,2).LT.GEO%yminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,2),GEO%yminglob) &
+      .OR.(LastPartPos(iPart,3).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,3),GEO%zmaxglob) &
+      .OR.(LastPartPos(iPart,3).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,3),GEO%zminglob) ) THEN
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(iPart)
 #ifdef IMPA
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
