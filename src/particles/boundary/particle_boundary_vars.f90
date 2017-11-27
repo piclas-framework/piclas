@@ -166,6 +166,7 @@ INTEGER                                  :: nAdaptiveBC
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
 INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing
+LOGICAL                                  :: UseAuxBCs                     ! number of aux. BCs that are checked during tracing
 CHARACTER(LEN=200), ALLOCATABLE          :: AuxBCType(:)                ! type of BC (plane, ...)
 INTEGER           , ALLOCATABLE          :: AuxBCMap(:)                 ! index of AuxBC in respective Type
 

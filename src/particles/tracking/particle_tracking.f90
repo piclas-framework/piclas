@@ -285,7 +285,7 @@ USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo,ElemHasAuxBCs
-USE MOD_Particle_Boundary_Vars,      ONLY:nAuxBCs
+USE MOD_Particle_Boundary_Vars,      ONLY:nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionAuxBC
 USE MOD_Utils,                       ONLY:InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
@@ -346,7 +346,7 @@ IF(PRESENT(DoParticle_IN))THEN
 ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
 END IF
-IF (nAuxBCs.GT.0) THEN
+IF (UseAuxBCs) THEN
   ALLOCATE(locAlphaAll(1:6+nAuxBCs) &
     ,locListAll(1:6+nAuxBCs))
 END IF
@@ -451,7 +451,7 @@ DO iPart=1,PDM%ParticleVecLength
     firstElem=ElemID
     OnlyAuxBC=.FALSE.
     HasAuxBC=.FALSE.
-    IF (nAuxBCs.GT.0) THEN
+    IF (UseAuxBCs) THEN
       IF (ANY(ElemHasAuxBCs(ElemID,:))) THEN
         HasAuxBC=.TRUE.
       END IF

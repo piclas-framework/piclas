@@ -147,7 +147,7 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
-USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
@@ -1246,6 +1246,7 @@ halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- AuxBCs
 nAuxBCs=GETINT('Part-nAuxBCs','0')
 IF (nAuxBCs.GT.0) THEN
+  UseAuxBCs=.TRUE.
   ALLOCATE (AuxBCType(1:nAuxBCs) &
             ,AuxBCMap(1:nAuxBCs) )
   AuxBCMap=0
@@ -1495,6 +1496,8 @@ IF (nAuxBCs.GT.0) THEN
     END SELECT
   END DO
   CALL MarkAuxBCElems()
+ELSE
+  UseAuxBCs=.FALSE.
 END IF
 
 !-- Finalizing InitializeVariables
