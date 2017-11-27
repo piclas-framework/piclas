@@ -694,13 +694,14 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob,GEO
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
+USE MOD_Particle_Boundary_Vars, ONLY:nAuxBCs
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -738,6 +739,7 @@ TYPE tMPISideMessage
   INTEGER,ALLOCATABLE       :: SideType(:)       
   REAL   ,ALLOCATABLE       :: SideDistance(:)   
   REAL   ,ALLOCATABLE       :: SideNormVec(:,:)
+  LOGICAL,ALLOCATABLE       :: ElemHasAuxBCs(:,:)
 END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
@@ -894,6 +896,11 @@ IF (SendMsg%nElems.GT.0) THEN
       ,'Could not allocate SendMsg%ElemType',SendMsg%nElems)
     SendMsg%ElemType=-1
   END IF
+  ALLOCATE(SendMsg%ElemHasAuxBCs(1:SendMsg%nElems , 1:nAuxBCs),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%ElemHasAuxBCs',SendMsg%nElems)
+  SendMsg%ElemHasAuxBCs=.FALSE.
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%CurvedElem(1:RecvMsg%nElems),STAT=ALLOCSTAT)
@@ -908,6 +915,11 @@ IF (RecvMsg%nElems.GT.0) THEN
       ,'Could not allocate RecvMsg%ElemType',RecvMsg%nElems)
     RecvMsg%ElemType=-1
   END IF
+  ALLOCATE(RecvMsg%ElemHasAuxBCs(1:RecvMsg%nElems , 1:nAuxBCs),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%ElemHasAuxBCs',RecvMsg%nElems)
+  RecvMsg%ElemHasAuxBCs=.FALSE.
 END IF
 
 IF (TriaTracking) THEN
@@ -1164,6 +1176,7 @@ DO iElem = 1,nElems
       !SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
     END IF
     SendMsg%CurvedElem(ElemIndex(iElem))=CurvedElem(iElem)
+    SendMsg%ElemHasAuxBCs(ElemIndex(iElem),:)=ElemHasAuxBCs(iElem,:)
     IF (.NOT.DoRefMapping) THEN
       SendMsg%ElemType(ElemIndex(iElem))=ElemType(iElem)
     END IF
@@ -1300,6 +1313,8 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_SEND(SendMsg%SideDistance,SendMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SideNormVec ,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%ElemHasAuxBCs,SendMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,IERROR)
 
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1358,6 +1373,8 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideDistance,RecvMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SideNormVec ,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%ElemHasAuxBCs,RecvMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,MPISTATUS,IERROR)
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1415,6 +1432,8 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideDistance,RecvMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SideNormVec ,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%ElemHasAuxBCs,RecvMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,MPISTATUS,IERROR)
 
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
@@ -1468,6 +1487,8 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_SEND(SendMsg%SideDistance,SendMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SideNormVec ,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%ElemHasAuxBCs,SendMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,IERROR)
 END IF
 
 IF ((RecvMsg%nElems.EQ.0) .AND. (RecvMsg%nSides.GT.0))THEN
@@ -1528,6 +1549,7 @@ IF(DoRefMapping)THEN
       dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
       CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
+      ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
     END DO
 
     ! loop over all sides and add them
@@ -1674,6 +1696,7 @@ ELSE ! DoRefMappping=F
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
       CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
       ElemType(newElemID)         = RecvMsg%ElemType(iElem)
+      ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
       IF (TriaTracking) THEN
         GEO%NodeCoords(1:3,1:4,1:6,newElemID) = RecvMsg%NodeCoords(1:3,1:4,1:6,iElem)
         GEO%ConcaveElemSide(1:6,newElemID) = RecvMsg%ConcaveElemSide(1:6,iElem)
@@ -1712,11 +1735,12 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO,ElemType
+USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO,ElemType,ElemHasAuxBCs
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
+USE MOD_Particle_Boundary_Vars, ONLY:nAuxBCs
 !USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1736,6 +1760,7 @@ REAL,ALLOCATABLE                   :: DummyXCL_NGEO (:,:,:,:,:)
 REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)
 REAL,ALLOCATABLE                   :: DummyElemBaryNGeo(:,:)
 LOGICAL,ALLOCATABLE                :: DummyCurvedElem(:)
+LOGICAL,ALLOCATABLE                :: DummyElemHasAuxBCs(:,:)
 INTEGER,ALLOCATABLE                :: DummyElemType(:)
 INTEGER,ALLOCATABLE                :: DummySideType(:)
 REAL,ALLOCATABLE                   :: DummySideDistance(:)
@@ -2143,6 +2168,20 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
  ,'Could not reallocate CurvedElem')
 CurvedElem=.FALSE.
 CurvedElem(1:nOldElems) =DummyCurvedElem(1:nOldElems)
+
+! ElemHasAuxBCs elem
+ALLOCATE(DummyElemHasAuxBCs(1:nOldElems,1:nAuxBCs))
+IF (.NOT.ALLOCATED(DummyElemHasAuxBCs)) CALL abort(&
+    __STAMP__&
+ ,'Could not allocate DummyElemHasAuxBCs')
+DummyElemHasAuxBCs=ElemHasAuxBCs
+DEALLOCATE(ElemHasAuxBCs)
+ALLOCATE(ElemHasAuxBCs(1:nTotalElems,1:nAuxBCs),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+ ,'Could not reallocate ElemHasAuxBCs')
+ElemHasAuxBCs=.FALSE.
+ElemHasAuxBCs(1:nOldElems,:) =DummyElemHasAuxBCs(1:nOldElems,:)
 
 ! Elem Type
 IF (.NOT.DoRefMapping) THEN
