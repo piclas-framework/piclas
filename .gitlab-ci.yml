@@ -284,7 +284,8 @@ gnu_feature_PIC_poisson_imexfluid:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; 
 
 gnu_PIC_maxwell_bgfield:
   stage: reggie_nightly
@@ -400,7 +401,8 @@ intel_feature_PIC_poisson_imexfluid:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+    -  module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ;
 
 intel_PIC_maxwell_bgfield:
   stage: reggie_nightly
