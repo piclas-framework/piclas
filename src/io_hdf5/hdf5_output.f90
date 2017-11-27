@@ -454,11 +454,11 @@ e=>ElemList
 DO WHILE(ASSOCIATED(e))
   nVar=nVar+1
   StrVarNames(nVar)=e%VarName
-  IF(ASSOCIATED(e%RealArray))    ElemData(nVar,:)=e%RealArray
+  IF(ASSOCIATED(e%RealArray))    ElemData(nVar,:)=e%RealArray(1:nElems)
   IF(ASSOCIATED(e%RealScalar))   ElemData(nVar,:)=e%RealScalar
-  IF(ASSOCIATED(e%IntArray))     ElemData(nVar,:)=REAL(e%IntArray)
+  IF(ASSOCIATED(e%IntArray))     ElemData(nVar,:)=REAL(e%IntArray(1:nElems))
   IF(ASSOCIATED(e%IntScalar))    ElemData(nVar,:)=REAL(e%IntScalar)
-  IF(ASSOCIATED(e%LongIntArray)) ElemData(nVar,:)=REAL(e%LongIntArray)
+  IF(ASSOCIATED(e%LongIntArray)) ElemData(nVar,:)=REAL(e%LongIntArray(1:nElems))
   IF(ASSOCIATED(e%LogArray)) THEN
     DO iElem=1,nElems
       IF(e%LogArray(iElem))THEN
