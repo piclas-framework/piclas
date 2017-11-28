@@ -279,6 +279,13 @@ gnu_poisson_implicit_surface_flux:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
 
+gnu_feature_PIC_poisson_imexfluid:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+
 gnu_PIC_maxwell_bgfield:
   stage: reggie_nightly
   tags:
@@ -387,6 +394,13 @@ intel_poisson_implicit_surface_flux:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
+
+intel_feature_PIC_poisson_imexfluid:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
 
 intel_PIC_maxwell_bgfield:
   stage: reggie_nightly
