@@ -162,14 +162,14 @@ gnu_chemistry:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
 
 intel_chemistry:
   stage: reggie_chemistry_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
