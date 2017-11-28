@@ -100,7 +100,7 @@ gnu__PIC_IMD_coupling:
   script:
     - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
-gnu_chemistry_DSMC:
+gnu_DSMC:
   stage: reggie_feature_checkin
   tags:
     - withmodules
@@ -130,7 +130,7 @@ intel__PIC_IMD_coupling:
   script:
     - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
-intel_chemistry_DSMC:
+intel_DSMC:
   stage: reggie_feature_checkin
   tags:
     - withmodules
