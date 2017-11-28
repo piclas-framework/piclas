@@ -391,6 +391,7 @@ firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
  !print*,"ProlongToFace_ElementInfo interface search"
  !print*,"firstMortarSideID",firstMortarSideID
  !print*,"lastMortarSideID",lastMortarSideID
+ !read*
 
 DO MortarSideID=firstMortarSideID,lastMortarSideID
   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)

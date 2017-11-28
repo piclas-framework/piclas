@@ -40,6 +40,7 @@ USE MOD_Equation_Vars,   ONLY: c_corr,c
 USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh,            ONLY: GetMeshMinMaxBoundaries
 USE MOD_Equation_Vars,   ONLY: IniExactFunc
+USE MOD_Mesh_Vars,       ONLY:nMortarSides
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -127,7 +128,12 @@ CALL SetDielectricVolumeProfile()
   ! Determine dielectric Values on faces and communicate them: only for Maxwell
   CALL SetDielectricFaceProfile()
 #else /*if PP_HDG*/
-  ! Set HDG diffusion tensor 'chitens' on faces (TODO: MPI and mortar sides)
+  ! Set HDG diffusion tensor 'chitens' on faces
+  IF((.NOT.mpiroot).AND.(nMortarSides.GT.0))THEN
+    CALL abort(&
+         __STAMP__,&
+         'dielectric HDG not implemented for MPI! TODO: Set HDG diffusion tensor [chitens] on faces with MPI and/or mortar sides')
+  END IF
   CALL SetDielectricFaceProfile_HDG()
   IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
@@ -179,10 +185,9 @@ ALLOCATE(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 DielectricEps=0.
 DielectricMu=0.
 DielectricConstant_inv=0.
-! ----------------------------------------------------------------------------------------------------------------------------------
+
 ! Fish eye lens: half sphere filled with gradually changing dielectric medium
 IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
-! ----------------------------------------------------------------------------------------------------------------------------------
   ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
   DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r = SQRT(Elem_xGP(1,i,j,k,DielectricToElem(iDielectricElem))**2+&
@@ -191,26 +196,15 @@ IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
     DielectricEps(i,j,k,iDielectricElem) = 4./((1+(r/DielectricRmax)**2)**2)
   END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
   DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
-! ----------------------------------------------------------------------------------------------------------------------------------
-! Sphere filled with constant dielectric medium
-!ELSEIF(TRIM(DielectricTestCase).EQ.'Sphere')THEN
-!! ----------------------------------------------------------------------------------------------------------------------------------
-!  ! check if DOF is within radius
-!  DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-!    r = SQRT(Elem_xGP(1,i,j,k,DielectricToElem(iDielectricElem))**2+&
-!             Elem_xGP(2,i,j,k,DielectricToElem(iDielectricElem))**2+&
-!             Elem_xGP(3,i,j,k,DielectricToElem(iDielectricElem))**2  )
-!    DielectricEps(i,j,k,iDielectricElem) = DielectricRmax
-!  END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
-!  DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = DielectricMuR
-! ----------------------------------------------------------------------------------------------------------------------------------
+
 ELSE ! simply set values const.
-! ----------------------------------------------------------------------------------------------------------------------------------
   DO iDielectricElem=1,nDielectricElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     DielectricEps(i,j,k,1:iDielectricElem) = DielectricEpsR
     DielectricMu( i,j,k,1:iDielectricElem) = DielectricMuR
   END DO; END DO; END DO; END DO !iDielectricElem,k,j,i
 END IF
+
+! invert the product of EpsR and MuR
 DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(EpsR*MuR)
                                                                  (DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems)*&
                                                                   DielectricMu( 0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
@@ -304,7 +298,7 @@ Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 #endif /*MPI*/
 
 END SUBROUTINE SetDielectricFaceProfile
-#endif /*PP_HDG*/
+#endif /* not PP_HDG*/
 
 
 #ifdef PP_HDG
@@ -343,7 +337,7 @@ REAL    :: Invdummy(3,3)
 IF(.NOT.mpiroot)THEN
   CALL abort(&
        __STAMP__,&
-       'dielectric HDG not implement for MPI!')
+       'dielectric HDG not implemented for MPI!')
 END IF
 
 DO iElem=1,PP_nElems
