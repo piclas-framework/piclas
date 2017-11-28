@@ -105,8 +105,7 @@ gnu_chemistry_DSMC:
   tags:
     - withmodules
   script:
-    - echo "cannot perform this test because the parameter.ini file for the second example is missing -> get it from wladimir"
-    #- module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_checkin # maybe move this to nightly and the nightly test to weekly? -> if it takes too long
+    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
@@ -136,8 +135,7 @@ intel_chemistry_DSMC:
   tags:
     - withmodules
   script:
-    - echo "cannot perform this test because the parameter.ini file for the second example is missing -> get it from wladimir"
-    #- module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_checkin # maybe move this to nightly and the nightly test to weekly? -> if it takes too long
+    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
@@ -164,16 +162,14 @@ gnu_chemistry:
   tags:
     - withmodules
   script:
-    - echo "cannot perform this test because the parameter.ini file for the second example is missing"
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
 
 intel_chemistry:
   stage: reggie_chemistry_nightly
   tags:
     - withmodules
   script:
-    - echo "cannot perform this test because the parameter.ini file for the second example is missing"
-    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run

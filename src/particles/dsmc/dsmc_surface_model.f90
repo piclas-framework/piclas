@@ -479,6 +479,18 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) &
                                                                   + trapping_prob
   END IF
+  ! adaptive accomodation
+  !IF (Adaptive_ACC_FLAG) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF(RanNum.GE.PartBound%MomentumACC(PartBoundID)) THEN
+      outSpec(1) = iSpec
+      outSpec(2) = 0
+      AdsorptionEnthalpie = 0.
+      adsorption_case = -1
+      RETURN
+    END IF
+  !END IF
+
   !! if no trapping return and perform elastic reflection
   !CALL RANDOM_NUMBER(RanNum)
   !IF (RanNum.GT.trapping_prob) THEN

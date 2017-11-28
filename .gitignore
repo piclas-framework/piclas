@@ -22,3 +22,4 @@ ctags.txt
 CMakeCache.txt
 share/*
 CMakeFiles/
+regressioncheck/reggie/*
