@@ -299,6 +299,13 @@ gnu_QDS:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
+
+gnu_feature_LoadBalance:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
        
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -415,6 +422,13 @@ intel_QDS:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
+
+intel_feature_LoadBalance:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
