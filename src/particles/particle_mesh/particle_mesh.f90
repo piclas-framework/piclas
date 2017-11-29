@@ -909,6 +909,8 @@ IF(DoRefMapping) THEN
   ! compute distance between each side associated with  the element and its origin
   CALL GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
   DEALLOCATE( SideOrigin, SideRadius)
+ELSE
+  CALL TracingElemSanity()
 END IF
 SWRITE(UNIT_stdOut,'(A)')' ... DONE!' 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -4678,5 +4680,26 @@ DO iElem=1,nTotalElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE GetElemToSideDistance
+
+SUBROUTINE TracingElemSanity() 
+!===================================================================================================================================
+! sanity check for tracing. each corner node of an element is checked with the in-element check (with virtual barycenter)
+! critical elements are marked!
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+ ! insert local variables here
+!===================================================================================================================================
+
+END SUBROUTINE TracingElemSanity
 
 END MODULE MOD_Particle_Mesh

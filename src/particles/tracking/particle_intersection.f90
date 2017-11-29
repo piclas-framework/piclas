@@ -1383,7 +1383,7 @@ SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonHit,BezierClipMaxIter,BezierControlPoints3D,epsilontol &
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonHit,BezierNewtonMaxIter,BezierControlPoints3D,epsilontol &
                                      ,BezierNewtonGuess
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
@@ -1511,7 +1511,7 @@ CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,  
 ! and norm
 Norm_P=P(1)*P(1)+P(2)*P(2)
 
-DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierClipMaxIter))
+DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierNewtonMaxIter))
 
   ! caution with index
   sdet=gradXi(1,1)*gradXi(2,2)-gradXi(1,2)*gradXi(2,1)
@@ -1572,7 +1572,7 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
-IF(nIter.GT.BezierClipMaxIter) THEN
+IF(nIter.GT.BezierNewtonMaxIter) THEN
   IPWRITE(UNIT_stdout,*) ' Bezier-Newton not converged!'
   IPWRITE(UNIT_stdout,*) ' SideId      : ', SideID
   IPWRITE(UNIT_stdout,*) ' PartID      : ', PartID

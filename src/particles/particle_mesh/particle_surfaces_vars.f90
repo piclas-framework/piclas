@@ -63,6 +63,7 @@ REAL                                    :: BezierClipTolerance          ! tolera
 REAL                                    :: BezierClipLocalTol           ! abort tolerance for bezier clipping
 REAL                                    :: BezierNewtonTolerance2       ! tolerance for root of bezier Newton
 INTEGER                                 :: BezierNewtonGuess            ! guess of bezier newton
+INTEGER                                 :: BezierNewtonMaxIter          ! maximum iterations for bezier newton
 REAL                                    :: BezierNewtonHit              ! value for bezier Newton hit
 REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
