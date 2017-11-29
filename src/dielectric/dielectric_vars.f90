@@ -20,7 +20,6 @@ LOGICAL,ALLOCATABLE :: isDielectricInterFace(:)       ! true if iFace is a Face 
 !                                                     ! region
 LOGICAL             :: DielectricCheckRadius          ! instead of a bounding box region for setting a dielectric area, use radius
 REAL                :: DielectricRadiusValue          ! radius for setting dielectric element ON/OFF
-INTEGER             :: DielectricwriteFields          ! output Eps field for debug
 INTEGER             :: Dielectricspread               ! if true Eps_x=Eps_y=Eps_z for all Dielectric cells
 REAL,DIMENSION(6)   :: xyzPhysicalMinMaxDielectric    ! physical   boundary coordinates, outside = Dielectric region
 REAL,DIMENSION(6)   :: xyzDielectricMinMax            ! Dielectric boundary coordinates, outside = physical region
@@ -28,6 +27,10 @@ LOGICAL             :: useDielectricMinMax            ! switch between 'xyzPhysi
 CHARACTER(255)      :: DielectricTestCase             ! special test cases, e.g., "fish eye lens" Maxwell 1860
 REAL                :: DielectricEpsR                 ! for Dielectric region shift
 REAL                :: DielectricEpsR_inv             ! 1./EpsR
+#ifdef PP_HDG
+REAL                :: DielectricRatio                ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere
+REAL                :: Dielectric_E_0                 ! axial electric field strength in x-direction of the dielectric sphere setup
+#endif /*PP_HDG*/
 REAL                :: DielectricMuR                  ! MuR
 REAL                :: DielectricRmax                 ! maximum radius for dielectric material distribution
 REAL                :: DielectricConstant_RootInv     ! 1./sqrt(EpsR*MuR)

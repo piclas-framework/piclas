@@ -247,7 +247,9 @@ CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
 LOGICAL                  :: QDS_DG_SolutionExists
 INTEGER                  :: j,k
 #endif /*USE_QDS_DG*/
+#if (USE_QDS_DG) || (PARTICLES)
 INTEGER                  :: i
+#endif
 !===================================================================================================================================
 IF(DoRestart)THEN
   SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
@@ -554,7 +556,7 @@ __STAMP__&
         IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
           COUNTER = COUNTER + 1
           !CALL SingleParticleToExactElement(i)
-          CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.)
+          CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
           IF (.NOT.PDM%ParticleInside(i)) THEN
             COUNTER2 = COUNTER2 + 1
             PartPosRef(1:3,i) = -888.
@@ -575,7 +577,7 @@ __STAMP__&
         IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
           COUNTER = COUNTER + 1
           !CALL SingleParticleToExactElement(i)
-          CALL SingleParticleToExactElementNoMap(i,doHALO=.FALSE.)
+          CALL SingleParticleToExactElementNoMap(i,doHALO=.FALSE.,doRelocate=.FALSE.)
           IF (.NOT.PDM%ParticleInside(i)) THEN
             COUNTER2 = COUNTER2 + 1
           ELSE
@@ -640,9 +642,9 @@ __STAMP__&
         PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
         PDM%ParticleInside(CurrentPartNum) = .true.
         IF(DoRefMapping)THEN
-          CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.,initFix=.FALSE.)
+          CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
         ELSE
-          CALL SingleParticleToExactElementNoMap(CurrentPartNum,doHALO=.FALSE.)
+          CALL SingleParticleToExactElementNoMap(CurrentPartNum,doHALO=.FALSE.,doRelocate=.FALSE.)
         END IF
         !CALL SingleParticleToExactElement(CurrentPartNum)
         IF (PDM%ParticleInside(CurrentPartNum)) THEN

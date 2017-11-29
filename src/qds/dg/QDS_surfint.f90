@@ -30,12 +30,13 @@ SUBROUTINE SurfIntQDS(Flux_Master,Flux_Slave,Ut,doMPISides)
 USE MOD_Globals
 USE MOD_PreProc
 #if (PP_NodeType>1)
-USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
+USE MOD_DG_Vars,            ONLY:L_HatPlus,L_HatMinus
 #endif
-USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nSides
-USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_MINE
-USE MOD_QDS_DG_Vars,        ONLY:QDSnVar,nQDSElems
+USE MOD_Mesh_Vars,          ONLY:SideToElem
+USE MOD_Mesh_Vars,          ONLY:nSides
+USE MOD_Mesh_Vars,          ONLY:firstMPISide_YOUR,lastMPISide_MINE
+USE MOD_QDS_DG_Vars,        ONLY:nQDSElems
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,8 +98,9 @@ SUBROUTINE CalcSurfInt2(Flux,Ut,flip,ElemID,locSideID)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
-USE MOD_QDS_DG_Vars,        ONLY: QDSnVar,nQDSElems
+USE MOD_DG_Vars,            ONLY:L_HatPlus,L_HatMinus
+USE MOD_QDS_DG_Vars,        ONLY:nQDSElems
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

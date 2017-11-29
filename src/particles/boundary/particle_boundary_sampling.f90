@@ -57,14 +57,14 @@ USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
 USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis
-USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
 USE MOD_Particle_Vars           ,ONLY:nSpecies
-USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC,Adsorption
+USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
-USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
@@ -80,19 +80,22 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: p,q,iSide,SurfSideID,SideID
+INTEGER                                :: p,q,iSide,SurfSideID,SideID,ElemID,LocSideID
 INTEGER                                :: iSample,jSample, iBC, iSpec
+INTEGER                                :: TriNum, Node1, Node2 
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,area,tmpI2,tmpJ2
-CHARACTER(2)                           :: hilf, hilf2
+REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
+REAL                                   :: nVal, SurfaceVal
+CHARACTER(20)                          :: hilf, hilf2
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
 !===================================================================================================================================
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 WRITE(UNIT=hilf,FMT='(I2)') NGeo
-nSurfSample = GETINT('DSMC-nSurfSample',hilf)
+nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo
 ! END IF
@@ -121,6 +124,7 @@ DO iBC=1,nBCs
   BCName=''
 END DO
 DO iBC=1,nBCs
+  IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE !inner side (can be just in the name list from preproc although already sorted out)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
   nSurfBC = nSurfBC + 1
   BCName(nSurfBC) = BoundaryName(iBC)
@@ -191,6 +195,7 @@ SurfCOMM%MyRank=0
 SurfCOMM%MPIRoot=.TRUE.
 SurfCOMM%nProcs=1
 SurfCOMM%MyOutputRank=0
+SurfCOMM%MPIOutputRoot=.TRUE.
 SurfCOMM%nOutputProcs = 1
 SurfCOMM%nOutputProcs=1
 ! get correct offsets
@@ -233,29 +238,56 @@ DO iSide=1,nTotalSides
   ELSE
     SideID=iSide
   END IF
-  ! call here stephens algorithm to compute area 
-  DO jSample=1,nSurfSample
-    DO iSample=1,nSurfSample
-      area=0.
-      tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
-      tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
-      DO q=0,NGeo
-        DO p=0,NGeo
-          XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
-          XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
-          CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-                                                  ,Gradient=gradXiEta3D)
-          ! calculate first fundamental form
-          E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-          F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-          G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-          D=SQRT(E*G-F*F)
-          area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)      
+  IF (TriaTracking) THEN
+    ElemID = PartSideToElem(S2E_ELEM_ID,iSide)
+    LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
+
+    SurfaceVal = 0.
+    xNod = GEO%NodeCoords(1,1,LocSideID,ElemID)
+    yNod = GEO%NodeCoords(2,1,LocSideID,ElemID)
+    zNod = GEO%NodeCoords(3,1,LocSideID,ElemID)
+
+    DO TriNum = 1,2
+      Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+      Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+      Vector1(1) = GEO%NodeCoords(1,Node1,LocSideID,ElemID) - xNod
+      Vector1(2) = GEO%NodeCoords(2,Node1,LocSideID,ElemID) - yNod
+      Vector1(3) = GEO%NodeCoords(3,Node1,LocSideID,ElemID) - zNod
+      Vector2(1) = GEO%NodeCoords(1,Node2,LocSideID,ElemID) - xNod
+      Vector2(2) = GEO%NodeCoords(2,Node2,LocSideID,ElemID) - yNod
+      Vector2(3) = GEO%NodeCoords(3,Node2,LocSideID,ElemID) - zNod
+      nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+      ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+      nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+      nVal = SQRT(nx*nx + ny*ny + nz*nz)
+      SurfaceVal = SurfaceVal + nVal/2.
+    END DO
+    SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+  ELSE
+    ! call here stephens algorithm to compute area 
+    DO jSample=1,nSurfSample
+      DO iSample=1,nSurfSample
+        area=0.
+        tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
+        tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
+        DO q=0,NGeo
+          DO p=0,NGeo
+            XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
+            XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
+            CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                                                    ,Gradient=gradXiEta3D)
+            ! calculate first fundamental form
+            E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+            F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+            G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+            D=SQRT(E*G-F*F)
+            area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)      
+          END DO
         END DO
-      END DO
-      SurfMesh%SurfaceArea(iSample,jSample,SurfSideID) = area 
-    END DO ! iSample=1,nSurfSample
-  END DO ! jSample=1,nSurfSample
+        SurfMesh%SurfaceArea(iSample,jSample,SurfSideID) = area 
+      END DO ! iSample=1,nSurfSample
+    END DO ! jSample=1,nSurfSample
+  END IF
 END DO ! iSide=1,nTotalSides
 
 ! get the full area of the BC's of all faces
@@ -301,7 +333,7 @@ IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       hilf2=TRIM(hilf2)//TRIM(hilf)
       IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
     END DO
-    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,hilf2)
+    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
   END IF
   ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
   ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
@@ -319,7 +351,7 @@ IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
 END IF
 ! Species-dependent calculations
 ALLOCATE(CalcSurfCollis%SpeciesFlags(1:nSpecies))
-CalcSurfCollis%NbrOfSpecies = GETINT('Particles-DSMC-CalcSurfCollis_NbrOfSpecies','0')
+CalcSurfCollis%NbrOfSpecies = GETINT('Particles-CalcSurfCollis_NbrOfSpecies','0')
 IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nSpecies) ) THEN
   ALLOCATE(CalcSurfCollis_SpeciesRead(1:CalcSurfCollis%NbrOfSpecies))
   hilf2=''
@@ -328,7 +360,7 @@ IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nS
     hilf2=TRIM(hilf2)//TRIM(hilf)
     IF (ispec.NE.CalcSurfCollis%NbrOfSpecies) hilf2=TRIM(hilf2)//','
   END DO
-  CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,hilf2)
+  CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,TRIM(hilf2))
   CalcSurfCollis%SpeciesFlags(:)=.FALSE.
   DO iSpec=1,CalcSurfCollis%NbrOfSpecies
     CalcSurfCollis%SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
@@ -506,10 +538,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
-USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
 USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
-USE MOD_DSMC_Vars                   ,ONLY:Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1403,14 +1433,23 @@ SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
 #ifdef MPI
 SDEALLOCATE(PartHaloSideToProc)
-SDEALLOCATE(SurfExchange%nSidesSend )
-SDEALLOCATE(SurfExchange%nSidesRecv )
+SDEALLOCATE(SurfExchange%nSidesSend)
+SDEALLOCATE(SurfExchange%nSidesRecv)
+SDEALLOCATE(SurfExchange%SendRequest)
+SDEALLOCATE(SurfExchange%RecvRequest)
 DO iProc=1,SurfCOMM%nMPINeighbors
-  SDEALLOCATE(SurfSendBuf(iProc)%content)
-  SDEALLOCATE(SurfRecvBuf(iProc)%content)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
+  IF (ALLOCATED(SurfSendBuf))THEN
+    SDEALLOCATE(SurfSendBuf(iProc)%content)
+  END IF
+  IF (ALLOCATED(SurfRecvBuf))THEN
+    SDEALLOCATE(SurfRecvBuf(iProc)%content)
+  END IF
+  IF (ALLOCATED(SurfCOMM%MPINeighbor))THEN
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
+  END IF
 END DO ! iProc=1,PartMPI%nMPINeighbors
+SDEALLOCATE(SurfCOMM%MPINeighbor)
 SDEALLOCATE(SurfSendBuf)
 SDEALLOCATE(SurfRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)

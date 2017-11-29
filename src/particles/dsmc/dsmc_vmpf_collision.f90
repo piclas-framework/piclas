@@ -345,9 +345,9 @@ IMPLICIT NONE                                                                   
       PEM%Element(NonReacPart2)        = PEM%Element(React2Inx)
       PartMPF(NonReacPart2)            = PartMPF(React2Inx) - ReacMPF ! MPF of non-reacting particle part = MPF Diff
       PartMPF(React2Inx)               = ReacMPF ! reacting part MPF = ReacMPF
-      CALL DSMC_RelaxForNonReacPart(NonReacPart, NonReacPart2, iElem)
+      CALL DSMC_RelaxForNonReacPart(iPair, NonReacPart, NonReacPart2, iElem)
     ELSE IF (PartMPF(iPart_p3).GT.ReacMPF) THEN ! just a part of the M take place in recomb
-      CALL DSMC_RelaxForNonReacPart(NonReacPart, iPart_p3, iElem)
+      CALL DSMC_RelaxForNonReacPart(iPair, NonReacPart, iPart_p3, iElem)
     END IF
   ELSE IF (PartMPF(React2Inx).GT.ReacMPF) THEN ! just a part of the atom B recomb
   !.... Get free particle index for the non-reacting particle part
@@ -371,7 +371,7 @@ IMPLICIT NONE                                                                   
     PartMPF(NonReacPart)            = PartMPF(React2Inx) - ReacMPF ! MPF of non-reacting particle part = MPF Diff
     PartMPF(React2Inx)              = ReacMPF ! reacting part MPF = ReacMPF
     IF (PartMPF(iPart_p3).GT.ReacMPF) THEN ! just a part of the M take place in recomb
-      CALL DSMC_RelaxForNonReacPart(NonReacPart, iPart_p3, iElem)
+      CALL DSMC_RelaxForNonReacPart(iPair, NonReacPart, iPart_p3, iElem)
     END IF
   END IF
 
@@ -395,9 +395,9 @@ IMPLICIT NONE                                                                   
 !--------------------------------------------------------------------------------------------------!
 ! electronic relaxation  of AB and X (if X is not an electron) 
 !--------------------------------------------------------------------------------------------------!
-    CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,React1Inx,FakXi,iPart_p3 )
+    CALL ElectronicEnergyExchange(iPair,React1Inx,FakXi,iPart_p3 )
     Coll_pData(iPair)%Ec =  Coll_pData(iPair)%Ec + MPartStateElecEnOrg
-    CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,iPart_p3,FakXi,React1Inx )
+    CALL ElectronicEnergyExchange(iPair,iPart_p3,FakXi,React1Inx )
   ELSE
 ! Add heat of formation to collision energy
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + ChemReac%EForm(iReac) - MPartStateVibEnOrg
@@ -538,7 +538,7 @@ END SUBROUTINE AtomRecomb_vMPF
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
-SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
+SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
 !===================================================================================================================================
 ! perform collision for non reactive particles
 !===================================================================================================================================
@@ -567,7 +567,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
   REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
 !--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
-  INTEGER, INTENT(IN)           :: Part_1, Part_2
+  INTEGER, INTENT(IN)           :: iPair, Part_1, Part_2
 !--------------------------------------------------------------------------------------------------!
 ! output variable declaration    
   INTEGER, INTENT(IN)           :: iElem
@@ -630,13 +630,13 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
     IF ( DoElec1 ) THEN
       ! calculate energy for electronic relaxation of particle 1
       CollisionEnergy = CollisionEnergy + PartStateIntEn(Part_1,3)
-      CALL ElectronicEnergyExchange(CollisionEnergy,Part_1,FakXi,Part_2, iElem)
+      CALL ElectronicEnergyExchange(iPair,Part_1,FakXi,Part_2, iElem)
     END IF
     ! Electronic relaxation of second particle
     IF ( DoElec2 ) THEN
       ! calculate energy for electronic relaxation of particle 1
       CollisionEnergy = CollisionEnergy + PartStateIntEn(Part_2,3)
-      CALL ElectronicEnergyExchange(CollisionEnergy,Part_2,FakXi,Part_1, iElem)
+      CALL ElectronicEnergyExchange(iPair,Part_2,FakXi,Part_1, iElem)
     END IF
   END IF
 
@@ -644,6 +644,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
 ! Vibrational Relaxation
 !--------------------------------------------------------------------------------------------------! 
 
+  FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
   IF(DoVib2) THEN
     CollisionEnergy = CollisionEnergy + PartStateIntEn(Part_2,1) ! adding vib energy to coll energy
     MaxColQua = CollisionEnergy/(BoltzmannConst*SpecDSMC(PartSpec2)%CharaTVib)  &

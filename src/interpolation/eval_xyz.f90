@@ -797,10 +797,10 @@ SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc,                 ONLY:PP_N,PP_nElems
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
-USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
+USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
 USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo
 USE MOD_Interpolation_Vars,      ONLY:xGP
-USE MOD_Mesh_Vars,               ONLY:XCL_NGeo,NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:XCL_NGeo,NGeo,XiCL_NGeo,ElemBaryNGeo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

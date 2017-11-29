@@ -32,10 +32,11 @@ SUBROUTINE VolIntQDS(Ut,dofirstElems)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars,         ONLY:D_hat
-USE MOD_Mesh_Vars,       ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_QDS_Flux,        ONLY:EvalFlux3DQDS
-USE MOD_QDS_DG_Vars,     ONLY:QDSnVar,nQDSElems
+USE MOD_DG_Vars,             ONLY:D_hat
+USE MOD_Mesh_Vars,           ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_QDS_Flux,            ONLY:EvalFlux3DQDS
+USE MOD_QDS_DG_Vars,         ONLY:nQDSElems
+USE MOD_QDS_Equation_vars,   ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -114,11 +115,12 @@ SUBROUTINE VolIntQDS2(Ut,dofirstElems)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars,         ONLY:D_hat_T,D_T,D,D_hat
-USE MOD_Mesh_Vars,       ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_QDS_Flux,        ONLY:EvalFlux3DQDS
-USE MOD_QDS_DG_Vars,     ONLY:QDSnVar,nQDSElems
-USE MOD_QDS_DG_Vars,     ONLY:UQDS
+USE MOD_DG_Vars,             ONLY:D_hat_T,D_T,D,D_hat
+USE MOD_Mesh_Vars,           ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_QDS_Flux,            ONLY:EvalFlux3DQDS
+USE MOD_QDS_DG_Vars,         ONLY:nQDSElems
+USE MOD_QDS_DG_Vars,         ONLY:UQDS
+USE MOD_QDS_Equation_vars,   ONLY:QDSnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -210,11 +212,12 @@ SUBROUTINE VolIntQDS3(Ut,dofirstElems)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars,         ONLY:D_hat_T,D_T,D,D_hat
-USE MOD_Mesh_Vars,       ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_QDS_DG_Vars,     ONLY:QDSnVar,nQDSElems
-USE MOD_QDS_DG_Vars,     ONLY:UQDS
-USE MOD_QDS_Flux,        ONLY:EvalFlux3DQDS
+USE MOD_DG_Vars,            ONLY:D_hat_T,D_T,D,D_hat
+USE MOD_Mesh_Vars,          ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_QDS_DG_Vars,        ONLY:nQDSElems
+USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
+USE MOD_QDS_DG_Vars,        ONLY:UQDS
+USE MOD_QDS_Flux,           ONLY:EvalFlux3DQDS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

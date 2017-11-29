@@ -1711,7 +1711,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                 ::iElem
 INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
-LOGICAL                 :: TmpNeigh
+LOGICAL                 ::TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
 

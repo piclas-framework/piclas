@@ -3522,8 +3522,9 @@ SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac)
 ! actual deposition of single charge on DOFs via shapefunction_simple (i.e. loop through all elems instead of part-dependency: efficient for small elem-nbr!)
 !============================================================================================================================
 ! use MODULES                                                                                               
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
 #ifdef MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem

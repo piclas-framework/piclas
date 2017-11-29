@@ -318,7 +318,7 @@ INTEGER                  :: iBGM,jBGM,kBGM,iPBGM,jPBGM,kPBGM,PVID
 LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
 REAL                     :: distance(1:3)
-INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint,flip,AdjointLocSideID(2)
+INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint!,flip,AdjointLocSideID(2)
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
@@ -344,110 +344,172 @@ IF(SQRT(DOT_PRODUCT(Vec1,Vec1)).LE.halo_eps) THEN
   RETURN
 END IF 
 
-! now, check all boundary faces
-DO iElem=1,PP_nElems
-  IF(ElemIndex(iElem).GT.0)CYCLE
-  leave=.FALSE.
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.LT.1) CYCLE
-    IF(SideID.GT.nPartSides) CYCLE
-    flip  =PartElemToSide(E2S_FLIP,ilocSide,iElem)
-    ! get elemid of neighbor elem
-    !ElemID=SideToElem(S2E_NB_ELEM_ID,SideID)
-    !neighbor_ElemID=-1
-    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
-    !ElemID=SideToElem(S2E_ELEM_ID,SideID)
-    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
-    !IF(SideID.LE.0) CYCLE
-    !IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
-    ! reduce the number of sides which are compared to the received sides
-    ! for xi-minus,xi_plus check all 8 nodes to the element and the interior BezierControlPoints
-    ! for all other sides: only check the side-interior BezierControlPoints 
-    SELECT CASE(ilocSide)
-    CASE(XI_MINUS,XI_PLUS)
-      firstBezierPoint=0
-      lastBezierPoint=NGeo
-    CASE DEFAULT
-      firstBezierPoint=1
-      lastBezierPoint=NGeo-1
-    END SELECT
-    ! loop over all send sides, you do not have to check the halo mesh like in the svn-trunk
-    ! the distance-x,y,z check is cheaper than a modified check here and similar fast
-    DO iSide=1,nExternalSides
-      DO q=firstBezierPoint,lastBezierPoint
-        DO p=firstBezierPoint,lastBezierPoint
-          NodeX(:) = BezierSides3D(:,p,q,iSide)
-          DO s=firstBezierPoint,lastBezierPoint
-            DO r=firstBezierPoint,lastBezierPoint
-              distance(1)=ABS(BezierControlPoints3D(1,r,s,SideID)-NodeX(1))
-              IF(distance(1).GT.halo_eps) CYCLE
-              distance(2)=ABS(BezierControlPoints3D(2,r,s,SideID)-NodeX(2))
-              IF(distance(2).GT.halo_eps) CYCLE
-              distance(3)=ABS(BezierControlPoints3D(3,r,s,SideID)-NodeX(3))
-              IF(distance(3).GT.halo_eps) CYCLE
-              IF(SQRT(DOT_Product(Distance,Distance)).LE.halo_eps)THEN
-                IF(SideIndex(SideID).GT.0)THEN
-                  NbOfSides=NbOfSides+1
-                  SideIndex(SideID)=NbOfSides
-                END IF
-                NbOfElems=NbOfElems+1
-                ElemIndex(iElem)=NbofElems
-                leave=.TRUE.
-                ! mark potential Inner elements on the other side
-                DO iMortar=1,4
-                  NBElemID=INT(ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)-offSetElem,4)
-                  CHECKSAFEINT(NBElemID,4)
-                  IF(NBElemID.LE.0) CYCLE
-                  IF(NBElemID.GT.PP_nElems) CYCLE
-                  ! check if NBElem is already marked, if not, mark it!
-                  IF(ElemIndex(NbElemID).EQ.0)THEN
-                    NbOfElems=NbOfElems+1
-                    ElemIndex(NbElemID)=NbofElems
-                  END IF
-                END DO ! iMortar=1,4
-                EXIT
-              END IF ! Distance <halo_eps
-            END DO ! r=firstBezierPoint,lastBezierPoint
-            IF(leave) EXIT
-          END DO ! s=firstBezierPoint,lastBezierPoint
-          IF(leave) EXIT
-        END DO ! p=firstBezierPoint,lastBezierPoint
-        IF(leave) EXIT
-      END DO ! q=firstBezierPoint,lastBezierPoint
-      IF(leave) EXIT
-    END DO ! iSide=1,nExternalSides
-    IF(leave) THEN
-      ! for xi_plus,xi_minus sides (the 8 nodes of an element) the local neighbor can be marked
-      IF(((s.EQ.0).AND.(r.EQ.0)).OR.((s.EQ.0).AND.(r.EQ.NGeo)).OR.((s.EQ.NGeo).AND.(r.EQ.0)).OR.((s.EQ.NGeo).AND.(r.EQ.NGeo)))THEN
-        AdjointLocSideID = SideToAdjointLocSide(r,s,flip,ilocSide)
-        DO iMortar=1,4
-          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(1),offSetElem+iElem)-offSetElem,4)
-          CHECKSAFEINT(NBElemID,4)
-          IF(NBElemID.LE.0) CYCLE
-          IF(NBElemID.GT.PP_nElems) CYCLE
-          ! check if NBElem is already marked, if not, mark it!
-          IF(ElemIndex(NbElemID).EQ.0)THEN
-            NbOfElems=NbOfElems+1
-            ElemIndex(NbElemID)=NbofElems
-          END IF
-        END DO ! iMortar=1,4
-        DO iMortar=1,4
-          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(2),offSetElem+iElem)-offSetElem,4)
-          CHECKSAFEINT(NBElemID,4)
-          IF(NBElemID.LE.0) CYCLE
-          IF(NBElemID.GT.PP_nElems) CYCLE
-          ! check if NBElem is already marked, if not, mark it!
-          IF(ElemIndex(NbElemID).EQ.0)THEN
-            NbOfElems=NbOfElems+1
-            ElemIndex(NbElemID)=NbofElems
-          END IF
-        END DO ! iMortar=1,4
-      END IF
-      EXIT
-    END IF
-  END DO ! ilocSide=1,6
-END DO ! ! iElem=1,PP_nElems
+DO iSide=1,nExternalSides
+  DO q=0,NGeo
+    DO p=0,NGeo
+      NodeX(:) = BezierSides3d(:,p,q,iSide)
+      iBGM = INT((NodeX(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+      jBGM = INT((NodeX(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+      kBGM = INT((NodeX(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+      DO iPBGM = iBGM-FIBGMCellPadding(1),iBGM+FIBGMCellPadding(1)
+        DO jPBGM = jBGM-FIBGMCellPadding(2),jBGM+FIBGMCellPadding(2)
+          DO kPBGM = kBGM-FIBGMCellPadding(3),kBGM+FIBGMCellPadding(3)
+            IF((iPBGM.GT.GEO%FIBGMimax).OR.(iPBGM.LT.GEO%FIBGMimin) .OR. &
+               (jPBGM.GT.GEO%FIBGMjmax).OR.(jPBGM.LT.GEO%FIBGMjmin) .OR. &
+               (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
+            DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
+              ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
+              IF(ElemIndex(ElemID).GT.0) CYCLE ! element is already marked
+              DO ilocSide=1,6
+                SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+                IF(SideID.LT.1) CYCLE
+                IF(SideID.GT.nPartSides) CYCLE
+                ! caution, not save if corect
+                leave=.FALSE.
+                IF(SideIndex(SideID).EQ.0)THEN
+                  DO s=0,NGeo
+                    DO r=0,NGeo
+                      IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,SideID)-NodeX &
+                                         ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
+                        NbOfSides=NbOfSides+1
+                        SideIndex(SideID)=NbOfSides
+                        IF(ElemIndex(ElemID).EQ.0)THEN
+                          NbOfElems=NbOfElems+1
+                          ElemIndex(ElemID)=NbofElems
+                        END IF
+                        leave=.TRUE.
+                        ! mark potential Inner elements on the other side
+                        DO iMortar=1,4
+                          NBElemID=INT(ElemToElemGlob(iMortar,ilocSide,offSetElem+ElemID)-offSetElem,4)
+                          CHECKSAFEINT(NBElemID,4)
+                          IF(NBElemID.LE.0) CYCLE
+                          IF(NBElemID.GT.PP_nElems) CYCLE
+                          ! check if NBElem is already marked, if not, mark it!
+                          IF(ElemIndex(NbElemID).EQ.0)THEN
+                            NbOfElems=NbOfElems+1
+                            ElemIndex(NbElemID)=NbofElems
+                          END IF
+                        END DO ! iMortar=1,4
+                        EXIT
+                      END IF
+                    END DO ! r
+                    IF(leave) EXIT
+                  END DO ! s
+                END IF ! SideIndex(SideID).EQ.0
+                IF(leave) EXIT
+              END DO ! ilocSide
+            END DO ! iElem
+          END DO ! kPBGM
+        END DO ! jPBGM
+      END DO ! i PBGM
+    END DO ! p
+  END DO ! q
+END DO ! iSide
+
+!! now, check all boundary faces
+!DO iElem=1,PP_nElems
+!  IF(ElemIndex(iElem).GT.0)CYCLE
+!  leave=.FALSE.
+!  DO ilocSide=1,6
+!    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    IF(SideID.LT.1) CYCLE
+!    IF(SideID.GT.nPartSides) CYCLE
+!    flip  =PartElemToSide(E2S_FLIP,ilocSide,iElem)
+!    ! get elemid of neighbor elem
+!    !ElemID=SideToElem(S2E_NB_ELEM_ID,SideID)
+!    !neighbor_ElemID=-1
+!    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
+!    !ElemID=SideToElem(S2E_ELEM_ID,SideID)
+!    !IF((ElemID.GT.0).AND.(ElemID.NE.iElem)) neighbor_ElemID=ElemID
+!    !IF(SideID.LE.0) CYCLE
+!    !IF(MortarSlave2MasterInfo(SideID).NE.-1) CYCLE
+!    ! reduce the number of sides which are compared to the received sides
+!    ! for xi-minus,xi_plus check all 8 nodes to the element and the interior BezierControlPoints
+!    ! for all other sides: only check the side-interior BezierControlPoints 
+!    SELECT CASE(ilocSide)
+!    CASE(XI_MINUS,XI_PLUS)
+!      firstBezierPoint=0
+!      lastBezierPoint=NGeo
+!    CASE DEFAULT
+!      firstBezierPoint=1
+!      lastBezierPoint=NGeo-1
+!    END SELECT
+!    ! loop over all send sides, you do not have to check the halo mesh like in the svn-trunk
+!    ! the distance-x,y,z check is cheaper than a modified check here and similar fast
+!    DO iSide=1,nExternalSides
+!      DO q=firstBezierPoint,lastBezierPoint
+!        DO p=firstBezierPoint,lastBezierPoint
+!          NodeX(:) = BezierSides3D(:,p,q,iSide)
+!          DO s=firstBezierPoint,lastBezierPoint
+!            DO r=firstBezierPoint,lastBezierPoint
+!              distance(1)=ABS(BezierControlPoints3D(1,r,s,SideID)-NodeX(1))
+!              IF(distance(1).GT.halo_eps) CYCLE
+!              distance(2)=ABS(BezierControlPoints3D(2,r,s,SideID)-NodeX(2))
+!              IF(distance(2).GT.halo_eps) CYCLE
+!              distance(3)=ABS(BezierControlPoints3D(3,r,s,SideID)-NodeX(3))
+!              IF(distance(3).GT.halo_eps) CYCLE
+!              IF(SQRT(DOT_Product(Distance,Distance)).LE.halo_eps)THEN
+!                IF(SideIndex(SideID).GT.0)THEN
+!                  NbOfSides=NbOfSides+1
+!                  SideIndex(SideID)=NbOfSides
+!                END IF
+!                NbOfElems=NbOfElems+1
+!                ElemIndex(iElem)=NbofElems
+!                leave=.TRUE.
+!                ! mark potential Inner elements on the other side
+!                DO iMortar=1,4
+!                  NBElemID=INT(ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)-offSetElem,4)
+!                  CHECKSAFEINT(NBElemID,4)
+!                  IF(NBElemID.LE.0) CYCLE
+!                  IF(NBElemID.GT.PP_nElems) CYCLE
+!                  ! check if NBElem is already marked, if not, mark it!
+!                  IF(ElemIndex(NbElemID).EQ.0)THEN
+!                    NbOfElems=NbOfElems+1
+!                    ElemIndex(NbElemID)=NbofElems
+!                  END IF
+!                END DO ! iMortar=1,4
+!                EXIT
+!              END IF ! Distance <halo_eps
+!            END DO ! r=firstBezierPoint,lastBezierPoint
+!            IF(leave) EXIT
+!          END DO ! s=firstBezierPoint,lastBezierPoint
+!          IF(leave) EXIT
+!        END DO ! p=firstBezierPoint,lastBezierPoint
+!        IF(leave) EXIT
+!      END DO ! q=firstBezierPoint,lastBezierPoint
+!      IF(leave) EXIT
+!    END DO ! iSide=1,nExternalSides
+!    IF(leave) THEN
+!      ! for xi_plus,xi_minus sides (the 8 nodes of an element) the local neighbor can be marked
+!      IF(((s.EQ.0).AND.(r.EQ.0)).OR.((s.EQ.0).AND.(r.EQ.NGeo)).OR.((s.EQ.NGeo).AND.(r.EQ.0)).OR.((s.EQ.NGeo).AND.(r.EQ.NGeo)))THEN
+!        AdjointLocSideID = SideToAdjointLocSide(r,s,flip,ilocSide)
+!        DO iMortar=1,4
+!          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(1),offSetElem+iElem)-offSetElem,4)
+!          CHECKSAFEINT(NBElemID,4)
+!          IF(NBElemID.LE.0) CYCLE
+!          IF(NBElemID.GT.PP_nElems) CYCLE
+!          ! check if NBElem is already marked, if not, mark it!
+!          IF(ElemIndex(NbElemID).EQ.0)THEN
+!            NbOfElems=NbOfElems+1
+!            ElemIndex(NbElemID)=NbofElems
+!          END IF
+!        END DO ! iMortar=1,4
+!        DO iMortar=1,4
+!          NBElemID=INT(ElemToElemGlob(iMortar,AdjointLocSideID(2),offSetElem+iElem)-offSetElem,4)
+!          CHECKSAFEINT(NBElemID,4)
+!          IF(NBElemID.LE.0) CYCLE
+!          IF(NBElemID.GT.PP_nElems) CYCLE
+!          ! check if NBElem is already marked, if not, mark it!
+!          IF(ElemIndex(NbElemID).EQ.0)THEN
+!            NbOfElems=NbOfElems+1
+!            ElemIndex(NbElemID)=NbofElems
+!          END IF
+!        END DO ! iMortar=1,4
+!      END IF
+!      EXIT
+!    END IF
+!  END DO ! ilocSide=1,6
+!END DO ! ! iElem=1,PP_nElems
 
 
 !--- if there are periodic boundaries, they need to be taken into account as well:
@@ -625,19 +687,20 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! BezierControlPoints3D
 ! ElemToSide
 ! BC-Type and State
+! GEO%NodeCoords
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo
+USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob,GEO
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -650,6 +713,8 @@ INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 ! LOCAL VARIABLES
 TYPE tMPISideMessage
   REAL,ALLOCATABLE          :: BezierControlPoints3D(:,:,:,:)
+  REAL,ALLOCATABLE          :: NodeCoords(:,:,:,:)
+  LOGICAL,ALLOCATABLE       :: ConcaveElemSide(:,:)
   REAL,ALLOCATABLE          :: XCL_NGeo (:,:,:,:,:)
   REAL,ALLOCATABLE          :: dXCL_NGeo(:,:,:,:,:,:)
 !  REAL,ALLOCATABLE,DIMENSION(:,:,:)   :: ElemSlabNormals    
@@ -668,6 +733,11 @@ TYPE tMPISideMessage
   !INTEGER,ALLOCATABLE       :: PeriodicElemSide(:,:)
   INTEGER                   :: nSides                 ! number of sides to send
   INTEGER                   :: nElems                 ! number of elems to send
+  LOGICAL,ALLOCATABLE       :: curvedElem(:)
+  INTEGER,ALLOCATABLE       :: ElemType(:)
+  INTEGER,ALLOCATABLE       :: SideType(:)       
+  REAL   ,ALLOCATABLE       :: SideDistance(:)   
+  REAL   ,ALLOCATABLE       :: SideNormVec(:,:)
 END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
@@ -810,6 +880,66 @@ IF (RecvMsg%nSides.GT.0) THEN
     ,'Could not allocate RecvMsg%BezierControlPoints3D',RecvMsg%nSides)
   RecvMsg%BezierControlPoints3D=0.
 END IF
+! Elem types
+IF (SendMsg%nElems.GT.0) THEN
+  ALLOCATE(SendMsg%CurvedElem(1:SendMsg%nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%CurvedElem',SendMsg%nElems)
+  SendMsg%CurvedElem=.FALSE.
+  IF (.NOT.DoRefMapping) THEN
+    ALLOCATE(SendMsg%ElemType(1:SendMsg%nElems),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%ElemType',SendMsg%nElems)
+    SendMsg%ElemType=-1
+  END IF
+END IF
+IF (RecvMsg%nElems.GT.0) THEN
+  ALLOCATE(RecvMsg%CurvedElem(1:RecvMsg%nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate ResvMsg%CurvedElem',RecvMsg%nElems)
+  RecvMsg%CurvedElem=.FALSE.
+  IF (.NOT.DoRefMapping) THEN
+    ALLOCATE(RecvMsg%ElemType(1:RecvMsg%nElems),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%ElemType',RecvMsg%nElems)
+    RecvMsg%ElemType=-1
+  END IF
+END IF
+
+IF (TriaTracking) THEN
+  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
+    ALLOCATE(SendMsg%Nodecoords(1:3,1:4,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%Nodecoords',SendMsg%nElems)
+    SendMsg%Nodecoords=0.
+  END IF
+  IF (RecvMsg%nElems.GT.0) THEN
+    ALLOCATE(RecvMsg%NodeCoords(1:3,1:4,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%NodeCoords',RecvMsg%nElems)
+    RecvMsg%NodeCoords=0.
+  END IF
+  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
+    ALLOCATE(SendMsg%ConcaveElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%ConcaveElemSide',SendMsg%nElems)
+    SendMsg%ConcaveElemSide=.FALSE.
+  END IF
+  IF (RecvMsg%nElems.GT.0) THEN
+    ALLOCATE(RecvMsg%ConcaveElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%ConcaveElemSide',RecvMsg%nElems)
+    RecvMsg%ConcaveElemSide=.FALSE.
+  END IF
+END IF
 
 IF(DoRefMapping)THEN
   ! XCL_NGeo for exchange
@@ -875,6 +1005,41 @@ IF (RecvMsg%nSides.GT.0) THEN
     __STAMP__&
     ,'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
   RecvMsg%SideToElem(:,:)=0
+END IF
+! side types
+IF (SendMsg%nSides.GT.0) THEN
+  ALLOCATE(SendMsg%SideType(1:SendMsg%nSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%SideType',SendMsg%nSides)
+  SendMsg%SideType(:)=-1
+  ALLOCATE(SendMsg%SideDistance(1:SendMsg%nSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%SideDistance',SendMsg%nSides)
+  SendMsg%SideDistance(:)=0.
+  ALLOCATE(SendMsg%SideNormVec(1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%SideNormVec',SendMsg%nSides)
+  SendMsg%SideNormVec(:,:)=0.
+END IF
+IF (RecvMsg%nSides.GT.0) THEN
+  ALLOCATE(RecvMsg%SideType(1:RecvMsg%nSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%SideType',RecvMsg%nSides)
+  RecvMsg%SideType(:)=-1
+  ALLOCATE(RecvMsg%SideDistance(1:RecvMsg%nSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%SideDistance',RecvMsg%nSides)
+  RecvMsg%SideDistance(:)=0.
+  ALLOCATE(RecvMsg%SideNormVec(1:3,1:RecvMsg%nSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%SideNormVec',RecvMsg%nSides)
+  RecvMsg%SideNormVec(:,:)=0.
 END IF
 
 ! BC Mapping
@@ -998,6 +1163,14 @@ DO iElem = 1,nElems
       !SendMsg%ElemSlabNormals(:,:,ElemIndex(iElem))=ElemSlabNormals(:,:,iElem)
       !SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
     END IF
+    SendMsg%CurvedElem(ElemIndex(iElem))=CurvedElem(iElem)
+    IF (.NOT.DoRefMapping) THEN
+      SendMsg%ElemType(ElemIndex(iElem))=ElemType(iElem)
+    END IF
+    IF(TriaTracking)THEN
+      SendMsg%NodeCoords(:,:,:,ElemIndex(iElem))=GEO%Nodecoords(:,:,:,iElem)
+      SendMsg%ConcaveElemSide(:,ElemIndex(iElem))=GEO%ConcaveElemSide(:,iElem)
+    END IF
     SendMsg%ElemBaryNGeo(:,ElemIndex(iElem))=ElemBaryNGeo(:,iElem)
     DO iLocSide = 1,6
       SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
@@ -1033,6 +1206,15 @@ DO iSide = 1,nPartSides
          SendMsg%SideBCType(SideIndex(iSide)) = SidePeriodicType(iSide)
       END IF
     END DO ! S2E_LOC_SIDE_ID, S2E_NB_LOC_SIDE_ID, S2E_FLIP
+    IF(DoRefMapping)THEN
+      SendMsg%SideType(SideIndex(iSide)) = SideType(PartBCSideList(iSide))
+      SendMsg%SideDistance(SideIndex(iSide)) = SideDistance(PartBCSideList(iSide))
+      SendMsg%SideNormVec(1:3,SideIndex(iSide)) = SideNormVec(1:3,PartBCSideList(iSide))
+    ELSE
+      SendMsg%SideType(SideIndex(iSide)) = SideType(iSide)
+      SendMsg%SideDistance(SideIndex(iSide)) = SideDistance(iSide)
+      SendMsg%SideNormVec(1:3,SideIndex(iSide)) = SideNormVec(1:3,iSide)
+    END IF
     SendMsg%SideToElem(3:5,SideIndex(iSide)) = &
         PartSideToElem(3:5,iSide)
     SendMsg%BezierControlPoints3D(:,:,:,SideIndex(iSide)) = &
@@ -1095,11 +1277,29 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
+  END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToElemGlob,SendMsg%nElems*24,MPI_LONG       ,iProc,1119,PartMPI%COMM,IERROR)
     IF (SendMsg%nSides.GT.0) &
         CALL MPI_SEND(SendMsg%MortarType,SendMsg%nSides*2,MPI_INTEGER       ,iProc,1120,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%CurvedElem,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
+  END IF
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SideType    ,SendMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SideDistance,SendMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SideNormVec ,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,IERROR)
 
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1134,13 +1334,30 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemToElemGlob,RecvMsg%nElems*24,MPI_LONG,iProc,1119,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nSides.GT.0) &
         CALL MPI_RECV(RecvMsg%MortarType,RecvMsg%nSides*2,MPI_INTEGER,iProc,1120,PartMPI%COMM,MPISTATUS,IERROR)
-
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%CurvedElem,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SideType    ,RecvMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SideDistance,RecvMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SideNormVec ,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,MPISTATUS,IERROR)
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1174,12 +1391,30 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemToElemGlob,RecvMsg%nElems*24,MPI_LONG,iProc,1119,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nSides.GT.0) &
         CALL MPI_RECV(RecvMsg%MortarType,RecvMsg%nSides*2,MPI_INTEGER,iProc,1120,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%CurvedElem,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
+  END IF
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SideType    ,RecvMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SideDistance,RecvMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SideNormVec ,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,MPISTATUS,IERROR)
 
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
@@ -1209,12 +1444,30 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
+  IF(TriaTracking)THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
+  END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemToElemGlob,SendMsg%nElems*24,MPI_LONG,iProc,1119,PartMPI%COMM,IERROR)
     IF (SendMsg%nSides.GT.0) &
         CALL MPI_SEND(SendMsg%MortarType,SendMsg%nSides*2,MPI_INTEGER       ,iProc,1120,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%CurvedElem,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
+  IF (.NOT.DoRefMapping) THEN
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
+  END IF
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SideType    ,SendMsg%nSides  ,MPI_INTEGER,iProc,1123,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SideDistance,SendMsg%nSides  ,MPI_DOUBLE_PRECISION,iProc,1124,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SideNormVec ,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,IERROR)
 END IF
 
 IF ((RecvMsg%nElems.EQ.0) .AND. (RecvMsg%nSides.GT.0))THEN
@@ -1274,6 +1527,7 @@ IF(DoRefMapping)THEN
       XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
+      CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
     END DO
 
     ! loop over all sides and add them
@@ -1290,6 +1544,10 @@ IF(DoRefMapping)THEN
       MortarType(1:2,newSideID) =RecvMsg%MortarType(1:2,iSide)
       SidePeriodicType(newSideID)=RecvMsg%SideBCType(iSide)
       PartBCSideList(newSideID)=tmpBCSides+iSide 
+      newSideID = tmpBCSides+iSide
+      SideType(newSideID)        =RecvMsg%SideType(iSide)
+      SideDistance(newSideID)    =RecvMsg%SideDistance(iSide)
+      SideNormVec(1:3,newSideID) =RecvMsg%SideNormVec(1:3,iSide)
     END DO 
 
     ! fill lists 
@@ -1401,6 +1659,9 @@ ELSE ! DoRefMappping=F
           SideSlabIntervals(1:6,newSideID)  =RecvMsg%SideSlabIntervals(1:6 ,haloSideID) 
           BoundingBoxIsEmpty(newSideID)     =RecvMsg%BoundingBoxIsEmpty( haloSideID) 
           MortarType(1:2,newSideID)         =RecvMsg%MortarType(1:2,haloSideID)
+          SideType(newSideID)               =RecvMsg%SideType(haloSideID)
+          SideDistance(newSideID)           =RecvMsg%SideDistance(haloSideID)
+          SideNormVec(1:3,newSideID)           =RecvMsg%SideNormVec(1:3,haloSideID)
           isDone(haloSideID)=.TRUE.
         END IF
         ! build entry to PartElemToSide
@@ -1411,6 +1672,12 @@ ELSE ! DoRefMappping=F
       PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
+      CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
+      ElemType(newElemID)         = RecvMsg%ElemType(iElem)
+      IF (TriaTracking) THEN
+        GEO%NodeCoords(1:3,1:4,1:6,newElemID) = RecvMsg%NodeCoords(1:3,1:4,1:6,iElem)
+        GEO%ConcaveElemSide(1:6,newElemID) = RecvMsg%ConcaveElemSide(1:6,iElem)
+      END IF
       ! list from ElemToElemGlob mapped to process local element
       ! new list points from local-elem-id to global
       PartElemToElemGlob(1:4,1:6,newElemID) = RecvMsg%ElemToElemGlob(1:4,1:6,iElem)
@@ -1444,11 +1711,11 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,ElemBaryNGeo
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem
+USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO,ElemType
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideNormVec,SideDistance
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 !USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
 ! IMPLICIT VARIABLE HANDLING
@@ -1462,14 +1729,22 @@ INTEGER,INTENT(IN),OPTIONAL        :: nOldBCSides,nTotalBCSides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: ALLOCSTAT,nLower
-INTEGER,ALLOCATABLE                :: DummyElemToSide(:,:,:)                                
-INTEGER,ALLOCATABLE                :: DummyBC(:)                                
-REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)                                
-REAL,ALLOCATABLE                   :: DummyXCL_NGEO (:,:,:,:,:)                                
-REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)                                
-REAL,ALLOCATABLE                   :: DummyElemBaryNGeo(:,:)                                
-INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)                                 
-INTEGER,ALLOCATABLE                :: DummyMortarType(:,:)                                 
+INTEGER,ALLOCATABLE                :: DummyElemToSide(:,:,:)
+INTEGER,ALLOCATABLE                :: DummyBC(:)
+REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)
+REAL,ALLOCATABLE                   :: DummyXCL_NGEO (:,:,:,:,:)
+REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)
+REAL,ALLOCATABLE                   :: DummyElemBaryNGeo(:,:)
+LOGICAL,ALLOCATABLE                :: DummyCurvedElem(:)
+INTEGER,ALLOCATABLE                :: DummyElemType(:)
+INTEGER,ALLOCATABLE                :: DummySideType(:)
+REAL,ALLOCATABLE                   :: DummySideDistance(:)
+REAL,ALLOCATABLE                   :: DummySideNormVec(:,:)
+
+REAL,ALLOCATABLE                   :: DummyNodeCoords(:,:,:,:)
+LOGICAL,ALLOCATABLE                :: DummyConcaveElemSide(:,:)
+INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)
+INTEGER,ALLOCATABLE                :: DummyMortarType(:,:)
 INTEGER,ALLOCATABLE                :: DummySideToElem(:,:)
 INTEGER,ALLOCATABLE                :: DummySideBCType(:),DummyPartBCSideList(:)
 INTEGER(KIND=8),ALLOCATABLE        :: DummyElemToElem(:,:,:)
@@ -1489,14 +1764,14 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(&
   __STAMP__&
-  ,'Could not allocate ElemIndex')
+  ,'Could not allocate DummyElemToSide')
 DummyElemToSide=PartElemToSide
 !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
 DEALLOCATE(PartElemToSide)
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
-  ,'Could not allocate PartElemToSide')
+  ,'Could not reallocate PartElemToSide')
 PartElemToSide=-1
 PartElemToSide(:,:,1:nOldElems) =DummyElemToSide(:,:,1:nOldElems)
 DEALLOCATE(DummyElemToSide)
@@ -1522,14 +1797,14 @@ IF(DoRefMapping)THEN
   ALLOCATE(DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
   IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(&
     __STAMP__&
-    ,'Could not allocate ElemIndex')
+    ,'Could not allocate DummyXCL_NGeo')
   DummyXCL_NGeo=XCL_NGeo
   !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
   DEALLOCATE(XCL_NGeo)
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
-    ,'Could not allocate XCL_NGeo')
+    ,'Could not reallocate XCL_NGeo')
   XCL_NGeo=0.
   XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
   DEALLOCATE(DummyXCL_NGeo)
@@ -1537,14 +1812,14 @@ IF(DoRefMapping)THEN
   ALLOCATE(DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
   IF (.NOT.ALLOCATED(DummydXCL_NGeo)) CALL abort(&
     __STAMP__&
-    ,'Could not allocate ElemIndex')
+    ,'Could not allocate DummydXCL_NGeo')
   DummydXCL_NGeo=dXCL_NGeo
   !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
   DEALLOCATE(dXCL_NGeo)
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
-    ,'Could not allocate dXCL_NGeo')
+    ,'Could not reallocate dXCL_NGeo')
   dXCL_NGeo=0.
   dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
   DEALLOCATE(DummydXCL_NGeo)
@@ -1552,13 +1827,13 @@ IF(DoRefMapping)THEN
   ALLOCATE(DummyPartBCSideList(1:nOldSides))
   IF (.NOT.ALLOCATED(DummyPartBCSideList)) CALL abort(&
     __STAMP__&
-    ,'Could not allocate PartBCSideList')
+    ,'Could not allocate DummyPartBCSideList')
   DummyPartBCSideList(1:nOldSides)=PartBCSideList(1:nOldSides)
   DEALLOCATE(PartBCSideList)
   ALLOCATE(PartBCSideList(1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
-    ,'Could not allocate ElemIndex')
+    ,'Could not reallocate PartBCSideList')
   PartBCSideList=-1 !HUGE(1)
   PartBCSideList(1:nOldSides) =DummyPartBCSideList(1:nOldSides)
   DEALLOCATE(DummyPartBCSideList)
@@ -1577,13 +1852,13 @@ ELSE
   ALLOCATE(DummyHaloToProc(1:3,nLower:nOldElems))                                 
   IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(&
     __STAMP__&
-    ,'Could not allocate DummyPartHaloElemToProc')
+    ,'Could not allocate DummyHaloToProc')
   DummyHaloToProc=PartHaloElemToProc
   DEALLOCATE(PartHaloElemToProc)
   ALLOCATE(PartHaloElemToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
-    ,'Could not allocate PartHaloElemToProc')
+    ,'Could not reallocate PartHaloElemToProc')
   ! copy array to new
   PartHaloElemToProc=-1
   PartHaloElemToProc(1:3,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:3,PP_nElems+1:nOldElems)
@@ -1593,13 +1868,13 @@ END IF
 ALLOCATE(DummySideToElem(1:5,1:nOldSides))
 IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(&
   __STAMP__&
-  ,'Could not allocate ElemIndex')
+  ,'Could not allocate DummySideToElem')
 DummySideToElem=PartSideToElem
 DEALLOCATE(PartSideToElem)
 ALLOCATE(PartSideToElem(1:5,1:nTotalSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
-  ,'Could not allocate PartSideToElem')
+  ,'Could not reallocate PartSideToElem')
 PartSideToElem=-1
 PartSideToElem(1:5,1:nOldSides  )              =DummySideToElem(1:5,1:nOldSides)
 DEALLOCATE(DummySideToElem)
@@ -1607,97 +1882,41 @@ DEALLOCATE(DummySideToElem)
 ALLOCATE(DummyElemToElem(1:4,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToElem)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummySideToElem')
 DummyElemToElem=PartElemToElemGlob
 DEALLOCATE(PartElemToElemGlob)
 ALLOCATE(PartElemToElemGlob(1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not reallocate PartElemToElemGlob')
 PartElemToElemGlob=-1
 PartElemToElemGlob(1:4,1:6,1:nOldElems)            =DummyElemToElem(1:4,1:6,1:nOldElems)
 DEALLOCATE(DummyElemToElem)
 IF(DoRefMapping)THEN
   ! BezierControlPoints3D
-  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
-  IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
+  ALLOCATE(DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nOldSides))
+  IF (.NOT.ALLOCATED(DummyBezierControlPoints3D)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
-  DummyBezierControlPoints3d=BezierControlPoints3d
-  DEALLOCATE(BezierControlPoints3D)
-  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  BezierControlPoints3d(:,:,:,1:nOldBCSides) =DummyBezierControlPoints3D(:,:,:,1:nOldBCSides)
-  DEALLOCATE(DummyBezierControlPoints3D)
-  ! SideSlabNormals
-  ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
-  IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  DummySideSlabNormals=SideSlabNormals
-  DEALLOCATE(SideSlabNormals)
-  ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  SideSlabNormals=0
-  SideSlabNormals(1:3,1:3,1:nOldBCSides) =DummySideSlabNormals(1:3,1:3,1:nOldBCSides)
-  DEALLOCATE(DummySideSlabNormals)
-  ! SideSlabIntervals
-  ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
-  IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  DummySideSlabIntervals=SideSlabIntervals
-  DEALLOCATE(SideSlabIntervals)
-  ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  SideSlabIntervals=0
-  SideSlabIntervals(1:6,1:nOldBCSides) =DummySideSlabIntervals(1:6,1:nOldBCSides)
-  DEALLOCATE(DummySideSlabIntervals)
-  ! BoundingBoxIsEmpty
-  ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
-  IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
-  DEALLOCATE(BoundingBoxIsEmpty)
-  ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  BoundingBoxIsEmpty(1:nOldBCSides) =DummyBoundingBoxIsEmpty(1:nOldBCSides)
-  DEALLOCATE(DummyBoundingBoxIsEmpty)
-
-ELSE ! no mapping
-  ! BezierControlPoints3D
-  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldSides))
-  IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
-      __STAMP__&
-   ,'Could not allocate ElemIndex')
-  DummyBezierControlPoints3d=BezierControlPoints3d
+   ,'Could not allocate DummyBezierControlPoints3D')
+  DummyBezierControlPoints3D=BezierControlPoints3D
   DEALLOCATE(BezierControlPoints3D)
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not reallocate BezierControlPoints3d')
   BezierControlPoints3d(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
   DEALLOCATE(DummyBezierControlPoints3D)
   ! SideSlabNormals
   ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldSides))
   IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
-    __STAMP__&
-   ,'Could not allocate ElemIndex')
+      __STAMP__&
+   ,'Could not allocate DummySideSlabNormals')
   DummySideSlabNormals=SideSlabNormals
   DEALLOCATE(SideSlabNormals)
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not reallocate SideSlabNormals')
   SideSlabNormals=0
   SideSlabNormals(1:3,1:3,1:nOldSides) =DummySideSlabNormals(1:3,1:3,1:nOldSides)
   DEALLOCATE(DummySideSlabNormals)
@@ -1705,13 +1924,13 @@ ELSE ! no mapping
   ALLOCATE(DummySideSlabIntervals(1:6,1:nOldSides))
   IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummySideSlabIntervals')
   DummySideSlabIntervals=SideSlabIntervals
   DEALLOCATE(SideSlabIntervals)
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not reallocate SideSlabIntervals')
   SideSlabIntervals=0
   SideSlabIntervals(1:6,1:nOldSides) =DummySideSlabIntervals(1:6,1:nOldSides)
   DEALLOCATE(DummySideSlabIntervals)
@@ -1719,42 +1938,239 @@ ELSE ! no mapping
   ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldSides))
   IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not allocate DummyBoundingBoxIsEmpty')
   DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
   DEALLOCATE(BoundingBoxIsEmpty)
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not allocate ElemIndex')
+   ,'Could not reallocate BoundingBoxIsEmpty')
   BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
+
+  ! side type
+  ALLOCATE(DummySideType(1:nOldBCSides))
+  IF (.NOT.ALLOCATED(DummySideType)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideType')
+  DummySideType=SideType
+  DEALLOCATE(SideType)
+  ALLOCATE(SideType(1:nTotalBCSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideType')
+  SideType=-1
+  SideType(1:nOldBCSides) =DummySideType(1:nOldBCSides)
+
+  ALLOCATE(DummySideDistance(1:nOldBCSides))
+  IF (.NOT.ALLOCATED(DummySideDistance)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideDistance')
+  DummySideDistance=SideDistance
+  DEALLOCATE(SideDistance)
+  ALLOCATE(SideDistance(1:nTotalBCSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideDistance')
+  SideDistance=0.
+  SideDistance(1:nOldBCSides) =DummySideDistance(1:nOldBCSides)
+
+  ALLOCATE(DummySideNormVec(1:3,1:nOldBCSides))
+  IF (.NOT.ALLOCATED(DummySideNormVec)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideNormVec')
+  DummySideNormVec=SideNormVec
+  DEALLOCATE(SideNormVec)
+  ALLOCATE(SideNormVec(1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideNormVec')
+  SideNormVec=0.
+  SideNormVec(1:3,1:nOldBCSides) =DummySideNormVec(1:3,1:nOldBCSides)
+
+ELSE ! no mapping
+  ! BezierControlPoints3D
+  ALLOCATE(DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nOldSides))
+  IF (.NOT.ALLOCATED(DummyBezierControlPoints3D)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummyBezierControlPoints3D')
+  DummyBezierControlPoints3D=BezierControlPoints3D
+  DEALLOCATE(BezierControlPoints3D)
+  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate BezierControlPoints3D')
+  BezierControlPoints3D(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
+  DEALLOCATE(DummyBezierControlPoints3D)
+  ! SideSlabNormals
+  ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
+    __STAMP__&
+   ,'Could not allocate DummySideSlabNormals')
+  DummySideSlabNormals=SideSlabNormals
+  DEALLOCATE(SideSlabNormals)
+  ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideSlabNormals')
+  SideSlabNormals=0
+  SideSlabNormals(1:3,1:3,1:nOldSides) =DummySideSlabNormals(1:3,1:3,1:nOldSides)
+  DEALLOCATE(DummySideSlabNormals)
+  ! SideSlabIntervals
+  ALLOCATE(DummySideSlabIntervals(1:6,1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideSlabIntervals')
+  DummySideSlabIntervals=SideSlabIntervals
+  DEALLOCATE(SideSlabIntervals)
+  ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideSlabIntervals')
+  SideSlabIntervals=0
+  SideSlabIntervals(1:6,1:nOldSides) =DummySideSlabIntervals(1:6,1:nOldSides)
+  DEALLOCATE(DummySideSlabIntervals)
+  ! BoundingBoxIsEmpty
+  ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldSides))
+  IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummyBoundingBoxIsEmpty')
+  DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
+  DEALLOCATE(BoundingBoxIsEmpty)
+  ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate BoundingBoxIsEmpty')
+  BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
+  DEALLOCATE(DummyBoundingBoxIsEmpty)
+
+  ! side type
+  ALLOCATE(DummySideType(1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideType)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideType')
+  DummySideType=SideType
+  DEALLOCATE(SideType)
+  ALLOCATE(SideType(1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideType')
+  SideType=-1
+  SideType(1:nOldSides) =DummySideType(1:nOldSides)
+
+  ALLOCATE(DummySideDistance(1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideDistance)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideDistance')
+  DummySideDistance=SideDistance
+  DEALLOCATE(SideDistance)
+  ALLOCATE(SideDistance(1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideDistance')
+  SideDistance=0.
+  SideDistance(1:nOldSides) =DummySideDistance(1:nOldSides)
+
+  ALLOCATE(DummySideNormVec(1:3,1:nOldSides))
+  IF (.NOT.ALLOCATED(DummySideNormVec)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummySideNormVec')
+  DummySideNormVec=SideNormVec
+  DEALLOCATE(SideNormVec)
+  ALLOCATE(SideNormVec(1:3,1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate SideNormVec')
+  SideNormVec=0.
+  SideNormVec(1:3,1:nOldSides) =DummySideNormVec(1:3,1:nOldSides)
+END IF
+
+IF (TriaTracking) THEN
+  ! Resize Nodecoords
+  ALLOCATE(DummyNodeCoords(1:3,1:4,1:6,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyNodeCoords)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyNodeCoords')
+  DummyNodeCoords(1:3,1:4,1:6,1:nOldElems) = GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems)
+  DEALLOCATE(GEO%NodeCoords)
+  ALLOCATE(GEO%NodeCoords(1:3,1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize reallocate GEO%NodeCoords')
+  GEO%NodeCoords=0.
+  GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems) = DummyNodeCoords(1:3,1:4,1:6,1:nOldElems)
+  DEALLOCATE(DummyNodeCoords)
+  ! Resize ConcaveElemSides
+  ALLOCATE(DummyConcaveElemSide(1:6,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyConcaveElemSide)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyConcaveElemSide')
+  DummyConcaveElemSide(1:6,1:nOldElems) = GEO%ConcaveElemSide(1:6,1:nOldElems)
+  DEALLOCATE(GEO%ConcaveElemSide)
+  ALLOCATE(GEO%ConcaveElemSide(1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize reallocate GEO%ConcaveElemSide')
+  GEO%ConcaveElemSide=.FALSE.
+  GEO%ConcaveElemSide(1:6,1:nOldElems) = DummyConcaveElemSide(1:6,1:nOldElems)
+  DEALLOCATE(DummyConcaveElemSide)
 END IF
 
 ! ElemBaryNGeo
 ALLOCATE(DummyElemBaryNGeo(1:3,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemBaryNGeo)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemBaryNGeo')
+ ,'Could not allocate DummyElemBaryNGeo')
 DummyElemBaryNGeo=ElemBaryNGeo
 DEALLOCATE(ElemBaryNGeo)
 ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemBaryNGeo')
+ ,'Could not reallocate ElemBaryNGeo')
 ElemBaryNGeo=0.
 ElemBaryNGeo(1:3,1:nOldElems) =DummyElemBaryNGeo(1:3,1:nOldElems)
+
+! curved elem
+ALLOCATE(DummyCurvedElem(1:nOldElems))
+IF (.NOT.ALLOCATED(DummyCurvedElem)) CALL abort(&
+    __STAMP__&
+ ,'Could not allocate DummyCurvedElem')
+DummyCurvedElem=CurvedElem
+DEALLOCATE(CurvedElem)
+ALLOCATE(CurvedElem(1:nTotalElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+ ,'Could not reallocate CurvedElem')
+CurvedElem=.FALSE.
+CurvedElem(1:nOldElems) =DummyCurvedElem(1:nOldElems)
+
+! Elem Type
+IF (.NOT.DoRefMapping) THEN
+  ALLOCATE(DummyElemType(1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyElemType)) CALL abort(&
+      __STAMP__&
+   ,'Could not allocate DummyElemType')
+  DummyElemType=ElemType
+  DEALLOCATE(ElemType)
+  ALLOCATE(ElemType(1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+   ,'Could not reallocate ElemType')
+  ElemType=-1
+  ElemType(1:nOldElems) =DummyElemType(1:nOldElems)
+END IF
 
 ! SideBCType
 ALLOCATE(DummySideBCType(1:nOldSides))
 IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummySideBCType')
 DummySideBCType(1:nOldSides)=SidePeriodicType(1:nOldSides)
 DEALLOCATE(SidePeriodicType)
 ALLOCATE(SidePeriodicType(1:nTotalSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not reallocate SidePeriodicType')
 SidePeriodicType=-1
 SidePeriodicType(1:nOldSides) =DummySideBCType(1:nOldSides)
 DEALLOCATE(DummySideBCType)
@@ -1762,14 +2178,14 @@ DEALLOCATE(DummySideBCType)
 ALLOCATE(DummyBC(1:nOldSides))
 IF (.NOT.ALLOCATED(DummyBC)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummyBC')
 ! check
 DummyBC(1:nOldSides)=BC(1:nOldSides)
 DEALLOCATE(BC)
 ALLOCATE(BC(1:nTotalSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not reallocate BC')
 BC=0
 BC(1:nOldSides) =DummyBC(1:nOldSides)
 DEALLOCATE(DummyBC)
@@ -1778,14 +2194,14 @@ DEALLOCATE(DummyBC)
 ALLOCATE(DummyMortarType(1:2,1:nOldSides))
 IF (.NOT.ALLOCATED(DummyMortarType)) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not allocate DummyMortarType')
 ! check
 DummyMortarType(1:2,1:nOldSides)=MortarType(1:2,1:nOldSides)
 DEALLOCATE(MortarType)
 ALLOCATE(MortarType(1:2,1:nTotalSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
- ,'Could not allocate ElemIndex')
+ ,'Could not reallocate MortarType')
 MortarType=-1
 MortarType(1:2,1:nOldSides) =DummyMortarType(1:2,1:nOldSides)
 DEALLOCATE(DummyMortarType)

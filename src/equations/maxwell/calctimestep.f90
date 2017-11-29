@@ -43,9 +43,9 @@ REAL                         :: CalcTimeStep
 ! LOCAL VARIABLES
 INTEGER                      :: i,j,k,iElem
 REAL                         :: Max_Lambda1,Max_Lambda2,Max_Lambda3
-REAL                         :: Max_Lambda4,Max_Lambda5,Max_Lambda6
 REAL                         :: TimeStepConv,locTimeStepConv
 #if USE_QDS_DG
+REAL                         :: Max_Lambda4,Max_Lambda5,Max_Lambda6
 REAL                         :: locTimeStepQDS
 #endif /*USE_QDS_DG*/
 !===================================================================================================================================

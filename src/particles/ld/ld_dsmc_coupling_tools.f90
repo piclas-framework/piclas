@@ -376,22 +376,22 @@ REAL                          :: TVib_TempFac, MolecPartNum, HeavyPartNum       
 !--------------------------------------------------------------------------------------------------!
 
 ALLOCATE(MacroDSMC(nElems,nSpecies + 1))
-MacroDSMC(1:nElems,1:nSpecies+1)%PartV(1)  = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%PartV(2)  = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%PartV(3)  = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%PartV(4)  = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(1) = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(2) = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(3) = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%Temp(1)   = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%Temp(2)   = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%Temp(3)   = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%Temp(4)   = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%PartNum   = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%NumDens   = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%TVib      = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%TRot      = 0
-MacroDSMC(1:nElems,1:nSpecies+1)%TElec     = 0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartV(1)  = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartV(2)  = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartV(3)  = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartV(4)  = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(1) = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(2) = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(3) = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%Temp(1)   = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%Temp(2)   = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%Temp(3)   = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%Temp(4)   = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%PartNum   = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%NumDens   = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%TVib      = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%TRot      = 0.0
+MacroDSMC(1:nElems,1:nSpecies+1)%TElec     = 0.0
 
 DO iSpec = 1, nSpecies
   DO iElem = 1, nElems ! element/cell main loop    
@@ -416,7 +416,7 @@ DO iSpec = 1, nSpecies
       ELSE ! -----------------------------> LD (no direction depended temperature)
         MacroDSMC(iElem,iSpec)%Temp(1)   = SampDSMC(iElem,iSpec)%PartV2(1) / SampDSMC(iElem,iSpec)%PartNum
         MacroDSMC(iElem,iSpec)%Temp(2)   = SampDSMC(iElem,iSpec)%PartV2(1) / SampDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,iSpec)%Temp(3)   = SampDSMC(iElem,iSpec)%PartV2(1) / SampDSMC(iElem,iSpec)%PartNum 
+        MacroDSMC(iElem,iSpec)%Temp(3)   = SampDSMC(iElem,iSpec)%PartV2(1) / SampDSMC(iElem,iSpec)%PartNum
         MacroDSMC(iElem,iSpec)%Temp(4)   = SampDSMC(iElem,iSpec)%PartV2(1) / SampDSMC(iElem,iSpec)%PartNum
       END IF
 ! compute density
@@ -545,19 +545,51 @@ DO iElem = 1, nElems ! element/cell main loop
       MacroDSMC(iElem,nSpecies + 1)%PartNum = MacroDSMC(iElem,nSpecies + 1)%PartNum + MacroDSMC(iElem,iSpec)%PartNum
     END DO
   END IF
+  
 !-------------------------------------------DEBUG OUTPUT---------------------------------------------
-  MacroDSMC(iElem,nSpecies + 1)%PartNum = BulkValues(iElem)%CellType
+   MacroDSMC(iElem,nSpecies + 1)%Temp(1)  = CBC_Par(iElem)%Celltype
+   MacroDSMC(iElem,nSpecies + 1)%Temp(2)  = CBC_Par(iElem)%TVib
+   MacroDSMC(iElem,nSpecies + 1)%Temp(3)  = CBC_Par(iElem)%ZetaRot
+   MacroDSMC(iElem,nSpecies + 1)%Temp(4)  = CBC_Par(iElem)%ZetaVib
+   MacroDSMC(iElem,nSpecies + 1)%PartV(1) = CBC_Par(iElem)%KnTemp
+   MacroDSMC(iElem,nSpecies + 1)%PartV(2) = CBC_Par(iElem)%KnTGLL
+   MacroDSMC(iElem,nSpecies + 1)%PartV(4) = REAL(BulkValues(iElem)%CellType)
+!   MacroDSMC(iElem,nSpecies + 1)%NumDens  = CBC_Par(iElem)%KnDens
+   MacroDSMC(iElem,nSpecies + 1)%PartNum  = REAL(BulkValues(iElem)%CellType)
+   MacroDSMC(iElem,nSpecies + 1)%PartNum  = CBC_Par(iElem)%KnMax
+!   MacroDSMC(iElem,nSpecies + 1)%PartNum  = GEO%NumNeighborElems(iElem) + MPIGEO%NumNeighborElems(iElem)
+
 !-------------------------------------------DEBUG OUTPUT---------------------------------------------
-  IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN ! -----------------------------> DSMC
-    IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-      DSMC%CollProbOut(iElem,2) = DSMC%CollProbOut(iElem,2) / iter
+  IF(DSMC%CalcQualityFactors) THEN  
+    IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN ! -----------------------------> DSMC
+      IF ((MacroDSMC(iElem,nSpecies+1)%PartNum.GT.0).AND.(MacroDSMC(iElem,nSpecies + 1)%Temp(4).GT.0)) THEN
+        DSMC%QualityFactors(iElem,3) = DSMC%QualityFacSamp(iElem,3) &
+                              / CalcMeanFreePath(MacroDSMC(iElem,1:nSpecies)%PartNum, MacroDSMC(iElem,nSpecies+1)%PartNum, &
+                                  GEO%Volume(iElem), SpecDSMC(1)%omegaVHS, MacroDSMC(iElem,nSpecies + 1)%Temp(4))
+      END IF
+      IF(WriteMacroValues) THEN
+        DSMC%QualityFactors(iElem,1) = DSMC%QualityFacSamp(iElem,1) / iter_macvalout
+        DSMC%QualityFactors(iElem,2) = DSMC%QualityFacSamp(iElem,2) / iter_macvalout
+        DSMC%QualityFactors(iElem,3) = DSMC%QualityFactors(iElem,3) / iter_macvalout
+      ELSE
+        IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+          DSMC%QualityFactors(iElem,1) = DSMC%QualityFacSamp(iElem,1) / iter
+          DSMC%QualityFactors(iElem,2) = DSMC%QualityFacSamp(iElem,2) / iter
+          DSMC%QualityFactors(iElem,3) = DSMC%QualityFactors(iElem,3) / iter
+        ELSE
+          DSMC%QualityFactors(iElem,1) = DSMC%QualityFacSamp(iElem,1)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+          DSMC%QualityFactors(iElem,2) = DSMC%QualityFacSamp(iElem,2)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+          DSMC%QualityFactors(iElem,3) = DSMC%QualityFactors(iElem,3)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+        END IF
+      END IF
     ELSE
-      DSMC%CollProbOut(iElem,2) = DSMC%CollProbOut(iElem,2)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+      DSMC%QualityFactors(iElem,:) = 0.0
     END IF
   ELSE
     DSMC%CollProbOut(iElem,:) = 0.0
   END IF
 END DO
+
 CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
 
 DEALLOCATE(MacroDSMC)
