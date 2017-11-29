@@ -704,7 +704,7 @@ DO iPart=1,PDM%ParticleVecLength
       PEM%Element(iPart)=ElemID
       IF(.NOT.isHit) THEN
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating....' 
-        CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
+        CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.FALSE.)!debug=.TRUE.)
       END IF
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
