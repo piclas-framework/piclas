@@ -46,6 +46,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
+USE MOD_IO_HDF5,                ONLY:AddToElemData,ElementOut
 USE MOD_Interpolation_Vars,     ONLY:xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Mesh_ReadIn,            ONLY:readMesh
@@ -360,6 +361,7 @@ DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
+CALL AddToElemData(ElementOut,'myRank',IntScalar=MyRank)
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'

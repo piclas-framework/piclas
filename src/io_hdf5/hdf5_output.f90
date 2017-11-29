@@ -331,7 +331,7 @@ END IF
 CALL WriteParticleToHDF5(FileName)
 #endif /*Particles*/
 
-CALL WriteAdditionalDataToHDF5(FileName)
+CALL WriteAdditionalElemData(FileName,ElementOut)
 
 #if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
@@ -402,32 +402,28 @@ ElemTime=0.
 END SUBROUTINE WriteElemTimeToHDF5
 
 
-SUBROUTINE WriteAdditionalDataToHDF5(FileName)
+SUBROUTINE WriteAdditionalElemData(FileName,ElemList)
 !===================================================================================================================================
-! Write additional (elementwise scalar) data to HDF5
-! 1-Rank
-! 2-isPMLElem
-! 3-hasParticle
+!> Write additional data for analyze purpose to HDF5.
+!> The data is taken from a lists, containing either pointers to data arrays or pointers
+!> to functions to generate the data, along with the respective varnames.
+!>
+!> Two options are available:
+!>    1. WriteAdditionalElemData: 
+!>       Element-wise scalar data, e.g. the timestep or indicators.
+!>       The data is collected in a single array and written out in one step.
+!>       DO NOT MISUSE NODAL DATA FOR THIS! IT WILL DRASTICALLY INCREASE FILE SIZE AND SLOW DOWN IO!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
-#ifndef PP_HDG
-USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,nPMLElems
-#endif /*PP_HDG*/ 
-#ifdef PARTICLES
-USE MOD_Particle_Vars ,ONLY:PDM,PEM
-#endif /*PARTICLES*/
-#ifdef MPI
-USE MOD_LoadBalance_Vars, ONLY:DoLoadBalance
-USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,nPartsPerElem
-#endif /*MPI*/
+USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems,nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=255),INTENT(IN)  :: FileName
+CHARACTER(LEN=255),INTENT(IN)        :: FileName
+TYPE(tElementOut),POINTER,INTENT(IN) :: ElemList !< Linked list of arrays to write to file
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -435,75 +431,54 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 REAL,ALLOCATABLE               :: ElemData(:,:)
 INTEGER                        :: nVar,iElem
-#ifdef PARTICLES
-INTEGER                        :: iPart
-#endif /*PARTICLES*/
+TYPE(tElementOut),POINTER      :: e
 !===================================================================================================================================
 
-#ifdef MPI
-IF(DoLoadBalance)THEN
-  nVar=5
-ELSE
-  nVar=3
-END IF
-#else
-nVar=3
-#endif /*MPI*/
-ALLOCATE(StrVarNames(nVar))
-ALLOCATE(ElemData(nVar,PP_nElems))
+IF(.NOT. ASSOCIATED(ElemList)) RETURN
 
-StrVarNames(1)='MyRank'
-StrVarNames(2)='PMLElement'
-StrVarNames(3)='PartElem'
-
-! fill ElemData
-ElemData=0.
-! MPI-Rank
-DO iElem=1,PP_nElems
-  ElemData(1,iElem)=REAL(MyRank)
+! Count the additional variables
+nVar = 0
+e=>ElemList
+DO WHILE(ASSOCIATED(e))
+  nVar=nVar+1
+  e=>e%next
 END DO
-#ifndef PP_HDG
-! PML Info
-IF(DoPML)THEN
-  DO iElem=1,nPMLElems
-    ElemData(2,PMLToElem(iElem))=1.0
-  END DO ! iElem=1,nPMLElems
-END IF
-#endif /*PP_HDG*/ 
-! hasParticles
-#ifdef PARTICLES
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    iElem=PEM%Element(iPart)
-    IF(ElemData(3,iElem).EQ.0.) ElemData(3,iElem)=1.0
-  END IF ! ParticleInside
-END DO ! iPart
-#endif /*PARTICLES*/
-  
-#ifdef MPI
-IF(DoLoadBalance)THEN
-  StrVarNames(4)='ElemTime'
-  StrVarNames(5)='nPartsPerElem'
-  IF(nLoadBalance.EQ.0) THEN
-    IF(.NOT.ALLOCATED(ElemTime))THEN
-      ElemTime=0.
-    END IF
-  END IF
-  DO iElem=1,PP_nElems
-    ElemData(4,iElem)=ElemTime(iElem)
-    ElemData(5,iElem)=nPartsPerElem(iElem)
-  END DO ! iElem =1,PP_nElems
-END IF
-#endif /*MPI*/
 
-! output of rank 
+! Allocate variable names and data array
+ALLOCATE(StrVarNames(nVar))
+ALLOCATE(ElemData(nVar,nElems))
+
+! Fill the arrays
+nVar = 0
+e=>ElemList
+DO WHILE(ASSOCIATED(e))
+  nVar=nVar+1
+  StrVarNames(nVar)=e%VarName
+  IF(ASSOCIATED(e%RealArray))    ElemData(nVar,:)=e%RealArray(1:nElems)
+  IF(ASSOCIATED(e%RealScalar))   ElemData(nVar,:)=e%RealScalar
+  IF(ASSOCIATED(e%IntArray))     ElemData(nVar,:)=REAL(e%IntArray(1:nElems))
+  IF(ASSOCIATED(e%IntScalar))    ElemData(nVar,:)=REAL(e%IntScalar)
+  IF(ASSOCIATED(e%LongIntArray)) ElemData(nVar,:)=REAL(e%LongIntArray(1:nElems))
+  IF(ASSOCIATED(e%LogArray)) THEN
+    DO iElem=1,nElems
+      IF(e%LogArray(iElem))THEN
+        ElemData(nVar,iElem)=1.
+      ELSE
+        ElemData(nVar,iElem)=0.
+      END IF
+    END DO ! iElem=1,PP_nElems
+  END IF
+  IF(ASSOCIATED(e%eval))       CALL e%eval(ElemData(nVar,:)) ! function fills elemdata
+  e=>e%next
+END DO
+
 IF(MPIRoot)THEN
 #ifdef MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarnames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF
 
@@ -515,8 +490,7 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         collective=.TRUE.,RealArray=ElemData)
 DEALLOCATE(ElemData,StrVarNames)
 
-
-END SUBROUTINE WriteAdditionalDataToHDF5
+END SUBROUTINE WriteAdditionalElemData
 
 
 #if (PP_nVar==8)
