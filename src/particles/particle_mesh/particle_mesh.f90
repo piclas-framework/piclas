@@ -816,9 +816,9 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt& 
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,Sanity_Opt,Tol_Opt& 
 #ifdef CODE_ANALYZE
-        ,CodeAnalyze_Opt,Sanity_Opt,Tol_Opt)
+        ,CodeAnalyze_Opt)
 #else
         )
 #endif /*CODE_ANALYZE*/

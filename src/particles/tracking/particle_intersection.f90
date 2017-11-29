@@ -1870,9 +1870,11 @@ REAL,INTENT(INOUT)                   :: LineNormVec(1:2,1:2)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: Length,alpha(2),dalpha, doPro,dcorr
-REAL,DIMENSION(2)                    :: LXi, Leta
+REAL,DIMENSION(2)                    :: LXi, Leta, LineNormVecOld(1:2,1:2)
 !================================================================================================================================
 
+! backup old linenormvec
+LineNormVecOld=LineNormVec
 LXi=(BezierControlPoints2D(:,a,b)-BezierControlPoints2D(:,0,0))+&
     (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,b,a))
 Length=SQRT(DOT_PRODUCT(LXi,LXi))
@@ -1954,6 +1956,21 @@ ELSE
   LineNormVec(:,2)=Leta
 END IF
 
+IF(DOT_PRODUCT(LineNormVec(:,1),LineNormVecOld(:,1)).LT.0.)THEN
+  IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Xi '
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld           ', LineNormVecOld(:,1)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec              ', LineNormVec   (:,1)
+  IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,1),LineNormVecOld(:,1))
+  ! stop
+END IF
+
+IF(DOT_PRODUCT(LineNormVec(:,2),LineNormVecOld(:,2)).LT.0.)THEN
+  IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Eta '
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld           ', LineNormVecOld(:,2)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec              ', LineNormVec   (:,2)
+  IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,2),LineNormVecOld(:,2))
+  ! stop
+END IF
 ! DEBUG: fix from (could become zero)
 !      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                   
 !      TITLE = {Robust and Numerically Stable Bezier Clipping Method for Ray Tracing NURBS Surfaces},                
@@ -2860,7 +2877,7 @@ dmax=MAXVAL(minmax(2,:))
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
-     IPWRITE(UNIT_stdout,*) ' dmax-dmin-xi ',ABS(dmax-dmin)
+     IPWRITE(UNIT_stdout,*) ' dmax-dmin-xi ',(dmax-dmin)
    END IF
  END IF
 #endif /*CODE_ANALYZE*/
@@ -3330,7 +3347,7 @@ dmax=MAXVAL(minmax(2,:))
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
-     IPWRITE(UNIT_stdout,*) ' dmax-dmin-eta ',ABS(dmax-dmin)
+     IPWRITE(UNIT_stdout,*) ' dmax-dmin-eta ',(dmax-dmin)
    END IF
  END IF
 #endif /*CODE_ANALYZE*/
@@ -3599,7 +3616,7 @@ IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split 
   tmpnClip      =iClipIter
   tmpnXi        =nXiClip
   tmpnEta       =nEtaClip
-tmpLineNormVec=LineNormVec
+  tmpLineNormVec=LineNormVec
   tmpClipMode   =ClipMode
   ! MAYBE set ClipMode for NEXT clip
   ! HERE, ClipMode currently set above
