@@ -167,7 +167,6 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
 USE MOD_TimeAverage_vars,      ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,           ONLY: CalcTimeAverage
-USE MOD_Particle_Mesh,         ONLY: CountPartsPerElem
 #if (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars,         ONLY: dt_temp, MaximumIterNum 
 #endif
@@ -180,6 +179,7 @@ USE MOD_PML,                   ONLY: PMLTimeRamping
 USE MOD_Analyze,               ONLY: PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
+USE MOD_Particle_Mesh,         ONLY: CountPartsPerElem
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 #else
@@ -301,9 +301,11 @@ IF(DoRestart) CALL EvalGradient()
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5)THEN 
+#ifdef PARTICLES
 #if (PP_TimeDiscMethod!=1) || (PP_TimeDiscMethod!=2) || (PP_TimeDiscMethod!=6)
   CALL CountPartsPerElem()
 #endif
+#endif /*PARTICLES*/
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
   IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
@@ -617,8 +619,10 @@ DO !iter_t=0,MaxIter
 #endif /*PP_HDG*/
       ! Write state to file
       IF(DoWriteStateToHDF5)THEN 
+#ifdef PARTICLES
 #if (PP_TimeDiscMethod!=1) || (PP_TimeDiscMethod!=2) || (PP_TimeDiscMethod!=6)
         CALL CountPartsPerElem()
+#endif
 #endif
         CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
