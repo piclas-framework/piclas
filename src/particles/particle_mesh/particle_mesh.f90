@@ -3576,8 +3576,9 @@ SUBROUTINE GetBCElemMap()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_IO_HDF5,                            ONLY:AddToElemData,ElementOut
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo,nSides,NGeo,nBCSides,sJ,BC
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo,nSides,NGeo,nBCSides,sJ,BC,nElems
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,GEO
@@ -3845,6 +3846,8 @@ ELSE ! .NOT.DoRefMapping
   END DO ! iElem
 END IF
 
+CALL AddToElemData(ElementOut,'isBCElem',LogArray=isBCElem(1:nElems))
+
 ! finally, build epsonecell per element
 IF(DoRefMapping)THEN
   ALLOCATE(epsOneCell(1:nTotalElems))
@@ -3863,6 +3866,7 @@ END DO ! iElem=1,nLoop
 DO iElem=PP_nElems+1,nLoop
   epsOneCell(iElem)=1.0+SQRT(maxScaleJ*RefMappingEps)
 END DO ! iElem=1,nLoop
+CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
 
 END SUBROUTINE GetBCElemMap
 
