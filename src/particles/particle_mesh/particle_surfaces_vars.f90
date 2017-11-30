@@ -68,6 +68,10 @@ REAL                                    :: BezierNewtonHit              ! value 
 REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
 INTEGER                                 :: BezierClipMaxIter            ! maximal iterations per intersections
+INTEGER                                 :: BezierClipLineVectorMethod   ! recompute method for Lu,Lv 
+                                                                        ! 0 - once
+                                                                        ! 1 - after each clip
+                                                                        ! 2 - after each xi,eta pair
 INTEGER                                 :: BezierElevation              ! elevate polynomial degree to NGeo+BezierElevation
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta        ! position of trajectory-patch
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray             ! xi and eta history for computation of intersection

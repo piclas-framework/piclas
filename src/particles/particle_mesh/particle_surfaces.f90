@@ -128,6 +128,7 @@ BezierNewtonMaxIter   = GETINT('BezierNewtonMaxIter','100')
 BezierSplitLimit      = GETREAL('BezierSplitLimit','0.6')
 BezierSplitLimit      = 2.*BezierSplitLimit
 BezierClipMaxIter     = GETINT('BezierClipMaxIter','100')
+BezierClipLineVectorMethod = GETINT('BezierClipLineVectorMethod','2')
 
 epsilontol            = GETREAL('epsilontol','0.')
 ! if nothing is entered, than a default value is used

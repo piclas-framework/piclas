@@ -445,7 +445,7 @@ CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,leng
 IF(failed)THEN
   PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
   IPWRITE(UNIT_stdout,*) ' Intersection-angle-of-BezierNetwon: ',PartFaceAngle*180./PI
-  iClipIter=1
+  iClipIter=0
   nXiClip=0
   nEtaClip=0
   nInterSections=0
@@ -1222,7 +1222,7 @@ rPerformBezierClip=rPerformBezierClip+1.
 #endif /*CODE_ANALYZE*/
   !  this part in a new function or subroutine
   locAlpha=-1.0
-  iClipIter=1
+  iClipIter=0
   nXiClip=0
   nEtaClip=0
   nInterSections=0
@@ -1262,7 +1262,7 @@ ELSE!BezierNewtonAngle
 rPerformBezierNewton=rPerformBezierNewton+1.
 BezierControlPoints2D_tmp=BezierControlPoints2D
 locAlpha=-1.0
-iClipIter=1
+iClipIter=0
 nXiClip=0
 nEtaClip=0
 nInterSections=0
@@ -1493,7 +1493,7 @@ USE MOD_Globals,                 ONLY:Abort
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,BezierClipMaxIter,FacNchooseK,BezierClipMaxIntersec,BezierClipTolerance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,epsilontol,BezierClipHit,BezierSplitLimit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,epsilontol,BezierClipHit,BezierSplitLimit,BezierClipLineVectorMethod
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
@@ -1543,15 +1543,18 @@ PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
 ! outcome: no intersection, single intersection, multiple intersection with patch
 DO WHILE(iClipIter.LE.BezierClipMaxIter)
+  IF(iClipIter.EQ.0)THEN
+    IF(BezierClipLineVectorMethod.EQ.0) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+  END IF
   iClipIter=iClipIter+1
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(A,I0,X,I0)') ' iClipIter,ClipMode ', iClipIter, ClipMode
+      !read*
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
-
   SELECT CASE(ClipMode) 
   CASE(-1)
     ! no intersection possible
@@ -1560,7 +1563,10 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
     ! LineNormVec is only computed, if a Xi and Eta Clip is performed. 
     ! we compute LineNormVecs only until one direction is converged, than we keep the vector to report the correct 
     ! results, see. Efremov 2005
-    CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    IF(BezierClipLineVectorMethod.EQ.2) THEN
+      IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    END IF
     CALL CheckXiClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory &
                        ,iClipIter,nXiClip,nEtaClip&
                        ,nInterSections,PartID,SideID)
@@ -1568,7 +1574,10 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
     ! LineNormVec is only computed, if a Xi and Eta Clip is performed. 
     ! we compute LineNormVecs only until one direction is converged, than we keep the vector to report the correct 
     ! results, see. Efremov 2005
-    CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    IF(BezierClipLineVectorMethod.EQ.2) THEN
+      IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    END IF
     CALL CheckEtaClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory &
                        ,iClipIter,nXiClip,nEtaClip&
                        ,nInterSections,PartID,SideID)
@@ -1874,7 +1883,7 @@ REAL,DIMENSION(2)                    :: LXi, Leta, LineNormVecOld(1:2,1:2)
 !================================================================================================================================
 
 ! backup old linenormvec
-LineNormVecOld=LineNormVec
+!LineNormVecOld=LineNormVec
 LXi=(BezierControlPoints2D(:,a,b)-BezierControlPoints2D(:,0,0))+&
     (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,b,a))
 Length=SQRT(DOT_PRODUCT(LXi,LXi))
@@ -1896,6 +1905,8 @@ IF(Length.EQ.0)THEN
 END IF
 Leta=Leta/Length
 
+LineNormVecOld(:,1)=Lxi
+LineNormVecOld(:,2)=Leta
 
 ! if Lxi and Leta are orientated in opposite directions
 doPro=DOT_PRODUCT(Lxi,Leta) ! can be negative
@@ -1958,17 +1969,20 @@ END IF
 
 IF(DOT_PRODUCT(LineNormVec(:,1),LineNormVecOld(:,1)).LT.0.)THEN
   IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Xi '
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld           ', LineNormVecOld(:,1)
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec              ', LineNormVec   (:,1)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Xi        ', LineNormVecOld(:,1)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Xi           ', LineNormVec   (:,1)
   IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,1),LineNormVecOld(:,1))
-  ! stop
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Eta       ', LineNormVecOld(:,2)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Eta          ', LineNormVec   (:,2)
 END IF
 
 IF(DOT_PRODUCT(LineNormVec(:,2),LineNormVecOld(:,2)).LT.0.)THEN
   IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Eta '
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld           ', LineNormVecOld(:,2)
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec              ', LineNormVec   (:,2)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Eta       ', LineNormVecOld(:,2)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Eta          ', LineNormVec   (:,2)
   IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,2),LineNormVecOld(:,2))
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Xi        ', LineNormVecOld(:,1)
+  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Xi           ', LineNormVec   (:,1)
   ! stop
 END IF
 ! DEBUG: fix from (could become zero)
@@ -2016,13 +2030,13 @@ LineNormVec=LineNormVec/Length
 END SUBROUTINE calcLineNormVec
 
 
-SUBROUTINE CalcSminSmax(minmax,Smin,Smax,PartID)
+SUBROUTINE CalcSminSmax(minmax,Smin,Smax,iter,PartID)
 !================================================================================================================================
 ! find upper and lower intersection with convex hull (or no intersection)
 ! find the largest and smallest roots of the convex hull, pre-sorted values minmax(:,:) are required
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo,DeltaXi_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,BezierClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit
 #ifdef CODE_ANALYZE
 USE MOD_Globals,                 ONLY:UNIT_stdOut,MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -2032,6 +2046,7 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                      :: minmax(1:2,0:NGeo)
+INTEGER,INTENT(IN)                   :: iter
 INTEGER,INTENT(IN)                   :: PartID
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2042,93 +2057,81 @@ REAL                                 :: tmp,m
 INTEGER                              :: l
 !================================================================================================================================
 
-  Smin=1.5
-  Smax=-1.5
-  DO l=0,NGeo-1
-    ! 1.) check traverse line UPPER/LOWER
-    IF(minmax(2,l)*minmax(2,l+1).LE.0.)THEN
-      m    = (minmax(2,l+1)-minmax(2,l))/DeltaXi_NGeo
-      tmp  = Xi_NGeo(l)-minmax(2,l)/m
-      Smin = MIN(tmp,Smin)
-    END IF
-    IF(minmax(1,l)*minmax(1,l+1).LE.0.)THEN
-      m    = (minmax(1,l+1)-minmax(1,l))/DeltaXi_NGeo
-      tmp  = Xi_NGeo(l)-minmax(1,l)/m
-      Smax = MAX(tmp,Smax)
-    END IF
-  END DO
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(PartID.EQ.PARTOUT)THEN
-      IPWRITE(UNIT_stdout,*) ' Smin,Smax',Smin,Smax
-    END IF
+Smin=1.5
+Smax=-1.5
+DO l=0,NGeo-1
+  ! 1.) check traverse line UPPER/LOWER
+  IF(minmax(2,l)*minmax(2,l+1).LE.0.)THEN
+    m    = (minmax(2,l+1)-minmax(2,l))/DeltaXi_NGeo
+    tmp  = Xi_NGeo(l)-minmax(2,l)/m
+    Smin = MIN(tmp,Smin)
   END IF
-#endif /*CODE_ANALYZE*/
-  ! 2.) check BEGINNING/END upper convex hull
-  DO l=1,NGeo
-    IF(minmax(2,0)*minmax(2,l) .LE.0.)THEN
-      ! interval is the whole parameter space
-      m    = (minmax(2,l)-minmax(2,0))/(DeltaXi_NGeo*l)
-      tmp  = -1.0-minmax(2,0)/m
-      Smin = MIN(tmp,Smin)
-    END IF
-    IF(minmax(1,0)*minmax(1,l) .LE.0.)THEN
-      ! interval is the whole parameter space
-      m    = (minmax(1,l)-minmax(1,0))/(DeltaXi_NGeo*l)
-      tmp  = -1.0-minmax(1,0)/m
-      Smax = MAX(tmp,Smax)
-    END IF
-  END DO ! l
-  DO l=0,NGeo-1
-    IF(minmax(2,l)*minmax(2,NGeo) .LE.0.)THEN
-      ! interval is the whole parameter space
-      m    = (minmax(2,NGeo)-minmax(2,l))/(DeltaXi_NGeo*(NGeo-l))
-      tmp  = Xi_NGeo(l)-minmax(2,l)/m
-      Smin = MIN(tmp,Smin)
-    END IF
-    IF(minmax(1,l)*minmax(1,NGeo) .LE.0.)THEN
-      ! interval is the whole parameter space
-      m    = (minmax(1,NGeo)-minmax(1,l))/(DeltaXi_NGeo*(NGeo-l))
-      tmp  = Xi_NGeo(l)-minmax(1,l)/m
-      Smax = MAX(tmp,Smax)
-    END IF
-  END DO ! l
-#ifdef CODE_ANALYZE
- IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-   IF(PartID.EQ.PARTOUT)THEN
-     IPWRITE(UNIT_stdout,*) ' beginning'
-     IPWRITE(UNIT_stdout,*) ' Smin,Smax',Smin,Smax
-   END IF
- END IF
-#endif /*CODE_ANALYZE*/
-  ! 3.) check vertical line LEFT/RIGHT of convex hull    
-  IF(minmax(1,0)*minmax(2,0)    .LE.0.)THEN
-    tmp = -1.0
-    Smin=MIN(tmp,Smin)
+  IF(minmax(1,l)*minmax(1,l+1).LE.0.)THEN
+    m    = (minmax(1,l+1)-minmax(1,l))/DeltaXi_NGeo
+    tmp  = Xi_NGeo(l)-minmax(1,l)/m
+    Smax = MAX(tmp,Smax)
   END IF
-  IF(minmax(1,NGeo)*minmax(2,NGeo)    .LE.0.)THEN      
-    tmp =  1.0
-    Smax=MAX(tmp,Smax)
-  END IF
-  
-#ifdef CODE_ANALYZE
- IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-   IF(PartID.EQ.PARTOUT)THEN
-     IPWRITE(UNIT_stdout,*) ' Smin,Smax',Smin,Smax
-   END IF
- END IF
-#endif /*CODE_ANALYZE*/
+END DO
 
-  ! adjust Smin and Smax to increase the current range
-  ! adapted from: 2005, A. Efremov, Robust and numerically stable bezier clipping method for ray tracing nurbs surfaces
-  IF(Smax.GT.-1.5)THEN
-    !Smax=MIN(Smax+20.*BezierClipTolerance,1.0)
-    Smax=MIN(Smax+100.*BezierClipLocalTol,BezierClipHit)
+! 2.) check BEGINNING/END upper convex hull
+DO l=1,NGeo
+  IF(minmax(2,0)*minmax(2,l) .LE.0.)THEN
+    ! interval is the whole parameter space
+    m    = (minmax(2,l)-minmax(2,0))/(DeltaXi_NGeo*l)
+    tmp  = -1.0-minmax(2,0)/m
+    Smin = MIN(tmp,Smin)
   END IF
-  IF(Smin.LT.1.5)THEN
-    !Smin=MAX(Smin-20.*BezierClipTolerance,-1.0)
-    Smin=MAX(Smin-100.*BezierClipLocalTol,-BezierClipHit)
+  IF(minmax(1,0)*minmax(1,l) .LE.0.)THEN
+    ! interval is the whole parameter space
+    m    = (minmax(1,l)-minmax(1,0))/(DeltaXi_NGeo*l)
+    tmp  = -1.0-minmax(1,0)/m
+    Smax = MAX(tmp,Smax)
   END IF
+END DO ! l
+DO l=0,NGeo-1
+  IF(minmax(2,l)*minmax(2,NGeo) .LE.0.)THEN
+    ! interval is the whole parameter space
+    m    = (minmax(2,NGeo)-minmax(2,l))/(DeltaXi_NGeo*(NGeo-l))
+    tmp  = Xi_NGeo(l)-minmax(2,l)/m
+    Smin = MIN(tmp,Smin)
+  END IF
+  IF(minmax(1,l)*minmax(1,NGeo) .LE.0.)THEN
+    ! interval is the whole parameter space
+    m    = (minmax(1,NGeo)-minmax(1,l))/(DeltaXi_NGeo*(NGeo-l))
+    tmp  = Xi_NGeo(l)-minmax(1,l)/m
+    Smax = MAX(tmp,Smax)
+  END IF
+END DO ! l
+
+! 3.) check vertical line LEFT/RIGHT of convex hull    
+IF(minmax(1,0)*minmax(2,0)    .LE.0.)THEN
+  tmp = -1.0
+  Smin=MIN(tmp,Smin)
+END IF
+IF(minmax(1,NGeo)*minmax(2,NGeo)    .LE.0.)THEN      
+  tmp =  1.0
+  Smax=MAX(tmp,Smax)
+END IF
+  
+! adjust Smin and Smax to increase the current range
+!! adapted from: 1997, Campagna, Ray tracing of spline surfaces
+IF(Smax.GT.-1.5)THEN
+  !Smax=MIN(Smax+20.*BezierClipTolerance,1.0)
+  Smax=MIN(Smax+100.*BezierClipTolerance,BezierClipHit)
+END IF
+IF(Smin.LT.1.5)THEN
+  !Smin=MAX(Smin-20.*BezierClipTolerance,-1.0)
+  Smin=MAX(Smin-100.*BezierClipTolerance,-BezierClipHit)
+END IF
+
+! in first iteration direction
+! due to tolerance issues in first clip, it is not allowed to diverge 
+! example: particle intersects close to the edge,corner, the NEXT patch
+! has to be increased slightly
+IF(iter.EQ.0)THEN
+  IF(Smin.EQ.1.5) SMin=-BezierClipHit ! BezierClipHit=1+BezierClipTolerance
+  IF(Smax.EQ.-1.5)SMax=BezierClipHit
+END IF
 
 END SUBROUTINE calcSminSmax
 
@@ -2887,12 +2890,17 @@ dmax=MAXVAL(minmax(2,:))
 !      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                  
 !      TITLE = {Robust and Numerically Stable Bezier Clipping Method for Ray Tracing NURBS Surfaces},               
 !      YEAR = {2005},
+IF(dMax*dMin.GT.0.)THEN ! no sign change with dMax,dMin, hence, no intersection
+  ClipMode=-1
+  RETURN
+END IF
 IF(ABS(dmax-dmin).LT.BezierClipLocalTol)THEN ! current patch is converged in xi, then skip xi
   IF(ClipMode.EQ.3) THEN  ! eta has already converged
     ClipMode=5            ! no more clipping, we have converged
     RETURN                ! or stop
   ELSE
     ClipMode=4            ! xi is converged, but not eta
+    RETURN
   END IF
 ELSE ! xi not converged, next clip should be in eta
   ClipMode=2 ! after clipping in xi, clip in eta
@@ -2902,7 +2910,7 @@ END IF
 !             or split (if (XiMax-XiMin).GT.BezierSplitLimit) in Xi direction 
 
 ! calc Smin and Smax and check boundaries
-CALL CalcSminSmax(minmax,XiMin,XiMax,iPart)
+CALL CalcSminSmax(minmax,XiMin,XiMax,nXiClip,iPart)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
@@ -2911,23 +2919,21 @@ CALL CalcSminSmax(minmax,XiMin,XiMax,iPart)
  END IF
 #endif /*CODE_ANALYZE*/
 
-IF(nXiClip.EQ.0)THEN
-  IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))THEN
-   XiMin=-1.
-   XiMax=1.
-  END IF
-END IF
-
+! check if diverged
 IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))THEN
   ClipMode=-1
   RETURN
 END IF
 
 IF(XiMin.GT.XiMax)THEN
-    print*,'swwwaaaaaaaap xi',XiMin,XiMax
+  ! output, should never ever happen
+  print*,'swwwaaaaaaaap xi',XiMin,XiMax
 END IF
 
+
+! count number of clips in xi and eta direction
 nXiClip=nXiClip+1
+
 ! 1.) CLIPPING xi
 IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
   XiSplit=0.5*(XiMax+XiMin)
@@ -3040,7 +3046,8 @@ IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split th
         IF(iPart.EQ.PARTOUT)THEN
           IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
           IPWRITE(UNIT_stdout,*) ' split xi-upper '
-          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+          IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiArray(:,nEtaClip)
+  !        CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
@@ -3146,11 +3153,6 @@ IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split th
   ELSE
     BezierControlPoints2D_temp2=BezierControlPoints2D_temp
   END IF
-  tmpnClip      =iClipIter
-  tmpnXi        =nXiClip
-  tmpnEta       =nEtaClip
-  tmpLineNormVec=LineNormVec
-  tmpClipMode   =ClipMode
   ! MAYBE set ClipMode for NEXT clip
   ! HERE, ClipMode currently set above
 #ifdef CODE_ANALYZE
@@ -3158,15 +3160,22 @@ IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split th
         IF(iPart.EQ.PARTOUT)THEN
           IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
           IPWRITE(UNIT_stdout,*) ' split xi-lower '
-          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+          IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiArray(:,nEtaClip)
+  !        CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
   ! HERE, ClipMode currently set above
   ! Perform split xi-lower
   CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
-                 ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
-
+                          ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+  ! and we are done
+  ClipMode=-1
+  !iClipIter   =tmpnClip
+  !nXiClip     =tmpnXi
+  !nEtaClip    =tmpnEta
+  !LineNormVec =tmpLineNormVec
+  !ClipMode    =tmpClipMode
   ! after recursive steps, we are done!
 ELSE  ! no split necessary, only a clip
 
@@ -3262,7 +3271,6 @@ ELSE  ! no split necessary, only a clip
   !CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
   !               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
-  ! after recursive steps, we are done!
 END IF ! decision between Clip or Split
 
 END SUBROUTINE CheckXiClip
@@ -3357,12 +3365,17 @@ dmax=MAXVAL(minmax(2,:))
 !      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                  
 !      TITLE = {Robust and Numerically Stable Bezier Clipping Method for Ray Tracing NURBS Surfaces},               
 !      YEAR = {2005},
+IF(dMax*dMin.GT.0.)THEN ! no sign change with dMax,dMin, hence, no intersection
+  ClipMode=-1
+  RETURN
+END IF
 IF(ABS(dmax-dmin).LT.BezierClipLocalTol)THEN ! current patch is converged in eta, then skip eta
   IF(ClipMode.EQ.4) THEN  ! xi has already converged
     ClipMode=5            ! no more clipping, we have converged
     RETURN                ! or stop
   ELSE
     ClipMode=3            ! eta is converged, but not xi
+    RETURN
   END IF
 ELSE ! eta not converged, next clip should be in xi
   ClipMode=1 ! after clipping in eta, clip in xi
@@ -3372,7 +3385,7 @@ END IF
 !             or split (if (EtaMax-EtaMin).GT.BezierSplitLimit) in Eta direction 
 
 ! calc Smin and Smax and check boundaries
-CALL CalcSminSmax(minmax,Etamin,Etamax,iPart)
+CALL CalcSminSmax(minmax,Etamin,Etamax,nEtaClip,iPart)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
@@ -3381,12 +3394,7 @@ CALL CalcSminSmax(minmax,Etamin,Etamax,iPart)
  END IF
 #endif /*CODE_ANALYZE*/
 
-IF(nEtaClip.EQ.0)THEN
-  IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5)) THEN
-    EtaMin=-1.
-    EtaMax=1.
-  END IF
-END IF
+! check if diverged
 IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5)) THEN
   ClipMode=-1
   RETURN
@@ -3509,7 +3517,8 @@ IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split 
         IF(iPart.EQ.PARTOUT)THEN
           IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
           IPWRITE(UNIT_stdout,*) ' split eta-upper '
-          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+          IPWRITE(UNIT_stdout,*) ' EtaMin,EtaMax ',EtaArray(:,nEtaClip)
+          !CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
@@ -3625,7 +3634,8 @@ IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split 
         IF(iPart.EQ.PARTOUT)THEN
           IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
           IPWRITE(UNIT_stdout,*) ' split eta-lower '
-          CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
+          IPWRITE(UNIT_stdout,*) ' EtaMin,EtaMax ',EtaArray(:,nEtaClip)
+          !CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
@@ -3633,8 +3643,16 @@ IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split 
   ! Perform split eta-lower
   CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
                  ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
-
-  ! after recursive steps, we are done!
+  ! we are done
+  ClipMode=-1
+  !iClipIter   =tmpnClip
+  !! restore values to allow for correct back-trafo of intervals (required for intersectionpoint)
+  !iClipIter   =tmpnClip
+  !nXiClip     =tmpnXi
+  !nEtaClip    =tmpnEta
+  !LineNormVec =tmpLineNormVec
+  !ClipMode    =tmpClipMode
+  !! after recursive steps, we are done!
 ELSE  ! no split necessary, only a clip
 
   ! set mapping array
@@ -3726,9 +3744,6 @@ ELSE  ! no split necessary, only a clip
     END DO
     BezierControlPoints2D=BezierControlPoints2D_temp
   END IF
-  !CALL BezierClipRecursive(ClipMode,BezierControlPoints2D_temp2,LineNormVec,PartTrajectory,lengthPartTrajectory&
-  !               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
-
   ! after recursive steps, we are done!
 END IF ! decision between Clip or Split
 
