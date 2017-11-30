@@ -955,6 +955,7 @@ ALLOCATE( P_react_forward(1:Adsorption%nDisPropReactions),&
 DO SurfSideID = 1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
+  IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment part
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
