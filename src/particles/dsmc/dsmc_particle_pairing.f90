@@ -542,7 +542,7 @@ __STAMP__&
           TreeNode%ChildNode%MidPoint(3) = 1.0
         END IF
         TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
+                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/REAL(2**(TreeNode%NodeDepth+1))
         TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
         ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
         IF (iLoop.EQ.1) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)

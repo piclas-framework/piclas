@@ -482,6 +482,7 @@ USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,                   ONLY:ElemToSide,BC,ElemBaryNGeo
+USE MOD_Particle_MPI_Vars,           ONLY:SafetyFactor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -572,8 +573,9 @@ END DO ! nBGMElems
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   PDM%ParticleInside(iPart) = .FALSE.
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   RETURN
 END IF
 
@@ -691,8 +693,9 @@ END DO ! iBGMElem
 ! particle not found
 IF (.NOT.ParticleFound) THEN
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
 
@@ -713,7 +716,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
-USE MOD_Mesh_Vars,              ONLY: ElemBaryNGeo
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
+USE MOD_Particle_MPI_Vars,      ONLY:SafetyFactor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -779,8 +783,9 @@ END DO ! nBGMElems
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   PDM%ParticleInside(iPart) = .FALSE.
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   RETURN
 END IF
 
@@ -807,8 +812,9 @@ END DO ! iBGMElem
 ! particle not found
 IF (.NOT.ParticleFound) THEN
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
