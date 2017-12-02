@@ -62,7 +62,7 @@ SUBROUTINE InitInterfaces
 ! MODULES
 USE MOD_Mesh_Vars,       ONLY:nSides
 #ifndef PP_HDG
-USE MOD_PML_vars,        ONLY:DoPML,isPMLFace,isPMLInterFace
+USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
 #endif /*NOT HDG*/
 USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone

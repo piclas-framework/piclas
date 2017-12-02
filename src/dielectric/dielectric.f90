@@ -39,8 +39,10 @@ USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Equation_Vars,   ONLY: c_corr,c
 USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh,            ONLY: GetMeshMinMaxBoundaries
+#ifdef PP_HDG
 USE MOD_Equation_Vars,   ONLY: IniExactFunc
-USE MOD_Mesh_Vars,       ONLY:nMortarSides
+USE MOD_Mesh_Vars,       ONLY: nMortarSides
+#endif /*if PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
