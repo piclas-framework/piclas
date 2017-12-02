@@ -52,9 +52,9 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 !> Check every face and set the correct identifier for selecting the corresponding Riemann solver
 !> possible connections are (Master <-> Slave direction is important):
-!>   - vaccuum <-> vacuum          : RIEMANN_VACUUM         = 0
-!>   - PML <-> vacuum              : RIEMANN_PML            = 1
-!>   - PML <-> PML                 : RIEMANN_PML            = 1
+!>   - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
+!>   - PML        <-> vacuum       : RIEMANN_PML            = 1
+!>   - PML        <-> PML          : RIEMANN_PML            = 1
 !>   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
 !>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3
 !>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4
@@ -94,6 +94,8 @@ DO SideID=1,nSides
   END IF
 
   ! 1.) Check Perfectly Matched Layer
+  ! - PML <-> vacuum              : RIEMANN_PML            = 1
+  ! - PML <-> PML                 : RIEMANN_PML            = 1
   IF(DoPML) THEN
     IF (isPMLFace(SideID))THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
                                  !     (flux-splitting!)
@@ -104,27 +106,36 @@ DO SideID=1,nSides
 #endif /*NOT HDG*/
 
   ! 2.) Check Dielectric Medium
+  ! c), d) - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
+  ! b)     - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
+  ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3
+  ! a2)    - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN
         ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(isDielectricElem(ElemID))THEN !  master is DIELECTRIC and slave PHYSICAL
+        IF(isDielectricElem(ElemID))THEN
+          ! a1) master is DIELECTRIC and slave PHYSICAL
           InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
-        ELSE ! master is PHYSICAL and slave DIELECTRIC
+        ELSE 
+          ! a2) master is PHYSICAL and slave DIELECTRIC
           InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
         END IF
-      ELSE ! b) dielectric region <-> dielectric region
+      ELSE 
+        ! b) dielectric region <-> dielectric region
         InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC
       END IF
-    ELSE ! c) no Dielectric, standard flux
+    ELSE 
+      ! c) no Dielectric, standard flux
       InterfaceRiemann(SideID)=RIEMANN_VACUUM
     END IF ! IF(isDielectricFace(SideID))
-  ELSE ! d) no Dielectric, standard flux
+  ELSE 
+    ! d) no Dielectric, standard flux
     InterfaceRiemann(SideID)=RIEMANN_VACUUM
   END IF ! DoDielectric
 
-  IF(InterfaceRiemann(SideID).EQ.-1)THEN
+  IF(InterfaceRiemann(SideID).EQ.-1)THEN ! check if the default value remains unchanged
     CALL abort(&
     __STAMP__&
     ,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML ...)')
@@ -142,6 +153,8 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
 !> Additionally, a radius can be supplied for determining if an element belongs to a special region or not
 !> Note: As soon as only one DOF is not inside/outside of the region, the complete element is excluded 
+!> Method 1.) check DOF by using a bounding box
+!> Method 2.) Additionally check radius (e.g. when creating dielectric regions in form of a half sphere)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -287,9 +300,11 @@ CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -re
 #endif /*MPI*/
 
 
+
 ! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the 
 !     information is later used when fluxes are determined
 !         add isFace_Master to isFace_Slave and send
+! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
 isFace_combined=2*isFace_Slave+isFace_Master
 ! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is special (e.g. dielectric)
 !                                                 2: Slave  side is special (e.g. dielectric)
@@ -304,7 +319,7 @@ isFace_combined=2*isFace_Slave+isFace_Master
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 
 #ifdef MPI
-!CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
+CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 ! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
 CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
@@ -334,6 +349,7 @@ SUBROUTINE ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISide
 ! Map the element info (isElem) to the surface array (for later MPI communication)
 ! 1.) Non-Mortar sides (stored in master/slave arrays)
 ! 2.) Mortar sides (map large side info to multiple smaller sides (stored in master/slave array))
+!    ( Copy isFace information from big mortar sides to the small sides. Compare to U_mortar subroutine. )
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -360,7 +376,7 @@ INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
 INTEGER                         :: firstMortarSideID,lastMortarSideID
 !===================================================================================================================================
-! 1.) Non-Mortar sides
+! 1.) Non-Mortar sides (also loops over mortar sides, but they are over-written in 2.) )
 IF(.NOT.doMPISides)THEN
   ! loop over all sides (independent if doMPISides=F)
   DO SideID=1,nSides
