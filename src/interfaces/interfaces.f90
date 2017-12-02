@@ -331,8 +331,9 @@ END SUBROUTINE FindInterfacesInRegion
 
 SUBROUTINE ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides)
 !===================================================================================================================================
-! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
-! integration points, using fast 1D Interpolation and store in global side structure
+! Map the element info (isElem) to the surface array (for later MPI communication)
+! 1.) Non-Mortar sides (stored in master/slave arrays)
+! 2.) Mortar sides (map large side info to multiple smaller sides (stored in master/slave array))
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -359,21 +360,26 @@ INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
 INTEGER                         :: firstMortarSideID,lastMortarSideID
 !===================================================================================================================================
+! 1.) Non-Mortar sides
 IF(.NOT.doMPISides)THEN
-  ! 1.)   Non-Mortar sides
+  ! loop over all sides (independent if doMPISides=F)
   DO SideID=1,nSides
+
     ! master side, flip=0
     ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
     locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
     flip(1)=0 ! <<<<<<<<<<< THIS was not set! WHY? SELECT CASE(Flip(i)) produces random integer because memory is not set correctly
+    
     ! neighbor side !ElemID,locSideID and flip =-1 if not existing
     ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
     locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     flip(2)      = SideToElem(S2E_FLIP,SideID)
-    DO i=1,2 !first maste then slave side
+
+    ! loop first master then slave side
+    DO i=1,2
       IF(ElemID(i).NE.-1)THEN ! exclude BC and Mortar sides
         SELECT CASE(Flip(i))
-          CASE(0) ! master side
+          CASE(0)   ! master side
             isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
           CASE(1:4) ! slave side
             isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
@@ -385,35 +391,43 @@ IF(.NOT.doMPISides)THEN
 END IF
 
 
-! 2.)   Mortar sides
+! 2.) Mortar sides
+! Map the solution values from the large side of the mortar interface (which is always stored in master array) to the smaller 
+! mortar sides (either slave or master) 
+! get 1st and last SideID depeding on doMPISides=T/F
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides) 
  lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides) 
- !print*,"ProlongToFace_ElementInfo interface search"
- !print*,"firstMortarSideID",firstMortarSideID
- !print*,"lastMortarSideID",lastMortarSideID
- !read*
 
+! loop over all mortar sides
 DO MortarSideID=firstMortarSideID,lastMortarSideID
-  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-  locSide=MortarType(2,MortarSideID)
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1) ! get number of mortar sides
+  locSide  = MortarType(2,MortarSideID)                 ! get loc number
+
+  ! loop over all local mortar sides
   DO iMortar=1,nMortars
-    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
+
+    ! get SideID and flip for mapping the array elements
+    SideID   = MortarInfo(MI_SIDEID,iMortar,locSide)
     flip(1)  = MortarInfo(MI_FLIP,iMortar,locSide)
+
+    ! map according to master/slave side
     SELECT CASE(flip(1))
-      CASE(0) ! master side
+      CASE(0)   ! master side
         isFace_Master(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID) ! should be taken from master (large mortar side is master)
       CASE(1:4) ! slave side
         isFace_Slave(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID)  ! should be taken from master (large mortar side is master)
     END SELECT !flip(iMortar)
   END DO !iMortar
 END DO !MortarSideID
+
 END SUBROUTINE ProlongToFace_ElementInfo
 
 
 
 SUBROUTINE Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides)
 !===================================================================================================================================
-!> 
+!> Map the flux values from the small mortar sides (either slave or master) to the larger side (which is always stored in master 
+!> array)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc,     ONLY: PP_N
@@ -424,37 +438,43 @@ USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT) :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
-REAL,INTENT(INOUT) :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
-LOGICAL,INTENT(IN) :: doMPISides
+REAL,INTENT(INOUT)      :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)      :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
+LOGICAL,INTENT(IN)      :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER  :: p,q,l
-INTEGER  :: iMortar,nMortars
-INTEGER  :: firstMortarSideID,lastMortarSideID
-INTEGER  :: MortarSideID,SideID,iSide,flip
-!REAL         :: Flux_tmp( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:4)
-!REAL         :: Flux_tmp2(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:2)
+INTEGER                 :: iMortar,nMortars
+INTEGER                 :: firstMortarSideID,lastMortarSideID
+INTEGER                 :: MortarSideID,SideID,iSide,flip
 !===================================================================================================================================
+! get 1st and last SideID depeding on doMPISides=T/F
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
  lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
+! loop over all mortar sides
 DO MortarSideID=firstMortarSideID,lastMortarSideID
-  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-  iSide=MortarType(2,MortarSideID)
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1) ! get number of mortar sides
+  iSide    = MortarType(2,MortarSideID)                 ! get loc number
+
+  ! loop over all local mortar sides
   DO iMortar=1,nMortars
+
+    ! get SideID and flip for mapping the array elements
     SideID = MortarInfo(MI_SIDEID,iMortar,iSide)
     flip   = MortarInfo(MI_FLIP,iMortar,iSide)
+
+    ! map according to master/slave side
     SELECT CASE(flip)
-    CASE(0) ! master side
+    CASE(0)   ! master side
       isFace_Master(:,:,:,MortarSideID)=isFace_Master(:,:,:,SideID) ! should be written to Master (large mortar side is master)
     CASE(1:4) ! slave sides (should only occur for MPI)
       isFace_Master(:,:,:,MortarSideID)=isFace_Slave(:,:,:,SideID) ! should be written to Master (large mortar side is master)
     END SELECT
-  END DO
-END DO
+  END DO !iMortar
+END DO !MortarSideID
+
 END SUBROUTINE Flux_Mortar_SideInfo
 
 
