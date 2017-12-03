@@ -440,6 +440,8 @@ SDEALLOCATE(PartBCSideList)
 SDEALLOCATE(SidePeriodicType)
 SDEALLOCATE(SidePeriodicDisplacement)
 SDEALLOCATE(IsTracingBCElem)
+SDEALLOCATE(TracingBCInnerSides)
+SDEALLOCATE(TracingBCTotalSides)
 SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
@@ -3561,6 +3563,7 @@ USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo,nSides,NGeo,nBCSides,sJ,BC,nElems
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsTracingBCElem,nTotalElems,nTotalBCElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:TracingBCInnerSides,TracingBCTotalSides
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,GEO
 USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
 USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
@@ -3584,6 +3587,13 @@ REAL                                     :: scaleJ, Distance ,maxScaleJ,dx,dy,dz
 LOGICAL                                  :: fullMesh, leave
 !===================================================================================================================================
 ALLOCATE(IsTracingBCElem(nTotalElems))
+IsTracingBCElem=.FALSE.
+IF(DoRefMapping)THEN
+  ALLOCATE(TracingBCInnerSides(nTotalElems))
+  TracingBCInnerSides=0
+  ALLOCATE(TracingBCTotalSides(nTotalElems))
+  TracingBCTotalSides=0
+END IF
 
 ! decide if element:  
 ! DoRefMapping=T
@@ -3593,7 +3603,6 @@ ALLOCATE(IsTracingBCElem(nTotalElems))
 ! a) HAS own bc faces
 IF(DoRefMapping)THEN
   ! mark elements as bc element if they have a local-BC side
-  IsTracingBCElem=.FALSE.
   nTotalBCElems=0
   DO iElem=1,nTotalElems
     DO ilocSide=1,6
@@ -3800,7 +3809,6 @@ IF(DoRefMapping)THEN
 ELSE ! .NOT.DoRefMapping
   ! tracing
   ! mark only elements with bc-side
-  IsTracingBCElem=.FALSE.
   nTotalBCElems=0
   DO iElem=1,nTotalElems
     DO ilocSide=1,6
@@ -3826,7 +3834,16 @@ ELSE ! .NOT.DoRefMapping
   END DO ! iElem
 END IF
 
-CALL AddToElemData(ElementOut,'IsTracingBCElem',LogArray=IsTracingBCElem(1:nElems))
+IF(DoRefMapping)THEN
+  DO iElem=1,nTotalElems
+    TracingBCInnerSides(iElem) = BCElem(iElem)%nInnerSides
+    TracingBCTotalSides(iElem) = BCElem(iElem)%lastSide
+  END DO ! iElem
+  CALL AddToElemData(ElementOut,'TracingBCInnerSides',IntArray=TracingBCInnerSides(1:nElems))
+  CALL AddToElemData(ElementOut,'TracingBCTotalSides',IntArray=TracingBCTotalSides(1:nElems))
+END IF
+
+CALL AddToElemData(ElementOut,'IsTracingBCElem'    ,LogArray=IsTracingBCElem(    1:nElems))
 
 ! finally, build epsonecell per element
 IF(DoRefMapping)THEN
