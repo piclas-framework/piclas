@@ -55,7 +55,7 @@ INTEGER             :: nTotalSides                                              
 INTEGER             :: nPartPeriodicSides                                                 ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
 
-LOGICAL,ALLOCATABLE :: IsBCElem(:)                                                        ! is a BC elem 
+LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                                                        ! is an elem with BC sides for tracing
                                                                                           ! or BC in halo-eps distance to BC
 INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 INTEGER             :: nTotalBCSides                                                      ! total number of BC sides (my+halo)
