@@ -396,9 +396,9 @@ IF(.NOT.doMPISides)THEN
       IF(ElemID(i).NE.-1)THEN ! exclude BC and Mortar sides
         SELECT CASE(Flip(i))
           CASE(0)   ! master side
-            isFace_Master(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+            isFace_Master(:,:,:,SideID)=MERGE(1.,0.,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
           CASE(1:4) ! slave side
-            isFace_Slave( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+            isFace_Slave( :,:,:,SideID)=MERGE(1.,0.,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
         END SELECT
       END IF
     END DO !i=1,2, masterside & slave side 
@@ -407,7 +407,7 @@ IF(.NOT.doMPISides)THEN
 END IF
 
 
-! 2.) Mortar sides
+! 2.) Mortar sides (Compare to U_mortar subroutine.)
 ! Map the solution values from the large side of the mortar interface (which is always stored in master array) to the smaller 
 ! mortar sides (either slave or master) 
 ! get 1st and last SideID depeding on doMPISides=T/F
@@ -431,7 +431,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       CASE(0)   ! master side
         isFace_Master(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID) ! should be taken from master (large mortar side is master)
       CASE(1:4) ! slave side
-        isFace_Slave(:,:,:,SideID)=isFace_Master(:,:,:,MortarSideID)  ! should be taken from master (large mortar side is master)
+        isFace_Slave( :,:,:,SideID)=isFace_Master(:,:,:,MortarSideID) ! should be taken from master (large mortar side is master)
     END SELECT !flip(iMortar)
   END DO !iMortar
 END DO !MortarSideID
