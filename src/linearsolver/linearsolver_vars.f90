@@ -30,6 +30,7 @@ INTEGER              :: totalIterLinearSolver,nInnerIter                        
 INTEGER              :: ldim                                                        ! Number of BiCGStab(l) subspaces
 #if defined(PARTICLES)
 #if defined(IMPA) || (PP_TimeDiscMethod==110)
+LOGICAL              :: DoFieldUpdate
 INTEGER              :: totalPartIterLinearSolver,nPartInnerIter                    ! Counter for Particle newton
 INTEGER              :: nPartNewton                                                 ! some limits or counter
 INTEGER              :: nPartNewtonIter                                             ! some limits or counter
