@@ -40,7 +40,8 @@ CONTAINS
 
 SUBROUTINE U_Mortar(U_in_master,U_in_slave,doMPISides)
 !===================================================================================================================================
-! fills small non-conforming sides with data for master side, using 1D interpolation operators M_0_1,M_0_2
+!> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation 
+!> operators M_0_1,M_0_2
 !
 !     Type 1               Type 2              Type3
 !      eta                  eta                 eta
