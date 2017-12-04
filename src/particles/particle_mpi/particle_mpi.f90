@@ -1174,11 +1174,11 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
-                                     ,PartDeltaX,PartLambdaAccept
+                                     ,PartDeltaX,PartLambdaAccept,LastPartPos
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit !,StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1417,7 +1417,12 @@ DO iProc=1,PartMPI%nMPINeighbors
     PDM%ParticleInside(PartID) = .TRUE.
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! only for fully implicit
-    PEM%lastElement(PartID) = PEM%Element(PartID)
+    IF(PartIsImplicit(PartID))THEN
+        ! get LastElement in local system
+        ! element position is verified in armijo if it is needed. This prevents a
+        ! circular definition.
+        PEM%LastElement(PartID)=-1
+     END IF
 !    PEM%StageElement(PartID)= PEM%Element(PartID)
 !    StagePartPos(PartID,1)  = PartState(PartID,1)
 !    StagePartPos(PartID,2)  = PartState(PartID,2)
@@ -1706,7 +1711,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                 ::iElem
 INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
-LOGICAL                 :: TmpNeigh
+LOGICAL                 ::TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
 

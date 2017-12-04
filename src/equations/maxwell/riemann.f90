@@ -456,9 +456,8 @@ SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,F
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars,   ONLY:IniExactFunc,DoExactFlux,FluxDir
+USE MOD_Equation_Vars,   ONLY:IniExactFunc,ExactFluxDir
 USE MOD_Equation,        ONLY:ExactFunc
-USE MOD_PML_Vars,        ONLY:xyzPhysicalMinMax
 USE MOD_PML_vars,        ONLY:PMLnVar
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
 USE MOD_Dielectric_vars, ONLY:Dielectric_Master
@@ -489,18 +488,15 @@ REAL                  :: Flux_loc(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N), U_loc(1:PP_n
 
 UseMaster=.TRUE.
 ! emission over plane, hence, first entry decides orientation of  plane
-IF(NormVec(FluxDir,0,0).GT.0)THEN
+IF(NormVec(ExactFluxDir,0,0).GT.0)THEN
   UseMaster=.FALSE.
-ELSE IF(NormVec(FluxDir,0,0).LT.0)THEN
+ELSE IF(NormVec(ExactFluxDir,0,0).LT.0)THEN
   UseMaster=.TRUE.
 ELSE
   CALL abort(&
 __STAMP__&
 ,'weired mesh?')
 END IF
-
-!abfrage auskommentiert: ueberfluessig?
-!IF(.NOT.ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,0,0),xyzPhysicalMinMax(FluxDir*2-1),1e-4)) RETURN
 
 U_Slave_loc =U_Slave
 U_Master_loc=U_Master
@@ -564,9 +560,9 @@ END IF
 
 !UseMaster=.TRUE.
 !! emission over plane, hence, first entry decides orientation of  plane
-!IF(NormVec(FluxDir,0,0).GT.0)THEN
+!IF(NormVec(ExactFluxDir,0,0).GT.0)THEN
 !  UseMaster=.FALSE.
-!ELSE IF(NormVec(FluxDir,0,0).LT.0)THEN
+!ELSE IF(NormVec(ExactFluxDir,0,0).LT.0)THEN
 !  UseMaster=.TRUE.
 !ELSE
 !  CALL abort(&
@@ -578,7 +574,7 @@ END IF
 !U_Master_loc=0.
 !DO q=0,PP_N
 !  DO p=0,PP_N
-!    IF(ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
+!    IF(ALMOSTEQUALRELATIVE(Face_xGP(ExactFluxDir,p,q),xyzPhysicalMinMax(ExactFluxDir*2-1),1e-4))THEN
 !      ! the second state is always zero and already computed
 !      IF(UseMaster)THEN
 !        CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Slave_loc(:,p,q))
@@ -611,7 +607,7 @@ END IF
 !DO q=0,PP_N
 !  DO p=0,PP_N
 !    U_Face_loc=0.
-!    IF(ALMOSTEQUALRELATIVE(Face_xGP(FluxDir,p,q),xyzPhysicalMinMax(FluxDir*2-1),1e-4))THEN
+!    IF(ALMOSTEQUALRELATIVE(Face_xGP(ExactFluxDir,p,q),xyzPhysicalMinMax(ExactFluxDir*2-1),1e-4))THEN
 !      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
 !      n_loc(1:3)=NormVec(1:3,p,q)
 !      A(1,1:4)=0.
@@ -677,7 +673,7 @@ END IF
 !      !         |
 !      ! FluxM   | FluxSlave
 !      ! PO: are the signs correct?
-!      IF(NormVec(FluxDir,p,q).GT.0)THEN
+!      IF(NormVec(ExactFluxDir,p,q).GT.0)THEN
 !        Flux_Slave(1:PP_nVar,p,q)=Flux_Slave(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q)
 !      ELSE
 !        Flux_Master(1:PP_nVar,p,q)=Flux_Master(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q) ! or sign change?

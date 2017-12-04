@@ -31,6 +31,7 @@ SUBROUTINE DSMC_chemical_init()
   USE MOD_ReadInTools
   USE MOD_Globals
   USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
+  USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -40,14 +41,15 @@ SUBROUTINE DSMC_chemical_init()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(LEN=3)         :: hilf 
-  INTEGER               :: iReac, iReac2, iReac3, iReac4, iSpec, iChemDir, iReacForward
+  INTEGER               :: iReac, iReac2, iReac3, iReac4, iSpec, iChemDir, iReacForward, iReacDiss
   INTEGER, ALLOCATABLE  :: PairCombID(:,:), DummyRecomb(:,:)
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
-  INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies
+  INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
 !===================================================================================================================================
   
 ! reading reaction values   
   ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions','0')
+  ReadInNumOfReact = ChemReac%NumOfReact
   IF(CollisMode.EQ.3)THEN
     IF(ChemReac%NumOfReact.EQ.0)THEN
       CALL Abort(&
@@ -55,10 +57,25 @@ __STAMP__&
 ,' Collisions with chemical reactions require chemical reaction database! ',CollisMode,REAL(ChemReac%NumOfReact))
     END IF
   END IF
+  ALLOCATE(ChemReac%ArbDiss(ChemReac%NumOfReact))
+  ! Allowing unspecified non-reactive collision partner (CH4 + M -> CH3 + H + M, e.g. (/1,0,0/) -> (/2,0,3/)
+  iReacDiss = ChemReac%NumOfReact
+  DO iReac = 1, ReadInNumOfReact
+    WRITE(UNIT=hilf,FMT='(I3)') iReac
+    ChemReac%ArbDiss(iReac)%NumOfNonReactives = GETINT('DSMC-Reaction'//TRIM(hilf)//'-NumberOfNonReactives','0')
+    IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) THEN
+      ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
+      ChemReac%ArbDiss(iReac)%NonReactiveSpecies = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-NonReactiveSpecies', &
+                                                ChemReac%ArbDiss(iReac)%NumOfNonReactives)
+      ! First reaction is saved within the dummy input reaction, thus "- 1"
+      ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+    END IF
+  END DO
   ! Calculation of the backward reaction rates 
   IF(DSMC%BackwardReacRate) THEN
    ChemReac%NumOfReact = 2 * ChemReac%NumOfReact
   END IF
+  ChemEnergySum = 0.
   !---------------------------------------------------------------------------------------------------------------------------------
   IF (ChemReac%NumOfReact.GT.0) THEN
     ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))
@@ -72,6 +89,7 @@ __STAMP__&
     ChemReac%ReacCollMeanCount = 0
 #endif
     ALLOCATE(ChemReac%QKProcedure(ChemReac%NumOfReact))
+    ChemReac%QKProcedure = .FALSE.
     ALLOCATE(ChemReac%QKMethod(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%QKCoeff(ChemReac%NumOfReact,2))
     ALLOCATE(YetDefined_Help(ChemReac%NumOfReact))
@@ -102,7 +120,7 @@ __STAMP__&
     ALLOCATE(ChemReac%MEXb(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
 
-    DO iReac = 1, ChemReac%NumOfReact
+    DO iReac = 1, ReadInNumOfReact
       WRITE(UNIT=hilf,FMT='(I3)') iReac
       ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0'))
       ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
@@ -111,7 +129,47 @@ __STAMP__&
       ChemReac%QKCoeff(iReac,2)      = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff2','0')
       ChemReac%DefinedReact(iReac,1,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
       ChemReac%DefinedReact(iReac,2,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',3,'0,0,0')
-      ! Calculation of stoichiometric coefficients
+      ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
+      ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
+      ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
+      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','0')
+      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','0')
+      ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
+      ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
+      ! Filling up ChemReac-Array for the given non-reactive dissociation partners
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+        IF((ChemReac%DefinedReact(iReac,1,2).EQ.0).AND.(ChemReac%DefinedReact(iReac,2,2).EQ.0)) THEN
+          IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
+            CALL abort(__STAMP__,&
+            'Dissociation - Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
+          END IF
+          DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
+            IF(iReac2.EQ.1) THEN
+              ! The first non-reacting partner is written into the reaction, which was read-in.
+              ChemReac%DefinedReact(iReac,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+              ChemReac%DefinedReact(iReac,2,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+            ELSE
+              ! The following species are added after the number of originally read-in reactions (counter: iReacDiss)
+              ChemReac%ReactType(iReacDiss+iReac2-1)             = 'D'
+              ChemReac%DefinedReact(iReacDiss+iReac2-1,1,:)      = ChemReac%DefinedReact(iReac,1,:)
+              ChemReac%DefinedReact(iReacDiss+iReac2-1,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+              ChemReac%DefinedReact(iReacDiss+iReac2-1,2,:)      = ChemReac%DefinedReact(iReac,2,:)
+              ChemReac%DefinedReact(iReacDiss+iReac2-1,2,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
+              ChemReac%Arrhenius_Prefactor(iReacDiss+iReac2-1)   = ChemReac%Arrhenius_Prefactor(iReac)
+              ChemReac%Arrhenius_Powerfactor(iReacDiss+iReac2-1) = ChemReac%Arrhenius_Powerfactor(iReac)
+              ChemReac%EActiv(iReacDiss+iReac2-1)                = ChemReac%EActiv(iReac)
+            END IF
+          END DO
+          iReacDiss = iReacDiss + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
+        ELSE IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.NE.0) THEN
+          CALL abort(__STAMP__,&
+            'Dissociation - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
+        END IF
+      END IF
+    END DO
+
+    ! Calculation of stoichiometric coefficients and calculation of the heat of formation
+    DO iReac = 1, ChemReac%NumOfReact
       ALLOCATE(ChemReac%ReactInfo(iReac)%StoichCoeff(nSpecies,2))
       ChemReac%ReactInfo(iReac)%StoichCoeff(1:nSpecies,1:2) = 0
       ChemReac%EForm(iReac) = 0.0
@@ -127,54 +185,68 @@ __STAMP__&
             ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) = ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,iChemDir) + 1
           END IF
         END DO
+        ! Calculation of the enthalpy of reaction by the summation of the enthalpies of formation of the respective species
+        ! (ionization energy of ionized species was already added in dsmc_init.f90)
         ChemReac%EForm(iReac) = ChemReac%EForm(iReac) &
                               - ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,2)*SpecDSMC(iSpec)%HeatOfFormation  &
                               + ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1)*SpecDSMC(iSpec)%HeatOfFormation
-      END DO
-      ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
-      ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
-      ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
-      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','0')
-      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','0')
-      ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
-      ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
-      ! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
-      IF(DSMC%BackwardReacRate) THEN
-        IF(iReac.GT.(ChemReac%NumOfReact/2)) THEN
-          iReacForward = iReac - ChemReac%NumOfReact/2
-          IF(ChemReac%QKProcedure(iReacForward)) THEN
-            IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK') ChemReac%ReactType(iReac) = 'r'
-              ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
-              ! Products of the dissociation (which are the educts of the recombination) have to be swapped in order to comply with
-              ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
-              ChemReac%DefinedReact(iReac,1,2)      = ChemReac%DefinedReact(iReacForward,2,3)
-              ChemReac%DefinedReact(iReac,1,3)      = ChemReac%DefinedReact(iReacForward,2,2)
-              ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
-          ELSE
-            IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
-              ! Analogous to the iQK case
-              ChemReac%ReactType(iReac) = 'R'
-              ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
-              ChemReac%DefinedReact(iReac,1,2)      = ChemReac%DefinedReact(iReacForward,2,3)
-              ChemReac%DefinedReact(iReac,1,3)      = ChemReac%DefinedReact(iReacForward,2,2)
-              ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
-              ChemReac%EActiv(iReac) = 0.0
-            ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
-              ChemReac%ReactType(iReac) = 'E'
-              ChemReac%DefinedReact(iReac,1,:)      = ChemReac%DefinedReact(iReacForward,2,:)
-              ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
-              ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
-            ELSE
-              CALL abort(&
-              __STAMP__&
-              ,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
-            END IF
-            ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
-            ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)
-            ChemReac%EForm(iReac)                   = -ChemReac%EForm(iReacForward)
+        ! For the impact-ionization, the heat of reaction is equal to the ionization energy
+        IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
+          IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState)) THEN
+            CALL abort(&
+            __STAMP__&
+            ,'ERROR: QK reactions require the definition of at least the ionization energy as electronic level!',iReac)
           END IF
+          MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
+          ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
         END IF
-      END IF
+      END DO
+    END DO
+
+    ! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
+    IF(DSMC%BackwardReacRate) THEN
+      DO iReac = ChemReac%NumOfReact/2+1, ChemReac%NumOfReact
+        iReacForward = iReac - ChemReac%NumOfReact/2
+        IF(ChemReac%QKProcedure(iReacForward)) THEN
+          IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK') ChemReac%ReactType(iReac) = 'r'
+            ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
+            ! Products of the dissociation (which are the educts of the recombination) have to be swapped in order to comply with
+            ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
+            ChemReac%DefinedReact(iReac,1,2)      = ChemReac%DefinedReact(iReacForward,2,3)
+            ChemReac%DefinedReact(iReac,1,3)      = ChemReac%DefinedReact(iReacForward,2,2)
+            ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
+        ELSE
+          IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
+            ! Analogous to the iQK case
+            ChemReac%ReactType(iReac) = 'R'
+            ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
+            ChemReac%DefinedReact(iReac,1,2)      = ChemReac%DefinedReact(iReacForward,2,3)
+            ChemReac%DefinedReact(iReac,1,3)      = ChemReac%DefinedReact(iReacForward,2,2)
+            ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
+            ChemReac%EActiv(iReac) = 0.0
+          ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
+            ChemReac%ReactType(iReac) = 'E'
+            ChemReac%DefinedReact(iReac,1,:)      = ChemReac%DefinedReact(iReacForward,2,:)
+            ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
+            ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
+            IF(ChemReac%EActiv(iReac).LT.0.0) THEN
+              ! The absolute value of the heat of formation cannot be larger than the activation energy but Arrhenius fits require
+              ! sometimes a different value to better reproduce the experimental results. Doesnt matter for backward rate.
+              ChemReac%EActiv(iReac) = 0.0
+            END IF
+          ELSE
+            CALL abort(&
+            __STAMP__&
+            ,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
+          END IF
+          ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
+          ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)
+          ChemReac%EForm(iReac)                   = -ChemReac%EForm(iReacForward)
+        END IF
+      END DO
+    END IF
+
+    DO iReac = 1, ChemReac%NumOfReact
       ! Proof of reactant definition
       IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)*ChemReac%DefinedReact(iReac,1,3)).EQ.0) THEN
@@ -524,6 +596,27 @@ __STAMP__&
                             ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
                             ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
                             ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
+                            ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
+                            ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
+                            YetDefined_Help(iReac3) = .TRUE.
+                      END IF
+                    END IF
+                  END DO
+                  DO iReac3 = 1, ChemReac%NumOfReact
+                    IF ((TRIM(ChemReac%ReactType(iReac3)).EQ.'E').AND.(.NOT.YetDefined_Help(iReac3))) THEN
+                      IF (PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2)).EQ.&
+                          PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
+                            ! Case 17: One dissociation and two exchange reactions
+                            Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+                            Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+                            ChemReac%ReactCase(Reactant1, Reactant2) = 17
+                            ChemReac%ReactCase(Reactant2, Reactant1) = 17
+                            ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+                            ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+                            ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
+                            ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
+                            ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
+                            ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
                             YetDefined_Help(iReac3) = .TRUE.
                       END IF
                     END IF
@@ -626,6 +719,7 @@ __STAMP__&
 
     DEALLOCATE(PairCombID)
     DEALLOCATE(DummyRecomb)
+    DEALLOCATE(ChemReac%ArbDiss)
     CALL Calc_Arrhenius_Factors()
   ELSE
     SWRITE(*,'(A)') 'NO REACTIONS DEFINED!'

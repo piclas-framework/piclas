@@ -46,6 +46,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
+USE MOD_IO_HDF5,                ONLY:AddToElemData,ElementOut
 USE MOD_Interpolation_Vars,     ONLY:xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Mesh_ReadIn,            ONLY:readMesh
@@ -56,7 +57,8 @@ USE MOD_Metrics,                ONLY:CalcMetrics
 USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
 USE MOD_Mappings,               ONLY:InitMappings
 #ifdef PARTICLES
-USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
+USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes,InitTriaParticleGeometry
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
 #endif
@@ -333,21 +335,33 @@ crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 CALL InitMeshBasis(NGeo,PP_N,xGP)
 
-
-#ifdef PARTICLES
-ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+! get XCL_NGeo
+ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
 XCL_NGeo = 0.
-ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,nElems))
+#ifdef PARTICLES
+ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
 dXCL_NGeo = 0.
 CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+#else
+CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+#endif
+
+! compute elem bary and elem radius
+ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
+CALL BuildElementOrigin()
+
+#ifdef PARTICLES
 ! init element volume
 CALL InitElemVolumes()
-#else
-CALL CalcMetrics()
+IF (TriaTracking) THEN
+  CALL InitTriaParticleGeometry()
+END IF
 #endif
 DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
+
+CALL AddToElemData(ElementOut,'myRank',IntScalar=MyRank)
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -699,6 +713,49 @@ GetMeshMinMaxBoundariesIsDone=.TRUE.
 END SUBROUTINE GetMeshMinMaxBoundaries
 
 
+SUBROUTINE BuildElementOrigin()
+!================================================================================================================================
+! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars,                ONLY:ElemBaryNGeo
+USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem,i,j,k
+REAL                    :: XPos(3),buf
+REAL                    :: Lag(1:3,0:NGeo)
+!================================================================================================================================
+
+ElemBaryNGeo=0.
+DO iElem=1,PP_nElems
+  ! evaluate the polynomial at origin: Xi=(/0.0,0.0,0.0/)
+  CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      buf=Lag(2,j)*Lag(3,k)
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*buf
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  ElemBaryNGeo(:,iElem)=xPos
+END DO ! iElem
+
+END SUBROUTINE BuildElementOrigin
+
+
 SUBROUTINE FinalizeMesh()
 !============================================================================================================================
 ! Deallocate all global interpolation variables.
@@ -774,6 +831,7 @@ SDEALLOCATE(XiCL_NGeo1)
 SDEALLOCATE(CurvedElem)
 SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
+SDEALLOCATE(ElemBaryNGeo)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh

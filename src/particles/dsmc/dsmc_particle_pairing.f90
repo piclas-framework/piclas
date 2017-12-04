@@ -234,7 +234,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   DO iLoop = 1, nPart
     ! check if particle is on wall and chose next particle until particle is not at wall 
     IF (KeepWallParticles) THEN
-      DO WHILE (PDM%ParticleAtWall(iPart)) ! Attention please! Endlosschleife? no, nPart=0 if all particles on wall
+      DO WHILE (PDM%ParticleAtWall(iPart))
         iPart = PEM%pNext(iPart)
       END DO
     END IF
@@ -409,17 +409,17 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                     :: iElem
-  TYPE(tTreeNode),INTENT(INOUT), POINTER     :: TreeNode
+  TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
   TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, SpecPartNum(nSpecies)
-  INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
-  REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
+  INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
+  REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
   INTEGER                       :: PartNumChildNode(8)
-  REAL                            :: NodeVolumeTemp(8)
+  REAL                          :: NodeVolumeTemp(8)
 !===================================================================================================================================
 
   ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
@@ -542,7 +542,7 @@ __STAMP__&
           TreeNode%ChildNode%MidPoint(3) = 1.0
         END IF
         TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
+                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/REAL(2**(TreeNode%NodeDepth+1))
         TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
         ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
         IF (iLoop.EQ.1) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)

@@ -129,12 +129,12 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: TransACC(:)     
   REAL    , ALLOCATABLE                  :: VibACC(:) 
   REAL    , ALLOCATABLE                  :: RotACC(:) 
+  REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
   REAL    , ALLOCATABLE                  :: Voltage(:), Voltage_CollectCharges(:)
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
-  LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
   LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
   LOGICAL , ALLOCATABLE                  :: SolidCatalytic(:)             ! flag defining if solid surface treated catalytically
   INTEGER , ALLOCATABLE                  :: SolidSpec(:)
@@ -144,6 +144,8 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SolidCrystalIndx(:)
   INTEGER , ALLOCATABLE                  :: LiquidSpec(:)                 ! Species of Liquid Boundary
   REAL    , ALLOCATABLE                  :: ParamAntoine(:,:)       ! Parameters for Antoine Eq (vapor pressure) [3,nPartBound]
+  LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
+  LOGICAL , ALLOCATABLE                  :: AmbientConditionFix(:)
   REAL    , ALLOCATABLE                  :: AmbientTemp(:)
   REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
   REAL    , ALLOCATABLE                  :: AmbientBeta(:)

@@ -25,6 +25,10 @@ INTERFACE GetBezierControlPoints3D
   MODULE PROCEDURE GetBezierControlPoints3D
 END INTERFACE
 
+INTERFACE CalcNormAndTangTriangle
+  MODULE PROCEDURE CalcNormAndTangTriangle
+END INTERFACE
+
 INTERFACE CalcNormAndTangBilinear
   MODULE PROCEDURE CalcNormAndTangBilinear
 END INTERFACE
@@ -66,7 +70,7 @@ END INTERFACE
 PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D, GetSideSlabNormalsAndIntervals, &
         GetSideBoundingBox,GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
 
-PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier
+PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier, CalcNormAndTangTriangle
 PUBLIC::RotateMasterToSlave
 
 #ifdef CODE_ANALYZE
@@ -276,6 +280,98 @@ SDEALLOCATE(SideBoundingBoxVolume)
 ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
+
+
+SUBROUTINE CalcNormAndTangTriangle(nVec,tang1,tang2,TriNum,SideID)
+!================================================================================================================================
+! function to compute the normal vector of a triangulated surface
+!================================================================================================================================
+USE MOD_Globals,                              ONLY:Abort
+USE MOD_Particle_Vars,                        ONLY:PEM
+USE MOD_Particle_Mesh_Vars,                   ONLY:GEO,PartSideToElem
+USE MOD_Particle_Tracking_Vars,               ONLY:TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                     :: TriNum
+INTEGER,INTENT(IN)                     :: SideID
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+REAL,INTENT(OUT)                       :: nVec(3)
+REAL,INTENT(OUT),OPTIONAL              :: tang1(3), tang2(3)
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                :: ElemID, LocSideID
+INTEGER                                :: Node1, Node2
+REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3)
+REAL                                   :: nVal
+!================================================================================================================================
+
+ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
+IF (ElemID .EQ. TrackInfo%CurrElem) THEN
+  LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+ELSE
+  ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
+  LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+END IF
+
+xNod = GEO%NodeCoords(1,1,LocSideID,ElemID)
+yNod = GEO%NodeCoords(2,1,LocSideID,ElemID)
+zNod = GEO%NodeCoords(3,1,LocSideID,ElemID)
+
+Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+Vector1(1) = GEO%NodeCoords(1,Node1,LocSideID,ElemID) - xNod
+Vector1(2) = GEO%NodeCoords(2,Node1,LocSideID,ElemID) - yNod
+Vector1(3) = GEO%NodeCoords(3,Node1,LocSideID,ElemID) - zNod
+Vector2(1) = GEO%NodeCoords(1,Node2,LocSideID,ElemID) - xNod
+Vector2(2) = GEO%NodeCoords(2,Node2,LocSideID,ElemID) - yNod
+Vector2(3) = GEO%NodeCoords(3,Node2,LocSideID,ElemID) - zNod
+nVec(1) = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+nVec(2) = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+nVec(3) = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+nVal = SQRT(nVec(1)*nVec(1) + nVec(2)*nVec(2) + nVec(3)*nVec(3))
+
+nVec(1:3) = -nVec(1:3) / nVal
+
+IF(PRESENT(tang1) .OR. PRESENT(tang2)) THEN
+  IF (.NOT.ALMOSTEQUAL(nVec(3),0.)) THEN
+    tang1(1) = 1.0
+    tang1(2) = 1.0
+    tang1(3) = -(nVec(1)+nVec(2))/nVec(3)
+    tang2(1) = nVec(2) * tang1(3) - nVec(3)
+    tang2(2) = nVec(3) - nVec(1) * tang1(3)
+    tang2(3) = nVec(1) - nVec(2)
+    tang1 = tang1 / SQRT(2.0 + tang1(3)*tang1(3))
+  ELSE
+    IF (.NOT.ALMOSTEQUAL(nVec(2),0.)) THEN
+      tang1(1) = 1.0
+      tang1(3) = 1.0
+      tang1(2) = -(nVec(1)+nVec(3))/nVec(2)
+      tang2(1) = nVec(2) - nVec(3) * tang1(2)
+      tang2(2) = nVec(3) - nVec(1)
+      tang2(3) = nVec(1) * tang1(2) - nVec(2)
+      tang1 = tang1 / SQRT(2.0 + tang1(2)*tang1(2))
+    ELSE
+      IF (.NOT.ALMOSTEQUAL(nVec(1),0.)) THEN
+        tang1(2) = 1.0
+        tang1(3) = 1.0
+        tang1(1) = -(nVec(2)+nVec(3))/nVec(1)
+        tang2(1) = nVec(2) - nVec(3)
+        tang2(2) = nVec(3) * tang1(1) - nVec(1)
+        tang2(3) = nVec(1) - nVec(2) * tang1(1)
+        tang1 = tang1 / SQRT(2.0 + tang1(1)*tang1(1))
+      ELSE
+        CALL abort(__STAMP__,&
+          'Error in InitParticles: normal vector is zero!')
+      END IF
+    END IF
+  END IF
+tang2 = tang2 / SQRT(tang2(1)*tang2(1) + tang2(2)*tang2(2) + tang2(3)*tang2(3))
+END IF
+
+END SUBROUTINE CalcNormAndTangTriangle
 
 
 SUBROUTINE CalcNormAndTangBilinear(nVec,tang1,tang2,xi,eta,SideID)

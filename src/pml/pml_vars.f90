@@ -24,8 +24,6 @@ REAL,ALLOCATABLE    :: PMLzetaGlobal(:,:,:,:,:) ! damping factor in xyz: global 
 INTEGER             :: PMLzetaShape             ! shape functions for particle deposition and PML damping coefficient
 INTEGER             :: PMLwriteFields           ! output zeta field for debug
 INTEGER             :: PMLspread                ! if true zeta_x=zeta_y=zeta_z for all PML cells
-INTEGER             :: PMLprintInfo             ! 0=only root prints PML info, 1=all procs print PML info
-INTEGER             :: PMLprintInfoProcs        ! number of procs taking part in PML info printing
 REAL,DIMENSION(6)   :: xyzPhysicalMinMax        ! physical boundary coordinates, outside = PML region
 REAL,DIMENSION(6)   :: xyzPMLMinMax             ! PML      boundary coordinates, outside = physical region
 REAL,DIMENSION(3)   :: xyzPMLzetaShapeOrigin    ! coordinate origin for PML ramp: used for manipulating the PML zeta profile

@@ -5,6 +5,7 @@
 *.swp
 *.mk
 *.optrpt
+*.pyc
 build/*
 src/deplist.mk
 src/srcfiles_pp.mk

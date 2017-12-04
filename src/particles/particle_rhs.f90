@@ -90,14 +90,18 @@ SELECT CASE(PartLorentzType)
   ! prevent particles from acceleration above speed of light
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-    ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
+        ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         velosq = PartState(iPart,4) * PartState(iPart,4) &
                + PartState(iPart,5) * PartState(iPart,5) &
                + PartState(iPart,6) * PartState(iPart,6)  
-        IF(velosq.GT.c2) CALL abort(&
-__STAMP__&
-,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',iPart,velosq/c2)
-          ! MPF in ChargeIC and MassIC cancels out.
+        IF(velosq.GT.c2) THEN
+          IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
+          CALL abort(&
+          __STAMP__&
+          ,'Particle is faster than the speed of light. Maybe reducing the time step would help. Particle-Nr., velosq/c2:'&
+          ,iPart,velosq/c2)
+        END IF
+        ! MPF in ChargeIC and MassIC cancels out.
         qmt = Species(PartSpecies(iPart))%ChargeIC/Species(PartSpecies(iPart))%MassIC
         E(1:3) = FieldAtParticle(iPart,1:3) * qmt
 #if (PP_nVar==8)
@@ -192,11 +196,11 @@ velosq = PartState(PartID,4) * PartState(PartID,4) &
        + PartState(PartID,6) * PartState(PartID,6)  
 
 IF(velosq.GT.c2) THEN
- IPWRITE(*,*) ' Particle is faster than the speed of light'
+ IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
  IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
   CALL abort(&
-__STAMP__&
-,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
+  __STAMP__&
+  ,'Particle is faster than the speed of light. Maybe reducing the time step would help. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
 END IF
 
 ! MPF in ChargeIC and MassIC cancels out.
@@ -257,11 +261,11 @@ v2s = v2*v2
 v3s = v3*v3
 velosq = v1s+v2s+v3s
 IF(velosq.GT.c2) THEN
- IPWRITE(*,*) ' Particle is faster than the speed of light'
+ IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
  IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
  CALL abort(&
-__STAMP__&
-,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
+  __STAMP__&
+  ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
 END IF
 
 LorentzFac=SQRT(1.0 - velosq*c2_inv)

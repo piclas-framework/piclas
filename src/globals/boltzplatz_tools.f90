@@ -28,12 +28,15 @@ USE MOD_Interpolation,             ONLY:FinalizeInterpolation
 USE MOD_Mesh,                      ONLY:FinalizeMesh
 USE MOD_Equation,                  ONLY:FinalizeEquation
 USE MOD_Interfaces,                ONLY:FinalizeInterfaces
+#if USE_QDS_DG
+USE MOD_QDS,                       ONLY:FinalizeQDS
+#endif /*USE_QDS_DG*/
 USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_Mortar,                    ONLY:FinalizeMortar
+USE MOD_Dielectric,                ONLY:FinalizeDielectric
 #ifndef PP_HDG
 USE MOD_PML,                       ONLY:FinalizePML
-USE MOD_Dielectric,                ONLY:FinalizeDielectric
 #else
 USE MOD_HDG,                       ONLY:FinalizeHDG
 #endif /*PP_HDG*/
@@ -57,6 +60,8 @@ USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+USE MOD_DSMC_SurfModelInit,        ONLY:FinalizeDSMCSurfModel
+USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 #ifdef MPI
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
@@ -88,8 +93,8 @@ CALL FinalizeLinearSolver()
 #endif /*IMEX*/
 #ifndef PP_HDG
 CALL FinalizePML()
-CALL FinalizeDielectric()
 #else
+CALL FinalizeDielectric()
 CALL FinalizeHDG()
 #endif /*PP_HDG*/
 CALL FinalizeEquation()
@@ -101,6 +106,8 @@ CALL FinalizeMesh()
 CALL FinalizeMortar()
 CALL FinalizeFilter()
 #ifdef PARTICLES
+CALL FinalizeDSMCSurfModel()
+CALL FinalizeParticleBoundarySampling()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
@@ -127,6 +134,9 @@ CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from 
 #endif /*PARTICLES*/
 
 CALL FinalizeInterfaces()
+#if USE_QDS_DG
+CALL FinalizeQDS()
+#endif /*USE_QDS_DG*/
 
 END SUBROUTINE FinalizeBoltzplatz
 
@@ -151,8 +161,8 @@ USE MOD_DG,                 ONLY:InitDG
 USE MOD_Mortar,             ONLY:InitMortar
 #ifndef PP_HDG
 USE MOD_PML,                ONLY:InitPML
-USE MOD_Dielectric,         ONLY:InitDielectric
 #endif /*PP_HDG*/
+USE MOD_Dielectric,         ONLY:InitDielectric
 USE MOD_Filter,             ONLY:InitFilter
 USE MOD_Analyze,            ONLY:InitAnalyze
 USE MOD_RecordPoints,       ONLY:InitRecordPoints
@@ -182,6 +192,9 @@ USE MOD_ParticleSolver,     ONLY:InitPartSolver
 USE MOD_HDG,                ONLY:InitHDG
 #endif
 USE MOD_Interfaces,         ONLY:InitInterfaces
+#if USE_QDS_DG
+USE MOD_QDS,                ONLY:InitQDS
+#endif /*USE_QDS_DG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -226,8 +239,8 @@ CALL InitBC()
 !#endif
 #ifndef PP_HDG
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
-CALL InitDielectric() ! Dielectric media
 #endif /*PP_HDG*/
+CALL InitDielectric() ! Dielectric media
 CALL InitDG()
 CALL InitFilter()
 !CALL InitTimeDisc()
@@ -262,6 +275,10 @@ END IF
 #endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
+
+#if USE_QDS_DG
+CALL InitQDS()
+#endif /*USE_QDS_DG*/
 
 ! do this last!
 CALL IgnoredStrings()

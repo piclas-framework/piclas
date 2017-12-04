@@ -40,8 +40,8 @@ SUBROUTINE ImplicitNorm(t,coeff,Norm_R)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
 #ifndef PP_HDG
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS,mass
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Equation,                ONLY:CalcSource
@@ -49,6 +49,7 @@ USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,           ONLY:sdtCFLOne
 #else /* HDG */
 USE MOD_Equation,                ONLY:CalcSourceHDG
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
 #endif /*DG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -70,7 +71,7 @@ REAL                       :: Norm_e, rTmp(1:8), locMass
 #ifndef PP_HDG
 ! compute error-norm-version1, non-optimized
 CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
-ImplicitSource=ExplicitSource
+ImplicitSource=0.
 CALL CalcSource(t,1.,ImplicitSource)
 
 IF(DoParabolicDamping)THEN
@@ -105,7 +106,6 @@ END DO ! iElem=1,PP_nElems
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
-    ImplicitSource(1:PP_nVar,i,j,k,iElem)= ImplicitSource(1:PP_nVar,i,j,k,iElem) + ExplicitSource(1:PP_nVar,i,j,k,iElem)
   END DO; END DO; END DO !i,j,k    
 END DO !iElem 
 Norm_R=0.
@@ -115,7 +115,8 @@ DO iElem=1,PP_nElems
     DO j=0,PP_N
       DO i=0,PP_N
         DO iVar=1,PP_nVar
-          DeltaX=U(iVar,i,j,k,iElem)+ImplicitSource(iVar,i,j,k,iElem)
+          !DeltaX=U(iVar,i,j,k,iElem)+ImplicitSource(iVar,i,j,k,iElem)
+          DeltaX=ImplicitSource(iVar,i,j,k,iElem)
           !IF(PRESENT(F_old)) F_old(iVar,i,j,k,iElem)=DeltaX
           Norm_e = Norm_e + DeltaX*DeltaX
         END DO ! iVar=1,PP_nVar
@@ -155,12 +156,14 @@ USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 USE MOD_LinearSolver,            ONLY:LinearSolver
 #else
 USE MOD_HDG,                     ONLY:HDG
+USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 #endif /*PP_HDG*/
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
+USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton
 USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
@@ -305,10 +308,21 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     ELSE
       relTolerancePart=eps2PartNewton
     END IF
-    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
-                       ,AbortTol_In=relTolerancePart)
+    !IF(DoFullNewton)THEN
+    !  IF(nFullNewtonIter.EQ.1)THEN
+    !    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+    !                       ,AbortTol_In=relTolerancePart)
+    !  ELSE
+    !    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.FALSE. &
+    !                       ,AbortTol_In=relTolerancePart)
+    !  END IF
+    !ELSE
+      CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+                         ,AbortTol_In=relTolerancePart)
+    !END IF
     ! particle relaxation betweeen old and new position
     IF(DoPartRelaxation)THEN
+      SWRITE(UNIT_stdOut,'(A12)') ' relaxation newton:'
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN  
           ! update the last part pos and element for particle movement
@@ -339,113 +353,171 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
         END IF ! ParticleInside
       END DO ! iPart
     END IF ! PartRelaxationFac>0
-    ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+    IF(.NOT.DoFullNewton)THEN
+      ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-    ! here: could use deposition as hiding, not done yet
-    IF(DoPartRelaxation)THEN
-      IF(DoRefMapping)THEN
-        ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-        CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
-      ELSE
-        ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-        CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+      ! open receive buffer for number of particles
+      CALL IRecvNbofParticles()
+      ! here: could use deposition as hiding, not done yet
+      IF(DoPartRelaxation)THEN
+        IF(DoRefMapping)THEN
+          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+          CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+        ELSE
+          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+          CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+        END IF
       END IF
-    END IF
-    DO iPart=1,PDM%ParticleVecLength
-      IF(PartIsImplicit(iPart))THEN
-        IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
-      END IF
-    END DO
-    ! send number of particles
-    CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-    ! finish communication
-    CALL MPIParticleRecv()
-    PartMPIExchange%nMPIParticles=0
+      DO iPart=1,PDM%ParticleVecLength
+        IF(PartIsImplicit(iPart))THEN
+          IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
+        END IF
+      END DO
+      ! send number of particles
+      CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      ! finish communication of number of particles and send particles
+      CALL MPIParticleSend()
+      ! finish communication
+      CALL MPIParticleRecv()
+      PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
-    ! map particle from gamma v to v
-    CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    ! compute particle source terms on field solver of implicit particles :)
-    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-    ! and map back
-    CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      ! map particle from gamma v to v
+      CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      ! compute particle source terms on field solver of implicit particles :)
+      CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+      ! and map back
+      CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    END IF ! .NOT.DoFullNewton
   END IF
 #endif /*PARTICLES*/
 
   ! solve field to new stage 
-  ImplicitSource=ExplicitSource
+  ImplicitSource=0.
   ! store old value of U
   Uold=U
 #ifndef PP_HDG
   CALL LinearSolver(tStage,coeff,relTolerance)
 #else
+  IF(FullEisenstatWalker.GT.0) THEN
+    IF(useRelativeAbortCrit) EpsCG=relTolerance 
+  END IF 
   CALL HDG(tStage,U,iter)
 #endif /*HDG*/
 
-  Norm_Rold=Norm_R
-  CALL ImplicitNorm(tStage,coeff,Norm_R)
-  IF(nFullNewtonIter.GT.5)THEN
-    IF(Norm_R/Norm_Rold.GT.1.0000000)THEN
-      ! not changing U -> is equal to post-iteration to decrease norm of particle scheme
-      U=Uold
-    ELSE
-      IF(Norm_R.GT.0.9999*Norm_Rold)THEN
-        ! apply Armijo rule
-        ! U=Uold+DeltaU
-        DeltaU=U-Uold
-        lambda=2.
-        nArmijo=1
-        IF(Norm_R/Norm_Rold.GT.1.)THEN
-          DO WHILE ((Norm_R/Norm_Rold.GT.(1.0)).AND.(nArmijo.LE.nMaxArmijo))
-            ! update counter
-            nArmijo=nArmijo+1
-            ! update lambda of Armijo iteration
-            lambda=0.1*lambda
-            ! recompute new value of U
-            U=Uold-lambda*DeltaU
-            ! compute new norm
-            CALL ImplicitNorm(tStage,coeff,Norm_R)
-            IF(DoPrintConvInfo)THEN
-              SWRITE(UNIT_stdOut,'(A12,I4)') ' Armijo-iter:', nArmijo
-              SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR+     :', Norm_R,Norm_Rold
-              SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR+_rat :', Norm_R/Norm_Rold,(1.0-1e-4*lambda)
-            END IF
-          END DO
-        ELSE
-          !DO WHILE ((Norm_R/Norm_Rold.GT.(1.0-c_inv*lambda)).AND.(nArmijo.LE.nMaxArmijo))
-          DO WHILE ((Norm_R/Norm_Rold.GT.1.0).AND.(nArmijo.LE.nMaxArmijo))
-            ! update counter
-            nArmijo=nArmijo+1
-            ! update lambda of Armijo iteration
-            lambda=0.1*lambda
-            ! recompute new value of U
-            U=Uold+lambda*DeltaU
-            ! compute new norm
-            CALL ImplicitNorm(tStage,coeff,Norm_R)
-            IF(DoPrintConvInfo)THEN
-              SWRITE(UNIT_stdOut,'(A12,I4)') ' Armijo-iter:', nArmijo
-              SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR-     :', Norm_R,Norm_Rold
-              SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR-_rat :', Norm_R/Norm_Rold,(1.0-1e-4*lambda)
-            END IF
-          END DO
-        END IF
-        IF(DoPrintConvInfo)THEN
-          SWRITE(UNIT_stdOut,'(A12,I4)') ' Armijo-step:', nArmijo
+#ifdef PARTICLES
+  IF(.NOT.DoFullNewton)THEN 
+#endif /*PARTICLES*/
+    ! compute norm and field step
+    Norm_Rold=Norm_R
+    CALL ImplicitNorm(tStage,coeff,Norm_R)
+    IF(nFullNewtonIter.GT.5)THEN
+      IF(Norm_R/Norm_Rold.GT.1.0000000)THEN
+        ! not changing U -> is equal to post-iteration to decrease norm of particle scheme
+        U=Uold
+      ELSE
+        IF(Norm_R.GT.0.9999*Norm_Rold)THEN
+          ! apply Armijo rule
+          ! U=Uold+DeltaU
+          DeltaU=U-Uold
+          lambda=2.
+          nArmijo=1
+          IF(Norm_R/Norm_Rold.GT.1.)THEN
+            DO WHILE ((Norm_R/Norm_Rold.GT.(1.0)).AND.(nArmijo.LE.nMaxArmijo))
+              ! update counter
+              nArmijo=nArmijo+1
+              ! update lambda of Armijo iteration
+              lambda=0.1*lambda
+              ! recompute new value of U
+              U=Uold-lambda*DeltaU
+              ! compute new norm
+              CALL ImplicitNorm(tStage,coeff,Norm_R)
+              IF(DoPrintConvInfo)THEN
+                SWRITE(UNIT_stdOut,'(A12,I4)') ' Armijo-iter:', nArmijo
+                SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR+     :', Norm_R,Norm_Rold
+                SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR+_rat :', Norm_R/Norm_Rold,(1.0-1e-4*lambda)
+              END IF
+            END DO
+          ELSE
+            !DO WHILE ((Norm_R/Norm_Rold.GT.(1.0-c_inv*lambda)).AND.(nArmijo.LE.nMaxArmijo))
+            DO WHILE ((Norm_R/Norm_Rold.GT.1.0).AND.(nArmijo.LE.nMaxArmijo))
+              ! update counter
+              nArmijo=nArmijo+1
+              ! update lambda of Armijo iteration
+              lambda=0.1*lambda
+              ! recompute new value of U
+              U=Uold+lambda*DeltaU
+              ! compute new norm
+              CALL ImplicitNorm(tStage,coeff,Norm_R)
+              IF(DoPrintConvInfo)THEN
+                SWRITE(UNIT_stdOut,'(A12,I4)') ' Armijo-iter:', nArmijo
+                SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR-     :', Norm_R,Norm_Rold
+                SWRITE(UNIT_stdOut,'(A12,E24.12,2x,E24.12)') ' NormR-_rat :', Norm_R/Norm_Rold,(1.0-1e-4*lambda)
+              END IF
+            END DO
+          END IF
+          IF(DoPrintConvInfo)THEN
+            SWRITE(UNIT_stdOut,'(A12,I4)') ' Armijo-step:', nArmijo
+          END IF
         END IF
       END IF
     END IF
-  END IF
+#ifdef PARTICLES
+  END IF ! .NOT. DoFullNewton
   !IF(DoPrintConvInfo.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I10,2x,E24.12,2x,E24.12,2x,E24.12)') ' iter,Norm_R,rel,abort' &
   !                                                                ,nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
+
+  IF(DoFullNewton)THEN 
+    ! for full Newton, update source terms after DG step
+    ! and update norm with this information. maybe, we should use the correct norm
+    IF (t.GE.DelayTime) THEN
+      ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+#ifdef MPI
+      ! open receive buffer for number of particles
+      CALL IRecvNbofParticles()
+      ! here: could use deposition as hiding, not done yet
+      IF(DoPartRelaxation)THEN
+        IF(DoRefMapping)THEN
+          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+          CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+        ELSE
+          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+          CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+        END IF
+      END IF
+      DO iPart=1,PDM%ParticleVecLength
+        IF(PartIsImplicit(iPart))THEN
+          IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
+        END IF
+      END DO
+      ! send number of particles
+      CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      ! finish communication of number of particles and send particles
+      CALL MPIParticleSend()
+      ! finish communication
+      CALL MPIParticleRecv()
+      PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+      ! map particle from gamma v to v
+      CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      ! compute particle source terms on field solver of implicit particles :)
+      CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+      ! and map back
+      CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    END IF
+    ! update the Norm with all the new information of current state
+    CALL ImplicitNorm(tStage,coeff,Norm_R)
+  END IF ! DoFullNewton
+#endif /*PARTICLES*/
 
   Norm_Diff_old=Norm_Diff
   Norm_Diff=Norm_Rold-Norm_R
   IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
+  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+  IF(Norm_R.LT.1e-14) IsConverged=.TRUE.
 
   IF(nFullNewtonIter.GT.5)THEN
     IF(ALMOSTZERO(Norm_Diff_old+Norm_Diff))THEN
