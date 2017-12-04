@@ -838,7 +838,9 @@ INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r                                                 ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
+#ifdef PARTICLES
 REAL                            :: PartSourceLoc(1:4)
+#endif
 !===================================================================================================================================
 eps0inv = 1./eps0
 #ifdef PARTICLES
@@ -1111,11 +1113,11 @@ SUBROUTINE InitExactFlux()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,myrank,UNIT_stdOut,mpiroot,iError
+USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot,iError
 #ifdef MPI
 USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
 #endif
-USE MOD_Mesh_Vars,       ONLY:nSides,nElems,ElemToSide,SideToElem,lastMPISide_MINE
+USE MOD_Mesh_Vars,       ONLY:nElems,ElemToSide,SideToElem,lastMPISide_MINE
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
 USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
 USE MOD_ReadInTools,     ONLY:GETREAL,GETINT

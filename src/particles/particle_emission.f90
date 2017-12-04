@@ -5838,7 +5838,7 @@ USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Vars,              ONLY:useDSMC
 USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal,BoltzmannConst
 USE MOD_Mesh_Vars,              ONLY:nElems
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsBCElem
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -5857,7 +5857,7 @@ Source=0.0
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     ElemID = PEM%Element(i)
-    IF(.NOT.IsBCElem(ElemID))CYCLE
+    IF(.NOT.IsTracingBCElem(ElemID))CYCLE
     !ElemID = BC2AdaptiveElemMap(ElemID)
     iSpec = PartSpecies(i)
     Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6)
@@ -5880,9 +5880,9 @@ END DO
 Theta=0.001
 
 !DO iElem = 1,nElems
-!IF(.NOT.IsBCElem(iElem))CYCLE
+!IF(.NOT.IsTracingBCElem(iElem))CYCLE
 DO AdaptiveElemID = 1,nElems
-IF(.NOT.IsBCElem(AdaptiveElemID))CYCLE
+IF(.NOT.IsTracingBCElem(AdaptiveElemID))CYCLE
 DO iSpec = 1,nSpecies
   ! write timesample particle values of bc elements in global macrovalues of bc elements
   IF (Source(11,AdaptiveElemID,iSpec).GT.0.0) THEN

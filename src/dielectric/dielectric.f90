@@ -39,8 +39,10 @@ USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Equation_Vars,   ONLY: c_corr,c
 USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh,            ONLY: GetMeshMinMaxBoundaries
+#ifdef PP_HDG
 USE MOD_Equation_Vars,   ONLY: IniExactFunc
-USE MOD_Mesh_Vars,       ONLY:nMortarSides
+USE MOD_Mesh_Vars,       ONLY: nMortarSides
+#endif /*if PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -214,18 +216,29 @@ END SUBROUTINE SetDielectricVolumeProfile
 #ifndef PP_HDG
 SUBROUTINE SetDielectricFaceProfile()
 !===================================================================================================================================
-! set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master"
+!> Set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master".
+!> Only the array "Dielectric_Master" is used in the Riemann solver, as only the master calculates the flux array
+!> (maybe slave information is used in the future)
+!>
+!> Note:
+!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+!> threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+!> is not allowed)
+!> re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+!> infomation)
+!> This could be overcome by using template subroutines .t90 (see FlexiOS)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY:DielectricConstant_inv,dielectric_Master,dielectric_Slave,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY:DielectricConstant_inv,Dielectric_Master,Dielectric_Slave,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars,       ONLY:nSides
 USE MOD_ProlongToFace,   ONLY:ProlongToFace
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
+USE MOD_FillMortar,      ONLY:U_Mortar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,11 +256,27 @@ REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Sla
 #endif /*MPI*/
 INTEGER                                                  :: iElem,I,J,iSide
 !===================================================================================================================================
-Dielectric_dummy_elem    = 0. ! default is an invalid number
-Dielectric_dummy_Master  = 0.
-Dielectric_dummy_Slave   = 0.
+! General workflow:
+! 1.  Initialize dummy arrays for Elem/Face
+! 2.  Fill dummy element values for non-Dielectric sides
+! 3.  Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
+! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+!     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+!     is not allowed)
+!     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+!     infomation)
+! 5.  Send/Receive MPI data
+! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
+! 7.  With MPI, use dummy array which was used for sending the MPI data
+!     or with single execution, directly use prolonged data on face
+! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
 
-! fill dummy values for non-Dielectric sides
+! 1.  Initialize dummy arrays for Elem/Face
+Dielectric_dummy_elem    = -1.
+Dielectric_dummy_Master  = -1.
+Dielectric_dummy_Slave   = -1.
+
+! 2.  Fill dummy element values for non-Dielectric sides
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
     ! set only the first dimension to 1./SQRT(EpsR*MuR) (the rest are dummies)
@@ -257,46 +286,63 @@ DO iElem=1,PP_nElems
   END IF
 END DO
 
+!3.   Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
 CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
+CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 #ifdef MPI
-CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
-
-! re-map data (for MPI communication)
-Dielectric_dummy_Master2 = 0.
-Dielectric_dummy_Slave2  = 0.
-DO I=0,PP_N
-  DO J=0,PP_N
-    DO iSide=1,nSides
-      Dielectric_dummy_Master2(1,I,J,iSide)=Dielectric_dummy_Master(1,I,J,iSide)
-      Dielectric_dummy_Slave2 (1,I,J,iSide)=Dielectric_dummy_Slave( 1,I,J,iSide)
+  CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+  CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+  
+  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+  !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+  !     is not allowed)
+  !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+  !     infomation)
+  Dielectric_dummy_Master2 = 0.
+  Dielectric_dummy_Slave2  = 0.
+  DO I=0,PP_N
+    DO J=0,PP_N
+      DO iSide=1,nSides
+        Dielectric_dummy_Master2(1,I,J,iSide)=Dielectric_dummy_Master(1,I,J,iSide)
+        Dielectric_dummy_Slave2 (1,I,J,iSide)=Dielectric_dummy_Slave( 1,I,J,iSide)
+      END DO
     END DO
   END DO
-END DO
-
-! send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
-CALL StartReceiveMPIData(1,Dielectric_dummy_Slave2 ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIData(   1,Dielectric_dummy_Slave2 ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
-
-! send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
-CALL StartReceiveMPIData(1,Dielectric_dummy_Master2,1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
-CALL StartSendMPIData(   1,Dielectric_dummy_Master2,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
-
-CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
-CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE 
+  
+  ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
+  CALL StartReceiveMPIData(1,Dielectric_dummy_Slave2 ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+  CALL StartSendMPIData(   1,Dielectric_dummy_Slave2 ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+  
+  ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
+  CALL StartReceiveMPIData(1,Dielectric_dummy_Master2,1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(   1,Dielectric_dummy_Master2,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
+  
+  CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
+  CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE 
 #endif /*MPI*/
 
+! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
 ALLOCATE(Dielectric_Master(0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
 
 
+! 7.  With MPI, use dummy array which was used for sending the MPI data
+!     or with single execution, directly use prolonged data on face
 #ifdef MPI
-Dielectric_Master=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
-Dielectric_Slave =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
+  Dielectric_Master=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
+  Dielectric_Slave =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
 #else
-Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
-Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
+  Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
+  Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 #endif /*MPI*/
 
+! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
+IF(MINVAL(Dielectric_Master).LE.0.0)THEN
+  CALL abort(&
+  __STAMP__&
+  ,'Dielectric material values for Riemann solver not correctly determined. MINVAL(Dielectric_Master)=',&
+  RealInfoOpt=MINVAL(Dielectric_Master))
+END IF
 END SUBROUTINE SetDielectricFaceProfile
 #endif /* not PP_HDG*/
 
