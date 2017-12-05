@@ -303,6 +303,7 @@ USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #ifdef IMPA
 USE MOD_Particle_Vars,               ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
+USE MOD_Particle_Intersection,       ONLY:OutputTrajectory
 USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars,          ONLY:GEO
 USE MOD_TimeDisc_Vars,               ONLY:iStage
@@ -391,12 +392,9 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(iPart.EQ.PARTOUT)THEN
-        WRITE(UNIT_stdout,'(110("="))')
+        WRITE(UNIT_stdout,'(A32)')         ' ---------------------------------------------------------------'
         WRITE(UNIT_stdout,'(A)')         '     | Output of Particle information '
-        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos:       ',lastPartPos(iPart,1:3)
-        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Current PartPos:       ',PartState(iPart,1:3)
-        WRITE(UNIT_stdout,'(A,3(X,G0))') '     | PartTrajectory:        ',PartTrajectory(1:3)
-        WRITE(UNIT_stdout,'(A,(G0))')    '     | Length PartTrajectory: ',lengthPartTrajectory
+        CALL OutputTrajectory(iPart,PartState(iPart,1:3),PartTrajectory,lengthPartTrajectory)
 #ifdef MPI
         InElem=PEM%LastElement(iPart)
         IF(InElem.LE.PP_nElems)THEN

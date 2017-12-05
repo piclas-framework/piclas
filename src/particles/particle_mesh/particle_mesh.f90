@@ -841,6 +841,7 @@ USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,      ONLY:OutputBezierControlPoints
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3d
+USE MOD_Particle_Intersection,  ONLY:OutputTrajectory
 #endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -888,19 +889,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
     IF(PartID.EQ.PARTOUT)THEN
       IPWRITE(UNIT_stdout,*) ' --------------------------------------------- '
       IPWRITE(UNIT_stdout,*) ' PartInElemCheck '
-      WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos = [ ',LastpartPos(PartID,1), ','  &
-                                                              ,LastpartPos(PartID,2), ','  &
-                                                              ,LastpartPos(PartID,3), '];'
-
-      WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition = [ ',PartPos(1), ','  &
-                                                               ,PartPos(2), ','  &
-                                                               ,PartPos(3), '];'
-
-      WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartTrajectory = [ ',PartTrajectory(1) ,','  &
-                                                                 ,PartTrajectory(2) ,','  &
-                                                                 ,PartTrajectory(3) ,'];'
-
-      WRITE(UNIT_stdout,*) ' lengthPartTrajectory = ', lengthPartTrajectory
+      CALL OutputTrajectory(PartID,PartPos,PartTrajectory,lengthPartTrajectory)
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
@@ -5044,6 +5033,7 @@ CALL AddToElemData(ElementOut,'isTroubleElement',LogArray=isTracingTrouble(1:nEl
 CALL AddToElemData(ElementOut,'ElemTolerance',RealArray=ElemTolerance(1:nElems))
 
 DO iElem=1,nElems
+  print*,'iLeme',iElem
   DO k=0,NGeo,NGeo
     DO j=0,NGeo,NGeo
       DO i=0,NGeo,NGeo

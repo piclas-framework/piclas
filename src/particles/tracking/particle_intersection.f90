@@ -25,10 +25,18 @@ INTERFACE ComputeCurvedIntersection
   MODULE PROCEDURE ComputeCurvedIntersection
 END INTERFACE
 
+#ifdef CODE_ANALYZE
+INTERFACE OutputTrajectory
+  MODULE PROCEDURE OutputTrajectory
+END INTERFACE
+#endif /*CODE_ANALYZE*/
 PUBLIC::ComputePlanarRectInterSection
 PUBLIC::ComputePlanarCurvedIntersection
 PUBLIC::ComputeBilinearIntersection
 PUBLIC::ComputeCurvedIntersection
+#ifdef CODE_ANALYZE
+PUBLIC::OutputTrajectory
+#endif /*CODE_ANALYZE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -1202,6 +1210,7 @@ n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
 n2=n2/SQRT(DOT_PRODUCT(n2,n2))
 !PartTrajectory = PartTrajectoryOrig !set back for preventing angles > 90 deg (0.5pi+eps)
 
+! Nishita does it different: plane 1 with n1 becomes y-axis and plane 2 with n2 becomes the x-axis
 DO q=0,NGeo
   DO p=0,NGeo
     BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n1)
@@ -1544,7 +1553,8 @@ PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
 ! outcome: no intersection, single intersection, multiple intersection with patch
 DO WHILE(iClipIter.LE.BezierClipMaxIter)
   IF(iClipIter.EQ.0)THEN
-    IF(BezierClipLineVectorMethod.EQ.0) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    !IF(BezierClipLineVectorMethod.EQ.0) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    IF(BezierClipLineVectorMethod.EQ.0) CALL CalcLineNormVec3(BezierControlPoints2D(:,:,:),LineNormVec(:,:))
   END IF
   iClipIter=iClipIter+1
 #ifdef CODE_ANALYZE
@@ -1563,9 +1573,11 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
     ! LineNormVec is only computed, if a Xi and Eta Clip is performed. 
     ! we compute LineNormVecs only until one direction is converged, than we keep the vector to report the correct 
     ! results, see. Efremov 2005
-    IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    !IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec3(BezierControlPoints2D(:,:,:),LineNormVec(:,:))
     IF(BezierClipLineVectorMethod.EQ.2) THEN
-      IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+      !IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+      IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec3(BezierControlPoints2D(:,:,:),LineNormVec(:,:))
     END IF
     CALL CheckXiClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory &
                        ,iClipIter,nXiClip,nEtaClip&
@@ -1574,9 +1586,11 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
     ! LineNormVec is only computed, if a Xi and Eta Clip is performed. 
     ! we compute LineNormVecs only until one direction is converged, than we keep the vector to report the correct 
     ! results, see. Efremov 2005
-    IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    !IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+    IF(BezierClipLineVectorMethod.EQ.1) CALL CalcLineNormVec3(BezierControlPoints2D(:,:,:),LineNormVec(:,:))
     IF(BezierClipLineVectorMethod.EQ.2) THEN
-      IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+      !IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec(:,:),NGeo,0)
+      IF(MOD(iClipIter,2).EQ.1) CALL CalcLineNormVec3(BezierControlPoints2D(:,:,:),LineNormVec(:,:))
     END IF
     CALL CheckEtaClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory,lengthPartTrajectory &
                        ,iClipIter,nXiClip,nEtaClip&
@@ -1669,6 +1683,15 @@ DO l=1,2
   MinMax(2,l)=MAXVAL(BezierControlPoints2D(l,:,:))
   IF(MinMax(1,l)*MinMax(2,l).GT.0.) hasInter=.FALSE.
 END DO ! l=1,2
+
+#ifdef CODE_ANALYZE
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(PartID.EQ.PARTOUT)THEN
+    IPWRITE(UNIT_stdout,*) ' Can intersect? ', hasInter
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
 IF(.NOT.hasInter) THEN
   alpha=-1.
   RETURN
@@ -1793,7 +1816,7 @@ DO WHILE((dXi2.GT.BezierNewtonTolerance2).AND.(nIter.LE.BezierNewtonMaxIter))
     lambda=0.3*lambda
     iArmijo=iArmijo+1
   END DO
-  IF((nIter.GE.2).AND.(ANY(ABS(Xi).GT.1.5))) THEN
+  IF((nIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5))) THEN
     ! no intersection of ray and bezier patch
     Xi=1.5
     EXIT
@@ -1833,8 +1856,10 @@ IF(nIter.GT.BezierNewtonMaxIter) THEN
 END IF
 
 ! check if found Xi,Eta are in parameter range
-IF(ABS(xi(1)).GT.BezierNewtonHit) RETURN
-IF(ABS(xi(2)).GT.BezierNewtonHit) RETURN
+!IF(ABS(xi(1)).GT.BezierNewtonHit) RETURN
+!IF(ABS(xi(2)).GT.BezierNewtonHit) RETURN
+IF(ABS(xi(1)).GT.1.002) RETURN
+IF(ABS(xi(2)).GT.1.002) RETURN
 
 ! compute 3D intersection
 CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=InterP) 
@@ -1872,14 +1897,16 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                      :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
-INTEGER,INTENT(IN)                   :: a,b
+INTEGER,INTENT(IN)                   :: a ! NGeo
+INTEGER,INTENT(IN)                   :: b ! 0
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: LineNormVec(1:2,1:2)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: Length,alpha(2),dalpha, doPro,dcorr
-REAL,DIMENSION(2)                    :: LXi, Leta, LineNormVecOld(1:2,1:2)
+REAL,DIMENSION(2)                    :: LXi, Leta, MBar
+REAL                                 :: LineNormVecOld(1:2,1:2)
 !================================================================================================================================
 
 ! backup old linenormvec
@@ -1911,56 +1938,91 @@ LineNormVecOld(:,2)=Leta
 ! if Lxi and Leta are orientated in opposite directions
 doPro=DOT_PRODUCT(Lxi,Leta) ! can be negative
 
-IF(ABS(doPro).GT.0.5)THEN
-  ! only required here
-  alpha(1)=atan2(Lxi (2),Lxi (1))
-  alpha(2)=atan2(Leta(2),Leta(1))
-  
-  IF(alpha(1).LT.0) alpha(1)=alpha(1)+2.*PI
-  IF(alpha(2).LT.0) alpha(2)=alpha(2)+2.*PI
-  
-  dalpha=alpha(1)-alpha(2)
+! efremov200501 step1
+!IF(doPro.LT.0) Lxi=Lxi
 
-  IF(dalpha.LT.0)THEN
-    ! alpha2.GT.alpha1
-    IF(dalpha.LT.-PI)THEN
-      IF(dalpha.LT.-1.5*PI)THEN
-        ! dcorr=2*PI+dalpha
-        dcorr=2*PI+dalpha
-      ELSE
-        dcorr=dalpha+PI
-      END IF
-    ELSE
-      IF(dalpha.LT.-0.5*PI)THEN
-        ! dcorr=2*PI+dalpha
-        dcorr=PI+dalpha
-      ELSE
-        dcorr=dalpha !+0.5*PI
-      END IF
-    END IF
+IF(ABS(doPro).GT.0.6)THEN
+!  print*,'doPro',doPro,ACOS(doPro)*180/pi
+
+!  ! only required here
+!  alpha(1)=atan2(Lxi (2),Lxi (1))
+!  alpha(2)=atan2(Leta(2),Leta(1))
+!  
+!  IF(alpha(1).LT.0) alpha(1)=alpha(1)+2.*PI
+!  IF(alpha(2).LT.0) alpha(2)=alpha(2)+2.*PI
+!  
+!  dalpha=alpha(1)-alpha(2)
+!
+!  !print*,'dalpha',dalpha
+!  IF(dalpha.LT.0)THEN
+!    print*,'dalpha<0'
+!    ! alpha2.GT.alpha1
+!    IF(dalpha.LT.-PI)THEN
+!      print*,'<-pi'
+!      IF(dalpha.LT.-1.5*PI)THEN
+!        print*,'<-1.5pi'
+!        ! dcorr=2*PI+dalpha
+!        dcorr=2*PI+dalpha
+!
+!      ELSE
+!        print*,'ese'
+!        dcorr=dalpha+PI
+!      END IF
+!    ELSE
+!      IF(dalpha.LT.-0.5*PI)THEN
+!        ! dcorr=2*PI+dalpha
+!        dcorr=PI+dalpha
+!      ELSE
+!        dcorr=dalpha !+0.5*PI
+!      END IF
+!    END IF
+!  ELSE
+!    ! angle angle3.LT.angle1
+!    print*,'dalpha>0'
+!    ! how can the angle be neg.
+!    IF(dalpha.GT.PI)THEN
+!      IF(dalpha.GT.1.5*PI)THEN
+!        dcorr=-2*PI+dalpha
+!      ELSE
+!        dcorr=-PI+dalpha
+!      END IF
+!    ELSE
+!      IF(dalpha.GT.0.5*PI)THEN
+!        dcorr=-PI+dalpha
+!      ELSE
+!        dcorr=dalpha
+!      END IF
+!    END IF
+!  END IF 
+!  dcorr=dcorr*0.5
+!  alpha(1)=alpha(1)+dcorr
+!  LineNormVec(1,1)=COS(alpha(1))
+!  LineNormVec(2,1)=SIN(alpha(1))
+!  alpha(2)=alpha(2)-dcorr
+!  LineNormVec(1,2)=COS(alpha(2))
+!  LineNormVec(2,2)=SIN(alpha(2))
+  MBar=0.5*(Lxi+Leta)
+  dCorr=0.5*SQRT(3.)
+  IF(doPro.LT.0.)THEN
+    ! Lxi
+    LineNormVec(1,1)= 0.5*Mbar(2) + dCorr*Mbar(1)
+    LineNormVec(2,1)=-0.5*Mbar(1) + dCorr*Mbar(2)
+    ! Leta
+    LineNormVec(1,2)=-0.5*Mbar(2) + dCorr*Mbar(1)
+    LineNormVec(2,2)= 0.5*Mbar(1) + dCorr*Mbar(2)
   ELSE
-    ! angle angle2.LT.angle1
-    IF(dalpha.GT.PI)THEN
-      IF(dalpha.GT.1.5*PI)THEN
-        dcorr=-2*PI+dalpha
-      ELSE
-        dcorr=-PI+dalpha
-      END IF
-    ELSE
-      IF(dalpha.GT.0.5*PI)THEN
-        dcorr=-PI+dalpha
-      ELSE
-        dcorr=dalpha
-      END IF
-    END IF
-  END IF 
-  dcorr=dcorr*0.5
-  alpha(1)=alpha(1)+dcorr
-  LineNormVec(1,1)=COS(alpha(1))
-  LineNormVec(2,1)=SIN(alpha(1))
-  alpha(2)=alpha(2)-dcorr
-  LineNormVec(1,2)=COS(alpha(2))
-  LineNormVec(2,2)=SIN(alpha(2))
+    ! Lxi
+    LineNormVec(1,1)=-0.5*Mbar(2) + dCorr*Mbar(1)
+    LineNormVec(2,1)= 0.5*Mbar(1) + dCorr*Mbar(2)
+    ! Leta
+    LineNormVec(1,2)= 0.5*Mbar(2) + dCorr*Mbar(1)
+    LineNormVec(2,2)=-0.5*Mbar(1) + dCorr*Mbar(2)
+  END IF
+!  print*,'Lxi-new' ,LineNormVec(:,1)
+!  print*,'Leta-new',LineNormVec(:,2)
+  doPro=DOT_PRODUCT(LineNormVec(:,1),LineNormVec(:,2))
+!  print*,'doprofixed',doPro, ACOS(doPro)*180/pi
+!  read*
 ELSE
   ! do not change the line vectors
   LineNormVec(:,1)=Lxi
@@ -1968,22 +2030,24 @@ ELSE
 END IF
 
 IF(DOT_PRODUCT(LineNormVec(:,1),LineNormVecOld(:,1)).LT.0.)THEN
-  IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Xi '
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Xi        ', LineNormVecOld(:,1)
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Xi           ', LineNormVec   (:,1)
-  IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,1),LineNormVecOld(:,1))
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Eta       ', LineNormVecOld(:,2)
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Eta          ', LineNormVec   (:,2)
+  LineNormVec(:,1)=-LineNormVec(:,1)
+!   IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Xi '
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Xi        ', LineNormVecOld(:,1)
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Xi           ', LineNormVec   (:,1)
+!   IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,1),LineNormVecOld(:,1))
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Eta       ', LineNormVecOld(:,2)
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Eta          ', LineNormVec   (:,2)
 END IF
-
+! 
 IF(DOT_PRODUCT(LineNormVec(:,2),LineNormVecOld(:,2)).LT.0.)THEN
-  IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Eta '
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Eta       ', LineNormVecOld(:,2)
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Eta          ', LineNormVec   (:,2)
-  IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,2),LineNormVecOld(:,2))
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Xi        ', LineNormVecOld(:,1)
-  IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Xi           ', LineNormVec   (:,1)
-  ! stop
+  LineNormVec(:,2)=-LineNormVec(:,2)
+!   IPWRITE(UNIT_stdout,'(I0,A)')            ' LineNormVec-switched: Eta '
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Eta       ', LineNormVecOld(:,2)
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Eta          ', LineNormVec   (:,2)
+!   IPWRITE(UNIT_stdout,'(I0,A,1(E24.12))')  ' DotProduct               ', DOT_PRODUCT(LineNormVec(:,2),LineNormVecOld(:,2))
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVecOld-Xi        ', LineNormVecOld(:,1)
+!   IPWRITE(UNIT_stdout,'(I0,A,2(E24.12))')  ' LineNormVec-Xi           ', LineNormVec   (:,1)
+!   ! stop
 END IF
 ! DEBUG: fix from (could become zero)
 !      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                   
@@ -2115,13 +2179,14 @@ END IF
   
 ! adjust Smin and Smax to increase the current range
 !! adapted from: 1997, Campagna, Ray tracing of spline surfaces
+! modification. initial method works with smax=smax+(smax-smax,0)*eps*f
 IF(Smax.GT.-1.5)THEN
-  !Smax=MIN(Smax+20.*BezierClipTolerance,1.0)
-  Smax=MIN(Smax+100.*BezierClipTolerance,BezierClipHit)
+  Smax=MIN(Smax+20.*BezierClipTolerance,1.0)
+  !Smax=MIN(Smax+100.*BezierClipTolerance,BezierClipHit)
 END IF
 IF(Smin.LT.1.5)THEN
-  !Smin=MAX(Smin-20.*BezierClipTolerance,-1.0)
-  Smin=MAX(Smin-100.*BezierClipTolerance,-BezierClipHit)
+  Smin=MAX(Smin-20.*BezierClipTolerance,-1.0)
+  !Smin=MAX(Smin-100.*BezierClipTolerance,-BezierClipHit)
 END IF
 
 ! in first iteration direction
@@ -2129,6 +2194,7 @@ END IF
 ! example: particle intersects close to the edge,corner, the NEXT patch
 ! has to be increased slightly
 IF(iter.EQ.0)THEN
+  print*,'initia shrink', smin,smax
   IF(Smin.EQ.1.5) SMin=-BezierClipHit ! BezierClipHit=1+BezierClipTolerance
   IF(Smax.EQ.-1.5)SMax=BezierClipHit
 END IF
@@ -2851,7 +2917,7 @@ REAL                                 :: minmax(1:2,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
 INTEGER                              :: p,q,l,iDeCasteljau
-REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha
+REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha,XiTmp
 !REAL                                 :: ZeroDistance,BezierClipTolerance2
 LOGICAL                              :: isNewIntersection
 INTEGER                              :: iClip,iInter
@@ -2877,10 +2943,13 @@ DO l=0,NGeo
 END DO ! l
 dmin=MINVAL(minmax(1,:))
 dmax=MAXVAL(minmax(2,:))
+print*,'minval',minmax(1,:)
+print*,'maxval',minmax(2,:)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
      IPWRITE(UNIT_stdout,*) ' dmax-dmin-xi ',(dmax-dmin)
+     IPWRITE(UNIT_stdout,*) ' dmax,dmin-xi ',dmax,dmin
    END IF
  END IF
 #endif /*CODE_ANALYZE*/
@@ -2927,7 +2996,10 @@ END IF
 
 IF(XiMin.GT.XiMax)THEN
   ! output, should never ever happen
-  print*,'swwwaaaaaaaap xi',XiMin,XiMax
+!  print*,'swwwaaaaaaaap xi',XiMin,XiMax
+  XiTmp = XiMax
+  Ximax = XiMin
+  XiMin = XiTmp
 END IF
 
 
@@ -3046,7 +3118,7 @@ IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split th
         IF(iPart.EQ.PARTOUT)THEN
           IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
           IPWRITE(UNIT_stdout,*) ' split xi-upper '
-          IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiArray(:,nEtaClip)
+          IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiArray(:,nXiClip)
   !        CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
         END IF
       END IF
@@ -3160,7 +3232,7 @@ IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split th
         IF(iPart.EQ.PARTOUT)THEN
           IPWRITE(UNIT_stdout,*) ' --------------------------------------- '
           IPWRITE(UNIT_stdout,*) ' split xi-lower '
-          IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiArray(:,nEtaClip)
+          IPWRITE(UNIT_stdout,*) ' XiMin,XiMax ',XiArray(:,nXiClip)
   !        CALL OutputBezierControlPoints(BezierControlPoints2D_in=BezierControlPoints2D_temp2)
         END IF
       END IF
@@ -3326,7 +3398,7 @@ REAL                                 :: minmax(1:2,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
 INTEGER                              :: p,q,l,iDeCasteljau
-REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha
+REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha,EtaTmp
 !REAL                                 :: ZeroDistance,BezierClipTolerance2
 LOGICAL                              :: isNewIntersection
 INTEGER                              :: iClip,iInter
@@ -3352,10 +3424,13 @@ DO l=0,NGeo
 END DO ! l
 dmin=MINVAL(minmax(1,:))
 dmax=MAXVAL(minmax(2,:))
+print*,'minvaleta',minmax(1,:)
+print*,'minvaleta',minmax(2,:)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
      IPWRITE(UNIT_stdout,*) ' dmax-dmin-eta ',(dmax-dmin)
+     IPWRITE(UNIT_stdout,*) ' dmax,dmin-eta ',dmax,dmin
    END IF
  END IF
 #endif /*CODE_ANALYZE*/
@@ -3401,7 +3476,10 @@ IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5)) THEN
 END IF
 
 IF(EtaMin.GT.EtaMax)THEN
-  print*,'swwwaaaaaaaap etta',etamin,etamax
+!  print*,'swwwaaaaaaaap etta',etamin,etamax
+  EtaTmp = EtaMax
+  Etamax = EtaMin
+  EtaMin = EtaTmp
 END IF
 
 nEtaClip=nEtaClip+1
@@ -3748,5 +3826,143 @@ ELSE  ! no split necessary, only a clip
 END IF ! decision between Clip or Split
 
 END SUBROUTINE CheckEtaClip
+
+#ifdef CODE_ANALYZE
+SUBROUTINE OutputTrajectory(PartID,PartPos,PartTrajectory,lengthPartTrajectory)
+!===================================================================================================================================
+! subroutine to print particle trajectory, lengthPartTrajectory and Last and Current position in matlab format
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars, ONLY: LastPartPos
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+REAL, INTENT(IN)                 :: PartTrajectory(1:3), lengthPartTrajectory
+REAL, INTENT(IN)                 :: PartPos(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos = [ ',LastpartPos(PartID,1), ','  &
+                                                        ,LastpartPos(PartID,2), ','  &
+                                                        ,LastpartPos(PartID,3), '];'
+
+WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition = [ ',PartPos(1), ','  &
+                                                         ,PartPos(2), ','  &
+                                                         ,PartPos(3), '];'
+
+WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartTrajectory = [ ',PartTrajectory(1) ,','  &
+                                                           ,PartTrajectory(2) ,','  &
+                                                           ,PartTrajectory(3) ,'];'
+
+WRITE(UNIT_stdout,*) ' lengthPartTrajectory = ', lengthPartTrajectory
+
+END SUBROUTINE OutputTrajectory
+#endif /*CODE_ANALYZE*/
+
+SUBROUTINE calcLineNormVec3(BezierControlPoints2D,LineNormVec)
+!================================================================================================================================
+! Calculate the normal vector for the line Ls (with which the distance of a point to the line Ls is determined)
+! Ls is the search direction. Ls is constructed via the combination of the left and right bounding vector
+! e.g. clip in xi direction: 1) Ls vector is constructed in eta direction, because the left and right border are to be 
+!                               clipped away ("reducing the patch by moving the left and right boundary")                            
+!                            2) in order to compute the distance between Ls and each control point, the vector has to be
+!                               normalized. If the length is zero, then the unit normal vector in eta direction is used.
+!                            3) and right rotated. The rotation constructs the vector which is perpendicular to Ls, 
+!                               the scalar product <LineNormVec,ControlPoint> gives the distance
+!================================================================================================================================
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_Mesh_Vars,               ONLY:NGeo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                   :: LineNormVec(1:2,1:2)
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: Length,doPro,dCorr
+REAL,DIMENSION(2)                    :: LXi, Leta,Mbar
+!================================================================================================================================
+
+! compute Lxi vector 
+! 1) the initial Lxi vector is the combination of the two bounding vectors  which point in eta direction 
+!     to get the 1D distances of each point via scalar product, we have to right-rotate the vector 
+LXi=(BezierControlPoints2D(:,   0,NGeo)-BezierControlPoints2D(:,   0,   0))+&
+    (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,NGeo,   0))
+
+! 2) normalization
+Length=SQRT(DOT_PRODUCT(LXi,LXi))
+IF(Length.EQ.0.)THEN
+  print*,'AAARG'
+  STOP
+  LXi=(/0.,1./)
+ELSE
+  LXi=LXi/Length
+END IF
+
+!print*,'Lxi',Lxi
+
+! compute Leta vector
+! 1) the initial Leta vector is the combination of the two bounding vectors  which point in xi direction 
+!    to get the 1D distances of each point via scalar product, we have to right-rotate the vector 
+Leta=(BezierControlPoints2D(:,NGeo,   0)-BezierControlPoints2D(:,0,   0))+&
+     (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,0,NGeo))
+! 2) normalization
+Length=SQRT(DOT_PRODUCT(Leta,Leta))
+IF(Length.EQ.0)THEN
+  LXi=(/1.,0./)
+  print*,'BBBBRG'
+  STOP
+ELSE
+  Leta=Leta/Length
+END IF
+!print*,'leta',Leta
+doPro=DOT_PRODUCT(Lxi,Leta)
+!IF(doPro.LT.0) Lxi=-Lxi
+print*,'doPro',doPro
+
+! HERE some fixes for the line vectors
+!IF(ABS(doPro).GT.0.5)THEN
+!  MBar=0.5*(Lxi+Leta)
+!  dCorr=0.5*SQRT(3.)
+!  IF(doPro.GT.0.)THEN
+!    ! Lxi
+!    Lxi(1)= 0.5*Mbar(2) + dCorr*Mbar(1)
+!    Lxi(2)=-0.5*Mbar(1) + dCorr*Mbar(2)
+!    ! Leta
+!    Leta(1)=-0.5*Mbar(2) + dCorr*Mbar(1)
+!    Leta(2)= 0.5*Mbar(1) + dCorr*Mbar(2)
+!  ELSE
+!    ! Lxi
+!    Lxi(1)=-0.5*Mbar(2) + dCorr*Mbar(1)
+!    Lxi(2)= 0.5*Mbar(1) + dCorr*Mbar(2)
+!    ! Leta
+!    Leta(1)= 0.5*Mbar(2) + dCorr*Mbar(1)
+!    Leta(2)=-0.5*Mbar(1) + dCorr*Mbar(2)
+!  END IF
+!END IF
+
+! 3) rotate  both vectors by -90 degree
+LineNormVec(1,1) =-LXi (2)
+LineNormVec(2,1) = LXi (1)
+LineNormVec(1,2) = Leta(2)
+LineNormVec(2,2) =-Leta(2)
+print*,'doPro2',DOT_PRODUCT(LineNormVec(:,1),LineNormVec(:,2))
+!print*,'linenormvec1',LineNormVec(:,1)
+!print*,'linenormvec2',LineNormVec(:,2)
+
+
+END SUBROUTINE calcLineNormVec3
 
 END MODULE MOD_Particle_Intersection
