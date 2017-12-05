@@ -149,12 +149,27 @@ gnu_tracking:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
 
+gnu_tracing_cylinder:
+  stage: reggie_tracking_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
+
+
 intel_tracking:
   stage: reggie_tracking_nightly
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+
+intel_tracing_cylinder:
+  stage: reggie_tracking_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_chemistry_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
