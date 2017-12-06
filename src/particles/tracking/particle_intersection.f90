@@ -1219,9 +1219,9 @@ n2=CROSSNORM(PartTrajectory,n1)
 DO q=0,NGeo
   DO p=0,NGeo
     ! n2 is perpendicular to x-axis => gives distance to new x-axis
-    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n2) 
+    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n2) 
     ! n1 is perpendicular to y-axis => gives distance to new y-axis
-    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n1) 
+    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n1) 
   END DO
 END DO
 
