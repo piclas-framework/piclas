@@ -325,7 +325,7 @@ SUBROUTINE ComputePlanarCurvedIntersection(isHit                       &
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,MyRank
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,MyRank,CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,SideSlabNormals
@@ -435,11 +435,13 @@ ELSE
   n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
 END IF
 
-n1=n1/SQRT(DOT_PRODUCT(n1,n1))
-n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
-       , PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) &
-       , PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
-n2=n2/SQRT(DOT_PRODUCT(n2,n2))
+n1=UNITVECTOR(n1)
+!n1=n1/SQRT(DOT_PRODUCT(n1,n1))
+n2=CROSSNORM(PartTrajectory,n1)
+!n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
+!       , PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) &
+!       , PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
+!n2=n2/SQRT(DOT_PRODUCT(n2,n2))
 
 DO q=0,NGeo
   DO p=0,NGeo
@@ -1108,7 +1110,7 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars,               ONLY:NGeo,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
@@ -1203,18 +1205,23 @@ IF(ALMOSTZERO(PartFaceAngle*180/ACOS(-1.)))THEN
   n1=n1! +epsilontol
 END IF
 
-n1=n1/SQRT(DOT_PRODUCT(n1,n1))
-n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
-       , PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) &
-       , PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
-n2=n2/SQRT(DOT_PRODUCT(n2,n2))
+!n1=n1/SQRT(DOT_PRODUCT(n1,n1))
+!n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
+!       , PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) &
+!       , PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
+!n2=n2/SQRT(DOT_PRODUCT(n2,n2))
+n1=UNITVECTOR(n1)
+n2=CROSSNORM(PartTrajectory,n1)
 !PartTrajectory = PartTrajectoryOrig !set back for preventing angles > 90 deg (0.5pi+eps)
 
-! Nishita does it different: plane 1 with n1 becomes y-axis and plane 2 with n2 becomes the x-axis
+! projection like Nishita
+! plane 1 with n1 becomes y-axis and plane 2 with n2 becomes the x-axis
 DO q=0,NGeo
   DO p=0,NGeo
-    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n1)
-    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n2)
+    ! n2 is perpendicular to x-axis => gives distance to new x-axis
+    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n2) 
+    ! n1 is perpendicular to y-axis => gives distance to new y-axis
+    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n1) 
   END DO
 END DO
 
@@ -1568,7 +1575,7 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
   SELECT CASE(ClipMode) 
   CASE(-1)
     ! no intersection possible
-    EXIT
+    RETURN
   CASE(1)
     ! LineNormVec is only computed, if a Xi and Eta Clip is performed. 
     ! we compute LineNormVecs only until one direction is converged, than we keep the vector to report the correct 
@@ -1606,7 +1613,7 @@ DO WHILE(iClipIter.LE.BezierClipMaxIter)
   CASE(5)
     ! validate found intersection
     CALL ComputeBezierIntersectionPoint(nXiClip,nEtaClip,PartID,SideID,nInterSections,PartTrajectory,lengthPartTrajectory) 
-    EXIT ! leave, because convergence
+    RETURN ! leave, because convergence
   CASE DEFAULT
 
     CALL abort(&
@@ -2125,11 +2132,13 @@ Smin=1.5
 Smax=-1.5
 DO l=0,NGeo-1
   ! 1.) check traverse line UPPER/LOWER
+  ! upper line, max values
   IF(minmax(2,l)*minmax(2,l+1).LE.0.)THEN
     m    = (minmax(2,l+1)-minmax(2,l))/DeltaXi_NGeo
     tmp  = Xi_NGeo(l)-minmax(2,l)/m
     Smin = MIN(tmp,Smin)
   END IF
+  ! lower line, min values
   IF(minmax(1,l)*minmax(1,l+1).LE.0.)THEN
     m    = (minmax(1,l+1)-minmax(1,l))/DeltaXi_NGeo
     tmp  = Xi_NGeo(l)-minmax(1,l)/m
@@ -2195,8 +2204,8 @@ END IF
 ! has to be increased slightly
 IF(iter.EQ.0)THEN
   print*,'initia shrink', smin,smax
-  IF(Smin.EQ.1.5) SMin=-BezierClipHit ! BezierClipHit=1+BezierClipTolerance
-  IF(Smax.EQ.-1.5)SMax=BezierClipHit
+  IF(Smin.EQ.1.5) SMin=-1. !BezierClipHit ! BezierClipHit=1+BezierClipTolerance
+  IF(Smax.EQ.-1.5)SMax=1.  !BezierClipHit
 END IF
 
 END SUBROUTINE calcSminSmax
@@ -2943,11 +2952,11 @@ DO l=0,NGeo
 END DO ! l
 dmin=MINVAL(minmax(1,:))
 dmax=MAXVAL(minmax(2,:))
-print*,'minval',minmax(1,:)
-print*,'maxval',minmax(2,:)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
+     IPWRITE(UNIT_stdOut,*) ' minval-xi',minmax(1,:)
+     IPWRITE(UNIT_stdOut,*) ' maxval-xi',minmax(2,:)
      IPWRITE(UNIT_stdout,*) ' dmax-dmin-xi ',(dmax-dmin)
      IPWRITE(UNIT_stdout,*) ' dmax,dmin-xi ',dmax,dmin
    END IF
@@ -2979,7 +2988,7 @@ END IF
 !             or split (if (XiMax-XiMin).GT.BezierSplitLimit) in Xi direction 
 
 ! calc Smin and Smax and check boundaries
-CALL CalcSminSmax(minmax,XiMin,XiMax,nXiClip,iPart)
+CALL CalcSminSmax2(minmax,XiMin,XiMax,nXiClip,iPart)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
@@ -3424,11 +3433,11 @@ DO l=0,NGeo
 END DO ! l
 dmin=MINVAL(minmax(1,:))
 dmax=MAXVAL(minmax(2,:))
-print*,'minvaleta',minmax(1,:)
-print*,'minvaleta',minmax(2,:)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
+     IPWRITE(UNIT_stdOut,*) ' minval-eta',minmax(1,:)
+     IPWRITE(UNIT_stdOut,*) ' maxval-eta',minmax(2,:)
      IPWRITE(UNIT_stdout,*) ' dmax-dmin-eta ',(dmax-dmin)
      IPWRITE(UNIT_stdout,*) ' dmax,dmin-eta ',dmax,dmin
    END IF
@@ -3460,7 +3469,7 @@ END IF
 !             or split (if (EtaMax-EtaMin).GT.BezierSplitLimit) in Eta direction 
 
 ! calc Smin and Smax and check boundaries
-CALL CalcSminSmax(minmax,Etamin,Etamax,nEtaClip,iPart)
+CALL CalcSminSmax2(minmax,Etamin,Etamax,nEtaClip,iPart)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
@@ -3892,7 +3901,7 @@ REAL,INTENT(INOUT)                   :: LineNormVec(1:2,1:2)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: Length,doPro,dCorr
-REAL,DIMENSION(2)                    :: LXi, Leta,Mbar
+REAL,DIMENSION(2)                    :: LXi, Leta,Mbar,Mbar2
 !================================================================================================================================
 
 ! compute Lxi vector 
@@ -3900,6 +3909,11 @@ REAL,DIMENSION(2)                    :: LXi, Leta,Mbar
 !     to get the 1D distances of each point via scalar product, we have to right-rotate the vector 
 LXi=(BezierControlPoints2D(:,   0,NGeo)-BezierControlPoints2D(:,   0,   0))+&
     (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,NGeo,   0))
+
+Mbar =(BezierControlPoints2D(:,   0,NGeo)-BezierControlPoints2D(:,   0,   0))
+MBar2=(BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,NGeo,   0))
+!print*,'DoProXi',DOT_PRODUCT(MBar,MBar2)
+
 
 ! 2) normalization
 Length=SQRT(DOT_PRODUCT(LXi,LXi))
@@ -3918,6 +3932,12 @@ END IF
 !    to get the 1D distances of each point via scalar product, we have to right-rotate the vector 
 Leta=(BezierControlPoints2D(:,NGeo,   0)-BezierControlPoints2D(:,0,   0))+&
      (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,0,NGeo))
+
+
+Mbar =(BezierControlPoints2D(:,Ngeo,   0)-BezierControlPoints2D(:,   0,   0))
+MBar2=(BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,   0,NGeo))
+!print*,'DoProEta',DOT_PRODUCT(MBar,MBar2)
+
 ! 2) normalization
 Length=SQRT(DOT_PRODUCT(Leta,Leta))
 IF(Length.EQ.0)THEN
@@ -3930,7 +3950,7 @@ END IF
 !print*,'leta',Leta
 doPro=DOT_PRODUCT(Lxi,Leta)
 !IF(doPro.LT.0) Lxi=-Lxi
-print*,'doPro',doPro
+!print*,'doPro',doPro
 
 ! HERE some fixes for the line vectors
 !IF(ABS(doPro).GT.0.5)THEN
@@ -3956,13 +3976,105 @@ print*,'doPro',doPro
 ! 3) rotate  both vectors by -90 degree
 LineNormVec(1,1) =-LXi (2)
 LineNormVec(2,1) = LXi (1)
-LineNormVec(1,2) = Leta(2)
-LineNormVec(2,2) =-Leta(2)
-print*,'doPro2',DOT_PRODUCT(LineNormVec(:,1),LineNormVec(:,2))
+LineNormVec(1,2) =-Leta(2) ! stephen meint minus1
+LineNormVec(2,2) = Leta(1)
 !print*,'linenormvec1',LineNormVec(:,1)
 !print*,'linenormvec2',LineNormVec(:,2)
 
 
 END SUBROUTINE calcLineNormVec3
+
+
+SUBROUTINE CalcSminSmax2(minmax,Smin,Smax,iter,PartID)
+!================================================================================================================================
+! find upper and lower intersection with convex hull (or no intersection)
+! find the largest and smallest roots of the convex hull, pre-sorted values minmax(:,:) are required
+! % convex-hull check by
+! 1) check upper line for an intersection with x-axis
+! 2) check lower line for an intersection with x-axis
+! 3) check if both ends have a sign change
+!================================================================================================================================
+USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit
+#ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:UNIT_stdOut,MyRank
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: minmax(1:2,0:NGeo)
+INTEGER,INTENT(IN)                   :: iter
+INTEGER,INTENT(IN)                   :: PartID
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                     :: Smin,Smax
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: tmp,m
+INTEGER                              :: p,q
+!================================================================================================================================
+
+Smin=1.5
+Smax=-1.5
+
+! check upper/lower line for an intersection with the x-axis
+DO p=0,NGeo
+  DO q=0,NGeo
+    IF(p.EQ.q) CYCLE
+    ! 1) check for upper line
+    IF(minmax(2,p)*minmax(2,q).LE.0.)THEN
+      m=(minmax(2,q)-minmax(2,p))/(Xi_NGeo(q)-Xi_NGeo(p));
+      IF(m.LT.0.)THEN ! move right boundary
+        tmp=Xi_NGeo(q)-minmax(2,q)/m;
+        smax=MAX(smax,tmp);
+      END IF
+      IF(m.GT.0.)THEN ! move left boundary
+        tmp=Xi_NGeo(q)-minmax(2,q)/m;
+        smin=MIN(smin,tmp);
+      END IF
+    END IF
+    ! 2) check for lower line
+    IF(minmax(1,p)*minmax(1,q).LE.0.)THEN
+      m=(minmax(1,q)-minmax(1,p))/(Xi_NGeo(q)-Xi_NGeo(p));
+      IF(m.GT.0.)THEN ! move right boundary
+        tmp=Xi_NGeo(q)-minmax(1,p)/m;
+        smax=MAX(smax,tmp);
+      END IF
+      IF(m.LT.0.)THEN ! move right boundary
+        tmp=Xi_NGeo(q)-minmax(1,p)/m;
+        smin=MIN(smin,tmp);
+      END IF
+    END IF        
+  END DO ! p=0,PP_N
+END DO ! q=0,PP_N
+
+! 3) check left and right boundary
+IF(minmax(1,   0)*minmax(2,   0).LT.0.) smin=-1.
+IF(minmax(1,NGeo)*minmax(2,NGeo).LT.0.) smax= 1.
+
+! adjust Smin and Smax to increase the current range
+!! adapted from: 1997, Campagna, Ray tracing of spline surfaces
+! modification. initial method works with smax=smax+(smax-smax,0)*eps*f
+IF(Smax.GT.-1.5)THEN
+  Smax=MIN(Smax+20.*BezierClipTolerance,1.0)
+  !Smax=MIN(Smax+100.*BezierClipTolerance,BezierClipHit)
+END IF
+IF(Smin.LT.1.5)THEN
+  Smin=MAX(Smin-20.*BezierClipTolerance,-1.0)
+  !Smin=MAX(Smin-100.*BezierClipTolerance,-BezierClipHit)
+END IF
+
+! in first iteration direction
+! due to tolerance issues in first clip, it is not allowed to diverge 
+! example: particle intersects close to the edge,corner, the NEXT patch
+! has to be increased slightly
+IF(iter.EQ.0)THEN
+  IF(Smin.EQ.1.5) SMin=-1. !BezierClipHit ! BezierClipHit=1+BezierClipTolerance
+  IF(Smax.EQ.-1.5)SMax=1.  !BezierClipHit
+END IF
+
+END SUBROUTINE calcSminSmax2
 
 END MODULE MOD_Particle_Intersection

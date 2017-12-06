@@ -5062,7 +5062,6 @@ DO iElem=1,nElems
 END DO ! iElem=1,nElems
 
 SWRITE(UNIT_stdOut,'(A)')' Done.'
-READ*
 
 END SUBROUTINE TracingElemSanity
 
