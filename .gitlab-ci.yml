@@ -108,6 +108,14 @@ gnu_chemistry_DSMC:
     - echo "cannot perform this test because the parameter.ini file for the second example is missing -> get it from wladimir"
     #- module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_checkin # maybe move this to nightly and the nightly test to weekly? -> if it takes too long
 
+
+gnu_PIC_maxwell_implicitBC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC/maxwell 
+
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
 intel_PIC_gyrotron_variable_Bz:
@@ -138,6 +146,13 @@ intel_chemistry_DSMC:
   script:
     - echo "cannot perform this test because the parameter.ini file for the second example is missing -> get it from wladimir"
     #- module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_checkin # maybe move this to nightly and the nightly test to weekly? -> if it takes too long
+
+intel_PIC_maxwell_implicitBC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC/maxwell
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
