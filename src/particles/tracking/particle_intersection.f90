@@ -4039,11 +4039,11 @@ DO p=0,NGeo
     IF(minmax(1,p)*minmax(1,q).LE.0.)THEN
       m=(minmax(1,q)-minmax(1,p))/(Xi_NGeo(q)-Xi_NGeo(p));
       IF(m.GT.0.)THEN ! move right boundary
-        tmp=Xi_NGeo(q)-minmax(1,p)/m;
+        tmp=Xi_NGeo(q)-minmax(1,q)/m;
         smax=MAX(smax,tmp);
       END IF
       IF(m.LT.0.)THEN ! move right boundary
-        tmp=Xi_NGeo(q)-minmax(1,p)/m;
+        tmp=Xi_NGeo(q)-minmax(1,q)/m;
         smin=MIN(smin,tmp);
       END IF
     END IF        
