@@ -114,7 +114,7 @@ gnu_PIC_maxwell_implicitBC:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC/maxwell 
+    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
@@ -152,7 +152,7 @@ intel_PIC_maxwell_implicitBC:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC/maxwell
+    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
