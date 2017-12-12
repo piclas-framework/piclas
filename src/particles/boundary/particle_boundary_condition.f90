@@ -531,7 +531,7 @@ USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ
-USE MOD_LinearSolver_Vars,      ONLY:R_PartXK
+USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
@@ -778,6 +778,9 @@ IF(iStage.GT.0)THEN
       DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
     END DO ! iCounter=1,iStage-2
     PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
+    ! rotate PartXK
+    PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
+    PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
 #if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ELSE
     ! explicit particle
