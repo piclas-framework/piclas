@@ -5,8 +5,8 @@ stages:
   - reggie_feature_checkin
   - reggie_chemistry_nightly
   - reggie_tracking_nightly
-  - reggie_nightly_build_all
   - reggie_nightly
+  - reggie_nightly_build_all
   - reggie_weekly
 
 cache:
@@ -190,25 +190,6 @@ intel_chemistry:
   script:
     - echo "cannot perform this test because the parameter.ini file for the second example is missing"
     #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/chemistry_DSMC_nightly ; fi
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_nightly_build_all": Build and run
-#                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_build_all:
-  stage: reggie_nightly_build_all
-  tags:
-    - withmodules
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
-      
-
-intel_build_all:
-  stage: reggie_nightly_build_all
-  tags:
-    - withmodules
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
 
 
 
@@ -465,6 +446,28 @@ intel_code_analyze:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/code_analyze/ ; fi
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_nightly_build_all": Build and run
+#                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu_build_all:
+  stage: reggie_nightly_build_all
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+      
+
+intel_build_all:
+  stage: reggie_nightly_build_all
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+
+
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
