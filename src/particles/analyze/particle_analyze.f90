@@ -1343,10 +1343,11 @@ SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Vars,              ONLY : BC
 USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PDM, nSpecies, KeepWallParticles
 USE MOD_Particle_Analyze_Vars
 USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo!, DSMC
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
@@ -1361,7 +1362,7 @@ INTEGER(KIND=8), INTENT(OUT)    :: WallNumSpec(nSpecies),WallNumSpec_SurfDist(nS
 REAL           , INTENT(OUT)    :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i, iSpec, iSurfSide, p, q
+INTEGER                         :: i, iSpec, iSurfSide, p, q, SideID, PartBoundID
 REAL                            :: SurfPart
 REAL                            :: Coverage(nSpecies)
 #ifdef MPI
@@ -1376,20 +1377,23 @@ WallNumSpec = 0
 WallNumSpec_SurfDist = 0 
 SurfPart = 0.
 Coverage(:) = 0.
+WallCoverage(:) = 0.
 WallNumSpec_tmp = 0.
 SubWallNumSpec = 0.
   
 IF(SurfMesh%SurfOnProc)THEN
   DO iSpec=1,nSpecies
   DO iSurfSide=1,SurfMesh%nSides
+    SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+    PartboundID = PartBound%MapToPartBC(BC(SideID))
+    IF (PartBound%SolidCatalytic(PartboundID)) THEN
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
         Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)
         IF ((.NOT.KeepWallParticles) .AND. CalcSurfNumSpec) THEN
-!           SurfPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
           SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-!           WallNumSpec(iSpec) = WallNumSpec(iSpec) + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-!               * SurfPart/Species(iSpec)%MacroParticleFactor)
+!          WallNumSpec(iSpec) = WallNumSpec(iSpec) + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+!              * SurfPart/Species(iSpec)%MacroParticleFactor)
           ! calculate number of adsorbates for each species
           adsorbates = 0
           DO Coord = 1,3
@@ -1413,13 +1417,12 @@ IF(SurfMesh%SurfOnProc)THEN
         END IF
       END DO
     END DO
+    END IF
   END DO
   END DO
   IF (CalcSurfCoverage) THEN
-  WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
+    WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
   END IF
-ELSE
-  WallCoverage(:) = 0.
 END IF
   
 #ifdef MPI
@@ -1492,6 +1495,7 @@ REAL                            :: AC(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
 
+Accomodation(:) = 0.
 IF(SurfMesh%SurfOnProc)THEN
   IF (DSMC%ReservoirRateStatistic) THEN
     DO iSpec = 1,nSpecies
@@ -1510,8 +1514,6 @@ IF(SurfMesh%SurfOnProc)THEN
       END IF
     END DO
   END IF
-ELSE
-  Accomodation(:) = 0.
 END IF
 
 #ifdef MPI
