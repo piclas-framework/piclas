@@ -71,6 +71,7 @@ INTEGER                               :: NbrOfSFdepoFixLinks               !Numb
 INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:3 (2 fixes are linked with each other!)
                                                                            !             (:,3 is fraction of 180 deg)
 INTEGER                               :: NbrOfSFdepoLayers                 !Number of const. source layer for sf-depo at planar BCs
+LOGICAL                               :: PrintSFDepoWarnings               ! flag to print the warnings
 REAL    , ALLOCATABLE                 :: SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
 LOGICAL , ALLOCATABLE                 :: SFdepoLayersUseFixBounds(:)       !use alls planes of SFdepoFixes as additional bounds?
