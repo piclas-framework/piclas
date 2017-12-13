@@ -19,3 +19,4 @@ CMakeCache.txt
 share/*
 CMakeFiles/
 regressioncheck/reggie/*
+tmp*/
