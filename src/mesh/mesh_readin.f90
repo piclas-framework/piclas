@@ -182,6 +182,7 @@ USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 #endif
 USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
+USE MOD_IO_HDF5,            ONLY: AddToElemData,ElementOut
 #ifdef MPI
 USE MOD_io_hdf5
 USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,ParticleMPIWeight,WeightSum,TargetWeight,DoLoadBalance
@@ -735,8 +736,13 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
 CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
 #endif 
-SDEALLOCATE(nPartsPerElem)
-ALLOCATE(nPartsPerElem(1:nElems))
+IF(.NOT.ALLOCATED(nPartsPerElem))THEN
+  ALLOCATE(nPartsPerElem(1:nElems))
+  CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
+ELSE
+  SDEALLOCATE(nPartsPerElem)
+  ALLOCATE(nPartsPerElem(1:nElems))
+END IF
 nPartsPerElem=0
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))

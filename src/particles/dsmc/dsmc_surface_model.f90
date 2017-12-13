@@ -3801,7 +3801,7 @@ SUBROUTINE AnalyzePartitionTemp()
 USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY:Adsorption
 USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, BoltzmannConst
-USE MOD_Particle_Mesh_Vars,     ONLY:IsBCElem
+USE MOD_Particle_Mesh_Vars,     ONLY:IsTracingBCElem
 USE MOD_Mesh_Vars,              ONLY:nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3822,7 +3822,7 @@ Source=0.0
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     ElemID = PEM%Element(i)
-    IF(.NOT.IsBCElem(ElemID))CYCLE
+    IF(.NOT.IsTracingBCElem(ElemID))CYCLE
     iSpec = PartSpecies(i)
     Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6)
     Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(i,4:6)**2

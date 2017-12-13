@@ -439,7 +439,9 @@ SDEALLOCATE(PartElemToElemAndSide)
 SDEALLOCATE(PartBCSideList)
 SDEALLOCATE(SidePeriodicType)
 SDEALLOCATE(SidePeriodicDisplacement)
-SDEALLOCATE(IsBCElem)
+SDEALLOCATE(IsTracingBCElem)
+SDEALLOCATE(TracingBCInnerSides)
+SDEALLOCATE(TracingBCTotalSides)
 SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
@@ -475,13 +477,14 @@ USE MOD_Preproc
 USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef,KeepWallParticles
 USE MOD_Particle_Mesh_Vars,          ONLY:Geo
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,TriaTracking
-USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsBCElem,ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsTracingBCElem,ElemRadius2NGeo
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,                   ONLY:ElemToSide,BC,ElemBaryNGeo
+USE MOD_Particle_MPI_Vars,           ONLY:SafetyFactor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -572,8 +575,9 @@ END DO ! nBGMElems
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   PDM%ParticleInside(iPart) = .FALSE.
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   RETURN
 END IF
 
@@ -587,7 +591,7 @@ DO iBGMElem=1,nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
-  IF(IsBCElem(ElemID))THEN
+  IF(IsTracingBCElem(ElemID))THEN
     CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,InElementCheck)
     IF(.NOT.InElementCheck) CYCLE
   END IF
@@ -691,8 +695,9 @@ END DO ! iBGMElem
 ! particle not found
 IF (.NOT.ParticleFound) THEN
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
 
@@ -713,7 +718,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
-USE MOD_Mesh_Vars,              ONLY: ElemBaryNGeo
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
+USE MOD_Particle_MPI_Vars,      ONLY:SafetyFactor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -779,8 +785,9 @@ END DO ! nBGMElems
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   PDM%ParticleInside(iPart) = .FALSE.
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   RETURN
 END IF
 
@@ -807,8 +814,9 @@ END DO ! iBGMElem
 ! particle not found
 IF (.NOT.ParticleFound) THEN
   IF(DoRelocate) CALL abort(&
-__STAMP__&
-, ' halo mesh to small. increase halo distance')
+  __STAMP__&
+  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+  RealInfoOpt=SafetyFactor)
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
@@ -3550,10 +3558,12 @@ SUBROUTINE GetBCElemMap()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_IO_HDF5,                            ONLY:AddToElemData,ElementOut
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo,nSides,NGeo,nBCSides,sJ,BC
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo,nSides,NGeo,nBCSides,sJ,BC,nElems
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems,nTotalBCElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsTracingBCElem,nTotalElems,nTotalBCElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:TracingBCInnerSides,TracingBCTotalSides
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,GEO
 USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
 USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
@@ -3576,7 +3586,14 @@ INTEGER                                  :: nLoop,iTest,nTest
 REAL                                     :: scaleJ, Distance ,maxScaleJ,dx,dy,dz
 LOGICAL                                  :: fullMesh, leave
 !===================================================================================================================================
-ALLOCATE(IsBCElem(nTotalElems))
+ALLOCATE(IsTracingBCElem(nTotalElems))
+IsTracingBCElem=.FALSE.
+IF(DoRefMapping)THEN
+  ALLOCATE(TracingBCInnerSides(nTotalElems))
+  TracingBCInnerSides=0
+  ALLOCATE(TracingBCTotalSides(nTotalElems))
+  TracingBCTotalSides=0
+END IF
 
 ! decide if element:  
 ! DoRefMapping=T
@@ -3586,15 +3603,14 @@ ALLOCATE(IsBCElem(nTotalElems))
 ! a) HAS own bc faces
 IF(DoRefMapping)THEN
   ! mark elements as bc element if they have a local-BC side
-  IsBCElem=.FALSE.
   nTotalBCElems=0
   DO iElem=1,nTotalElems
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       IF (SideID.LE.0) CYCLE
       IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
-        IF(.NOT.IsBCElem(iElem))THEN
-          IsBCElem(iElem)=.TRUE.
+        IF(.NOT.IsTracingBCElem(iElem))THEN
+          IsTracingBCElem(iElem)=.TRUE.
           nTotalBCElems=nTotalBCElems+1
         END IF ! count only single
       END IF
@@ -3640,7 +3656,7 @@ IF(DoRefMapping)THEN
       END DO ! iSide=1,nTotalSides
       IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
       ! set true, only required for elements without an own bc side
-      IsBCElem(iElem)=.TRUE.
+      IsTracingBCElem(iElem)=.TRUE.
       ! allocate complete side list
       ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
       ! 1) inner sides
@@ -3766,7 +3782,7 @@ IF(DoRefMapping)THEN
       END DO ! ilocSide=1,6
       IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
       ! set true, only required for elements without an own bc side
-      IsBCElem(iElem)=.TRUE.
+      IsTracingBCElem(iElem)=.TRUE.
       ! allocate complete side list
       ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
       ! 1) inner sides
@@ -3793,23 +3809,22 @@ IF(DoRefMapping)THEN
 ELSE ! .NOT.DoRefMapping
   ! tracing
   ! mark only elements with bc-side
-  IsBCElem=.FALSE.
   nTotalBCElems=0
   DO iElem=1,nTotalElems
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       IF (SideID.LE.0) CYCLE
       IF(SideID.LE.nBCSides)THEN ! non-halo elements
-        IF(.NOT.IsBCElem(iElem))THEN
-          IsBCElem(iElem)=.TRUE.
+        IF(.NOT.IsTracingBCElem(iElem))THEN
+          IsTracingBCElem(iElem)=.TRUE.
           nTotalBCElems=nTotalBCElems+1
         END IF ! count only single
       END IF
 #ifdef MPI
       IF(SideID.GT.nSides)THEN ! halo elements
         IF(BC(SideID).NE.0)THEN
-          IF(.NOT.IsBCElem(iElem))THEN
-            IsBCElem(iElem)=.TRUE.
+          IF(.NOT.IsTracingBCElem(iElem))THEN
+            IsTracingBCElem(iElem)=.TRUE.
             nTotalBCElems=nTotalBCElems+1
           END IF ! count only single
         END IF
@@ -3818,6 +3833,17 @@ ELSE ! .NOT.DoRefMapping
     END DO ! ilocSide
   END DO ! iElem
 END IF
+
+IF(DoRefMapping)THEN
+  DO iElem=1,nTotalElems
+    TracingBCInnerSides(iElem) = BCElem(iElem)%nInnerSides
+    TracingBCTotalSides(iElem) = BCElem(iElem)%lastSide
+  END DO ! iElem
+  CALL AddToElemData(ElementOut,'TracingBCInnerSides',IntArray=TracingBCInnerSides(1:nElems))
+  CALL AddToElemData(ElementOut,'TracingBCTotalSides',IntArray=TracingBCTotalSides(1:nElems))
+END IF
+
+CALL AddToElemData(ElementOut,'IsTracingBCElem'    ,LogArray=IsTracingBCElem(    1:nElems))
 
 ! finally, build epsonecell per element
 IF(DoRefMapping)THEN
@@ -3837,6 +3863,7 @@ END DO ! iElem=1,nLoop
 DO iElem=PP_nElems+1,nLoop
   epsOneCell(iElem)=1.0+SQRT(maxScaleJ*RefMappingEps)
 END DO ! iElem=1,nLoop
+CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
 
 END SUBROUTINE GetBCElemMap
 
@@ -3852,7 +3879,7 @@ USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,nGlobalElems
 USE MOD_Particle_Surfaces_Vars,             ONLY:SideType
-USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsTracingBCElem,nTotalElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:nPartSides
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalBCSides
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
@@ -3906,7 +3933,7 @@ DO iElem=1,nTotalElems
     ELSE
       nLinearElems=nLinearElems+1
     END IF
-    IF(IsBCElem(iElem))THEN
+    IF(IsTracingBCElem(iElem))THEN
       nBCElems=nBCElems+1
     END IF ! count only single
 #ifdef MPI
@@ -3916,7 +3943,7 @@ DO iElem=1,nTotalElems
     ELSE
       nLinearElemsHalo=nLinearElemsHalo+1
     END IF
-    IF(IsBCElem(iElem))THEN
+    IF(IsTracingBCElem(iElem))THEN
       nBCElemsHalo=nBCElemsHalo+1
     END IF ! count only single
 #endif /*MPI*/
@@ -4921,7 +4948,7 @@ SUBROUTINE GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:IsBCElem,ElemRadiusNGeo,BCElem,PartBCSideList,nTotalElems
+USE MOD_Particle_Mesh_Vars,     ONLY:IsTracingBCElem,ElemRadiusNGeo,BCElem,PartBCSideList,nTotalElems
 USE MOD_Utils,                  ONLY:InsertionSort
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -4940,7 +4967,7 @@ REAL                     :: Origin(1:3)
 
 ! loop over all  elements
 DO iElem=1,nTotalElems
-  IF(.NOT.IsBCElem(iElem)) CYCLE
+  IF(.NOT.IsTracingBCElem(iElem)) CYCLE
   ALLOCATE( BCElem(iElem)%ElemToSideDistance(BCElem(iElem)%lastSide) )
   BCElem(iElem)%ElemToSideDistance(BCElem(iElem)%lastSide)=0.
   Origin(1:3) = ElemBaryNGeo(1:3,iElem)

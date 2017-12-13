@@ -827,7 +827,7 @@ USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance,CartesianPeriodic
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsOneCell
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsTracingBCElem,BCElem,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemRadius2NGeo
 USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
@@ -885,7 +885,7 @@ DO iPart=1,PDM%ParticleVecLength
     nTracks=nTracks+1
     ! sanity check
     PartIsDone=.FALSE.
-    IF(IsBCElem(ElemID))THEN
+    IF(IsTracingBCElem(ElemID))THEN
       lengthPartTrajectory0=0.
       !IF(GEO%nPeriodicVectors.GT.0.)THEN
       !  lengthPartTrajectory0=BCELEM(ElemID)%ElemToSideDistance(BCElem(ElemID)%lastSide)
@@ -938,7 +938,7 @@ DO iPart=1,PDM%ParticleVecLength
         ! call here function for mapping of partpos and lastpartpos
         LastPos=PartState(iPart,1:3)
         CALL PeriodicMovement(iPart)
-        IF(.NOT.IsBCElem(ElemID))THEN
+        IF(.NOT.IsTracingBCElem(ElemID))THEN
           DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
@@ -1061,7 +1061,7 @@ DO iPart=1,PDM%ParticleVecLength
       TestElem=PEM%Element(iPart)
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem)) THEN
         PartIsDone=.FALSE.
-        IF(.NOT.IsBCElem(TestElem))THEN
+        IF(.NOT.IsTracingBCElem(TestElem))THEN
           ! ausgabe
           IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with internal element '
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', PartPosRef(1:3,iPart)
