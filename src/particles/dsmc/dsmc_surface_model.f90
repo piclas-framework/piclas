@@ -36,13 +36,14 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 !===================================================================================================================================
 USE MOD_Particle_Vars,          ONLY : WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
 USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption, SurfDistInfo
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall, PartBound
 USE MOD_TImeDisc_Vars,          ONLY : tend,time
+USE MOD_Mesh_Vars,              ONLY : BC
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration 
-INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
+INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites, SideID, PartboundID
 REAL                             :: maxPart
 !===================================================================================================================================
 
@@ -59,6 +60,9 @@ IF (DSMC%WallModel.GT.0) THEN
       IF (DSMC%ReservoirRateStatistic) Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = 0
 #endif
       DO iSurfSide = 1,SurfMesh%nSides
+        SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+        PartboundID = PartBound%MapToPartBC(BC(SideID))
+        IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
 #if (PP_TimeDiscMethod==42)
@@ -479,6 +483,18 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Accomodation(iSpec,subsurfxi,subsurfeta) &
                                                                   + trapping_prob
   END IF
+  ! adaptive accomodation
+  !IF (Adaptive_ACC_FLAG) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF(RanNum.GE.PartBound%MomentumACC(PartBoundID)) THEN
+      outSpec(1) = iSpec
+      outSpec(2) = 0
+      AdsorptionEnthalpie = 0.
+      adsorption_case = -1
+      RETURN
+    END IF
+  !END IF
+
   !! if no trapping return and perform elastic reflection
   !CALL RANDOM_NUMBER(RanNum)
   !IF (RanNum.GT.trapping_prob) THEN
@@ -939,6 +955,7 @@ ALLOCATE( P_react_forward(1:Adsorption%nDisPropReactions),&
 DO SurfSideID = 1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
+  IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment part
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
@@ -2498,8 +2515,12 @@ __STAMP__&
 END DO ! iProc
 
 DO iProc=1,SurfCOMM%nMPINeighbors
-ALLOCATE(SurfDistSendBuf(iProc)%content_int(1:SUM(SurfExchange%NbrOfPos(iProc)%nPosSend(:))))
-ALLOCATE(SurfDistRecvBuf(iProc)%content_int(1:SUM(SurfExchange%NbrOfPos(iProc)%nPosRecv(:))))
+IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
+  ALLOCATE(SurfDistSendBuf(iProc)%content_int(1:SUM(SurfExchange%NbrOfPos(iProc)%nPosSend(:))))
+END IF
+IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
+  ALLOCATE(SurfDistRecvBuf(iProc)%content_int(1:SUM(SurfExchange%NbrOfPos(iProc)%nPosRecv(:))))
+END IF
 END DO
 
 END SUBROUTINE ExchangeSurfDistSize
@@ -2516,9 +2537,10 @@ SUBROUTINE ExchangeSurfDistInfo()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,PartBound
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfDistSendBuf,SurfDistRecvBuf,SurfExchange
-USE MOD_DSMC_Vars                   ,ONLY:SurfDistInfo
+USE MOD_DSMC_Vars                   ,ONLY:SurfDistInfo, Adsorption
+USE MOD_Mesh_Vars                   ,ONLY : BC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2527,7 +2549,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: MessageSize, iSurfSide, SurfSideID, iSurf
+INTEGER                         :: MessageSize, iSurfSide, SurfSideID, iSurf, SideID, PartboundID
 INTEGER                         :: iPos,p,q,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 INTEGER                         :: iCoord,nSites,nSitesRemain,iSite,iInteratom,UsedSiteMapPos,iSpec,xpos,ypos
@@ -2633,6 +2655,9 @@ END DO ! iProc
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
 DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
+SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+PartboundID = PartBound%MapToPartBC(BC(SideID))
+IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
   DO q=1,nSurfSample
     DO p=1,nSurfSample
       SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(:,:,:) = 0
