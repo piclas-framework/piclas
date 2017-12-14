@@ -693,7 +693,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
       PEM%Element(iPart)=ElemID
-      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
+      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.FALSE.)
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         !WRITE(UNIT_stdOut,'(20(=))')
@@ -840,6 +840,7 @@ USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_TimeDisc_Vars,           ONLY:iStage,RK_inflow
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1127,7 +1128,7 @@ __STAMP__ &
           ! false, reallocate particle
           IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element, relocating!! '
-            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
+            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', partposref(1:3,ipart)

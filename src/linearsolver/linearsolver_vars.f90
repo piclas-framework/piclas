@@ -56,6 +56,8 @@ LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
+                                                                                    ! disables Armijo rule and uses a fixed value
 REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122
 LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
                                                                                     ! and number of parts in Newton

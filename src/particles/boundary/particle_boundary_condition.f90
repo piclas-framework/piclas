@@ -778,11 +778,11 @@ IF(iStage.GT.0)THEN
       DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
     END DO ! iCounter=1,iStage-2
     PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
-    ! rotate PartXK
-    PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
-    PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
-    PartDeltaX(1:3,PartID)=MATMUL(RotationMat,PartDeltaX(1:3,PartID))
-    PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+    ! rotate PartXK do not roate...
+    !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
+    !PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
+    !PartDeltaX(1:3,PartID)=MATMUL(RotationMat,PartDeltaX(1:3,PartID))
+    !PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
 #if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ELSE
     ! explicit particle
