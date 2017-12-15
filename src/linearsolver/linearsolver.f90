@@ -48,6 +48,7 @@ USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Precond,              ONLY:InitPrecond
+USE MOD_TimeDisc_Vars,        ONLY:nRKStages
 #endif /*NOT HDG*/
 USE MOD_Predictor,            ONLY:InitPredictor
 ! IMPLICIT VARIABLE HANDLING
@@ -78,7 +79,10 @@ nDOFLine=PP_nVar*(PP_N+1)
 nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
+ALLOCATE(R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+R0=0.
 #endif /*NOT HDG*/
+
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ImplicitSource=0.
@@ -129,6 +133,9 @@ Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
+#ifndef PP_HDG
+ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
+#endif
 #ifdef PARTICLES
 ! allocate explicit particle source
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
@@ -268,9 +275,9 @@ SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
-USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
+USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter,R0
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
-USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
+USE MOD_LinearOperator,       ONLY:MatrixVector, VectorDotProduct,MatrixVectorSource
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -284,7 +291,6 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAl                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Q(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Tvec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -313,7 +319,7 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 ! compute  A*U^n
 CALL VectorDotProduct(R0,R0,Norm_R0)
 Norm_R0=SQRT(Norm_R0)
@@ -638,8 +644,8 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
-USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,R0
+USE MOD_LinearOperator,       ONLY:MatrixVector,  VectorDotProduct,MatrixVectorSource
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -653,7 +659,6 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -693,7 +698,7 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 ! compute  A*U^n
 CALL VectorDotProduct(R0,R0,Norm_R0)
 
@@ -952,7 +957,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY: U
 USE MOD_LinearSolver_Vars,       ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource
+USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource,R0
 USE MOD_LinearOperator,          ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,     ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
@@ -968,7 +973,6 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1002,7 +1006,7 @@ chance=0
 DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   ! init and get first error norm
   ! Compute A*U^n
-  CALL MatrixVectorSource(t,Coeff,R0) ! coeff * DG_Operator(Un)
+  IF(chance.GT.0) CALL MatrixVectorSource(t,Coeff,R0) ! coeff * DG_Operator(Un)
   CALL VectorDotProduct(R0,R0,Norm_R0)
   alpha  = Norm_R0
   Norm_R0=SQRT(Norm_R0)
@@ -1125,7 +1129,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY: U
 USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource
-USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver
+USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver,R0
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nInnerIter
 USE MOD_LinearOperator,       ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
@@ -1140,7 +1144,6 @@ REAL,INTENT(IN),OPTIONAL :: relTolerance
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
 REAL                     :: W(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
 REAL                     :: Norm_R0,Resu,Temp,Bet
 REAL                     :: AbortCrit
@@ -1178,7 +1181,7 @@ nInnerIter=0
 Un=U 
 
 ! compute starting residual 
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 CALL VectorDotProduct(R0,R0,Norm_R0)
 Norm_R0=SQRT(Norm_R0)
 ! define relative abort criteria
@@ -1280,6 +1283,7 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_GMRES_P
 
+
 SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff,relTolerance)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with left and right preconditioners
@@ -1294,7 +1298,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,R0
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
@@ -1309,7 +1313,6 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1345,7 +1348,7 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 !P = R0
 R = R0
 CALL VectorDotProduct(R0,R0,Norm_R0)
@@ -1472,7 +1475,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,R0
 !USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
@@ -1488,7 +1491,6 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1523,7 +1525,7 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 !P = R0
 R = R0
 CALL VectorDotProduct(R0,R0,Norm_R0)
@@ -1642,7 +1644,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,ldim
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,ldim,R0
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
@@ -1657,7 +1659,6 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: deltaX(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,0:ldim)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,0:ldim)
-REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: sigma(0:ldim),tau(1:ldim,1:ldim)
 REAL                     :: phi(0:ldim),phis(0:ldim),phiss(0:ldim)
 INTEGER                  :: iterLinSolver,Restart
@@ -1687,7 +1688,7 @@ Restart=0
 nInnerIter = 0
 deltaX=0.0d0
 ! LinSolverRHS and X0 = U
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 
 ! compute  A*U^n
 CALL VectorDotProduct(R0,R0,Norm_R0)
@@ -1811,7 +1812,7 @@ SUBROUTINE FinalizeLinearSolver()
 ! Deallocate global variable U (solution) and Ut (dg time derivative).
 !===================================================================================================================================
 ! MODULES
-USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS
+USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS,R0
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 #ifdef PARTICLES
 USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
@@ -1832,6 +1833,7 @@ IMPLICIT NONE
 LinearSolverInitIsDone = .FALSE.
 SDEALLOCATE(ImplicitSource)
 SDEALLOCATE(LinSolverRHS)
+SDEALLOCATE(R0)
 CALL FinalizePredictor
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 #ifdef PARTICLES

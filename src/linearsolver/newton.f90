@@ -154,6 +154,9 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:FieldStage,R0
+USE MOD_LinearOperator,          ONLY: MatrixVectorSource
+USE MOD_Predictor,               ONLY:Predictor
 #else
 USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
@@ -261,6 +264,11 @@ END IF
 !END IF
 #endif /*PARTICLES*/
 
+#ifndef PP_HDG
+! compute R0
+CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+#endif
+
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
 Norm_R=Norm_R0
 Norm_Diff=HUGE(1.0)
@@ -270,6 +278,11 @@ IF(FullEisenstatWalker.GT.0)THEN
   etaMax=0.9999
   taut  =epsMach+eps2_FullNewton*Norm_R0
 END IF
+
+#ifndef PP_HDG
+! get predictor of u^s+1
+CALL Predictor(iStage,dt,FieldStage)
+#endif
 
 nFullNewtonIter=0
 IsConverged=.FALSE.
@@ -398,6 +411,8 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ! store old value of U
   Uold=U
 #ifndef PP_HDG
+  ! compute R0
+  IF(nFullNewtonIter.GT.1) CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
   CALL LinearSolver(tStage,coeff,relTolerance)
 #else
   IF(FullEisenstatWalker.GT.0) THEN

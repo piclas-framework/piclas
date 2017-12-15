@@ -1830,6 +1830,8 @@ USE MOD_DG_Vars,          ONLY:U,Ut
 USE MOD_DG,               ONLY:DGTimeDerivative_weakForm
 USE MOD_TimeDisc_Vars,    ONLY:dt,time
 USE MOD_LinearSolver,     ONLY : LinearSolver
+USE MOD_LinearOperator,   ONLY:MatrixVectorSource
+USE MOD_LinearSolver_vars,ONLY:R0
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -1926,6 +1928,7 @@ END IF
 ! b
 LinSolverRHS = U
 ImplicitSource=0.
+CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 CALL LinearSolver(tstage,coeff)
 CALL DivCleaningDamping()
 CALL UpdateNextFreePosition()
@@ -1962,8 +1965,9 @@ USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY: LinearSolver
+USE MOD_LinearOperator,          ONLY:MatrixVectorSource
 USE MOD_Predictor,               ONLY: Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY: ImplicitSource,LinSolverRHS
+USE MOD_LinearSolver_Vars,       ONLY: ImplicitSource,LinSolverRHS,R0
 USE MOD_Equation,                ONLY: DivCleaningDamping
 #ifdef maxwell
 USE MOD_Precond,                 ONLY: BuildPrecond
@@ -2139,8 +2143,10 @@ DO iStage=2,nRKStages
   DO iCounter = 1,iStage-1
     LinSolverRHS = LinSolverRHS + ESDIRK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
   END DO
+  ! compute R0
+  CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
   ! get predictor of u^s+1
-  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage)
+  CALL Predictor(iStage,dt,FieldStage)
 
   ImplicitSource=0.
   alpha = ESDIRK_a(iStage,iStage)*dt
@@ -2668,8 +2674,8 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo
-USE MOD_DG_Vars,                 ONLY:U
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
+USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
@@ -2743,11 +2749,6 @@ REAL               :: tstage
 REAL               :: alpha
 REAL               :: sgamma
 INTEGER            :: iElem,i,j,k
-#ifndef PP_HDG
-REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-#endif /*DG*/
 REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
 ! RK counter
@@ -2769,8 +2770,6 @@ LOGICAL            :: ishit
 ! caution hard coded
 IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 #endif /*maxwell*/
-Un          = U
-FieldSource = 0.
 #endif /*DG*/
 tRatio = 1.
 
@@ -2986,6 +2985,10 @@ END IF ! t.GE. DelayTime
 
 #ifndef PP_HDG
 IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+iStage=0
+CALL StorePredictor()
+! copy U to U^0
+Un = U
 #endif /*DG*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -3007,8 +3010,7 @@ DO iStage=2,nRKStages
   ! compute the f(u^s-1)
   ! compute the f(u^s-1)
   ! DG-solver, Maxwell's equations
-  FieldStage (:,:,:,:,:,iStage-1) = Ut
-  FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
+  FieldStage (:,:,:,:,:,iStage-1) = Ut + ImplicitSource
 #endif /*DG*/
 
   ! and particles
@@ -3142,14 +3144,14 @@ DO iStage=2,nRKStages
 
 #ifndef PP_HDG
   ! compute RHS for linear solver
-  LinSolverRHS=ESDIRK_a(iStage,iStage-1)*(FieldStage(:,:,:,:,:,iStage-1)+FieldSource(:,:,:,:,:,iStage-1))
+  LinSolverRHS=ESDIRK_a(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
   DO iCounter=1,iStage-2
-    LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
+    LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
   END DO ! iCoutner=1,iStage-2
   LinSolverRHS=Un+dt*LinSolverRHS
 
-  ! get predictor of u^s+1
-  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
+  ! get predictor of u^s+1 ! wrong position
+  ! CALL Predictor(iStage,dt,Un,FieldStage) ! sets new value for U_DG
 #endif /*DG*/
 
 #ifdef PARTICLES
