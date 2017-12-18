@@ -79,8 +79,7 @@ nDOFLine=PP_nVar*(PP_N+1)
 nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
-ALLOCATE(R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
-R0=0.
+Norm_R0=0.
 #endif /*NOT HDG*/
 
 
@@ -275,7 +274,7 @@ SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
-USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter,R0
+USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter,Norm_R0
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 USE MOD_LinearOperator,       ONLY:MatrixVector, VectorDotProduct,MatrixVectorSource
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
@@ -294,7 +293,8 @@ REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Q(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Tvec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Norm_R0,sigma,alpha,beta,Norm_R
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: sigma,alpha,beta,Norm_R
 REAL                     :: AbortCrit
 INTEGER                  :: iterLinSolver,Restart
 ! preconditioner
@@ -319,10 +319,10 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
-!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 ! compute  A*U^n
-CALL VectorDotProduct(R0,R0,Norm_R0)
-Norm_R0=SQRT(Norm_R0)
+!CALL VectorDotProduct(R0,R0,Norm_R0)
+!Norm_R0=SQRT(Norm_R0)
 
 ! Init
 P=R0
@@ -644,7 +644,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,R0
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,Norm_R0
 USE MOD_LinearOperator,       ONLY:MatrixVector,  VectorDotProduct,MatrixVectorSource
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
@@ -659,10 +659,11 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Norm_R0,Norm_R,Norm_T2
+REAL                     :: Norm_R,Norm_T2
 INTEGER                  :: iterLinSolver,Restart
 REAL                     :: alpha,sigma,omega,beta
 REAL                     :: AbortCrit
@@ -698,13 +699,14 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
-!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 ! compute  A*U^n
-CALL VectorDotProduct(R0,R0,Norm_R0)
+CALL VectorDotProduct(R0,R0,alpha)
 
+! Norm_R0 is already computed
 ! check this out
-alpha=Norm_R0
-Norm_R0=SQRT(Norm_R0)
+!alpha=Norm_R0
+!Norm_R0=SQRT(Norm_R0)
 
 P  = R0
 R  = R0
@@ -957,7 +959,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY: U
 USE MOD_LinearSolver_Vars,       ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource,R0
+USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource,Norm_R0
 USE MOD_LinearOperator,          ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,     ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
@@ -973,10 +975,11 @@ REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,   Norm_S
+REAL                     :: sigma,alpha,Norm_T2,omega,beta,Norm_R,   Norm_S
 REAL                     :: AbortCrit,AbortCrit2
 INTEGER                  :: chance
 ! preconditioner
@@ -1006,10 +1009,10 @@ chance=0
 DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   ! init and get first error norm
   ! Compute A*U^n
-  IF(chance.GT.0) CALL MatrixVectorSource(t,Coeff,R0) ! coeff * DG_Operator(Un)
-  CALL VectorDotProduct(R0,R0,Norm_R0)
+  CALL MatrixVectorSource(t,Coeff,R0) ! coeff * DG_Operator(Un)
+  CALL VectorDotProduct(R0,R0,alpha)
   alpha  = Norm_R0
-  Norm_R0=SQRT(Norm_R0)
+  IF(chance.GT.0) Norm_R0=SQRT(alpha)
   P=R0
   R=R0
   IF(PRESENT(relTolerance))THEN
@@ -1029,8 +1032,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
     CALL MatrixVector(t,coeff,Pt,V)
     CALL CPU_TIME(tend)
     tDG=tDG+tend-tStart
-    CALL VectorDotProduct(V,R0,sigma)
-
+    CALL VectorDotProduct(V,R0,sigma) 
 !    CALL VectorDotProduct(V,V,Norm_V) 
 !    Norm_V = SQRT(Norm_V)
 !    AbortCrit2 = epsTilde_LinearSolver*Norm_V*Norm_R0
@@ -1129,7 +1131,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY: U
 USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource
-USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver,R0
+USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver,Norm_R0
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nInnerIter
 USE MOD_LinearOperator,       ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
@@ -1144,8 +1146,9 @@ REAL,INTENT(IN),OPTIONAL :: relTolerance
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
 REAL                     :: W(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
-REAL                     :: Norm_R0,Resu,Temp,Bet
+REAL                     :: Resu,Temp,Bet,Norm_R
 REAL                     :: AbortCrit
 INTEGER                  :: Restart
 INTEGER                  :: m,nn,o
@@ -1181,10 +1184,10 @@ nInnerIter=0
 Un=U 
 
 ! compute starting residual 
-!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-CALL VectorDotProduct(R0,R0,Norm_R0)
-Norm_R0=SQRT(Norm_R0)
-! define relative abort criteria
+CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+CALL VectorDotProduct(R0,R0,Norm_R)
+Norm_R=SQRT(Norm_R) ! Norm_r is already computed
+! define relative abort criteria, Norm_R0 is computed outside
 IF(PRESENT(relTolerance))THEN
   AbortCrit = Norm_R0*relTolerance
 ELSE
@@ -1192,8 +1195,8 @@ ELSE
 END IF
 
 ! GMRES(m)  inner loop
-V(:,:,:,:,:,1)=R0/Norm_R0
-Gam(1)=Norm_R0
+V(:,:,:,:,:,1)=R0/Norm_R
+Gam(1)=Norm_R
 
 DO WHILE (Restart<nRestarts)
   DO m=1,nKDim
@@ -1298,7 +1301,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,R0
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,Norm_R0
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
@@ -1348,14 +1351,14 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
-!CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 !P = R0
 R = R0
-CALL VectorDotProduct(R0,R0,Norm_R0)
+!CALL VectorDotProduct(R0,R0,Norm_R0)
 IF(PRESENT(relTolerance))THEN
-  AbortCrit = SQRT(Norm_R0)*relTolerance
+  AbortCrit = (Norm_R0)*relTolerance
 ELSE
-  AbortCrit = SQRT(Norm_R0)*eps_LinearSolver
+  AbortCrit = (Norm_R0)*eps_LinearSolver
 END IF
 
 ! left precondtioning of residuum

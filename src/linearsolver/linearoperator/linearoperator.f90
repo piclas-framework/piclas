@@ -26,6 +26,10 @@ END INTERFACE
 INTERFACE VectorDotProduct
   MODULE PROCEDURE VectorDotProduct
 END INTERFACE
+
+INTERFACE EvalResidual
+  MODULE PROCEDURE EvalResidual
+END INTERFACE
 #endif /*NOT HDG*/
 
 #if defined(PARTICLES) && defined(IMPA)
@@ -40,7 +44,7 @@ END INTERFACE
 
 
 #ifndef PP_HDG
-PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
+PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL,EvalResidual
 #endif /*NOT HDG*/
 #if defined(PARTICLES) && defined(IMPA)
 PUBLIC:: PartVectorDotProduct,PartMatrixVector
@@ -173,6 +177,40 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE MatrixVectorSource
+
+
+SUBROUTINE EvalResidual(t,Coeff)
+!===================================================================================================================================
+! Compute Initial norm for linear solver by calling MatrixVectorSource and VectorDotProduct
+! Matrix A = I - Coeff*R
+! Attention: Vector x is always U 
+! Attention: Result y is always stored in Ut
+! Attention: Is only Required for the calculation of the residuum
+!            THEREFORE: coeff*DG_Operator(U) is the output pf this routine
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_LinearSolver_Vars, ONLY:Norm_R0
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: t,Coeff
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL             :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!===================================================================================================================================
+
+! y =  Coeff*Ut+source
+! Residual = b - A x0 
+!          = b - x0 + coeff*ut + coeff*Source^n+1
+CALL MatrixVectorSource(t,Coeff,Y)
+CALL VectorDotProduct(Y,Y,Norm_R0)
+Norm_R0=SQRT(Norm_R0)
+
+END SUBROUTINE EvalResidual
 
 
 SUBROUTINE VectorDotProduct(a,b,resu)

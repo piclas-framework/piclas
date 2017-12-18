@@ -17,7 +17,7 @@ REAL,ALLOCATABLE     :: ImplicitSource(:,:,:,:,:)                               
 REAL,ALLOCATABLE     :: LinSolverRHS  (:,:,:,:,:)                                   ! RHS for linear solver
 REAL,ALLOCATABLE     :: FieldStage(:,:,:,:,:,:)                                     ! FieldStage, don't no of used
 REAL,ALLOCATABLE     :: Upredict(:,:,:,:,:,:)                                       ! Upredictor, don't no of used
-REAL,ALLOCATABLE     :: R0(:,:,:,:,:)                                             ! r0 of linear solver
+REAL                 :: Norm_R0                                                     ! initial norm for linear solver
 REAL,ALLOCATABLE     :: Upast(:,:,:,:,:,:)                                          ! history of upast, required for predictor
 REAL,ALLOCATABLE     :: Mass(:,:,:,:,:)                                             ! mass matrix
 INTEGER              :: LinSolver                                                   ! selection of linear solver, CGS,BiCGStab,...
