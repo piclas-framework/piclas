@@ -397,7 +397,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ImplicitSource=0.
   ! store old value of U
   Uold=U
+#ifdef PARTICLES
   IF(DoFieldUpdate)THEN ! update of field
+#endif /*PARTICLES*/
 #ifndef PP_HDG
     CALL LinearSolver(tStage,coeff,relTolerance)
 #else
@@ -406,7 +408,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     END IF 
     CALL HDG(tStage,U,iter)
 #endif /*HDG*/
+#ifdef PARTICLES
   END IF
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
   IF(.NOT.DoFullNewton)THEN 
