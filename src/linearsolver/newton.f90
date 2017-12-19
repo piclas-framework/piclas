@@ -154,9 +154,9 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:FieldStage,R0
-USE MOD_LinearOperator,          ONLY: MatrixVectorSource
-USE MOD_Predictor,               ONLY:Predictor
+USE MOD_LinearSolver_Vars,       ONLY:FieldStage
+USE MOD_LinearOperator,          ONLY:EvalResidual
+USE MOD_Predictor,               ONLY:Predictor,PredictorType
 #else
 USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
@@ -210,6 +210,8 @@ REAL                       :: relTolerance,relTolerancePart,Criterion
 LOGICAL                    :: IsConverged
 #ifdef PP_HDG
 INTEGER(KIND=8)            :: iter=0
+#else
+REAL                       :: Norm_R0_linSolver
 #endif /*PP_HDG*/
 REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -266,7 +268,10 @@ END IF
 
 #ifndef PP_HDG
 ! compute R0
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
+IF(PredictorType.GT.0)THEN
+  CALL EvalResidual(t,Coeff,Norm_R0_linSolver)
+  CALL Predictor(iStage,dt,FieldStage)
+END IF
 #endif
 
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
@@ -279,10 +284,6 @@ IF(FullEisenstatWalker.GT.0)THEN
   taut  =epsMach+eps2_FullNewton*Norm_R0
 END IF
 
-#ifndef PP_HDG
-! get predictor of u^s+1
-CALL Predictor(iStage,dt,FieldStage)
-#endif
 
 nFullNewtonIter=0
 IsConverged=.FALSE.
@@ -412,8 +413,11 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   Uold=U
 #ifndef PP_HDG
   ! compute R0
-  IF(nFullNewtonIter.GT.1) CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-  CALL LinearSolver(tStage,coeff,relTolerance)
+  IF(nFullNewtonIter.EQ.1 .AND. PredictorType.GT.0)THEN
+    CALL LinearSolver(tStage,coeff,relTolerance, Norm_R0_linSolver)
+  ELSE
+    CALL LinearSolver(tStage,coeff,relTolerance )
+  END IF
 #else
   IF(FullEisenstatWalker.GT.0) THEN
     IF(useRelativeAbortCrit) EpsCG=relTolerance 

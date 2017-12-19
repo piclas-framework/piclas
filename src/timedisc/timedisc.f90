@@ -1830,8 +1830,7 @@ USE MOD_DG_Vars,          ONLY:U,Ut
 USE MOD_DG,               ONLY:DGTimeDerivative_weakForm
 USE MOD_TimeDisc_Vars,    ONLY:dt,time
 USE MOD_LinearSolver,     ONLY : LinearSolver
-USE MOD_LinearOperator,   ONLY:MatrixVectorSource
-USE MOD_LinearSolver_vars,ONLY:R0
+USE MOD_LinearOperator,   ONLY:EvalResidual
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -1853,7 +1852,7 @@ REAL,INTENT(IN)    :: t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: tstage,coeff
+REAL               :: tstage,coeff,Norm_R0
 !===================================================================================================================================
 
 ! one Euler implicit step
@@ -1928,8 +1927,8 @@ END IF
 ! b
 LinSolverRHS = U
 ImplicitSource=0.
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-CALL LinearSolver(tstage,coeff)
+CALL EvalResidual(t,Coeff,Norm_R0)
+CALL LinearSolver(tstage,coeff,Norm_R0=Norm_R0)
 CALL DivCleaningDamping()
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
@@ -1965,9 +1964,9 @@ USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY: LinearSolver
-USE MOD_LinearOperator,          ONLY:MatrixVectorSource
-USE MOD_Predictor,               ONLY: Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY: ImplicitSource,LinSolverRHS,R0
+USE MOD_LinearOperator,          ONLY: EvalResidual
+USE MOD_Predictor,               ONLY: Predictor,StorePredictor,PredictorType
+USE MOD_LinearSolver_Vars,       ONLY: ImplicitSource,LinSolverRHS
 USE MOD_Equation,                ONLY: DivCleaningDamping
 #ifdef maxwell
 USE MOD_Precond,                 ONLY: BuildPrecond
@@ -2011,7 +2010,7 @@ REAL               :: alpha
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1)
-REAL               :: tRatio, tphi
+REAL               :: tRatio, tphi, Norm_R0
 INTEGER            :: iCounter !, iStage
 ! explicit
 !===================================================================================================================================
@@ -2143,17 +2142,21 @@ DO iStage=2,nRKStages
   DO iCounter = 1,iStage-1
     LinSolverRHS = LinSolverRHS + ESDIRK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
   END DO
-  ! compute R0
-  CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-  ! get predictor of u^s+1
-  CALL Predictor(iStage,dt,FieldStage)
 
   ImplicitSource=0.
   alpha = ESDIRK_a(iStage,iStage)*dt
-  ! solve to new stage 
-  CALL LinearSolver(tstage,alpha)
-    ! damping
+  IF(PrecondType.GT.0)THEN
+    CALL EvalResidual(t,Coeff,Norm_R0)
+    ! get predictor of u^s+1
+    CALL Predictor(iStage,dt,FieldStage)
+    CALL LinearSolver(tstage,alpha,Norm_R0=Norm_R0)
+  ELSE
+    ! solve to new stage 
+    CALL LinearSolver(tstage,alpha)
+  END IF
   !CALL DivCleaningDamping()
+
+    ! damping
 END DO
 
 !----------------------------------------------------------------------------------------------------------------------------------

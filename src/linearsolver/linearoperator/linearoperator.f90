@@ -42,7 +42,6 @@ INTERFACE PartMatrixVector
 END INTERFACE
 #endif
 
-
 #ifndef PP_HDG
 PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL,EvalResidual
 #endif /*NOT HDG*/
@@ -179,7 +178,7 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE MatrixVectorSource
 
 
-SUBROUTINE EvalResidual(t,Coeff)
+SUBROUTINE EvalResidual(t,Coeff,Norm_R0)
 !===================================================================================================================================
 ! Compute Initial norm for linear solver by calling MatrixVectorSource and VectorDotProduct
 ! Matrix A = I - Coeff*R
@@ -190,7 +189,6 @@ SUBROUTINE EvalResidual(t,Coeff)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_LinearSolver_Vars, ONLY:Norm_R0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -198,6 +196,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)  :: t,Coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(OUT) :: Norm_R0
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL             :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
