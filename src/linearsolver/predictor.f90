@@ -43,7 +43,7 @@ SUBROUTINE InitPredictor()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools,          ONLY:GETINT
-USE MOD_Linearsolver_vars,    ONLY:Upast,Upredict
+USE MOD_Linearsolver_vars,    ONLY:Upast,Upredict,tpast
 USE MOD_TimeDisc_Vars,        ONLY:nRKStages
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -69,7 +69,9 @@ CASE(0,1,2,3,6,7)
   ! nothing to do
 CASE(4) ! linear prediction
   ALLOCATE(Upast(1:PP_nVar,0:PP_nVar,0:PP_nVar,0:PP_nVar,1:PP_nElems,-1:0))
+  ALLOCATE(tpast(-1:0))
   upast=0.
+  tpast=0.
 CASE(5)
   ALLOCATE(Upast(1:PP_nVar,0:PP_nVar,0:PP_nVar,0:PP_nVar,1:PP_nElems,-2:0))
   upast=0.
@@ -90,7 +92,8 @@ SUBROUTINE Predictor(iStage,dt,FieldStage)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,          ONLY: U,Un
-USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict
+USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict,tpast
+USE MOD_TimeDisc_Vars,    ONLY: time
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b,iter
 #endif
@@ -116,6 +119,8 @@ REAL               :: tphi2
 REAL               :: tphi2,tphi3
 #endif
 INTEGER            :: iCounter,iStage2
+INTEGER            :: iElem,i,j,k,iVar
+REAL               :: DeltaT_inv
 !===================================================================================================================================
 
 
@@ -161,7 +166,25 @@ __STAMP__&
 ,'No Predictor for this timedisc!',999,999.)
 #endif
   CASE(4)
-    U=2.*Upast(:,:,:,:,:,0)-Upast(:,:,:,:,:,-1)
+    IF(iter.EQ.0 .AND. iStage.LE.1) RETURN
+    DeltaT_inv=tpast(0)-tpast(-1)
+    IF(ALMOSTZERO(DeltaT_inv))THEN
+      RETURN
+    END IF
+    DeltaT_inv=1./DeltaT_inv
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N
+        DO j=0,PP_N
+          DO i=0,PP_N
+            DO iVar=1,PP_nVar
+              U(iVar,i,j,k,iElem) = ( Upast(iVar,i,j,k,iElem,0)-Upast(iVar,i,j,k,iElem,-1)) * DeltaT_inv &
+                                           *(time+dt*RK_c(iStage)-tpast(-1)) + Upast(iVar,i,j,k,iElem,-1) 
+            END DO ! iVar=1,PP_nVar
+          END DO ! i=0,PP_N
+        END DO ! j=0,PP_N
+      END DO ! k=0,PP_N
+    END DO ! iElem=1,PP_nElems
+    !U=2.*Upast(:,:,:,:,:,0)-Upast(:,:,:,:,:,-1)
     ! in store predictor
   CASE(6)
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -301,8 +324,8 @@ SUBROUTINE StorePredictor()
 !===================================================================================================================================
 ! MODULES
 USE MOD_DG_Vars,          ONLY:U,Ut,Un
-USE MOD_LinearSolver_Vars,ONLY:Upast,Upredict
-USE MOD_TimeDisc_Vars,    ONLY:dt,iStage,nRKStages
+USE MOD_LinearSolver_Vars,ONLY:Upast,Upredict,tpast
+USE MOD_TimeDisc_Vars,    ONLY:dt,iStage,nRKStages,time
 USE MOD_LinearSolver_Vars,ONLY:FieldStage,ImplicitSource
 #if (PP_TimeDiscMethod==122)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
@@ -330,8 +353,16 @@ REAL               :: tphi2,tphi3
 
 SELECT CASE(PredictorType)
 CASE(4)
+  IF(iStage.EQ.0) RETURN
+  IF(iStage.LE.1) RETURN
   Upast(:,:,:,:,:,-1)=Upast(:,:,:,:,:,0)
-  Upast(:,:,:,:,:,0) =U
+  Upast(:,:,:,:,:, 0)=U
+  tpast(-1) =tpast(0)
+  IF(iStage-1.EQ.1)THEN
+    tpast( 0) =time!+dt*RK_c(iStage-1)
+  ELSE
+    tpast( 0) =time+dt*RK_c(iStage-1)
+  END IF
 CASE(5) 
   Upast(:,:,:,:,:,-2)=Upast(:,:,:,:,:,-1)
   Upast(:,:,:,:,:,-1)=Upast(:,:,:,:,:, 0)

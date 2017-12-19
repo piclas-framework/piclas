@@ -18,6 +18,7 @@ REAL,ALLOCATABLE     :: LinSolverRHS  (:,:,:,:,:)                               
 REAL,ALLOCATABLE     :: FieldStage(:,:,:,:,:,:)                                     ! FieldStage, don't no of used
 REAL,ALLOCATABLE     :: Upredict(:,:,:,:,:,:)                                       ! Upredictor, don't no of used
 REAL,ALLOCATABLE     :: Upast(:,:,:,:,:,:)                                          ! history of upast, required for predictor
+REAL,ALLOCATABLE     :: tpast(:)                                                    ! history of tpast, required for predictor
 REAL,ALLOCATABLE     :: Mass(:,:,:,:,:)                                             ! mass matrix
 INTEGER              :: LinSolver                                                   ! selection of linear solver, CGS,BiCGStab,...
 INTEGER              :: nKDim,nRestarts                                             ! Number of Subspaces GMRES  and Restarts
