@@ -501,10 +501,8 @@ CALL VectorDotProduct(R0,R0,alpha)
 ! compute  A*U^n
 IF(PRESENT(Norm_R0_in))THEN
   Norm_R0=Norm_R0_in
-  SWRITE(*,*) 'Norm_0_in',Norm_R0_in,SQRT(alpha)
 ELSE
   Norm_R0=SQRT(alpha)
-  SWRITE(*,*) 'Norm_0',SQRT(alpha)
 END IF
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?

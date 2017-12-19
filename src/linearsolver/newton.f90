@@ -267,14 +267,19 @@ END IF
 #endif /*PARTICLES*/
 
 #ifndef PP_HDG
-! compute R0
+! compute norm for Newton, which can be different than the first norm for the 
+! linear solver
+CALL ImplicitNorm(tStage,coeff,Norm_R0)
 IF(PredictorType.GT.0)THEN
-  CALL EvalResidual(t,Coeff,Norm_R0_linSolver)
+  ! initial norm for first step of linear solver
+  CALL EvalResidual(t,Coeff,Norm_R0_linSolver) 
+  ! compute predictor
   CALL Predictor(iStage,dt,FieldStage)
 END IF
+#else
+CALL ImplicitNorm(tStage,coeff,Norm_R0)
 #endif
 
-CALL ImplicitNorm(tStage,coeff,Norm_R0)
 Norm_R=Norm_R0
 Norm_Diff=HUGE(1.0)
 Norm_Diff_old=HUGE(1.0)

@@ -92,10 +92,10 @@ USE MOD_PreProc
 USE MOD_DG_Vars,          ONLY: U,Un
 USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
+USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b,iter
 #endif
 #if (PP_TimeDiscMethod==101)  || (PP_TimeDiscMethod==121)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b
+USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b,iter
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -166,8 +166,8 @@ __STAMP__&
   CASE(6)
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! second order dense output
+    IF(iter.EQ.0) RETURN
     IF(iStage.LE.1) RETURN
-    SWRITE(*,*) 'iStage',iStage
     U=Upredict(:,:,:,:,:,iStage)
 #else
    CALL abort(&
@@ -176,6 +176,7 @@ __STAMP__&
 #endif
   CASE(7)
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
+    IF(iter.EQ.0) RETURN
     IF(iStage.LE.1) RETURN 
     U=Upredict(:,:,:,:,:,iStage)
 #else
@@ -337,19 +338,16 @@ CASE(5)
   Upast(:,:,:,:,:, 0)=U
 CASE(6)
   IF(iStage.NE.0) RETURN
-  WRITE(*,*) 'Storing'
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-  DO iStage2=1,nRKStages
-   ! tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
-   ! tphi2= tphi*tphi
-    print*,'rk_b',iStage2,RK_b(iStage2),SUM(RK_bs(iStage2,:))
-    read*
-  !  Upredict(:,:,:,:,:,iStage2) =(RK_bs(nRKStages,1)*tphi+RK_bs(nRKStages,2)*tphi2)*(Ut+ImplicitSource)
-  !  DO iCounter = 1,nRKStages-1
-  !    Upredict(:,:,:,:,:,iStage2) =Upredict(:,:,:,:,:,iStage2)+ ( RK_bs(iCounter,1)*tphi  &
-  !                                                              + RK_bs(iCounter,2)*tphi2 )*(FieldStage (:,:,:,:,:,iCounter))
-  !  END DO
-  !  Upredict(:,:,:,:,:,iStage2) =Un  + dt*Upredict(:,:,:,:,:,iStage2)
+  DO iStage2=2,nRKStages
+     tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
+     tphi2= tphi*tphi
+     Upredict(:,:,:,:,:,iStage2)  =(RK_bs(nRKStages,1)*tphi+RK_bs(nRKStages,2)*tphi2)*(Ut+ImplicitSource)
+     DO iCounter = 1,nRKStages-1
+       Upredict(:,:,:,:,:,iStage2)=Upredict(:,:,:,:,:,iStage2) &
+                                  +(RK_bs(iCounter,1) *tphi+RK_bs(iCounter,2)*tphi2 )*(FieldStage (:,:,:,:,:,iCounter))
+     END DO
+     Upredict(:,:,:,:,:,iStage2) =Un  + dt*Upredict(:,:,:,:,:,iStage2)
   END DO
 #else
    CALL abort(&
@@ -359,7 +357,7 @@ __STAMP__&
 CASE(7)
   IF(iStage.NE.0) RETURN
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-  DO iStage2=1,nRKStages
+  DO iStage2=2,nRKStages
     tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
     tphi2= tphi*tphi
     tphi3= tphi*tphi2
@@ -369,7 +367,7 @@ CASE(7)
     DO iCounter = 1,nRKStages-1
       Upredict(:,:,:,:,:,iStage2) =Upredict(:,:,:,:,:,iStage2)+ ( RK_bsO3(iCounter,1)*tphi  &
                                                                 + RK_bsO3(iCounter,2)*tphi2 &
-                                                                + RK_bsO3(iCounter,3))*(FieldStage (:,:,:,:,:,iCounter))
+                                                                + RK_bsO3(iCounter,3)*tphi3)*(FieldStage (:,:,:,:,:,iCounter))
     END DO
     Upredict(:,:,:,:,:,iStage2) =Un  + dt*Upredict(:,:,:,:,:,iStage2)
   END DO
