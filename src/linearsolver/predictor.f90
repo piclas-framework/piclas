@@ -93,12 +93,15 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,          ONLY: U,Un
 USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict,tpast
-USE MOD_TimeDisc_Vars,    ONLY: time
+USE MOD_TimeDisc_Vars,    ONLY: time,iter
+#if (PP_TimeDiscMethod==120) 
+USE MOD_TimeDisc_Vars,    ONLY: RK_c
+#endif
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b,iter
+USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
 #endif
 #if (PP_TimeDiscMethod==101)  || (PP_TimeDiscMethod==121)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b,iter
+USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -323,10 +326,14 @@ SUBROUTINE StorePredictor()
 ! predicts the new Stage-value to decrease computational time
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DG_Vars,          ONLY:U,Ut,Un
 USE MOD_LinearSolver_Vars,ONLY:Upast,Upredict,tpast
 USE MOD_TimeDisc_Vars,    ONLY:dt,iStage,nRKStages,time
 USE MOD_LinearSolver_Vars,ONLY:FieldStage,ImplicitSource
+#if (PP_TimeDiscMethod==120) 
+USE MOD_TimeDisc_Vars,    ONLY: RK_c
+#endif
 #if (PP_TimeDiscMethod==122)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
 #endif
@@ -383,7 +390,7 @@ CASE(6)
 #else
    CALL abort(&
 __STAMP__&
-,'No Predictor for this timedisc!',999,999.)
+,'No Predictor for this timedisc!')
 #endif
 CASE(7)
   IF(iStage.NE.0) RETURN
@@ -405,7 +412,7 @@ CASE(7)
 #else
    CALL abort(&
 __STAMP__&
-,'No Predictor for this timedisc!',999,999.)
+,'No Predictor for this timedisc!')
 #endif
 END SELECT
 
