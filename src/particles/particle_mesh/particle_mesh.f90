@@ -519,7 +519,14 @@ IF (KeepWallParticles) THEN
   END IF
 END IF
 
-IF (.NOT.DoRelocate) THEN
+IF(DoHALO)THEN
+  IF ( (PartState(iPart,1).LT.GEO%xminglob).OR.(PartState(iPart,1).GT.GEO%xmaxglob).OR. &
+       (PartState(iPart,2).LT.GEO%yminglob).OR.(PartState(iPart,2).GT.GEO%ymaxglob).OR. &
+       (PartState(iPart,3).LT.GEO%zminglob).OR.(PartState(iPart,3).GT.GEO%zmaxglob)) THEN
+     PDM%ParticleInside(iPart) = .FALSE.
+     RETURN
+  END IF
+ELSE
   IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
        (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
        (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
@@ -527,6 +534,15 @@ IF (.NOT.DoRelocate) THEN
      RETURN
   END IF
 END IF
+
+!IF (.NOT.DoRelocate) THEN
+  !IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
+       !(PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
+       !(PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+     !PDM%ParticleInside(iPart) = .FALSE.
+     !RETURN
+  !END IF
+!END IF
 
 ! --- get background mesh cell of particle
 CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
@@ -741,7 +757,14 @@ REAL                              :: Distance2
 !===================================================================================================================================
 
 ParticleFound = .FALSE.
-IF(.NOT.DoRelocate)THEN
+IF(DoHALO)THEN
+  IF ( (PartState(iPart,1).LT.GEO%xminglob).OR.(PartState(iPart,1).GT.GEO%xmaxglob).OR. &
+       (PartState(iPart,2).LT.GEO%yminglob).OR.(PartState(iPart,2).GT.GEO%ymaxglob).OR. &
+       (PartState(iPart,3).LT.GEO%zminglob).OR.(PartState(iPart,3).GT.GEO%zmaxglob)) THEN
+     PDM%ParticleInside(iPart) = .FALSE.
+     RETURN
+  END IF
+ELSE
   IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
        (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
        (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN

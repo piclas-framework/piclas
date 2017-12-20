@@ -144,7 +144,7 @@ DO i = 1,PDM%ParticleVecLength
             WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
             WRITE(*,*) 'Pos:     ', PartState(i,1:3)
             WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
+            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
             ! Retrace to check through which side the particle went
             DO iLocSide=1,6
               TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
@@ -209,7 +209,7 @@ DO i = 1,PDM%ParticleVecLength
               WRITE(*,*) 'Velo:    ', PartState(i,4:6)
               WRITE(*,*) 'Element  ', ElemID
               SideID = 0
-              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
+              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
               ! Retrace to check through which side the particle went
               DO iLocSide=1,6
                 TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
