@@ -130,10 +130,12 @@ FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 #ifdef PARTICLES
+DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 ! allocate explicit particle source
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 ALLOCATE(ExplicitPartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ExplicitPartSource=0.
+PartNewtonRelaxation= GETREAL('PartNewtonRelaxation','1.')
 #endif
 ! flag to enforce updatenextfree position in all rk stages
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')

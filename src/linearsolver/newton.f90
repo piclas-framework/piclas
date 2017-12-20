@@ -163,7 +163,7 @@ USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
-USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton
+USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate
 USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
@@ -397,14 +397,20 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ImplicitSource=0.
   ! store old value of U
   Uold=U
+#ifdef PARTICLES
+  IF(DoFieldUpdate)THEN ! update of field
+#endif /*PARTICLES*/
 #ifndef PP_HDG
-  CALL LinearSolver(tStage,coeff,relTolerance)
+    CALL LinearSolver(tStage,coeff,relTolerance)
 #else
-  IF(FullEisenstatWalker.GT.0) THEN
-    IF(useRelativeAbortCrit) EpsCG=relTolerance 
-  END IF 
-  CALL HDG(tStage,U,iter)
+    IF(FullEisenstatWalker.GT.0) THEN
+      IF(useRelativeAbortCrit) EpsCG=relTolerance 
+    END IF 
+    CALL HDG(tStage,U,iter)
 #endif /*HDG*/
+#ifdef PARTICLES
+  END IF
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
   IF(.NOT.DoFullNewton)THEN 
