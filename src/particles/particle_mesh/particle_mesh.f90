@@ -459,6 +459,7 @@ SDEALLOCATE(ElemRadius2NGeo)
 SDEALLOCATE(EpsOneCell)
 SDEALLOCATE(Distance)
 SDEALLOCATE(ListDistance)
+SDEALLOCATE(ElemToGlobalElemID)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -807,10 +808,13 @@ END DO ! nBGMElems
 
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   PDM%ParticleInside(iPart) = .FALSE.
-  IF(DoRelocate) CALL abort(&
+  IF(DoRelocate)THEN
+    IPWRITE(UNIT_StdOut,*) 'Position',PartState(iPart,1:3)
+    CALL abort(&
   __STAMP__&
   , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
   RealInfoOpt=SafetyFactor)
+  END IF
   RETURN
 END IF
 
@@ -836,10 +840,10 @@ END DO ! iBGMElem
 
 ! particle not found
 IF (.NOT.ParticleFound) THEN
-  IF(DoRelocate) CALL abort(&
-  __STAMP__&
-  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
-  RealInfoOpt=SafetyFactor)
+!  IF(DoRelocate) CALL abort(&
+!  __STAMP__&
+!  , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
+!  RealInfoOpt=SafetyFactor)
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
@@ -2945,7 +2949,8 @@ DO iElem=1,nTotalElems
       END DO !j=0,NGeo
     END DO !k=0,NGeo
   ELSE
-    IF(iElem.GT.PP_nElems) CYCLE
+    ! required :(
+   ! IF(iElem.GT.PP_nElems) CYCLE
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       IF(SideID.EQ.-1) CYCLE
@@ -4165,7 +4170,7 @@ SUBROUTINE ElemConnectivity()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
-                                 ,SidePeriodicType,nPartSides,nTotalSides
+                                 ,SidePeriodicType,nPartSides,nTotalSides,ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,           ONLY:OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:SideNormVec
@@ -4204,11 +4209,21 @@ ALLOCATE(PartElemToElemAndSide(1:8,1:6,1:nTotalElems))
                       ! [3]    - nTotalElems 
                       ! if the connections points to an element which is not in MY region (MY elems + halo elems)
                       ! then this connection points to -1
+ALLOCATE(ElemToGlobalElemID(1:nTotalElems))
+
 
 ! now, map the PartElemToElemGlob to local elemids
 PartElemToElemAndSide=-1
 ! loop over all Elems and map the neighbor element to local coordinates
 DO iElem=1,nTotalElems
+  IF(iElem.LE.nElems)THEN
+    ElemToGlobalElemID(iElem)=offSetElem+iElem
+#ifdef MPI
+  ELSE
+    ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iElem)
+    ElemToGlobalElemID(iElem)=offSetElemMPI(ProcID) + PartHaloElemToProc(NATIVE_ELEM_ID,iElem)
+#endif /*MPI*/
+  END IF
   DO ilocSide=1,6
     DO iMortar=1,4
       GlobalElemID=PartElemToElemGlob(iMortar,ilocSide,iElem)

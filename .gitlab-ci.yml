@@ -108,6 +108,14 @@ gnu_DSMC:
   script:
     - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
 
+
+gnu_PIC_maxwell_implicitBC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
+
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
 intel_PIC_gyrotron_variable_Bz:
@@ -137,6 +145,13 @@ intel_DSMC:
     - withmodules
   script:
     - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
+
+intel_PIC_maxwell_implicitBC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
