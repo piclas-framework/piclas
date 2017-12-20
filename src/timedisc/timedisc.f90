@@ -55,6 +55,9 @@ USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser,DoDisplayEmissionWarnings
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,RK_fillSF,nRKStages
+#endif
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -64,6 +67,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+INTEGER                   :: iCounter
+REAL                      :: rtmp
+#endif
 !===================================================================================================================================
 IF(TimeDiscInitIsDone)THEN
    SWRITE(*,*) "InitTimeDisc already called."
@@ -91,6 +98,34 @@ __STAMP__&
 #endif /*maxwell*/
 #endif /*IMEX*/
 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+! get time increment between current and next RK stage
+DO iCounter=2,nRKStages-1
+  RK_inc(iCounter)=RK_c(iCounter+1)-RK_c(iCounter)
+END DO ! iCounter=2,nRKStages-1
+RK_inc(nRKStages)=0.
+
+! compute ratio of dt for particle surface flux emission (example a). Additionally, the ratio of RK_inflow(iStage)/RK_c(iStage) 
+! gives the ! maximum distance, the Surface Flux particles can during the initial implicit step (example b).
+! example a)
+!   particle number for stage 4: dt*RK_inflow(4) 
+! or: generate all particles for dt, but only particles with random number R < RK_c(iStage) participate in current stage.
+! This results in dt*RK_inflow(iStage) particles in the current stage, hence, we can decide if we generate all particles or
+! only the particles per stage. Currently, all particles are generated prior to the RK stages.
+! example b)
+! ESDIRKO4 from kennedy and carpenter without an acting force. Assume again stage 4. The initial particles during stage 2 are 
+! moved in stage 3 without tracking (because it could be dropped out of the domain and the negative increment of the time level. 
+! The new particles in this  stage could travel a distance up to RK_c(4)=SUM(ESDIRK_a(4,:)). Now, the new particles are pushed 
+! further into the domain than the particles of the second stage has moved. This would create a non-uniform particle distribution.
+! this is prevented by reducing their maximum emission/initial distance by RK_inflow(4)/RK_c(4).
+! Note: A small overlap is possible, but this is required. See the charts in the docu folder.
+RK_inflow(2)=RK_C(2)
+rTmp=RK_c(2)
+DO iCounter=3,nRKStages
+  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
+  rTmp=MAX(rTmp,RK_c(iCounter))
+END DO ! iCounter=2,nRKStages-1
+#endif
 
 ! Set timestep to a large number
 dt=HUGE(1.)
@@ -2667,7 +2702,7 @@ SUBROUTINE TimeStepByImplicitRK(t)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
-USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac
+USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac, RK_inc,RK_inflow,RK_fillSF
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U
 #ifdef PP_HDG
@@ -2753,9 +2788,10 @@ REAL               :: tRatio, LorentzFacInv
 ! RK counter
 INTEGER            :: iCounter, iStage2
 #ifdef PARTICLES
-REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 REAL               :: dtFrac,RandVal, LorentzFac,PartState_tmp(1:6), Pt_loc(1:6), v_tild(1:3),rtmp
 INTEGER            :: iPart,nParts
+!LOGICAL            :: NoInterpolation ! fields cannot be interpolated, because particle is "outside", hence, fields and
+!                                      ! forces of previous stage are used
 #ifdef CODE_ANALYZE
 REAL               :: IntersectionPoint(1:3)
 INTEGER            :: ElemID
@@ -2775,32 +2811,6 @@ FieldSource = 0.
 tRatio = 1.
 
 #ifdef PARTICLES
-! get time increment between current and next RK stage
-DO iCounter=2,nRKStages-1
-  RK_inc(iCounter)=RK_c(iCounter+1)-RK_c(iCounter)
-END DO ! iCounter=2,nRKStages-1
-RK_inc(nRKStages)=0.
-
-! compute ratio of dt for particle surface flux emission (example a). Additionally, the ratio of RK_inflow(iStage)/RK_c(iStage) 
-! gives the ! maximum distance, the Surface Flux particles can during the initial implicit step (example b).
-! example a)
-!   particle number for stage 4: dt*RK_inflow(4) 
-! or: generate all particles for dt, but only particles with random number R < RK_c(iStage) participate in current stage.
-! This results in dt*RK_inflow(iStage) particles in the current stage, hence, we can decide if we generate all particles or
-! only the particles per stage. Currently, all particles are generated prior to the RK stages.
-! example b)
-! ESDIRKO4 from kennedy and carpenter without an acting force. Assume again stage 4. The initial particles during stage 2 are 
-! moved in stage 3 without tracking (because it could be dropped out of the domain and the negative increment of the time level. 
-! The new particles in this  stage could travel a distance up to RK_c(4)=SUM(ESDIRK_a(4,:)). Now, the new particles are pushed 
-! further into the domain than the particles of the second stage has moved. This would create a non-uniform particle distribution.
-! this is prevented by reducing their maximum emission/initial distance by RK_inflow(4)/RK_c(4).
-! Note: A small overlap is possible, but this is required. See the charts in the docu folder.
-RK_inflow(2)=RK_C(2)
-rTmp=RK_c(2)
-DO iCounter=3,nRKStages
-  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
-  rTmp=MAX(rTmp,RK_c(iCounter))
-END DO ! iCounter=2,nRKStages-1
 
 ! particle locating
 ! at the wrong position? depending on how we do it...
