@@ -394,7 +394,7 @@ __STAMP__&
 #endif
 CASE(7)
   IF(iStage.NE.0) RETURN
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
   DO iStage2=2,nRKStages
     tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
     tphi2= tphi*tphi
