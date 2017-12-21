@@ -363,6 +363,9 @@ REAL,PARAMETER :: RK4_bs62 =  22142945955077.0 / 11155272088250.0
 REAL,PARAMETER :: RK4_bs6(1:2) = (/ RK4_bs61, RK4_bs62 /)
 REAL,PARAMETER :: RK_bs(1:6,1:2)=RESHAPE((/RK4_bs1,RK4_bs2,RK4_bs3,RK4_bs4,RK4_bs5,RK4_bs6/),(/6,2/),ORDER =(/2,1/))
 #endif
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
+#endif
 #if (PP_TimeDiscMethod==103)
 INTEGER,PARAMETER :: nRKStages = 2
 ! Ascher 1997 2 - 3 - 3

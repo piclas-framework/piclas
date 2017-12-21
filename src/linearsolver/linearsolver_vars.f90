@@ -32,6 +32,7 @@ INTEGER              :: totalIterLinearSolver,nInnerIter                        
 INTEGER              :: ldim                                                        ! Number of BiCGStab(l) subspaces
 #if defined(PARTICLES)
 #if defined(IMPA) || (PP_TimeDiscMethod==110)
+LOGICAL              :: DoFieldUpdate
 INTEGER              :: totalPartIterLinearSolver,nPartInnerIter                    ! Counter for Particle newton
 INTEGER              :: nPartNewton                                                 ! some limits or counter
 INTEGER              :: nPartNewtonIter                                             ! some limits or counter
@@ -57,6 +58,8 @@ LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
+                                                                                    ! disables Armijo rule and uses a fixed value
 REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122
 LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
                                                                                     ! and number of parts in Newton

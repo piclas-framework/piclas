@@ -135,10 +135,12 @@ DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #endif
 #ifdef PARTICLES
+DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 ! allocate explicit particle source
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 ALLOCATE(ExplicitPartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ExplicitPartSource=0.
+PartNewtonRelaxation= GETREAL('PartNewtonRelaxation','1.')
 #endif
 ! flag to enforce updatenextfree position in all rk stages
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
