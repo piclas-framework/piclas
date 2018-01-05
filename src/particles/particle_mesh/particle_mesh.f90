@@ -5033,7 +5033,7 @@ CALL AddToElemData(ElementOut,'isTroubleElement',LogArray=isTracingTrouble(1:nEl
 CALL AddToElemData(ElementOut,'ElemTolerance',RealArray=ElemTolerance(1:nElems))
 
 DO iElem=1,nElems
-  print*,'iLeme',iElem
+  print*,'iElem',iElem
   DO k=0,NGeo,NGeo
     DO j=0,NGeo,NGeo
       DO i=0,NGeo,NGeo
@@ -5054,7 +5054,7 @@ DO iElem=1,nElems
                                                                    ,InterP(2), ','  &
                                                                    ,InterP(3), '];'
           isTracingTrouble(iElem)=.TRUE.
-          read*
+          !read*
         END IF
       END DO ! i=0,NGeo,NGeo
     END DO ! j=0,NGeo,NGeo
