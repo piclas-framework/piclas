@@ -72,7 +72,7 @@ USE MOD_ReadinTools,               ONLY: Readindone
 #if (PP_TimeDiscMethod==104)
 USE MOD_LinearSolver_Vars,ONLY:nNewton
 #endif
-
+USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -83,6 +83,7 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
+CALL ClearElemData(ElementOut)
 !Finalize
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()

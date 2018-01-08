@@ -59,6 +59,10 @@ INTERFACE AddToElemData
   MODULE PROCEDURE AddToElemData
 END INTERFACE
 
+INTERFACE ClearElemData
+  MODULE PROCEDURE ClearElemData
+END INTERFACE
+
 !===================================================================================================================================
 
 CONTAINS
@@ -294,5 +298,47 @@ ENDIF
 IF(nOpts.NE.1) CALL Abort(__STAMP__,&
   'More then one optional argument passed to AddToElemData.')
 END SUBROUTINE AddToElemData
+
+!==================================================================================================================================
+!> Deallocate all pointers to element-wise arrays or scalars which will be gathered and written out.
+!> The linked list of the pointer is deallocated for each entry
+!==================================================================================================================================
+SUBROUTINE ClearElemData(ElementOut)
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars,ONLY:nElems
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+TYPE(tElementOut),POINTER,INTENT(INOUT)    :: ElementOut           !< Pointer list of element-wise data that
+                                                                   !< is written to the state file
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(tElementOut),POINTER          :: e,e2
+!==================================================================================================================================
+IF(.NOT.ASSOCIATED(ElementOut))THEN
+  RETURN
+ENDIF
+
+e=>ElementOut
+DO WHILE(ASSOCIATED(e))
+  e%VarName = ''
+  IF(ASSOCIATED(e%RealArray))    NULLIFY(e%RealArray    ) !=> NULL()
+  IF(ASSOCIATED(e%RealScalar))   NULLIFY(e%RealScalar   ) !=> NULL()
+  IF(ASSOCIATED(e%IntArray))     NULLIFY(e%IntArray     ) !=> NULL()
+  IF(ASSOCIATED(e%IntScalar))    NULLIFY(e%IntScalar    ) !=> NULL()
+  IF(ASSOCIATED(e%LongIntArray)) NULLIFY(e%LongIntArray ) !=> NULL()
+  IF(ASSOCIATED(e%LogArray))     NULLIFY(e%LogArray     ) !=> NULL()
+  IF(ASSOCIATED(e%eval))         NULLIFY(e%eval         ) !=> NULL()
+  e2=>e%next
+  ! deallocate stuff
+  DEALLOCATE(e)
+  e=> e2
+END DO
+
+!ElementOut   => NULL() !< linked list of output pointers
+NULLIFY(ElementOut)
+
+END SUBROUTINE ClearElemData
 
 END MODULE MOD_io_HDF5
