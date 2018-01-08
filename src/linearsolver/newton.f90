@@ -154,6 +154,9 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:FieldStage
+USE MOD_LinearOperator,          ONLY:EvalResidual
+USE MOD_Predictor,               ONLY:Predictor,PredictorType
 #else
 USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
@@ -163,7 +166,7 @@ USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
-USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton
+USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate
 USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
@@ -207,6 +210,8 @@ REAL                       :: relTolerance,relTolerancePart,Criterion
 LOGICAL                    :: IsConverged
 #ifdef PP_HDG
 INTEGER(KIND=8)            :: iter=0
+#else
+REAL                       :: Norm_R0_linSolver
 #endif /*PP_HDG*/
 REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -261,7 +266,20 @@ END IF
 !END IF
 #endif /*PARTICLES*/
 
+#ifndef PP_HDG
+! compute norm for Newton, which can be different than the first norm for the 
+! linear solver
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
+IF(PredictorType.GT.0)THEN
+  ! initial norm for first step of linear solver
+  CALL EvalResidual(t,Coeff,Norm_R0_linSolver) 
+  ! compute predictor
+  CALL Predictor(iStage,dt,FieldStage)
+END IF
+#else
+CALL ImplicitNorm(tStage,coeff,Norm_R0)
+#endif
+
 Norm_R=Norm_R0
 Norm_Diff=HUGE(1.0)
 Norm_Diff_old=HUGE(1.0)
@@ -270,6 +288,7 @@ IF(FullEisenstatWalker.GT.0)THEN
   etaMax=0.9999
   taut  =epsMach+eps2_FullNewton*Norm_R0
 END IF
+
 
 nFullNewtonIter=0
 IsConverged=.FALSE.
@@ -397,14 +416,25 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ImplicitSource=0.
   ! store old value of U
   Uold=U
+#ifdef PARTICLES
+  IF(DoFieldUpdate)THEN ! update of field
+#endif /*PARTICLES*/
 #ifndef PP_HDG
-  CALL LinearSolver(tStage,coeff,relTolerance)
+  ! compute R0
+  IF(nFullNewtonIter.EQ.1 .AND. PredictorType.GT.0)THEN
+    CALL LinearSolver(tStage,coeff,relTolerance, Norm_R0_linSolver)
+  ELSE
+    CALL LinearSolver(tStage,coeff,relTolerance )
+  END IF
 #else
-  IF(FullEisenstatWalker.GT.0) THEN
-    IF(useRelativeAbortCrit) EpsCG=relTolerance 
-  END IF 
-  CALL HDG(tStage,U,iter)
+    IF(FullEisenstatWalker.GT.0) THEN
+      IF(useRelativeAbortCrit) EpsCG=relTolerance 
+    END IF 
+    CALL HDG(tStage,U,iter)
 #endif /*HDG*/
+#ifdef PARTICLES
+  END IF
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
   IF(.NOT.DoFullNewton)THEN 
