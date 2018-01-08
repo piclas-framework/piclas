@@ -1865,6 +1865,7 @@ USE MOD_DG_Vars,          ONLY:U,Ut
 USE MOD_DG,               ONLY:DGTimeDerivative_weakForm
 USE MOD_TimeDisc_Vars,    ONLY:dt,time
 USE MOD_LinearSolver,     ONLY : LinearSolver
+USE MOD_LinearOperator,   ONLY:EvalResidual
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -1886,7 +1887,7 @@ REAL,INTENT(IN)    :: t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: tstage,coeff
+REAL               :: tstage,coeff,Norm_R0
 !===================================================================================================================================
 
 ! one Euler implicit step
@@ -1961,7 +1962,8 @@ END IF
 ! b
 LinSolverRHS = U
 ImplicitSource=0.
-CALL LinearSolver(tstage,coeff)
+CALL EvalResidual(t,Coeff,Norm_R0)
+CALL LinearSolver(tstage,coeff,Norm_R0=Norm_R0)
 CALL DivCleaningDamping()
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
@@ -1997,7 +1999,8 @@ USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY: LinearSolver
-USE MOD_Predictor,               ONLY: Predictor,StorePredictor
+USE MOD_LinearOperator,          ONLY: EvalResidual
+USE MOD_Predictor,               ONLY: Predictor,StorePredictor,PredictorType
 USE MOD_LinearSolver_Vars,       ONLY: ImplicitSource,LinSolverRHS
 USE MOD_Equation,                ONLY: DivCleaningDamping
 #ifdef maxwell
@@ -2042,7 +2045,7 @@ REAL               :: alpha
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1)
-REAL               :: tRatio, tphi
+REAL               :: tRatio, tphi, Norm_R0
 INTEGER            :: iCounter !, iStage
 ! explicit
 !===================================================================================================================================
@@ -2174,15 +2177,21 @@ DO iStage=2,nRKStages
   DO iCounter = 1,iStage-1
     LinSolverRHS = LinSolverRHS + ESDIRK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
   END DO
-  ! get predictor of u^s+1
-  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage)
 
   ImplicitSource=0.
   alpha = ESDIRK_a(iStage,iStage)*dt
-  ! solve to new stage 
-  CALL LinearSolver(tstage,alpha)
-    ! damping
+  IF(PrecondType.GT.0)THEN
+    CALL EvalResidual(t,Coeff,Norm_R0)
+    ! get predictor of u^s+1
+    CALL Predictor(iStage,dt,FieldStage)
+    CALL LinearSolver(tstage,alpha,Norm_R0=Norm_R0)
+  ELSE
+    ! solve to new stage 
+    CALL LinearSolver(tstage,alpha)
+  END IF
   !CALL DivCleaningDamping()
+
+    ! damping
 END DO
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -2703,8 +2712,8 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac, RK_inc,RK_inflow,RK_fillSF
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo
-USE MOD_DG_Vars,                 ONLY:U
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
+USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
@@ -2778,11 +2787,6 @@ REAL               :: tstage
 REAL               :: alpha
 REAL               :: sgamma
 INTEGER            :: iElem,i,j,k
-#ifndef PP_HDG
-REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-#endif /*DG*/
 REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
 ! RK counter
@@ -2805,8 +2809,6 @@ LOGICAL            :: ishit
 ! caution hard coded
 IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 #endif /*maxwell*/
-Un          = U
-FieldSource = 0.
 #endif /*DG*/
 tRatio = 1.
 
@@ -2996,6 +2998,10 @@ END IF ! t.GE. DelayTime
 
 #ifndef PP_HDG
 IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+iStage=0
+CALL StorePredictor()
+! copy U to U^0
+Un = U
 #endif /*DG*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -3017,8 +3023,7 @@ DO iStage=2,nRKStages
   ! compute the f(u^s-1)
   ! compute the f(u^s-1)
   ! DG-solver, Maxwell's equations
-  FieldStage (:,:,:,:,:,iStage-1) = Ut
-  FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
+  FieldStage (:,:,:,:,:,iStage-1) = Ut + ImplicitSource
 #endif /*DG*/
 
   ! and particles
@@ -3152,14 +3157,14 @@ DO iStage=2,nRKStages
 
 #ifndef PP_HDG
   ! compute RHS for linear solver
-  LinSolverRHS=ESDIRK_a(iStage,iStage-1)*(FieldStage(:,:,:,:,:,iStage-1)+FieldSource(:,:,:,:,:,iStage-1))
+  LinSolverRHS=ESDIRK_a(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
   DO iCounter=1,iStage-2
-    LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
+    LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
   END DO ! iCoutner=1,iStage-2
   LinSolverRHS=Un+dt*LinSolverRHS
 
-  ! get predictor of u^s+1
-  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
+  ! get predictor of u^s+1 ! wrong position
+  ! CALL Predictor(iStage,dt,Un,FieldStage) ! sets new value for U_DG
 #endif /*DG*/
 
 #ifdef PARTICLES

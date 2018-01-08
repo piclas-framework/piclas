@@ -13,6 +13,7 @@ IMPLICIT NONE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 INTEGER :: PredictorType
+REAL    :: dtOld
 
 
 INTERFACE Predictor
@@ -42,7 +43,8 @@ SUBROUTINE InitPredictor()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools,          ONLY:GETINT
-USE MOD_Linearsolver_vars,    ONLY:Upast
+USE MOD_Linearsolver_vars,    ONLY:Upast,Upredict,tpast
+USE MOD_TimeDisc_Vars,        ONLY:nRKStages
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -53,13 +55,23 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 !===================================================================================================================================
 PredictorType = GETINT('Predictor','0')
+dtOld=1.
+
+#ifndef PP_HDG
+IF(PredictorType.GE.6)THEN
+  ALLOCATE(Upredict(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,2:nRKStages))
+  Upredict=0.
+END IF
+#endif
 
 SELECT CASE(PredictorType)
-CASE(0,1,2,3)
+CASE(0,1,2,3,6,7)
   ! nothing to do
 CASE(4) ! linear prediction
   ALLOCATE(Upast(1:PP_nVar,0:PP_nVar,0:PP_nVar,0:PP_nVar,1:PP_nElems,-1:0))
+  ALLOCATE(tpast(-1:0))
   upast=0.
+  tpast=0.
 CASE(5)
   ALLOCATE(Upast(1:PP_nVar,0:PP_nVar,0:PP_nVar,0:PP_nVar,1:PP_nElems,-2:0))
   upast=0.
@@ -72,15 +84,19 @@ END SELECT
 END SUBROUTINE InitPredictor
 
 
-SUBROUTINE Predictor(iStage,dt,Un,FieldStage,FieldSource)
+SUBROUTINE Predictor(iStage,dt,FieldStage)
 !===================================================================================================================================
 ! predicts the new Stage-value to decrease computational time
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,          ONLY: U
-USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast
+USE MOD_DG_Vars,          ONLY: U,Un
+USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict,tpast
+USE MOD_TimeDisc_Vars,    ONLY: time,iter
+#if (PP_TimeDiscMethod==120) 
+USE MOD_TimeDisc_Vars,    ONLY: RK_c
+#endif
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
 #endif
@@ -91,11 +107,9 @@ USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)              :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 INTEGER,INTENT(IN)           :: iStage
 REAL,INTENT(IN)              :: dt
 REAL,INTENT(IN)              :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL,INTENT(IN)              :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,7 +121,9 @@ REAL               :: tphi2
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==122)
 REAL               :: tphi2,tphi3
 #endif
-INTEGER            :: iCounter
+INTEGER            :: iCounter,iStage2
+INTEGER            :: iElem,i,j,k,iVar
+REAL               :: DeltaT_inv
 !===================================================================================================================================
 
 
@@ -122,14 +138,12 @@ SELECT CASE(PredictorType)
   CASE(2)
     ! second order dense output
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-    !tphi = 1.+RK_c(iStage)
+    !tphi = 1.+RK_c(iStage) | because dt^n+1/dt = 1 (Maxwell timestep)
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
-    U=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2) & 
-     *(FieldStage (:,:,:,:,:,iStage-1) + FieldSource(:,:,:,:,:,iStage-1))
+    U=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2) *(FieldStage (:,:,:,:,:,iStage-1)) 
     DO iCounter = 1,iStage-2
-      U = U + (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi2) &
-              *(FieldStage (:,:,:,:,:,iCounter) + FieldSource(:,:,:,:,:,iCounter))
+      U = U + (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi2) *(FieldStage (:,:,:,:,:,iCounter))
     END DO
     U=Un+dt*U
 #else
@@ -144,11 +158,9 @@ __STAMP__&
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
     tphi3= tphi*tphi2
-    U=(RK_bsO3(iStage-1,1)*tphi+RK_bsO3(iStage-1,2)*tphi2+RK_bsO3(iStage-1,3)*tphi3) &
-     *(FieldStage (:,:,:,:,:,iStage-1) + FieldSource(:,:,:,:,:,iStage-1))
+    U=(RK_bsO3(iStage-1,1)*tphi+RK_bsO3(iStage-1,2)*tphi2+RK_bsO3(iStage-1,3)*tphi3) *(FieldStage (:,:,:,:,:,iStage-1))
     DO iCounter = 1,iStage-2
-      U = U + (RK_bsO3(iCounter,1)*tphi+RK_bsO3(iCounter,2)*tphi2+RK_bsO3(iCounter,3)*tphi3) &
-              *(FieldStage (:,:,:,:,:,iCounter) + FieldSource(:,:,:,:,:,iCounter))
+      U = U + (RK_bsO3(iCounter,1)*tphi+RK_bsO3(iCounter,2)*tphi2+RK_bsO3(iCounter,3)*tphi3)*(FieldStage (:,:,:,:,:,iCounter))
     END DO
     U=Un+dt*U
 #else
@@ -157,7 +169,47 @@ __STAMP__&
 ,'No Predictor for this timedisc!',999,999.)
 #endif
   CASE(4)
-    U=2.*Upast(:,:,:,:,:,0)-Upast(:,:,:,:,:,-1)
+    IF(iter.EQ.0 .AND. iStage.LE.1) RETURN
+    DeltaT_inv=tpast(0)-tpast(-1)
+    IF(ALMOSTZERO(DeltaT_inv))THEN
+      RETURN
+    END IF
+    DeltaT_inv=1./DeltaT_inv
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N
+        DO j=0,PP_N
+          DO i=0,PP_N
+            DO iVar=1,PP_nVar
+              U(iVar,i,j,k,iElem) = ( Upast(iVar,i,j,k,iElem,0)-Upast(iVar,i,j,k,iElem,-1)) * DeltaT_inv &
+                                           *(time+dt*RK_c(iStage)-tpast(-1)) + Upast(iVar,i,j,k,iElem,-1) 
+            END DO ! iVar=1,PP_nVar
+          END DO ! i=0,PP_N
+        END DO ! j=0,PP_N
+      END DO ! k=0,PP_N
+    END DO ! iElem=1,PP_nElems
+    !U=2.*Upast(:,:,:,:,:,0)-Upast(:,:,:,:,:,-1)
+    ! in store predictor
+  CASE(6)
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+    ! second order dense output
+    IF(iter.EQ.0) RETURN
+    IF(iStage.LE.1) RETURN
+    U=Upredict(:,:,:,:,:,iStage)
+#else
+   CALL abort(&
+__STAMP__&
+,'No Predictor for this timedisc!',999,999.)
+#endif
+  CASE(7)
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
+    IF(iter.EQ.0) RETURN
+    IF(iStage.LE.1) RETURN 
+    U=Upredict(:,:,:,:,:,iStage)
+#else
+   CALL abort(&
+__STAMP__&
+,'No Predictor for this timedisc!',999,999.)
+#endif
   CASE DEFAULT
 END SELECT
 
@@ -166,7 +218,6 @@ IF(1.EQ.2)THEN
   iCounter=iStage
   iCounter=INT(tPhi)
   tphi    =Un(1,1,1,1,1)
-  tphi    =FieldSource(1,1,1,1,1,1)
   tphi    =FieldStage(1,1,1,1,1,1)
   tphi    =dt
 END IF
@@ -275,8 +326,20 @@ SUBROUTINE StorePredictor()
 ! predicts the new Stage-value to decrease computational time
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,          ONLY: U
-USE MOD_LinearSolver_Vars,ONLY: Upast
+USE MOD_Globals
+USE MOD_DG_Vars,          ONLY:U,Ut,Un
+USE MOD_LinearSolver_Vars,ONLY:Upast,Upredict,tpast
+USE MOD_TimeDisc_Vars,    ONLY:dt,iStage,nRKStages,time
+USE MOD_LinearSolver_Vars,ONLY:FieldStage,ImplicitSource
+#if (PP_TimeDiscMethod==120) 
+USE MOD_TimeDisc_Vars,    ONLY: RK_c
+#endif
+#if (PP_TimeDiscMethod==122)
+USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
+#endif
+#if (PP_TimeDiscMethod==121)
+USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -285,17 +348,75 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+INTEGER                    :: iStage2, iCounter
+REAL                       :: tphi
+#if (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121)
+REAL               :: tphi2
+#endif
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==122)
+REAL               :: tphi2,tphi3
+#endif
 !===================================================================================================================================
 
 SELECT CASE(PredictorType)
 CASE(4)
+  IF(iStage.EQ.0) RETURN
+  IF(iStage.LE.1) RETURN
   Upast(:,:,:,:,:,-1)=Upast(:,:,:,:,:,0)
-  Upast(:,:,:,:,:,0) =U
+  Upast(:,:,:,:,:, 0)=U
+  tpast(-1) =tpast(0)
+  IF(iStage-1.EQ.1)THEN
+    tpast( 0) =time!+dt*RK_c(iStage-1)
+  ELSE
+    tpast( 0) =time+dt*RK_c(iStage-1)
+  END IF
 CASE(5) 
   Upast(:,:,:,:,:,-2)=Upast(:,:,:,:,:,-1)
   Upast(:,:,:,:,:,-1)=Upast(:,:,:,:,:, 0)
   Upast(:,:,:,:,:, 0)=U
+CASE(6)
+  IF(iStage.NE.0) RETURN
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+  DO iStage2=2,nRKStages
+     tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
+     tphi2= tphi*tphi
+     Upredict(:,:,:,:,:,iStage2)  =(RK_bs(nRKStages,1)*tphi+RK_bs(nRKStages,2)*tphi2)*(Ut+ImplicitSource)
+     DO iCounter = 1,nRKStages-1
+       Upredict(:,:,:,:,:,iStage2)=Upredict(:,:,:,:,:,iStage2) &
+                                  +(RK_bs(iCounter,1) *tphi+RK_bs(iCounter,2)*tphi2 )*(FieldStage (:,:,:,:,:,iCounter))
+     END DO
+     Upredict(:,:,:,:,:,iStage2) =Un  + dt*Upredict(:,:,:,:,:,iStage2)
+  END DO
+#else
+   CALL abort(&
+__STAMP__&
+,'No Predictor for this timedisc!')
+#endif
+CASE(7)
+  IF(iStage.NE.0) RETURN
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
+  DO iStage2=2,nRKStages
+    tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
+    tphi2= tphi*tphi
+    tphi3= tphi*tphi2
+    Upredict(:,:,:,:,:,iStage2) =(RK_bsO3(nRKStages,1)*tphi  &
+                                 +RK_bsO3(nRKStages,2)*tphi2 &
+                                 +RK_bsO3(nRKStages,3)*tphi3)*(Ut+ImplicitSource)
+    DO iCounter = 1,nRKStages-1
+      Upredict(:,:,:,:,:,iStage2) =Upredict(:,:,:,:,:,iStage2)+ ( RK_bsO3(iCounter,1)*tphi  &
+                                                                + RK_bsO3(iCounter,2)*tphi2 &
+                                                                + RK_bsO3(iCounter,3)*tphi3)*(FieldStage (:,:,:,:,:,iCounter))
+    END DO
+    Upredict(:,:,:,:,:,iStage2) =Un  + dt*Upredict(:,:,:,:,:,iStage2)
+  END DO
+#else
+   CALL abort(&
+__STAMP__&
+,'No Predictor for this timedisc!')
+#endif
 END SELECT
+
+dtOld=dt
 
 END SUBROUTINE StorePredictor
 
