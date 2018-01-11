@@ -95,16 +95,16 @@ ALLOCATE( tTotal(1:14)   )
 ALLOCATE( tCurrent(1:14) )
 !ALLOCATE( LoadSum(1:14)  )
 !  1 -tDG
-!  2 -tDGComm
-!  3 -tPML
-!  4 -tEmission
-!  5 -tTrack
-!  6 -tInterpolation
-!  7 -tDeposition
-!  8 -tDSMC
+!     2 -tDGComm ! (not used for ElemTime!)
+!  3 -tPML/QDS
+!     4 -tEmission ! (not used for ElemTime!)
+!     5 -tTrack ! (not used for ElemTime!)
+!  6 -tInterpolation/RHS
+!  7 -tDeposition (only used with shapefunctions for ElemTime!)
+!     8 -tDSMC ! (not used for ElemTime!)
 !  9 -tPush
-! 10 -tPartComm
-! 11 -tSplit&Merge
+!    10 -tPartComm ! (not used for ElemTime!)
+!    11 -tSplit&Merge ! (not used for ElemTime!)
 ! 12 -UNFP
 ! 13 -DGAnalyze
 ! 14 -PartAnalyze
