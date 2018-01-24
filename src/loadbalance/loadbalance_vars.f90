@@ -12,10 +12,27 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                             :: DoLoadBalance                              ! DoLoadBalance
 LOGICAL                             :: InitLoadBalanceIsDone                      ! switch for checking
+
 ! time measurement
 REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
 REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
+                                                                                  !  1 -tDG
+                                                                                  !  2 -tDGComm
+                                                                                  !  3 -tPML
+                                                                                  !  4 -tEmission
+                                                                                  !  5 -tTrack
+                                                                                  !  6 -tInterpolation
+                                                                                  !  7 -tDeposition
+                                                                                  !  8 -tDSMC
+                                                                                  !  9 -tPush
+                                                                                  ! 10 -tPartComm
+                                                                                  ! 11 -tSplit&Merge
+                                                                                  ! 12 -UNFP
+                                                                                  ! 13 -DGAnalyze
+                                                                                  ! 14 -PartAnalyze
+
+! counter
 REAL(KIND=8)                        :: nTotalParts                                ! number of particles in time of tTotal
 INTEGER                             :: nLoadIter                                  ! number of load iter 
 !INTEGER                             :: nCurrentParts                              ! number of current particles

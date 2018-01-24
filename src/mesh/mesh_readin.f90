@@ -221,11 +221,13 @@ INTEGER                        :: ReduceData_glob(10)
 INTEGER                        :: iNbProc, locnPart
 INTEGER                        :: iProc, curiElem, MyElems, jProc,NewElems
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
+#ifdef PARTICLES
 INTEGER,ALLOCATABLE            :: PartInt(:,:)
+#endif /*PARTICLES*/
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 ! new weight distribution method
-INTEGER                        :: BalanceMethod,iDistriIter
+INTEGER                        :: WeightDistributionMethod,iDistriIter
 LOGICAL                        :: FoundDistribution
 REAL                           :: LastProcDiff
 REAL                           :: LoadDiff(0:nProcessors-1)
@@ -238,7 +240,7 @@ INTEGER                        :: ErrorCode
 LOGICAL                        :: fileExists
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: dexist
+LOGICAL                        :: isMortarMeshExists,ElemTimeExists,PartIntExists
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -281,7 +283,7 @@ SDEALLOCATE(PartDistri)
 ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
 CALL CloseDataFile()
-Dexist=.FALSE. 
+ElemTimeExists=.FALSE.
 IF (DoRestart) THEN 
 #ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
@@ -291,43 +293,51 @@ IF (DoRestart) THEN
 
 #ifdef MPI
   IF(MPIRoot)THEN
-    IF(DoLoadBalance) CALL H5LEXISTS_F(File_ID,'ElemTime',Dexist,iERROR)
-    SWRITE(Unit_StdOut,'(A,L)') ' ElemTime data set exists: ', Dexist
+    IF(DoLoadBalance) CALL H5LEXISTS_F(File_ID,'ElemTime',ElemTimeExists,iERROR)
+    SWRITE(Unit_StdOut,'(A,L)') ' ElemTime data set exists: ', ElemTimeExists
   END IF
-  CALL MPI_BCAST (Dexist,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
   !CALL CloseDataFile() 
 #endif /*MPI*/
+  ! Read old ElemTime from State.h5 file
   ALLOCATE(ElemGlobalTime(1:nGlobalElems))
   ElemGlobalTime=0.
-  IF(Dexist)THEN
-    !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  IF(ElemTimeExists)THEN
     CALL ReadArray('ElemTime',1,(/nGlobalElems/),0,1,RealArray=ElemGlobalTime)
-    !CALL CloseDataFile() 
   END IF
-  ALLOCATE(PartInt(1:nGlobalElems,2))
-  PartInt(:,:)=0
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-  CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
-  CALL CloseDataFile() 
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+#ifdef PARTICLES
+  CALL H5LEXISTS_F(File_ID,'PartInt',PartIntExists,iERROR)
+  IF(PartIntExists)THEN
+    ALLOCATE(PartInt(1:nGlobalElems,2))
+    PartInt(:,:)=0
+    CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
+    CALL CloseDataFile() 
+  END IF
+#endif /*PARTICLES*/
   
   WeightSum = 0.0
   CurWeight = 0.0
 
   ! load balancing for particles
   ! read in particle data
-  BalanceMethod     = GETINT('WeightDistributionMethod','1')
+  WeightDistributionMethod     = GETINT('WeightDistributionMethod','1')
 
   ALLOCATE(PartsInElem(1:nGlobalElems))
   
   DO iElem = 1, nGlobalElems
+#ifdef PARTICLES
     locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
     PartsInElem(iElem)=locnPart
-    IF(.NOT.Dexist) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
+    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
+#else
+    PartsInElem(iElem)=0
+    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = 1.0
+#endif /*PARTICLES*/
     WeightSum = WeightSum + ElemGlobalTime(iElem)
   END DO
 
-  SELECT CASE(BalanceMethod)
+  ! Select WeightDistributionMethod
+  SELECT CASE(WeightDistributionMethod)
   CASE(-1) ! same as in no-restart: the elements are equally distributed
     nElems=nGlobalElems/nProcessors
     iElem=nGlobalElems-nElems*nProcessors
@@ -419,7 +429,7 @@ IF (DoRestart) THEN
 __STAMP__&
 ,' Process received zero elements during load distribution',iProc)
         END DO ! iPRoc
-        IF(Dexist)THEN
+        IF(ElemTimeExists)THEN
           IF(ElemDistri(nProcessors-1).EQ.1)THEN
             LoadDistri(nProcessors-1)=ElemGlobalTime(nGlobalElems)
             LastLoadDiff = LoadDistri(nProcessors-1)-targetWeight
@@ -519,7 +529,7 @@ __STAMP__&
 __STAMP__&
 ,' Process received zero elements during load distribution',iProc)
         END DO ! iPRoc
-        IF(DExist)THEN
+        IF(ElemTimeExists)THEN
           LoadDistri(0)=SUM(ElemGlobalTime(1:offSetElemMPI(1)))
         ELSE
           LoadDistri(0)=ElemDistri(0) +&
@@ -621,7 +631,7 @@ __STAMP__&
     DO iProc=0,nProcessors-1
       FirstElemInd=OffSetElemMPI(iProc)+1
       LastElemInd =OffSetElemMPI(iProc+1)
-      IF(DExist)THEN
+      IF(ElemTimeExists)THEN
         LoadDistri(iProc) = SUM(ElemGlobalTime(FirstElemInd:LastElemInd))
       ELSE
         LoadDistri(iProc) = LastElemInd-OffSetElemMPI(iProc) &
@@ -680,7 +690,7 @@ __STAMP__&
     DO iProc=0,nProcessors-1
       FirstElemInd=OffSetElemMPI(iProc)+1
       LastElemInd =OffSetElemMPI(iProc+1)
-      IF(Dexist)THEN
+      IF(ElemTimeExists)THEN
         LoadDistri(iProc) = SUM(PartsInElem(FirstElemInd:LastElemInd))
       ELSE
         LoadDistri(iProc) = LastElemInd-OffSetElemMPI(iProc) &
@@ -718,7 +728,8 @@ LOGWRITE(*,*)'offset,nElems',offsetElem,nElems
 ! read in current elem weights
 SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))
-IF(DExist)THEN
+CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
+IF(ElemTimeExists)THEN
   ! read in of ElemTime is required to check if load-balance step has been performed
   ! successfully
 #ifdef MPI
@@ -729,6 +740,8 @@ IF(DExist)THEN
   CALL ReadArray('ElemTime',1,(/nElems/),OffsetElem,1,RealArray=ElemTime)
   CALL CloseDataFile() 
 ELSE
+  write(*,*) "here"
+  read*
   ElemTime=0.
 END IF
 #ifdef MPI
@@ -736,6 +749,7 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
 #else
 CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
 #endif 
+#ifdef PARTICLES
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))
   CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
@@ -744,6 +758,7 @@ ELSE
   ALLOCATE(nPartsPerElem(1:nElems))
 END IF
 nPartsPerElem=0
+#endif /*PARTICLES*/
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
@@ -954,18 +969,18 @@ nNodes=nElems*(NGeo+1)**3
 
 !! IJK SORTING --------------------------------------------
 !!read local ElemInfo from data file
-!CALL DatasetExists(File_ID,'nElems_IJK',dexist)
-!IF(dexist)THEN
+!CALL DatasetExists(File_ID,'nElems_IJK',DExist)
+!IF(DExist)THEN
 !  CALL ReadArray('nElems_IJK',1,(/3/),0,1,IntegerArray=nElems_IJK)
 !  ALLOCATE(Elem_IJK(3,nLocalElems))
 !  CALL ReadArray('Elem_IJK',2,(/3,nElems/),offsetElem,2,IntegerArray=Elem_IJK)
 !END IF
 
 ! Get Mortar specific arrays
-dexist=.FALSE.
+isMortarMeshExists=.FALSE.
 iMortar=0
-CALL DatasetExists(File_ID,'isMortarMesh',dexist,.TRUE.)
-IF(dexist)&
+CALL DatasetExists(File_ID,'isMortarMesh',isMortarMeshExists,.TRUE.)
+IF(isMortarMeshExists)&
   CALL ReadAttribute(File_ID,'isMortarMesh',1,IntegerScalar=iMortar)
 isMortarMesh=(iMortar.EQ.1)
 IF(isMortarMesh)THEN

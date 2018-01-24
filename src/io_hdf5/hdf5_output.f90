@@ -337,10 +337,10 @@ CALL WriteAdditionalElemData(FileName,ElementOut)
 CALL WritePMLDataToHDF5(FileName)
 #endif
 
-#ifdef MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-IF(DoLoadBalance) CALL WriteElemTimeToHDF5(FileName)
-#endif /*MPI*/
+! #ifdef MPI                                           ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
+! CALL MPI_BARRIER(MPI_COMM_WORLD,iError)              ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
+! IF(DoLoadBalance) CALL WriteElemTimeToHDF5(FileName) ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
+! #endif /*MPI*/                                       ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
 
 EndT=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
