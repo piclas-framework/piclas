@@ -52,6 +52,7 @@ PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 PUBLIC :: DatasetExists
 PUBLIC :: GetDataSize
+PUBLIC :: GetArrayAndName
 !===================================================================================================================================
 
 CONTAINS
@@ -559,5 +560,53 @@ ELSE
 END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE GetHDF5NextFileName
+
+
+!===================================================================================================================================
+!> High level wrapper to ReadArray and ReadAttrib. Check if array exists and directly
+!> allocate, read array and attribs
+!> Assume that the array to be read is of size (nVar,.,.,.,.,nElems) and that an associated
+!> attribute containing the variable names exists
+!===================================================================================================================================
+SUBROUTINE GetArrayAndName(ArrayName,AttribName,nVal,Array,VarNames)
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars    ,ONLY: nElems,nGlobalElems,OffsetElem
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)     :: ArrayName   !< name of array to be read
+CHARACTER(LEN=*),INTENT(IN)     :: AttribName  !< name of varnames to be read
+INTEGER,INTENT(OUT)             :: nVal(15)    !< size of array
+REAL,ALLOCATABLE,INTENT(OUT)    :: Array(:)    !< array to be read
+CHARACTER(LEN=255),ALLOCATABLE,INTENT(OUT) :: VarNames(:) !< variable names
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL  :: found
+INTEGER  :: dims
+!===================================================================================================================================
+nVal=-1
+SDEALLOCATE(Array)
+SDEALLOCATE(VarNames)
+
+CALL DatasetExists(File_ID, TRIM(ArrayName), found)
+IF (found) THEN
+  ! get size of array
+  CALL GetDataSize(File_ID,TRIM(ArrayName),dims,HSize)
+  nVal(1:dims)=INT(HSize)
+  IF(nVal(dims).NE.nGlobalElems) STOP 'Last array dimension != nElems !'
+  nVal(dims)=nElems
+  DEALLOCATE(HSize)
+  ALLOCATE(array(PRODUCT(nVal(1:dims))))
+  ALLOCATE(VarNames(nVal(1)))
+
+  ! read array
+  CALL ReadArray(TRIM(ArrayName),dims,nVal(1:dims),OffsetElem,dims,RealArray=array)
+
+  ! read variable names
+  CALL ReadAttribute(File_ID,TRIM(AttribName),nVal(1),StrArray=VarNames)
+END IF
+
+END SUBROUTINE GetArrayAndName
 
 END MODULE MOD_HDF5_Input

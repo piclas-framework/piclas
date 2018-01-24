@@ -69,6 +69,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
 DoLoadBalance= GETLOGICAL('DoLoadBalance','F')
+IF(nProcessors.EQ.1) DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
 DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 !DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
