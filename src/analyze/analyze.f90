@@ -243,12 +243,11 @@ INTEGER                        :: openStat! File IO status
 CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
 CHARACTER(LEN=30)              :: L2name(PP_nVar)              ! variable name for the Tecplot header
 CHARACTER(LEN=300)             :: Filename                     ! Output filename,
-LOGICAL                        :: fileExists                   ! Error handler for file
 INTEGER                        :: ioUnit
 !===================================================================================================================================
 Filename = 'out.'//TRIM(ProjectName)//'.dat'
 ! Check for file
-INQUIRE(FILE = Filename, EXIST = fileExists)
+! INQUIRE(FILE = Filename, EXIST = fileExists) ! now -> FILEEXISTS(Filename)
 !! File processing starts here open old and extratct information or create new file.
 ioUnit=1746
   OPEN(UNIT   = ioUnit       ,&

@@ -68,8 +68,13 @@ USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
-DoLoadBalance= GETLOGICAL('DoLoadBalance','F')
-IF(nProcessors.EQ.1) DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
+IF(nProcessors.EQ.1)THEN
+  DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
+  SWRITE(UNIT_StdOut,'(a3,a45,a3,L33,a3,a7,a3)')' | ',TRIM("No LoadBalance (nProcessors=1): DoLoadBalance")       ,' | ',&
+      DoLoadBalance   ,' | ',TRIM("INFO"),' | '
+ELSE 
+  DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
+END IF
 DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 !DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
@@ -164,7 +169,6 @@ REAL                  :: stotalDepos,stotalParts,sTotalTracks
 REAL                  :: tParts
 #endif /*PARTICLES*/
 REAL                  :: MaxWeight, MinWeight
-LOGICAL               :: FileExists
 CHARACTER(LEN=255)    :: outfile
 !===================================================================================================================================
 
@@ -252,8 +256,7 @@ CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 ! Fill .csv file for parformance analysis and load blaaaance
 IF(MPIRoot)THEN
   outfile='ElemTimeStatistics.csv'
-  INQUIRE(FILE=TRIM(outfile),EXIST=FileExists)
-  IF(FileExists)THEN
+  IF(FILEEXISTS(outfile))THEN
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') time
