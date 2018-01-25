@@ -1,13 +1,11 @@
 #include "boltzplatz.h"
-
+!==================================================================================================================================
+!> Initializes HDF5 IO and sets HDF-MPI parameters, opens ans closes files.
+!==================================================================================================================================
 MODULE MOD_IO_HDF5
-!===================================================================================================================================
-! Add comments please!
-!===================================================================================================================================
 ! MODULES
 USE HDF5
 USE MOD_Globals,ONLY: iError
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 
 ABSTRACT INTERFACE
@@ -20,11 +18,13 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-LOGICAL                  :: gatheredWrite
-INTEGER(HID_T)           :: File_ID
-INTEGER(HSIZE_T),POINTER :: HSize(:)
-INTEGER                  :: nDims
-INTEGER                  :: MPIInfo !for lustre file system
+LOGICAL                  :: gatheredWrite       !< flag whether every process should output data or data should first be gathered
+INTEGER(HID_T)           :: File_ID             !< file which is currently opened
+INTEGER(HID_T)           :: Plist_File_ID       !< property list of file which is currently opened
+INTEGER(HSIZE_T),POINTER :: HSize(:)            !< HDF5 array size (temporary variable)
+INTEGER                  :: nDims               !< 
+INTEGER                  :: MPIInfo             !< hardware / storage specific / file system MPI parameters to pass to HDF5
+                                                !< for optimized performance on specific systems
 
 !> Type containing pointers to data to be written to HDF5 in an element-wise scalar fashion.
 !> Alternatively a function pointer can be specified providing the desired data.
@@ -48,11 +48,11 @@ INTERFACE InitIO
 END INTERFACE
 
 INTERFACE OpenDataFile
-  MODULE PROCEDURE OpenHDF5File
+  MODULE PROCEDURE OpenDataFile
 END INTERFACE
 
 INTERFACE CloseDataFile
-  MODULE PROCEDURE CloseHDF5File
+  MODULE PROCEDURE CloseDataFile
 END INTERFACE
 
 INTERFACE AddToElemData
@@ -111,39 +111,29 @@ IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE
 END SUBROUTINE InitIO_HDF5
 
 
-#ifdef MPI
-SUBROUTINE OpenHDF5File(FileString,create,single,readOnly,communicatorOpt,userblockSize)
-#else
-SUBROUTINE OpenHDF5File(FileString,create,readOnly,userblockSize)
-#endif
-!===================================================================================================================================
-! Open HDF5 file and groups
-!===================================================================================================================================
+!==================================================================================================================================
+!> Open HDF5 file and groups
+!==================================================================================================================================
+SUBROUTINE OpenDataFile(FileString,create,single,readOnly,communicatorOpt,userblockSize)
 ! MODULES
 USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)   :: FileString
-LOGICAL,INTENT(IN)            :: create
-LOGICAL,INTENT(IN)            :: readOnly
-#ifdef MPI
-LOGICAL,INTENT(IN)            :: single
-INTEGER,INTENT(IN),OPTIONAL   :: communicatorOpt
-#endif
-INTEGER,INTENT(IN),OPTIONAL   :: userblockSize  !< size of the file to be prepended to HDF5 file
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)  :: FileString      !< filename to be opened
+LOGICAL,INTENT(IN)           :: create          !< create file if it doesn't exist. Overwrited file if already present!
+LOGICAL,INTENT(IN)           :: single          !< single=T : only one processor opens file, single=F : open/create collectively
+LOGICAL,INTENT(IN)           :: readOnly        !< T : file is opened in read only mode, so file system timestamp remains unchanged
+                                                !< F: file is open read/write mode
+INTEGER,INTENT(IN),OPTIONAL  :: communicatorOpt !< only MPI and single=F: communicator to be used for collective access
+INTEGER,INTENT(IN),OPTIONAL  :: userblockSize   !< size of the file to be prepended to HDF5 file
+!----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: Plist_ID
 #ifdef MPI
 INTEGER                        :: comm
 #endif
-LOGICAL                        :: fileExists
 INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
-!===================================================================================================================================
+!==================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "',TRIM(FileString),'" ...'
 
 userblockSize_loc = 0
@@ -154,18 +144,17 @@ CALL H5OPEN_F(iError)
 
 ! Setup file access property list with parallel I/O access (MPI) or with default property list.
 IF(create)THEN
-  CALL H5PCREATE_F(H5P_FILE_CREATE_F, Plist_ID, iError)
+  CALL H5PCREATE_F(H5P_FILE_CREATE_F, Plist_File_ID, iError)
   IF(iError.NE.0) CALL abort(__STAMP__,&
     'ERROR: Could not create file '//TRIM(FileString))
 ELSE
-  CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
+  CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_File_ID, iError)
   IF(iError.NE.0) CALL abort(__STAMP__,&
     'ERROR: Could not open file '//TRIM(FileString))
 END IF
 
 #ifdef MPI
-comm = MERGE(communicatorOpt,MPI_COMM_WORLD,PRESENT(communicatorOpt))
-IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_ID, comm, MPIInfo, iError)
+IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt, MPIInfo, iError)
 #endif /* MPI */
 
 ! Open the file collectively.
@@ -174,53 +163,47 @@ IF(create)THEN
     tmp = userblockSize_loc/512
     IF (MOD(userblockSize_loc,512).GT.0) tmp = tmp+1
     tmp2 = 512*2**CEILING(LOG(REAL(tmp))/LOG(2.))
-    CALL H5PSET_USERBLOCK_F(Plist_ID, tmp2, iError)
+    CALL H5PSET_USERBLOCK_F(Plist_File_ID, tmp2, iError)
   END IF
-  CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, creation_prp = Plist_ID)
+  CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, creation_prp = Plist_File_ID)
 ELSE !read-only ! and write (added later)
-  INQUIRE(FILE=TRIM(FileString),EXIST=fileExists)
-  IF(.NOT.fileExists) CALL abort(&
-__STAMP__&
-, 'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
+  IF(.NOT.FILEEXISTS(FileString)) CALL abort(__STAMP__,&
+    'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
   IF (readOnly) THEN
-    CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDONLY_F,  File_ID, iError, access_prp = Plist_ID)
-  ELSE
-    CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_ID)
+    CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDONLY_F,  File_ID, iError, access_prp = Plist_File_ID)
+  ELSE 
+    CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_File_ID)
   END IF
 END IF
-IF(iError.NE.0) CALL abort(&
-__STAMP__&
-,'ERROR: Could not open or create file '//TRIM(FileString)) 
+IF(iError.NE.0) CALL abort(__STAMP__,&
+  'ERROR: Could not open or create file '//TRIM(FileString))
 
-CALL H5PCLOSE_F(Plist_ID, iError)
 LOGWRITE(*,*)'...DONE!'
-END SUBROUTINE OpenHDF5File
+END SUBROUTINE OpenDataFile
 
 
 
-SUBROUTINE CloseHDF5File()
-!===================================================================================================================================
-! Close HDF5 file and groups
-!===================================================================================================================================
+!==================================================================================================================================
+!> Close HDF5 file and groups
+!==================================================================================================================================
+SUBROUTINE CloseDataFile()
 ! MODULES
-USE MOD_Globals,ONLY:UNIT_stdOut,UNIT_logOut,Logging
-! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals,ONLY:UNIT_logOut,Logging
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!===================================================================================================================================
+!==================================================================================================================================
 LOGWRITE(*,'(A)')'  CLOSE HDF5 FILE...'
 ! Close file
+CALL H5PCLOSE_F(Plist_File_ID, iError)
 CALL H5FCLOSE_F(File_ID, iError)
 ! Close FORTRAN predefined datatypes.
 CALL H5CLOSE_F(iError)
 File_ID=0
 LOGWRITE(*,*)'...DONE!'
-END SUBROUTINE CloseHDF5File
+END SUBROUTINE CloseDataFile
 
 !==================================================================================================================================
 !> Set pointers to element-wise arrays or scalars which will be gathered and written out. Both real or integer data types
