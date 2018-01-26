@@ -1680,7 +1680,7 @@ IF(.NOT.DoNotSplit)THEN
   OutputCOMM=MPI_UNDEFINED
 ELSE
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)
   IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1849,7 +1849,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('TTM',N_variables,StrVarNames,TRIM(MeshFil
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesTTM',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
@@ -1935,7 +1935,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TR
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesPMLzetaGlobal',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
@@ -2015,7 +2015,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesDielectricGlobal',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
@@ -2111,7 +2111,7 @@ END IF
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesQDS',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()
 CALL GatheredWriteArray(FileName,create=.FALSE.,&

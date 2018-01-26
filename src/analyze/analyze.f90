@@ -805,7 +805,7 @@ REAL,INTENT(IN)     :: Time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: rDummy
-LOGICAL             :: isOpen, FileExists                                          !
+LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile                                                      !
 INTEGER             :: unit_index, OutputCounter
 !===================================================================================================================================
@@ -824,8 +824,7 @@ IF (DoAnalyze) THEN
    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
    IF (.NOT.isOpen) THEN
      outfile = 'CodeAnalyze.csv'
-     INQUIRE(file=TRIM(outfile),EXIST=FileExists)
-     IF (isRestart .and. FileExists) THEN
+     IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
      ELSE
