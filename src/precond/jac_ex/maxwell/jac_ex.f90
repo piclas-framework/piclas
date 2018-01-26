@@ -134,6 +134,16 @@ END SUBROUTINE Jac_Ex_Neighbor
 SUBROUTINE  DGVolIntJac(BJ,iElem)
 !===================================================================================================================================
 ! volume integral Jacobian of the euler flux and the viscous part dF^v/dU
+! filling volume integral
+! dF_ijk / dU_mmnnoo
+!
+!              mm,nn,oo /r
+!
+!            __________
+!           |
+!  ijk/s    |
+!           |
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -254,10 +264,12 @@ LOGICAL                                                 :: isDielectric
       END DO !nn
     END DO !oo 
   ELSE
+    ! column loop mm,nn,oo->s
     s=0
     DO oo=0,PP_N
       DO nn=0,PP_N
         DO mm=0,PP_N
+          ! rows
           fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
                            hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
@@ -267,9 +279,11 @@ LOGICAL                                                 :: isDielectric
           hJacTilde(:,:) = fJac(:,:)*Metrics_hTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_hTilde(2,mm,nn,oo,iElem) + &
                            hJac(:,:)*Metrics_hTilde(3,mm,nn,oo,iElem)
-          r1=           vn1*nn+vn2*oo
-          r2=mm*PP_nVar      +vn2*oo
-          r3=mm*PP_nVar+vn1*nn
+          ! get row index based on oo,mm,nn
+          ! this is due to Kronicker-Delta delta(:,:)
+          r1=           vn1*nn+vn2*oo ! i
+          r2=mm*PP_nVar      +vn2*oo  ! j
+          r3=mm*PP_nVar+vn1*nn        ! k
           DO ll=0,PP_N
                 BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar) = BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar)                &
                                                                                   + D_hat(ll,mm)*fJacTilde(:,:) 
