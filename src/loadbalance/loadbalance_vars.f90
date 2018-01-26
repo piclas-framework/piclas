@@ -44,6 +44,9 @@ INTEGER                             :: PartWeightMethod                         
 INTEGER                             :: WeightAverageMethod                        ! method to average the particle weight
                                                                                   ! (1: iter, 2: dt_Analyze)
                                                                                   ! nSkipAnalyze is greater than 1
+REAL                                :: MaxWeight                                  ! Maximum Weight of proc on domain
+REAL                                :: MinWeight                                  ! Minimum Weight of proc on domain
+REAL                                :: NewImbalance                               ! Imbalance after rebalance step
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -179,6 +179,7 @@ USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
 USE MOD_Mesh_Vars,          ONLY:Elems
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 #ifdef MPI
+USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 #endif
 USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
@@ -186,7 +187,10 @@ USE MOD_IO_HDF5,            ONLY: AddToElemData,ElementOut
 #ifdef MPI
 USE MOD_io_hdf5
 USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,ParticleMPIWeight,WeightSum,TargetWeight,DoLoadBalance
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nPartsPerElem,nDeposPerElem,nTracksPerElem
+USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem
+#ifdef PARTICLES
+USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem
+#endif /*PARTICLES*/
 USE MOD_LoadDistribution,   ONLY:SingleStepOptimalPartition
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
@@ -219,11 +223,12 @@ INTEGER                        :: iMortar,jMortar,nMortars
 #ifdef MPI
 REAL                           :: curWeight
 INTEGER                        :: ReduceData_glob(10)
-INTEGER                        :: iNbProc, locnPart
+INTEGER                        :: iNbProc
 INTEGER                        :: iProc, curiElem, MyElems, jProc,NewElems
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
 #ifdef PARTICLES
 INTEGER,ALLOCATABLE            :: PartInt(:,:)
+INTEGER                        :: locnPart,PartIntExists
 #endif /*PARTICLES*/
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
@@ -238,19 +243,17 @@ INTEGER,ALLOCATABLE            :: PartsInElem(:)
 REAL                           :: diffLower,diffUpper
 INTEGER                        :: ErrorCode
 #endif
-LOGICAL                        :: fileExists
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: isMortarMeshExists,ElemTimeExists,PartIntExists
+LOGICAL                        :: isMortarMeshExists,ElemTimeExists
 INTEGER                        :: nVal(15),iVar
-REAL,ALLOCATABLE               :: ElemTime_local(:)
+REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
 REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
-  INQUIRE (FILE=TRIM(FileString), EXIST=fileExists)
-  IF(.NOT.FileExists)  CALL abort(&
+  IF(.NOT.FILEEXISTS(FileString))  CALL abort(&
 __STAMP__ &
 ,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
 END IF
@@ -259,11 +262,7 @@ SWRITE(UNIT_stdOut,'(A)')'READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! Open data file
-#ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
-#endif
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
 CHECKSAFEINT(HSize(2),4)
@@ -292,30 +291,31 @@ ElemTimeExists=.FALSE.
 
 
 ! Maybe allow creating LB data in single mode?
-#ifdef MPI
 IF (DoRestart.AND.DoLoadBalance) THEN 
   !----------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime:
   ! Read in only by MPIMeshRoot in single mode, only communicate logical ElemTimeExists
   ! 1) Only MPIMeshRoot does readin of ElemTime
+  SDEALLOCATE(ElemGlobalTime)
   ALLOCATE(ElemGlobalTime(1:nGlobalElems))
   ElemGlobalTime=0.
   IF(MPIRoot)THEN
     !IF(DoLoadBalance) CALL H5LEXISTS_F(File_ID,'ElemTime',ElemTimeExists,iERROR)
     !SWRITE(Unit_StdOut,'(A,L)') ' ElemTime data set exists: ', ElemTimeExists
 
-
     ALLOCATE(ElemTime_local(1:nGlobalElems))
-    nElems = nGlobalElems ! temporary set nElems as nGlobalElems for GetArrayAndName
-    offsetElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1
+    nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
+    offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
     !CALL OpenDataFile(RestartFiles(myMesh),create=.FALSE.,single=.TRUE.,readOnly=.TRUE.,communicator=-1) ! FLEXI
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)                          ! BOLTZPLATZ
+    !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)                          ! BOLTZPLATZ
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)  ! BOLTZPLATZ
+    IPWRITE(UNIT_stdOut,*)"DONE"
     CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
     CALL CloseDataFile()
     IF (ALLOCATED(VarNamesElemData_loc)) THEN
       ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
       ElemData_loc = RESHAPE(tmp,(/nVal(1),nVal(2)/))
-      ! search for ElemTime 
+      ! Search for ElemTime 
       DO iVar=1,nVal(1)
         IF (STRICMP(VarNamesElemData_loc(iVar),"ElemTime")) THEN
           ElemTime_local = REAL(ElemData_loc(iVar,:))
@@ -326,11 +326,10 @@ IF (DoRestart.AND.DoLoadBalance) THEN
     END IF
     ElemGlobalTime = ElemTime_local
     DEALLOCATE(ElemTime_local)
-
-
-
-
+    ! if the elemtime is 0.0, the value must be changed in order to prevent a division by zero
+    IF(MINVAL(ElemGlobalTime).LE.0.0)ElemGlobalTime=1.0
   END IF
+  !print*,ElemGlobalTime
   ! 2) Distribute logical information ElemTimeExists
   CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
   !CALL CloseDataFile() 
@@ -371,6 +370,10 @@ IF (DoRestart.AND.DoLoadBalance) THEN
 #endif /*PARTICLES*/
     WeightSum = WeightSum + ElemGlobalTime(iElem)
   END DO
+
+  !IF(WeightSum.LE.0.0) CALL abort(&
+  !__STAMP__, &
+  !' LoadBalance: WeightSum = ',RealInfoOpt=WeightSum)
 
   !==============================================================================================================================!
   ! Select WeightDistributionMethod
@@ -601,7 +604,16 @@ IF (DoRestart.AND.DoLoadBalance) THEN
     !----------------------------------------------------------------------------------------------------------------------------------!
   CASE(3)
     ! 1: last Proc receives the least load
+    ! Distribute ElemGlobalTime to all procs
+    CALL MPI_BCAST(ElemGlobalTime,nGlobalElems,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+
+    ! Do Rebalance
+    WeightSum = 0.
+    DO iElem = 1, nGlobalElems
+      WeightSum = WeightSum + ElemGlobalTime(iElem)
+    END DO
     targetWeight=WeightSum/REAL(nProcessors)
+
     LastProcDiff=0.
     curiElem=1
     offSetElemMPI=0
@@ -682,6 +694,13 @@ IF (DoRestart.AND.DoLoadBalance) THEN
     END DO ! iPRoc
     !----------------------------------------------------------------------------------------------------------------------------------!
   CASE(4)
+    ! Distribute ElemGlobalTime to all procs
+    CALL MPI_BCAST(ElemGlobalTime,nGlobalElems,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+    ! Do Rebalance
+    WeightSum = 0.
+    DO iElem = 1, nGlobalElems
+      WeightSum = WeightSum + ElemGlobalTime(iElem)
+    END DO
     ! predistribute elements
     curiElem = 1
     targetWeight=WeightSum/REAL(nProcessors)
@@ -754,7 +773,7 @@ IF (DoRestart.AND.DoLoadBalance) THEN
     END DO
   END DO ! iProc
   DEALLOCATE(PartsInElem)
-  DEALLOCATE(ElemGlobalTime)
+  !DEALLOCATE(ElemGlobalTime)
 ELSE
   nElems=nGlobalElems/nProcessors
   iElem=nGlobalElems-nElems*nProcessors
@@ -763,49 +782,77 @@ ELSE
   END DO
   offsetElemMPI(nProcessors)=nGlobalElems
 END IF ! IF(DoRestart.AND.DoLoadBalance)
-#endif /*MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 
-!local nElems and offset
+! Sanity check: local nElems and offset
 nElems=offsetElemMPI(myRank+1)-offsetElemMPI(myRank)
 IF(nElems.LE.0) CALL abort(&
-__STAMP__, &
- ' Process did not receive any elements/load! ')
+    __STAMP__, &
+    ' Process did not receive any elements/load! ')
 
 offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,*)'offset,nElems',offsetElem,nElems
+
+
+
 ! -- LoadBalance preparation
-! read in current elem weights
 SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))
+ElemTime = 0.
 CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
-IF(ElemTimeExists)THEN
-  ! read in of ElemTime is required to check if load-balance step has been performed
-  ! successfully
-#ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
-#endif /*MPI*/
-  CALL ReadArray('ElemTime',1,(/nElems/),OffsetElem,1,RealArray=ElemTime)
-  CALL CloseDataFile() 
-ELSE
-  write(*,*) "ElemTime does not exist"
-  read*
-  ElemTime=0.
+IF(ElemTimeExists)THEN  ! MeshRoot now can calculate new imbalance with offsetElemMPI information
+  IF(MPIRoot)THEN
+    ALLOCATE(WeightSum_proc(0:nProcessors-1))
+    DO iProc=0,nProcessors-1
+      WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
+    END DO
+    MaxWeight = MAXVAL(WeightSum_proc)
+    MinWeight = MINVAL(WeightSum_proc)
+    ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
+  END IF
+  IPWRITE (*,*) "test1"
+
+  ! Why does this have to be outside of "IF(MPIRoot)" when its does not have to be outside for FLEXI
+  CALL MPI_ALLREDUCE(WeightSum,targetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxWeight,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MinWeight,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+
+  !CALL MPI_ALLREDUCE(xyzMinMaxloc(4),xyzMinMax(4), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+IPWRITE (*,*) "test2"
+
+  ! new computation of current imbalance
+  TargetWeight=TargetWeight/nProcessors
+  NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+
+  IF(TargetWeight.LE.0.0) CALL abort(&
+      __STAMP__, &
+      ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
 END IF
 
 
 
 
+! ! -- LoadBalance preparation
+! ! Read in current elem weights
+! SDEALLOCATE(ElemTime)
+! ALLOCATE(ElemTime(1:nElems))
+! CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
+! IF(ElemTimeExists)THEN
+!   ! Read in of ElemTime is required to check if load-balance step has been performed successfully
+!   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+!   CALL ReadArray('ElemTime',1,(/nElems/),OffsetElem,1,RealArray=ElemTime)
+!   CALL CloseDataFile() 
+!   write(*,*) "ElemTime read"
+!   !read*
+! ELSE
+!   write(*,*) "ElemTime does not exist"
+!   !read*
+!   ElemTime=0.
+! END IF
 
 
-#ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
-#endif 
+
 #ifdef PARTICLES
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))
@@ -828,6 +875,18 @@ nElems=nGlobalElems   !local number of Elements
 offsetElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
 #endif /* MPI */
 
+
+
+
+
+!IPWRITE (*,*) "MPI_BARRIER"
+!#ifdef MPI
+!CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+!#endif /* MPI */
+
+!IPWRITE (*,*) "FileString =", FileString
+IPWRITE(UNIT_stdOut,*)"FileString =", FileString
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL readBCs()
 !----------------------------------------------------------------------------------------------------------------------------
 !                              ELEMENTS

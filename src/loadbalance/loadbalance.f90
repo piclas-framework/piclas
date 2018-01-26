@@ -1,17 +1,16 @@
 #include "boltzplatz.h"
 
+!===================================================================================================================================
+!> Module contains the routines for load balancing
+!===================================================================================================================================
 MODULE MOD_LoadBalance
-!===================================================================================================================================
-! Module contains the routines for load balancing
-!===================================================================================================================================
+!----------------------------------------------------------------------------------------------------------------------------------
 ! MODULES
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 #ifdef MPI
 INTERFACE InitLoadBalance
@@ -21,10 +20,6 @@ END INTERFACE
 INTERFACE FinalizeLoadBalance
   MODULE PROCEDURE FinalizeLoadBalance
 END INTERFACE
-
-!INTERFACE SingleStepOptimalPartition
-!  MODULE PROCEDURE SingleStepOptimalPartition
-!END INTERFACE
 
 INTERFACE ComputeElemLoad
   MODULE PROCEDURE ComputeElemLoad
@@ -301,7 +296,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Restart,               ONLY:Restart
 USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
-USE MOD_LoadBalance_Vars,      ONLY:ElemTime,nLoadBalanceSteps
+USE MOD_LoadBalance_Vars,      ONLY:ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,          ONLY:DepositionType
 USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -316,10 +311,7 @@ REAL,INTENT(IN)      :: Currentimbalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: Newimbalance, MaxWeight, MinWeight
 !===================================================================================================================================
-
-
 ! only do load-balance if necessary
 IF(.NOT.PerformLoadBalance) THEN
   ElemTime=0.
@@ -339,7 +331,8 @@ CALL InitBoltzplatz(IsLoadBalance=.TRUE.)
 CALL Restart()
 
 ! compute imbalance 
-CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)
+!CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)  ! --> new imbalance has already been calculated in mesh_readin
+
 ! zero ElemTime, the measurement starts again
 ElemTime=0.
 
@@ -350,8 +343,6 @@ IF( NewImbalance.GT.CurrentImbalance ) THEN
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    ', MaxWeight
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight: '   , MinWeight
 END IF
- 
-!CurrentImbalance=NewImbalance
 
 #ifdef PARTICLES
 IF(   (TRIM(DepositionType).EQ.'shape_function')             &

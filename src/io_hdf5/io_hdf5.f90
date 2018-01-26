@@ -134,7 +134,8 @@ INTEGER                        :: comm
 #endif
 INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
 !==================================================================================================================================
-LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "',TRIM(FileString),'" ...'
+LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
+!IPWRITE(*,*)'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
 
 userblockSize_loc = 0
 IF (PRESENT(userblockSize)) userblockSize_loc = userblockSize
@@ -155,6 +156,8 @@ END IF
 
 #ifdef MPI
 IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt, MPIInfo, iError)
+  IF(iError.NE.0) CALL abort(__STAMP__,&
+    'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
 #endif /* MPI */
 
 ! Open the file collectively.
@@ -281,6 +284,7 @@ ENDIF
 IF(nOpts.NE.1) CALL Abort(__STAMP__,&
   'More then one optional argument passed to AddToElemData.')
 END SUBROUTINE AddToElemData
+
 
 !==================================================================================================================================
 !> Deallocate all pointers to element-wise arrays or scalars which will be gathered and written out.

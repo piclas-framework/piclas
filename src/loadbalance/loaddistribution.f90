@@ -96,11 +96,11 @@ DO iRank=minRank,maxRank
       IF(WeightSplit .LT. Opt_split) THEN
         lb = mid
       ELSE
-         ub = mid
+        ub = mid
       END IF
       IF(lb.GE.ub-1) EXIT
-        ! EXIT IF a single element was found, need to DO this
-        !                    here, to have mid and wsplit set.
+      ! EXIT IF a single element was found, need to DO this
+      !                    here, to have mid and wsplit set.
     END DO
     IF(ABS(WeightSplit - Opt_Split) .GT. ABS(WeightSplit-Opt_Split-ElemTime(mid)))THEN
       ! return 0 IF the splitter is left of the lower boundary
@@ -116,15 +116,15 @@ DO iRank=minRank,maxRank
       END IF
     END IF
     split(iRank) = mid
-  !IF (r .GT. 0) THEN
-  !    IF (split(r) .NE. split(r-1)) THEN
-        send_count(iRank) = mid - leftoff + 1
-        leftoff = mid + 1
-   !   END IF
-   ! ELSE
-   !   send_count(r) = mid - left_off + 1
-   !   left_off = mid + 1
-   ! END IF
+    !IF (r .GT. 0) THEN
+    !    IF (split(r) .NE. split(r-1)) THEN
+    send_count(iRank) = mid - leftoff + 1
+    leftoff = mid + 1
+    !   END IF
+    ! ELSE
+    !   send_count(r) = mid - left_off + 1
+    !   left_off = mid + 1
+    ! END IF
   END IF
 END DO ! iRank=minRank,maxRank
 
