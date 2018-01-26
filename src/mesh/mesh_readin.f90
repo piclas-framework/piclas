@@ -228,7 +228,8 @@ INTEGER                        :: iProc, curiElem, MyElems, jProc,NewElems
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
 #ifdef PARTICLES
 INTEGER,ALLOCATABLE            :: PartInt(:,:)
-INTEGER                        :: locnPart,PartIntExists
+INTEGER                        :: locnPart
+LOGICAL                        :: PartIntExists
 #endif /*PARTICLES*/
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
