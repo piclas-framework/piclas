@@ -84,11 +84,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
   SWRITE(*,*) ' WRITE DSMCSTATE TO HDF5 FILE...'
   FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime)
   FileString=TRIM(FileName)//'.h5'
-#ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,readOnly=.FALSE.)
-#else
-  CALL OpenDataFile(FileString,create=.TRUE.,readOnly=.FALSE.)
-#endif
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
   Statedummy = 'DSMCState'
   CALL WriteHDF5Header(Statedummy,File_ID)
 
@@ -2043,11 +2039,7 @@ IF(MPIRoot) CALL GenerateDSMCHOFileSkeleton('DSMCHOState',nVar+nVar_quality,StrV
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
-#ifdef MPI
-CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.)
-#else
-CALL OpenDataFile(FileName,create=.false.,readOnly=.FALSE.)
-#endif
+CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
 ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
@@ -2128,11 +2120,7 @@ CHARACTER(LEN=255)             :: NodeTypeTemp
 !===================================================================================================================================
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-#ifdef MPI
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-#else
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,readOnly=.FALSE.)
-#endif
 
 SELECT CASE(TRIM(HODSMC%NodeType))
 CASE('visu')
@@ -3120,11 +3108,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 
   IF(MPIRoot) THEN !create File-Skeleton
     ! Create file
-#ifdef MPI
     CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-#else
-    CALL OpenDataFile(TRIM(FileName),create=.TRUE.,readOnly=.FALSE.)
-#endif
     
     ! Write file header
     CALL WriteHDF5Header(TRIM(TypeString),File_ID)
@@ -3146,10 +3130,8 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-#else
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,readOnly=.FALSE.)
 #endif
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
   IF (SFResampleAnalyzeSurfCollis) THEN
     IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts to MaxPartNumber
