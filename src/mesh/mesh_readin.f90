@@ -783,7 +783,6 @@ ELSE
   END DO
   offsetElemMPI(nProcessors)=nGlobalElems
 END IF ! IF(DoRestart.AND.DoLoadBalance)
-
 !----------------------------------------------------------------------------------------------------------------------------------!
 
 ! Sanity check: local nElems and offset
@@ -811,24 +810,15 @@ IF(ElemTimeExists)THEN  ! MeshRoot now can calculate new imbalance with offsetEl
     MaxWeight = MAXVAL(WeightSum_proc)
     MinWeight = MINVAL(WeightSum_proc)
     ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
+
+    ! new computation of current imbalance
+    TargetWeight=TargetWeight/nProcessors
+    NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+
+    IF(TargetWeight.LE.0.0) CALL abort(&
+        __STAMP__, &
+        ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
   END IF
-  IPWRITE (*,*) "test1"
-
-  ! Why does this have to be outside of "IF(MPIRoot)" when its does not have to be outside for FLEXI
-  CALL MPI_ALLREDUCE(WeightSum,targetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxWeight,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MinWeight,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-
-  !CALL MPI_ALLREDUCE(xyzMinMaxloc(4),xyzMinMax(4), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-IPWRITE (*,*) "test2"
-
-  ! new computation of current imbalance
-  TargetWeight=TargetWeight/nProcessors
-  NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
-
-  IF(TargetWeight.LE.0.0) CALL abort(&
-      __STAMP__, &
-      ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
 END IF
 
 

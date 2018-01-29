@@ -98,9 +98,6 @@ USE MOD_Restart_Vars,         ONLY:RestartFile
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,         ONLY:OutputSource,PartSource
 #endif /*PARTICLES*/
-!#ifdef MPI
-!USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance
-!#endif /*MPI*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
 #endif /*PP_POIS*/
@@ -333,65 +330,10 @@ CALL WriteAdditionalElemData(FileName,ElementOut)
 CALL WritePMLDataToHDF5(FileName)
 #endif
 
-! #ifdef MPI                                           ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
-! CALL MPI_BARRIER(MPI_COMM_WORLD,iError)              ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
-! IF(DoLoadBalance) CALL WriteElemTimeToHDF5(FileName) ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
-! #endif /*MPI*/                                       ! NOW IN WriteAdditionalElemData(FileName,ElementOut)
-
 EndT=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 
 END SUBROUTINE WriteStateToHDF5
-
-
-! SUBROUTINE WriteElemTimeToHDF5(FileName)
-! !===================================================================================================================================
-! ! Write additional (elementwise scalar) data to HDF5
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_PreProc
-! USE MOD_Globals
-! USE MOD_Mesh_Vars        ,ONLY:offsetElem,nGlobalElems
-! USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! CHARACTER(LEN=255),INTENT(IN)  :: FileName
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-! INTEGER                        :: nVar
-! !===================================================================================================================================
-! 
-! 
-! IF(nLoadBalance.EQ.0) THEN
-!   IF(.NOT.ALLOCATED(ElemTime)) RETURN
-! END IF
-! 
-! nVar=1
-! ALLOCATE(StrVarNames(nVar))
-! StrVarNames(1)='ElemTime'
-! 
-! IF(MPIRoot)THEN
-!   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-!   CALL WriteAttributeToHDF5(File_ID,'VarNamesLB',nVar,StrArray=StrVarNames)
-!   CALL CloseDataFile()
-! END IF
-! 
-! CALL GatheredWriteArray(FileName,create=.FALSE.,&
-!                         DataSetName='ElemTime', rank=1,  &
-!                         nValGlobal=(/nGlobalElems/),&
-!                         nVal=      (/PP_nElems   /),&
-!                         offset=    (/offsetElem  /),&
-!                         collective=.TRUE.,RealArray=ElemTime)
-! 
-! DEALLOCATE(StrVarNames)
-! ElemTime=0.
-! 
-! END SUBROUTINE WriteElemTimeToHDF5
 
 
 SUBROUTINE WriteAdditionalElemData(FileName,ElemList)

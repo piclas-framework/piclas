@@ -129,13 +129,9 @@ INTEGER,INTENT(IN),OPTIONAL  :: communicatorOpt !< only MPI and single=F: commun
 INTEGER,INTENT(IN),OPTIONAL  :: userblockSize   !< size of the file to be prepended to HDF5 file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
-INTEGER                        :: comm
-#endif
 INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
 !==================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
-!IPWRITE(*,*)'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
 
 userblockSize_loc = 0
 IF (PRESENT(userblockSize)) userblockSize_loc = userblockSize

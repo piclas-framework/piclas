@@ -28,10 +28,10 @@ CONTAINS
 #ifdef MPI
 SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemTime) 
 !----------------------------------------------------------------------------------------------------------------------------------!
-! calculate the optimal load partiton, subroutine taken from sparta.f90 of HALO
-! modification for performance on root
+! Calculate the optimal load partition, subroutine taken from sparta.f90 of HALO
+! Modification for performance on root
 !
-! algorithm can lead to zero elements per proc!!!!
+! Algorithm can lead to zero elements per proc!!!!
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES
 !
