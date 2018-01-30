@@ -69,8 +69,8 @@ IF(nProcessors.EQ.1)THEN
       DoLoadBalance   ,' | ',TRIM("INFO"),' | '
 ELSE 
   DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
+  DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 END IF
-DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 !DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
 nLoadBalanceSteps = 0
@@ -153,7 +153,7 @@ REAL ,INTENT(IN)             :: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)           :: PerformLoadBalance
-REAL ,INTENT(OUT)             :: Currentimbalance
+REAL ,INTENT(OUT)             :: CurrentImbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iElem,ioUnit
