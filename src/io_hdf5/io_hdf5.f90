@@ -151,7 +151,11 @@ ELSE
 END IF
 
 #ifdef MPI
-IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt, MPIInfo, iError)
+IF(.NOT.single)THEN
+  IF(.NOT.PRESENT(communicatorOpt))CALL abort(__STAMP__,&
+    'ERROR: communicatorOpt must be supplied in OpenDataFile when single=.FALSE.')
+  CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt, MPIInfo, iError)
+END IF
   IF(iError.NE.0) CALL abort(__STAMP__,&
     'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
 #endif /* MPI */
@@ -289,7 +293,6 @@ END SUBROUTINE AddToElemData
 SUBROUTINE ClearElemData(ElementOut)
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,ONLY:nElems
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
