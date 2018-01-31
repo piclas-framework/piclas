@@ -198,6 +198,7 @@ SUBROUTINE TimeDisc()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
@@ -285,7 +286,7 @@ REAL                         :: tEndDiff, tAnalyzeDiff
 REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 INTEGER(KIND=8)              :: iter_loc
-REAL                         :: CalcTimeStart,CalcTimeEnd,eta
+REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
 #ifdef MPI
 !REAL                         :: CurrentImbalance
@@ -583,6 +584,11 @@ DO !iter_t=0,MaxIter
       finalIter=.FALSE.
     END IF
     CalcTimeEnd=BOLTZPLATZTIME()
+    IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
+                    ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
+      SimulationEfficiency = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
+      PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+    END IF
 #ifdef MPI
     !CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
     CALL ComputeElemLoad(PerformLoadBalance,time)
@@ -610,15 +616,16 @@ DO !iter_t=0,MaxIter
 #endif /*PARICLES*/
       IF(MPIroot)THEN
         ! simulation time per CPUh efficiency in [s]/[CPUh]
-        eta = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
+        !SimulationEfficiency = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
         ! Get calculation time per DOF
-        CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+        !PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
         CALL DATE_AND_TIME(values=TimeArray) ! get System time
         WRITE(UNIT_StdOut,'(132("-"))')
         WRITE(UNIT_stdOut,'(A,I2.2,A1,I2.2,A1,I4.4,A1,I2.2,A1,I2.2,A1,I2.2)') &
           ' Sys date  :    ',TimeArray(3),'.',TimeArray(2),'.',TimeArray(1),' ',TimeArray(5),':',TimeArray(6),':',TimeArray(7)
-        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' PID: CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
-        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' EFFICIENCY: SIMULATION TIME PER CALCULATION in [s]/[CPUh]: [',eta,' sec/h ]'
+        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' PID: CALCULATION TIME PER TSTEP/DOF: [',PID,' sec ]'
+        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' EFFICIENCY: SIMULATION TIME PER CALCULATION in [s]/[CPUh]: [',SimulationEfficiency,&
+                                                                                              ' sec/h ]'
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
