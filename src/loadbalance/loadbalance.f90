@@ -126,7 +126,8 @@ END SUBROUTINE InitLoadBalance
 
 
 
-SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance,time) 
+!SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance,time) 
+SUBROUTINE ComputeElemLoad(PerformLoadbalance,time) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! compute the element load
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -134,18 +135,19 @@ SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance,time)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nLoadBalance,tTotal,tCurrent
+USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tTotal,tCurrent
 #ifndef PP_HDG
-USE MOD_PML_Vars,                ONLY:DoPML,nPMLElems,ElemToPML
+USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars,        ONLY:DeviationThreshold,LoadSum,nLoadIter
+USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold,LoadSum,nLoadIter
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars,        ONLY:nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
-USE MOD_PICDepo_Vars,            ONLY:DepositionType
+USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars,        ONLY:TargetWeight
-
+USE MOD_LoadBalance_Vars       ,ONLY: TargetWeight
+USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
+USE MOD_LoadBalance_Vars       ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -153,7 +155,7 @@ REAL ,INTENT(IN)             :: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)           :: PerformLoadBalance
-REAL ,INTENT(OUT)             :: CurrentImbalance
+!REAL ,INTENT(OUT)             :: CurrentImbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iElem,ioUnit
@@ -163,7 +165,7 @@ INTEGER(KIND=8)       :: HelpSum
 REAL                  :: stotalDepos,stotalParts,sTotalTracks
 REAL                  :: tParts
 #endif /*PARTICLES*/
-REAL                  :: MaxWeight, MinWeight
+!REAL                  :: MaxWeight, MinWeight
 CHARACTER(LEN=255)    :: outfile
 !===================================================================================================================================
 
@@ -246,23 +248,11 @@ DO iElem=1,PP_nElems
 #endif /*PARTICLES*/
 END DO ! iElem=1,PP_nElems
 
-CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
+!CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
+CALL ComputeImbalance()
 
-! Fill .csv file for parformance analysis and load blaaaance
-IF(MPIRoot)THEN
-  outfile='ElemTimeStatistics.csv'
-  IF(FILEEXISTS(outfile))THEN
-    ioUnit=GETFREEUNIT()
-    OPEN(UNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') time
-    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',MinWeight 
-    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',MaxWeight
-    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',CurrentImbalance
-    WRITE(ioUnit,'(A1,ES25.10)',ADVANCE='NO') ',',TargetWeight  
-    WRITE(ioUnit,'(A1)') ' '
-    CLOSE(ioUnit) 
-  END IF
-END IF !IF(MPIRoot)
+! Fill .csv file for performance analysis and load balance: write data line
+CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time=time)
 
 
 PerformLoadBalance=.FALSE.
@@ -287,7 +277,8 @@ nLoadIter  =0
 END SUBROUTINE ComputeElemLoad
 
 
-SUBROUTINE LoadBalance(CurrentImbalance,PerformLoadBalance)
+!SUBROUTINE LoadBalance(CurrentImbalance,PerformLoadBalance)
+SUBROUTINE LoadBalance(PerformLoadBalance)
 !===================================================================================================================================
 ! routine perfoming the load balancing stuff
 !===================================================================================================================================
@@ -301,12 +292,14 @@ USE MOD_LoadBalance_Vars,      ONLY:ElemTime,nLoadBalanceSteps,NewImbalance,MinW
 USE MOD_PICDepo_Vars,          ONLY:DepositionType
 USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*PARTICLES*/
+USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
+USE MOD_LoadBalance_Vars,    ONLY:Currentimbalance
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)   :: PerformLoadBalance
-REAL,INTENT(IN)      :: Currentimbalance
+!REAL,INTENT(IN)      :: Currentimbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -402,32 +395,35 @@ tTotal=tTotal+tCurrent
 
 #ifdef PARTICLES
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-  nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
+    nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
 #else
-  nLocalParts=REAL(nCurrentParts)
+    nLocalParts=REAL(nCurrentParts)
 #endif /*TimeDiscMethod*/
-nTotalParts=nTotalParts+nLocalParts
+  nTotalParts=nTotalParts+nLocalParts
 #else
-  nlocalParts=0
+  nLocalParts=0
 #endif /*PARTICLES*/
 
 ! compute load sum
 ! dg
-LoadSum(1:2)=LoadSum(1:2)+tCurrent(1:2)/REAL(PP_nElems)
+LoadSum(LB_DG)    =LoadSum(LB_DG)    +tCurrent(LB_DG)    /REAL(PP_nElems)
+LoadSum(LB_DGCOMM)=LoadSum(LB_DGCOMM)+tCurrent(LB_DGCOMM)/REAL(PP_nElems)
 #ifndef PP_HDG
 IF(DoPML)THEN
-  IF(nPMLElems.GT.0) LoadSum(3)=LoadSum(3)+tCurrent(3)/REAL(nPMLElems)
+  IF(nPMLElems.GT.0) LoadSum(LB_PML)=LoadSum(LB_PML)+tCurrent(LB_PML)/REAL(nPMLElems)
 END IF
 #endif /*PP_HDG*/
 
-LoadSum(13)=LoadSum(13)+tCurrent(13)/REAL(PP_nElems)
+LoadSum(LB_DGANALYZE)=LoadSum(LB_DGANALYZE)+tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
 
+#ifdef PARTICLES
 ! particles
 IF(nLocalParts.GT.0)THEN
   nLocalParts=1.0/nLocalParts
-  LoadSum(4:12)=LoadSum(4:12)+tCurrent(4:12)*nLocalParts
-  LoadSum(14)=LoadSum(14)+tCurrent(14)*nLocalParts
+  LoadSum(LB_EMISSION:LB_UNFP)=LoadSum(LB_EMISSION:LB_UNFP)+tCurrent(LB_EMISSION:LB_UNFP)*nLocalParts
+  LoadSum(LB_PARTANALYZE)=LoadSum(LB_PARTANALYZE)+tCurrent(LB_PARTANALYZE)*nLocalParts
 END IF
+#endif /*PARTICLES*/
 
 ! last operation
 tCurrent=0.
@@ -438,7 +434,8 @@ nCurrentParts=0
 END SUBROUTINE LoadMeasure
 
 
-SUBROUTINE ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
+!SUBROUTINE ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
+SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! subroutine to compute the imbalance
 ! Maxweight: maximum weight of all processes
@@ -450,15 +447,16 @@ SUBROUTINE ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc,             ONLY:PP_nElems
-USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight
+USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
+USE MOD_LoadBalance_Vars,    ONLY:ElemTime
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES 
-REAL,INTENT(IN)            :: ElemTime(1:PP_nElems)
+!REAL,INTENT(IN)            :: ElemTime(1:PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)           :: CurrentImbalance, MaxWeight, MinWeight
+!REAL,INTENT(OUT)           :: CurrentImbalance, MaxWeight, MinWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                       :: MaxWeight
@@ -470,10 +468,11 @@ IF(ALMOSTZERO(WeightSum))THEN
   IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)'
 END IF
 CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MaxWeight,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MinWeight,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
 
-TargetWeight=TargetWeight/nProcessors
+WeightSum    = TargetWeight ! Set total weight for writing to file
+TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
 
 ! new computation of current imbalance
 !CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight

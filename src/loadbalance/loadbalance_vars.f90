@@ -15,8 +15,8 @@ LOGICAL                             :: InitLoadBalanceIsDone                    
 
 ! time measurement
 REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
-REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
 REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
+REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
                                                                                   !  1 -tDG
                                                                                   !  2 -tDGComm
                                                                                   !  3 -tPML
@@ -46,6 +46,7 @@ INTEGER                             :: WeightAverageMethod                      
                                                                                   ! nSkipAnalyze is greater than 1
 REAL                                :: MaxWeight                                  ! Maximum Weight of proc on domain
 REAL                                :: MinWeight                                  ! Minimum Weight of proc on domain
+REAL                                :: CurrentImbalance
 REAL                                :: NewImbalance                               ! Imbalance after rebalance step
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
