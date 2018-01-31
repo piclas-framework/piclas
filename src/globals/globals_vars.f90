@@ -10,6 +10,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+REAL                                  :: SimulationTime
 REAL                                  :: SimulationEfficiency ! SIMULATION TIME PER CALCULATION in [s]/[CPUh]
 REAL                                  :: PID ! Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
 REAL                                  :: PI

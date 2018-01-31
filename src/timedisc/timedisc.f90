@@ -198,7 +198,7 @@ SUBROUTINE TimeDisc()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID
+USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,SimulationTime
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
@@ -586,6 +586,7 @@ DO !iter_t=0,MaxIter
     CalcTimeEnd=BOLTZPLATZTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
+      SimulationTime = CalcTimeEnd-StartTime
       SimulationEfficiency = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
       PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
     END IF
