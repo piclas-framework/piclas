@@ -96,10 +96,12 @@ DO iLocSide = 1,6
   END IF
 END DO ! iLocSide 
 
+ ! loop over columns: oo,mm,nn -> s
  DO oo = 0,PP_N
    DO nn = 0,PP_N
      DO mm = 0,PP_N
        s = vn2 * oo + vn1 * nn + PP_nVar * mm
+       ! loop over rows: i,j,k  -> r
        DO k = 0,PP_N
           DO j = 0,PP_N
             DO i = 0,PP_N

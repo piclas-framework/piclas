@@ -6,6 +6,7 @@ stages:
   - reggie_chemistry_nightly
   - reggie_tracking_nightly
   - reggie_nightly
+  - reggie_nightly_build_all
   - reggie_weekly
 
 cache:
@@ -107,6 +108,14 @@ gnu_DSMC:
   script:
     - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
 
+
+gnu_PIC_maxwell_implicitBC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
+
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
 intel_PIC_gyrotron_variable_Bz:
@@ -137,6 +146,13 @@ intel_DSMC:
   script:
     - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
 
+intel_PIC_maxwell_implicitBC:
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -147,12 +163,27 @@ gnu_tracking:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
 
+gnu_tracing_cylinder:
+  stage: reggie_tracking_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
+
+
 intel_tracking:
   stage: reggie_tracking_nightly
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+
+intel_tracing_cylinder:
+  stage: reggie_tracking_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_chemistry_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
@@ -171,12 +202,13 @@ intel_chemistry:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
 
+
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
 #                         - feature_PIC_single_particle/ : basic PIC test with a single particle in a cart box
 #                         - test particle emission for gyrotron setup with fixed electric current of 44 A
 #                         - test record points for TWT setup and compare with h5diff
-#                         - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 #                         - h-p-convtests
 #                         - feature_maxwell_dipole_cylinder_PML/ : curved cylinder geometry with PML on axis and dipole in center for testing RP output
 #                         - feature_maxwell_dipole_dielectric/ : curved sphere with dielectric region in the center and dipole at near the edge
@@ -184,13 +216,6 @@ intel_chemistry:
 #                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_build_all:
-  stage: reggie_nightly
-  tags:
-    - withmodules
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
-       
 gnu_feature_dielectric:
   stage: reggie_nightly
   tags:
@@ -275,6 +300,13 @@ gnu_poisson_implicit_surface_flux:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
 
+gnu_feature_PIC_poisson_imexfluid:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+
 gnu_PIC_maxwell_bgfield:
   stage: reggie_nightly
   tags:
@@ -288,17 +320,24 @@ gnu_QDS:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
-       
 
-# intel ----------------------------------------------------------------------------------------------------------------------------------------------
-      
-
-intel_build_all:
+gnu_feature_LoadBalance:
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
+
+gnu_code_analyze:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/code_analyze/ ; fi
+       
+
+# intel ----------------------------------------------------------------------------------------------------------------------------------------------
+
        
 intel_feature_dielectric:
   stage: reggie_nightly
@@ -384,6 +423,13 @@ intel_poisson_implicit_surface_flux:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
 
+intel_feature_PIC_poisson_imexfluid:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+
 intel_PIC_maxwell_bgfield:
   stage: reggie_nightly
   tags:
@@ -397,6 +443,42 @@ intel_QDS:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
+
+intel_feature_LoadBalance:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
+
+intel_code_analyze:
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/code_analyze/ ; fi
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_nightly_build_all": Build and run
+#                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+gnu_build_all:
+  stage: reggie_nightly_build_all
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+      
+
+intel_build_all:
+  stage: reggie_nightly_build_all
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+
+
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week

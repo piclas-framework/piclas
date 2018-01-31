@@ -55,7 +55,12 @@ INTEGER             :: nTotalSides                                              
 INTEGER             :: nPartPeriodicSides                                                 ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
 
-LOGICAL,ALLOCATABLE :: IsBCElem(:)                                                        ! is a BC elem 
+INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                                             ! number of local element boundary faces 
+                                                                                          ! used for tracing (connected to element)
+INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                                             ! total number of element boundary faces 
+                                                                                          ! used for tracing (loc faces + other 
+                                                                                          ! element faces that are possibly reached)
+LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                                                 ! is an elem with BC sides for tracing
                                                                                           ! or BC in halo-eps distance to BC
 INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 INTEGER             :: nTotalBCSides                                                      ! total number of BC sides (my+halo)
@@ -172,6 +177,7 @@ TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
 
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
 REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
+INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
 !===================================================================================================================================
 
 

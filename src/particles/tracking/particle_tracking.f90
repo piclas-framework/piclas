@@ -144,7 +144,7 @@ DO i = 1,PDM%ParticleVecLength
             WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
             WRITE(*,*) 'Pos:     ', PartState(i,1:3)
             WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
+            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
             ! Retrace to check through which side the particle went
             DO iLocSide=1,6
               TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
@@ -209,7 +209,7 @@ DO i = 1,PDM%ParticleVecLength
               WRITE(*,*) 'Velo:    ', PartState(i,4:6)
               WRITE(*,*) 'Element  ', ElemID
               SideID = 0
-              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
+              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
               ! Retrace to check through which side the particle went
               DO iLocSide=1,6
                 TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
@@ -693,7 +693,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
       PEM%Element(iPart)=ElemID
-      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
+      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.FALSE.)
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         !WRITE(UNIT_stdOut,'(20(=))')
@@ -827,7 +827,7 @@ USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance,CartesianPeriodic
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsOneCell
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsTracingBCElem,BCElem,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemRadius2NGeo
 USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
@@ -840,6 +840,7 @@ USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_TimeDisc_Vars,           ONLY:iStage,RK_inflow
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -885,7 +886,7 @@ DO iPart=1,PDM%ParticleVecLength
     nTracks=nTracks+1
     ! sanity check
     PartIsDone=.FALSE.
-    IF(IsBCElem(ElemID))THEN
+    IF(IsTracingBCElem(ElemID))THEN
       lengthPartTrajectory0=0.
       !IF(GEO%nPeriodicVectors.GT.0.)THEN
       !  lengthPartTrajectory0=BCELEM(ElemID)%ElemToSideDistance(BCElem(ElemID)%lastSide)
@@ -938,7 +939,7 @@ DO iPart=1,PDM%ParticleVecLength
         ! call here function for mapping of partpos and lastpartpos
         LastPos=PartState(iPart,1:3)
         CALL PeriodicMovement(iPart)
-        IF(.NOT.IsBCElem(ElemID))THEN
+        IF(.NOT.IsTracingBCElem(ElemID))THEN
           DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
@@ -1061,7 +1062,7 @@ DO iPart=1,PDM%ParticleVecLength
       TestElem=PEM%Element(iPart)
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem)) THEN
         PartIsDone=.FALSE.
-        IF(.NOT.IsBCElem(TestElem))THEN
+        IF(.NOT.IsTracingBCElem(TestElem))THEN
           ! ausgabe
           IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with internal element '
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', PartPosRef(1:3,iPart)
@@ -1127,7 +1128,7 @@ __STAMP__ &
           ! false, reallocate particle
           IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element, relocating!! '
-            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
+            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', partposref(1:3,ipart)

@@ -133,7 +133,6 @@ SUBROUTINE CalcError(Time,L_2_Error)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,  ONLY:iter
 USE MOD_Mesh_Vars,      ONLY:Elem_xGP,sJ
 USE MOD_Equation_Vars,  ONLY:IniExactFunc
 USE MOD_Analyze_Vars,   ONLY:NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze

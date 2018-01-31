@@ -55,6 +55,9 @@ USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser,DoDisplayEmissionWarnings
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,RK_fillSF,nRKStages
+#endif
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -64,6 +67,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+INTEGER                   :: iCounter
+REAL                      :: rtmp
+#endif
 !===================================================================================================================================
 IF(TimeDiscInitIsDone)THEN
    SWRITE(*,*) "InitTimeDisc already called."
@@ -91,6 +98,34 @@ __STAMP__&
 #endif /*maxwell*/
 #endif /*IMEX*/
 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+! get time increment between current and next RK stage
+DO iCounter=2,nRKStages-1
+  RK_inc(iCounter)=RK_c(iCounter+1)-RK_c(iCounter)
+END DO ! iCounter=2,nRKStages-1
+RK_inc(nRKStages)=0.
+
+! compute ratio of dt for particle surface flux emission (example a). Additionally, the ratio of RK_inflow(iStage)/RK_c(iStage) 
+! gives the ! maximum distance, the Surface Flux particles can during the initial implicit step (example b).
+! example a)
+!   particle number for stage 4: dt*RK_inflow(4) 
+! or: generate all particles for dt, but only particles with random number R < RK_c(iStage) participate in current stage.
+! This results in dt*RK_inflow(iStage) particles in the current stage, hence, we can decide if we generate all particles or
+! only the particles per stage. Currently, all particles are generated prior to the RK stages.
+! example b)
+! ESDIRKO4 from kennedy and carpenter without an acting force. Assume again stage 4. The initial particles during stage 2 are 
+! moved in stage 3 without tracking (because it could be dropped out of the domain and the negative increment of the time level. 
+! The new particles in this  stage could travel a distance up to RK_c(4)=SUM(ESDIRK_a(4,:)). Now, the new particles are pushed 
+! further into the domain than the particles of the second stage has moved. This would create a non-uniform particle distribution.
+! this is prevented by reducing their maximum emission/initial distance by RK_inflow(4)/RK_c(4).
+! Note: A small overlap is possible, but this is required. See the charts in the docu folder.
+RK_inflow(2)=RK_C(2)
+rTmp=RK_c(2)
+DO iCounter=3,nRKStages
+  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
+  rTmp=MAX(rTmp,RK_c(iCounter))
+END DO ! iCounter=2,nRKStages-1
+#endif
 
 ! Set timestep to a large number
 dt=HUGE(1.)
@@ -179,6 +214,7 @@ USE MOD_PML,                   ONLY: PMLTimeRamping
 USE MOD_Analyze,               ONLY: PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
+USE MOD_Particle_Mesh,         ONLY: CountPartsPerElem
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_HDF5_output,           ONLY: WriteIMDStateToHDF5
 #else
@@ -300,6 +336,11 @@ IF(DoRestart) CALL EvalGradient()
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5)THEN 
+#ifdef PARTICLES
+#if (PP_TimeDiscMethod!=1) || (PP_TimeDiscMethod!=2) || (PP_TimeDiscMethod!=6)
+  CALL CountPartsPerElem()
+#endif
+#endif /*PARTICLES*/
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
   IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
@@ -613,6 +654,11 @@ DO !iter_t=0,MaxIter
 #endif /*PP_HDG*/
       ! Write state to file
       IF(DoWriteStateToHDF5)THEN 
+#ifdef PARTICLES
+#if (PP_TimeDiscMethod!=1) || (PP_TimeDiscMethod!=2) || (PP_TimeDiscMethod!=6)
+        CALL CountPartsPerElem()
+#endif
+#endif
         CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
         IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
@@ -1819,6 +1865,7 @@ USE MOD_DG_Vars,          ONLY:U,Ut
 USE MOD_DG,               ONLY:DGTimeDerivative_weakForm
 USE MOD_TimeDisc_Vars,    ONLY:dt,time
 USE MOD_LinearSolver,     ONLY : LinearSolver
+USE MOD_LinearOperator,   ONLY:EvalResidual
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -1840,7 +1887,7 @@ REAL,INTENT(IN)    :: t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: tstage,coeff
+REAL               :: tstage,coeff,Norm_R0
 !===================================================================================================================================
 
 ! one Euler implicit step
@@ -1915,7 +1962,8 @@ END IF
 ! b
 LinSolverRHS = U
 ImplicitSource=0.
-CALL LinearSolver(tstage,coeff)
+CALL EvalResidual(t,Coeff,Norm_R0)
+CALL LinearSolver(tstage,coeff,Norm_R0=Norm_R0)
 CALL DivCleaningDamping()
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
@@ -1951,7 +1999,8 @@ USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY: LinearSolver
-USE MOD_Predictor,               ONLY: Predictor,StorePredictor
+USE MOD_LinearOperator,          ONLY: EvalResidual
+USE MOD_Predictor,               ONLY: Predictor,StorePredictor,PredictorType
 USE MOD_LinearSolver_Vars,       ONLY: ImplicitSource,LinSolverRHS
 USE MOD_Equation,                ONLY: DivCleaningDamping
 #ifdef maxwell
@@ -1996,7 +2045,7 @@ REAL               :: alpha
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1)
-REAL               :: tRatio, tphi
+REAL               :: tRatio, tphi, Norm_R0
 INTEGER            :: iCounter !, iStage
 ! explicit
 !===================================================================================================================================
@@ -2128,15 +2177,21 @@ DO iStage=2,nRKStages
   DO iCounter = 1,iStage-1
     LinSolverRHS = LinSolverRHS + ESDIRK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
   END DO
-  ! get predictor of u^s+1
-  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage)
 
   ImplicitSource=0.
   alpha = ESDIRK_a(iStage,iStage)*dt
-  ! solve to new stage 
-  CALL LinearSolver(tstage,alpha)
-    ! damping
+  IF(PrecondType.GT.0)THEN
+    CALL EvalResidual(t,Coeff,Norm_R0)
+    ! get predictor of u^s+1
+    CALL Predictor(iStage,dt,FieldStage)
+    CALL LinearSolver(tstage,alpha,Norm_R0=Norm_R0)
+  ELSE
+    ! solve to new stage 
+    CALL LinearSolver(tstage,alpha)
+  END IF
   !CALL DivCleaningDamping()
+
+    ! damping
 END DO
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -2656,9 +2711,9 @@ SUBROUTINE TimeStepByImplicitRK(t)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
-USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo
-USE MOD_DG_Vars,                 ONLY:U
+USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac, RK_inc,RK_inflow,RK_fillSF
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
+USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
@@ -2732,19 +2787,15 @@ REAL               :: tstage
 REAL               :: alpha
 REAL               :: sgamma
 INTEGER            :: iElem,i,j,k
-#ifndef PP_HDG
-REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-#endif /*DG*/
 REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
 ! RK counter
 INTEGER            :: iCounter, iStage2
 #ifdef PARTICLES
-REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 REAL               :: dtFrac,RandVal, LorentzFac,PartState_tmp(1:6), Pt_loc(1:6), v_tild(1:3),rtmp
 INTEGER            :: iPart,nParts
+!LOGICAL            :: NoInterpolation ! fields cannot be interpolated, because particle is "outside", hence, fields and
+!                                      ! forces of previous stage are used
 #ifdef CODE_ANALYZE
 REAL               :: IntersectionPoint(1:3)
 INTEGER            :: ElemID
@@ -2758,38 +2809,10 @@ LOGICAL            :: ishit
 ! caution hard coded
 IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 #endif /*maxwell*/
-Un          = U
-FieldSource = 0.
 #endif /*DG*/
 tRatio = 1.
 
 #ifdef PARTICLES
-! get time increment between current and next RK stage
-DO iCounter=2,nRKStages-1
-  RK_inc(iCounter)=RK_c(iCounter+1)-RK_c(iCounter)
-END DO ! iCounter=2,nRKStages-1
-RK_inc(nRKStages)=0.
-
-! compute ratio of dt for particle surface flux emission (example a). Additionally, the ratio of RK_inflow(iStage)/RK_c(iStage) 
-! gives the ! maximum distance, the Surface Flux particles can during the initial implicit step (example b).
-! example a)
-!   particle number for stage 4: dt*RK_inflow(4) 
-! or: generate all particles for dt, but only particles with random number R < RK_c(iStage) participate in current stage.
-! This results in dt*RK_inflow(iStage) particles in the current stage, hence, we can decide if we generate all particles or
-! only the particles per stage. Currently, all particles are generated prior to the RK stages.
-! example b)
-! ESDIRKO4 from kennedy and carpenter without an acting force. Assume again stage 4. The initial particles during stage 2 are 
-! moved in stage 3 without tracking (because it could be dropped out of the domain and the negative increment of the time level. 
-! The new particles in this  stage could travel a distance up to RK_c(4)=SUM(ESDIRK_a(4,:)). Now, the new particles are pushed 
-! further into the domain than the particles of the second stage has moved. This would create a non-uniform particle distribution.
-! this is prevented by reducing their maximum emission/initial distance by RK_inflow(4)/RK_c(4).
-! Note: A small overlap is possible, but this is required. See the charts in the docu folder.
-RK_inflow(2)=RK_C(2)
-rTmp=RK_c(2)
-DO iCounter=3,nRKStages
-  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
-  rTmp=MAX(rTmp,RK_c(iCounter))
-END DO ! iCounter=2,nRKStages-1
 
 ! particle locating
 ! at the wrong position? depending on how we do it...
@@ -2975,6 +2998,10 @@ END IF ! t.GE. DelayTime
 
 #ifndef PP_HDG
 IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+iStage=0
+CALL StorePredictor()
+! copy U to U^0
+Un = U
 #endif /*DG*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -2996,8 +3023,7 @@ DO iStage=2,nRKStages
   ! compute the f(u^s-1)
   ! compute the f(u^s-1)
   ! DG-solver, Maxwell's equations
-  FieldStage (:,:,:,:,:,iStage-1) = Ut
-  FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
+  FieldStage (:,:,:,:,:,iStage-1) = Ut + ImplicitSource
 #endif /*DG*/
 
   ! and particles
@@ -3131,14 +3157,14 @@ DO iStage=2,nRKStages
 
 #ifndef PP_HDG
   ! compute RHS for linear solver
-  LinSolverRHS=ESDIRK_a(iStage,iStage-1)*(FieldStage(:,:,:,:,:,iStage-1)+FieldSource(:,:,:,:,:,iStage-1))
+  LinSolverRHS=ESDIRK_a(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
   DO iCounter=1,iStage-2
-    LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
+    LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
   END DO ! iCoutner=1,iStage-2
   LinSolverRHS=Un+dt*LinSolverRHS
 
-  ! get predictor of u^s+1
-  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
+  ! get predictor of u^s+1 ! wrong position
+  ! CALL Predictor(iStage,dt,Un,FieldStage) ! sets new value for U_DG
 #endif /*DG*/
 
 #ifdef PARTICLES

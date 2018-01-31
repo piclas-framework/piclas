@@ -801,6 +801,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
 USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo
 USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Mesh_Vars,               ONLY:XCL_NGeo,NGeo,XiCL_NGeo,ElemBaryNGeo
+USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -826,7 +827,11 @@ RefMappingGuessLoc=RefMappingGuess
 ! the location of the Gauss-points within halo elements is not communicated. Instead of looking for the closest Gauss-point, the
 ! closest CL-point is used
 IF(ElemID.GT.PP_nElems)THEN
-  IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=3
+  IF(DoRefMapping)THEN
+    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=3
+  ELSE
+    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=1
+  END IF
 END IF
 SELECT CASE(RefMappingGuessLoc)
 CASE(1)

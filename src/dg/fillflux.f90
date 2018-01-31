@@ -66,13 +66,11 @@ INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID,ElemI
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
 IF(doMPISides)THEN 
-  ! fill only flux for MINE MPISides
   ! fill only flux for MINE MPISides (where the local proc is master) 
   firstSideID_wo_BC = firstMPISide_MINE
   firstSideID = firstMPISide_MINE
   lastSideID =  lastMPISide_MINE
 ELSE
-  ! fill only InnerSides
   ! fill only InnerSides that do not need communication
   firstSideID_wo_BC = firstInnerSide ! for fluxes
   firstSideID = firstBCSide    ! include BCs for master sides
@@ -82,17 +80,22 @@ END IF
 ! Compute fluxes on PP_N, no additional interpolation required
 DO SideID=firstSideID,lastSideID
   SELECT CASE(InterfaceRiemann(SideID))
-  CASE(RIEMANN_VACUUM) ! standard flux
+  CASE(RIEMANN_VACUUM) 
+    ! standard flux
     CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
-  CASE(RIEMANN_PML) ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
+  CASE(RIEMANN_PML) 
+    ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
     CALL RiemannPML(Flux_Master(1:32,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
-  CASE(RIEMANN_DIELECTRIC) ! dielectric region <-> dielectric region
+  CASE(RIEMANN_DIELECTRIC) 
+    ! dielectric region <-> dielectric region
     CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                            NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-  CASE(RIEMANN_DIELECTRIC2VAC) ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
+  CASE(RIEMANN_DIELECTRIC2VAC) 
+    ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
     CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-  CASE(RIEMANN_VAC2DIELECTRIC) ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
+  CASE(RIEMANN_VAC2DIELECTRIC) 
+    ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
     CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                                 NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
   CASE DEFAULT

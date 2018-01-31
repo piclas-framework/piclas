@@ -528,14 +528,19 @@ USE MOD_LD_Vars,                ONLY: useLD
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #endif
+USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
-USE MOD_Particle_Vars,          ONLY:PartQ
-USE MOD_LinearSolver_Vars,      ONLY:R_PartXK
+USE MOD_Particle_Vars,          ONLY:PartQ,PartDeltaX
+USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
+USE MOD_Particle_Vars,          ONLY:PEM
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -617,85 +622,96 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
 !epsReflect=epsilontol*lengthPartTrajectory
 !IF((DOT_PRODUCT(v_aux,v_aux)).GT.epsReflect)THEN
 
-  ! particle position is exact at face
-  ! LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
-  !  particle is located eps in interior
-  PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
-  v_old = PartState(PartID,4:6)
+! particle position is exact at face
+! LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
+!  particle is located eps in interior
+PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
+v_old = PartState(PartID,4:6)
 
-  ! new velocity vector 
-  !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
-  v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
-  PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
-                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
+! new velocity vector 
+!v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
+v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
+#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+! here, we turn the velocity 
+IF(RK_inflow(iStage).GT.0)THEN
+PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
+                             (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
+ELSE
+  PartState(PartID,4:6)  =-SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
+                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 - WallVelo
+END IF
+#else
+PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
+                         (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
+#endif
 
-  ! Wall sampling Macrovalues
-  IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
-    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-      ! compute p and q
-      ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      IF (TriaTracking) THEN
-        p=1 ; q=1
-      ELSE
-        Xitild =MIN(MAX(-1.,xi ),0.99)
-        Etatild=MIN(MAX(-1.,eta),0.99)
-        p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-        q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-      END IF
-      
-    !----  Sampling Forces at walls
+! Wall sampling Macrovalues
+IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+    ! compute p and q
+    ! correction of xi and eta, can only be applied if xi & eta are not used later!
+    IF (TriaTracking) THEN
+      p=1 ; q=1
+    ELSE
+      Xitild =MIN(MAX(-1.,xi ),0.99)
+      Etatild=MIN(MAX(-1.,eta),0.99)
+      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+    END IF
+    
+  !----  Sampling Forces at walls
 !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
 !                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                          * (v_old(1) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                          * (v_old(2) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                          * (v_old(3) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-    !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
+    SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                        * (v_old(1) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                        * (v_old(2) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                        * (v_old(3) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+  !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
 !       IF (.NOT.CalcSurfCollis%OnlySwaps) THEN
-      IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-        SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-        IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
-          AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
-          AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
-          IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+    IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+      SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+      IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
+        AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+        AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+        IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
 CALL Abort(&
 __STAMP__&
 ,'maxSurfCollisNumber reached!')
-          END IF
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
-            = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-          !-- caution: for consistency with diffuse refl. v_old is used!
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-            = v_old(1)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-            = v_old(2)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-            = v_old(3)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
-            = LastPartPos(PartID,1)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
-            = LastPartPos(PartID,2)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
-            = LastPartPos(PartID,3)
-          AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
-            = PartSpecies(PartID)
-          AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
-            = locBCID
         END IF
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
+          = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+        !-- caution: for consistency with diffuse refl. v_old is used!
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+          = v_old(1)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+          = v_old(2)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+          = v_old(3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+          = LastPartPos(PartID,1)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+          = LastPartPos(PartID,2)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+          = LastPartPos(PartID,3)
+        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+          = PartSpecies(PartID)
+        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
+          = locBCID
       END IF
     END IF
   END IF
+END IF
 
-  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
-  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                           +PartTrajectory(2)*PartTrajectory(2) &
-                           +PartTrajectory(3)*PartTrajectory(3) )
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
-  !lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+PartTrajectory=PartTrajectory/lengthPartTrajectory
+!lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -762,6 +778,11 @@ IF(iStage.GT.0)THEN
       DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
     END DO ! iCounter=1,iStage-2
     PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
+    ! rotate PartXK do not roate...
+    !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
+    !PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
+    !PartDeltaX(1:3,PartID)=MATMUL(RotationMat,PartDeltaX(1:3,PartID))
+    !PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
 #if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ELSE
     ! explicit particle

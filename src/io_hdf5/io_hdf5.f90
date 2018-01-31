@@ -9,6 +9,14 @@ USE HDF5
 USE MOD_Globals,ONLY: iError
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+
+ABSTRACT INTERFACE
+  SUBROUTINE EvalElemInt(ElemData)
+  USE MOD_Mesh_Vars,ONLY:nElems
+  REAL,INTENT(OUT) :: ElemData(nElems)
+  END SUBROUTINE
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -17,6 +25,23 @@ INTEGER(HID_T)           :: File_ID
 INTEGER(HSIZE_T),POINTER :: HSize(:)
 INTEGER                  :: nDims
 INTEGER                  :: MPIInfo !for lustre file system
+
+!> Type containing pointers to data to be written to HDF5 in an element-wise scalar fashion.
+!> Alternatively a function pointer can be specified providing the desired data.
+!> Only one of the pointers may be associated.
+TYPE tElementOut
+  CHARACTER(LEN=255)                    :: VarName                    !< variable name
+  REAL,POINTER                          :: RealArray(:) => NULL()
+  REAL,POINTER                          :: RealScalar   => NULL()
+  INTEGER,POINTER                       :: IntArray(:)  => NULL()
+  INTEGER(KIND=8),POINTER               :: LongIntArray(:) => NULL()
+  INTEGER,POINTER                       :: IntScalar    => NULL()
+  LOGICAL,POINTER                       :: LogArray(:)  => NULL()
+  PROCEDURE(EvalElemInt),POINTER,NOPASS :: eval         => NULL()
+  TYPE(tElementOut),POINTER             :: next         => NULL()     !< next list item
+END TYPE
+
+TYPE(tElementOut),POINTER    :: ElementOut   => NULL() !< linked list of output pointers
 
 INTERFACE InitIO
   MODULE PROCEDURE InitIO_HDF5
@@ -28,6 +53,14 @@ END INTERFACE
 
 INTERFACE CloseDataFile
   MODULE PROCEDURE CloseHDF5File
+END INTERFACE
+
+INTERFACE AddToElemData
+  MODULE PROCEDURE AddToElemData
+END INTERFACE
+
+INTERFACE ClearElemData
+  MODULE PROCEDURE ClearElemData
 END INTERFACE
 
 !===================================================================================================================================
@@ -188,5 +221,124 @@ CALL H5CLOSE_F(iError)
 File_ID=0
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE CloseHDF5File
+
+!==================================================================================================================================
+!> Set pointers to element-wise arrays or scalars which will be gathered and written out. Both real or integer data types
+!> are supported. It is also possible to pass a function pointer which will be evaluated to calculate the data.
+!==================================================================================================================================
+SUBROUTINE AddToElemData(ElementOut_In,VarName,RealArray,RealScalar,IntArray,LongIntArray,IntScalar,LogArray,Eval)
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars,ONLY:nElems
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+TYPE(tElementOut),POINTER,INTENT(INOUT)    :: ElementOut_In        !< Pointer list of element-wise data that
+                                                                   !< is written to the state file
+CHARACTER(LEN=*),INTENT(IN)                :: VarName              !< Name of the current array/scalar
+REAL,INTENT(IN),TARGET,OPTIONAL            :: RealArray(nElems)    !< Data is an array containing reals 
+REAL,INTENT(IN),TARGET,OPTIONAL            :: RealScalar           !< Data is a real scalar
+INTEGER,INTENT(IN),TARGET,OPTIONAL         :: IntArray(nElems)     !< Data is an array containing integers
+INTEGER,INTENT(IN),TARGET,OPTIONAL         :: IntScalar            !< Data is a integer scalar
+INTEGER(KIND=8),INTENT(IN),TARGET,OPTIONAL :: LongIntArray(nElems) !< Data is a integer scalar
+LOGICAL,INTENT(IN),TARGET,OPTIONAL         :: LogArray(nElems)     !< Data is a logical scalar
+PROCEDURE(EvalElemInt),POINTER,OPTIONAL    :: Eval                 !< Data is evaluated using a function pointer
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(tElementOut),POINTER          :: eout
+INTEGER                            :: nOpts
+!==================================================================================================================================
+IF(.NOT.ASSOCIATED(ElementOut_In))THEN
+  ! list is empty, create first entry
+  ALLOCATE(ElementOut_In)
+  eout=>ElementOut_In
+ELSE
+  eout=>ElementOut_In
+  ! loop until last entry
+  DO WHILE(ASSOCIATED(eout%next))
+    eout=>eout%next
+  END DO
+  ! insert new entry
+  ALLOCATE(eout%next)
+  eout=>eout%next
+ENDIF
+
+! set varname and data pointer
+NULLIFY(eout%next)
+eout%VarName=VarName
+nOpts=0
+IF(PRESENT(RealArray))THEN
+  eout%RealArray  => RealArray
+  nOpts=nOpts+1
+ENDIF
+IF(PRESENT(RealScalar))THEN
+  eout%RealScalar => RealScalar
+  nOpts=nOpts+1
+ENDIF
+IF(PRESENT(IntArray))THEN
+  eout%IntArray   => IntArray
+  nOpts=nOpts+1
+ENDIF
+IF(PRESENT(IntScalar))THEN
+  eout%IntScalar  => IntScalar
+  nOpts=nOpts+1
+ENDIF
+IF(PRESENT(LongIntArray))THEN
+  eout%LongIntArray  => LongIntArray
+  nOpts=nOpts+1
+ENDIF
+IF(PRESENT(LogArray))THEN
+  eout%LogArray  => LogArray
+  nOpts=nOpts+1
+ENDIF
+IF(PRESENT(eval))THEN
+  eout%eval       => Eval
+  nOpts=nOpts+1
+ENDIF
+IF(nOpts.NE.1) CALL Abort(__STAMP__,&
+  'More then one optional argument passed to AddToElemData.')
+END SUBROUTINE AddToElemData
+
+!==================================================================================================================================
+!> Deallocate all pointers to element-wise arrays or scalars which will be gathered and written out.
+!> The linked list of the pointer is deallocated for each entry
+!==================================================================================================================================
+SUBROUTINE ClearElemData(ElementOut)
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars,ONLY:nElems
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+TYPE(tElementOut),POINTER,INTENT(INOUT)    :: ElementOut           !< Pointer list of element-wise data that
+                                                                   !< is written to the state file
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(tElementOut),POINTER          :: e,e2
+!==================================================================================================================================
+IF(.NOT.ASSOCIATED(ElementOut))THEN
+  RETURN
+ENDIF
+
+e=>ElementOut
+DO WHILE(ASSOCIATED(e))
+  e%VarName = ''
+  IF(ASSOCIATED(e%RealArray))    NULLIFY(e%RealArray    ) !=> NULL()
+  IF(ASSOCIATED(e%RealScalar))   NULLIFY(e%RealScalar   ) !=> NULL()
+  IF(ASSOCIATED(e%IntArray))     NULLIFY(e%IntArray     ) !=> NULL()
+  IF(ASSOCIATED(e%IntScalar))    NULLIFY(e%IntScalar    ) !=> NULL()
+  IF(ASSOCIATED(e%LongIntArray)) NULLIFY(e%LongIntArray ) !=> NULL()
+  IF(ASSOCIATED(e%LogArray))     NULLIFY(e%LogArray     ) !=> NULL()
+  IF(ASSOCIATED(e%eval))         NULLIFY(e%eval         ) !=> NULL()
+  e2=>e%next
+  ! deallocate stuff
+  DEALLOCATE(e)
+  e=> e2
+END DO
+
+!ElementOut   => NULL() !< linked list of output pointers
+NULLIFY(ElementOut)
+
+END SUBROUTINE ClearElemData
 
 END MODULE MOD_io_HDF5

@@ -87,6 +87,10 @@ ALLOCATE(Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 U=0.
 Ut=0.
 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+Un=0.
+#endif
 nTotal_face=(PP_N+1)*(PP_N+1)
 nTotal_vol=nTotal_face*(PP_N+1)
 nTotalU=PP_nVar*nTotal_vol*PP_nElems
