@@ -151,7 +151,6 @@ END DO ! iElem=1,PP_nElems
 NormArray(1)=Norm_R
 NormArray(2)=Delta_Norm_R
 NormArray(3)=Delta_Norm_Rel
-!CALL MPI_ALLREDUCE(DeltaX,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 CALL MPI_ALLREDUCE(NormArray,GlobalNormArray,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 Norm_R         = GlobalNormArray(1)
 Delta_Norm_R   = GlobalNormArray(2)
@@ -583,6 +582,8 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   END IF ! DoFullNewton
 #endif /*PARTICLES*/
 
+  ! detect convergence, fancy, extended list of convergence detection with wide range of 
+  ! parameters
   Norm_Diff_old=Norm_Diff
   Norm_Diff=Norm_Rold-Norm_R
   IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
