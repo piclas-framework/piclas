@@ -225,8 +225,6 @@ INTEGER                        :: ReduceData_glob(10)
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
-INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
-INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 ! new weight distribution method
 #endif
 LOGICAL                        :: doConnection
@@ -281,7 +279,7 @@ IF (DoRestart.AND.DoLoadBalance) THEN
     ALLOCATE(ElemTime_local(1:nGlobalElems))
     nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
     offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)  ! BOLTZPLATZ
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
     IPWRITE(UNIT_stdOut,*)"DONE"
     CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
     CALL CloseDataFile()

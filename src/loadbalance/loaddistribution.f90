@@ -168,6 +168,8 @@ USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,nElems
 USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,ParticleMPIWeight,WeightSum,TargetWeight
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: PartDistri
+USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile
+USE MOD_Restart_Vars     ,ONLY: RestartFile
 #endif /*PARTICLES*/
 USE MOD_ReadInTools      ,ONLY: GETINT
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -193,6 +195,8 @@ INTEGER,ALLOCATABLE            :: PartsInElem(:)
 INTEGER,ALLOCATABLE            :: PartInt(:,:)
 INTEGER                        :: locnPart
 LOGICAL                        :: PartIntExists
+INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
+INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 #endif /*PARTICLES*/
 REAL                           :: curWeight
 INTEGER                        :: FirstElemInd,LastElemInd
@@ -204,13 +208,14 @@ CurWeight = 0.0
 
 ! Load balancing for particles: read in particle data
 #ifdef PARTICLES
-CALL H5LEXISTS_F(File_ID,'PartInt',PartIntExists,iERROR)
+CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
+CALL DatasetExists(File_ID,'PartInt',PartIntExists)
 IF(PartIntExists)THEN
   ALLOCATE(PartInt(1:nGlobalElems,2))
   PartInt(:,:)=0
   CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
-  CALL CloseDataFile() 
 END IF
+CALL CloseDataFile() 
 #endif /*PARTICLES*/
 ALLOCATE(PartsInElem(1:nGlobalElems))
 
