@@ -1131,6 +1131,15 @@ IF(useDSMC)THEN
   IF (DSMC%WallModel.GT.0) calcWallModel=.TRUE.
 END IF
 
+! Create dataset attribute "SurfVarNames"
+nVar2D = 5
+IF (calcWallModel) THEN
+  nVar2D_Spec=4
+ELSE
+  nVar2D_Spec=1
+END IF
+nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #ifdef MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
@@ -1152,15 +1161,6 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   NodeTypeTemp='VISU'
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
 
-
-  ! Create dataset attribute "SurfVarNames"
-  nVar2D = 5
-  IF (calcWallModel) THEN
-    nVar2D_Spec=4
-  ELSE
-    nVar2D_Spec=1
-  END IF
-  nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
   ALLOCATE(Str2DVarNames(1:nVar2D_Total))
   nVarCount=0
   DO iSpec=1,nSpecies
