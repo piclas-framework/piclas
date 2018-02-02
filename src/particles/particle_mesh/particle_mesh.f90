@@ -1185,19 +1185,38 @@ IF(PartMPI%MPIROOT)THEN
 END IF
 
 IF(DoRefMapping)THEN
+  IF(PartMPI%MPIROOT)THEN
+     WRITE(UNIT_stdOut,'(A)') ' Reshaping arrays to reduced list...'
+  END IF
   ! remove inner BezierControlPoints3D and SlabNormals, usw.
   CALL ReshapeBezierSides()
   ! compute side origin and radius for all sides in PartBCSideList
+  IF(PartMPI%MPIROOT)THEN
+     WRITE(UNIT_stdOut,'(A)') ' GetSideOrigin and Radius..'
+  END IF
+  ! remove inner BezierControlPoints3D and SlabNormals, usw.
   ALLOCATE( SideOrigin(1:3,1:nTotalBCSides) &
           , SideRadius(    1:nTotalBCSides) )
   CALL GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)
 END IF
 
 ! get BCElem mapping, epsOnCell and calculate number of different elements and sides
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' GetBCElemMap ...'
+END IF
 CALL GetBCElemMap()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' CaclElemAndSideNum ...'
+END IF
 CALL CalcElemAndSideNum()
 ! get basevectors for (bi-)linear sides
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' LinearSideBaseVectors ...'
+END IF
 CALL GetLinearSideBaseVectors()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' Elem-Connectivity ...'
+END IF
 ! check connectivity of particle mesh
 CALL ElemConnectivity()
 

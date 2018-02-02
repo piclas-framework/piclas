@@ -286,13 +286,6 @@ ELSE
   AbortTol=Eps2PartNewton
 END IF
 
-DoNewton=.FALSE.
-IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
-#ifdef MPI
-!set T if at least 1 proc has to do newton
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
-#endif /*MPI*/
-
 IF(opt)THEN ! compute zero state
   ! whole pt array
   DO iPart=1,PDM%ParticleVecLength
@@ -360,10 +353,17 @@ ELSE
   END DO ! iPart
 END IF
 
+DoNewton=.FALSE.
+IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 #ifdef MPI
 !set T if at least 1 proc has to do newton
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
 #endif /*MPI*/
+
+!#ifdef MPI
+!!set T if at least 1 proc has to do newton
+!CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
+!#endif /*MPI*/
 
 IF(DoPrintConvInfo)THEN
   ! newton per particle 

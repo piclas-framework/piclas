@@ -309,7 +309,7 @@ INTEGER             :: i,j,k,iPMLElem
 REAL                :: XiN
 REAL                :: function_type
 INTEGER             :: iDir,PMLDir
-REAL                :: xMin,xMax
+REAL                :: xMin,xMax,rTmp
 !===================================================================================================================================
 !ALLOCATE(PMLRamp          (0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(PMLzeta      (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
@@ -369,10 +369,10 @@ IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
          (Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem)).LE.xyzPMLMinMax(2*PMLDir)))THEN ! point is in [PMLDir]-direction region
         xMin = xyzPMLMinMax(2*PMLDir-1)-xyzPMLzetaShapeOrigin(PMLDir)               ! min of region defined for PML region
         xMax = xyzPMLMinMax(2*PMLDir  )-xyzPMLzetaShapeOrigin(PMLDir)               ! max of region defined for PML region
-        PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*function_type(&
-                                       ( Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem))-xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
-                                       ( MAX(xMin,xMax)                                                          -MIN(xMin,xMax) ),&
-                                       PMLzetashape)
+        rTmp= ( Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem))-xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
+              ( MAX(xMin,xMax)                                                          -MIN(xMin,xMax) )
+
+        PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*function_type(rTmp,PMLzetashape)
       END IF
   END DO; END DO; END DO; END DO !iPMLElem,k,j,i
 ! ----------------------------------------------------------------------------------------------------------------------------------
