@@ -206,7 +206,7 @@ USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 #if (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum 
 #endif
-USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime,RestartWallTime
 #ifndef PP_HDG
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
@@ -587,7 +587,7 @@ DO !iter_t=0,MaxIter
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
       SimulationTime = CalcTimeEnd-StartTime
-      SimulationEfficiency = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
+      SimulationEfficiency = (time-RestartTime)/((CalcTimeEnd-RestartWallTime)*nProcessors/3600.) ! in [s] / [CPUh]
       PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
     END IF
 #ifdef MPI
@@ -690,7 +690,6 @@ DO !iter_t=0,MaxIter
 #ifdef MPI
     IF(DoLoadBalance)THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
-      RestartTime=time
       !CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
       CALL LoadBalance(PerformLoadBalance)
       !#ifndef PP_HDG
@@ -698,12 +697,17 @@ DO !iter_t=0,MaxIter
       !#endif /*PP_HDG*/
       IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
           CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
-      IF(PerformLoadBalance) CALL InitTimeStep() ! re-calculate time step after load balance is performed
+      IF(PerformLoadBalance) THEN
+        ! ONLY recalculate the timestep when the mesh is changed!
+        !CALL InitTimeStep() ! re-calculate time step after load balance is performed
+        RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
+        RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
+      END IF
       !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
       END IF
     ELSE 
-      ElemTime=0.
+      ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
     END IF
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()

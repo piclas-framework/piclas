@@ -98,6 +98,10 @@ ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
 END IF
+
+! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
+RestartWallTime=BOLTZPLATZTIME()
+
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
   BuildNewMesh       =.TRUE.
   WriteNewMesh       =.TRUE.
