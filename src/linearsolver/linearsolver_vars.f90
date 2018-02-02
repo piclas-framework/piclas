@@ -15,8 +15,10 @@ SAVE
 REAL                 :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver    ! abort tolerance for DG linear solver
 REAL,ALLOCATABLE     :: ImplicitSource(:,:,:,:,:)                                   ! temp. storage of source terms
 REAL,ALLOCATABLE     :: LinSolverRHS  (:,:,:,:,:)                                   ! RHS for linear solver
-REAL,ALLOCATABLE     :: FieldSource(:,:,:,:,:,:)                                    ! FieldSource, don't no of used
+REAL,ALLOCATABLE     :: FieldStage(:,:,:,:,:,:)                                     ! FieldStage, don't no of used
+REAL,ALLOCATABLE     :: Upredict(:,:,:,:,:,:)                                       ! Upredictor, don't no of used
 REAL,ALLOCATABLE     :: Upast(:,:,:,:,:,:)                                          ! history of upast, required for predictor
+REAL,ALLOCATABLE     :: tpast(:)                                                    ! history of tpast, required for predictor
 REAL,ALLOCATABLE     :: Mass(:,:,:,:,:)                                             ! mass matrix
 INTEGER              :: LinSolver                                                   ! selection of linear solver, CGS,BiCGStab,...
 INTEGER              :: nKDim,nRestarts                                             ! Number of Subspaces GMRES  and Restarts
