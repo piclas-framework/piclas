@@ -357,6 +357,10 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   IF(TargetWeight.LE.0.0) CALL abort(&
       __STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
+ELSE
+  NewImbalance = -1.
+  MaxWeight = -1.
+  MinWeight = -1.
 END IF
 
 

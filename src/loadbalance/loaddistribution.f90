@@ -274,7 +274,6 @@ CASE(0) ! old scheme
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(1)
   ! 1: last Proc receives the least load
-  ! 2: Root receives the least load
   IF(MPIRoot)THEN
     FoundDistribution=.FALSE.
     TargetWeight=WeightSum/REAL(nProcessors)
@@ -477,7 +476,6 @@ CASE(3)
     WeightSum = WeightSum + ElemGlobalTime(iElem)
   END DO
   TargetWeight=WeightSum/REAL(nProcessors)
-
   LastProcDiff=0.
   curiElem=1
   offSetElemMPI=0
