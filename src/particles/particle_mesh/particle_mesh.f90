@@ -460,6 +460,8 @@ SDEALLOCATE(EpsOneCell)
 SDEALLOCATE(Distance)
 SDEALLOCATE(ListDistance)
 SDEALLOCATE(ElemToGlobalElemID)
+SDEALLOCATE(isTracingTrouble)
+SDEALLOCATE(ElemTolerance)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -849,7 +851,7 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt& 
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,Sanity_Opt,Tol_Opt& 
 #ifdef CODE_ANALYZE
         ,CodeAnalyze_Opt)
 #else
@@ -874,6 +876,7 @@ USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,      ONLY:OutputBezierControlPoints
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3d
+USE MOD_Particle_Intersection,  ONLY:OutputTrajectory
 #endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars,          ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -886,10 +889,12 @@ REAL,INTENT(IN)                          :: PartPos_In(1:3)
 #ifdef CODE_ANALYZE
 LOGICAL,INTENT(IN),OPTIONAL              :: CodeAnalyze_Opt
 #endif /*CODE_ANALYZE*/
+LOGICAL,INTENT(IN),OPTIONAL              :: Sanity_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                      :: FoundInElem
 REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
+REAL,INTENT(OUT),OPTIONAL                :: Tol_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef CODE_ANALYZE
@@ -902,6 +907,7 @@ LOGICAL                                  :: isHit
 REAL                                     :: alpha,eta,xi,IntersectPoint(1:3)
 !===================================================================================================================================
 
+IF(PRESENT(tol_Opt)) tol_Opt=-1.
 ! virtual move to element barycenter
 LastPosTmp(1:3) =LastPartPos(PartID,1:3)
 LastPartPos(PartID,1:3) =ElemBaryNGeo(1:3,ElemID)
@@ -911,6 +917,18 @@ PartTrajectory=PartPos - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
+
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' --------------------------------------------- '
+      IPWRITE(UNIT_stdout,*) ' PartInElemCheck '
+      CALL OutputTrajectory(PartID,PartPos,PartTrajectory,lengthPartTrajectory)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   FoundInElem =.TRUE.
   LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
@@ -955,6 +973,22 @@ DO ilocSide=1,6
       WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,'| Hit: ',isHit
       WRITE(UNIT_stdout,'(2(A,G0))')  '     | LengthPT: ',LengthPartTrajectory,' | Alpha: ',Alpha
       WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi,eta
+    END IF
+  END IF
+  IF(PRESENT(Sanity_Opt))THEN
+    IF(Sanity_Opt)THEN
+      IF(alpha.GT.-1)THEN
+        ! alpha is going from barycenter to point
+        ! here, the tolerance for the ratio alpha/LengthPartTrajectory for tracing with element-corners is determined.
+        IF(PRESENT(tol_Opt)) tol_Opt=MAX(ABS(1.-alpha/LengthPartTrajectory),tol_Opt)
+        ! mark element as trouble element if rel. tol from alpha/LengthPartTrajectory to 1 > 1e-4
+        ! tolerance 1e-4 is from ANSA_BOX grid (experimental, arbitrary)
+        IF(ALMOSTEQUALRELATIVE(alpha/LengthPartTrajectory,1.,0.002)) THEN
+          alpha=-1
+        ELSE
+          print*,'alpha',alpha,LengthPartTrajectory,alpha/LengthPartTrajectory,ABS(1.-alpha/LengthPartTrajectory),tol_Opt
+        END IF
+      END IF
     END IF
   END IF
   ! Dirty fix for PartInElemCheck if Lastpartpos is almost on side (tolerance issues) 
@@ -1214,6 +1248,8 @@ IF(DoRefMapping) THEN
   ! compute distance between each side associated with  the element and its origin
   CALL GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
   DEALLOCATE( SideOrigin, SideRadius)
+ELSE
+  IF(.NOT.TriaTracking) CALL TracingElemSanity()
 END IF
 SWRITE(UNIT_stdOut,'(A)')' ... DONE!' 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -3407,13 +3443,13 @@ DO iElem=1,nTotalElems
         SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
         ! check if it is rectangular
         isRectangular=.TRUE.
-        v1=BezierControlPoints3D(:,0   ,NGeo,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
-        v2=BezierControlPoints3D(:,NGeo,0   ,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
-        v3=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID)
+        v1=UNITVECTOR(BezierControlPoints3D(:,0   ,NGeo,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID))
+        v2=UNITVECTOR(BezierControlPoints3D(:,NGeo,0   ,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID))
+        v3=UNITVECTOR(BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID))
         IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
         IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         IF(isRectangular)THEN
-          v1=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)
+          v1=UNITVECTOR(BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID))
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         END IF
@@ -3505,13 +3541,13 @@ DO iElem=1,nTotalElems
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
           ! check if it is rectangular
           isRectangular=.TRUE.
-          v1=BezierControlPoints3D(:,0   ,NGeo,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
-          v2=BezierControlPoints3D(:,NGeo,0   ,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID)
-          v3=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID)
+          v1=UNITVECTOR(BezierControlPoints3D(:,0   ,NGeo,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID))
+          v2=UNITVECTOR(BezierControlPoints3D(:,NGeo,0   ,SideID)-BezierControlPoints3D(:,0   ,0   ,SideID))
+          v3=UNITVECTOR(BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID))
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
           IF(isRectangular)THEN
-            v1=BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)
+            v1=UNITVECTOR(BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID))
             IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
             IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
           END IF
@@ -5021,5 +5057,73 @@ DO iElem=1,nTotalElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE GetElemToSideDistance
+
+SUBROUTINE TracingElemSanity() 
+!===================================================================================================================================
+! sanity check for tracing. each corner node of an element is checked with the in-element check (with virtual barycenter)
+! critical elements are marked!
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_IO_HDF5,                            ONLY:AddToElemData,ElementOut
+USE MOD_Particle_Mesh_Vars,                 ONLY:isTracingTrouble,ElemTolerance
+USE MOD_Mesh_Vars,                          ONLY:nElems,ElemBaryNGeo,XCL_NGeo,NGeo
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iElem,i,j,k
+REAL                            :: CornerNode(1:3),InterP(1:3),tol1
+LOGICAL                         :: Inside
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)')' ElemSanityCheck for Tracing....'
+
+! allocate output buffer
+ALLOCATE(isTracingTrouble(1:nElems))
+isTracingTrouble=.FALSE.
+ALLOCATE(ElemTolerance(1:nElems))
+ElemTolerance=-1
+CALL AddToElemData(ElementOut,'isTroubleElement',LogArray=isTracingTrouble(1:nElems))
+CALL AddToElemData(ElementOut,'ElemTolerance',RealArray=ElemTolerance(1:nElems))
+
+DO iElem=1,nElems
+  print*,'iElem',iElem
+  DO k=0,NGeo,NGeo
+    DO j=0,NGeo,NGeo
+      DO i=0,NGeo,NGeo
+        CornerNode(1:3)=XCL_NGeo(1:3,i,j,k,iElem)
+        CALL PartInElemCheck(XCL_NGeo(1:3,i,j,k,iElem),iElem,iElem,Inside,IntersectPoint_Opt=InterP &
+                            ,Sanity_Opt=.TRUE.,tol_Opt=tol1)
+        ElemTolerance(iElem)=max(ElemTolerance(iElem),tol1)
+        IF(.NOT.Inside)THEN
+          IPWRITE(UNIT_StdOut,'(I0,A,4(x,I0))') ' Trouble Corner' , i,j,k,iElem
+          WRITE(UNIT_stdout,'(A,3(E24.12,A))')  ' CornerCoord = [ ',XCL_NGeo(1,i,j,k,iElem), ','  &
+                                                                   ,XCL_NGeo(2,i,j,k,iElem), ','  &
+                                                                   ,XCL_NGeo(3,i,j,k,iElem), '];'
+    
+          WRITE(UNIT_stdout,'(A,3(E24.12,A))')  ' ElemBary = [ '   ,ElemBaryNGeo(1,iElem), ','  &
+                                                                   ,ElemBaryNGeo(2,iElem), ','  &
+                                                                   ,ElemBaryNGeo(3,iElem), '];'
+          WRITE(UNIT_stdout,'(A,3(E24.12,A))')  ' InterP = [ '     ,InterP(1), ','  &
+                                                                   ,InterP(2), ','  &
+                                                                   ,InterP(3), '];'
+          isTracingTrouble(iElem)=.TRUE.
+          !read*
+        END IF
+      END DO ! i=0,NGeo,NGeo
+    END DO ! j=0,NGeo,NGeo
+  END DO ! k=0,NGeo,NGeo
+END DO ! iElem=1,nElems
+
+SWRITE(UNIT_stdOut,'(A)')' Done.'
+
+END SUBROUTINE TracingElemSanity
 
 END MODULE MOD_Particle_Mesh

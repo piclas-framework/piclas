@@ -60,12 +60,18 @@ REAL                                    :: BezierNewtonAngle            ! switch
                                                                         ! smallest angle of impact of particle trajectory on face
 REAL                                    :: BezierClipHit                ! value for clip hit
 REAL                                    :: BezierClipTolerance          ! tolerance for root of bezier clipping
+REAL                                    :: BezierClipLocalTol           ! abort tolerance for bezier clipping
 REAL                                    :: BezierNewtonTolerance2       ! tolerance for root of bezier Newton
 INTEGER                                 :: BezierNewtonGuess            ! guess of bezier newton
+INTEGER                                 :: BezierNewtonMaxIter          ! maximum iterations for bezier newton
 REAL                                    :: BezierNewtonHit              ! value for bezier Newton hit
 REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
 INTEGER                                 :: BezierClipMaxIter            ! maximal iterations per intersections
+INTEGER                                 :: BezierClipLineVectorMethod   ! recompute method for Lu,Lv 
+                                                                        ! 0 - once
+                                                                        ! 1 - after each clip
+                                                                        ! 2 - after each xi,eta pair
 INTEGER                                 :: BezierElevation              ! elevate polynomial degree to NGeo+BezierElevation
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta        ! position of trajectory-patch
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray             ! xi and eta history for computation of intersection

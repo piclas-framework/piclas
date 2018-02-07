@@ -598,6 +598,9 @@ USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
 #endif /*MPI*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -731,6 +734,13 @@ INTEGER                        :: minnParts
         PartData(iPart,5)=PartState(pcount,5)
         PartData(iPart,6)=PartState(pcount,6)
         PartData(iPart,7)=REAL(PartSpecies(pcount))
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(pcount.EQ.PARTOUT)THEN
+            PartData(iPart,7)=-PartData(iPart,7)
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
         IF (withDSMC.AND.(.NOT.(useLD))) THEN
         !IF (withDSMC) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
