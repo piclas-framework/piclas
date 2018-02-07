@@ -249,7 +249,7 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
   REAL                           :: i_f, i_f_jp1, j_f, i_f_j
   INTEGER                        :: I_j,I_jp1,J
   REAL                           :: w_i_j,w_i_jp1,w_j
-  REAL                           :: szb,szE
+  INTEGER                        :: szb,szE
   REAL                           :: chi_b_p_E_j,chi_b_p_E_jp1,chi_b_p_e_p
 !===================================================================================================================================
   IF (E_p.GT.TLU_Data%Emax) THEN 
@@ -289,7 +289,7 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
   END IF
   ScatAngle = chi_b_p_E_p
   
-write(*,*) (ScatAngle/ACOS(-1.0)*180), I_jp1, szB
+  !write(*,*) (ScatAngle/ACOS(-1.0)*180), I_jp1, szB
 END SUBROUTINE TLU_Scat_Interpol
 
 SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
