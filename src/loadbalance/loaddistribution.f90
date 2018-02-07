@@ -662,6 +662,8 @@ SUBROUTINE WriteElemTimeStatistics(WriteHeader,time,iter)
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
 USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,SimulationTime
+USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Globals          ,ONLY: abort
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -670,6 +672,7 @@ REAL,INTENT(IN),OPTIONAL            :: time
 INTEGER(KIND=8),INTENT(IN),OPTIONAL :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                        :: time_loc
 CHARACTER(LEN=22),PARAMETER :: outfile='ElemTimeStatistics.csv'
 INTEGER                     :: ioUnit,I
 CHARACTER(LEN=50)           :: formatStr
@@ -688,30 +691,41 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnaly
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
-IF(WriteHeader)THEN
-  IF(iter.EQ.0)THEN
-    OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
-    tmpStr=""
-    DO I=1,nOutputVar
-      WRITE(tmpStr(I),'(A)')' "'//TRIM(StrVarNames(I))//'" '
-    END DO
-    WRITE(formatStr,'(A1)')'('
-    DO I=1,nOutputVar
-      IF(I.EQ.nOutputVar)THEN
-        WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
-      ELSE
-        WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
-      END IF
-    END DO
-    WRITE(formatStr,'(A,A1)')TRIM(formatStr),')'
-    write(ioUnit,formatStr)tmpStr
-    CLOSE(ioUnit) 
+! Either create new file or add info to existing file
+IF(WriteHeader)THEN ! create new file
+  IF(.NOT.PRESENT(iter))CALL abort(&
+      __STAMP__, &
+      ' WriteElemTimeStatistics: When creating ElemTimeStatistics.csv (WriteHeader=T) then supply [iter] variable')
+  IF(iter.GT.0)                             RETURN ! don't create new file if this is not the first iteration
+  IF((DoRestart).AND.(FILEEXISTS(outfile))) RETURN ! don't create new file if this is a restart and the file already exists;
+  !                                                ! assume continued simulation and old load balance data is still needed
+
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
+  tmpStr=""
+  DO I=1,nOutputVar
+    WRITE(tmpStr(I),'(A)')' "'//TRIM(StrVarNames(I))//'" '
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO I=1,nOutputVar
+    IF(I.EQ.nOutputVar)THEN
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
+    END IF
+  END DO
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')'
+  write(ioUnit,formatStr)tmpStr
+  CLOSE(ioUnit) 
+ELSE ! 
+  IF(.NOT.PRESENT(time))THEN
+    time_loc=-1.
+  ELSE
+    time_loc=time
   END IF
-ELSE
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(formatStr,'(A1,I1,A14)')'(',nOutputVar,'(1X,E21.14E3))'
-    WRITE(ioUnit,formatStr)(/time, MinWeight, MaxWeight, CurrentImbalance, TargetWeight, REAL(nLoadBalanceSteps), WeightSum, &
+    WRITE(ioUnit,formatStr)(/time_loc, MinWeight, MaxWeight, CurrentImbalance, TargetWeight, REAL(nLoadBalanceSteps), WeightSum, &
         SimulationEfficiency,PID,SimulationTime/)
     CLOSE(ioUnit) 
   ELSE

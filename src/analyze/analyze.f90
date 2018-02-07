@@ -397,7 +397,6 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter_In
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ioUnit
 #ifdef PARTICLES
 INTEGER                       :: iSide
 #ifdef MPI

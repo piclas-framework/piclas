@@ -145,9 +145,8 @@ USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars       ,ONLY: TargetWeight
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
-USE MOD_LoadBalance_Vars       ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
+USE MOD_LoadBalance_Vars       ,ONLY: CurrentImbalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -158,15 +157,13 @@ LOGICAL,INTENT(OUT)           :: PerformLoadBalance
 !REAL ,INTENT(OUT)             :: CurrentImbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem,ioUnit
+INTEGER               :: iElem
 REAL                  :: tDG, tPML
 #ifdef PARTICLES
 INTEGER(KIND=8)       :: HelpSum
 REAL                  :: stotalDepos,stotalParts,sTotalTracks
 REAL                  :: tParts
 #endif /*PARTICLES*/
-!REAL                  :: MaxWeight, MinWeight
-CHARACTER(LEN=255)    :: outfile
 !===================================================================================================================================
 
 nLoadBalance=nLoadBalance+1
@@ -285,15 +282,15 @@ SUBROUTINE LoadBalance(PerformLoadBalance)
 ! USED MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Restart,               ONLY:Restart
-USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
-USE MOD_LoadBalance_Vars,      ONLY:ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
+USE MOD_Restart          ,ONLY: Restart
+USE MOD_Boltzplatz_Tools ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,          ONLY:DepositionType
-USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_PICDepo_Vars     ,ONLY: DepositionType
+USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars,    ONLY:Currentimbalance
+USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
+USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -446,7 +443,7 @@ SUBROUTINE ComputeImbalance()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Preproc,             ONLY:PP_nElems
+!USE MOD_Preproc,             ONLY:PP_nElems
 USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
 USE MOD_LoadBalance_Vars,    ONLY:ElemTime
 !----------------------------------------------------------------------------------------------------------------------------------!
