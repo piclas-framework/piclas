@@ -35,8 +35,41 @@ END INTERFACE
 !===================================================================================================================================
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
+PUBLIC::DefineParametersAnalyze
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersAnalyze()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Analyze")
+CALL prms%CreateLogicalOption('DoCalcErrorNorms' , "Set true to compute L2 and LInf error norms at analyze step.",'.TRUE.')
+CALL prms%CreateRealOption(   'Analyze_dt'       , "Specifies time intervall at which analysis routines are called.",'0.')
+CALL prms%CreateIntOption(    'NAnalyze'         , "Polynomial degree at which analysis is performed (e.g. for L2 errors). "//&
+                                                   "Default: 2*N.")
+CALL prms%CreateIntOption(    'nSkipAnalyze'     , "TODO-DEFINE-PARAMETER (Skip Analyze-Dt)")
+CALL prms%CreateLogicalOption('doCalcTimeAverage', "TODO-DEFINE-PARAMETER")
+CALL prms%CreateIntOption(    'PartAnalyzeStep'  , "TODO-DEFINE-PARAMETER") 
+CALL prms%CreateLogicalOption('CalcEpot'         , "TODO-DEFINE-PARAMETER")
+!CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
+                                                 !'.FALSE.')
+!CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
+                                                 !"(e.g. State,TimeAvg,Fluc) are written.",&
+                                                 !'1')
+!CALL prms%CreateIntOption(    'AnalyzeExactFunc',"Define exact function used for analyze (e.g. for computing L2 errors). "//&
+                                                 !"Default: Same as IniExactFunc")
+!CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
+                                                 !"Default: Same as IniRefState")
+!CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
+                                                 !'.TRUE.')
+CALL DefineParametersAnalyzeEquation()
+END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()
 !===================================================================================================================================
