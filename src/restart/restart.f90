@@ -29,6 +29,18 @@ PUBLIC :: DefineParametersRestart
 
 CONTAINS
 
+!==================================================================================================================================
+!> Define parameters.
+!==================================================================================================================================
+SUBROUTINE DefineParametersRestart()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Restart")
+CALL prms%CreateLogicalOption('ResetTime', "Override solution time to t=0 on restart.", '.FALSE.')
+END SUBROUTINE DefineParametersRestart
+
 
 SUBROUTINE InitRestart()
 !===================================================================================================================================
@@ -99,8 +111,6 @@ IF (nArgs .EQ. maxNArgs) THEN
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   CALL CloseDataFile() 
-  PrimScaling=GETLOGICAL('PrimScaling','.FALSE.')
-  IF(PrimScaling) PrimScale=GETREALARRAY('PrimScale',PP_nVar)
 ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
