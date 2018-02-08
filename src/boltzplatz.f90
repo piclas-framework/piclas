@@ -6,51 +6,21 @@ PROGRAM Boltzplatz
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Boltzplatz_Tools,  ONLY:InitBoltzplatz,FinalizeBoltzplatz
-USE MOD_Restart,           ONLY:Restart
-USE MOD_Interpolation,     ONLY:InitInterpolation!,FinalizeInterpolation
-USE MOD_IO_HDF5,           ONLY:InitIO
-USE MOD_TimeDisc,          ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
-USE MOD_MPI,               ONLY:InitMPI
-USE MOD_RecordPoints_Vars, ONLY:RP_Data
-USE MOD_Mesh_Vars,         ONLY: DoSwapMesh
-USE MOD_Mesh,              ONLY: SwapMesh
+USE MOD_Boltzplatz_Init   ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Restart           ,ONLY: Restart
+USE MOD_Interpolation     ,ONLY: InitInterpolation
+USE MOD_IO_HDF5           ,ONLY: InitIO
+USE MOD_TimeDisc          ,ONLY: InitTimeDisc,FinalizeTimeDisc,TimeDisc
+USE MOD_MPI               ,ONLY: InitMPI
+USE MOD_RecordPoints_Vars ,ONLY: RP_Data
+USE MOD_RecordPoints      ,ONLY: DefineParametersRecordPoints
+USE MOD_Mesh_Vars         ,ONLY: DoSwapMesh
+USE MOD_Mesh              ,ONLY: SwapMesh
 #ifdef MPI
-USE MOD_LoadBalance,       ONLY:InitLoadBalance,FinalizeLoadBalance
-USE MOD_MPI,               ONLY:FinalizeMPI
+USE MOD_LoadBalance       ,ONLY: InitLoadBalance,FinalizeLoadBalance
+USE MOD_MPI               ,ONLY: FinalizeMPI
 #endif /*MPI*/
-USE MOD_Output,           ONLY:InitOutput
-!USE MOD_ReadInTools,      ONLY:IgnoredStrings
-!
-!USE MOD_Restart,          ONLY:InitRestart,Restart,FinalizeRestart
-!USE MOD_Mesh,             ONLY:InitMesh,FinalizeMesh
-!USE MOD_Equation,         ONLY:InitEquation,FinalizeEquation
-!USE MOD_DG,               ONLY:InitDG,FinalizeDG
-!USE MOD_PML,              ONLY:InitPML,FinalizePML
-!USE MOD_Filter,           ONLY:InitFilter,FinalizeFilter
-!USE MOD_RecordPoints,     ONLY:InitRecordPoints,FinalizeRecordPoints
-!USE MOD_TimeDisc,         ONLY:TimeDisc
-!#ifdef MPI
-!!USE MOD_MPI,              ONLY:InitMPIvars,FinalizeMPI
-!!USE MOD_MPI,              ONLY:FinalizeMPI
-!#endif /*MPI*/
-!#ifdef PARTICLES
-!USE MOD_ParticleInit,     ONLY:InitParticles
-!USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces!, GetSideType
-!USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
-!USE MOD_Particle_Mesh,    ONLY:InitParticleMesh,FinalizeParticleMesh
-!USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
-!USE MOD_Particle_MPI,     ONLY:InitParticleMPI
-!USE MOD_PICDepo,          ONLY:FinalizeDeposition
-!USE MOD_ParticleInit,     ONLY:FinalizeParticles
-!USE MOD_DSMC_Init,        ONLY:FinalizeDSMC
-!#ifdef MPI
-!USE MOD_Particle_MPI,     ONLY:FinalizeParticleMPI
-!#endif /*MPI*/
-!#endif
-!USE MOD_ReadinTools,  ONLY: Readindone
-!USE MOD_Particle_MPI_Vars, ONLY: ParticleMPIInitisdone
-!USE MOD_Particle_Vars, ONLY: ParticlesInitIsDone
+USE MOD_Output            ,ONLY: InitOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -59,6 +29,9 @@ REAL    :: Time
 !===================================================================================================================================
 
 CALL InitMPI()
+
+CALL DefineParametersAnalyze()
+CALL DefineParametersRecordPoints()
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "
@@ -98,35 +71,7 @@ CALL InitInterpolation()
 CALL InitTimeDisc()
 
 CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
-!CALL InitRestart()
-!CALL InitMesh()
-!#ifdef MPI
-!CALL InitMPIVars()
-!#endif /*MPI*/
-!#ifdef PARTICLES
-!!#ifdef MPI
-!CALL InitParticleMPI
-!!#endif /*MPI*/
-!CALL InitParticleSurfaces()
-!!CALL InitParticleMesh()
-!#endif /*PARTICLES*/
-!CALL InitEquation()
-!!1#ifdef PARTICLES
-!!CALL InitParticles()
-!!#endif
-!CALL InitPML()
-!CALL InitDG()
-!CALL InitFilter()
-!#ifdef PARTICLES
-!CALL InitParticles()
-!!CALL GetSideType
-!#endif
-!CALL InitAnalyze()
-!CALL InitRecordPoints()
-!#ifdef PARTICLES
-!CALL InitParticleAnalyze()
-!#endif
-!CALL IgnoredStrings()
+
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
@@ -159,32 +104,6 @@ CALL TimeDisc()
 
 !Finalize
 CALL FinalizeBoltzplatz(IsLoadBalance=.FALSE.)
-!CALL FinalizeOutput()
-!CALL FinalizeRecordPoints()
-!CALL FinalizeAnalyze()
-!CALL FinalizeDG()
-!CALL FinalizePML()
-!CALL FinalizeEquation()
-!CALL FinalizeInterpolation()
-!CALL FinalizeTimeDisc()
-!CALL FinalizeRestart()
-!CALL FinalizeMesh()
-!CALL FinalizeFilter()
-!#ifdef PARTICLES
-!CALL FinalizeParticleSurfaces()
-!CALL FinalizeParticleMesh()
-!CALL FinalizeParticleAnalyze()
-!CALL FinalizeDeposition() 
-!#ifdef MPI
-!CALL FinalizeParticleMPI()
-!#endif /*MPI*/
-!CALL FinalizeDSMC()
-!CALL FinalizeParticles()
-!CALL FinalizeBackGroundField()
-!#endif
-!#ifdef MPI
-!CALL FinalizeMPI()
-!#endif
 
 CALL FinalizeTimeDisc()
 ! mssing arrays to deallocate
