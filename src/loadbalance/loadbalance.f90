@@ -59,7 +59,6 @@ USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
@@ -67,6 +66,7 @@ IF(nProcessors.EQ.1)THEN
   DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
   SWRITE(UNIT_StdOut,'(a3,a45,a3,L33,a3,a7,a3)')' | ',TRIM("No LoadBalance (nProcessors=1): DoLoadBalance")       ,' | ',&
       DoLoadBalance   ,' | ',TRIM("INFO"),' | '
+  DeviationThreshold=HUGE(1.0)
 ELSE 
   DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
   DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
@@ -78,16 +78,16 @@ nLoadBalanceSteps = 0
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
 IF (ParticleMPIWeight.LT.0) THEN
   CALL abort(&
-    __STAMP__&
-    ,' ERROR: Particle weight cannot be negative!')
+      __STAMP__&
+      ,' ERROR: Particle weight cannot be negative!')
 END IF
 
 PartWeightMethod  = GETINT('Particles-WeightMethod','1')
 WeightAverageMethod = GETINT('Particles-WeightAverageMethod','1')
 IF ( (WeightAverageMethod.NE.1) .AND. (WeightAverageMethod.NE.2) ) THEN
   CALL abort(&
-    __STAMP__&
-    ,' ERROR: WeightAverageMethod must be 1 (per iter) or 2 (per dt_analyze)!')
+      __STAMP__&
+      ,' ERROR: WeightAverageMethod must be 1 (per iter) or 2 (per dt_analyze)!')
 END IF
 
 ALLOCATE( tTotal(1:14)    &
@@ -126,7 +126,6 @@ END SUBROUTINE InitLoadBalance
 
 
 
-!SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance,time) 
 SUBROUTINE ComputeElemLoad(PerformLoadbalance,time) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! compute the element load
@@ -154,7 +153,6 @@ REAL ,INTENT(IN)             :: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)           :: PerformLoadBalance
-!REAL ,INTENT(OUT)             :: CurrentImbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iElem
@@ -245,26 +243,24 @@ DO iElem=1,PP_nElems
 #endif /*PARTICLES*/
 END DO ! iElem=1,PP_nElems
 
-!CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
+! Determine sum of balance and calculate target balanced weight and communicate via MPI_ALLREDUCE
 CALL ComputeImbalance()
 
 ! Fill .csv file for performance analysis and load balance: write data line
 CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time=time)
 
-
-PerformLoadBalance=.FALSE.
 ! only check if imbalance is > a given threshold
+PerformLoadBalance=.FALSE.
 IF(CurrentImbalance.GT.DeviationThreshold) PerformLoadBalance=.TRUE.
 
 #ifdef PARTICLES
 nTracksPerElem=0
 nDeposPerElem=0
 nPartsPerElem=0
-
-
 tCartMesh  =0.
 tTracking  =0.
 #endif /*PARTICLES*/
+
 tTotal     =0.
 LoadSum    =0.
 tCurrent   =0.
@@ -274,7 +270,6 @@ nLoadIter  =0
 END SUBROUTINE ComputeElemLoad
 
 
-!SUBROUTINE LoadBalance(CurrentImbalance,PerformLoadBalance)
 SUBROUTINE LoadBalance(PerformLoadBalance)
 !===================================================================================================================================
 ! routine perfoming the load balancing stuff
@@ -431,32 +426,27 @@ nCurrentParts=0
 END SUBROUTINE LoadMeasure
 
 
-!SUBROUTINE ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! subroutine to compute the imbalance
-! Maxweight: maximum weight of all processes
-! Minweight: minimum weight of all processes
-! targetweight: current target weight
+! Maxweight:        maximum weight of all processes
+! Minweight:        minimum weight of all processes
+! targetweight:     current target weight
 ! CurrentImbalance: rel. deviation of current imbalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-!USE MOD_Preproc,             ONLY:PP_nElems
 USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
 USE MOD_LoadBalance_Vars,    ONLY:ElemTime
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES 
-!REAL,INTENT(IN)            :: ElemTime(1:PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-!REAL,INTENT(OUT)           :: CurrentImbalance, MaxWeight, MinWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!REAL                       :: MaxWeight
 !===================================================================================================================================
 
 WeightSum=SUM(ElemTime)

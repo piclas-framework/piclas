@@ -289,7 +289,6 @@ INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
 #ifdef MPI
-!REAL                         :: CurrentImbalance
 LOGICAL                      :: PerformLoadBalance
 #endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
@@ -591,7 +590,6 @@ DO !iter_t=0,MaxIter
       PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
     END IF
 #ifdef MPI
-    !CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
     CALL ComputeElemLoad(PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
@@ -690,7 +688,6 @@ DO !iter_t=0,MaxIter
 #ifdef MPI
     IF(DoLoadBalance)THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
-      !CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
       CALL LoadBalance(PerformLoadBalance)
       !#ifndef PP_HDG
       !      dt_Min=CALCTIMESTEP()
