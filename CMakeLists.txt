@@ -550,7 +550,8 @@ endfunction()
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src) 
 
 # collect all F90 files needed for boltzplatzlib
-FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
+FILE(GLOB_RECURSE boltzplatzF90 ./src/init/*.f90
+                                ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
                                 ./src/mortar/*.f90
