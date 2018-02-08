@@ -17,20 +17,20 @@ LOGICAL                             :: InitLoadBalanceIsDone                    
 REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
 REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
-                                                                                  !  1 -tDG
-                                                                                  !  2 -tDGComm
-                                                                                  !  3 -tPML
-                                                                                  !  4 -tEmission
-                                                                                  !  5 -tTrack
-                                                                                  !  6 -tInterpolation
-                                                                                  !  7 -tDeposition
-                                                                                  !  8 -tDSMC
-                                                                                  !  9 -tPush
-                                                                                  ! 10 -tPartComm
-                                                                                  ! 11 -tSplit&Merge
-                                                                                  ! 12 -UNFP
-                                                                                  ! 13 -DGAnalyze
-                                                                                  ! 14 -PartAnalyze
+!                                                                                 !  1 -tDG
+!                                                                                 !  2 -tDGComm
+!                                                                                 !  3 -tPML
+!                                                                                 !  4 -tEmission
+!                                                                                 !  5 -tTrack
+!                                                                                 !  6 -tInterpolation
+!                                                                                 !  7 -tDeposition
+!                                                                                 !  8 -tDSMC
+!                                                                                 !  9 -tPush
+!                                                                                 ! 10 -tPartComm
+!                                                                                 ! 11 -tSplit&Merge
+!                                                                                 ! 12 -UNFP
+!                                                                                 ! 13 -DGAnalyze
+!                                                                                 ! 14 -PartAnalyze
 
 ! counter
 REAL(KIND=8)                        :: nTotalParts                                ! number of particles in time of tTotal
@@ -42,12 +42,20 @@ REAL,ALLOCATABLE                    :: LoadDistri(:)                            
 INTEGER,ALLOCATABLE                 :: PartDistri(:)                              ! Part distribution of all procs
 INTEGER                             :: PartWeightMethod                           ! method to compute the particle weight
 INTEGER                             :: WeightAverageMethod                        ! method to average the particle weight
-                                                                                  ! (1: iter, 2: dt_Analyze)
-                                                                                  ! nSkipAnalyze is greater than 1
+!                                                                                 ! (1: iter, 2: dt_Analyze)
+!                                                                                 ! nSkipAnalyze is greater than 1
 REAL                                :: MaxWeight                                  ! Maximum Weight of proc on domain
 REAL                                :: MinWeight                                  ! Minimum Weight of proc on domain
 REAL                                :: CurrentImbalance
 REAL                                :: NewImbalance                               ! Imbalance after rebalance step
+
+TYPE tData
+  INTEGER, ALLOCATABLE :: offsetElemMPI(:)
+  INTEGER              :: numOfCalls
+  TYPE(tData), POINTER :: nextData => null()
+END TYPE tData
+TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI for WeightAverageMethod 5 and 6
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -57,6 +65,7 @@ REAL                                :: DeviationThreshold                       
 LOGICAL                             :: writePartitionInfo                         ! write partitioninfo file
 REAL                                :: WeightSum                                  ! global sum of all weights
 REAL                                :: targetWeight                               ! optimal weight for each proc
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
