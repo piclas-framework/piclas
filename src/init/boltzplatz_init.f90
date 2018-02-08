@@ -15,7 +15,7 @@ END INTERFACE
 
 PUBLIC:: InitBoltzplatz,FinalizeBoltzplatz
 !===================================================================================================================================
-PUBLIC:: DefineParametersBoltzplatz
+PUBLIC:: InitDefineParameters
 
 CONTAINS
 
@@ -34,129 +34,37 @@ CALL prms%CreateLogicalOption(  'UseDSMC'    , "Flag for using DSMC in Calculati
 CALL prms%CreateLogicalOption(  'UseLD'      , "Flag for using LD in Calculation", '.FALSE.')
 #endif
 
-END SUBROUTINE defineparametersboltzplatz
+END SUBROUTINE DefineParametersBoltzplatz
 
-SUBROUTINE FinalizeBoltzplatz(IsLoadBalance) 
+SUBROUTINE InitDefineParameters() 
 !----------------------------------------------------------------------------------------------------------------------------------!
-! finalize Boltzplatz data structure
+! description
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
+USE MOD_Restart      ,ONLY: DefineParametersRestart
+USE MOD_Analyze      ,ONLY: DefineParametersAnalyze
+USE MOD_RecordPoints ,ONLY: DefineParametersRecordPoints
+USE MOD_TimeDisc     ,ONLY: DefineParametersTimedisc
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Restart,                   ONLY:FinalizeRestart
-USE MOD_Interpolation,             ONLY:FinalizeInterpolation
-USE MOD_Mesh,                      ONLY:FinalizeMesh
-USE MOD_Equation,                  ONLY:FinalizeEquation
-USE MOD_Interfaces,                ONLY:FinalizeInterfaces
-#if USE_QDS_DG
-USE MOD_QDS,                       ONLY:FinalizeQDS
-#endif /*USE_QDS_DG*/
-USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
-USE MOD_DG,                        ONLY:FinalizeDG
-USE MOD_Mortar,                    ONLY:FinalizeMortar
-USE MOD_Dielectric,                ONLY:FinalizeDielectric
-#ifndef PP_HDG
-USE MOD_PML,                       ONLY:FinalizePML
-#else
-USE MOD_HDG,                       ONLY:FinalizeHDG
-#endif /*PP_HDG*/
-USE MOD_Filter,                    ONLY:FinalizeFilter
-USE MOD_Analyze,                   ONLY:FinalizeAnalyze
-USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
-#ifdef IMEX
-USE MOD_LinearSolver,              ONLY:FinalizeLinearSolver
-USE MOD_CSR,                       ONLY:FinalizeCSR
-#endif /*IMEX*/
-!USE MOD_TimeDisc,                  ONLY:FinalizeTimeDisc
-#ifdef MPI
-USE MOD_MPI,                       ONLY:FinalizeMPI
-#endif /*MPI*/
-#ifdef PARTICLES
-USE MOD_Particle_Surfaces,         ONLY:FinalizeParticleSurfaces
-USE MOD_InitializeBackgroundField, ONLY:FinalizeBackGroundField
-USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
-USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
-USE MOD_PICDepo,                   ONLY:FinalizeDeposition
-USE MOD_ParticleInit,              ONLY:FinalizeParticles
-USE MOD_TTMInit,                   ONLY:FinalizeTTM
-USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
-USE MOD_DSMC_SurfModelInit,        ONLY:FinalizeDSMCSurfModel
-USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
-USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
-#ifdef MPI
-USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
-USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
-#endif /*MPI*/
-#endif /*PARTICLES*/
-#if (PP_TimeDiscMethod==104)
-USE MOD_LinearSolver_Vars,ONLY:nNewton
-#endif
-USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
+! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
-LOGICAL,INTENT(IN)      :: IsLoadBalance
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
+! INPUT / OUTPUT VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+
 !===================================================================================================================================
 
-CALL ClearElemData(ElementOut)
-!Finalize
-CALL FinalizeRecordPoints()
-CALL FinalizeAnalyze()
-CALL FinalizeDG()
-#ifdef IMEX
-CALL FinalizeCSR()
-CALL FinalizeLinearSolver()
-#endif /*IMEX*/
-#ifndef PP_HDG
-CALL FinalizePML()
-#else
-CALL FinalizeDielectric()
-CALL FinalizeHDG()
-#endif /*PP_HDG*/
-CALL FinalizeEquation()
-CALL FinalizeBC()
-IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
-!CALL FinalizeTimeDisc()
-CALL FinalizeRestart()
-CALL FinalizeMesh()
-CALL FinalizeMortar()
-CALL FinalizeFilter()
-#ifdef PARTICLES
-CALL FinalizeDSMCSurfModel()
-CALL FinalizeParticleBoundarySampling()
-CALL FinalizeParticleSurfaces()
-CALL FinalizeParticleMesh()
-CALL FinalizeParticleAnalyze()
-CALL FinalizeDeposition() 
-#ifdef MPI
-CALL FinalizeParticleMPI()
-#endif /*MPI*/
-CALL FinalizeDSMC()
-CALL FinalizeParticles()
-CALL FinalizeBackGroundField()
-#endif /*PARTICLES*/
-#ifdef MPI
-CALL FinalizeMPI()
-#endif /*MPI*/
+CALL DefineParametersBoltzplatz()
 
-#ifdef PARTICLES
-ParticlesInitIsDone=.FALSE.  
-#ifdef MPI
-ParticleMPIInitIsDone=.FALSE.
-#endif /*MPI*/
+CALL DefineParametersRestart()
 
-CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
-#endif /*PARTICLES*/
+CALL DefineParametersTimedisc()
+CALL DefineParametersAnalyze()
+CALL DefineParametersRecordPoints()
 
-CALL FinalizeInterfaces()
-#if USE_QDS_DG
-CALL FinalizeQDS()
-#endif /*USE_QDS_DG*/
 
-END SUBROUTINE FinalizeBoltzplatz
+END SUBROUTINE InitDefineParameters
 
 
 SUBROUTINE InitBoltzplatz(IsLoadBalance) 
@@ -303,5 +211,127 @@ CALL InitQDS()
 
 END SUBROUTINE InitBoltzplatz
 
+
+SUBROUTINE FinalizeBoltzplatz(IsLoadBalance) 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! finalize Boltzplatz data structure
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Restart,                   ONLY:FinalizeRestart
+USE MOD_Interpolation,             ONLY:FinalizeInterpolation
+USE MOD_Mesh,                      ONLY:FinalizeMesh
+USE MOD_Equation,                  ONLY:FinalizeEquation
+USE MOD_Interfaces,                ONLY:FinalizeInterfaces
+#if USE_QDS_DG
+USE MOD_QDS,                       ONLY:FinalizeQDS
+#endif /*USE_QDS_DG*/
+USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
+USE MOD_DG,                        ONLY:FinalizeDG
+USE MOD_Mortar,                    ONLY:FinalizeMortar
+USE MOD_Dielectric,                ONLY:FinalizeDielectric
+#ifndef PP_HDG
+USE MOD_PML,                       ONLY:FinalizePML
+#else
+USE MOD_HDG,                       ONLY:FinalizeHDG
+#endif /*PP_HDG*/
+USE MOD_Filter,                    ONLY:FinalizeFilter
+USE MOD_Analyze,                   ONLY:FinalizeAnalyze
+USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
+#ifdef IMEX
+USE MOD_LinearSolver,              ONLY:FinalizeLinearSolver
+USE MOD_CSR,                       ONLY:FinalizeCSR
+#endif /*IMEX*/
+!USE MOD_TimeDisc,                  ONLY:FinalizeTimeDisc
+#ifdef MPI
+USE MOD_MPI,                       ONLY:FinalizeMPI
+#endif /*MPI*/
+#ifdef PARTICLES
+USE MOD_Particle_Surfaces,         ONLY:FinalizeParticleSurfaces
+USE MOD_InitializeBackgroundField, ONLY:FinalizeBackGroundField
+USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
+USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
+USE MOD_PICDepo,                   ONLY:FinalizeDeposition
+USE MOD_ParticleInit,              ONLY:FinalizeParticles
+USE MOD_TTMInit,                   ONLY:FinalizeTTM
+USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+USE MOD_DSMC_SurfModelInit,        ONLY:FinalizeDSMCSurfModel
+USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
+USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
+#ifdef MPI
+USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
+USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
+#endif /*MPI*/
+#endif /*PARTICLES*/
+#if (PP_TimeDiscMethod==104)
+USE MOD_LinearSolver_Vars,ONLY:nNewton
+#endif
+USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+LOGICAL,INTENT(IN)      :: IsLoadBalance
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+CALL ClearElemData(ElementOut)
+!Finalize
+CALL FinalizeRecordPoints()
+CALL FinalizeAnalyze()
+CALL FinalizeDG()
+#ifdef IMEX
+CALL FinalizeCSR()
+CALL FinalizeLinearSolver()
+#endif /*IMEX*/
+#ifndef PP_HDG
+CALL FinalizePML()
+#else
+CALL FinalizeDielectric()
+CALL FinalizeHDG()
+#endif /*PP_HDG*/
+CALL FinalizeEquation()
+CALL FinalizeBC()
+IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
+!CALL FinalizeTimeDisc()
+CALL FinalizeRestart()
+CALL FinalizeMesh()
+CALL FinalizeMortar()
+CALL FinalizeFilter()
+#ifdef PARTICLES
+CALL FinalizeDSMCSurfModel()
+CALL FinalizeParticleBoundarySampling()
+CALL FinalizeParticleSurfaces()
+CALL FinalizeParticleMesh()
+CALL FinalizeParticleAnalyze()
+CALL FinalizeDeposition() 
+#ifdef MPI
+CALL FinalizeParticleMPI()
+#endif /*MPI*/
+CALL FinalizeDSMC()
+CALL FinalizeParticles()
+CALL FinalizeBackGroundField()
+#endif /*PARTICLES*/
+#ifdef MPI
+CALL FinalizeMPI()
+#endif /*MPI*/
+
+#ifdef PARTICLES
+ParticlesInitIsDone=.FALSE.  
+#ifdef MPI
+ParticleMPIInitIsDone=.FALSE.
+#endif /*MPI*/
+
+CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+#endif /*PARTICLES*/
+
+CALL FinalizeInterfaces()
+#if USE_QDS_DG
+CALL FinalizeQDS()
+#endif /*USE_QDS_DG*/
+
+END SUBROUTINE FinalizeBoltzplatz
 
 END MODULE MOD_Boltzplatz_Init

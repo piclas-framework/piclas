@@ -6,7 +6,7 @@ PROGRAM Boltzplatz
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Boltzplatz_Init   ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Boltzplatz_Init   ,ONLY: InitBoltzplatz,FinalizeBoltzplatz,InitDefineParameters
 USE MOD_Restart           ,ONLY: Restart
 USE MOD_Interpolation     ,ONLY: InitInterpolation
 USE MOD_IO_HDF5           ,ONLY: InitIO
@@ -21,10 +21,6 @@ USE MOD_MPI               ,ONLY: FinalizeMPI
 #endif /*MPI*/
 USE MOD_Output            ,ONLY: InitOutput
 
-USE MOD_Boltzplatz_Init   ,ONLY: DefineParametersBoltzplatz
-USE MOD_Restart           ,ONLY: DefineParametersRestart
-USE MOD_Analyze           ,ONLY: DefineParametersAnalyze
-USE MOD_RecordPoints      ,ONLY: DefineParametersRecordPoints
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -34,12 +30,8 @@ REAL    :: Time
 
 CALL InitMPI()
 
-CALL DefineParametersBoltzplatz()
+CALL InitDefineParameters()
 
-CALL DefineParametersRestart()
-
-CALL DefineParametersAnalyze()
-CALL DefineParametersRecordPoints()
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "
