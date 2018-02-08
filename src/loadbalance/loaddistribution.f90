@@ -374,9 +374,7 @@ CASE(1)
   CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(2)
-  CALL abort(&
-      __STAMP__&
-      ,' error in load distritubion. please fix me!')
+  CALL abort(__STAMP__,'WeightDistributionMethod=2 is not working!')
   ! 1: last Proc receives the least load
   ! 2: Root receives the least load
   IF(MPIRoot)THEN
@@ -635,13 +633,11 @@ CASE(5,6)
     nElems=nGlobalElems/nProcessors
     iElem=nGlobalElems-nElems*nProcessors
     itershift=0
-    IF (WeightDistributionMethod.EQ.5) THEN
-      !-- init as for CASE(-1)
+    IF (WeightDistributionMethod.EQ.5) THEN !-- init as for CASE(-1)
       DO iProc=0,nProcessors-1
         offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
       END DO
-    ELSE IF (WeightDistributionMethod.EQ.6) THEN
-      !-- init as for CASE(0)
+    ELSE ! WeightDistributionMethod.EQ.6    !-- init as for CASE(0)
       IF(nGlobalElems.EQ.nProcessors) THEN
         DO iProc=0, nProcessors-1
           offsetElemMPI(iProc) = iProc
@@ -660,10 +656,6 @@ CASE(5,6)
           END DO
         END DO
       END IF
-    ELSE
-      CALL abort(&
-          __STAMP__, &
-          'Wrong WeightDistributionMethod for 5,6 ?!?')
     END IF !WeightDistributionMethod 5 or 6
     offsetElemMPI(nProcessors)=nGlobalElems
     !-- calc inital distri
@@ -1111,7 +1103,7 @@ IF(WriteHeader)THEN ! create new file
   END DO
   WRITE(formatStr,'(A1)')'('
   DO I=1,nOutputVar
-    IF(I.EQ.nOutputVar)THEN
+    IF(I.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
       WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
     ELSE
       WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
