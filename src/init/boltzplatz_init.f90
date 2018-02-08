@@ -15,7 +15,7 @@ END INTERFACE
 
 PUBLIC:: InitBoltzplatz,FinalizeBoltzplatz
 !===================================================================================================================================
-PUBLIC:: InitDefineParameters
+!PUBLIC:: InitDefineParameters
 
 CONTAINS
 
@@ -36,35 +36,7 @@ CALL prms%CreateLogicalOption(  'UseLD'      , "Flag for using LD in Calculation
 
 END SUBROUTINE DefineParametersBoltzplatz
 
-SUBROUTINE InitDefineParameters() 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! description
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-USE MOD_Restart      ,ONLY: DefineParametersRestart
-USE MOD_Analyze      ,ONLY: DefineParametersAnalyze
-USE MOD_RecordPoints ,ONLY: DefineParametersRecordPoints
-USE MOD_TimeDisc     ,ONLY: DefineParametersTimedisc
-!----------------------------------------------------------------------------------------------------------------------------------!
-! insert modules here
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
 
-!===================================================================================================================================
-
-CALL DefineParametersBoltzplatz()
-
-CALL DefineParametersRestart()
-
-CALL DefineParametersTimedisc()
-CALL DefineParametersAnalyze()
-CALL DefineParametersRecordPoints()
-
-
-END SUBROUTINE InitDefineParameters
 
 
 SUBROUTINE InitBoltzplatz(IsLoadBalance) 
