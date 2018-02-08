@@ -375,6 +375,7 @@ DO iElem=1,nElems
     JaCL_N_quad(:,3,:,:,:)=(length(1)*length(2)/4.)*JaCL_N_quad(:,3,:,:,:)
     CALL CalcSurfMetrics(PP_N,JaCL_N_quad,XCL_N_quad,Vdm_CLN_N,iElem,&
                          NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
+    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N_quad,XCL_N_quad,Vdm_CLN_N,iElem)
   ELSE
     ! interpolate Metrics from Cheb-Lobatto N onto GaussPoints N
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,XCL_N            ,Elem_xGP(      :,:,:,:,iElem))
@@ -383,6 +384,7 @@ DO iElem=1,nElems
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
     CALL CalcSurfMetrics(PP_N,JaCL_N,XCL_N,Vdm_CLN_N,iElem,&
                          NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
+    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N,XCL_N,Vdm_CLN_N,iElem)
   END IF
 
   ! particle mapping
@@ -640,5 +642,105 @@ DO q=0,Nloc; DO p=0,Nloc
   TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
 END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa
+
+SUBROUTINE CalcElemLocalSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem)
+!===================================================================================================================================
+! Compute normal and tangential vectors from element metrics. Input is JaCL_N, the 3D element metrics on Cebychev-Lobatto points
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals,     ONLY:CROSS
+USE MOD_Mesh_Vars,   ONLY:ElemToSide,nSides,MortarType
+USE MOD_Mesh_Vars,   ONLY:NormalDirs,TangDirs,NormalSigns
+USE MOD_Mesh_Vars,   ONLY:nVecLoc,SurfLoc
+USE MOD_Mappings,    ONLY:CGNS_SideToVol2
+USE MOD_ChangeBasis, ONLY:ChangeBasis2D
+USE MOD_Mortar_Metrics, ONLY:Mortar_CalcSurfMetrics
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: Nloc                                !< (IN) polynomial degree
+INTEGER,INTENT(IN) :: iElem                               !< (IN) element index
+REAL,INTENT(IN)    :: JaCL_N(1:3,1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) volume metrics of element
+REAL,INTENT(IN)    :: XCL_N(     1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) element geo. interpolation points (CL)
+REAL,INTENT(IN)    :: Vdm_CLN_N(   0:Nloc,0:Nloc)         !< (IN) Vandermonde matrix from Cheby-Lob on N to final nodeset on N
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
+INTEGER            :: NormalDir,TangDir
+REAL               :: NormalSign
+REAL               :: Ja_Face_l(3,3,0:Nloc,0:Nloc)
+REAL               :: Mortar_Ja(3,3,0:Nloc,0:Nloc,4)
+REAL               :: Mortar_xGP( 3,0:Nloc,0:Nloc,4)
+REAL               :: tmp(        3,0:Nloc,0:Nloc)
+REAL               :: tmp2(        3,0:Nloc,0:Nloc)
+!==================================================================================================================================
+
+DO iLocSide=1,6
+  ! compute the local normVec and SurfElem form each element 
+  ! this is currently only required for the Maxwell case (HDG should be handled similar)
+  ! this allows to build the preconditioner with the correct normVecs and SurfElems
+  SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+
+  NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide);
+  DO dd=1,3
+    SELECT CASE(iLocSide)
+    CASE(XI_MINUS)
+      tmp=JaCL_N(dd,1:3,0   ,:   ,:   )
+    CASE(XI_PLUS)
+      tmp=JaCL_N(dd,1:3,Nloc,:   ,:   )
+    CASE(ETA_MINUS)
+      tmp=JaCL_N(dd,1:3,:   ,0   ,:   )
+    CASE(ETA_PLUS)
+      tmp=JaCL_N(dd,1:3,:   ,Nloc,:   )
+    CASE(ZETA_MINUS)
+      tmp=JaCL_N(dd,1:3,:   ,:   ,0   )
+    CASE(ZETA_PLUS)
+      tmp=JaCL_N(dd,1:3,:   ,:   ,Nloc)
+    END SELECT
+    CALL ChangeBasis2D(3,Nloc,Nloc,Vdm_CLN_N,tmp,tmp2)
+    ! turn into right hand system of side
+    DO q=0,Nloc; DO p=0,Nloc
+      !pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
+      !Ja_Face_l(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))
+      Ja_Face_l(dd,1:3,p,q)=tmp2(:,p,q)
+    END DO; END DO ! p,q
+  END DO ! dd
+
+  NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide)
+  !CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face_l,&
+  !                       NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),&
+  !                       TangVec2(:,:,:,SideID),SurfElem(:,:,SideID))
+  DO q=0,Nloc; DO p=0,Nloc
+    Surfloc (  p,q,iLocSide,iElem) = SQRT(SUM(Ja_Face_l(NormalDir,:,p,q)**2))
+    nVecLoc( :,p,q,iLocSide,iElem) = NormalSign*Ja_Face_l(NormalDir,:,p,q)/SurfLoc(p,q,iLocSide,iElem)
+    !TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) &
+    !                  *NormVec(:,p,q)
+    !TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(SUM(TangVec1(:,p,q)**2))
+    !TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
+  END DO; END DO ! p,q
+
+  !!compute metrics for mortar faces, interpolate Ja_Face to small sides
+  !IF(MortarType(1,SideID).GT.0)THEN
+  !  CALL Mortar_CalcSurfMetrics(SideID,Nloc,Ja_Face_l,Face_xGP(:,:,:,SideID),&
+  !                                          Mortar_Ja,Mortar_xGP,nbSideIDs)
+  !  DO iMortar=1,4
+  !    SideID2=nbSideIDs(iMortar)
+  !    IF(SideID2.LT.1) CYCLE ! for MPI sides some sides are built from the inside and for type 2/3 there are only 2 neighbours
+  !    IF(PRESENT(Ja_Face)) Ja_Face(:,:,:,:,SideID2)=Mortar_Ja(:,:,:,:,iMortar)
+  !    Face_xGP(:,:,:,SideID2) = Mortar_xGP(:,:,:,iMortar)
+  !    CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(:,:,:,:,iMortar),&
+  !                           NormVec(:,:,:,SideID2),TangVec1(:,:,:,SideID2),&
+  !                           TangVec2(:,:,:,SideID2),SurfElem(:,:,SideID2))
+  !  END DO
+
+  !END IF
+END DO
+
+END SUBROUTINE CalcElemLocalSurfMetrics
 
 END MODULE MOD_Metrics

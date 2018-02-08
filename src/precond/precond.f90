@@ -296,6 +296,7 @@ SUBROUTINE BuildnVecSurf()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Normvec,SurfElem,ElemToSide,nSides
+USE MOD_Mesh_Vars,   ONLY:nVecLoc,SurfLoc
 USE MOD_Precond_Vars       ,ONLY: nVec,Surf,BuildNVecisDone
 USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
 #ifdef MPI
@@ -312,8 +313,9 @@ INTEGER                                      :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                      :: p,q,SideID,Flip
+INTEGER                                      :: p,q,SideID,Flip,ilocSide
 REAL,ALLOCATABLE                             :: NormVecPlus(:,:,:,:)  
+REAL :: diff
 !===================================================================================================================================
 
 IF(BuildNvecisDone) RETURN
@@ -323,220 +325,237 @@ IF(BuildNvecisDone) RETURN
 ! this are the local normal vector and surface element for each interpolation point
 ALLOCATE(nVec(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
 ALLOCATE(Surf(0:PP_N,0:PP_N,1:6,PP_nElems))
+nVec=nVecLoc
+Surf=SurfLoc
+!
+!! usefull only for Precondioner and local sides
+!ALLOCATE(       NormVecPlus(4,0:PP_N,0:PP_N,1:nSides)) 
+!
+!DO SideID=1,lastMPISide_MINE ! and mortar..???
+!  normVecPlus (1:3,:,:,SideID) = -normVec(1:3,:,:,SideID)
+!  normVecPlus ( 4 ,:,:,SideID) = SurfElem(:,:,SideID)
+!END DO
+!
+!! like flux
+!! communicate sideID_minus_upper : sideID_plus_upper
+!! performed in buildnvecsurf because then the necessary MPI Comm is build
+!
+!! communicate sideID_minus_upper : sideID_plus_upper
+!! communicate sideID_minus_upper : sideID_plus_upper
+!#ifdef MPI
+!!CALL StartExchangeMPIData(3,normVecPlus,SideID_Plus_Lower,SideID_Plus_Upper,SendRequest_Flux,RecRequest_Flux,SendID=1)
+!CALL StartReceiveMPIData(4,normVecPlus,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+!CALL StartSendMPIData   (4,normVecPlus,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+!!CALL StartExchangeMPIData(4,normVecPlus,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1)
+!CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
+!#endif /*MPI*/
+!
+!DO iElem=1,PP_nElems
+!  SideID=ElemToSide(E2S_SIDE_ID,XI_MINUS,iElem)
+!  Flip  =ElemToSide(E2S_FLIP,XI_MINUS,iElem)
+!  SELECT CASE(flip)
+!  CASE(0) !master
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,q,p,XI_MINUS,iElem)            =  NormVec(:,p,q,SideID)
+!      Surf(q,p,XI_MINUS,iElem)              =  SurfElem(p,q,SideID)
+!    END DO; END DO 
+!  CASE(1) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,q,XI_MINUS,iElem)            =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(p,q,XI_MINUS,iElem)              =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(2) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      !nVecSurf(:,PP_N-q,p,XI_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
+!      ! INTERCHANGED WITH FLIP 4!
+!      nVec(:,q,PP_N-p,XI_MINUS,iElem)        =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  q,PP_N-p,XI_MINUS,iElem)        =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(3) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-p,PP_N-q,XI_MINUS,iElem)   =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-p,PP_N-q,XI_MINUS,iElem)   =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(4) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      !nVecSurf(:,q,PP_N-p,XI_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
+!      ! INTERCHANGED WITH FLIP 2!
+!      nVec(:,PP_N-q,p,XI_MINUS,iElem)        =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-q,p,XI_MINUS,iElem)        =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  END SELECT
+!  SideID=ElemToSide(E2S_SIDE_ID,XI_PLUS,iElem)
+!  Flip  =ElemToSide(E2S_FLIP,XI_PLUS,iElem)
+!  SELECT CASE(flip)
+!  CASE(0) !master
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,q,XI_PLUS,iElem)              =   NormVec(:,p,q,SideID)
+!      Surf(  p,q,XI_PLUS,iElem)              =  SurfElem(p,q,SideID)
+!    END DO; END DO 
+!  CASE(1) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,q,p,XI_PLUS,iElem)              =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  q,p,XI_PLUS,iElem)              =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(2) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-p,q,XI_PLUS,iElem)         =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-p,q,XI_PLUS,iElem)         =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(3) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-q,PP_N-p,XI_PLUS,iElem)    =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-q,PP_N-p,XI_PLUS,iElem)    =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(4) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,PP_N-q,XI_PLUS,iElem)         =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  p,PP_N-q,XI_PLUS,iElem)         =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  END SELECT
+!  SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
+!  Flip  =ElemToSide(E2S_FLIP,ETA_MINUS,iElem)
+!  SELECT CASE(flip)
+!  CASE(0) !master
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,q,ETA_MINUS,iElem)            =   NormVec(:,p,q,SideID)
+!      Surf(  p,q,ETA_MINUS,iElem)            =  SurfElem(p,q,SideID)
+!    END DO; END DO 
+!  CASE(1) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,q,p,ETA_MINUS,iElem)            =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  q,p,ETA_MINUS,iElem)            =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(2) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-p,q,ETA_MINUS,iElem)       =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-q,p,ETA_MINUS,iElem)       =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(3) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-q,PP_N-p,ETA_MINUS,iElem)  =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-q,PP_N-p,ETA_MINUS,iElem)  =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(4) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,PP_N-q,ETA_MINUS,iElem)       =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  p,PP_N-q,ETA_MINUS,iElem)       =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  END SELECT
+!
+!  SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
+!  Flip  =ElemToSide(E2S_FLIP,ETA_PLUS,iElem)
+!  SELECT CASE(flip)
+!  CASE(0) !master
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-p,q,ETA_PLUS,iElem)        =   NormVec(:,p,q,SideID)
+!      Surf(  PP_N-p,q,ETA_PLUS,iElem)        =  SurfElem(p,q,SideID)
+!    END DO; END DO 
+!  CASE(1) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      !nVecSurf(:,q,PP_N-p,ETA_PLUS,iElem)           = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
+!      ! INTERCHANGED WITH FLIP 3!
+!      nVec(:,PP_N-q,p,ETA_PLUS,iElem)        =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-q,p,ETA_PLUS,iElem)        =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(2) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,q,ETA_PLUS,iElem)            =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  p,q,ETA_PLUS,iElem)            =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(3) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      !nVecSurf(:,PP_N-q,p,ETA_PLUS,iElem)           = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
+!      ! INTERCHANGED WITH FLIP 1!
+!      nVec(:,q,PP_N-p,ETA_PLUS,iElem)       =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  q,PP_N-p,ETA_PLUS,iElem)       =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(4) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-p,PP_N-q,ETA_PLUS,iElem)  =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-p,PP_N-q,ETA_PLUS,iElem)  =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  END SELECT
+!  SideID=ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
+!  Flip  =ElemToSide(E2S_FLIP,ZETA_MINUS,iElem)
+!  SELECT CASE(flip)
+!  CASE(0) !master
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,q,p,ZETA_MINUS,iElem)           =   NormVec(:,p,q,SideID)
+!      Surf(  q,p,ZETA_MINUS,iElem)           =  SurfElem(p,q,SideID)
+!    END DO; END DO 
+!  CASE(1) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,q,ZETA_MINUS,iElem)           =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  p,q,ZETA_MINUS,iElem)           =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(2) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      !nVecSurf(:,PP_N-q,p,ZETA_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
+!      ! INTERCHANGED WITH FLIP 4!
+!      nVec(:,q,PP_N-p,ZETA_MINUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  q,PP_N-p,ZETA_MINUS,iElem)      =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(3) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-p,PP_N-q,ZETA_MINUS,iElem) =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-p,PP_N-q,ZETA_MINUS,iElem) =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(4) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      !nVecSurf(:,q,PP_N-p,ZETA_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
+!      ! INTERCHANGED WITH FLIP 2!
+!      nVec(:,PP_N-q,p,ZETA_MINUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-q,p,ZETA_MINUS,iElem)      =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  END SELECT
+!  SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
+!  Flip  =ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
+!  SELECT CASE(flip)
+!  CASE(0) !master
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,q,ZETA_PLUS,iElem)           =   NormVec(:,p,q,SideID)
+!      Surf(  p,q,ZETA_PLUS,iElem)           =  SurfElem(p,q,SideID)
+!    END DO; END DO 
+!  CASE(1) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,q,p,ZETA_PLUS,iElem)           =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  q,p,ZETA_PLUS,iElem)           =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(2) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-p,q,ZETA_PLUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-p,q,ZETA_PLUS,iElem)      =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(3) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,PP_N-q,p,ZETA_PLUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  PP_N-q,p,ZETA_PLUS,iElem)      =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  CASE(4) !slave, flip normal!!
+!    DO q=0,PP_N; DO p=0,PP_N
+!      nVec(:,p,PP_N-q,ZETA_PLUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
+!      Surf(  p,PP_N-q,ZETA_PLUS,iElem)      =  NormVecPlus(4,p,q,SideID)
+!    END DO; END DO 
+!  END SELECT
+!END DO !iElem
 
-! usefull only for Precondioner and local sides
-ALLOCATE(       NormVecPlus(4,0:PP_N,0:PP_N,1:nSides)) 
-
-DO SideID=1,lastMPISide_MINE ! and mortar..???
-  normVecPlus (1:3,:,:,SideID) = -normVec(1:3,:,:,SideID)
-  normVecPlus ( 4 ,:,:,SideID) = SurfElem(:,:,SideID)
-END DO
-
-! like flux
-! communicate sideID_minus_upper : sideID_plus_upper
-! performed in buildnvecsurf because then the necessary MPI Comm is build
-
-! communicate sideID_minus_upper : sideID_plus_upper
-! communicate sideID_minus_upper : sideID_plus_upper
-#ifdef MPI
-!CALL StartExchangeMPIData(3,normVecPlus,SideID_Plus_Lower,SideID_Plus_Upper,SendRequest_Flux,RecRequest_Flux,SendID=1)
-CALL StartReceiveMPIData(4,normVecPlus,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
-CALL StartSendMPIData   (4,normVecPlus,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
-!CALL StartExchangeMPIData(4,normVecPlus,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1)
-CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
-#endif /*MPI*/
-
-DO iElem=1,PP_nElems
-  SideID=ElemToSide(E2S_SIDE_ID,XI_MINUS,iElem)
-  Flip  =ElemToSide(E2S_FLIP,XI_MINUS,iElem)
-  SELECT CASE(flip)
-  CASE(0) !master
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,q,p,XI_MINUS,iElem)            =  NormVec(:,p,q,SideID)
-      Surf(q,p,XI_MINUS,iElem)              =  SurfElem(p,q,SideID)
-    END DO; END DO 
-  CASE(1) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,q,XI_MINUS,iElem)            =   NormVecPlus(1:3,p,q,SideID)
-      Surf(p,q,XI_MINUS,iElem)              =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(2) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      !nVecSurf(:,PP_N-q,p,XI_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
-      ! INTERCHANGED WITH FLIP 4!
-      nVec(:,q,PP_N-p,XI_MINUS,iElem)        =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  q,PP_N-p,XI_MINUS,iElem)        =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(3) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-p,PP_N-q,XI_MINUS,iElem)   =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-p,PP_N-q,XI_MINUS,iElem)   =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(4) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      !nVecSurf(:,q,PP_N-p,XI_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
-      ! INTERCHANGED WITH FLIP 2!
-      nVec(:,PP_N-q,p,XI_MINUS,iElem)        =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-q,p,XI_MINUS,iElem)        =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  END SELECT
-  SideID=ElemToSide(E2S_SIDE_ID,XI_PLUS,iElem)
-  Flip  =ElemToSide(E2S_FLIP,XI_PLUS,iElem)
-  SELECT CASE(flip)
-  CASE(0) !master
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,q,XI_PLUS,iElem)              =   NormVec(:,p,q,SideID)
-      Surf(  p,q,XI_PLUS,iElem)              =  SurfElem(p,q,SideID)
-    END DO; END DO 
-  CASE(1) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,q,p,XI_PLUS,iElem)              =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  q,p,XI_PLUS,iElem)              =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(2) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-p,q,XI_PLUS,iElem)         =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-p,q,XI_PLUS,iElem)         =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(3) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-q,PP_N-p,XI_PLUS,iElem)    =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-q,PP_N-p,XI_PLUS,iElem)    =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(4) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,PP_N-q,XI_PLUS,iElem)         =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  p,PP_N-q,XI_PLUS,iElem)         =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  END SELECT
-  SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
-  Flip  =ElemToSide(E2S_FLIP,ETA_MINUS,iElem)
-  SELECT CASE(flip)
-  CASE(0) !master
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,q,ETA_MINUS,iElem)            =   NormVec(:,p,q,SideID)
-      Surf(  p,q,ETA_MINUS,iElem)            =  SurfElem(p,q,SideID)
-    END DO; END DO 
-  CASE(1) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,q,p,ETA_MINUS,iElem)            =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  q,p,ETA_MINUS,iElem)            =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(2) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-p,q,ETA_MINUS,iElem)       =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-q,p,ETA_MINUS,iElem)       =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(3) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-q,PP_N-p,ETA_MINUS,iElem)  =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-q,PP_N-p,ETA_MINUS,iElem)  =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(4) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,PP_N-q,ETA_MINUS,iElem)       =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  p,PP_N-q,ETA_MINUS,iElem)       =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  END SELECT
-
-  SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
-  Flip  =ElemToSide(E2S_FLIP,ETA_PLUS,iElem)
-  SELECT CASE(flip)
-  CASE(0) !master
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-p,q,ETA_PLUS,iElem)        =   NormVec(:,p,q,SideID)
-      Surf(  PP_N-p,q,ETA_PLUS,iElem)        =  SurfElem(p,q,SideID)
-    END DO; END DO 
-  CASE(1) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      !nVecSurf(:,q,PP_N-p,ETA_PLUS,iElem)           = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
-      ! INTERCHANGED WITH FLIP 3!
-      nVec(:,PP_N-q,p,ETA_PLUS,iElem)        =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-q,p,ETA_PLUS,iElem)        =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(2) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,q,ETA_PLUS,iElem)            =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  p,q,ETA_PLUS,iElem)            =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(3) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      !nVecSurf(:,PP_N-q,p,ETA_PLUS,iElem)           = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
-      ! INTERCHANGED WITH FLIP 1!
-      nVec(:,q,PP_N-p,ETA_PLUS,iElem)       =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  q,PP_N-p,ETA_PLUS,iElem)       =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(4) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-p,PP_N-q,ETA_PLUS,iElem)  =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-p,PP_N-q,ETA_PLUS,iElem)  =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  END SELECT
-  SideID=ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
-  Flip  =ElemToSide(E2S_FLIP,ZETA_MINUS,iElem)
-  SELECT CASE(flip)
-  CASE(0) !master
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,q,p,ZETA_MINUS,iElem)           =   NormVec(:,p,q,SideID)
-      Surf(  q,p,ZETA_MINUS,iElem)           =  SurfElem(p,q,SideID)
-    END DO; END DO 
-  CASE(1) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,q,ZETA_MINUS,iElem)           =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  p,q,ZETA_MINUS,iElem)           =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(2) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      !nVecSurf(:,PP_N-q,p,ZETA_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
-      ! INTERCHANGED WITH FLIP 4!
-      nVec(:,q,PP_N-p,ZETA_MINUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  q,PP_N-p,ZETA_MINUS,iElem)      =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(3) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-p,PP_N-q,ZETA_MINUS,iElem) =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-p,PP_N-q,ZETA_MINUS,iElem) =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(4) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      !nVecSurf(:,q,PP_N-p,ZETA_MINUS,iElem)      = -NormVec(:,p,q,SideID)*surfElem(p,q,SideID)
-      ! INTERCHANGED WITH FLIP 2!
-      nVec(:,PP_N-q,p,ZETA_MINUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-q,p,ZETA_MINUS,iElem)      =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  END SELECT
-  SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
-  Flip  =ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
-  SELECT CASE(flip)
-  CASE(0) !master
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,q,ZETA_PLUS,iElem)           =   NormVec(:,p,q,SideID)
-      Surf(  p,q,ZETA_PLUS,iElem)           =  SurfElem(p,q,SideID)
-    END DO; END DO 
-  CASE(1) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,q,p,ZETA_PLUS,iElem)           =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  q,p,ZETA_PLUS,iElem)           =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(2) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-p,q,ZETA_PLUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-p,q,ZETA_PLUS,iElem)      =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(3) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,PP_N-q,p,ZETA_PLUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  PP_N-q,p,ZETA_PLUS,iElem)      =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  CASE(4) !slave, flip normal!!
-    DO q=0,PP_N; DO p=0,PP_N
-      nVec(:,p,PP_N-q,ZETA_PLUS,iElem)      =   NormVecPlus(1:3,p,q,SideID)
-      Surf(  p,PP_N-q,ZETA_PLUS,iElem)      =  NormVecPlus(4,p,q,SideID)
-    END DO; END DO 
-  END SELECT
-END DO !iElem
-
-DEALLOCATE(normVecPlus)
+!!! test
+! print*,'test'
+! DO iElem=1,PP_nElems
+!   DO ilocSide=1,6
+!     DO q=0,PP_N; DO p=0,PP_N
+!        diff=SUM(ABS(nVec(:,p,q,ilocSide,iElem)-nVecLoc(:,p,q,ilocSide,iElem)))
+!        IF(diff>1e-12) print*,'diff-n',p,q,nVec(:,p,q,ilocSide,iElem)-nVecLoc(:,p,q,ilocSide,iElem)
+!        diff=(ABS(Surf(p,q,ilocSide,iElem)-SurfLoc(p,q,ilocSide,iElem)))
+!        IF(diff>1e-14) print*,'diff-s',p,q 
+!     END DO; END DO 
+!   END DO ! ilocSide=1,6
+! END DO
+! print*,'done'
+! CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+! STOP
+!DEALLOCATE(normVecPlus)
 
 BuildNvecisDone=.TRUE.
 
