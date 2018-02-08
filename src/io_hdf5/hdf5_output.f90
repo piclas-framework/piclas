@@ -1105,7 +1105,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
-USE MOD_ReadInTools,ONLY: GetParameters
 USE MOD_Interpolation_Vars, ONLY:NodeType
 #ifdef INTEL 
 USE IFPORT,                 ONLY:SYSTEM

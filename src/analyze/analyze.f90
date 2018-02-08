@@ -243,12 +243,13 @@ INTEGER                        :: openStat! File IO status
 CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
 CHARACTER(LEN=30)              :: L2name(PP_nVar)              ! variable name for the Tecplot header
 CHARACTER(LEN=300)             :: Filename                     ! Output filename,
-LOGICAL                        :: fileExists                   ! Error handler for file
+!LOGICAL                        :: fileExists                   ! Error handler for file
 INTEGER                        :: ioUnit
 !===================================================================================================================================
 Filename = 'out.'//TRIM(ProjectName)//'.dat'
 ! Check for file
-INQUIRE(FILE = Filename, EXIST = fileExists)
+!INQUIRE(FILE = Filename, EXIST = fileExists)
+! FILEEXISTS(Filename)
 !! File processing starts here open old and extratct information or create new file.
 ioUnit=1746
   OPEN(UNIT   = ioUnit       ,&
@@ -806,8 +807,8 @@ REAL,INTENT(IN)     :: Time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: rDummy
-LOGICAL             :: isOpen, FileExists                                          !
-CHARACTER(LEN=350)  :: outfile                                                      !
+LOGICAL             :: isOpen
+CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 !===================================================================================================================================
 
@@ -825,8 +826,7 @@ IF (DoAnalyze) THEN
    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
    IF (.NOT.isOpen) THEN
      outfile = 'CodeAnalyze.csv'
-     INQUIRE(file=TRIM(outfile),EXIST=FileExists)
-     IF (isRestart .and. FileExists) THEN
+     IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
      ELSE

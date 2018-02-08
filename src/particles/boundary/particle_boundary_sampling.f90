@@ -1248,7 +1248,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: Filename, H5_Name
 INTEGER                        :: PartDataSize, iSpec
-LOGICAL                        :: fileExists
 REAL, ALLOCATABLE              :: PartSpecData(:,:,:)
 INTEGER                        :: TotalNumberMPF, counter2, counter
 REAL                           :: TotalFlowrateMPF, RandVal
@@ -1260,8 +1259,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   !-- initialize data (check if file exists and determine size of arrays)
   PartDataSize=9
   IF(MPIRoot) THEN
-    INQUIRE (FILE=TRIM(FileName), EXIST=fileExists)
-    IF(.NOT.FileExists)  CALL abort(__STAMP__, &
+    IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
           'DSMCSurfCollis-File "'//TRIM(FileName)//'" does not exist',999,999.)
 #ifdef MPI
     CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)

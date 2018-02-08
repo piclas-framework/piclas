@@ -163,7 +163,6 @@ REAL                  :: stotalDepos,stotalParts,sTotalTracks
 REAL                  :: tParts
 #endif /*PARTICLES*/
 REAL                  :: MaxWeight, MinWeight
-LOGICAL               :: FileExists
 CHARACTER(LEN=255)    :: outfile
 !===================================================================================================================================
 
@@ -251,8 +250,7 @@ CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 ! Fill .csv file for parformance analysis and load blaaaance
 IF(MPIRoot)THEN
   outfile='ElemTimeStatistics.csv'
-  INQUIRE(FILE=TRIM(outfile),EXIST=FileExists)
-  IF(FileExists)THEN
+  IF(FILEEXISTS(outfile))THEN
     ioUnit=GETFREEUNIT()
     OPEN(UNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') time

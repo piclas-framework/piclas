@@ -68,7 +68,6 @@ USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
 #endif /*MPI*/
 #endif /*PARTICLES*/
-USE MOD_ReadinTools,               ONLY: Readindone
 #if (PP_TimeDiscMethod==104)
 USE MOD_LinearSolver_Vars,ONLY:nNewton
 #endif
@@ -124,7 +123,6 @@ CALL FinalizeBackGroundField()
 CALL FinalizeMPI()
 #endif /*MPI*/
 
-ReadInDone=.FALSE.
 #ifdef PARTICLES
 ParticlesInitIsDone=.FALSE.  
 #ifdef MPI
@@ -154,7 +152,7 @@ USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Restart_Vars,       ONLY:RestartInitIsDone
 USE MOD_Restart,            ONLY:InitRestart
 USE MOD_Restart_Vars,       ONLY:DoRestart
-USE MOD_ReadInTools,        ONLY:IgnoredStrings
+!USE MOD_ReadInTools,        ONLY:IgnoredStrings
 USE MOD_Mesh,               ONLY:InitMesh
 USE MOD_Equation,           ONLY:InitEquation
 USE MOD_GetBoundaryFlux,    ONLY:InitBC
@@ -282,7 +280,7 @@ CALL InitQDS()
 #endif /*USE_QDS_DG*/
 
 ! do this last!
-CALL IgnoredStrings()
+!CALL IgnoredStrings()
 
 END SUBROUTINE InitBoltzplatz
 

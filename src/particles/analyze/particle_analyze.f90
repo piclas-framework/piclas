@@ -243,7 +243,7 @@ SUBROUTINE AnalyzeParticles(Time)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  LOGICAL             :: isOpen, FileExists
+  LOGICAL             :: isOpen
   CHARACTER(LEN=350)  :: outfile
   INTEGER             :: unit_index, iSpec, OutputCounter
   INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
@@ -333,8 +333,7 @@ SUBROUTINE AnalyzeParticles(Time)
       outfile = 'Database.csv'
 #endif
 
-      INQUIRE(file=TRIM(outfile),EXIST=FileExists)
-      IF (isRestart .and. FileExists) THEN
+      IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
       ELSE

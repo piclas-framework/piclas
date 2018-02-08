@@ -2,7 +2,12 @@
 
 MODULE MOD_Interpolation
 !===================================================================================================================================
-! Add comments please!
+!> Contains routines to prepare for interpolation procedures:
+!> - Initialize interpolation variables
+!> - Calculate node positions and weights
+!> - Build Vandermonde matrices
+!> - Build derivative matrices
+!> Also contains routines to map the solution between physical and reference space.
 !===================================================================================================================================
 ! MODULES
 USE MOD_basis

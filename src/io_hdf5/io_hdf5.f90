@@ -141,7 +141,6 @@ INTEGER(HID_T)                 :: Plist_ID
 #ifdef MPI
 INTEGER                        :: comm
 #endif
-LOGICAL                        :: fileExists
 INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
 !===================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "',TRIM(FileString),'" ...'
@@ -178,8 +177,7 @@ IF(create)THEN
   END IF
   CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, creation_prp = Plist_ID)
 ELSE !read-only ! and write (added later)
-  INQUIRE(FILE=TRIM(FileString),EXIST=fileExists)
-  IF(.NOT.fileExists) CALL abort(&
+  IF(.NOT.FILEEXISTS(FileString)) CALL abort(&
 __STAMP__&
 , 'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
   IF (readOnly) THEN

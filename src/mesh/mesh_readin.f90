@@ -73,7 +73,7 @@ INTEGER                        :: iBC,iUserBC
 INTEGER                        :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
 ! read in boundary conditions from ini file, will overwrite BCs from meshfile!
-nUserBCs = CNTSTR('BoundaryName','0')
+nUserBCs = CNTSTR('BoundaryName')
 IF(nUserBCs.GT.0)THEN
   ALLOCATE(BoundaryName(1:nUserBCs))
   ALLOCATE(BoundaryType(1:nUserBCs,2))
@@ -235,15 +235,13 @@ INTEGER,ALLOCATABLE            :: PartsInElem(:)
 REAL                           :: diffLower,diffUpper
 INTEGER                        :: ErrorCode
 #endif
-LOGICAL                        :: fileExists
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
 LOGICAL                        :: dexist
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
-  INQUIRE (FILE=TRIM(FileString), EXIST=fileExists)
-  IF(.NOT.FileExists)  CALL abort(&
+  IF(.NOT.FILEEXISTS(FileString))  CALL abort(&
 __STAMP__ &
 ,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
 END IF

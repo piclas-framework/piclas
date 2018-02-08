@@ -184,7 +184,6 @@ CHARACTER(LEN=255),INTENT(IN) :: FileString
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                       :: fileExists
 CHARACTER(LEN=255)            :: MeshFile_RPList
 INTEGER(8)                    :: nGlobalElems_RPList
 INTEGER                       :: iElem,iRP1,iRP_glob
@@ -192,8 +191,7 @@ INTEGER                       :: OffsetRPArray(2,PP_nElems)
 REAL,ALLOCATABLE              :: xi_RP(:,:)
 !===================================================================================================================================
 IF(MPIRoot)THEN
-  INQUIRE (FILE=TRIM(FileString), EXIST=fileExists)
-  IF(.NOT.FileExists)  CALL abort(&
+  IF(.NOT.FILEEXISTS(FileString))  CALL abort(&
 __STAMP__&
 ,'RPList from data file "'//TRIM(FileString)//'" does not exist',999,999.)
 END IF

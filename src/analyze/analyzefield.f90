@@ -66,8 +66,8 @@ REAL,INTENT(IN)     :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL             :: isOpen, FileExists                                          !
-CHARACTER(LEN=350)  :: outfile                                                      !
+LOGICAL             :: isOpen
+CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 REAL                :: WEl, WMag
 !===================================================================================================================================
@@ -85,8 +85,7 @@ unit_index = 535
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
       outfile = 'Database.csv'
-      INQUIRE(file=TRIM(outfile),EXIST=FileExists)
-      IF (isRestart .and. FileExists) THEN
+      IF (isRestart .and. FILEEXISTS(outputfile)) THEN
          OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
          !CALL FLUSH (unit_index)
       ELSE
@@ -365,9 +364,7 @@ SUBROUTINE OutputPoyntingInt(t,Sabs)
 ! MODULES
 USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,PosPoyntingInt
 USE MOD_Restart_Vars          ,ONLY:DoRestart
-#ifdef MPI
-  USE MOD_Globals
-#endif
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -378,7 +375,7 @@ REAL,INTENT(IN)     :: t, Sabs(nPoyntingIntPlanes)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: ioUnit,iPlane
-LOGICAL             :: isRestart, isOpen,FileExists
+LOGICAL             :: isRestart, isOpen
 CHARACTER(LEN=64)   :: filename_PI
 !===================================================================================================================================
 isRestart=.FALSE.
@@ -395,8 +392,7 @@ IF(MPIRoot)THEN
 
 INQUIRE(UNIT=ioUnit,OPENED=isOpen)
 IF(.NOT.isOpen)THEN
-  INQUIRE(file=TRIM(filename_PI),EXIST=FileExists)
-  IF(isRestart.AND.FileExists)THEN
+  IF(isRestart.AND.FILEEXISTS(filename_PI))THEN
     OPEN(ioUnit,file=TRIM(filename_PI),position="APPEND",status="OLD")
   ELSE
     OPEN(ioUnit,file=TRIM(filename_PI))

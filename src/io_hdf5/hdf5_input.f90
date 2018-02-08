@@ -137,7 +137,7 @@ CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName    !< name of mesh file to be che
 LOGICAL                        :: isValidMeshFile !< result: file is valid mesh file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: NGeoExists,fileExists
+LOGICAL                        :: NGeoExists
 INTEGER(HID_T)                 :: Plist_ID
 !==================================================================================================================================
 ! Disable error messages
@@ -153,8 +153,7 @@ CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_WORLD, MPIInfo, iError)
 #endif /* MPI */
 
 ! Check if file exists
-INQUIRE(FILE=TRIM(MeshFileName),EXIST=fileExists)
-IF(.NOT.fileExists) THEN
+IF(.NOT.FILEEXISTS(MeshFileName)) THEN
   CALL abort(__STAMP__,'ERROR: Mesh file '//TRIM(MeshFileName)//' does not exist.')
   isValidMeshFile = .FALSE.
   RETURN

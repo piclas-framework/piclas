@@ -2,7 +2,7 @@
 
 MODULE MOD_Globals
 !===================================================================================================================================
-! Provides parameters, used globally (please use EXTREMLY carefully!) 
+!> Provides parameters, used globally (please use EXTREMLY carefully!) 
 !===================================================================================================================================
 ! MODULES
 #ifdef MPI
@@ -31,6 +31,8 @@ LOGICAL           ::MPIRoot,MPILocalRoot
 INTEGER           :: MPIStatus(MPI_STATUS_SIZE)
 #endif
 
+INTEGER           :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
+
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
 END INTERFACE
@@ -42,6 +44,14 @@ END INTERFACE Abort
 INTERFACE CollectiveStop
   MODULE PROCEDURE CollectiveStop
 END INTERFACE CollectiveStop
+
+INTERFACE PrintWarning
+  MODULE PROCEDURE PrintWarning
+END INTERFACE PrintWarning
+
+INTERFACE FILEEXISTS
+  MODULE PROCEDURE FILEEXISTS
+END INTERFACE FILEEXISTS
 
 INTERFACE INTSTAMP
   MODULE PROCEDURE INTSTAMP
@@ -307,6 +317,24 @@ CALL MPI_ABORT(MPI_COMM_WORLD,signalout,errOut)
 STOP 2
 END SUBROUTINE AbortProg
 
+
+!==================================================================================================================================
+!> print a warning to the command line (only MPI root)
+!==================================================================================================================================
+SUBROUTINE PrintWarning(msg) 
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*) :: msg
+!===================================================================================================================================
+IF (myRank.EQ.0) THEN 
+  WRITE(UNIT_stdOut,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+  WRITE(UNIT_stdOut,*) 'WARNING:'
+  WRITE(UNIT_stdOut,*) TRIM(msg)
+  WRITE(UNIT_stdOut,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+END IF 
+END SUBROUTINE PrintWarning
+
+
 !==================================================================================================================================
 !> \brief Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
 !> 
@@ -557,6 +585,22 @@ ELSE
 END IF
 END SUBROUTINE GetParameterFromFile
 
+
+!==================================================================================================================================
+!> Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+!==================================================================================================================================
+FUNCTION FILEEXISTS(filename)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: filename 
+LOGICAL                     :: FILEEXISTS
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+INQUIRE(FILE=TRIM(filename), EXIST=FILEEXISTS)
+END FUNCTION FILEEXISTS
 
 
 
