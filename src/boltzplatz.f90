@@ -6,7 +6,7 @@ PROGRAM Boltzplatz
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Boltzplatz_Tools,  ONLY:InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Boltzplatz_Init,   ONLY:InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_Restart,           ONLY:Restart
 USE MOD_Interpolation,     ONLY:InitInterpolation!,FinalizeInterpolation
 USE MOD_IO_HDF5,           ONLY:InitIO

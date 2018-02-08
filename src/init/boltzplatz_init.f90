@@ -1,6 +1,6 @@
 #include "boltzplatz.h"
 
-MODULE MOD_Boltzplatz_tools
+MODULE MOD_Boltzplatz_Init
 !===================================================================================================================================
 ! contains global init and finalize
 !===================================================================================================================================
@@ -16,6 +16,25 @@ END INTERFACE
 PUBLIC:: InitBoltzplatz,FinalizeBoltzplatz
 !===================================================================================================================================
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters.
+!==================================================================================================================================
+SUBROUTINE DefineParametersBoltzplatz()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Restart")
+
+CALL prms%CreateLogicalOption(  'PrimScaling', "TODO-DEFINE-PARAMETER", '.FALSE.')
+CALL prms%CreateRealArrayOption('PrimScale'  , "TODO-DEFINE-PARAMETER", multiple=.TRUE.)
+#ifdef PARTICLES
+CALL prms%CreateLogicalOption(  'UseDSMC'    , "Flag for using DSMC in Calculation", '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseLD'      , "Flag for using LD in Calculation", '.FALSE.')
+#endif
+
+END SUBROUTINE DefineParametersRestart
 
 SUBROUTINE FinalizeBoltzplatz(IsLoadBalance) 
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -285,4 +304,4 @@ CALL InitQDS()
 END SUBROUTINE InitBoltzplatz
 
 
-END MODULE MOD_Boltzplatz_tools
+END MODULE MOD_Boltzplatz_Init
