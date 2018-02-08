@@ -63,11 +63,8 @@ INTERFACE ClearElemData
   MODULE PROCEDURE ClearElemData
 END INTERFACE
 
-DefineParametersIO_HDF5,
-
 PUBLIC::DefineParametersIO,InitIO,OpenDataFile,CloseDataFile
-PUBLIC::AddToElemData,AddToFieldData
-PUBLIC::GetDatasetNamesInGroup
+PUBLIC::AddToElemData
 
 !===================================================================================================================================
 

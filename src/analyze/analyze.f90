@@ -45,7 +45,7 @@ CONTAINS
 SUBROUTINE DefineParametersAnalyze()
 ! MODULES
 USE MOD_ReadInTools ,ONLY: prms
-USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
+!USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Analyze")
@@ -68,7 +68,7 @@ CALL prms%CreateLogicalOption('CalcEpot'         , "TODO-DEFINE-PARAMETER")
                                                  !"Default: Same as IniRefState")
 !CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
                                                  !'.TRUE.')
-CALL DefineParametersAnalyzeEquation()
+!CALL DefineParametersAnalyzeEquation()
 END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()

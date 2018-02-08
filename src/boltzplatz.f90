@@ -13,7 +13,6 @@ USE MOD_IO_HDF5           ,ONLY: InitIO
 USE MOD_TimeDisc          ,ONLY: InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI               ,ONLY: InitMPI
 USE MOD_RecordPoints_Vars ,ONLY: RP_Data
-USE MOD_RecordPoints      ,ONLY: DefineParametersRecordPoints
 USE MOD_Mesh_Vars         ,ONLY: DoSwapMesh
 USE MOD_Mesh              ,ONLY: SwapMesh
 #ifdef MPI
@@ -21,6 +20,11 @@ USE MOD_LoadBalance       ,ONLY: InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI               ,ONLY: FinalizeMPI
 #endif /*MPI*/
 USE MOD_Output            ,ONLY: InitOutput
+
+USE MOD_Boltzplatz_Init   ,ONLY: DefineParametersBoltzplatz
+USE MOD_Restart           ,ONLY: DefineParametersRestart
+USE MOD_Analyze           ,ONLY: DefineParametersAnalyze
+USE MOD_RecordPoints      ,ONLY: DefineParametersRecordPoints
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -29,6 +33,10 @@ REAL    :: Time
 !===================================================================================================================================
 
 CALL InitMPI()
+
+CALL DefineParametersBoltzplatz()
+
+CALL DefineParametersRestart()
 
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()

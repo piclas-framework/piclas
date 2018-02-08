@@ -15,6 +15,8 @@ END INTERFACE
 
 PUBLIC:: InitBoltzplatz,FinalizeBoltzplatz
 !===================================================================================================================================
+PUBLIC:: DefineParametersBoltzplatz
+
 CONTAINS
 
 !==================================================================================================================================
@@ -25,16 +27,14 @@ SUBROUTINE DefineParametersBoltzplatz()
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("Restart")
+CALL prms%SetSection("Boltzplatz Initialization")
 
-CALL prms%CreateLogicalOption(  'PrimScaling', "TODO-DEFINE-PARAMETER", '.FALSE.')
-CALL prms%CreateRealArrayOption('PrimScale'  , "TODO-DEFINE-PARAMETER", multiple=.TRUE.)
 #ifdef PARTICLES
 CALL prms%CreateLogicalOption(  'UseDSMC'    , "Flag for using DSMC in Calculation", '.FALSE.')
 CALL prms%CreateLogicalOption(  'UseLD'      , "Flag for using LD in Calculation", '.FALSE.')
 #endif
 
-END SUBROUTINE DefineParametersRestart
+END SUBROUTINE defineparametersboltzplatz
 
 SUBROUTINE FinalizeBoltzplatz(IsLoadBalance) 
 !----------------------------------------------------------------------------------------------------------------------------------!
