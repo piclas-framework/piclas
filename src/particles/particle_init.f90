@@ -50,6 +50,9 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
 USE MOD_ReadInTools
+USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars,                  ONLY: nElems
+USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
@@ -80,6 +83,12 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
+IF(.NOT.ALLOCATED(nPartsPerElem))THEN
+  ALLOCATE(nPartsPerElem(1:nElems))
+  nPartsPerElem=0
+  CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
+END IF
+
 CALL InitializeVariables()
 IF(useBGField) CALL InitializeBackgroundField()
 
@@ -94,7 +103,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
-    ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))         
+    ALLOCATE(DSMC_HOSolution(1:10,1,1,1,1:nElems,1:nSpecies))         
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
     ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
@@ -181,8 +190,7 @@ LOGICAL               :: exitTrue,IsIMDSpecies
 REAL, DIMENSION(3,1)  :: n,n1,n2
 REAL, DIMENSION(3,3)  :: rot1, rot2
 REAL                  :: alpha1, alpha2
-#ifdef MPI
-#endif
+INTEGER               :: dummy_int
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -439,7 +447,12 @@ END IF
 DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
 IF((DSMC%TimeFracSamp.GT.0.0).AND.(DSMC%NumOutput.EQ.0)) DSMC%NumOutput = 1
 IF (DSMC%NumOutput.NE.0) THEN
-  DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+  IF (DSMC%TimeFracSamp.GT.0.0) THEN
+    DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+  ELSE
+    DSMC%NumOutput=0
+    SWRITE(UNIT_STDOUT,*)'DSMC_NumOutput was set to 0 because timefracsamp is 0.0'
+  END IF
 END IF
 
 !ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
@@ -894,8 +907,9 @@ END DO
 PartLorentzType = GETINT('Part-LorentzType','3')
 
 ! Read in boundary parameters
-nPartBound = GETINT('Part-nBounds','1.')
-IF (nPartBound.LE.0) THEN
+dummy_int = CNTSTR('Part-nBounds')       ! check if Part-nBounds is present in .ini file
+nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
+IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
 __STAMP__&
   ,'ERROR: nPartBound .LE. 0:', nPartBound)

@@ -55,19 +55,26 @@ END INTERFACE
 INTERFACE WritePMLzetaGlobalToHDF5
   MODULE PROCEDURE WritePMLzetaGlobalToHDF5
 END INTERFACE
+#endif /*PP_HDG*/
 
 INTERFACE WriteDielectricGlobalToHDF5
   MODULE PROCEDURE WriteDielectricGlobalToHDF5
 END INTERFACE
-#endif /*PP_HDG*/
+
+#if USE_QDS_DG
+INTERFACE WriteQDSToHDF5
+  MODULE PROCEDURE WriteQDSToHDF5
+END INTERFACE
+PUBLIC :: WriteQDSToHDF5
+#endif /*USE_QDS_DG*/
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage
 #ifndef PP_HDG
 PUBLIC :: WritePMLzetaGlobalToHDF5
-PUBLIC :: WriteDielectricGlobalToHDF5
 #endif /*PP_HDG*/
+PUBLIC :: WriteDielectricGlobalToHDF5
 #ifdef PARTICLES
 PUBLIC :: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
@@ -324,7 +331,7 @@ END IF
 CALL WriteParticleToHDF5(FileName)
 #endif /*Particles*/
 
-CALL WriteAdditionalDataToHDF5(FileName)
+CALL WriteAdditionalElemData(FileName,ElementOut)
 
 #if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
@@ -395,32 +402,28 @@ ElemTime=0.
 END SUBROUTINE WriteElemTimeToHDF5
 
 
-SUBROUTINE WriteAdditionalDataToHDF5(FileName)
+SUBROUTINE WriteAdditionalElemData(FileName,ElemList)
 !===================================================================================================================================
-! Write additional (elementwise scalar) data to HDF5
-! 1-Rank
-! 2-isPMLElem
-! 3-hasParticle
+!> Write additional data for analyze purpose to HDF5.
+!> The data is taken from a lists, containing either pointers to data arrays or pointers
+!> to functions to generate the data, along with the respective varnames.
+!>
+!> Two options are available:
+!>    1. WriteAdditionalElemData: 
+!>       Element-wise scalar data, e.g. the timestep or indicators.
+!>       The data is collected in a single array and written out in one step.
+!>       DO NOT MISUSE NODAL DATA FOR THIS! IT WILL DRASTICALLY INCREASE FILE SIZE AND SLOW DOWN IO!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
-#ifndef PP_HDG
-USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,nPMLElems
-#endif /*PP_HDG*/ 
-#ifdef PARTICLES
-USE MOD_Particle_Vars ,ONLY:PDM,PEM
-#endif /*PARTICLES*/
-#ifdef MPI
-USE MOD_LoadBalance_Vars, ONLY:DoLoadBalance
-USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,nPartsPerElem
-#endif /*MPI*/
+USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems,nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=255),INTENT(IN)  :: FileName
+CHARACTER(LEN=255),INTENT(IN)        :: FileName
+TYPE(tElementOut),POINTER,INTENT(IN) :: ElemList !< Linked list of arrays to write to file
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -428,75 +431,54 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 REAL,ALLOCATABLE               :: ElemData(:,:)
 INTEGER                        :: nVar,iElem
-#ifdef PARTICLES
-INTEGER                        :: iPart
-#endif /*PARTICLES*/
+TYPE(tElementOut),POINTER      :: e
 !===================================================================================================================================
 
-#ifdef MPI
-IF(DoLoadBalance)THEN
-  nVar=5
-ELSE
-  nVar=3
-END IF
-#else
-nVar=3
-#endif /*MPI*/
-ALLOCATE(StrVarNames(nVar))
-ALLOCATE(ElemData(nVar,PP_nElems))
+IF(.NOT. ASSOCIATED(ElemList)) RETURN
 
-StrVarNames(1)='MyRank'
-StrVarNames(2)='PMLElement'
-StrVarNames(3)='PartElem'
-
-! fill ElemData
-ElemData=0.
-! MPI-Rank
-DO iElem=1,PP_nElems
-  ElemData(1,iElem)=REAL(MyRank)
+! Count the additional variables
+nVar = 0
+e=>ElemList
+DO WHILE(ASSOCIATED(e))
+  nVar=nVar+1
+  e=>e%next
 END DO
-#ifndef PP_HDG
-! PML Info
-IF(DoPML)THEN
-  DO iElem=1,nPMLElems
-    ElemData(2,PMLToElem(iElem))=1.0
-  END DO ! iElem=1,nPMLElems
-END IF
-#endif /*PP_HDG*/ 
-! hasParticles
-#ifdef PARTICLES
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    iElem=PEM%Element(iPart)
-    IF(ElemData(3,iElem).EQ.0.) ElemData(3,iElem)=1.0
-  END IF ! ParticleInside
-END DO ! iPart
-#endif /*PARTICLES*/
-  
-#ifdef MPI
-IF(DoLoadBalance)THEN
-  StrVarNames(4)='ElemTime'
-  StrVarNames(5)='nPartsPerElem'
-  IF(nLoadBalance.EQ.0) THEN
-    IF(.NOT.ALLOCATED(ElemTime))THEN
-      ElemTime=0.
-    END IF
-  END IF
-  DO iElem=1,PP_nElems
-    ElemData(4,iElem)=ElemTime(iElem)
-    ElemData(5,iElem)=nPartsPerElem(iElem)
-  END DO ! iElem =1,PP_nElems
-END IF
-#endif /*MPI*/
 
-! output of rank 
+! Allocate variable names and data array
+ALLOCATE(StrVarNames(nVar))
+ALLOCATE(ElemData(nVar,nElems))
+
+! Fill the arrays
+nVar = 0
+e=>ElemList
+DO WHILE(ASSOCIATED(e))
+  nVar=nVar+1
+  StrVarNames(nVar)=e%VarName
+  IF(ASSOCIATED(e%RealArray))    ElemData(nVar,:)=e%RealArray(1:nElems)
+  IF(ASSOCIATED(e%RealScalar))   ElemData(nVar,:)=e%RealScalar
+  IF(ASSOCIATED(e%IntArray))     ElemData(nVar,:)=REAL(e%IntArray(1:nElems))
+  IF(ASSOCIATED(e%IntScalar))    ElemData(nVar,:)=REAL(e%IntScalar)
+  IF(ASSOCIATED(e%LongIntArray)) ElemData(nVar,:)=REAL(e%LongIntArray(1:nElems))
+  IF(ASSOCIATED(e%LogArray)) THEN
+    DO iElem=1,nElems
+      IF(e%LogArray(iElem))THEN
+        ElemData(nVar,iElem)=1.
+      ELSE
+        ElemData(nVar,iElem)=0.
+      END IF
+    END DO ! iElem=1,PP_nElems
+  END IF
+  IF(ASSOCIATED(e%eval))       CALL e%eval(ElemData(nVar,:)) ! function fills elemdata
+  e=>e%next
+END DO
+
 IF(MPIRoot)THEN
 #ifdef MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
 #endif
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarnames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF
 
@@ -508,8 +490,7 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         collective=.TRUE.,RealArray=ElemData)
 DEALLOCATE(ElemData,StrVarNames)
 
-
-END SUBROUTINE WriteAdditionalDataToHDF5
+END SUBROUTINE WriteAdditionalElemData
 
 
 #if (PP_nVar==8)
@@ -1199,11 +1180,14 @@ SUBROUTINE FlushHDF5(FlushTime_In)
 ! MODULES
 !USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,ONLY:ProjectName
-USE MOD_HDF5_Input,ONLY:GetHDF5NextFileName
+USE MOD_Globals_Vars,      ONLY:ProjectName
+USE MOD_HDF5_Input,        ONLY:GetHDF5NextFileName
 #ifdef MPI
 USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
 #endif /*MPI*/
+#if USE_QDS_DG
+USE MOD_QDS_DG_Vars,       ONLY:DoQDS
+#endif /*USE_QDS_DG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1215,7 +1199,7 @@ REAL,INTENT(IN),OPTIONAL :: FlushTime_In
 ! LOCAL VARIABLES
 INTEGER                  :: stat,ioUnit
 REAL                     :: FlushTime
-CHARACTER(LEN=255)       :: FileName,InputFile,NextFile
+CHARACTER(LEN=255)       :: InputFile,NextFile
 !===================================================================================================================================
 IF(.NOT.MPIRoot) RETURN
 
@@ -1229,26 +1213,9 @@ IF (.NOT.PRESENT(FlushTime_In)) THEN
 ELSE
   FlushTime=FlushTime_In
 END IF
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 
-! Delete state files
-InputFile=TRIM(FileName)
-! Read calculation time from file
-#ifdef MPI
-CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
-#else
-CALL GetHDF5NextFileName(Inputfile,NextFile)
-#endif
-! Delete File - only root
-stat=0
-ioUnit=GETFREEUNIT()
-OPEN ( UNIT   = ioUnit,            &
-       FILE   = InputFile,      &
-       STATUS = 'OLD',          &
-       ACTION = 'WRITE',        &
-       ACCESS = 'SEQUENTIAL',   &
-       IOSTAT = stat          )
-IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
+! delete state files
+NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 DO
   InputFile=TRIM(NextFile)
   ! Read calculation time from file
@@ -1259,8 +1226,7 @@ DO
 #endif
   ! Delete File - only root
   stat=0
-  ioUnit=GETFREEUNIT()
-  OPEN ( UNIT   = ioUnit,            &
+  OPEN ( NEWUNIT= ioUnit,         &
          FILE   = InputFile,      &
          STATUS = 'OLD',          &
          ACTION = 'WRITE',        &
@@ -1269,6 +1235,32 @@ DO
   IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
+
+#if USE_QDS_DG
+! delete QDS state files
+IF(DoQDS)THEN
+  NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',FlushTime))//'.h5'
+  DO
+    InputFile=TRIM(NextFile)
+    ! Read calculation time from file
+#ifdef MPI
+    CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
+#else
+    CALL GetHDF5NextFileName(Inputfile,NextFile)
+#endif
+    ! Delete File - only root
+    stat=0
+    OPEN ( NEWUNIT= ioUnit,         &
+           FILE   = InputFile,      &
+           STATUS = 'OLD',          &
+           ACTION = 'WRITE',        &
+           ACCESS = 'SEQUENTIAL',   &
+           IOSTAT = stat          )
+    IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
+    IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
+  END DO
+END IF
+#endif /*USE_QDS_DG*/
 
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 
@@ -1974,7 +1966,6 @@ DO iElem=1,PP_nElems
     END IF
   END IF
 END DO!iElem
-!print*,"MAXVAL(PMLzetaGlobal)=",MAXVAL(PMLzetaGlobal),"MAXVAL(PMLzeta)",MAXVAL(PMLzeta)
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 #ifdef MPI
@@ -2014,7 +2005,6 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*PP_HDG*/
 
 
-#ifndef PP_HDG
 SUBROUTINE WriteDielectricGlobalToHDF5()
 !===================================================================================================================================
 ! write DielectricGlobal field to HDF5 file
@@ -2094,7 +2084,103 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
-#endif /*PP_HDG*/
+
+
+#if USE_QDS_DG
+SUBROUTINE WriteQDSToHDF5(OutputTime,FutureTime)
+!===================================================================================================================================
+! write QDS field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_io_HDF5
+USE MOD_QDS_DG_Vars,     ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                :: OutputTime
+REAL,INTENT(IN),OPTIONAL       :: FutureTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: N_variables
+CHARACTER(LEN=255)  :: StrVarNames(1:6)
+CHARACTER(LEN=255)  :: FileName
+#ifdef MPI
+REAL                :: StartT,EndT
+#endif
+INTEGER             :: iElem,j,k,l
+REAL                :: Utemp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems)
+!===================================================================================================================================
+N_variables=6
+! create global Eps field for parallel output of Eps distribution
+StrVarNames(1) = 'Density'
+StrVarNames(2) = 'VeloX'
+StrVarNames(3) = 'VeloY'
+StrVarNames(4) = 'VeloZ'
+StrVarNames(5) = 'Energy'
+StrVarNames(6) = 'Temperature'
+Utemp=0.
+DO iElem =1, nQDSElems
+  DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
+    IF (QDSMacroValues(1,l,k,j,iElem).GT.0.0) THEN
+!      Utemp(1,l,k,j,iElem) = QDSMacroValues(1,l,k,j,iElem)/(Species(QDS_Species)%MassIC*wGP(l)*wGP(k)*wGP(j))*sJ(l,k,j,iElem)
+      Utemp(1,l,k,j,iElem) = QDSMacroValues(1,l,k,j,iElem)/QDSSpeciesMass
+      IF (Utemp(1,l,k,j,iElem).LT.0.0) then
+        print*, 'Utemp(1,l,k,j,iElem).LT.0.0'
+        print*, Utemp(1,l,k,j,iElem),iElem, l,k,j, QDSMacroValues(1,l,k,j,iElem)
+        print*,"Press ENTER to continue"
+        read*
+      END IF
+      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)/QDSMacroValues(1,l,k,j,iElem) 
+      Utemp(5:6,l,k,j,iElem) = QDSMacroValues(5:6,l,k,j,iElem)
+    ELSE
+      Utemp(:,l,k,j,iElem) = 0.0
+    END IF
+  END DO; END DO; END DO
+END DO
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE QDS TO HDF5 FILE...'
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'
+IF(PRESENT(FutureTime))THEN
+  IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FutureTime)
+ELSE
+  IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+END IF
+#ifdef MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.FALSE.)
+#endif
+CALL WriteAttributeToHDF5(File_ID,'VarNamesQDS',N_variables,StrArray=StrVarNames)
+CALL CloseDataFile()
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName='DG_Solution', rank=5,&
+                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,nQDSElems   /),&
+                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
+                        collective=.TRUE.,RealArray=Utemp)
+#ifdef MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+END SUBROUTINE WriteQDSToHDF5
+#endif /*USE_QDS_DG*/
 
 
 END MODULE MOD_HDF5_output

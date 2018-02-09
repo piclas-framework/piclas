@@ -28,14 +28,14 @@ SUBROUTINE InitLD()
 ! MODULES
 USE MOD_Globals
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  NGEO
+USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  NGEO,ElemBaryNGeo
 !USE MOD_Mesh_Vars,             ONLY : nNodes    !!! nur für "Tetra-Methode"
 USE MOD_Particle_Vars,         ONLY : PDM, Species, PartSpecies, nSpecies
 USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
-USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElemAndSide,ElemBaryNGeo!,Geo
+USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElemAndSide!,Geo
 #ifdef MPI
 USE MOD_MPI_Vars
 #endif
@@ -305,7 +305,7 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
   USE MOD_Globals
   USE MOD_LD_Vars
   USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,NGeo
-  USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
+  USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -548,7 +548,7 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
   USE MOD_LD_Vars
   !USE MOD_Particle_Vars,          ONLY : GEO
   USE MOD_Mesh_Vars,              ONLY : XCL_NGeo,NGeo
-  USE MOD_Particle_Mesh_Vars,     ONLY : ElemBaryNGeo
+  USE MOD_Mesh_Vars,              ONLY : ElemBaryNGeo
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!

@@ -55,7 +55,12 @@ INTEGER             :: nTotalSides                                              
 INTEGER             :: nPartPeriodicSides                                                 ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
 
-LOGICAL,ALLOCATABLE :: IsBCElem(:)                                                        ! is a BC elem 
+INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                                             ! number of local element boundary faces 
+                                                                                          ! used for tracing (connected to element)
+INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                                             ! total number of element boundary faces 
+                                                                                          ! used for tracing (loc faces + other 
+                                                                                          ! element faces that are possibly reached)
+LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                                                 ! is an elem with BC sides for tracing
                                                                                           ! or BC in halo-eps distance to BC
 INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
@@ -65,7 +70,6 @@ INTEGER,ALLOCATABLE :: PartBCSideList(:)                                        
 
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis                                 ! element local basis vector (linear elem)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis                             ! inverse of length of basis vector
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                                   ! element local basis: origin
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                                 ! radius of element 
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadius2NGeo                                ! radius of element + 2% tolerance
 INTEGER                                 :: RefMappingGuess                                ! select guess for mapping into reference
@@ -159,16 +163,6 @@ END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
-TYPE tDataTria
-  REAL                                   :: vec_nIn(3,2,0:4)                  ! inwards normal of tria (Coords,Tri1:Tri2,flip)
-  REAL                                   :: vec_t1(3,2,0:4)                   ! first orth. vector in tria (Coords,Tri1:Tri2,flip)
-  REAL                                   :: vec_t2(3,2,0:4)                   ! second orth. vector in tria (Coords,Tri1:Tri2,flip)
-  REAL                                   :: area(2)                           ! area of tria (Tri1:Tri2)
-!  REAL                                   :: NodeCoords(3,3)                  ! NodeCoords of triangle nodes
-END TYPE tDataTria
-TYPE(tDataTria),ALLOCATABLE              :: TriaSideData(:)                   ! data of triangulated Sides 
-                                                                              ! (e.g. normal+tang. vectors, nodes)
-                                                                              ! (nTotalSides)
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
 
@@ -184,6 +178,7 @@ TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
 
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
 REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
+INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
 !===================================================================================================================================
 
 

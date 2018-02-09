@@ -128,32 +128,36 @@ DO iSpec = 1,nSpecies
     Adsorption%RecombData(1,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-PartnerSpec','-1')
     Adsorption%RecombData(2,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-ResultSpec','-1')
     DO iPartBound=1,nPartBound
-      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidCatalytic(iPartBound))THEN
-        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
-        hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-        Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
-        Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
-        Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation','1.')
-        IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
-          CALL abort(&
+      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
+        IF(PartBound%SolidCatalytic(iPartBound))THEN
+          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
+          Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
+          Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
+          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation','1.')
+          IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
+            CALL abort(&
 __STAMP__,&
 'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
-        END IF
+          END IF
+        END IF  
       END IF
     END DO
   ELSE IF (DSMC%WallModel.EQ.3) THEN 
     DO iPartBound=1,nPartBound
-      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidCatalytic(iPartBound))THEN
-        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
-        hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-        Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
-        Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
-        Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
-        IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
-        WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
-          CALL abort(&
+      IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
+        IF(PartBound%SolidCatalytic(iPartBound))THEN
+          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
+          Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
+          Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
+          Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
+          IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
+          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+            CALL abort(&
 __STAMP__,&
 'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
+          END IF
         END IF
       END IF
     END DO
@@ -187,11 +191,18 @@ END DO
 DO iSide=1,SurfMesh%nTotalSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  !IF (DSMC%WallModel.EQ.3) Adsorption%SurfMassIC(iSide) = PartBound%SolidMassIC(PartBoundID)
-  Adsorption%DensSurfAtoms(iSide) = PartBound%SolidPartDens(PartBoundID)
-  Adsorption%AreaIncrease(iSide) = PartBound%SolidAreaIncrease(PartBoundID)
-  Adsorption%CrystalIndx(iSide) = PartBound%SolidCrystalIndx(PartBoundID)
-  Adsorption%DensSurfAtoms(iSide) = Adsorption%DensSurfAtoms(iSide)*Adsorption%AreaIncrease(iSide)
+  IF (PartBound%SolidCatalytic(PartboundID)) THEN
+    !IF (DSMC%WallModel.EQ.3) Adsorption%SurfMassIC(iSide) = PartBound%SolidMassIC(PartBoundID)
+    Adsorption%DensSurfAtoms(iSide) = PartBound%SolidPartDens(PartBoundID)
+    Adsorption%AreaIncrease(iSide) = PartBound%SolidAreaIncrease(PartBoundID)
+    Adsorption%CrystalIndx(iSide) = PartBound%SolidCrystalIndx(PartBoundID)
+    Adsorption%DensSurfAtoms(iSide) = Adsorption%DensSurfAtoms(iSide)*Adsorption%AreaIncrease(iSide)
+  ELSE
+    Adsorption%DensSurfAtoms(iSide) = 0
+    Adsorption%AreaIncrease(iSide) = 0
+    Adsorption%CrystalIndx(iSide) = 0
+    Adsorption%DensSurfAtoms(iSide) = 0
+  END IF
 END DO
 ! initialize temporary coverage array for each particle boundary
 ALLOCATE(Coverage_tmp(1:nPartBound,1:nSpecies))
@@ -364,8 +375,11 @@ Max_Surfsites_halo = 0
 
 ! Allocate and initializes number of surface sites and neighbours 
 DO iSurfSide = 1,SurfMesh%nTotalSides
+  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  PartboundID = PartBound%MapToPartBC(BC(SideID))
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
+  IF (PartBound%SolidCatalytic(PartboundID)) THEN
 !     IF (KeepWallParticles) THEN ! does not work with vMPF
 !       surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
 !                     * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,iSurfSide) &
@@ -428,11 +442,29 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%NeighSite(:,:) = 0
       SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%IsNearestNeigh(:,:) = .FALSE.
     END DO
+    ELSE !PartBound%SolidCatalytic(PartboundID)
+      nSites=1 !dummy for correct allocation
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1:3)=nSites
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(1:3)=0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp(1:nSpecies)=0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp(1:nSpecies)=0
+      SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%reactnum_tmp(1:nSpecies)=0
+      ALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1:3))
+      DO Coord = 1,3
+        ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(1:nSites),&
+                  SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%Species(1:nSites))
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(:) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%Species(:) = 0
+      END DO
+    END IF
   END DO
   END DO
 END DO
 
 DO iSurfSide = 1,SurfMesh%nTotalSides
+SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+PartboundID = PartBound%MapToPartBC(BC(SideID))
+IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
 DO subsurfeta = 1,nSurfSample
 DO subsurfxi = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions
@@ -682,6 +714,7 @@ END DO
 DO iSurfSide = 1,SurfMesh%nSides
 SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
+IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
 DO subsurfeta = 1,nSurfSample
 DO subsurfxi = 1,nSurfSample    
   DO iSpec = 1,nSpecies
@@ -745,14 +778,18 @@ ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
   SurfExchange%nSurfDistSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
   SurfExchange%nSurfDistSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
-  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(SurfExchange%nSurfDistSidesSend(iProc)))
-  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfExchange%nSurfDistSidesRecv(iProc)))
-  SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
-  SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
-  ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosSend(1:SurfExchange%nSurfDistSidesSend(iProc)))
-  ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosRecv(1:SurfExchange%nSurfDistSidesRecv(iProc)))
-  SurfExchange%NbrOfPos(iProc)%nPosSend = 0
-  SurfExchange%NbrOfPos(iProc)%nPosRecv = 0
+  IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfExchange%nSurfDistSidesRecv(iProc)))
+    SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
+    ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosRecv(1:SurfExchange%nSurfDistSidesRecv(iProc)))
+    SurfExchange%NbrOfPos(iProc)%nPosRecv = 0
+  END IF
+  IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(SurfExchange%nSurfDistSidesSend(iProc)))
+    SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+    ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosSend(1:SurfExchange%nSurfDistSidesSend(iProc)))
+    SurfExchange%NbrOfPos(iProc)%nPosSend = 0
+  END IF
 END DO ! iProc
 
 ! communicate the number of surface sites for surfdist communication
@@ -1160,8 +1197,7 @@ SUBROUTINE Init_ChemistrySampling()
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Mesh_Vars,              ONLY : BC
-USE MOD_Particle_Vars,          ONLY : nSpecies, Species
+USE MOD_Particle_Vars,          ONLY : nSpecies
 USE MOD_DSMC_Vars,              ONLY : Adsorption
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
 #ifdef MPI
@@ -1214,7 +1250,7 @@ SUBROUTINE Init_TST_Coeff(TST_Case)
 ! MODULES
 USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
 USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_DSMC_Vars,              ONLY : Adsorption, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY : Adsorption
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
@@ -1226,7 +1262,7 @@ INTEGER , INTENT(IN)            :: TST_Case
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: PartitionArraySize
+!REAL                            :: PartitionArraySize
 INTEGER                         :: iSpec, iReactNum
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'

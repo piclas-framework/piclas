@@ -71,7 +71,7 @@ USE MOD_Restart_Vars,       ONLY:DoRestart
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
 #endif /* MPI*/
-USE MOD_Particle_Mesh_Vars, ONLY:ElemBaryNGeo
+USE MOD_Mesh_Vars,          ONLY:ElemBaryNGeo
 USE MOD_Particle_Vars,      ONLY:BoltzmannConst
 USE MOD_Equation_Vars,      ONLY:eps0
 ! IMPLICIT VARIABLE HANDLING

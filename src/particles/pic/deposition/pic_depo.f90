@@ -184,6 +184,7 @@ CASE('shape_function','shape_function_simple')
   r2_sf_inv = 1./r2_sf
   !-- fixes for shape func depo at planar BCs
   NbrOfSFdepoFixes = GETINT('PIC-NbrOfSFdepoFixes','0')
+  PrintSFDepoWarnings=GETLOGICAL('PrintSFDepoWarnings','.FALSE.')
   IF (NbrOfSFdepoFixes.GT.0) THEN
     SFdepoFixesEps = GETREAL('PIC-SFdepoFixesEps','0.')
     SDEALLOCATE(SFdepoFixesGeo)
@@ -527,18 +528,22 @@ CASE('shape_function','shape_function_simple')
         SWRITE(*,'(E12.5,A,I0)') SFdepoLayersPartNum(iSFfix), &
           ' additional particles will be inserted for SFdepoLayer ',iSFfix
         IF (ChangeOccured) THEN
-          IPWRITE(*,'(I4,A,I0,A)') ' WARNING: SFdepoLayer ',iSFfix,' was changed!'
-          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz minBounds:',SFdepoLayersBounds(iSFfix,1,:)
-          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz maxBounds:',SFdepoLayersBounds(iSFfix,2,:)
-          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New Basepoint:',SFdepoLayersGeo(iSFfix,1,:)
-          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New BaseVec01:',SFdepoLayersBaseVector(iSFfix,1,:)
-          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New BaseVec02:',SFdepoLayersBaseVector(iSFfix,2,:)
+          IF(PrintSFDepoWarnings)THEN
+            IPWRITE(*,'(I4,A,I0,A)') ' WARNING: SFdepoLayer ',iSFfix,' was changed!'
+            IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz minBounds:',SFdepoLayersBounds(iSFfix,1,:)
+            IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz maxBounds:',SFdepoLayersBounds(iSFfix,2,:)
+            IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New Basepoint:',SFdepoLayersGeo(iSFfix,1,:)
+            IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New BaseVec01:',SFdepoLayersBaseVector(iSFfix,1,:)
+            IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          New BaseVec02:',SFdepoLayersBaseVector(iSFfix,2,:)
+          END IF
         END IF
       ELSE !LayerOutsideOfBounds
         SFdepoLayersPartNum(iSFfix)=0
-        IPWRITE(*,'(I4,A,I0,A)') ' WARNING: SFdepoLayer ',iSFfix,' was disabled!'
-        IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz minBounds:',SFdepoLayersBounds(iSFfix,1,:)
-        IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz maxBounds:',SFdepoLayersBounds(iSFfix,2,:)
+        IF(PrintSFDepoWarnings)THEN
+          IPWRITE(*,'(I4,A,I0,A)') ' WARNING: SFdepoLayer ',iSFfix,' was disabled!'
+          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz minBounds:',SFdepoLayersBounds(iSFfix,1,:)
+          IPWRITE(*,'(I4,A,3(x,E12.5))')                 '          xyz maxBounds:',SFdepoLayersBounds(iSFfix,2,:)
+        END IF
       END IF
     END DO
   END IF !NbrOfSFdepoLayers>0
@@ -3522,8 +3527,9 @@ SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac)
 ! actual deposition of single charge on DOFs via shapefunction_simple (i.e. loop through all elems instead of part-dependency: efficient for small elem-nbr!)
 !============================================================================================================================
 ! use MODULES                                                                                               
+USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
 #ifdef MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem

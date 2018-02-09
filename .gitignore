@@ -5,7 +5,7 @@
 *.swp
 *.mk
 *.optrpt
-build/*
+*.pyc
 src/deplist.mk
 src/srcfiles_pp.mk
 bin/*
@@ -13,11 +13,10 @@ ini/*
 lib/*
 src/preprocflags.f90
 *~
-build*
-share/GNU-MPI/*
-share/hdf5-1.8.13.tar.bz2
-share/hdf5-1.8.14.tar.bz2
+build*/
 ctags.txt
 CMakeCache.txt
 share/*
 CMakeFiles/
+regressioncheck/reggie/*
+tmp*/

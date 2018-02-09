@@ -14,10 +14,11 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                 :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver    ! abort tolerance for DG linear solver
 REAL,ALLOCATABLE     :: ImplicitSource(:,:,:,:,:)                                   ! temp. storage of source terms
-REAL,ALLOCATABLE     :: ExplicitSource(:,:,:,:,:)                                   ! temp. storage of source terms 121,122
 REAL,ALLOCATABLE     :: LinSolverRHS  (:,:,:,:,:)                                   ! RHS for linear solver
-REAL,ALLOCATABLE     :: FieldSource(:,:,:,:,:,:)                                    ! FieldSource, don't no of used
+REAL,ALLOCATABLE     :: FieldStage(:,:,:,:,:,:)                                     ! FieldStage, don't no of used
+REAL,ALLOCATABLE     :: Upredict(:,:,:,:,:,:)                                       ! Upredictor, don't no of used
 REAL,ALLOCATABLE     :: Upast(:,:,:,:,:,:)                                          ! history of upast, required for predictor
+REAL,ALLOCATABLE     :: tpast(:)                                                    ! history of tpast, required for predictor
 REAL,ALLOCATABLE     :: Mass(:,:,:,:,:)                                             ! mass matrix
 INTEGER              :: LinSolver                                                   ! selection of linear solver, CGS,BiCGStab,...
 INTEGER              :: nKDim,nRestarts                                             ! Number of Subspaces GMRES  and Restarts
@@ -31,6 +32,7 @@ INTEGER              :: totalIterLinearSolver,nInnerIter                        
 INTEGER              :: ldim                                                        ! Number of BiCGStab(l) subspaces
 #if defined(PARTICLES)
 #if defined(IMPA) || (PP_TimeDiscMethod==110)
+LOGICAL              :: DoFieldUpdate
 INTEGER              :: totalPartIterLinearSolver,nPartInnerIter                    ! Counter for Particle newton
 INTEGER              :: nPartNewton                                                 ! some limits or counter
 INTEGER              :: nPartNewtonIter                                             ! some limits or counter
@@ -56,7 +58,10 @@ LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
-LOGICAL              :: DoPrintConvInfo                                             ! flag to print current norm in outer iteration
+REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
+                                                                                    ! disables Armijo rule and uses a fixed value
+REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122
+LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
                                                                                     ! and number of parts in Newton
 INTEGER              :: maxFullNewtonIter                                           ! limit of fullnewton iterations
 INTEGER              :: TotalFullNewtonIter                                         ! counter for all total full newton iters
@@ -78,6 +83,8 @@ LOGICAL              :: DoUpdateInStage                                         
 INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
                                                                                     ! due to overflow of free positions...
                                                                                     ! UNFP each nth iteration
+LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration 
+                                                                                    ! scheme
 #endif /*PARTICLES*/
 #endif
 !===================================================================================================================================

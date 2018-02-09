@@ -252,7 +252,9 @@ SUBROUTINE AnalyzeParticles(Time)
   REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
   REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum, MeanFreePath
 #ifdef MPI
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
   REAL                :: sumMeanCollProb
+#endif
   REAL                :: RECBR(nSpecies),RECBR1
   INTEGER             :: RECBIM(nSpecies)
 #endif /*MPI*/
@@ -727,7 +729,7 @@ SUBROUTINE AnalyzeParticles(Time)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
-  IF(((CalcTemp.OR.CalcEint).AND.CollisMode.GT.1).OR.(DSMC%CalcQualityFactors)) THEN
+  IF(CalcTemp.OR.CalcEint.OR.DSMC%CalcQualityFactors) THEN
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
       CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1341,10 +1343,11 @@ SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Vars,              ONLY : BC
 USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PDM, nSpecies, KeepWallParticles
 USE MOD_Particle_Analyze_Vars
 USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo!, DSMC
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
@@ -1359,7 +1362,7 @@ INTEGER(KIND=8), INTENT(OUT)    :: WallNumSpec(nSpecies),WallNumSpec_SurfDist(nS
 REAL           , INTENT(OUT)    :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i, iSpec, iSurfSide, p, q
+INTEGER                         :: i, iSpec, iSurfSide, p, q, SideID, PartBoundID
 REAL                            :: SurfPart
 REAL                            :: Coverage(nSpecies)
 #ifdef MPI
@@ -1374,20 +1377,23 @@ WallNumSpec = 0
 WallNumSpec_SurfDist = 0 
 SurfPart = 0.
 Coverage(:) = 0.
+WallCoverage(:) = 0.
 WallNumSpec_tmp = 0.
 SubWallNumSpec = 0.
   
 IF(SurfMesh%SurfOnProc)THEN
   DO iSpec=1,nSpecies
   DO iSurfSide=1,SurfMesh%nSides
+    SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+    PartboundID = PartBound%MapToPartBC(BC(SideID))
+    IF (PartBound%SolidCatalytic(PartboundID)) THEN
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
         Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)
         IF ((.NOT.KeepWallParticles) .AND. CalcSurfNumSpec) THEN
-!           SurfPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
           SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-!           WallNumSpec(iSpec) = WallNumSpec(iSpec) + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-!               * SurfPart/Species(iSpec)%MacroParticleFactor)
+!          WallNumSpec(iSpec) = WallNumSpec(iSpec) + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+!              * SurfPart/Species(iSpec)%MacroParticleFactor)
           ! calculate number of adsorbates for each species
           adsorbates = 0
           DO Coord = 1,3
@@ -1411,13 +1417,12 @@ IF(SurfMesh%SurfOnProc)THEN
         END IF
       END DO
     END DO
+    END IF
   END DO
   END DO
   IF (CalcSurfCoverage) THEN
-  WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
+    WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
   END IF
-ELSE
-  WallCoverage(:) = 0.
 END IF
   
 #ifdef MPI
@@ -1490,6 +1495,7 @@ REAL                            :: AC(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
 
+Accomodation(:) = 0.
 IF(SurfMesh%SurfOnProc)THEN
   IF (DSMC%ReservoirRateStatistic) THEN
     DO iSpec = 1,nSpecies
@@ -1508,8 +1514,6 @@ IF(SurfMesh%SurfOnProc)THEN
       END IF
     END DO
   END IF
-ELSE
-  Accomodation(:) = 0.
 END IF
 
 #ifdef MPI
@@ -2432,7 +2436,7 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY: PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
-USE MOD_DSMC_Vars,             ONLY: PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars,             ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_DSMC_Analyze,          ONLY: CalcTVib, CalcTelec, CalcTVibPoly
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars, ONLY: nSpecAnalyze
@@ -2446,7 +2450,7 @@ REAL, INTENT(IN)               :: NumSpec(nSpecAnalyze)    ! number of real part
 REAL,INTENT(OUT)               :: IntTemp(nSpecies,3) , IntEn(nSpecAnalyze,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iPart, iSpec, iDOF, iPolyatMole
+INTEGER                        :: iPart, iSpec
 REAL                           :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), tempVib, NumSpecTemp
 #ifdef MPI
 REAL                           :: RD(nSpecies)
@@ -3039,8 +3043,8 @@ USE MOD_PICDepo,             ONLY:Deposition
 USE MOD_DG_Vars,             ONLY:U
 #else
 #if PP_nVar==1
-#else
 USE MOD_Equation_Vars,       ONLY:E
+#else
 #endif
 #endif
 #ifdef MPI
@@ -3125,11 +3129,11 @@ DO iSpec=1,nSpecies
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
-          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
-#else
           PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
           PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
           PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+#else
+          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
           PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif

@@ -94,6 +94,13 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Cannot allocate R_PartXK')
 
+DoFullNewton = GETLOGICAL('DoFullNewton','.FALSE.')
+IF(DoFullNewton)THEN
+  SWRITE(UNIT_stdOut,'(A)') ' Using a full Newton for Particle and Field instead of Piccardi-Iteration.'
+  nPartNewtonIter=1
+  SWRITE(UNIT_stdOut,'(A,I0)') ' Setting nPartNewtonIter to: ', nPartNewtonIter
+END IF
+
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PartImplicitMethod =GETINT('Part-ImplicitMethod','0')
 #endif
@@ -608,8 +615,13 @@ USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
-USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
+!USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemToGlobalElemID,nTotalElems
+USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,PartNewtonRelaxation
+USE MOD_Mesh_Vars,               ONLY:OffSetElem,nElems
+USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 #ifdef MPI
+USE MOD_MPI_Vars,                ONLY:OffSetElemMPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
@@ -635,9 +647,13 @@ REAL                         :: LorentzFacInv,Xtilde(1:6), DeltaX(1:6)
 LOGICAL                      :: DoSetLambda
 INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=10
 INTEGER                      :: tmpElemID
+#ifdef MPI
+INTEGER                      :: GlobalElemID,GlobalElemID2,iElem,ProcID
+LOGICAL                      :: Found
+#endif 
 !===================================================================================================================================
 
-lambda=1.
+lambda=1.*PartNewtonRelaxation
 DoSetLambda=.TRUE.
 PartLambdaAccept=.TRUE.
 DO iPart=1,PDM%ParticleVecLength
@@ -809,6 +825,8 @@ __STAMP__&
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
 
+! disable Armijo iteration and use only one fixed value
+IF(PartNewtonRelaxation.LT.1.)  PartLambdaAccept=.TRUE.
 
 DoSetLambda=.FALSE.
 IF(ANY(.NOT.PartLambdaAccept)) DoSetLambda=.TRUE.
@@ -848,16 +866,43 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       LastPartPos(iPart,3)=PartXK(3,iPart)
       ! verify integrity of lastElement due to MPI communication
       ! prevent circular definition 
-      IF(PEM%LastElement(iPart).EQ.-1)THEN
-        tmpElemID=PEM%Element(iPart)
-        PartState(iPart,1:3)=PartXK(1:3,iPart)
-        IF(DoRefMapping)THEN
-          CALL SingleParticleToExactElement     (iPart,doHALO=.TRUE.,initFix=.FALSE.)
+      IF(PEM%LastElement(iPart).LT.0)THEN
+      !  tmpElemID=PEM%Element(iPart)
+      !  PartState(iPart,1:3)=PartXK(1:3,iPart)
+      !  IF(DoRefMapping)THEN
+      !    CALL SingleParticleToExactElement     (iPart,doHALO=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
+      !  ELSE
+      !    CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
+      !  END IF
+      !  PEM%Element(iPart)=tmpElemID
+      !END IF
+        !  search old elemid
+        ! switch sign
+        PEM%LastElement(iPart)=-PEM%LastElement(iPart)
+        ! get local elem-id
+        IF(((PEM%LastElement(iPart)-offsetElem).LE.nElems) &
+          .AND.((PEM%LastElement(iPart)-offsetElem).GT.0))THEN
+          PEM%LastElement(iPart)=PEM%LastElement(iPart)-offsetElem
+#ifdef MPI
         ELSE
-          CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)
+          GlobalElemID=PEM%LastElement(iPart)
+          Found=.FALSE.
+          DO iElem=nElems+1,nTotalElems
+            ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iElem)
+            GlobalElemID2=offSetElemMPI(ProcID) + PartHaloElemToProc(NATIVE_ELEM_ID,iElem)
+            IF(GlobalElemID.EQ.GlobalElemID2)THEN
+              Found=.TRUE.
+              PEM%LastElement(iPart)=iElem
+              EXIT
+            END IF
+          END DO
+          IF(.NOT.Found) CALL abort(&
+  __STAMP__&
+  ,' Element-ID of PartXK is not found on process. increase halo region!')
+#endif MPI
         END IF
-        PEM%LastElement(iPart)=PEM%Element(iPart)
-        PEM%Element(iPart)=tmpElemID
+        ! set element back to old element, not required
+        ! PEM%Element(iPart)=PEM%LastElement(iPart)
       END IF
       PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
       PartLambdaAccept(iPart)=.FALSE.
@@ -939,31 +984,41 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_PartX)
       !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
-      IF(Norm2_PartX .LE. Norm2_F_PartXK(iPart))THEN
+      IF(DoFullNewton)THEN
         ! accept lambda
         PartLambdaAccept(iPart)=.TRUE.
         ! set  new position
         PartXK(1:6,iPart)=PartState(iPart,1:6)
         Norm2_F_PartXK(iPart)=Norm2_PartX
         IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+           DoPartInNewton(iPart)=.FALSE.
+      ELSE ! .NOT.DoFullNewton
+        IF(Norm2_PartX .LE. Norm2_F_PartXK(iPart))THEN
+          ! accept lambda
+          PartLambdaAccept(iPart)=.TRUE.
+          ! set  new position
+          PartXK(1:6,iPart)=PartState(iPart,1:6)
+          Norm2_F_PartXK(iPart)=Norm2_PartX
+          IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+            DoPartInNewton(iPart)=.FALSE.
+        ELSE
+          ! test not working
+          !IF(Norm2_PartX.GT.Norm2_F_PartX0(iPart))THEN !allow for a local increase in residual
+          !  PartXK(1:6,iPart)=PartState(iPart,1:6)
+          !  Norm2_F_PartXK(iPart)=Norm2_PartX
+          !  Norm2_F_PartX0(iPart)=Norm2_PartX
+          !  Norm2_F_PartXk_old(iPart)=Norm2_PartX
+          !  PartLambdaAccept(iPart)=.TRUE.
+          !END IF
+          ! DO not accept lambda, go to next step
+          ! scip particle in current iteration and reiterate
+          ! DO NOT nullify because Armijo iteration will not work
+          ! OR  NO Armijo and particle does is not changed during this step
+          PartDeltaX(1:3,iPart)=0.
           DoPartInNewton(iPart)=.FALSE.
-      ELSE
-        ! test not working
-        !IF(Norm2_PartX.GT.Norm2_F_PartX0(iPart))THEN !allow for a local increase in residual
-        !  PartXK(1:6,iPart)=PartState(iPart,1:6)
-        !  Norm2_F_PartXK(iPart)=Norm2_PartX
-        !  Norm2_F_PartX0(iPart)=Norm2_PartX
-        !  Norm2_F_PartXk_old(iPart)=Norm2_PartX
-        !  PartLambdaAccept(iPart)=.TRUE.
-        !END IF
-        ! DO not accept lambda, go to next step
-        ! scip particle in current iteration and reiterate
-        ! DO NOT nullify because Armijo iteration will not work
-        ! OR  NO Armijo and particle does is not changed during this step
-        PartDeltaX(1:3,iPart)=0.
-        DoPartInNewton(iPart)=.FALSE.
-        PartLambdaAccept(iPart)=.TRUE.
-      END IF
+          PartLambdaAccept(iPart)=.TRUE.
+        END IF
+      END IF ! DoFullNewton
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
   ! detect  convergence

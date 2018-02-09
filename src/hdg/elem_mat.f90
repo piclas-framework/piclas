@@ -40,6 +40,9 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation_Vars     , ONLY: chitens
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars,       ONLY:DoPrintConvInfo
+#endif
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: sJ, Metrics_fTilde, Metrics_gTilde,Metrics_hTilde
 USE MOD_Mesh_Vars          ,ONLY: SurfElem
@@ -67,6 +70,14 @@ REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
 !===================================================================================================================================
+
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+IF(DoPrintConvInfo)THEN
+  SWRITE(UNIT_stdOut,'(132("-"))')
+  SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
+  time0=BOLTZPLATZTIME()
+END IF
+#else
 IF(DoDisplayIter)THEN
   IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
     time0=BOLTZPLATZTIME()
@@ -74,6 +85,7 @@ IF(DoDisplayIter)THEN
     SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
   END IF
 END IF
+#endif
 
 
 Ehat = 0.0
@@ -261,6 +273,14 @@ DO iElem=1,PP_nElems
 
 END DO !iElem
 
+
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+IF(DoPrintConvInfo)THEN
+  time=BOLTZPLATZTIME()
+  SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+  SWRITE(UNIT_stdOut,'(132("-"))')
+END IF
+#else
 IF(DoDisplayIter)THEN
   IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
     time=BOLTZPLATZTIME()
@@ -268,6 +288,7 @@ IF(DoDisplayIter)THEN
     SWRITE(UNIT_stdOut,'(132("-"))')
   END IF
 END IF
+#endif
 
 CONTAINS
 
