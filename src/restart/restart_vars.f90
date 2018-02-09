@@ -19,7 +19,7 @@ LOGICAl            :: DoRestart           = .FALSE.
 LOGICAl            :: BuildNewMesh        = .TRUE.
 LOGICAl            :: WriteNewMesh        = .TRUE.
 LOGICAL            :: InterpolateSolution =.FALSE.
-CHARACTER(LEN=300) :: RestartFile
+CHARACTER(LEN=300) :: RestartFile = ""
 CHARACTER(LEN=255) :: NodeType_Restart
 REAL               :: RestartTime
 !===================================================================================================================================

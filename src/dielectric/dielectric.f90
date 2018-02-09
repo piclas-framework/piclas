@@ -24,7 +24,32 @@ END INTERFACE
 
 PUBLIC::InitDielectric,FinalizeDielectric
 !===================================================================================================================================
+PUBLIC::DefineParametersDielectric
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for surfaces (particle-sides)
+!==================================================================================================================================
+SUBROUTINE DefineParametersDielectric()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("PML")
+
+CALL prms%CreateLogicalOption(  'DoDielectric'         , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateRealOption(     'DielectricEpsR'       , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'DielectricMuR'        , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateStringOption(   'DielectricTestCase'   , 'TODO-DEFINE-PARAMETER' , 'default')
+CALL prms%CreateRealOption(     'DielectricRmax'       , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateLogicalOption(  'DielectricCheckRadius', 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateRealOption(     'DielectricRadiusValue', 'TODO-DEFINE-PARAMETER' , '-1.')
+CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzDielectricMinMax'          , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealOption(     'Dielectric_E_0'       , 'TODO-DEFINE-PARAMETER' , '1.')
+
+END SUBROUTINE DefineParametersDielectric
 
 SUBROUTINE InitDielectric()
 !===================================================================================================================================

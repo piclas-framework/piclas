@@ -52,11 +52,6 @@ USE MOD_PreProc
 USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input,         ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
-#ifdef PARTICLES
-USE MOD_DSMC_Vars,          ONLY: UseDSMC
-USE MOD_LD_Vars,            ONLY: UseLD
-#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -79,27 +74,9 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 
-#ifdef PARTICLES
-! DSMC handling:
-useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
-useLD=GETLOGICAL('UseLD','.FALSE.')
-IF(useLD) useDSMC=.TRUE.
-IF (useDSMC) THEN
-  !ReadInDone = .FALSE.
-  maxNArgs = 3
-ELSE
-  maxNArgs = 2
-END IF
-#else
-maxNArgs=2
-#endif /*PARTICLES*/
-
-
 ! Check if we want to perform a restart
-nArgs=COMMAND_ARGUMENT_COUNT()
-IF (nArgs .EQ. maxNArgs) THEN
+IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
-  CALL GETARG(maxNArgs,RestartFile)
   SWRITE(UNIT_StdOut,'(A,A,A)')' | Restarting from file "',TRIM(RestartFile),'":'
   DoRestart = .TRUE.
 #ifdef MPI

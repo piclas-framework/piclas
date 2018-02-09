@@ -55,24 +55,24 @@ alreadyRead = .FALSE.
 !doGenerateUnittestReferenceData = .FALSE.
 !doPrintHelp = 0
 nArgs = nArgs_tmp
-!DO iArg = 1, nArgs_tmp
-!  CALL GET_COMMAND_ARGUMENT(iArg,tmp)
-!  IF (STRICMP(tmp, "--generateUnittestReferenceData")) THEN
-!    doGenerateUnittestReferenceData = .TRUE.
-!    alreadyRead(iArg) = .TRUE.
-!    nArgs = nArgs - 1
-!  END IF
-!  IF (STRICMP(tmp, "--help").OR.STRICMP(tmp,"-h")) THEN
-!    doPrintHelp = 1
-!    alreadyRead(iArg) = .TRUE.
-!    nArgs = nArgs - 1
-!  END IF
-!  IF (STRICMP(tmp, "--markdown")) THEN
-!    doPrintHelp = 2
-!    alreadyRead(iArg) = .TRUE.
-!    nArgs = nArgs - 1
-!  END IF
-!END DO ! iArg = 1, nArgs
+DO iArg = 1, nArgs_tmp
+  CALL GET_COMMAND_ARGUMENT(iArg,tmp)
+  !IF (STRICMP(tmp, "--generateUnittestReferenceData")) THEN
+  !  doGenerateUnittestReferenceData = .TRUE.
+  !  alreadyRead(iArg) = .TRUE.
+  !  nArgs = nArgs - 1
+  !END IF
+  IF (STRICMP(tmp, "--help").OR.STRICMP(tmp,"-h")) THEN
+    doPrintHelp = 1
+    alreadyRead(iArg) = .TRUE.
+    nArgs = nArgs - 1
+  END IF
+  IF (STRICMP(tmp, "--markdown")) THEN
+    doPrintHelp = 2
+    alreadyRead(iArg) = .TRUE.
+    nArgs = nArgs - 1
+  END IF
+END DO ! iArg = 1, nArgs
 
 ! Get all remaining parameters
 nArgs = MAX(1,nArgs) ! at least one argument is generated (empty)

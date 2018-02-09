@@ -33,7 +33,38 @@ END INTERFACE
 
 PUBLIC::InitPML,FinalizePML,PMLTimeRamping,CalcPMLSource,PMLTimeDerivative
 !===================================================================================================================================
+PUBLIC::DefineParametersPML
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for surfaces (particle-sides)
+!==================================================================================================================================
+SUBROUTINE DefineParametersPML()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("PML")
+
+CALL prms%CreateLogicalOption(  'DoPML'            , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateRealOption(     'PMLzeta0'         , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateRealOption(     'PMLalpha0'        , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateIntOption(      'PMLzetaShape'     , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealOption(     'PMLRampLength'    , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateIntOption(      'PMLspread'        , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'PMLwriteFields'   , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateLogicalOption(  'PMLzetaNorm'      , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+
+CALL prms%CreateLogicalOption(  'DoPMLTimeRamp'    , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateRealOption(     'PMLTimeRamptStart', 'TODO-DEFINE-PARAMETER' , '-1.')
+CALL prms%CreateRealOption(     'PMLTimeRamptEnd'  , 'TODO-DEFINE-PARAMETER' , '-1.')
+
+CALL prms%CreateRealArrayOption('xyzPhysicalMinMax'     , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzPMLzetaShapeOrigin' , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzPMLMinMax'          , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+
+END SUBROUTINE DefineParametersPML
 
 SUBROUTINE InitPML()
 !===================================================================================================================================

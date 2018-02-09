@@ -75,6 +75,8 @@ USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution
 USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
+USE MOD_DSMC_Vars,          ONLY:UseDSMC
+USE MOD_LD_Vars,            ONLY:UseLD
 USE MOD_ParticleInit,       ONLY:InitParticles
 USE MOD_TTMInit,            ONLY:InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars,           ONLY:DoImportTTMFile
@@ -93,6 +95,7 @@ USE MOD_Interfaces,         ONLY:InitInterfaces
 #if USE_QDS_DG
 USE MOD_QDS,                ONLY:InitQDS
 #endif /*USE_QDS_DG*/
+USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -102,6 +105,14 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+
+
+#ifdef PARTICLES
+! DSMC handling:
+useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
+useLD=GETLOGICAL('UseLD','.FALSE.')
+IF(useLD) useDSMC=.TRUE.
+#endif /*PARTICLES*/
 
 ! Initialization
 !CALL InitInterpolation()

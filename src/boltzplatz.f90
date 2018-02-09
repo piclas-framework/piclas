@@ -6,7 +6,11 @@ PROGRAM Boltzplatz
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
+USE MOD_Commandline_Arguments
+USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile
 USE MOD_Boltzplatz_Init        ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
 USE MOD_IO_HDF5                ,ONLY: InitIO
@@ -21,6 +25,7 @@ USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*MPI*/
 USE MOD_Output                 ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters
+USE MOD_StringTools            ,ONLY:STRICMP, GetFileExtension
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -29,8 +34,6 @@ REAL    :: Time
 !===================================================================================================================================
 
 CALL InitMPI()
-
-CALL InitDefineParameters()
 
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
@@ -54,6 +57,63 @@ SWRITE(UNIT_stdOut,'(A)')&
 SWRITE(UNIT_stdOut,'(A)')&
  ' '
 SWRITE(UNIT_stdOut,'(132("="))')
+
+CALL ParseCommandlineArguments()
+
+! Check if the number of arguments is correct
+IF ((nArgs.GT.3) .OR. ((nArgs.EQ.0).AND.(doPrintHelp.EQ.0)) ) THEN
+  ! Print out error message containing valid syntax
+  CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+    'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+END IF
+
+CALL InitDefineParameters()
+
+! check for command line argument --help or --markdown
+IF (doPrintHelp.GT.0) THEN
+  CALL PrintDefaultParameterFile(doPrintHelp.EQ.2, Args(1))
+  STOP
+END IF
+
+ParameterFile = Args(1)
+IF (nArgs.EQ.2) THEN
+  ParameterDSMCFile = Args(2)
+  IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
+    ! Print out error message containing valid syntax
+    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+      'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  END IF
+  IF(STRICMP(GetFileExtension(ParameterDSMCFile), "h5")) THEN
+    RestartFile = ParameterDSMCFile
+    ParameterDSMCFile = 'no file found'
+  END IF
+ELSE IF (nArgs.GT.2) THEN
+  ParameterDSMCFile = Args(2)
+  IF (STRICMP(GetFileExtension(ParameterDSMCFile), "h5").OR.STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
+    ! Print out error message containing valid syntax
+    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+      'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  END IF
+ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
+  ! Print out error message containing valid syntax
+  CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+    'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  !ParameterFile = ".boltzplatz.ini" 
+  !CALL ExtractParameterFile(Args(1), ParameterFile, userblockFound)
+  !IF (.NOT.userblockFound) THEN
+  !  CALL CollectiveStop(__STAMP__, "No userblock found in state file '"//TRIM(Args(1))//"'")
+  !END IF
+  !RestartFile = Args(1)
+END IF
+
+CALL prms%read_options(ParameterFile)
+! Check if we want to read in DSMC.ini
+IF(nArgs.GE.2)THEN
+  IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
+    CALL prms%read_options(ParameterDSMCFile)
+  END IF
+END IF
+
 
 CALL InitOutput()
 CALL InitIO()

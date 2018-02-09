@@ -79,7 +79,32 @@ PUBLIC::OutputBezierControlPoints
 
 !===================================================================================================================================
 
+PUBLIC::DefineParametersParticleSurfaces
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for surfaces (particle-sides)
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleSurfaces()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Particle Surfaces for Tracking")
+
+CALL prms%CreateRealOption(     'BezierNewtonAngle'      , 'TODO-DEFINE-PARAMETER' , '1.570796326')
+CALL prms%CreateRealOption(     'BezierClipTolerance'    , 'TODO-DEFINE-PARAMETER' , '1e-8')
+CALL prms%CreateRealOption(     'BezierNewtonTolerance'  , 'TODO-DEFINE-PARAMETER' , '1e-4')
+CALL prms%CreateIntOption(      'BezierNewtonGuess'      , 'TODO-DEFINE-PARAMETER' , '1')
+CALL prms%CreateRealOption(     'BezierSplitLimit'       , 'TODO-DEFINE-PARAMETER. Parameter is multiplied by 2' , '0.6')
+CALL prms%CreateIntOption(      'BezierClipMaxIter'      , 'TODO-DEFINE-PARAMETER' , '100')
+CALL prms%CreateRealOption(     'epsilontol'             , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateRealOption(     'BezierClipHit'          , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateRealOption(     'BezierNewtonHit'        , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateIntOption(      'BezierClipMaxIntersec'  , 'TODO-DEFINE-PARAMETER. Default: 2*(NGeo+1)')
+
+END SUBROUTINE DefineParametersParticleSurfaces
 
 SUBROUTINE InitParticleSurfaces()
 !===================================================================================================================================

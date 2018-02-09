@@ -28,7 +28,59 @@ END INTERFACE
 PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping
 !===================================================================================================================================
 
+PUBLIC::DefineParametersEquation
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for surfaces (particle-sides)
+!==================================================================================================================================
+SUBROUTINE DefineParametersEquation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Equation")
+
+CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER' , '0.999')
+CALL prms%CreateLogicalOption(  'ParabolicDamping' , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'CentralFlux'      , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER')
+
+CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateRealArrayOption('xDipole'          , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.')
+CALL prms%CreateRealOption(     'omega'            , 'TODO-DEFINE-PARAMETER' , '6.28318e8')
+CALL prms%CreateRealOption(     'tPulse'           , 'TODO-DEFINE-PARAMETER' , '30e-9')
+
+CALL prms%CreateRealOption(     'TEFrequency'      , 'TODO-DEFINE-PARAMETER' , '35e9')
+CALL prms%CreateRealOption(     'TEScale'          , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateLogicalOption(  'TEPolarization'   , 'TODO-DEFINE-PARAMETER' , '.TRUE.')
+CALL prms%CreateIntOption(      'TERotation'       , 'TODO-DEFINE-PARAMETER', '1')
+CALL prms%CreateLogicalOption(  'TEPulse'          , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateIntArrayOption( 'TEMode'           , 'TODO-DEFINE-PARAMETER', '1 , 1')
+CALL prms%CreateRealOption(     'TERadius'         , 'TODO-DEFINE-PARAMETER' , '0.0')
+
+CALL prms%CreateRealOption(     'WaveLength'       , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealArrayOption('WaveVector'       , 'TODO-DEFINE-PARAMETER', '0. , 0. , 1.')
+CALL prms%CreateRealArrayOption('WaveBasePoint'    , 'TODO-DEFINE-PARAMETER', '0.5 , 0.5 , 0.')
+CALL prms%CreateRealOption(     'I_0'              , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'sigma_t'          , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateRealOption(     'tFWHM'            , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateRealOption(     'Beam_a0'          , 'TODO-DEFINE-PARAMETER' , '-1.0')
+CALL prms%CreateRealOption(     'omega_0'          , 'TODO-DEFINE-PARAMETER' , '1.0')
+CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER', 'no file found')
+CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER' , '1.0')
+
+CALL prms%CreateIntOption(      'FluxDir'          , 'TODO-DEFINE-PARAMETER', '-1')
+CALL prms%CreateIntOption(      'ExactFluxDir'     , 'TODO-DEFINE-PARAMETER', '3')
+CALL prms%CreateRealOption(     'ExactFluxPosition', 'TODO-DEFINE-PARAMETER')
+
+END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
@@ -290,7 +342,7 @@ END DO
 
 DEALLOCATE(RefStates)
 
-BCStateFile=GETSTR('BCStateFile','')
+BCStateFile=GETSTR('BCStateFile','no file found')
 !WRITE(DefBCState,'(I3,A,I3,A,I3,A,I3,A,I3,A,I3)') &
 !  IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc
 !IF(BCType_in(1) .EQ. -999)THEN

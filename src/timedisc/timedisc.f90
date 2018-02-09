@@ -66,6 +66,10 @@ CALL prms%CreateRealOption(  'CFLScale',       "Scaling factor for the theoretic
 !CALL prms%CreateRealOption(  'DFLScale',       "Scaling factor for the theoretical DFL number, typical range 0.1..1.0 (mandatory)")
 CALL prms%CreateIntOption(   'maxIter',        "Stop simulation when specified number of timesteps has been performed.", value='-1')
 CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every Nth timestep.", value='1')
+
+CALL prms%CreateIntOption(   'IterDisplayStep',"Step size of iteration that are displayed.", value='1')
+CALL prms%CreateLogicalOption(  'DoDisplayEmissionWarning', 'TODO-DEFINE-PARAMETER', '.TRUE.')
+
 END SUBROUTINE DefineParametersTimeDisc
 
 SUBROUTINE InitTimeDisc()

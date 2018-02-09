@@ -35,7 +35,50 @@ PUBLIC::FinalizeMesh
 PUBLIC::GetMeshMinMaxBoundaries
 !===================================================================================================================================
 
+PUBLIC::DefineParametersMesh
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for Mesh
+!==================================================================================================================================
+SUBROUTINE DefineParametersMesh()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Mesh")
+CALL prms%CreateLogicalOption( 'DoSwapMesh',  "Swap mesh for calculation.TODO-DEFINE-PARAMETER",'.FALSE.')
+CALL prms%CreateStringOption(  'SwapMeshExePath',            "(relative) path to swap-meshfile (mandatory).")
+CALL prms%CreateIntOption(     'SwapMeshLevel',           "TODO-DEFINE-PARAMETER",'0')
+
+CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory).")
+CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
+                                                      "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
+
+CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file. TODO-DEFINE-PARAMETER",'.TRUE.')
+CALL prms%CreateLogicalOption( 'interpolateFromTree', "For non-conforming meshes, built by refinement from a tree structure, "//&
+                                                      "the metrics can be built from the tree geometry if it is contained "//&
+                                                      "in the mesh. Can improve free-stream preservation.",&
+                                                      '.TRUE.')
+CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
+                                                      '1.0')
+CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
+                                                      '.FALSE.')
+CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER",&
+                                                      '.FALSE.')
+CALL prms%CreateLogicalOption( 'crossProductMetrics', "Compute mesh metrics using cross product form. Caution: in this case "//&
+                                                      "free-stream preservation is only guaranteed for N=3*NGeo.",&
+                                                      '.FALSE.')
+CALL prms%CreateStringOption(  'BoundaryName',        "Names of boundary conditions to be set (must be present in the mesh!)."//&
+                                                      "For each BoundaryName a BoundaryType needs to be specified.",&
+                                                      multiple=.TRUE.)
+CALL prms%CreateIntArrayOption('BoundaryType',        "Type of boundary conditions to be set. Format: (BC_TYPE,BC_STATE)",&
+                                                      multiple=.TRUE.)
+CALL prms%CreateLogicalOption( 'writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
+
+
+END SUBROUTINE DefineParametersMesh
 
 SUBROUTINE InitMesh()
 !===================================================================================================================================
