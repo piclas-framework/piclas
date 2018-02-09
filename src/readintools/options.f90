@@ -178,6 +178,11 @@ aStr=Var_Str(this%name)
 aStr=Replace(aStr,"[]"  ,"",Every=.true.)
 aStr=Replace(aStr,"[$]" ,"",Every=.true.)
 aStr=Replace(aStr,"[$$]","",Every=.true.)
+! Remove numbers from aStr
+DO i=1,9
+  WRITE(UNIT=number,FMT='(I0)') i
+  aStr=Replace(aStr,TRIM(number),"",Every=.true.)
+END DO
 !Transform name into varying string
 bStr=Var_Str(name)
 ! Remove numbers from bStr

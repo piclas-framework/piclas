@@ -14,7 +14,7 @@
 #include "boltzplatz.h"
 
 !==================================================================================================================================
-!> Module providing routines for reading Flexi parameter files. 
+!> Module providing routines for reading BOLTZPLATZ parameter files. 
 !> 
 !> The whole structure to read options from the parameter file is as follows:
 !> 
@@ -221,10 +221,6 @@ END IF
 
 opt%numberedmulti = .FALSE.
 IF (PRESENT(numberedmulti)) opt%numberedmulti = numberedmulti
-IF (opt%numberedmulti.AND.opt%hasDefault) THEN
-  CALL Abort(__STAMP__, &
-      "A default value can not be given, when numberedmulti=.TRUE. in creation of option: '"//TRIM(name)//"'")
-END IF
 
 opt%isSet = .FALSE.
 opt%name = name
@@ -501,8 +497,8 @@ IF(MPIROOT)THEN
   END IF
   ! Check if first argument is the ini-file 
   IF(.NOT.(STRICMP(GetFileExtension(filename),'ini'))) THEN
-    SWRITE(*,*) "Usage: flexi parameter.ini [restart.h5] [keyword arguments]"
-    SWRITE(*,*) "   or: flexi restart.h5 [keyword arguments]"
+    SWRITE(*,*) "Usage: boltzplatz parameter.ini [DSMC.ini] [restart.h5] [keyword arguments]"
+    !SWRITE(*,*) "   or: boltzplatz restart.h5 [keyword arguments]"
     CALL CollectiveStop(__STAMP__,&
       'ERROR - Not an parameter file (file-extension must be .ini) or restart file (*.h5): '//TRIM(filename))
   END IF
@@ -781,7 +777,7 @@ END DO
 ! if name is not specified, the complete parameter files needs to be printed
 IF ((.NOT.markdown).AND.(LEN_TRIM(name).EQ.0)) THEN
   SWRITE(UNIT_StdOut,'(A80)')  "!==============================================================================="
-  SWRITE(UNIT_StdOut,'(A)')    "! Default Parameter File generated using 'flexi --help' "
+  SWRITE(UNIT_StdOut,'(A)')    "! Default Parameter File generated using 'boltzplatz --help' "
   SWRITE(UNIT_StdOut,'(4A)')   "!   compiled at : ", __DATE__," ", __TIME__ 
   SWRITE(UNIT_StdOut,'(A80)')  "!==============================================================================="
 END IF
@@ -917,6 +913,7 @@ CLASS(*)                             :: value    !< parameter value
 CLASS(link),POINTER   :: current
 CLASS(Option),POINTER :: opt
 CHARACTER(LEN=255)    :: proposal_loc
+CLASS(OPTION),ALLOCATABLE    :: newopt
 !==================================================================================================================================
 
 ! iterate over all options
@@ -967,6 +964,66 @@ DO WHILE (associated(current))
     RETURN
   END IF 
   current => current%next
+END DO
+
+! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (.NOT.current%opt%numberedmulti) THEN
+    current => current%next
+  ELSE
+    ! compare reduced name with reduced option name
+    IF (current%opt%NAMEEQUALSNUMBERED(name).AND.(.NOT.current%opt%isRemoved)) THEN
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      newopt%isSet = .FALSE.
+      IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
+        proposal_loc = TRIM(proposal)
+        CALL newopt%parse(proposal_loc)
+      ELSE
+        ! no proposal, no default and also not set in parameter file => abort
+        IF ((.NOT.newopt%hasDefault).AND.(.NOT.newopt%isSet)) THEN
+          CALL ABORT(__STAMP__, &
+              "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+          RETURN
+        END IF
+      END IF
+      ! copy value from option to result variable
+      SELECT TYPE (newopt)
+      CLASS IS (IntOption)
+        SELECT TYPE(value)
+        TYPE IS (INTEGER)
+          value = newopt%value
+        END SELECT
+      CLASS IS (RealOption)
+        SELECT TYPE(value)
+        TYPE IS (REAL)
+          value = newopt%value
+        END SELECT
+      CLASS IS (LogicalOption)
+        SELECT TYPE(value)
+        TYPE IS (LOGICAL)
+          value = newopt%value
+        END SELECT
+      CLASS IS (StringOption)
+        SELECT TYPE(value)
+        TYPE IS (STR255)
+          value%chars = newopt%value
+        END SELECT
+      END SELECT
+      ! print option and value to stdout
+      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      ! remove the option from the linked list of all parameters
+      IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+      ! insert option
+      CALL insertOption(current, newopt)
+      RETURN
+    END IF
+    current => current%next
+  END IF
 END DO
 CALL ABORT(__STAMP__, &
     'Option "'//TRIM(name)//'" is not defined in any DefineParameters... routine '//&
