@@ -1047,6 +1047,7 @@ CLASS(*)                             :: value(no) !< parameter value
 CLASS(link),POINTER   :: current
 CLASS(Option),POINTER :: opt
 CHARACTER(LEN=255)    :: proposal_loc
+CLASS(OPTION),ALLOCATABLE    :: newopt
 !INTEGER               :: i
 !==================================================================================================================================
 
@@ -1104,6 +1105,72 @@ DO WHILE (associated(current))
     RETURN
   END IF 
   current => current%next
+END DO
+
+! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (.NOT.current%opt%numberedmulti) THEN
+    current => current%next
+  ELSE
+    ! compare reduced name with reduced option name
+    IF (current%opt%NAMEEQUALSNUMBERED(name).AND.(.NOT.current%opt%isRemoved)) THEN
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      newopt%isSet = .FALSE.
+      IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
+        proposal_loc = TRIM(proposal)
+        CALL newopt%parse(proposal_loc)
+      ELSE
+        ! no proposal, no default and also not set in parameter file => abort
+        IF ((.NOT.newopt%hasDefault).AND.(.NOT.newopt%isSet)) THEN
+          CALL ABORT(__STAMP__, &
+              "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+          RETURN
+        END IF
+      END IF
+      ! copy value from option to result variable
+      SELECT TYPE (newopt)
+      CLASS IS (IntArrayOption)
+        IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        SELECT TYPE(value)
+        TYPE IS (INTEGER)
+          value = newopt%value
+        END SELECT
+      CLASS IS (RealArrayOption)
+        IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        SELECT TYPE(value)
+        TYPE IS (REAL)
+          value = newopt%value
+        END SELECT
+      CLASS IS (LogicalArrayOption)
+        IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        SELECT TYPE(value)
+        TYPE IS (LOGICAL)
+          value = newopt%value
+        END SELECT
+      !CLASS IS (StringArrayOption)
+        !IF (SIZE(opt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        !SELECT TYPE(value)
+        !TYPE IS (STR255)
+          !DO i=1,no
+            !value(i)%chars = opt%value(i)
+          !END DO
+        !END SELECT
+      END SELECT
+      ! print option and value to stdout
+      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      ! remove the option from the linked list of all parameters
+      IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+      ! insert option
+      CALL insertOption(current, newopt)
+      RETURN
+    END IF
+    current => current%next
+  END IF
 END DO
 CALL ABORT(__STAMP__, &
     'Option "'//TRIM(name)//'" is not defined in any DefineParameters... routine '//&
