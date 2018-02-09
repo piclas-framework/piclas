@@ -116,19 +116,19 @@ IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
 #ifdef MPI
  IF(MPIROOT)THEN
 #endif    /* MPI */
-   WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Time
+   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
    IF (CalcEpot) THEN 
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WEl
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WMag
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
    END IF
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
  END IF
 #endif    /* MPI */
 
-!104    FORMAT (OUTPUTFORMAT)
+!104    FORMAT (WRITEFORMAT)
 
 !SWRITE(UNIT_stdOut,'(A)')' PARTCILE ANALYZE DONE!'
 !SWRITE(UNIT_StdOut,'(132("-"))')
@@ -406,10 +406,10 @@ IF(.NOT.isOpen)THEN
   END IF
 END IF
 ! write data to file
-WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') t
+WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') t
 DO iPlane=1,nPoyntingIntPlanes
   WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
-  WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
+  WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') Sabs(iPlane)
 END DO
 WRITE(ioUnit,'(A1)') ''
 

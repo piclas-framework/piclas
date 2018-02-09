@@ -119,4 +119,4 @@
 #define RIEMANN_VAC2DIELECTRIC 4
 
 ! format
-#define OUTPUTFORMAT '(E25.14E3)'
+#define WRITEFORMAT '(E25.14E3)'
