@@ -15,8 +15,6 @@ SAVE
 REAL,ALLOCATABLE      :: invP(:,:,:)  !inverse of block Jacobian for each element (1:nDOF_elem,1:nDOFelem,1:PP_nElems)
 INTEGER               :: PrecondType
 INTEGER               :: DebugMatrix
-REAL,ALLOCATABLE      :: nVec(:,:,:,:,:)    !local normal vectors
-REAL,ALLOCATABLE      :: Surf(:,:,:,:)    !local surface element 
 LOGICAL               :: doVol,doSurf
 LOGICAL               :: PrecondInitIsDone
 REAL,ALLOCATABLE      :: invBJ(:,:,:,:,:,:)  !inverse of block Jacobian for each DOF (1:PP_nVar,1:PP_nVar,0:N,0:N,0:N,1:PP_nElems)

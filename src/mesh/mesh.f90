@@ -302,15 +302,19 @@ ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
 ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
 ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
-ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
-ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
 Face_xGP=0.
 NormVec=0.
 TangVec1=0.
 TangVec2=0.
 SurfElem=0.
+#ifdef maxwell
+#if defined(IMEX) || defined(IMPA)
+ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
+ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
 nVecLoc=0.
 SurfLoc=0.
+#endif /*IMEX or IMPA*/
+#endif /*maxwell*/
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
@@ -806,6 +810,12 @@ SDEALLOCATE(NormVec)
 SDEALLOCATE(TangVec1) 
 SDEALLOCATE(TangVec2)  
 SDEALLOCATE(SurfElem)  
+#ifdef maxwell
+#if defined(IMEX) || defined(IMPA)
+SDEALLOCATE(nVecLoc)
+SDEALLOCATE(SurfLoc)
+#endif /*IMEX or IMPA*/
+#endif /*maxwell*/
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)

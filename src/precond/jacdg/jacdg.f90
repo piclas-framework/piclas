@@ -318,7 +318,7 @@ USE MOD_JacDG_Vars,           ONLY: JacF,JacG,JacH,JacFlux
 USE MOD_Mesh_Vars,            ONLY: ElemToSide
 USE MOD_Mesh_Vars,            ONLY: nBCSides,BoundaryType,BC
 USE MOD_Mesh_Vars,            ONLY: Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_Precond_Vars,         ONLY: nVec, Surf
+USE MOD_Mesh_Vars,            ONLY: nVecLoc, SurfLoc
 USE MOD_JacExRiemann,         ONLY: ConstructJacRiemann,ConstructJacBCRiemann
 USE MOD_Jacobian,             ONLY: EvalFluxJacobian
 ! IMPLICIT VARIABLE HANDLING
@@ -366,10 +366,10 @@ DO iElem=1,PP_nElems
   DO iLocSide = 1,6
     !IF(iLocSide.NE.ZETA_MINUS) CYCLE
     SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    CALL ConstructJacRiemann(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacFlux(:,:,:,:,iLocSide,iElem))
+    CALL ConstructJacRiemann(nVecloc(:,:,:,iLocSide,iElem),Surfloc(:,:,iLocSide,iElem),JacFlux(:,:,:,:,iLocSide,iElem))
     IF (SideID.LE.nBCSides) THEN
       BCType=Boundarytype(BC(SideID),BC_TYPE)
-      CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacBC)
+      CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,iLocSide,iElem),Surfloc(:,:,iLocSide,iElem),JacBC)
       JacFlux(:,:,:,:,iLocSide,iElem) = JacFlux(:,:,:,:,iLocSide,iElem) + JacBC(:,:,:,:)
     END IF ! BC Side
   END DO ! iLocSide 
