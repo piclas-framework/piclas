@@ -33,6 +33,8 @@ USE MOD_Dielectric       ,ONLY: DefineParametersDielectric
 USE MOD_Filter           ,ONLY: DefineParametersFilter
 USE MOD_Boltzplatz_Init  ,ONLY: DefineParametersBoltzplatz
 USE MOD_ParticleInit     ,ONLY: DefineParametersParticles
+USE MOD_PICInit          ,ONLY: DefineParametersPIC
+USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
 !USE MOD_DSMC_Init       ,ONLY: DefineParametersDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -60,6 +62,8 @@ CALL DefineParametersFilter()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 CALL DefineParametersParticles()
+CALL DefineParametersPIC()
+CALL DefineParametersParticleEmission()
 !CALL DefineParametersDSMC()
 
 END SUBROUTINE InitDefineParameters

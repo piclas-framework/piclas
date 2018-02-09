@@ -37,7 +37,7 @@ PUBLIC::DefineParametersPML
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for surfaces (particle-sides)
+!> Define parameters for PML
 !==================================================================================================================================
 SUBROUTINE DefineParametersPML()
 ! MODULES
