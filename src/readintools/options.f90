@@ -33,13 +33,16 @@ MODULE MOD_Options
     LOGICAL               :: multiple     !< default false. Indicates if an option can occur multiple times in parameter file
     LOGICAL               :: isRemoved    !< default false. Indicates if the option is already used (GET... call) and therefore is
                                           !< no longer available in the list of parameters
+    LOGICAL               :: numberedmulti!< default .FALSE. Indicates if option that occurs multiple times in ini file is numbered
+                                          !< example: part-species[$]-surfaceflux[$]-BC --> numberedmulti = .TRUE.
    
   CONTAINS
     PROCEDURE :: print                    !< function used to print option for a default parameter file  
     PROCEDURE :: printValue               !< function used to print the value   
     PROCEDURE :: parse                    !< function that parses a string from the parameter file to fill the value of the option
     PROCEDURE :: parseReal                !< function that parses a string from the parameter file to fill the value of the option
-    PROCEDURE :: NAMEEQUALS               !< function to compare case-insensitive a string with the name of this option
+    PROCEDURE :: NAMEEQUALS               !< function to compare case-insensitive string with the name of this option
+    PROCEDURE :: NAMEEQUALSNUMBERED       !< function to compare case-insensitive string with the name of this numberedmulti option
     PROCEDURE :: GETNAMELEN               !< function that returns the string length of the name
     PROCEDURE :: GETVALUELEN              !< function that returns the string length required to print the value
   END TYPE OPTION
@@ -147,6 +150,46 @@ LOGICAL            :: NAMEEQUALS
 !==================================================================================================================================
 NAMEEQUALS = STRICMP(this%name, name)
 END FUNCTION NAMEEQUALS
+
+!==================================================================================================================================
+!> Compares name, that contains numbers, with the name of the numberedmulti option, that contains "[$]" (case-insensitive)
+!==================================================================================================================================
+FUNCTION NAMEEQUALSNUMBERED(this, name)
+! MODULES
+USE MOD_StringTools ,ONLY: STRICMP
+USE MOD_ISO_VARYING_STRING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(OPTION),INTENT(IN)    :: this !< CLASS(OPTION)
+CHARACTER(LEN=*),INTENT(IN) :: name !< incoming name, which is compared with the name of this option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+LOGICAL               :: NAMEEQUALSNUMBERED
+TYPE(Varying_String)  :: aStr,bStr
+CHARACTER(LEN=255)    :: reducedopt
+CHARACTER(LEN=255)    :: reducedname
+CHARACTER(LEN=3)      :: number
+INTEGER               :: i
+!==================================================================================================================================
+!Transform this name into varying string
+aStr=Var_Str(this%name)
+! Remove numberedmulti flag "[$]" from aStr
+aStr=Replace(aStr,"[]"  ,"",Every=.true.)
+aStr=Replace(aStr,"[$]" ,"",Every=.true.)
+aStr=Replace(aStr,"[$$]","",Every=.true.)
+!Transform name into varying string
+bStr=Var_Str(name)
+! Remove numbers from bStr
+DO i=1,9
+  WRITE(UNIT=number,FMT='(I0)') i
+  bStr=Replace(bStr,TRIM(number),"",Every=.true.)
+END DO
+
+reducedopt  = CHAR(aStr)
+reducedname = CHAR(bStr)
+NAMEEQUALSNUMBERED = STRICMP(reducedopt, reducedname)
+END FUNCTION NAMEEQUALSNUMBERED
 
 !==================================================================================================================================
 !> return string-length of name
