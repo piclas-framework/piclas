@@ -66,6 +66,7 @@ TYPE,PUBLIC :: Parameters
 CONTAINS 
   PROCEDURE :: SetSection                 !< routine to set 'actualSection'
   PROCEDURE :: CreateOption               !< general routine to create a option and insert it into the linked list
+                                          !< also checks if option is already created in the linked list
   PROCEDURE :: CreateIntOption            !< routine to generate an integer option
   PROCEDURE :: CreateIntFromStringOption  !< routine to generate an integer option with a optional string representation
   PROCEDURE :: CreateLogicalOption        !< routine to generate an logical option 
@@ -79,6 +80,7 @@ CONTAINS
   PROCEDURE :: read_options               !< routine that loops over the lines of a parameter files 
                                           !< and calls read_option for every option. Outputs all unknow options
   PROCEDURE :: read_option                !< routine that parses a single line from the parameter file.
+  PROCEDURE :: check_options              !< routine that parses a given name and returns flag if found in linkes list.
 END TYPE Parameters
 
 INTERFACE IgnoredParameters
@@ -191,9 +193,41 @@ this%actualSection = section
 END SUBROUTINE SetSection
 
 !==================================================================================================================================
+!> Parses the given name and returns found=true if already defined in linked list.
+!> Therefore it iterates over all entries of this linked list and compares the names to given name.
+!==================================================================================================================================
+FUNCTION check_options(this, name) result(found)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)  :: name  !< line to be parsed
+LOGICAL                      :: found !< marker if option found
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER         :: current
+!==================================================================================================================================
+found = .FALSE.
+
+! iterate over all options and compare names
+current => this%firstLink
+DO WHILE (associated(current))
+  ! compare name
+  IF (current%opt%NAMEEQUALS(name)) THEN
+    found = .TRUE.
+    RETURN
+  END IF
+  current => current%next
+END DO
+
+END FUNCTION check_options
+
+!==================================================================================================================================
 !> General routine to create an option. 
 !> Fills all fields of the option. Since the prms\%parse function is used to set the value, this routine can be abstract for all 
 !> types of options. 
+!> before creating check if option is already existing
 !==================================================================================================================================
 SUBROUTINE CreateOption(this, opt, name, description, value, multiple, numberedmulti)
 ! INPUT/OUTPUT VARIABLES
@@ -207,6 +241,11 @@ LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered 
 ! LOCAL VARIABLES
 CLASS(link), POINTER :: newLink
 !==================================================================================================================================
+IF(this%check_options(name)) THEN
+  CALL Abort(__STAMP__, &
+      'Option "'//TRIM(name)//'" is already defined, can not be defined with the same name twice!')
+END IF
+
 opt%hasDefault = PRESENT(value)
 IF (opt%hasDefault) THEN
   CALL opt%parse(value)
@@ -468,7 +507,7 @@ END SUBROUTINE insertOption
 !> Therefore the file is read line by line. After removing comments and all white spaces each line is parsed in the 
 !> prms\%read_option() routine. Outputs all unknown options.
 !==================================================================================================================================
-SUBROUTINE read_options(this, filename) 
+SUBROUTINE read_options(this, filename, furtherini) 
 ! MODULES
 USE MOD_StringTools ,ONLY: STRICMP,GetFileExtension
 IMPLICIT NONE
@@ -476,6 +515,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT) :: this     !< CLASS(Parameters)
 CHARACTER(LEN=255),INTENT(IN)   :: filename !< name of file to be read
+LOGICAL,INTENT(IN),OPTIONAL     :: furtherini !< flag if read ini file is first or further
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 CLASS(link), POINTER  :: current
@@ -483,10 +523,14 @@ INTEGER               :: stat,iniUnit,nLines,i
 TYPE(Varying_String)  :: aStr,bStr
 CHARACTER(LEN=255)    :: HelpStr
 LOGICAL               :: firstWarn=.TRUE.
+LOGICAL               :: furtherini_loc=.FALSE.
 CHARACTER(LEN=255),ALLOCATABLE :: FileContent(:)
 CHARACTER(LEN=1)      :: tmpChar=''
 !==================================================================================================================================
-CALL this%CreateLogicalOption('ColoredOutput','Colorize stdout, included for compatibility with FLEXI', '.TRUE.')
+IF (Present(furtherini)) furtherini_loc = furtherini
+IF (.NOT.furtherini_loc) THEN
+  CALL this%CreateLogicalOption('ColoredOutput','Colorize stdout, included for compatibility with FLEXI', '.TRUE.')
+END IF
 
 IF(MPIROOT)THEN
   ! Get name of ini file
@@ -588,8 +632,13 @@ DO WHILE (associated(current))
 END DO
 
 ! check for colored output 
-use_escape_codes = GETLOGICAL("ColoredOutput")
+IF (.NOT.use_escape_codes_read) THEN
+  use_escape_codes = GETLOGICAL("ColoredOutput")
+  use_escape_codes_read = .TRUE.
+END IF
 END SUBROUTINE read_options
+
+
 
 !==================================================================================================================================
 !> Parses one line of parameter file and sets the value of the specific option in the 'prms' linked list.
