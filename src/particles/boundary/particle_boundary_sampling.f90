@@ -94,7 +94,7 @@ INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:) !help ar
 !===================================================================================================================================
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
-WRITE(UNIT=hilf,FMT='(I2)') NGeo
+WRITE(UNIT=hilf,FMT='(I0)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo

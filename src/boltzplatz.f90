@@ -110,7 +110,7 @@ CALL prms%read_options(ParameterFile)
 ! Check if we want to read in DSMC.ini
 IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
-    CALL prms%read_options(ParameterDSMCFile)
+    CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
   END IF
 END IF
 

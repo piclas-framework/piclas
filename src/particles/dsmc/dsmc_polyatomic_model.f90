@@ -52,7 +52,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
 
   JToEv = 1.602176565E-19
-  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
   PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec','.TRUE.')
   IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
@@ -88,14 +88,14 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
     PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2:3) = 1
   ELSE
     DO iVibDOF = 1,3
-      WRITE(UNIT=hilf2,FMT='(I2)') iVibDOF
+      WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
       PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = &
         GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot'//TRIM(hilf2),'0')
     END DO
   END IF
   ! Read-in of characteristic vibrational temperature and calculation of zero-point energy
   DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF 
-    WRITE(UNIT=hilf2,FMT='(I2)') iVibDOF
+    WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
     PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) =  &
       GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2),'0.')
     IF(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF).EQ.0.) THEN

@@ -119,7 +119,9 @@ PUBLIC::  split_string
 
 LOGICAL :: use_escape_codes = .TRUE.  !< If set to .FALSE., output will consist only of standard text, allowing the 
                                       !< escape characters to be switched off in environments which don't support them.
-PUBLIC :: use_escape_codes                                      
+LOGICAL :: use_escape_codes_read = .FALSE.  !< Flag set .TRUE. if use_escape_codes was read so 
+                                            !< if further read no more read in is done
+PUBLIC :: use_escape_codes,use_escape_codes_read
 !==================================================================================================================================
 
 CONTAINS

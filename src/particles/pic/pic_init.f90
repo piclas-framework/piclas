@@ -116,7 +116,7 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'     , 'TODO-DEFINE-PARAMET
 !  DoSFEqui   = GETLOGICAL('PIC-shapefunction-equi','F')
 !
 !  DeltaType = GETINT('PIC-DeltaType','1')
-!  WRITE(hilf,'(I2)') PP_N
+!  WRITE(hilf,'(I0)') PP_N
 !  NDepo     = GETINT('PIC-DeltaType-N',hilf)
 !
 !  BGMdeltas(1:3) = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
