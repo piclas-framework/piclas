@@ -26,7 +26,6 @@ USE MOD_RecordPoints     ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDisc         ,ONLY: DefineParametersTimedisc
 USE MOD_Mesh             ,ONLY: DefineparametersMesh
 USE MOD_Particle_Mesh    ,ONLY: DefineparametersParticleMesh
-USE MOD_Particle_Surfaces,ONLY: DefineParametersParticleSurfaces
 USE MOD_Equation         ,ONLY: DefineParametersEquation
 USE MOD_PML              ,ONLY: DefineParametersPML
 USE MOD_Dielectric       ,ONLY: DefineParametersDielectric
@@ -35,7 +34,7 @@ USE MOD_Boltzplatz_Init  ,ONLY: DefineParametersBoltzplatz
 USE MOD_ParticleInit     ,ONLY: DefineParametersParticles
 USE MOD_PICInit          ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
-!USE MOD_DSMC_Init       ,ONLY: DefineParametersDSMC
+!USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -54,7 +53,6 @@ CALL DefineParametersLoadBalance()
 CALL DefineParametersTimedisc()
 CALL DefineparametersMesh()
 CALL DefineparametersParticleMesh()
-CALL DefineparametersParticleSurfaces()
 CALL DefineParametersEquation()
 CALL DefineParametersPML()
 CALL DefineParametersDielectric()
