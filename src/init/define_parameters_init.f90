@@ -2,7 +2,7 @@
 
 MODULE MOD_Define_Parameters_Init
 !===================================================================================================================================
-! initialization of all defined parameters
+! Initialization of all defined parameters
 !===================================================================================================================================
 
 PUBLIC:: InitDefineParameters
@@ -36,7 +36,7 @@ USE MOD_PICInit          ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
 !USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
-! insert modules here
+! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
