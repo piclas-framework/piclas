@@ -38,6 +38,7 @@ USE MOD_PICInit          ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 USE MOD_LD_Init          ,ONLY: DefineParametersLD
+USE MOD_DSMC_SurfModelInit,ONLY: DefineParametersSurfModel
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -69,6 +70,7 @@ CALL DefineParametersPIC()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 CALL DefineParametersLD()
+CALL DefineParametersSurfModel()
 
 END SUBROUTINE InitDefineParameters
 
