@@ -37,9 +37,11 @@ SUBROUTINE DefineParametersParticles()
 USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("Particles")
+CALL prms%SetSection("Particle")
 
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'TODO-DEFINE-PARAMETER', '0.0')
+CALL prms%CreateIntOption(      'Part-nSpecies' , 'Number of species used in calculation', '1')
+CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maimum number of Particles per proc (used for array init)', '1')
 CALL prms%CreateRealOption(     'Particles-dt_part_ratio'  , 'TODO-DEFINE-PARAMETER', '3.8')
 CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PARAMETER', '1.0')
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'  , 'TODO-DEFINE-PARAMETER', '0')
@@ -63,10 +65,8 @@ CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'  , 'TODO-DEFINE-PARA
 
 CALL prms%CreateIntOption(      'Part-LorentzType' , 'TODO-DEFINE-PARAMETER', '3')
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds',     'Flag defining if random seeds are written.', '.FALSE.')
-CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Number of Particles per proc (used for array init)', '1')
 CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
                                 , '100000')
-CALL prms%CreateIntOption(      'Part-nSpecies' , 'Number of species used in calculation', '1')
 ! IMD things
 CALL prms%CreateRealOption(     'IMDTimeScale'  , 'TODO-DEFINE-PARAMETER', '10.18e-15')
 CALL prms%CreateRealOption(     'IMDLengthScale', 'TODO-DEFINE-PARAMETER' , '1.0e-10')
@@ -79,37 +79,69 @@ CALL prms%CreateStringOption(   'IMDInputFile'  , 'TODO-DEFINE-PARAMETER' , 'no 
 ! vmpf stuff
 CALL prms%CreateLogicalOption(  'Part-vMPF',     'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge',     'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateIntOption(     'Part-vMPFMergePolOrder'  , 'TODO-DEFINE-PARAMETER', '2')
-CALL prms%CreateIntOption(     'Part-vMPFCellSplitOrder'  , 'TODO-DEFINE-PARAMETER', '15')
-CALL prms%CreateIntOption(     'Part-vMPFMergeParticleTarget'  , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateIntOption(     'Part-vMPFSplitParticleTarget'  , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateIntOption(     'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER', '100')
-CALL prms%CreateStringOption(  'Part-vMPFvelocityDistribution'     , 'TODO-DEFINE-PARAMETER' , 'OVDR')
+CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'  , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'  , 'TODO-DEFINE-PARAMETER', '15')
+CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER', '100')
+CALL prms%CreateStringOption(   'Part-vMPFvelocityDistribution'     , 'TODO-DEFINE-PARAMETER' , 'OVDR')
 CALL prms%CreateLogicalOption(  'Part-vMPFrelativistic',     'TODO-DEFINE-PARAMETER', '.FALSE.')
 
 
 CALL prms%SetSection("Particle Sampling")
-
-CALL prms%CreateLogicalOption('Part-WriteOutputMesh', 'Write Output-mesh in vtk at start, seperate mesh for each proc)', '.FALSE.')
            
 ! output of macroscopic values
-CALL prms%CreateLogicalOption(  'Part-WriteMacroValues',     'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Part-WriteMacroVolumeValues',     'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Part-WriteMacroSurfaceValues',     'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-WriteMacroValues'&
+  , 'Set [T] to activate ITERATION DEPENDANT h5 output of macroscopic values sampled every [Part-IterationForMacroVal]'//&
+  ' iterations from particles. Sampling starts from simulation start. Can not be enabled together with Part-TimeFracForSampling.'&
+  , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-WriteMacroVolumeValues'&
+  , 'Similar to Part-WriteMacroValues. Set [T] to activate iteration dependant sampling and h5 output for each element.'//&
+  ' Is automatically set true if Part-WriteMacroValues is true.'//&
+  ' Can not be enbaled if Part-TimeFracForSampling is set.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-WriteMacroSurfaceValues'&
+  , 'Similar to Part-WriteMacroValues. Set [T] to activate iteration dependant sampling and h5 output on surfaces.'//&
+  ' Is automatically set true if Part-WriteMacroValues is true.'//&
+  ' Can not be enbaled if Part-TimeFracForSampling is set.', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-IterationForMacroVal'&
+  , 'Set number of iterations used for sampling if Part-WriteMacroValues is set true.', '1')
 
-CALL prms%CreateIntOption(      'Part-IterationForMacroVal'  , 'TODO-DEFINE-PARAMETER', '1')
-CALL prms%CreateRealOption(     'Part-TimeFracForSampling', 'TODO-DEFINE-PARAMETER' , '0.0')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal',     'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-NumberForDSMCOutputs'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealOption(     'Part-TimeFracForSampling'&
+  , 'Set value greater 0.0 to enable TIME DEPENDANT sampling. The given simulation time fraction will be sampled. Sampling'//&
+  ' starts after TEnd*(1-Part-TimefracForSampling). Can not be enabled together with Part-WriteMacroValues.' , '0.0')
+CALL prms%CreateIntOption(      'Particles-NumberForDSMCOutputs'&
+  , 'Give the number of outputs for time fraction sampling.'//&
+  ' Default value is 1 if Part-TimeFracForSampling is enabled.', '0')
+
+CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
+  , 'Set [T] to acitave sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
+  ' have to be enabled as well.', '.FALSE.')
+
 CALL prms%CreateStringOption(   'DSMC-HOSampling-Type'  , 'TODO-DEFINE-PARAMETER', 'cell_mean')
 CALL prms%CreateIntOption(      'Particles-DSMC-OutputOrder'  , 'TODO-DEFINE-PARAMETER', '1')
+CALL prms%CreateStringOption(   'DSMC-HOSampling-NodeType'  , 'TODO-DEFINE-PARAMETER', 'visu')
+CALL prms%CreateRealArrayOption('DSMCSampVolWe-BGMdeltas'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.')
+CALL prms%CreateRealArrayOption('DSMCSampVolWe-FactorBGM'  , 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
+CALL prms%CreateIntOption(      'DSMCSampVolWe-VolIntOrd'  , 'TODO-DEFINE-PARAMETER', '50')
+CALL prms%CreateIntOption(      'DSMC-nSurfSample'  , 'TODO-DEFINE-PARAMETER. =NGeo', '1')
+
+CALL prms%SetSection("Particle SurfCollis")
+CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_OnlySwaps',     'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Only0Swaps',     'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Output',     'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-AnalyzeSurfCollis',     'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateIntOption(      'Particles-DSMC-maxSurfCollisNumber'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'Particles-DSMC-NumberOfBCs'  , 'TODO-DEFINE-PARAMETER', '1')
+CALL prms%CreateIntOption(      'Particles-DSMC-SurfCollisBC'  , 'TODO-DEFINE-PARAMETER. 0 means all bc', '0')
+CALL prms%CreateIntArrayOption( 'Particles-SurfCollisBC'  , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateIntOption(      'Particles-CalcSurfCollis_NbrOfSpecies'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntArrayOption( 'Particles-CalcSurfCollis_Species'  , 'TODO-DEFINE-PARAMETER')
 
 CALL prms%CreateLogicalOption(  'Part-WriteFieldsToVTK',     'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-ConstPressAddParts',     'TODO-DEFINE-PARAMETER', '.TRUE.')
 CALL prms%CreateLogicalOption(  'Part-ConstPressRemParts',     'TODO-DEFINE-PARAMETER', '.FALSE.')
 
-
-CALL prms%SetSection("Particle Species Init")
+CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
                                 , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
@@ -338,7 +370,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ExcludeRegion[$]-Cuboid
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ExcludeRegion[$]-CylinderHeightIC'  &
                                 , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
 
-CALL prms%SetSection("Particles Boundaries")
+CALL prms%SetSection("Particle Boundaries")
 
 CALL prms%CreateIntOption(      'Part-nBounds'     , 'TODO-DEFINE-PARAMETER', '1')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
@@ -526,7 +558,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
 USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC
-USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK, OutputMesh
+USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
 USE MOD_PICInit,               ONLY:InitPIC
@@ -791,9 +823,6 @@ __STAMP__&
     ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
   END IF
 END IF
-
-!WriteOutputMesh (=vtk mesh at start, seperate mesh for each proc
-OutputMesh = GETLOGICAL('Part-WriteOutputMesh','.FALSE.')
            
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')

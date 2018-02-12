@@ -97,7 +97,7 @@ PUBLIC::DefineParametersParticleMesh
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for Mesh
+!> Define parameters for particle tracking
 !==================================================================================================================================
 SUBROUTINE DefineParametersParticleMesh()
 ! MODULES
@@ -105,28 +105,50 @@ USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("Particle Mesh and Tracking")
+CALL prms%SetSection('Tracking')
 
-CALL prms%CreateLogicalOption( 'DoRefMapping', "Refmapping [T] or tracing [F] algorithms are used for tracking of particles."&
-                                             ,'.TRUE.')
-CALL prms%CreateLogicalOption( 'TriaTracking', "Triangle-aproximation [T] or Linear-sides [F] algorithms are used."//&
-                                                      "Flag is only used for DSMC timediscs."&
-                                             ,'.FALSE.')
-CALL prms%CreateLogicalOption( 'CountNbOfLostParts',  "Count number of completely lost particles during tracking",'.FALSE.')
-CALL prms%CreateIntOption(     'PartOut',           "TODO-DEFINE-PARAMETER",'0')
-CALL prms%CreateIntOption(     'MPIRankOut',           "TODO-DEFINE-PARAMETER",'0')
-CALL prms%CreateLogicalOption( 'MeasureTrackTime',  "TODO-DEFINE-PARAMETER",'.FALSE.')
-CALL prms%CreateLogicalOption( 'CartesianPeriodic',  "TODO-DEFINE-PARAMETER",'.FALSE.')
-CALL prms%CreateLogicalOption( 'FastPeriodic',  "TODO-DEFINE-PARAMETER",'.FALSE.')
-CALL prms%CreateIntOption(     'RefMappingGuess',"TODO-DEFINE-PARAMETER. If useCurved default (2) or (3) for CL else (1)")
-CALL prms%CreateRealOption(     'RefMappingEps', 'TODO-DEFINE-PARAMETER' , '1e-4')
-CALL prms%CreateRealOption(     'BezierEpsilonBilinear', 'TODO-DEFINE-PARAMETER' , '1e-6')
-CALL prms%CreateIntOption(     'BezierElevation',"TODO-DEFINE-PARAMETER.",'0')
-CALL prms%CreateIntOption(     'BezierSampleN',"TODO-DEFINE-PARAMETER. Defualt value: NGeo",'0')
+CALL prms%CreateLogicalOption( 'DoRefMapping'&
+  , 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
+  , '.TRUE.')
+
+CALL prms%CreateLogicalOption( 'TriaTracking'&
+  , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for tracing algorithms.'//&
+  ' Currently flag is only used in DSMC timediscs.'&
+  ,'.FALSE.')
+
+CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
+  , 'Count number of lost particles during tracking that can not be found with fallbacks.','.FALSE.')
+CALL prms%CreateIntOption(     'PartOut'&
+  , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
+CALL prms%CreateIntOption(     'MPIRankOut'&
+  , 'If compiled with CODE_ANALYZE flag: This MPI-Proc writes the tracking information for the defined PartOut.','0')
+CALL prms%CreateLogicalOption( 'MeasureTrackTime'&
+  , 'If .TRUE. then the time how long the tracking routines are called are sampled and written for each MPI-Proc.','.FALSE.')
+CALL prms%CreateLogicalOption( 'CartesianPeriodic'&
+  , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption( 'FastPeriodic'&
+  , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateIntOption(     'RefMappingGuess'&
+  , 'TODO-DEFINE-PARAMETER. If useCurved default (2) or (3) for CL else (1)')
+CALL prms%CreateRealOption(    'RefMappingEps'&
+  , 'TODO-DEFINE-PARAMETER' , '1e-4')
+CALL prms%CreateRealOption(    'BezierEpsilonBilinear'&
+  , 'TODO-DEFINE-PARAMETER' , '1e-6')
+CALL prms%CreateIntOption(     'BezierElevation'&
+  , 'TODO-DEFINE-PARAMETER.','0')
+CALL prms%CreateIntOption(     'BezierSampleN'&
+  , 'TODO-DEFINE-PARAMETER. Defualt value: NGeo','0')
+
 ! Background mesh init variables
-CALL prms%CreateRealArrayOption('Part-FIBGMdeltas', 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
-CALL prms%CreateRealArrayOption('Part-FactorFIBGM', 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
-CALL prms%CreateLogicalOption( 'printMPINeighborWarnings',  "TODO-DEFINE-PARAMETER",'.FALSE.')
+CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
+  , 'Define the deltas for the cartesian Fast-Init-Background-Mesh.'//&
+  ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
+  , '1. , 1. , 1.')
+CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
+  , 'Factor with which the background mesh will be scaled.'&
+  , '1. , 1. , 1.')
+CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
+  ,  'TODO-DEFINE-PARAMETER','.FALSE.')
 
 END SUBROUTINE DefineParametersParticleMesh
 
