@@ -45,8 +45,50 @@ PUBLIC:: CalcPowerDensity
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
 !===================================================================================================================================
+PUBLIC::DefineParametersParticleAnalyze
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for analyze if particles (.csv output)
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleAnalyze()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+!USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Particle Analyze")
+
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'   , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCharge'         , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcKineticEnergy'  , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcInternalEnergy' , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTemp'           , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPartBalance'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcVelos'          , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateIntArrayOption( 'VelocityDirections' , 'x,y,z,abs -> 0/1 = T/F. TODO-DEFINE-PARAMETER','1 , 1 , 1 , 1')
+CALL prms%CreateLogicalOption(  'Part-TrackPosition' , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'printDiff'          , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateRealOption(     'printDiffTime'      , 'TODO-DEFINE-PARAMETER','12.')
+CALL prms%CreateRealArrayOption('printDiffVec'       , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
+CALL prms%CreateLogicalOption(  'CalcNumSpec'        , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCollRates'      , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcReacRates'      , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfNumSpec'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfCoverage'   , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcAccomodation'   , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcEvaporation'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcAdsorbRates'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfRates'      , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcShapeEfficiency', 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , 'TODO-DEFINE-PARAMETER','AllParts')
+CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'   , 'TODO-DEFINE-PARAMETER','100') 
+CALL prms%CreateLogicalOption(  'IsRestart'          , 'TODO-DEFINE-PARAMETER','.FALSE.')
+
+END SUBROUTINE DefineParametersParticleAnalyze
 
 SUBROUTINE InitParticleAnalyze()
 !===================================================================================================================================

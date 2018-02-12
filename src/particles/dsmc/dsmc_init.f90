@@ -28,8 +28,177 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD, FinalizeDSMC
 !===================================================================================================================================
-
+PUBLIC::DefineParametersDSMC
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for DSMC (Direct Simulation Monte Carlo)
+!==================================================================================================================================
+SUBROUTINE DefineParametersDSMC()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("DSMC")
+
+CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshInit'      , 'TODO-DEFINE-PARAMETER. not working currently' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshSamp'      , 'TODO-DEFINE-PARAMETER. not working currently' , '.FALSE.')
+
+CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      , 'Define collision mode in DSMC.'//&
+  ' 0: no collis, 1:elastic col, 2:elast+rela, 3:chem.', '1')
+CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'      , '1: Laux, 2:Gimelsheim.', '1')
+CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
+  , 'Define the rotational relaxation probability upon collision of molecules', '0.2')
+CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
+  , 'Define the vibrational relaxation probability upon collision of molecules', '0.02')
+CALL prms%CreateRealOption(     'Particles-DSMC-ElecRelaxProb'&
+  , 'Define the elextronic relaxation probability upon collision of molecules', '0.01')
+CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
+  , 'Set the gamma quant for zero point energy. TODO-DEFINE-PARAMETER.', '0.5')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-BackwardReacRate'&
+  , 'Set [TRUE] if backwards reactions rates are calculated from forward reactions or [FALSE]'//&
+  ' if they are defined as separate reactions.' , '.FALSE.')
+CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
+  , 'Define max. temperature for partition function that are used for calculation of backwards rates', '20000.0')
+CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
+  , 'Define temperature intervals of partition functions that are used for calculation of backwards rates', '10.0')
+!-----------------------------------------------------------------------------------
+CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
+  , 'Set [TRUE] to calculate and h5 element output of Qualityfactors. (Mean separation distance, maximum collision'//&
+  ' probability)' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSim'&
+  , 'Only TD=Reservoir (42). Set [TRUE] to disable particle movement. Use for reservoir simulations.' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSimRate'&
+  , 'Only TD=Reservoir (42). Set [TRUE] to disable particle reactions. Only probabilities (rates) are calculated.' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic'&
+  , 'Only TD=Reservoir (42). Probabilities (rates) are calculated [TRUE] counting reacting particles.'//&
+  ' [FALSE] summing reaction probabilities.' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
+  , 'Only TD=Reservoir (42). Set [TRUE] to disable particle adsorption and desorption and keep surface coverage constant.'//&
+  ' Only probabilities (rates) are calculated.' , '.FALSE.')
+CALL prms%CreateIntOption(      'Particles-ModelForVibrationEnergy'&
+  , 'Define model used for vibrational degrees of freedom. 0: SHO, 1:TSHO.', '0')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
+  , 'TODO-DEFINE-PARAMETER.' , '.FALSE.')
+CALL prms%CreateIntOption(      'Particles-DSMC-WallModel'&
+  , 'Define Model used for surface chemistry. If >0 then look in section DSMC Surface.'//&
+  ' 0: Maxwell scattering, 1: Kisliuk / Polanyi Wigner (currently not working),'//&
+  ' 2:Recombination model, 3: surface reconstruction / UBI-QEP', '0')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicModel'&
+  , 'Set [TRUE] if electronic model is used.' , '.FALSE.')
+CALL prms%CreateStringOption(    'Particles-DSMCElectronicDatabase'&
+  , 'If electronic model is used give (relative) path to (h5) electronic database' , 'none')
+CALL prms%CreateRealOption(     'EpsMergeElectronicState'&
+  , 'TODO-DEFINE-PARAMETER.' , '1E-4')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-UseQCrit'&
+  , 'Set [TRUE] to enable steady state detection using Q-criterion.' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
+  , 'Set [TRUE] to enable steady state detection using 3SD routines.' , '.FALSE.')
+CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGas'&
+  , 'Define Species number that is used as background gas', '0')
+CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGasDensity'&
+  , 'Define Species number density for background gas', '0')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
+  , 'Set method used for vibrational relaxation. [TRUE]: all processes with ARM, [FALSE]: ARM Num_atoms<=3 MH Numatoms>3'&
+  , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
+  , 'Only TD=Reservoir (42). TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
+  , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateIntOption(      'Particles-OctreePartNumNode'&
+  , 'TODO-DEFINE-PARAMETER', '80')
+CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
+  , 'TODO-DEFINE-PARAMETER', '50')
+
+
+CALL prms%SetSection("DSMC Species")
+
+CALL prms%CreateStringOption(   'Part-Species[$]-SpeciesName'  &
+                                , 'TODO-DEFINE-PARAMETER', 'none', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(     'Part-Species[$]-InteractionID'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceTemp'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceDiam' &
+                                , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-TempRefRot'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CollNumVib'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateRealOption(     'Part-Species[$]-TempVib'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-TempRot'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-TempElec'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-TempVib'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-TempRot'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-TempElec'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-TempVib'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-TempRot'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-TempElec'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateRealOption(     'Part-Species[$]-HeatOfFormation_K'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.123456789', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-PreviousState'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-NextIonizationSpecies'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-NumElectronicLevels'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-ElectronicDegeneracy-Level[$]'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-ElectronicEnergyLevel-Level[$]'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateIntOption(      'Part-Species[$]-SymmetrieFactor'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+
+CALL prms%CreateRealOption(     'Part-Species[$]-IonizationEn_eV'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-RelPolarizability'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-NumEquivElecOutShell'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-NumOfProtons'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+
+
+CALL prms%SetSection("DSMC Species Polyatomic")
+CALL prms%CreateLogicalOption(  'Part-Species[$]-PolyatomicMol'  &
+                                , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-LinearMolec'  &
+                                , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-NumOfAtoms'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+
+END SUBROUTINE DefineParametersDSMC
 
 SUBROUTINE InitDSMC()
 !===================================================================================================================================
@@ -176,7 +345,7 @@ IMPLICIT NONE
 ! reading species data of ini_2
   ALLOCATE(SpecDSMC(nSpecies))
   DO iSpec = 1, nSpecies
-    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
     SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
     SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
@@ -302,7 +471,7 @@ IMPLICIT NONE
     END IF
     DO iSpec = 1, nSpecies
       IF(.NOT.(SpecDSMC(iSpec)%InterID.EQ.4)) THEN
-        WRITE(UNIT=hilf,FMT='(I2)') iSpec
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
         SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
         IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%DoTEVRRelaxation)  THEN
           CALL Abort(&
@@ -346,7 +515,7 @@ IMPLICIT NONE
         IF(DSMC%VibRelaxProb.GT.1.0) THEN
           ALLOCATE(SpecDSMC(iSpec)%MW_Const(1:nSpecies))
           DO jSpec = 1, nSpecies
-            WRITE(UNIT=hilf2,FMT='(I2)') jSpec
+            WRITE(UNIT=hilf2,FMT='(I0)') jSpec
             hilf2=TRIM(hilf)//'-'//TRIM(hilf2)
             SpecDSMC(iSpec)%MW_Const(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConst-'//TRIM(hilf2),'0.')
             IF(SpecDSMC(iSpec)%MW_Const(jSpec).EQ.0) THEN
@@ -373,7 +542,7 @@ IMPLICIT NONE
           IF (iInit .EQ. 0) THEN !0. entry := old style parameter def. (default values if not def., some values might be needed)
             hilf2=TRIM(hilf)
           ELSE ! iInit >0
-            WRITE(UNIT=hilf2,FMT='(I2)') iInit
+            WRITE(UNIT=hilf2,FMT='(I0)') iInit
             hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
           END IF ! iInit
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -400,7 +569,6 @@ __STAMP__&
           END IF
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
-            WRITE(UNIT=hilf,FMT='(I2)') iSpec
             SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
             IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
               IF (iInit.EQ.0)THEN
@@ -424,7 +592,7 @@ __STAMP__&
         ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            WRITE(UNIT=hilf2,FMT='(I2)') iInit
+            WRITE(UNIT=hilf2,FMT='(I0)') iInit
             hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
@@ -436,7 +604,6 @@ __STAMP__&
           END IF
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
-            WRITE(UNIT=hilf,FMT='(I2)') iSpec
             SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
@@ -478,7 +645,6 @@ __STAMP__&
           END IF
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
-            WRITE(UNIT=hilf,FMT='(I2)') iSpec
             SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   =  Partbound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iInit)%BC)
             !SpecDSMC(iSpec)%Init(0)%Telec
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
@@ -633,7 +799,7 @@ __STAMP__&
       END IF
     END IF
     DO iSpec = 1, nSpecies
-      WRITE(UNIT=hilf,FMT='(I2)') iSpec
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! Read-in of heat of formation, ions shall have the same input as the respective neutral species since ionization energy is
       ! added later. Energies are then consistent across chemical reactions of QK and Arrhenius type.
       SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfFormation_K','0.123456789')
@@ -667,7 +833,7 @@ __STAMP__&
           IF(SpecDSMC(iSpec)%MaxElecQuant.GT.0) THEN
             ALLOCATE(SpecDSMC(iSpec)%ElectronicState(2,0:SpecDSMC(iSpec)%MaxElecQuant-1))
             DO iDOF=1, SpecDSMC(iSpec)%MaxElecQuant
-              WRITE(UNIT=hilf2,FMT='(I2)') iDOF
+              WRITE(UNIT=hilf2,FMT='(I0)') iDOF
               SpecDSMC(iSpec)%ElectronicState(1,iDOF-1) &
                 = GETINT('Part-Species'//TRIM(hilf)//'-ElectronicDegeneracy-Level'//TRIM(hilf2),'0')
               SpecDSMC(iSpec)%ElectronicState(2,iDOF-1) &
@@ -743,7 +909,7 @@ __STAMP__&
     CALL DSMC_chemical_init()
   ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.GT.1) THEN
     DO iSpec = 1, nSpecies
-      WRITE(UNIT=hilf,FMT='(I2)') iSpec
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
       IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
         SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor','0')
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN

@@ -54,9 +54,7 @@ CALL prms%CreateRealOption(   'Analyze_dt'       , "Specifies time intervall at 
 CALL prms%CreateIntOption(    'NAnalyze'         , "Polynomial degree at which analysis is performed (e.g. for L2 errors). "//&
                                                    "Default: 2*N.")
 CALL prms%CreateIntOption(    'nSkipAnalyze'     , "TODO-DEFINE-PARAMETER (Skip Analyze-Dt)")
-CALL prms%CreateLogicalOption('doCalcTimeAverage', "TODO-DEFINE-PARAMETER")
-CALL prms%CreateIntOption(    'PartAnalyzeStep'  , "TODO-DEFINE-PARAMETER") 
-CALL prms%CreateLogicalOption('CalcEpot'         , "TODO-DEFINE-PARAMETER")
+CALL prms%CreateLogicalOption('CalcTimeAverage'  , "TODO-DEFINE-PARAMETER")
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
@@ -115,14 +113,6 @@ Analyze_dt=GETREAL('Analyze_dt','0.')
 nSkipAnalyze=GETINT('nSkipAnalyze','1')
 doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
-
-#ifndef PARTICLES
-PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
-DoAnalyze = .FALSE.
-CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
-IF(CalcEpot) DoAnalyze = .TRUE.
-#endif /*PARTICLES*/
 
 AnalyzeInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
