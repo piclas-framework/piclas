@@ -32,7 +32,7 @@ PUBLIC::DefineParametersEquation
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for surfaces (particle-sides)
+!> Define parameters for equation
 !==================================================================================================================================
 SUBROUTINE DefineParametersEquation()
 ! MODULES

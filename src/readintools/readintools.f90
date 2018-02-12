@@ -569,7 +569,7 @@ IF(MPIROOT)THEN
 END IF
 
 !broadcast number of lines, read and broadcast file content
-#if USE_MPI
+#ifdef MPI
 CALL MPI_BCAST(nLines,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 #endif
 ALLOCATE(FileContent(nLines))
@@ -580,7 +580,7 @@ IF ((MPIROOT).AND.(nLines.GT.0)) THEN
   READ(iniUnit,'(A)') FileContent
 END IF
 IF (MPIROOT) CLOSE(iniUnit)
-#if USE_MPI
+#ifdef MPI
 CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_WORLD,iError)
 #endif
 
@@ -1589,9 +1589,9 @@ IF (MPIRoot) THEN
   CLOSE(fileUnit)
   CLOSE(iniUnit)
 END IF
-#if USE_MPI
+#ifdef MPI
 CALL MPI_BCAST(userblockFound,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
-#endif /*USE_MPI*/
+#endif /*MPI*/
 
 END SUBROUTINE ExtractParameterFile
 

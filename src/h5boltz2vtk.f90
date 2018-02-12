@@ -34,9 +34,9 @@ USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
 USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
-#if USE_MPI
+#ifdef MPI
 USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
-#endif /*USE_MPI*/
+#endif /*MPI*/
 
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -243,10 +243,10 @@ DO iArgs = 2,nArgs
     END IF
     ! Deallocate and finalize mesh vars
     SDEALLOCATE(NodeCoords)
-#if USE_MPI
+#ifdef MPI
     SDEALLOCATE(NbProc)
     SDEALLOCATE(nMPISides_Proc)
-#endif /*USE_MPI*/
+#endif /*MPI*/
     CALL FinalizeMesh()
 
     ! Read in parameters from mesh file
@@ -410,7 +410,7 @@ CALL FinalizeMesh()
 
 ! Measure processing duration
 Time=BOLTZPLATZTIME()
-#if USE_MPI
+#ifdef MPI
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) THEN
   CALL abort(__STAMP__,&
