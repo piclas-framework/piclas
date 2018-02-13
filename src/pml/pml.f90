@@ -45,24 +45,31 @@ USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("PML")
+CALL prms%SetSection("Perfectly Matched Layer (PML) Region")
 
-CALL prms%CreateLogicalOption(  'DoPML'            , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateRealOption(     'PMLzeta0'         , 'TODO-DEFINE-PARAMETER' , '0.')
-CALL prms%CreateRealOption(     'PMLalpha0'        , 'TODO-DEFINE-PARAMETER' , '0.')
-CALL prms%CreateIntOption(      'PMLzetaShape'     , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateRealOption(     'PMLRampLength'    , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateIntOption(      'PMLspread'        , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateIntOption(      'PMLwriteFields'   , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateLogicalOption(  'PMLzetaNorm'      , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DoPML'            , 'Use a PML region' , '.FALSE.')
+CALL prms%CreateRealOption(     'PMLzeta0'         , 'Damping parameter maximum' , '0.')
+CALL prms%CreateRealOption(     'PMLalpha0'        , 'Complex frequency shift parameter' , '0.')
+CALL prms%CreateIntOption(      'PMLzetaShape'     , 'Parameter for selecting the shape of the damping function'&
+    //'0=constant, 1=linear, 2=sinusoidal, 3=polynomial of degree 4', '0')
+CALL prms%CreateRealOption(     'PMLRampLength'    , 'Parameter for defining the relative length of the ramping region'//&
+    ' in the PML. Ranges from 0.0 to 1.0' , '1.')
+CALL prms%CreateIntOption(      'PMLspread'        , 'Use damping parameter spreading, which distributes the values to all DOF'&
+    , '0')
+CALL prms%CreateIntOption(      'PMLwriteFields'   , 'Write the PML region information to .h5 file (CURRENTLY DEPRICATED)'&
+    , '0')
+CALL prms%CreateLogicalOption(  'PMLzetaNorm'      , 'Use damping parameter normalization (CURRENTLY DEPRICATED)' , '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'DoPMLTimeRamp'    , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateRealOption(     'PMLTimeRamptStart', 'TODO-DEFINE-PARAMETER' , '-1.')
-CALL prms%CreateRealOption(     'PMLTimeRamptEnd'  , 'TODO-DEFINE-PARAMETER' , '-1.')
+CALL prms%CreateLogicalOption(  'DoPMLTimeRamp'    , 'Use damping parameter ramping over time' , '.FALSE.')
+CALL prms%CreateRealOption(     'PMLTimeRamptStart', 'Time to start the damping parameter ramping over time' , '-1.')
+CALL prms%CreateRealOption(     'PMLTimeRamptEnd'  , 'Time to stop the damping parameter ramping over time' , '-1.')
 
-CALL prms%CreateRealArrayOption('xyzPhysicalMinMax'     , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
-CALL prms%CreateRealArrayOption('xyzPMLzetaShapeOrigin' , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0')
-CALL prms%CreateRealArrayOption('xyzPMLMinMax'          , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzPhysicalMinMax'     , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a'&
+    //' PML region by giving the bounding box coordinates of the PHYSICAL region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzPMLzetaShapeOrigin' , 'The origin for defining a rising of declining slope'&
+    //' of the PML region damping parameters', '0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzPMLMinMax'          , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
+    //' PML region by giving the bounding box coordinates of the PML region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 
 END SUBROUTINE DefineParametersPML
 
