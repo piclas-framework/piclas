@@ -27,7 +27,9 @@ USE MOD_TimeDisc         ,ONLY: DefineParametersTimedisc
 USE MOD_Mesh             ,ONLY: DefineparametersMesh
 USE MOD_Particle_Mesh    ,ONLY: DefineparametersParticleMesh
 USE MOD_Equation         ,ONLY: DefineParametersEquation
+#ifndef PP_HDG
 USE MOD_PML              ,ONLY: DefineParametersPML
+#endif /*PP_HDG*/
 USE MOD_TTMInit          ,ONLY: DefineParametersTTM
 USE MOD_Dielectric       ,ONLY: DefineParametersDielectric
 USE MOD_Filter           ,ONLY: DefineParametersFilter
@@ -38,6 +40,7 @@ USE MOD_PICInit          ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 USE MOD_LD_Init          ,ONLY: DefineParametersLD
+USE MOD_DSMC_SurfModelInit,ONLY: DefineParametersSurfModel
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -57,7 +60,9 @@ CALL DefineParametersTimedisc()
 CALL DefineparametersMesh()
 CALL DefineparametersParticleMesh()
 CALL DefineParametersEquation()
+#ifndef PP_HDG
 CALL DefineParametersPML()
+#endif /*PP_HDG*/
 CALL DefineParametersTTM()
 CALL DefineParametersDielectric()
 CALL DefineParametersFilter()
@@ -69,6 +74,7 @@ CALL DefineParametersPIC()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 CALL DefineParametersLD()
+CALL DefineParametersSurfModel()
 
 END SUBROUTINE InitDefineParameters
 

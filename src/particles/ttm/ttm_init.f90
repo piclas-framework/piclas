@@ -39,7 +39,6 @@ CONTAINS
 SUBROUTINE DefineParametersTTM()
 ! MODULES
 USE MOD_ReadInTools ,ONLY: prms
-!USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("TTM")

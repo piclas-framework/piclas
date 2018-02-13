@@ -173,7 +173,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ElectronicDegeneracy-Level[$]' 
 CALL prms%CreateRealOption(     'Part-Species[$]-ElectronicEnergyLevel-Level[$]'  &
                                 , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
 
-CALL prms%CreateIntOption(      'Part-Species[$]-SymmetrieFactor'  &
+CALL prms%CreateIntOption(      'Part-Species[$]-SymmetryFactor'  &
                                 , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-Species[$]-IonizationEn_eV'  &
