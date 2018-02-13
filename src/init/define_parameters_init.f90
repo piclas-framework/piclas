@@ -18,6 +18,9 @@ SUBROUTINE InitDefineParameters()
 USE MOD_MPI              ,ONLY: DefineParametersMPI
 USE MOD_IO_HDF5          ,ONLY: DefineParametersIO
 USE MOD_Interpolation    ,ONLY: DefineParametersInterpolation
+#if defined(IMEX) || defined(IMPA)
+USE MOD_LinearSolver     ,ONLY: DefineParametersLinearSolver
+#endif
 USE MOD_Output           ,ONLY: DefineParametersOutput
 USE MOD_Restart          ,ONLY: DefineParametersRestart
 USE MOD_LoadBalance      ,ONLY: DefineParametersLoadBalance
@@ -29,6 +32,9 @@ USE MOD_Particle_Mesh    ,ONLY: DefineparametersParticleMesh
 USE MOD_Equation         ,ONLY: DefineParametersEquation
 #ifndef PP_HDG
 USE MOD_PML              ,ONLY: DefineParametersPML
+#endif /*PP_HDG*/
+#ifdef PP_HDG
+USE MOD_HDG              ,ONLY: DefineParametersHDG
 #endif /*PP_HDG*/
 USE MOD_TTMInit          ,ONLY: DefineParametersTTM
 USE MOD_Dielectric       ,ONLY: DefineParametersDielectric
@@ -52,6 +58,9 @@ IMPLICIT NONE
 CALL DefineParametersMPI()
 CALL DefineParametersIO()
 CALL DefineParametersInterpolation()
+#if defined(IMEX) || defined(IMPA)
+CALL DefineParametersLinearSolver()
+#endif
 CALL DefineParametersOutput()
 CALL DefineParametersBoltzplatz()
 CALL DefineParametersRestart()
@@ -62,6 +71,9 @@ CALL DefineparametersParticleMesh()
 CALL DefineParametersEquation()
 #ifndef PP_HDG
 CALL DefineParametersPML()
+#endif /*PP_HDG*/
+#ifdef PP_HDG
+CALL DefineParametersHDG()
 #endif /*PP_HDG*/
 CALL DefineParametersTTM()
 CALL DefineParametersDielectric()

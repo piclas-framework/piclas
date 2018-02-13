@@ -29,9 +29,63 @@ PUBLIC:: LinearSolver
 #endif /*NOT HDG*/
 
 PUBLIC:: InitLinearSolver, FinalizeLinearSolver
+PUBLIC:: DefineParametersLinearSolver
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for Linear solver
+!==================================================================================================================================
+SUBROUTINE DefineParametersLinearSolver()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Linear Solver")
+
+CALL prms%CreateRealOption(     'EpsNewton'   , 'TODO-DEFINE-PARAMETER', '0.001')
+CALL prms%CreateIntOption(      'nNewtonIter' , 'TODO-DEFINE-PARAMETER', '20')
+CALL prms%CreateLogicalOption(  'EisenstatWalker' , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(     'gammaEW'   , 'TODO-DEFINE-PARAMETER', '0.9')
+CALL prms%CreateIntOption(      'nRestarts' , 'TODO-DEFINE-PARAMETER', '1')
+CALL prms%CreateRealOption(     'eps_LinearSolver'   , 'TODO-DEFINE-PARAMETER', '1e-3')
+CALL prms%CreateIntOption(      'maxIter_LinearSolver' , 'TODO-DEFINE-PARAMETER', '60')
+CALL prms%CreateIntOption(      'nKDim' , 'TODO-DEFINE-PARAMETER', '25')
+CALL prms%CreateIntOption(      'maxFullNewtonIter' , 'TODO-DEFINE-PARAMETER', '100')
+CALL prms%CreateRealOption(     'eps_FullNewton'   , 'TODO-DEFINE-PARAMETER', '1e-3')
+CALL prms%CreateIntOption(      'FullEisenstatWalker' , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealOption(     'FullgammaEW'   , 'TODO-DEFINE-PARAMETER', '0.9')
+
+CALL prms%CreateLogicalOption(  'DoPrintConvInfo' , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption(  'DoFieldUpdate' , 'TODO-DEFINE-PARAMETER', '.TRUE.')
+CALL prms%CreateRealOption(     'PartNewtonRelaxation'   , 'TODO-DEFINE-PARAMETER', '1.')
+CALL prms%CreateLogicalOption(  'DoUpdateInStage' , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateIntOption(      'UpdateInIter' , 'TODO-DEFINE-PARAMETER', '-1')
+CALL prms%CreateRealOption(     'PartRelaxationFac'   , 'TODO-DEFINE-PARAMETER', '0.0')
+CALL prms%CreateIntOption(      'AdaptIterRelaxation0' , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateLogicalOption(  'withmass' , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateIntOption(      'LinSolver' , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateIntOption(      'ldim' , 'TODO-DEFINE-PARAMETER', '1')
+
+CALL prms%CreateIntOption(      'Predictor' , 'TODO-DEFINE-PARAMETER', '0')
+
+CALL prms%CreateIntOption(      'PrecondType' , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'PrecondMethod' , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'DebugMatrix' , 'TODO-DEFINE-PARAMETER', '0')
+
+CALL prms%SetSection("Linear Solver Particle")
+
+CALL prms%CreateRealOption(     'EpsPartNewton'   , 'TODO-DEFINE-PARAMETER', '0.001')
+CALL prms%CreateRealOption(     'EpsPartLinSolver'   , 'TODO-DEFINE-PARAMETER', '0.0')
+CALL prms%CreateIntOption(      'nPartNewtonIter' , 'TODO-DEFINE-PARAMETER', '20')
+CALL prms%CreateIntOption(      'FreezePartInNewton' , 'TODO-DEFINE-PARAMETER', '1')
+CALL prms%CreateRealOption(     'PartgammaEW'   , 'TODO-DEFINE-PARAMETER', '0.9')
+CALL prms%CreateRealOption(     'scaleps'   , 'TODO-DEFINE-PARAMETER', '1.')
+CALL prms%CreateLogicalOption(  'DoFullNewton' , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-ImplicitMethod' , 'TODO-DEFINE-PARAMETER', '1')
+
+END SUBROUTINE DefineParametersLinearSolver
 
 SUBROUTINE InitLinearSolver()
 !===================================================================================================================================

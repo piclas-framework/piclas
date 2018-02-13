@@ -97,8 +97,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
   , 'Set [TRUE] to enable steady state detection using 3SD routines.' , '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGas'&
   , 'Define Species number that is used as background gas', '0')
-CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGasDensity'&
-  , 'Define Species number density for background gas', '0')
+CALL prms%CreateRealOption(     'Particles-DSMCBackgroundGasDensity'&
+  , 'Define Species number density for background gas', '0.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
   , 'Set method used for vibrational relaxation. [TRUE]: all processes with ARM, [FALSE]: ARM Num_atoms<=3 MH Numatoms>3'&
   , '.FALSE.')
@@ -197,6 +197,42 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
                                 , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                 , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+
+CALL prms%SetSection("DSMC Chemistry")
+CALL prms%CreateIntOption(      'DSMC-NumOfReactions'  &
+                                , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-NonReactiveSpecies'  &
+                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionType'  &
+                                , 'TODO-DEFINE-PARAMETER', 'none', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-QKProcedure'  &
+                                , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DSMC-Reaction[$]-QK-Method'  &
+                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-QK-Coeff1'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-QK-Coeff2'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
+                                , 'TODO-DEFINE-PARAMETER', '0 , 0 , 0' , numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Products'  &
+                                , 'TODO-DEFINE-PARAMETER', '0 , 0 , 0' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Prefactor'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Powerfactor'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Activation-Energy_K'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXa'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXb'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXa'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
+                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -437,7 +473,7 @@ IMPLICIT NONE
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
-  BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0')
+  BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
   IF (useVTKFileBGG) THEN
     IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') & !(use always Init 0 for BGG !!!)
     CALL abort(&
