@@ -43,11 +43,11 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("TTM")
 
-CALL prms%CreateLogicalOption(  'DoImportTTMFile' , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateStringOption(   'TTMLogFile'      , 'TODO-DEFINE-PARAMETER','no file specified')
-CALL prms%CreateStringOption(   'TTMFile'         , 'TODO-DEFINE-PARAMETER','no file found')
+CALL prms%CreateLogicalOption(  'DoImportTTMFile'      , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateStringOption(   'TTMLogFile'           , 'TODO-DEFINE-PARAMETER','no file specified')
+CALL prms%CreateStringOption(   'TTMFile'              , 'TODO-DEFINE-PARAMETER','no file found')
 CALL prms%CreateIntArrayOption( 'TTMGridFDdim'         , 'TODO-DEFINE-PARAMETER','0 , 0 , 0')
-CALL prms%CreateRealOption(     'TTMElemBaryTolerance'         , 'TODO-DEFINE-PARAMETER','1e-6')
+CALL prms%CreateRealOption(     'TTMElemBaryTolerance' , 'TODO-DEFINE-PARAMETER','1e-6')
 
 END SUBROUTINE DefineParametersTTM
 

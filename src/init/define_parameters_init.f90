@@ -2,7 +2,7 @@
 
 MODULE MOD_Define_Parameters_Init
 !===================================================================================================================================
-! initialization of all defined parameters
+! Initialization of all defined parameters
 !===================================================================================================================================
 
 PUBLIC:: InitDefineParameters
@@ -48,7 +48,7 @@ USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 USE MOD_LD_Init          ,ONLY: DefineParametersLD
 USE MOD_DSMC_SurfModelInit,ONLY: DefineParametersSurfModel
 !----------------------------------------------------------------------------------------------------------------------------------!
-! insert modules here
+! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -57,17 +57,17 @@ IMPLICIT NONE
 !===================================================================================================================================
 CALL DefineParametersMPI()
 CALL DefineParametersIO()
+CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
+CALL DefineParametersRestart()
 #if defined(IMEX) || defined(IMPA)
 CALL DefineParametersLinearSolver()
 #endif
 CALL DefineParametersOutput()
 CALL DefineParametersBoltzplatz()
-CALL DefineParametersRestart()
-CALL DefineParametersLoadBalance()
 CALL DefineParametersTimedisc()
-CALL DefineparametersMesh()
-CALL DefineparametersParticleMesh()
+CALL DefineParametersMesh()
+CALL DefineParametersParticleMesh()
 CALL DefineParametersEquation()
 #ifndef PP_HDG
 CALL DefineParametersPML()
