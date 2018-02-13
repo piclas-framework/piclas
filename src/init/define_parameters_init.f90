@@ -51,14 +51,14 @@ IMPLICIT NONE
 !===================================================================================================================================
 CALL DefineParametersMPI()
 CALL DefineParametersIO()
+CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
+CALL DefineParametersRestart()
 CALL DefineParametersOutput()
 CALL DefineParametersBoltzplatz()
-CALL DefineParametersRestart()
-CALL DefineParametersLoadBalance()
 CALL DefineParametersTimedisc()
-CALL DefineparametersMesh()
-CALL DefineparametersParticleMesh()
+CALL DefineParametersMesh()
+CALL DefineParametersParticleMesh()
 CALL DefineParametersEquation()
 #ifndef PP_HDG
 CALL DefineParametersPML()
