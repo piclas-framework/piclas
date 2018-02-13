@@ -8,7 +8,7 @@ PROGRAM Boltzplatz
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_Commandline_Arguments
-USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile
+USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Boltzplatz_Init        ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
@@ -30,7 +30,8 @@ USE MOD_StringTools            ,ONLY:STRICMP, GetFileExtension
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL    :: Time
+REAL                    :: Time
+LOGICAL                 :: userblockFound
 !===================================================================================================================================
 
 CALL InitMPI()
@@ -85,7 +86,7 @@ IF (nArgs.EQ.2) THEN
   END IF
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "h5")) THEN
     RestartFile = ParameterDSMCFile
-    ParameterDSMCFile = 'no file found'
+    ParameterDSMCFile = '' !'no file found'
   END IF
 ELSE IF (nArgs.GT.2) THEN
   ParameterDSMCFile = Args(2)
@@ -96,14 +97,14 @@ ELSE IF (nArgs.GT.2) THEN
   END IF
 ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
   ! Print out error message containing valid syntax
-  CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
-    'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
-  !ParameterFile = ".boltzplatz.ini" 
-  !CALL ExtractParameterFile(Args(1), ParameterFile, userblockFound)
-  !IF (.NOT.userblockFound) THEN
-  !  CALL CollectiveStop(__STAMP__, "No userblock found in state file '"//TRIM(Args(1))//"'")
-  !END IF
-  !RestartFile = Args(1)
+  !CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+  !  'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  ParameterFile = ".boltzplatz.ini" 
+  CALL ExtractParameterFile(Args(1), ParameterFile, userblockFound)
+  IF (.NOT.userblockFound) THEN
+    CALL CollectiveStop(__STAMP__, "No userblock found in state file '"//TRIM(Args(1))//"'")
+  END IF
+  RestartFile = Args(1)
 END IF
 
 CALL prms%read_options(ParameterFile)

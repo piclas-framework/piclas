@@ -137,7 +137,7 @@ ELSE
 END IF
 
 IF (MPIRoot) THEN
-  ! read userblock length in bytes from data section of flexi-executable
+  ! read userblock length in bytes from data section of boltzplatz-executable
   userblock_len = get_userblock_size()
   inifile_len = get_inifile_size(TRIM(ParameterFile)//C_NULL_CHAR)
   ! prepare userblock file
