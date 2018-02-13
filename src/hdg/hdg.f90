@@ -51,7 +51,7 @@ CALL prms%CreateIntOption(      'AdaptIterFixPoint'      , 'TODO-DEFINE-PARAMETE
 CALL prms%CreateIntOption(      'MaxIterFixPoint'        , 'TODO-DEFINE-PARAMETER', '10000')
 CALL prms%CreateRealOption(     'NormNonlinearDevLimit'  , 'TODO-DEFINE-PARAMETER', '99999.')
 CALL prms%CreateRealOption(     'EpsNonLinear'           , 'TODO-DEFINE-PARAMETER', '1.0E-6')
-CALL prms%CreateIntOption(      'PrecondType'            , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateIntOption(      'PrecondType_HDG'        , 'TODO-DEFINE-PARAMETER', '2')
 CALL prms%CreateRealOption(     'epsCG'                  , 'TODO-DEFINE-PARAMETER', '1.0E-6')
 CALL prms%CreateLogicalOption(  'useRelativeAbortCrit'   , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateIntOption(      'maxIterCG'              , 'TODO-DEFINE-PARAMETER', '500')
@@ -142,7 +142,7 @@ ELSE
 END IF
 
 !CG parameters
-PrecondType=GETINT('PrecondType','2')
+PrecondType=GETINT('PrecondType_HDG','2')
 epsCG=GETREAL('epsCG','1.0E-6')
 useRelativeAbortCrit=GETLOGICAL('useRelativeAbortCrit','.FALSE.')
 maxIterCG=GETINT('maxIterCG','500')

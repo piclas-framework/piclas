@@ -45,9 +45,11 @@ CALL prms%SetSection("DSMC")
 CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshInit'      , 'TODO-DEFINE-PARAMETER. not working currently' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshSamp'      , 'TODO-DEFINE-PARAMETER. not working currently' , '.FALSE.')
 
-CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      , 'Define collision mode in DSMC.'//&
-  ' 0: no collis, 1:elastic col, 2:elast+rela, 3:chem.', '1')
-CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'      , '1: Laux, 2:Gimelsheim.', '1')
+CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      , 'Define mode of collision handling in DSMC.\n'//&
+  ' 0: No Collisions (=free molecular flow with DSMC-Sampling-Routines).\n'//&
+  ' 1: Elastic Collision \n 2: Relaxation + Elastic Collision \n 3: Mode 2 + Chemical Reactions.', '1')
+CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'      , 'Mode of Selection Procedure\n'//&
+  ' 1: Laux\n 2: Gimelsheim.', '1')
 CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
   , 'Define the rotational relaxation probability upon collision of molecules', '0.2')
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
@@ -55,18 +57,18 @@ CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
 CALL prms%CreateRealOption(     'Particles-DSMC-ElecRelaxProb'&
   , 'Define the elextronic relaxation probability upon collision of molecules', '0.01')
 CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
-  , 'Set the gamma quant for zero point energy. TODO-DEFINE-PARAMETER.', '0.5')
+  , 'Set the GammaQuant for zero point energy in Evib (perhaps also Erot) should be 0.5 or 0.', '0.5')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-BackwardReacRate'&
-  , 'Set [TRUE] if backwards reactions rates are calculated from forward reactions or [FALSE]'//&
-  ' if they are defined as separate reactions.' , '.FALSE.')
+  , 'Set [TRUE] to enable the automatic calculation of the backward reaction rate coefficient using the equilibrium constant'//&
+  ' calculated by partition functions \n [FALSE] if they are defined as separate reactions.' , '.FALSE.')
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
-  , 'Define max. temperature for partition function that are used for calculation of backwards rates', '20000.0')
+  , 'Define temperature limit for pre-stored partition function that are used for calculation of backwards rates', '20000.0')
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
-  , 'Define temperature intervals of partition functions that are used for calculation of backwards rates', '10.0')
+  , 'Define temperature interval for pre-stored partition functions that are used for calculation of backwards rates', '10.0')
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
-  , 'Set [TRUE] to calculate and h5 element output of Qualityfactors. (Mean separation distance, maximum collision'//&
-  ' probability)' , '.FALSE.')
+  , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n Maximal collision prob'//&
+  '\n Time-averaged mean collision probability\n Mean collision separation distance over mean free path ' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSim'&
   , 'Only TD=Reservoir (42). Set [TRUE] to disable particle movement. Use for reservoir simulations.' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSimRate'&
@@ -80,28 +82,29 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
 CALL prms%CreateIntOption(      'Particles-ModelForVibrationEnergy'&
   , 'Define model used for vibrational degrees of freedom. 0: SHO, 1:TSHO.', '0')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
-  , 'TODO-DEFINE-PARAMETER.' , '.FALSE.')
+  , 'Flag for T-V-E-R [TRUE] or more simple T-V-R T-E-R [FALSE] relaxation.' , '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-DSMC-WallModel'&
   , 'Define Model used for surface chemistry. If >0 then look in section DSMC Surface.'//&
   ' 0: Maxwell scattering, 1: Kisliuk / Polanyi Wigner (currently not working),'//&
   ' 2:Recombination model, 3: surface reconstruction / UBI-QEP', '0')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicModel'&
-  , 'Set [TRUE] if electronic model is used.' , '.FALSE.')
+  , 'Set [TRUE] to model electronic states of atoms and molecules.' , '.FALSE.')
 CALL prms%CreateStringOption(    'Particles-DSMCElectronicDatabase'&
-  , 'If electronic model is used give (relative) path to (h5) electronic database' , 'none')
+  , 'If electronic model is used give (relative) path to (h5) Name of Electronic State Database' , 'none')
 CALL prms%CreateRealOption(     'EpsMergeElectronicState'&
-  , 'TODO-DEFINE-PARAMETER.' , '1E-4')
+  , 'Percentage parameter of electronic energy level merging.' , '1E-4')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseQCrit'&
-  , 'Set [TRUE] to enable steady state detection using Q-criterion.' , '.FALSE.')
+  , 'Set [TRUE] to enable steady state detection and sampling start using Q-criterion (Burt/Boyd).' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
-  , 'Set [TRUE] to enable steady state detection using 3SD routines.' , '.FALSE.')
+  , 'Set [TRUE] to enable steady state detection and sampling start using 3SD routines.' , '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGas'&
-  , 'Define Species number that is used as background gas', '0')
+  , 'Define Species number that is used as background gas species', '0')
 CALL prms%CreateRealOption(     'Particles-DSMCBackgroundGasDensity'&
   , 'Define Species number density for background gas', '0.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
-  , 'Set method used for vibrational relaxation. [TRUE]: all processes with ARM, [FALSE]: ARM Num_atoms<=3 MH Numatoms>3'&
-  , '.FALSE.')
+  , 'Set [TRUE] for separate relaxation of each vibrational mode of a polyatomic in a loop over all vibrational modes'//&
+  '\n (every mode has its own corrected relaxation probability, comparison with the same random number while the'//&
+  ' previous probability is added to the next)', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
   , 'Only TD=Reservoir (42). TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
