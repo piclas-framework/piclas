@@ -36,18 +36,22 @@ USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("PML")
+CALL prms%SetSection("Dielectric Region")
 
-CALL prms%CreateLogicalOption(  'DoDielectric'         , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateRealOption(     'DielectricEpsR'       , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateRealOption(     'DielectricMuR'        , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateStringOption(   'DielectricTestCase'   , 'TODO-DEFINE-PARAMETER' , 'default')
-CALL prms%CreateRealOption(     'DielectricRmax'       , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateLogicalOption(  'DielectricCheckRadius', 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateRealOption(     'DielectricRadiusValue', 'TODO-DEFINE-PARAMETER' , '-1.')
-CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
-CALL prms%CreateRealArrayOption('xyzDielectricMinMax'          , 'TODO-DEFINE-PARAMETER', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
-CALL prms%CreateRealOption(     'Dielectric_E_0'       , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateLogicalOption(  'DoDielectric'                 , 'Use dielectric regions with EpsR and MuR' , '.FALSE.')
+CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
+CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
+CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens"' , 'default')
+CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
+CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
+    //' if a DOF is within a dielectric region' ,'.FALSE.')
+CALL prms%CreateRealOption(     'DielectricRadiusValue'        , 'Additional parameter radius for checking if a DOF is'&
+    //' within a dielectric region' , '-1.')
+CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
+    //'dielectric region by giving the bounding box coordinates of the PHYSICAL region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzDielectricMinMax'          , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
+    //'dielectric region by giving the bounding box coordinates of the DIELECTRIC region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealOption(     'Dielectric_E_0'               , 'Electric field strength parameter for functions' , '1.')
 
 END SUBROUTINE DefineParametersDielectric
 
