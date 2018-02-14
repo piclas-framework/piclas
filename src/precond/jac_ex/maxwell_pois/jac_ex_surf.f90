@@ -153,7 +153,7 @@ REAL,INTENT(INOUT)                                  :: dRdZeta(1:nDOFLine,1:nDOF
 ! LOCAL VARIABLES
 INTEGER                                             :: SideID
 REAL,DIMENSION(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,6) :: JacA
-INTEGER                                             :: i,j,k,l,vni,vnj,vnk,s
+INTEGER                                             :: i,j,k,mm,nn,oo,vni,vnj,vnk,s
 INTEGER                                             :: iLocSide
 REAL,DIMENSION(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N)   :: JacBC
 INTEGER                                             :: BCType
@@ -184,31 +184,63 @@ DO iLocSide = 1,6
 END DO ! iLocSide 
 
 
-  DO k=0,PP_N
-    DO j=0,PP_N
+DO oo = 0,PP_N
+  DO nn = 0,PP_N
+    DO mm = 0,PP_N
+      s=mm*PP_nVar
       DO i=0,PP_N
         vni=PP_nVar*i
-        vnj=PP_nVar*j
-        vnk=PP_nVar*k
-        s=0
-        DO l=0,PP_N
-          dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k)  &
-                                              + ( LL_Minus(i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_MINUS) &
-                                                + LL_Plus (i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_PLUS)  )
-
-          dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k)   &
-                                              + ( LL_Minus(j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_MINUS) &
-                                                + LL_Plus (j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_PLUS)  )
-
-          dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) &
-                                              + ( LL_Minus(k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_MINUS) &
-                                                + LL_Plus (k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_PLUS)  )
-
-          s=s+PP_nVar
-        END DO ! l
+        dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,nn,oo) = dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,nn,oo)  &
+                                              + ( LL_Minus(i,mm)*JacA(1:PP_nVar,1:PP_nVar,nn,oo,XI_MINUS) &
+                                              +   LL_Plus (i,mm)*JacA(1:PP_nVar,1:PP_nVar,nn,oo,XI_PLUS)  )
       END DO ! i
-    END DO ! j
-  END DO ! k
+
+      s=nn*PP_nVar
+      DO j=0,PP_N
+        vnj=PP_nVar*j
+        dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,mm,oo) = dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,mm,oo)   &
+                                            + ( LL_Minus(j,nn)*JacA(1:PP_nVar,1:PP_nVar,mm,oo,ETA_MINUS) &
+                                              + LL_Plus (j,nn)*JacA(1:PP_nVar,1:PP_nVar,mm,oo,ETA_PLUS)  )
+      END DO ! j
+
+      s=oo*PP_nVar
+      DO k=0,PP_N
+        vnk=PP_nVar*k
+        dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,mm,nn) = dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,mm,nn)   &
+                                            + ( LL_Minus(k,oo)*JacA(1:PP_nVar,1:PP_nVar,mm,nn,ZETA_MINUS) &
+                                              + LL_Plus (k,oo)*JacA(1:PP_nVar,1:PP_nVar,mm,nn,ZETA_PLUS)  )
+      END DO ! k
+    END DO ! nn
+  END DO ! mm 
+END DO ! oo
+
+
+
+!  DO k=0,PP_N
+!    DO j=0,PP_N
+!      DO i=0,PP_N
+!        vni=PP_nVar*i
+!        vnj=PP_nVar*j
+!        vnk=PP_nVar*k
+!        s=0
+!        DO l=0,PP_N
+!          dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k)  &
+!                                              + ( LL_Minus(i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_MINUS) &
+!                                                + LL_Plus (i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_PLUS)  )
+!
+!          dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k)   &
+!                                              + ( LL_Minus(j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_MINUS) &
+!                                                + LL_Plus (j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_PLUS)  )
+!
+!          dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) &
+!                                              + ( LL_Minus(k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_MINUS) &
+!                                                + LL_Plus (k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_PLUS)  )
+!
+!          s=s+PP_nVar
+!        END DO ! l
+!      END DO ! i
+!    END DO ! j
+!  END DO ! k
 
 END SUBROUTINE DGJacSurfInt1D
 
