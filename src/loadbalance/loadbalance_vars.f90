@@ -15,7 +15,7 @@ LOGICAL                             :: InitLoadBalanceIsDone                    
 
 ! time measurement
 REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
-REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
+!REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
 !                                                                                 !  1 -tDG
 !                                                                                 !  2 -tDGComm
@@ -34,7 +34,7 @@ REAL,ALLOCATABLE                    :: tCurrent(:)                              
 
 ! counter
 REAL(KIND=8)                        :: nTotalParts                                ! number of particles in time of tTotal
-INTEGER                             :: nLoadIter                                  ! number of load iter 
+!INTEGER                             :: nLoadIter                                  ! number of load iter 
 !INTEGER                             :: nCurrentParts                              ! number of current particles
 INTEGER                             :: nLoadBalance                               ! number of load balances
 INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
