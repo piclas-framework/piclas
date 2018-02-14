@@ -370,12 +370,12 @@ END IF
 ! Re-allocate nPartsPerElem depending on new number of elements
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))
-  CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
 ELSE
   SDEALLOCATE(nPartsPerElem)
   ALLOCATE(nPartsPerElem(1:nElems))
 END IF
 nPartsPerElem=0
+CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
 #endif /*PARTICLES*/
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))

@@ -1056,7 +1056,7 @@ SUBROUTINE WriteElemTimeStatistics(WriteHeader,time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
 USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
-USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,SimulationTime
+USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,SimulationTime,InitializationWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Globals          ,ONLY: abort
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1071,7 +1071,7 @@ REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=50)                        :: formatStr
-INTEGER,PARAMETER                        :: nOutputVar=10
+INTEGER,PARAMETER                        :: nOutputVar=11
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time', &
     'MinWeight', &
@@ -1082,7 +1082,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'WeightSum', &
     'SimulationEfficiency',&
     'PID', &
-    'SimulationTime'/)
+    'SimulationTime',&
+    'InitializationWallTime'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
@@ -1122,7 +1123,7 @@ ELSE !
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
     WRITE(formatStr,'(A1,I1,A14)')'(',nOutputVar,'(1X,E21.14E3))'
     WRITE(ioUnit,formatStr)(/time_loc, MinWeight, MaxWeight, CurrentImbalance, TargetWeight, REAL(nLoadBalanceSteps), WeightSum, &
-        SimulationEfficiency,PID,SimulationTime/)
+        SimulationEfficiency,PID,SimulationTime,InitializationWallTime/)
     CLOSE(ioUnit) 
   ELSE
     SWRITE(UNIT_StdOut,'(A)')"ElemTimeStatistics.csv does not exist. cannot write load balance info!"

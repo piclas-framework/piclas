@@ -263,7 +263,8 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 #ifdef MPI
-USE MOD_LoadBalance            ,ONLY: LoadBalance,LoadMeasure,ComputeElemLoad
+!USE MOD_LoadBalance            ,ONLY: LoadMeasure
+USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 #endif /*MPI*/
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -553,9 +554,9 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==1001)
   CALL TimeStep_LD_DSMC(time)
 #endif
-#ifdef MPI
-  CALL LoadMeasure()
-#endif /*MPI*/
+!   #ifdef MPI
+!     CALL LoadMeasure()
+!   #endif /*MPI*/
   iter=iter+1
   iter_loc=iter_loc+1
   time=time+dt

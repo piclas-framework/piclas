@@ -29,11 +29,12 @@ INTERFACE LoadBalance
   MODULE PROCEDURE LoadBalance
 END INTERFACE
 
-INTERFACE LoadMeasure 
-  MODULE PROCEDURE LoadMeasure
-END INTERFACE
+!INTERFACE LoadMeasure 
+  !MODULE PROCEDURE LoadMeasure
+!END INTERFACE
 
-PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance,LoadMeasure
+PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance
+!PUBLIC::LoadMeasure
 PUBLIC::ComputeElemLoad
 #endif /*MPI*/
 !===================================================================================================================================
@@ -90,9 +91,9 @@ IF ( (WeightAverageMethod.NE.1) .AND. (WeightAverageMethod.NE.2) ) THEN
       ,' ERROR: WeightAverageMethod must be 1 (per iter) or 2 (per dt_analyze)!')
 END IF
 
-ALLOCATE( tTotal(1:14)    &
-        , tCurrent(1:14)  &
-        , LoadSum(1:14)   )
+ALLOCATE( tTotal(1:14)   )
+ALLOCATE( tCurrent(1:14) )
+!ALLOCATE( LoadSum(1:14)  )
 !  1 -tDG
 !  2 -tDGComm
 !  3 -tPML
@@ -113,11 +114,11 @@ tCartMesh=0.
 tTracking=0.
 
 tTotal=0.
-LoadSum=0.
+!LoadSum=0.
 tCurrent=0.
 
 nTotalParts=0 
-nLoadIter  =0
+!nLoadIter  =0
 
 InitLoadBalanceIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
@@ -138,7 +139,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tTotal,tCurrent
 #ifndef PP_HDG
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold,LoadSum,nLoadIter
+USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold!,nLoadIter!,LoadSum
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
@@ -262,10 +263,10 @@ tTracking  =0.
 #endif /*PARTICLES*/
 
 tTotal     =0.
-LoadSum    =0.
+!LoadSum    =0.
 tCurrent   =0.
 !nTotalParts=0.
-nLoadIter  =0
+!nLoadIter  =0
 
 END SUBROUTINE ComputeElemLoad
 
@@ -276,6 +277,7 @@ SUBROUTINE LoadBalance(PerformLoadBalance)
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
+USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
 USE MOD_Boltzplatz_Tools ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
@@ -296,15 +298,19 @@ LOGICAL,INTENT(IN)   :: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL :: LB_Time,LB_StartTime
 !===================================================================================================================================
 ! only do load-balance if necessary
 IF(.NOT.PerformLoadBalance) THEN
   ElemTime=0.
+  InitializationWallTime=0.
   RETURN
 END IF
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
+! Measure init duration
+LB_StartTime=BOLTZPLATZTIME()
 
 nLoadBalanceSteps=nLoadBalanceSteps+1
 ! finialize all arrays
@@ -346,84 +352,88 @@ IF(   (TRIM(DepositionType).EQ.'shape_function')             &
 END IF
 #endif /*PARTICLES*/
 
+! Measure init duration
+LB_Time=BOLTZPLATZTIME()
+InitializationWallTime=LB_Time-LB_StartTime
+SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance
 
 
-SUBROUTINE LoadMeasure() 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Performs the load measure stuff
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter
-#ifdef PARTICLES
-USE MOD_LoadBalance_Vars,       ONLY:nTotalParts
-USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
-#endif /*PARTICLES*/
-#ifndef PP_HDG
-USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
-#endif /*PP_HDG*/
-#if defined(LSERK) || defined(IMPA) || defined(IMEX)
-#if (PP_TimeDiscMethod!=110)
-USE MOD_TimeDisc_Vars,          ONLY:nRKStages
-#endif
-#endif
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                :: nLocalParts
-!===================================================================================================================================
-
-nloadIter=nloaditer+1
-tTotal=tTotal+tCurrent
-
-#ifdef PARTICLES
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-    nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
-#else
-    nLocalParts=REAL(nCurrentParts)
-#endif /*TimeDiscMethod*/
-  nTotalParts=nTotalParts+nLocalParts
-#else
-  nLocalParts=0
-#endif /*PARTICLES*/
-
-! compute load sum
-! dg
-LoadSum(LB_DG)    =LoadSum(LB_DG)    +tCurrent(LB_DG)    /REAL(PP_nElems)
-LoadSum(LB_DGCOMM)=LoadSum(LB_DGCOMM)+tCurrent(LB_DGCOMM)/REAL(PP_nElems)
-#ifndef PP_HDG
-IF(DoPML)THEN
-  IF(nPMLElems.GT.0) LoadSum(LB_PML)=LoadSum(LB_PML)+tCurrent(LB_PML)/REAL(nPMLElems)
-END IF
-#endif /*PP_HDG*/
-
-LoadSum(LB_DGANALYZE)=LoadSum(LB_DGANALYZE)+tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
-
-#ifdef PARTICLES
-! particles
-IF(nLocalParts.GT.0)THEN
-  nLocalParts=1.0/nLocalParts
-  LoadSum(LB_EMISSION:LB_UNFP)=LoadSum(LB_EMISSION:LB_UNFP)+tCurrent(LB_EMISSION:LB_UNFP)*nLocalParts
-  LoadSum(LB_PARTANALYZE)=LoadSum(LB_PARTANALYZE)+tCurrent(LB_PARTANALYZE)*nLocalParts
-END IF
-#endif /*PARTICLES*/
-
-! last operation
-tCurrent=0.
-#ifdef PARTICLES
-nCurrentParts=0
-#endif /*PARTICLES*/
-
-END SUBROUTINE LoadMeasure
+!   SUBROUTINE LoadMeasure() 
+!   !----------------------------------------------------------------------------------------------------------------------------------!
+!   ! Performs the load measure stuff
+!   !----------------------------------------------------------------------------------------------------------------------------------!
+!   ! MODULES                                                                                                                          !
+!   !----------------------------------------------------------------------------------------------------------------------------------!
+!   USE MOD_Globals
+!   USE MOD_Preproc
+!   USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter
+!   #ifdef PARTICLES
+!   USE MOD_LoadBalance_Vars,       ONLY:nTotalParts
+!   USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
+!   #endif /*PARTICLES*/
+!   #ifndef PP_HDG
+!   USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
+!   #endif /*PP_HDG*/
+!   #if defined(LSERK) || defined(IMPA) || defined(IMEX)
+!   #if (PP_TimeDiscMethod!=110)
+!   USE MOD_TimeDisc_Vars,          ONLY:nRKStages
+!   #endif
+!   #endif
+!   !----------------------------------------------------------------------------------------------------------------------------------!
+!   IMPLICIT NONE
+!   ! INPUT VARIABLES 
+!   !----------------------------------------------------------------------------------------------------------------------------------!
+!   ! OUTPUT VARIABLES
+!   !-----------------------------------------------------------------------------------------------------------------------------------
+!   ! LOCAL VARIABLES
+!   REAL                :: nLocalParts
+!   !===================================================================================================================================
+!   
+!   nloadIter=nloaditer+1
+!   tTotal=tTotal+tCurrent
+!   
+!   #ifdef PARTICLES
+!   #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+!       nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
+!   #else
+!       nLocalParts=REAL(nCurrentParts)
+!   #endif /*TimeDiscMethod*/
+!     nTotalParts=nTotalParts+nLocalParts
+!   #else
+!     nLocalParts=0
+!   #endif /*PARTICLES*/
+!   
+!   ! compute load sum
+!   ! dg
+!   LoadSum(LB_DG)    =LoadSum(LB_DG)    +tCurrent(LB_DG)    /REAL(PP_nElems)
+!   LoadSum(LB_DGCOMM)=LoadSum(LB_DGCOMM)+tCurrent(LB_DGCOMM)/REAL(PP_nElems)
+!   #ifndef PP_HDG
+!   IF(DoPML)THEN
+!     IF(nPMLElems.GT.0) LoadSum(LB_PML)=LoadSum(LB_PML)+tCurrent(LB_PML)/REAL(nPMLElems)
+!   END IF
+!   #endif /*PP_HDG*/
+!   
+!   LoadSum(LB_DGANALYZE)=LoadSum(LB_DGANALYZE)+tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
+!   
+!   #ifdef PARTICLES
+!   ! particles
+!   IF(nLocalParts.GT.0)THEN
+!     nLocalParts=1.0/nLocalParts
+!     LoadSum(LB_EMISSION:LB_UNFP)=LoadSum(LB_EMISSION:LB_UNFP)+tCurrent(LB_EMISSION:LB_UNFP)*nLocalParts
+!     LoadSum(LB_PARTANALYZE)=LoadSum(LB_PARTANALYZE)+tCurrent(LB_PARTANALYZE)*nLocalParts
+!   END IF
+!   #endif /*PARTICLES*/
+!   
+!   ! last operation
+!   tCurrent=0.
+!   #ifdef PARTICLES
+!   nCurrentParts=0
+!   #endif /*PARTICLES*/
+!   
+!   END SUBROUTINE LoadMeasure
 
 
 SUBROUTINE ComputeImbalance()
@@ -487,7 +497,7 @@ IMPLICIT NONE
 
 SDEALLOCATE( tTotal  )
 SDEALLOCATE( tCurrent  )
-SDEALLOCATE( LoadSum )
+!SDEALLOCATE( LoadSum )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
