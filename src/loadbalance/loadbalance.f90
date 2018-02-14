@@ -277,6 +277,7 @@ SUBROUTINE LoadBalance(PerformLoadBalance)
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
+USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
 USE MOD_Boltzplatz_Tools ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
@@ -297,15 +298,19 @@ LOGICAL,INTENT(IN)   :: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL :: LB_Time,LB_StartTime
 !===================================================================================================================================
 ! only do load-balance if necessary
 IF(.NOT.PerformLoadBalance) THEN
   ElemTime=0.
+  InitializationWallTime=0.
   RETURN
 END IF
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
+! Measure init duration
+LB_StartTime=BOLTZPLATZTIME()
 
 nLoadBalanceSteps=nLoadBalanceSteps+1
 ! finialize all arrays
@@ -347,6 +352,10 @@ IF(   (TRIM(DepositionType).EQ.'shape_function')             &
 END IF
 #endif /*PARTICLES*/
 
+! Measure init duration
+LB_Time=BOLTZPLATZTIME()
+InitializationWallTime=LB_Time-LB_StartTime
+SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance

@@ -5,6 +5,7 @@ PROGRAM Boltzplatz
 ! Control program of the Boltzplatz code. Initialization of the computation
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Globals
 USE MOD_Boltzplatz_Tools,  ONLY:InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_Restart,           ONLY:Restart
@@ -149,8 +150,9 @@ CALL Restart()
 
 ! Measure init duration
 Time=BOLTZPLATZTIME()
+InitializationWallTime=Time-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 ! Run Simulation
