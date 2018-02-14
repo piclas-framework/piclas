@@ -70,7 +70,9 @@ CALL prms%CreateIntOption(      'ldim' , 'Size of subspace for BiCGStab(l)', '1'
 
 CALL prms%CreateIntOption(      'Predictor' , 'Predictor for field solver. 0-Uold,1-RHS,2-second-order,3-third-order', '0')
 
+#ifdef maxwell
 CALL prms%CreateIntOption(      'PrecondType' , 'Preconditioner: 1-FD-BJ,2-BJ,3-BJ-ILU(0),4-BJ-8ILU(0),201-ADI', '0')
+#endif /*maxwell*/
 CALL prms%CreateIntOption(      'PrecondMethod' , 'Switch if blas or loop for BJ preconditioner', '0')
 CALL prms%CreateIntOption(      'DebugMatrix' , 'Write: 1-BJ-Jacobian and 2-BJ-Jacobian+Inv to dat-file per element.', '0')
 
