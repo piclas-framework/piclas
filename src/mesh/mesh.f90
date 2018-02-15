@@ -145,7 +145,7 @@ ELSE
   END IF
 END IF
 
-CALL readMesh(MeshFile) !set nElems
+CALL ReadMesh(MeshFile) !set nElems
 
 !schmutz fink
 PP_nElems=nElems

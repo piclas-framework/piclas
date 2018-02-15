@@ -316,7 +316,7 @@ nLoadBalanceSteps=nLoadBalanceSteps+1
 ! finialize all arrays
 CALL FinalizeBoltzplatz(IsLoadBalance=.TRUE.)
 ! reallocate
-CALL InitBoltzplatz(IsLoadBalance=.TRUE.)
+CALL InitBoltzplatz(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
 
 ! restart
 CALL Restart()
