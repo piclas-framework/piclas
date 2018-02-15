@@ -337,9 +337,7 @@ IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to stat
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5)THEN 
 #ifdef PARTICLES
-#if (PP_TimeDiscMethod!=1) || (PP_TimeDiscMethod!=2) || (PP_TimeDiscMethod!=6)
-  CALL CountPartsPerElem()
-#endif
+  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
 #endif /*PARTICLES*/
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
@@ -554,9 +552,13 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==1001)
   CALL TimeStep_LD_DSMC(time)
 #endif
-!   #ifdef MPI
-!     CALL LoadMeasure()
-!   #endif /*MPI*/
+#ifdef MPI
+#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
+  ! calling the analyze routines
+  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+#endif
+!     CALL LoadMeasure() ! this is depricated, because LoadSum is not used anywhere
+#endif /*MPI*/
   iter=iter+1
   iter_loc=iter_loc+1
   time=time+dt
@@ -662,10 +664,8 @@ DO !iter_t=0,MaxIter
       ! Write state to file
       IF(DoWriteStateToHDF5)THEN 
 #ifdef PARTICLES
-#if (PP_TimeDiscMethod!=1) || (PP_TimeDiscMethod!=2) || (PP_TimeDiscMethod!=6)
-        CALL CountPartsPerElem()
-#endif
-#endif
+        CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
+#endif /*PARTICLES*/
         CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
         IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
@@ -809,7 +809,7 @@ iStage=1
 
 #ifdef PARTICLES
 #ifdef MPI
-CALL CountPartsPerElem()
+CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif /*MPI*/
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -1071,7 +1071,7 @@ DO iStage=2,nRKStages
 !    END IF
   END IF
 #ifdef MPI
-  CALL CountPartsPerElem()
+  CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB !why not rigth after "tStage=t+dt*RK_c(iStage)"?! 
 #endif /*MPI*/
 #endif /*PARTICLES*/
 
@@ -2852,7 +2852,7 @@ tLBStart = LOCALTIME() ! LB Time Start
 ! select, if particles are treated implicitly or explicitly
 CALL SelectImplicitParticles()
 #ifdef MPI
-CALL CountPartsPerElem()
+CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
 #endif /*MPI*/
@@ -4506,6 +4506,7 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars,      ONLY:  DoExternalParts
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 USE MOD_LoadBalance_Vars,        ONLY: tCurrent
+USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 #endif
 USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
@@ -4545,6 +4546,9 @@ iStage=1
 
 ! first RK step
 #ifdef PARTICLES
+#ifdef MPI
+CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+#endif /*MPI*/
 !Time=t
 RKdtFrac = RK_c(2)
 RKdtFracTotal=RKdtFrac
@@ -4720,6 +4724,9 @@ END IF
 DO iStage=2,nRKStages
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
+#ifdef MPI
+  CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB
+#endif /*MPI*/
   IF (iStage.NE.nRKStages) THEN
     RKdtFrac = RK_c(iStage+1)-RK_c(iStage)
     RKdtFracTotal=RKdtFracTotal+RKdtFrac
@@ -5274,3 +5281,4 @@ END SUBROUTINE FinalizeTimeDisc
 
 
 END MODULE MOD_TimeDisc
+

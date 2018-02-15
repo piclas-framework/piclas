@@ -3088,7 +3088,7 @@ END DO ! iElem=1,nTotalElems
 END SUBROUTINE MapElemToFIBGM
 
 
-SUBROUTINE CountPartsPerElem()
+SUBROUTINE CountPartsPerElem(ResetNumberOfParticles)
 !===================================================================================================================================
 ! count number of particles in element
 !===================================================================================================================================
@@ -3100,13 +3100,18 @@ USE MOD_Particle_Vars,           ONLY: PDM,PEM
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: ResetNumberOfParticles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iPart, ElemID
 !===================================================================================================================================
-
+! DO NOT NULL this here, if e.g. this routine is called in between RK-stages in which particles are created
+IF(ResetNumberOfParticles)THEN
+  nPartsPerElem=0
+END IF
+! loop over all particles and add them up
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     ElemID = PEM%Element(iPart)
