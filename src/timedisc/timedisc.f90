@@ -4482,7 +4482,7 @@ SUBROUTINE TimeStepPoissonByLSERK(t,iter,tEndDiff)
 ! the current time U(t) and returns the solution at the next time level.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY: Abort
+USE MOD_Globals,               ONLY: Abort, LocalTime
 USE MOD_PreProc
 USE MOD_Analyze,               ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,         ONLY: dt,iStage,RKdtFrac,RKdtFracTotal
@@ -4505,6 +4505,7 @@ USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPa
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars,      ONLY:  DoExternalParts
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_LoadBalance_Vars,        ONLY: tCurrent
 #endif
 USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
@@ -4524,6 +4525,10 @@ REAL           :: tStage,b_dt(1:nRKStages)
 REAL           :: Pa_rebuilt_coeff(1:nRKStages),Pa_rebuilt(1:3,1:nRKStages),Pv_rebuilt(1:3,1:nRKStages),v_rebuilt(1:3,0:nRKStages-1)
 INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
+#ifdef MPI
+! load balance
+REAL           :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 
 DO iStage_loc=1,nRKStages
@@ -4547,6 +4552,7 @@ RKdtFracTotal=RKdtFrac
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
 #ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
   PartMPIExchange%nMPIParticles=0
   IF(DoExternalParts)THEN
     ! as we do not have the shape function here, we have to deallocate something
@@ -4575,6 +4581,10 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #endif /*MPI*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 #endif /*PARTICLES*/
 
@@ -4585,21 +4595,38 @@ CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
 LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
 LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+#endif /*MPI*/
 IF (t.GE.DelayTime) THEN
   IF (DoSurfaceFlux) THEN
     CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
   END IF
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
   !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
   CALL CalcPartRHS()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 
 ! particles
 IF (t.GE.DelayTime) THEN
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       !-- Pt is not known only for new Surfaceflux-Parts -> change IsNewPart back to F for other Parts
@@ -4663,6 +4690,10 @@ __STAMP__&
       END IF !IsNewPart
     END IF
   END DO
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 
 IF (t.GE.DelayTime) THEN ! removed .OR.(iter.EQ.0) because particles have not moved
@@ -4699,6 +4730,9 @@ DO iStage=2,nRKStages
 
   ! deposition 
   IF (t.GE.DelayTime) THEN
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
 #ifdef MPI
     ! here: finish deposition with delta kernal
@@ -4708,25 +4742,46 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
     CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
+#endif /*MPI*/
   END IF
 #endif /*PARTICLES*/
 
   CALL HDG(tStage,U,iter)
 
 #ifdef PARTICLES
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   ! set last data already here, since surfaceflux moved before interpolation
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
   LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
   LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+#endif /*MPI*/
   IF (t.GE.DelayTime) THEN
     IF (DoSurfaceFlux) CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
     ! forces on particle
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
     !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
     CALL CalcPartRHS()
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+#endif /*MPI*/
 
     ! particle step
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%IsNewPart(iPart)) THEN
@@ -4782,6 +4837,10 @@ DO iStage=2,nRKStages
         END IF !IsNewPart
       END IF
     END DO
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+#endif /*MPI*/
 
     ! particle tracking
 #ifdef MPI
@@ -4817,7 +4876,14 @@ IF (doParticleMerge) THEN
 END IF
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   CALL UpdateNextFreePosition()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 
 IF (doParticleMerge) THEN
@@ -4828,7 +4894,14 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   CALL UpdateNextFreePosition()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 
 IF (useDSMC) THEN
