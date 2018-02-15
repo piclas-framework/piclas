@@ -336,9 +336,9 @@ IF(DoRestart) CALL EvalGradient()
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5)THEN 
-#ifdef PARTICLES
-  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
-#endif /*PARTICLES*/
+!  #ifdef PARTICLES
+!    CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
+!  #endif /*PARTICLES*/
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
   IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
@@ -663,9 +663,9 @@ DO !iter_t=0,MaxIter
 #endif /*PP_HDG*/
       ! Write state to file
       IF(DoWriteStateToHDF5)THEN 
-#ifdef PARTICLES
-        CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
-#endif /*PARTICLES*/
+!  #ifdef PARTICLES
+!          CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
+!  #endif /*PARTICLES*/
         CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #if USE_QDS_DG
         IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)

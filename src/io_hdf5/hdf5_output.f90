@@ -516,14 +516,15 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY:nGlobalElems, offsetElem
-USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell
-USE MOD_part_tools,         ONLY:UpdateNextFreePosition
-USE MOD_DSMC_Vars,          ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC
-USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues
+USE MOD_Mesh_Vars         ,ONLY: nGlobalElems, offsetElem
+USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell
+USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
+USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
+USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*MPI*/
+USE MOD_LoadBalance_Vars  ,ONLY: nPartsPerElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -647,6 +648,7 @@ INTEGER                        :: minnParts
     iElem_glob = iElem_loc + offsetElem
     PartInt(iElem_glob,1)=iPart
     IF (ALLOCATED(PEM%pNumber)) THEN
+      nPartsPerElem(iElem_loc) = PEM%pNumber(iElem_loc)
       PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + PEM%pNumber(iElem_loc)
       pcount = PEM%pStart(iElem_loc)
       DO iPart=PartInt(iElem_glob,1)+1,PartInt(iElem_glob,2)
