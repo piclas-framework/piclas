@@ -112,6 +112,7 @@ ALLOCATE( tCurrent(1:14) )
 
 tCartMesh=0.
 tTracking=0.
+tSurfaceFlux=0.
 
 tTotal=0.
 !LoadSum=0.
@@ -142,6 +143,7 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold!,nLoadIter!,LoadSum
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
+USE MOD_LoadBalance_Vars       ,ONLY: tSurfaceFlux,nSurfacefluxPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
@@ -160,7 +162,7 @@ INTEGER               :: iElem
 REAL                  :: tDG, tPML
 #ifdef PARTICLES
 INTEGER(KIND=8)       :: HelpSum
-REAL                  :: stotalDepos,stotalParts,sTotalTracks
+REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes
 REAL                  :: tParts
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -179,6 +181,7 @@ END IF
 #ifdef PARTICLES
 stotalDepos=1.0
 sTotalTracks=1.0
+stotalSurfacefluxes=1.0
 
 helpSum=SUM(nPartsPerElem)
 IF(helpSum.GT.0) THEN
@@ -204,6 +207,10 @@ helpSum=SUM(nDeposPerElem)
 IF(helpSum.GT.0) THEN
   stotalDepos=1.0/REAL(helpSum)
 END IF
+helpSum=SUM(nSurfacefluxPerElem)
+IF(helpSum.GT.0) THEN
+  stotalSurfacefluxes=1.0/REAL(helpSum)
+END IF
 #endif /*PARTICLES*/
 
 DO iElem=1,PP_nElems
@@ -228,7 +235,8 @@ DO iElem=1,PP_nElems
   ElemTime(iElem) = ElemTime(iElem)                              &
                   + tParts * nPartsPerElem(iElem)*sTotalParts    &
                   + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
-                  + tTracking * nTracksPerElem(iElem)*sTotalTracks
+                  + tTracking * nTracksPerElem(iElem)*sTotalTracks &
+                  + tSurfaceFlux * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
   IF(   (TRIM(DepositionType).EQ.'shape_function')             &
    .OR. (TRIM(DepositionType).EQ.'shape_function_1d')          &    
    .OR. (TRIM(DepositionType).EQ.'shape_function_cylindrical') &    
@@ -258,8 +266,11 @@ IF(CurrentImbalance.GT.DeviationThreshold) PerformLoadBalance=.TRUE.
 nTracksPerElem=0
 nDeposPerElem=0
 nPartsPerElem=0
+nSurfacefluxPerElem=0
+
 tCartMesh  =0.
 tTracking  =0.
+tSurfaceFlux =0.
 #endif /*PARTICLES*/
 
 tTotal     =0.

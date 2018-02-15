@@ -4210,6 +4210,9 @@ USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
 USE MOD_Mesh_Vars,              ONLY : BC, ElemBaryNGeo
+#ifdef MPI
+USE MOD_LoadBalance_Vars,            ONLY:ElemTime,nSurfacefluxPerElem,tSurfaceFlux
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4241,6 +4244,10 @@ REAL                        :: EtraOld, EtraWall, EtraNew
 REAL                        :: ErotOld, ErotWall, ErotNew
 REAL                        :: EvibOld, EvibWall, EVibNew
 INTEGER                     :: p,q,SurfSideID,PartID
+#ifdef MPI
+! load balance
+REAL                        :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber))
 DO iSpec=1,nSpecies
@@ -4339,6 +4346,9 @@ __STAMP__&
 ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+#ifdef MPI
+      tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
       ElemID = SideToElem(1,BCSideID)
       IF (ElemID.LT.1) THEN !not sure if necessary
@@ -4641,8 +4651,15 @@ __STAMP__&
         END IF
         
         PartsEmitted = PartsEmitted + PartInsSubSide
+#ifdef MPI
+        nSurfacefluxPerElem(ElemID)=nSurfacefluxPerElem(ElemID)+PartInsSubSide !used for tSurfaceFlux of "2b.: set remaining properties"
+#endif /*MPI*/
         
-      END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
+      END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart ! the following lines (SetParticleVelocity etc., are still missing for ElemTime!!!)
+#endif /*MPI*/
     END DO ! iSide
       
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
@@ -4650,6 +4667,9 @@ __STAMP__&
 , 'Error 2 in ParticleSurfaceflux!')
       
 !----- 2b.: set remaining properties
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).EQ.'constant' &
       .AND. .NOT.Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit &
       .AND. .NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
@@ -4743,6 +4763,12 @@ __STAMP__&
     PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
     
     ! Sample Energies on Surfaces when particles are emitted from them
+    IF (NbrOfParticle.NE.PartsEmitted) THEN
+      ! should be equal for including the following lines in tSurfaceFlux
+      CALL abort(&
+__STAMP__&
+,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
+    END IF
     IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
       ! if desorption
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -4792,6 +4818,10 @@ __STAMP__&
       END IF
       END IF
     END IF
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tSurfaceFlux=tSurfaceFlux+tLBEnd-tLBStart
+#endif /*MPI*/
     
   END DO !iSF
 END DO !iSpec
