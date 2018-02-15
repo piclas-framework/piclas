@@ -590,7 +590,7 @@ DO !iter_t=0,MaxIter
       PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
     END IF
 #ifdef MPI
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
+#if !defined(LSERK) && !defined(IMPA)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
     CALL ComputeElemLoad(PerformLoadBalance,time)
@@ -2852,7 +2852,6 @@ tLBStart = LOCALTIME() ! LB Time Start
 ! select, if particles are treated implicitly or explicitly
 CALL SelectImplicitParticles()
 #ifdef MPI
-CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
 #endif /*MPI*/
@@ -3107,6 +3106,11 @@ DO iStage=2,nRKStages
       SWRITE(UNIT_StdOut,'(A)') ' compute last stage value.   '
     END IF
 #ifdef MPI
+    IF(iStage.EQ.2)THEN
+      CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.)
+    ELSE
+      CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.)
+    END IF
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
     ! normal
