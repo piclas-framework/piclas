@@ -943,7 +943,7 @@ tLBStart = LOCALTIME() ! LB Time Start
           IF(.NOT.Found) CALL abort(&
   __STAMP__&
   ,' Element-ID of PartXK is not found on process. increase halo region!')
-#endif MPI
+#endif /*MPI*/
         END IF
         ! set element back to old element, not required
         ! PEM%Element(iPart)=PEM%LastElement(iPart)
