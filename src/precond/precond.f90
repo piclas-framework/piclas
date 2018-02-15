@@ -155,6 +155,7 @@ USE MOD_CSR,               ONLY: CSR
 !USE MOD_CSR_Vars,      ONLY: DiagonalEntries
 #ifdef MPI
 USE MOD_MPI_Vars
+USE MOD_LoadBalance_Vars,  ONLY: ElemTime
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -258,6 +259,9 @@ DO iElem=1,PP_nElems
   END SELECT
   CALL CPU_TIME(TimeEnd(2))
   TotalTime=TotalTime+(TimeEnd-TimeStart)
+#ifdef MPI
+  ElemTime(iElem)=ElemTime(iElem)+SUM(TimeEnd(1:2)-TimeStart(1:2))
+#endif /*MPI*/
   IF((PrecondType.LE.2).AND.DebugMatrix.NE.0)THEN
     CALL CheckBJPrecond(Ploc1,Ploc,invP(:,:,iElem),iElem,TotalTime(3))
   END IF ! DebugMatrix

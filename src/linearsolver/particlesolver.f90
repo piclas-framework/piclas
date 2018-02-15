@@ -227,6 +227,7 @@ USE MOD_Part_RHS,                ONLY:CalcPartRHS
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+USE MOD_LoadBalance_Vars,        ONLY:tcurrent
 #endif /*MPI*/
 USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,DoPrintConvInfo
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -264,6 +265,10 @@ LOGICAL                      :: DoNewton
 REAL                         :: AbortTol
 REAL                         :: LorentzFacInv
 INTEGER:: counter
+#ifdef MPI
+! load balance
+REAL                         :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 
 time = t+coeff
@@ -293,6 +298,9 @@ IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
 #endif /*MPI*/
 
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 IF(opt)THEN ! compute zero state
   ! whole pt array
   DO iPart=1,PDM%ParticleVecLength
@@ -359,6 +367,10 @@ ELSE
     END IF ! ParticleInside
   END DO ! iPart
 END IF
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
 
 #ifdef MPI
 !set T if at least 1 proc has to do newton
@@ -383,6 +395,9 @@ END IF
 AbortCritLinSolver=0.999
 nInnerPartNewton=0
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   nInnerPartNewton=nInnerPartNewton+1
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
@@ -403,6 +418,10 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       ! everything else is done in Particle_Armijo
     END IF ! ParticleInside
   END DO ! iPart
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
 
   ! DeltaX is going to be global
   CALL Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton) 
@@ -621,6 +640,7 @@ USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,PartNewtonRelaxation
 USE MOD_Mesh_Vars,               ONLY:OffSetElem,nElems
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 #ifdef MPI
+USE MOD_LoadBalance_Vars,        ONLY:tcurrent
 USE MOD_MPI_Vars,                ONLY:OffSetElemMPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
@@ -650,9 +670,14 @@ INTEGER                      :: tmpElemID
 #ifdef MPI
 INTEGER                      :: GlobalElemID,GlobalElemID2,iElem,ProcID
 LOGICAL                      :: Found
+! load balance
+REAL                         :: tLBStart,tLBEnd
 #endif 
 !===================================================================================================================================
 
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 lambda=1.*PartNewtonRelaxation
 DoSetLambda=.TRUE.
 PartLambdaAccept=.TRUE.
@@ -701,17 +726,26 @@ DO iPart=1,PDM%ParticleVecLength
     PartLambdaAccept(iPart)=.FALSE.
   END IF ! ParticleInside
 END DO ! iPart
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
 
 ! move particle
 #ifdef MPI
 ! open receive buffer for number of particles
 CALL IRecvNbofParticles() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
+tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 IF(DoRefMapping)THEN
   CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
 ELSE
   CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
 END IF
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
+#endif /*MPI*/
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart))THEN
     DoPartInNewton(iPart)=.FALSE.
@@ -739,6 +773,9 @@ SDEALLOCATE(ExtPartMPF)
 NbrOfExtParticles=0
 #endif
 
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PartLambdaAccept(iPart))THEN
 #ifdef MPI
@@ -824,6 +861,10 @@ __STAMP__&
     END IF
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
 
 ! disable Armijo iteration and use only one fixed value
 IF(PartNewtonRelaxation.LT.1.)  PartLambdaAccept=.TRUE.
@@ -845,6 +886,9 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   IF(DoPrintConvInfo)THEN
     SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' lambda: ', lambda
   END IF
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
 #ifdef MPI
@@ -910,8 +954,12 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   END DO ! iPart
   ! move particle
 #ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
@@ -931,6 +979,8 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     END IF
   END DO
 #ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
   ! finish communication of number of particles and send particles
@@ -945,6 +995,9 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   NbrOfExtParticles=0
 #endif
 
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
 #ifdef MPI
@@ -1021,6 +1074,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       END IF ! DoFullNewton
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
   ! detect  convergence
   DoSetLambda=.FALSE.
   IF(ANY(.NOT.PartLambdaAccept)) DoSetLambda=.TRUE.
