@@ -958,7 +958,6 @@ tLBStart = LOCALTIME() ! LB Time Start
   tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
-#ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   IF(DoRefMapping)THEN
