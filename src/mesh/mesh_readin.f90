@@ -189,7 +189,7 @@ USE MOD_io_hdf5
 USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight,DoLoadBalance
 USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem
+USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
@@ -376,13 +376,16 @@ ELSE
 END IF
 nPartsPerElem=0
 CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
-#endif /*PARTICLES*/
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
 SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
+SDEALLOCATE(nSurfacefluxPerElem)
+ALLOCATE(nSurfacefluxPerElem(1:nElems))
+nSurfacefluxPerElem=0
+#endif /*PARTICLES*/
 ! --
 #else /* MPI */
 nElems=nGlobalElems   ! Local number of Elements 
