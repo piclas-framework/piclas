@@ -552,13 +552,10 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==1001)
   CALL TimeStep_LD_DSMC(time)
 #endif
-#ifdef MPI
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
   ! calling the analyze routines
-  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
-#endif
+!#ifdef MPI
 !     CALL LoadMeasure() ! this is depricated, because LoadSum is not used anywhere
-#endif /*MPI*/
+!#endif /*MPI*/
   iter=iter+1
   iter_loc=iter_loc+1
   time=time+dt
@@ -593,6 +590,9 @@ DO !iter_t=0,MaxIter
       PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
     END IF
 #ifdef MPI
+#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
+    CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+#endif
     CALL ComputeElemLoad(PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
