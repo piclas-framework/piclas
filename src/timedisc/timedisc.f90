@@ -554,7 +554,7 @@ DO !iter_t=0,MaxIter
 #endif
   ! calling the analyze routines
 !#ifdef MPI
-!     CALL LoadMeasure() ! this is depricated, because LoadSum is not used anywhere
+!     CALL LoadMeasure() ! this is deprecated, because LoadSum is not used anywhere
 !#endif /*MPI*/
   iter=iter+1
   iter_loc=iter_loc+1
