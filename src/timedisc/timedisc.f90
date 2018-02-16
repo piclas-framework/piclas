@@ -265,7 +265,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 #ifdef MPI
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,tTotal
 #endif /*MPI*/
 #if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
@@ -687,6 +687,7 @@ DO !iter_t=0,MaxIter
     tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
 #ifdef MPI
+    tTotal=0. ! Moved from LoadMeasure
     IF(DoLoadBalance)THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
       CALL LoadBalance(PerformLoadBalance)

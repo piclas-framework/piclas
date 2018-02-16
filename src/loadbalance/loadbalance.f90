@@ -167,6 +167,11 @@ REAL                  :: tParts
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
+! time measurement over whole dt_analyze 
+tTotal   = tTotal+tCurrent ! Moved from LoadMeasure
+tCurrent = 0.
+
+! number of load balance calls to Compute Elem Load
 nLoadBalance=nLoadBalance+1
 
 ! time per dg elem
@@ -273,9 +278,9 @@ tTracking  =0.
 tSurfaceFlux =0.
 #endif /*PARTICLES*/
 
-tTotal     =0.
+!tTotal     =0.
 !LoadSum    =0.
-tCurrent   =0.
+!tCurrent   =0.
 !nTotalParts=0.
 !nLoadIter  =0
 
@@ -474,23 +479,19 @@ WeightSum=SUM(ElemTime)
 
 IF(ALMOSTZERO(WeightSum))THEN
   IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., WeightSum=',WeightSum
-  TargetWeight     = 0.0 ! set zero 
-  WeightSum        = 0.0 ! set zero 
-  MinWeight        = 0.0 ! set zero 
-  CurrentImbalance = HUGE(1.0)
-ELSE
-  CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-  
-  WeightSum    = TargetWeight ! Set total weight for writing to file
-  TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
-  
-  ! new computation of current imbalance
-  !CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
-  CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
-  !CurrentImbalance=MaxWeight/TargetWeight
 END IF
+
+CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+
+WeightSum    = TargetWeight ! Set total weight for writing to file
+TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+
+! new computation of current imbalance
+!CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
+CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+!CurrentImbalance=MaxWeight/TargetWeight
 
 END SUBROUTINE ComputeImbalance
 
