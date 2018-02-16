@@ -170,11 +170,11 @@ REAL                  :: tParts
 nLoadBalance=nLoadBalance+1
 
 ! time per dg elem
-tDG=(tTotal(1)+tTotal(13))/REAL(PP_nElems)
+tDG=(tTotal(LB_DG)+tTotal(LB_DGANALYZE))/REAL(PP_nElems)
 tPML=0.
 #ifndef PP_HDG
 IF(DoPML)THEN
-  IF(nPMLElems.GT.0) tPML=tTotal(3)/REAL(nPMLElems)
+  IF(nPMLElems.GT.0) tPML=tTotal(LB_PML)/REAL(nPMLElems)
 END IF
 #endif /*PP_HDG*/
 
@@ -190,7 +190,7 @@ ELSE
   stotalParts=1.0/REAL(PP_nElems)
   nPartsPerElem=1
 END IF
-tParts = tTotal(6)+tTotal(9)+tTotal(12)+tTotal(14) ! interpolation+unfp+analyze
+tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
 IF(DoRefMapping)THEN
   helpSum=SUM(nTracksPerElem)
   IF(SUM(nTracksPerEleM).GT.0) THEN
@@ -242,12 +242,12 @@ DO iElem=1,PP_nElems
    .OR. (TRIM(DepositionType).EQ.'shape_function_cylindrical') &    
    .OR. (TRIM(DepositionType).EQ.'shape_function_simple')      &    
    .OR. (TRIM(DepositionType).EQ.'shape_function_spherical') )THEN
-    !IF(tTotal(7) * nDeposPerElem(iElem)*sTotalDepos.GT.1000)THEN
-    !  IPWRITE(*,*) 'deposition above 1000',tTotal(7) * nDeposPerElem(iElem)*sTotalDepos,nDeposPerElem(iElem)& 
+    !IF(tTotal(LB_DEPOSITION) * nDeposPerElem(iElem)*sTotalDepos.GT.1000)THEN
+    !  IPWRITE(*,*) 'deposition above 1000',tTotal(LB_DEPOSITION) * nDeposPerElem(iElem)*sTotalDepos,nDeposPerElem(iElem)& 
     !                                      ,sTotalDepos,1.0/sTotalDepos
     !END IF
     ElemTime(iElem) = ElemTime(iElem)                              &
-                    + tTotal(7) * nDeposPerElem(iElem)*stotalDepos 
+                    + tTotal(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos 
   END IF
 #endif /*PARTICLES*/
 END DO ! iElem=1,PP_nElems
@@ -473,19 +473,24 @@ IMPLICIT NONE
 WeightSum=SUM(ElemTime)
 
 IF(ALMOSTZERO(WeightSum))THEN
-  IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)'
+  IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., WeightSum=',WeightSum
+  TargetWeight     = 0.0 ! set zero 
+  WeightSum        = 0.0 ! set zero 
+  MinWeight        = 0.0 ! set zero 
+  CurrentImbalance = HUGE(1.0)
+ELSE
+  CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+  
+  WeightSum    = TargetWeight ! Set total weight for writing to file
+  TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+  
+  ! new computation of current imbalance
+  !CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
+  CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+  !CurrentImbalance=MaxWeight/TargetWeight
 END IF
-CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-
-WeightSum    = TargetWeight ! Set total weight for writing to file
-TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
-
-! new computation of current imbalance
-!CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
-CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
-!CurrentImbalance=MaxWeight/TargetWeight
 
 END SUBROUTINE ComputeImbalance
 
