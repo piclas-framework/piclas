@@ -773,7 +773,7 @@ END DO
 
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 
   tLBStart = LOCALTIME() ! LB Time Start
   startbuf=nSides-nMPISides+1
@@ -785,7 +785,7 @@ tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
   IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
   IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+  tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
 #endif /*MPI*/
 
     ! SOLVE 
@@ -839,7 +839,7 @@ END DO
 #endif
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+  tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 #endif /*MPI*/
 
 END SUBROUTINE HDGLinear
