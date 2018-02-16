@@ -84,7 +84,9 @@ REAL,ALLOCATABLE :: NormVec(:,:,:,:)           !< normal vector for each side   
 REAL,ALLOCATABLE :: TangVec1(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
 REAL,ALLOCATABLE :: TangVec2(:,:,:,:)          !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
 REAL,ALLOCATABLE :: SurfElem(:,:,:)            !< surface area for each side        (    0:N,0:N,nSides)
-REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)           !< surface  metrics for each side
+REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)         !< surface  metrics for each side
+REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)         !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
+REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)           !< element local surface element     (    0:N,0:N,1:6,1:nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from GaussPoints to Side or Neighbor Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
