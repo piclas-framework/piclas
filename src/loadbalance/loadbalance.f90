@@ -488,9 +488,20 @@ CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COM
 WeightSum    = TargetWeight ! Set total weight for writing to file
 TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
 
+!IF(ALMOSTZERO(WeightSum))CALL abort( __STAMP__&
+    !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)
+
 ! new computation of current imbalance
+IF(ABS(TargetWeight).LE.0.0)THEN
+  SWRITE(UNIT_stdOut,'(A,F8.2,A1)')' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
+  CurrentImbalance = HUGE(1.0)
+ELSE
+  CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+END IF
+
+
+! old stuff
 !CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
-CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
 !CurrentImbalance=MaxWeight/TargetWeight
 
 END SUBROUTINE ComputeImbalance
