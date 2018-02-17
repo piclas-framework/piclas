@@ -1186,7 +1186,7 @@ CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif /*MPI*/
 
 !   IF(SurfCOMM%nProcs.GT.1)THEN
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
 !   ELSE
 !     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
 !   END IF

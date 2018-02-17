@@ -29,6 +29,8 @@ LOGICAL           ::MPIRoot,MPILocalRoot
 #ifdef MPI
 !#include "mpif.h"
 INTEGER           :: MPIStatus(MPI_STATUS_SIZE)
+#else
+INTEGER,PARAMETER ::MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
 
 INTERFACE InitGlobals

@@ -362,8 +362,9 @@ SUBROUTINE OutputPoyntingInt(t,Sabs)
 ! Output of PoyntingVector Integral to *csv vile
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,PosPoyntingInt
-USE MOD_Restart_Vars          ,ONLY:DoRestart
+USE MOD_Analyze_Vars ,ONLY: nPoyntingIntPlanes,PosPoyntingInt
+USE MOD_Restart_Vars ,ONLY: DoRestart
+USE MOD_Globals      ,ONLY: FILEEXISTS
 #ifdef MPI
   USE MOD_Globals
 #endif

@@ -46,8 +46,8 @@ TYPE tSurfaceCOMM
   INTEGER                               :: COMM                          ! communicator
   INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
   TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
-  INTEGER                               :: OutputCOMM                    ! communicator for output
 #endif /*MPI*/
+  INTEGER                               :: OutputCOMM                    ! communicator for output
 END TYPE
 TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
