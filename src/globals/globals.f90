@@ -29,6 +29,8 @@ LOGICAL           ::MPIRoot,MPILocalRoot
 #ifdef MPI
 !#include "mpif.h"
 INTEGER           :: MPIStatus(MPI_STATUS_SIZE)
+#else
+INTEGER,PARAMETER ::MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
 
 INTERFACE InitGlobals
@@ -86,6 +88,10 @@ END INTERFACE
 INTERFACE GetParameterFromFile
   MODULE PROCEDURE GetParameterFromFile
 END INTERFACE
+
+INTERFACE FILEEXISTS
+  MODULE PROCEDURE FILEEXISTS
+END INTERFACE FILEEXISTS
 
 !===================================================================================================================================
 CONTAINS
@@ -783,5 +789,21 @@ REAL            :: VECNORM  !
 !===================================================================================================================================
 VECNORM=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
 END FUNCTION VECNORM
+
+!==================================================================================================================================
+!> Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+!==================================================================================================================================
+FUNCTION FILEEXISTS(filename)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: filename 
+LOGICAL                     :: FILEEXISTS
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+INQUIRE(FILE=TRIM(filename), EXIST=FILEEXISTS)
+END FUNCTION FILEEXISTS
 
 END MODULE MOD_Globals

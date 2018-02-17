@@ -177,6 +177,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
+#ifdef MPI
+USE MOD_LoadBalance_Vars,        ONLY:tcurrent
+#endif /*MPI*/
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage
@@ -245,6 +248,11 @@ REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: Lambda ! Armijo rule
 INTEGER                    :: nArmijo, nMaxArmijo=10
+#ifdef MPI
+! load balance
+REAL                       :: tLBStart,tLBEnd
+#endif /*MPI*/
+!===================================================================================================================================
 !===================================================================================================================================
 
 #ifdef PARTICLES
@@ -261,6 +269,9 @@ END IF
   CALL IRecvNbofParticles()
   ! here: could use deposition as hiding, not done yet
   IF(DoPartRelaxation)THEN
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     IF(DoRefMapping)THEN
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
@@ -285,12 +296,27 @@ END IF
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
   ! map particle from gamma v to v
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   ! compute particle source terms on field solver of implicit particles :)
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
 !END IF
 #endif /*PARTICLES*/
 
@@ -433,13 +459,28 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
       ! map particle from gamma v to v
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! compute particle source terms on field solver of implicit particles :)
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
     END IF ! .NOT.DoFullNewton
   END IF
 #endif /*PARTICLES*/
@@ -532,6 +573,10 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
         END IF
       END IF
     END IF
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
+#endif /*MPI*/
 #ifdef PARTICLES
   END IF ! .NOT. DoFullNewton
   !IF(DoPrintConvInfo.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I10,2x,E24.12,2x,E24.12,2x,E24.12)') ' iter,Norm_R,rel,abort' &
@@ -569,13 +614,27 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
       ! map particle from gamma v to v
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
       ! compute particle source terms on field solver of implicit particles :)
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+#endif /*MPI*/
     END IF
     ! update the Norm with all the new information of current state
     CALL ImplicitNorm(tStage,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel)
