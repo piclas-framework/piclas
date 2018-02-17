@@ -270,6 +270,9 @@ INTEGER:: counter
 REAL                         :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 
 time = t+coeff
 opt=.TRUE.
