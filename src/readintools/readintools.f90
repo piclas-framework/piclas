@@ -969,49 +969,51 @@ CLASS(OPTION),ALLOCATABLE    :: newopt
 current => prms%firstLink
 DO WHILE (associated(current))
   ! if name matches option
-  IF (current%opt%NAMEEQUALS(name).AND.(.NOT.current%opt%isRemoved)) THEN
-    opt => current%opt
-    ! if proposal is present and the option is not set due to the parameter file, then return the proposal
-    IF ((PRESENT(proposal)).AND.(.NOT.opt%isSet)) THEN
-      proposal_loc = TRIM(proposal)
-      CALL opt%parse(proposal_loc)
-    ELSE
-      ! no proposal, no default and also not set in parameter file => abort
-      IF ((.NOT.opt%hasDefault).AND.(.NOT.opt%isSet)) THEN
-        CALL ABORT(__STAMP__, &
-            "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
-        RETURN
+  IF (.NOT.current%opt%isRemoved) THEN
+    IF (current%opt%NAMEEQUALS(name)) THEN
+      opt => current%opt
+      ! if proposal is present and the option is not set due to the parameter file, then return the proposal
+      IF ((PRESENT(proposal)).AND.(.NOT.opt%isSet)) THEN
+        proposal_loc = TRIM(proposal)
+        CALL opt%parse(proposal_loc)
+      ELSE
+        ! no proposal, no default and also not set in parameter file => abort
+        IF ((.NOT.opt%hasDefault).AND.(.NOT.opt%isSet)) THEN
+          CALL ABORT(__STAMP__, &
+              "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+          RETURN
+        END IF
       END IF
-    END IF
-    ! copy value from option to result variable
-    SELECT TYPE (opt)
-    CLASS IS (IntOption)
-      SELECT TYPE(value)
-      TYPE IS (INTEGER)
-        value = opt%value
+      ! copy value from option to result variable
+      SELECT TYPE (opt)
+      CLASS IS (IntOption)
+        SELECT TYPE(value)
+        TYPE IS (INTEGER)
+          value = opt%value
+        END SELECT
+      CLASS IS (RealOption)
+        SELECT TYPE(value)
+        TYPE IS (REAL)
+          value = opt%value
+        END SELECT
+      CLASS IS (LogicalOption)
+        SELECT TYPE(value)
+        TYPE IS (LOGICAL)
+          value = opt%value
+        END SELECT
+      CLASS IS (StringOption)
+        SELECT TYPE(value)
+        TYPE IS (STR255)
+          value%chars = opt%value
+        END SELECT
       END SELECT
-    CLASS IS (RealOption)
-      SELECT TYPE(value)
-      TYPE IS (REAL)
-        value = opt%value
-      END SELECT
-    CLASS IS (LogicalOption)
-      SELECT TYPE(value)
-      TYPE IS (LOGICAL)
-        value = opt%value
-      END SELECT
-    CLASS IS (StringOption)
-      SELECT TYPE(value)
-      TYPE IS (STR255)
-        value%chars = opt%value
-      END SELECT
-    END SELECT
-    ! print option and value to stdout
-    CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
-    ! remove the option from the linked list of all parameters
-    IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
-    RETURN
-  END IF 
+      ! print option and value to stdout
+      CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      ! remove the option from the linked list of all parameters
+      IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
+      RETURN
+    END IF 
+  END IF
   current => current%next
 END DO
 

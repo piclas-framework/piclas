@@ -107,14 +107,25 @@ ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
   RestartFile = Args(1)
 END IF
 
+StartTime=BOLTZPLATZTIME()
 CALL prms%read_options(ParameterFile)
+! Measure init duration
+Time=BOLTZPLATZTIME()
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' READIN INI DONE! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
 IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
+!StartTime=BOLTZPLATZTIME()
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
+! Measure init duration
+Time=BOLTZPLATZTIME()
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' READIN FURTHER INI DONE! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(132("="))')
   END IF
 END IF
-
 
 CALL InitOutput()
 CALL InitIO()
@@ -125,7 +136,7 @@ CALL InitLoadBalance()
 #endif /*MPI*/
 ! call init routines
 ! Measure init duration
-StartTime=BOLTZPLATZTIME()
+!StartTime=BOLTZPLATZTIME()
 
 ! Initialization
 CALL InitInterpolation()
