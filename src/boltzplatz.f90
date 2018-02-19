@@ -91,6 +91,7 @@ IF (nArgs.EQ.2) THEN
   END IF
 ELSE IF (nArgs.GT.2) THEN
   ParameterDSMCFile = Args(2)
+  RestartFile = Args(3)
   IF (STRICMP(GetFileExtension(ParameterDSMCFile), "h5").OR.STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
     ! Print out error message containing valid syntax
     CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
