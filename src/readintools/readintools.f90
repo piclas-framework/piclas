@@ -64,6 +64,7 @@ TYPE,PUBLIC :: Parameters
   CHARACTER(LEN=255)   :: actualSection = ""  !< actual section, to set section of an option, when inserted into list
   LOGICAL              :: removeAfterRead=.TRUE. !< specifies whether options shall be marked as removed after being read
 CONTAINS 
+  PROCEDURE :: WriteUnused                !< routine that writes out parameters taht were set but not used
   PROCEDURE :: SetSection                 !< routine to set 'actualSection'
   PROCEDURE :: CreateOption               !< general routine to create a option and insert it into the linked list
                                           !< also checks if option is already created in the linked list
@@ -81,6 +82,10 @@ CONTAINS
                                           !< and calls read_option for every option. Outputs all unknow options
   PROCEDURE :: read_option                !< routine that parses a single line from the parameter file.
   PROCEDURE :: check_options              !< routine that parses a given name and returns flag if found in linkes list.
+  PROCEDURE :: finalize                   !< routine that resets the parameters either for loadbalance, restart or end
+  PROCEDURE :: count_setentries           !< routine that counts the number of set parameters of linked list
+  PROCEDURE :: count_entries              !< routine that counts the current length of linked list
+  PROCEDURE :: count_unread               !< routine that counts the number of parameters, that are set in ini but not read
 END TYPE Parameters
 
 INTERFACE IgnoredParameters
@@ -143,10 +148,6 @@ INTERFACE ExtractParameterFile
   MODULE PROCEDURE ExtractParameterFile
 END INTERFACE
 
-INTERFACE FinalizeParameters
-  MODULE PROCEDURE FinalizeParameters
-END INTERFACE
-
 PUBLIC :: IgnoredParameters
 PUBLIC :: PrintDefaultParameterFile
 PUBLIC :: CNTSTR
@@ -161,7 +162,6 @@ PUBLIC :: GETSTRARRAY
 PUBLIC :: GETDESCRIPTION
 PUBLIC :: GETINTFROMSTR
 PUBLIC :: addStrListEntry
-PUBLIC :: FinalizeParameters
 PUBLIC :: ExtractParameterFile
 
 TYPE(Parameters) :: prms
@@ -174,6 +174,38 @@ PUBLIC :: prms
 !==================================================================================================================================
 
 CONTAINS
+
+
+!==================================================================================================================================
+!> Writes all names that are set but not read during init
+!==================================================================================================================================
+SUBROUTINE WriteUnused(this)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER            :: current
+!==================================================================================================================================
+
+! iterate over all options and compare names
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,I0,A)') ' Following ',this%count_unread(),' Parameters are defined in INI but not called!'
+current => this%firstLink
+DO WHILE (associated(current))
+  ! compare name
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) THEN
+    CALL set_formatting("red")
+    SWRITE(UNIT_stdOut,"(A)") TRIM(current%opt%name)
+    CALL clear_formatting()
+  END IF
+  current => current%next
+END DO
+SWRITE(UNIT_stdOut,'(132("="))')
+
+END SUBROUTINE WriteUnused
 
 !==================================================================================================================================
 !> Set actual section. All options created after calling this subroutine are in this 'section'. The section property is only
@@ -222,6 +254,47 @@ DO WHILE (associated(current))
 END DO
 
 END FUNCTION check_options
+
+!==================================================================================================================================
+!> Resets all parameters defined in THIS linked list.
+!> Therefore, if loadbalance, it iterates over all entries of this linked list and sets removed flag to false.
+!> If no loadbalance, then all entries are deallocated and pointers nullified
+!==================================================================================================================================
+SUBROUTINE finalize(this, loadbalance)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this               !< CLASS(Parameters)
+LOGICAL          ,INTENT(IN)    :: loadbalance        !< flag if load balance is done
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER            :: current, tmp
+!==================================================================================================================================
+
+IF(loadbalance) THEN
+  ! iterate over all options and set removed to false
+  current => this%firstLink
+  DO WHILE (associated(current))
+    current%opt%isRemoved=.FALSE.
+    current => current%next
+  END DO
+ELSE
+  current => this%firstLink
+  DO WHILE (associated(current))
+    DEALLOCATE(current%opt)
+    NULLIFY(current%opt)
+    tmp => current%next
+    DEALLOCATE(current)
+    NULLIFY(current)
+    current => tmp
+  END DO
+  this%firstLink => null()
+  this%lastLink  => null()
+END IF
+
+END SUBROUTINE finalize
+
 
 !==================================================================================================================================
 !> General routine to create an option. 
@@ -474,6 +547,75 @@ DO WHILE (associated(current))
   current => current%next
 END DO
 END FUNCTION  CountOption_
+
+!==================================================================================================================================
+!> Count number of set parameters of linked list.
+!==================================================================================================================================
+FUNCTION count_setentries(this) result(count)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+INTEGER                         :: count !< number of found occurences of keyword
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+count = 0
+! iterate over all entries and count them
+current => this%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%isSet) count = count + 1
+  current => current%next
+END DO
+END FUNCTION  count_setentries
+
+!==================================================================================================================================
+!> Count number of parameters of linked list.
+!==================================================================================================================================
+FUNCTION count_entries(this) result(count)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+INTEGER                         :: count !< number of found occurences of keyword
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+count = 0
+! iterate over all entries and count them
+current => this%firstLink
+DO WHILE (associated(current))
+  count = count + 1
+  current => current%next
+END DO
+END FUNCTION  count_entries
+
+!==================================================================================================================================
+!> Count number of set but unread parameters of linked list.
+!==================================================================================================================================
+FUNCTION count_unread(this) result(count)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+INTEGER                         :: count !< number of found occurences of keyword
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+count = 0
+! iterate over all entries and count them
+current => this%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) count = count + 1
+  current => current%next
+END DO
+END FUNCTION  count_unread
 
 !==================================================================================================================================
 !> Insert a option in front of option with same name in the 'prms' linked list. 
@@ -1596,29 +1738,5 @@ CALL MPI_BCAST(userblockFound,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #endif /*MPI*/
 
 END SUBROUTINE ExtractParameterFile
-
-!===================================================================================================================================
-!> Clear parameters list 'prms'.
-!===================================================================================================================================
-SUBROUTINE FinalizeParameters() 
-IMPLICIT NONE
-! LOCAL VARIABLES
-CLASS(link), POINTER         :: current, tmp
-!===================================================================================================================================
-
-if(associated(prms%firstlink))then
-  current => prms%firstLink
-  DO WHILE (associated(current%next))
-    DEALLOCATE(current%opt)
-    NULLIFY(current%opt)
-    tmp => current%next
-    DEALLOCATE(current)
-    NULLIFY(current)
-    current => tmp
-  END DO
-end if
-prms%firstLink => null()
-prms%lastLink  => null()
-END SUBROUTINE FinalizeParameters
 
 END MODULE MOD_ReadInTools

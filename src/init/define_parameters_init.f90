@@ -15,6 +15,8 @@ SUBROUTINE InitDefineParameters()
 ! Calls all parameter definition routines
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_ReadInTools      ,ONLY: prms
 USE MOD_MPI              ,ONLY: DefineParametersMPI
 USE MOD_IO_HDF5          ,ONLY: DefineParametersIO
 USE MOD_Interpolation    ,ONLY: DefineParametersInterpolation
@@ -55,6 +57,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A)') ' DEFINING PARAMETERS ...'
+SWRITE(UNIT_stdOut,'(132("="))')
+
 CALL DefineParametersMPI()
 CALL DefineParametersIO()
 CALL DefineParametersLoadBalance()
@@ -87,6 +94,11 @@ CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 CALL DefineParametersLD()
 CALL DefineParametersSurfModel()
+
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,I0,A)') ' DEFINING PARAMETERS DONE! --> ',prms%count_entries(),' UNIQUE PARAMETERS DEFINED'
+SWRITE(UNIT_stdOut,'(132("="))')
+
 
 END SUBROUTINE InitDefineParameters
 

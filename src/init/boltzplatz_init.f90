@@ -47,6 +47,7 @@ SUBROUTINE InitBoltzplatz(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_ReadInTools,        ONLY:prms
 USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Restart_Vars,       ONLY:RestartInitIsDone
 USE MOD_Restart,            ONLY:InitRestart
@@ -191,6 +192,7 @@ CALL InitQDS()
 
 ! do this last!
 !CALL IgnoredStrings()
+IF (.NOT.IsLoadBalance) CALL prms%WriteUnused()
 
 END SUBROUTINE InitBoltzplatz
 
@@ -201,6 +203,7 @@ SUBROUTINE FinalizeBoltzplatz(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_ReadInTools               ,ONLY:prms
 USE MOD_Restart,                   ONLY:FinalizeRestart
 USE MOD_Interpolation,             ONLY:FinalizeInterpolation
 USE MOD_Mesh,                      ONLY:FinalizeMesh
@@ -314,6 +317,7 @@ CALL FinalizeInterfaces()
 #if USE_QDS_DG
 CALL FinalizeQDS()
 #endif /*USE_QDS_DG*/
+CALL prms%finalize(IsLoadBalance)
 
 END SUBROUTINE FinalizeBoltzplatz
 

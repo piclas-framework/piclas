@@ -113,7 +113,8 @@ CALL prms%read_options(ParameterFile)
 ! Measure init duration
 Time=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' READIN INI DONE! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
+,prms%count_setentries(),' PARAMETERS ARE SET'
 SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
 IF(nArgs.GE.2)THEN
@@ -122,7 +123,8 @@ IF(nArgs.GE.2)THEN
     ! Measure init duration
     Time=BOLTZPLATZTIME()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' READIN FURTHER INI DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
+    ,prms%count_setentries(),' PARAMETERS ARE SET'
     SWRITE(UNIT_stdOut,'(132("="))')
   END IF
 END IF
