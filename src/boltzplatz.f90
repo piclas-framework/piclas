@@ -117,13 +117,12 @@ SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
 IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
-!StartTime=BOLTZPLATZTIME()
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
-! Measure init duration
-Time=BOLTZPLATZTIME()
-SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' READIN FURTHER INI DONE! [',Time-StartTime,' sec ]'
-SWRITE(UNIT_stdOut,'(132("="))')
+    ! Measure init duration
+    Time=BOLTZPLATZTIME()
+    SWRITE(UNIT_stdOut,'(132("="))')
+    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' READIN FURTHER INI DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(132("="))')
   END IF
 END IF
 
