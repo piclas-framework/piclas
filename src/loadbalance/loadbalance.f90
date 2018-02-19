@@ -316,7 +316,7 @@ USE MOD_Globals
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
-USE MOD_Boltzplatz_Tools ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Boltzplatz_Init  ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars     ,ONLY: DepositionType
