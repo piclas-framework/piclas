@@ -215,11 +215,7 @@ DO iArgs = 2,nArgs
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-1,' of ',nArgs-1,'...'
 
   ! Open .h5 file
-#ifdef MPI
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(InputStateFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
   ! Read in parameters from the State file
   CALL GetDataProps(nVar_State,N_State,nElems_State,NodeType_State)
   CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
@@ -250,11 +246,7 @@ DO iArgs = 2,nArgs
     CALL FinalizeMesh()
 
     ! Read in parameters from mesh file
-#ifdef MPI
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-    CALL OpenDataFile(MeshFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
     CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
     CALL CloseDataFile()
   
@@ -299,11 +291,7 @@ DO iArgs = 2,nArgs
   END IF
 
   ! Read in solution
-#ifdef MPI
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(InputStateFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
   CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
 
   FV_Elems=0
