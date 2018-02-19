@@ -1143,10 +1143,8 @@ nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #ifdef MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-#else
-  CALL OpenDataFile(FileString,create=.TRUE.,readOnly=.FALSE.)
 #endif
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
   Statedummy = 'DSMCSurfState'  
   
   ! Write file header
@@ -1191,15 +1189,11 @@ END IF
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif /*MPI*/
 
-#ifdef MPI
 !   IF(SurfCOMM%nProcs.GT.1)THEN
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
 !   ELSE
 !     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
 !   END IF
-#else
-  CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.FALSE.)
-#endif
 
 nVarCount=0
 WRITE(H5_Name,'(A,I3.3,A)') 'SurfaceData'
@@ -1261,11 +1255,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   IF(MPIRoot) THEN
     IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
           'DSMCSurfCollis-File "'//TRIM(FileName)//'" does not exist',999,999.)
-#ifdef MPI
     CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-#else
-    CALL OpenDataFile(TRIM(FileName),create=.FALSE.,readOnly=.TRUE.)
-#endif
     DO iSpec=1,nSpecies
       WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
       CALL GetDataSize(File_ID,TRIM(H5_Name),nDims,HSize)
@@ -1289,10 +1279,8 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   !-- open file for actual read-in
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,readOnly=.TRUE.)
 #endif
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ! Read in state
   DO iSpec=1,nSpecies
     WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec

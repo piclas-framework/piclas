@@ -173,11 +173,7 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
-#ifdef MPI
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-CALL OpenDataFile(MeshFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
+CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
 
@@ -193,7 +189,7 @@ ELSE
   END IF
 END IF
 
-CALL readMesh(MeshFile) !set nElems
+CALL ReadMesh(MeshFile) !set nElems
 
 !schmutz fink
 PP_nElems=nElems
@@ -351,6 +347,14 @@ NormVec=0.
 TangVec1=0.
 TangVec2=0.
 SurfElem=0.
+#ifdef maxwell
+#if defined(IMEX) || defined(IMPA)
+ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
+ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
+nVecLoc=0.
+SurfLoc=0.
+#endif /*IMEX or IMPA*/
+#endif /*maxwell*/
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
@@ -846,6 +850,12 @@ SDEALLOCATE(NormVec)
 SDEALLOCATE(TangVec1) 
 SDEALLOCATE(TangVec2)  
 SDEALLOCATE(SurfElem)  
+#ifdef maxwell
+#if defined(IMEX) || defined(IMPA)
+SDEALLOCATE(nVecLoc)
+SDEALLOCATE(SurfLoc)
+#endif /*IMEX or IMPA*/
+#endif /*maxwell*/
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)

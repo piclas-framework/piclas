@@ -22,5 +22,6 @@ LOGICAL            :: InterpolateSolution =.FALSE.
 CHARACTER(LEN=300) :: RestartFile = ""
 CHARACTER(LEN=255) :: NodeType_Restart
 REAL               :: RestartTime
+REAL               :: RestartWallTime ! wall time at the beginning of a simulation OR when a restart is performed via Load Balance
 !===================================================================================================================================
 END MODULE MOD_Restart_Vars

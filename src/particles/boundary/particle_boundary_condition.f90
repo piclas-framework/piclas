@@ -514,10 +514,10 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking,DoRefMapping
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,PartSideToElem
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -779,10 +779,20 @@ IF(iStage.GT.0)THEN
     END DO ! iCounter=1,iStage-2
     PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
     ! rotate PartXK do not roate...
+    ! move particle on face, which is wrong, but Armijo method now does not required 
+    ! to back-rotate all RK stages AFTER reflection is rejected
+    PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
+    ! rotate velocity vector
+    PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
     !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
-    !PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
+    ! new change in part-position is length of rest of tracing
+    PartDeltaX(1:3,PartID) = lengthPartTrajectory*PartTrajectory
     !PartDeltaX(1:3,PartID)=MATMUL(RotationMat,PartDeltaX(1:3,PartID))
-    !PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+    PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+    ! set lastElement for tracing
+    IF(.NOT.DoRefMapping)THEN
+      PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+    END IF
 #if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ELSE
     ! explicit particle

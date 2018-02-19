@@ -88,8 +88,8 @@ USE MOD_TimeDisc_Vars,           ONLY:TEnd
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: chitensValue,chitensRadius  ! depricated variables, remove in future (by the end of 2017)
-INTEGER                      :: chitensWhichField           ! depricated variables, remove in future (by the end of 2017)
+REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
+INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
 !===================================================================================================================================
 TEnd=GetReal('TEnd') 
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN

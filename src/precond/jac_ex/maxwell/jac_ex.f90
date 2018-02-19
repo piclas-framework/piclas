@@ -134,6 +134,16 @@ END SUBROUTINE Jac_Ex_Neighbor
 SUBROUTINE  DGVolIntJac(BJ,iElem)
 !===================================================================================================================================
 ! volume integral Jacobian of the euler flux and the viscous part dF^v/dU
+! filling volume integral
+! dF_ijk / dU_mmnnoo
+!
+!              mm,nn,oo /r
+!
+!            __________
+!           |
+!  ijk/s    |
+!           |
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -175,7 +185,6 @@ LOGICAL                                                 :: isDielectric
       isDielectric=.TRUE.
     END IF
   END IF
-
 
   !VERSION 00
 !  DO k=0,PP_N
@@ -254,10 +263,12 @@ LOGICAL                                                 :: isDielectric
       END DO !nn
     END DO !oo 
   ELSE
+    ! column loop mm,nn,oo->s
     s=0
     DO oo=0,PP_N
       DO nn=0,PP_N
         DO mm=0,PP_N
+          ! rows
           fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
                            hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
@@ -267,9 +278,11 @@ LOGICAL                                                 :: isDielectric
           hJacTilde(:,:) = fJac(:,:)*Metrics_hTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_hTilde(2,mm,nn,oo,iElem) + &
                            hJac(:,:)*Metrics_hTilde(3,mm,nn,oo,iElem)
-          r1=           vn1*nn+vn2*oo
-          r2=mm*PP_nVar      +vn2*oo
-          r3=mm*PP_nVar+vn1*nn
+          ! get row index based on oo,mm,nn
+          ! this is due to Kronicker-Delta delta(:,:)
+          r1=           vn1*nn+vn2*oo ! i
+          r2=mm*PP_nVar      +vn2*oo  ! j
+          r3=mm*PP_nVar+vn1*nn        ! k
           DO ll=0,PP_N
                 BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar) = BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar)                &
                                                                                   + D_hat(ll,mm)*fJacTilde(:,:) 
@@ -312,7 +325,7 @@ REAL,INTENT(INOUT) :: dRdEta (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdZeta(1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                                                 :: i,j,k,l,vni,vnj,vnk,s
+INTEGER                                                 :: oo,nn,mm,l,vni,vnj,vnk,r
 REAL,DIMENSION(PP_nVar,PP_nVar)                         :: fJac,gJac,hJac
 REAL,DIMENSION(PP_nVar,PP_nVar)                         :: fJacTilde,gJacTilde,hJacTilde
 LOGICAL                                                 :: isDielectric
@@ -328,66 +341,65 @@ LOGICAL                                                 :: isDielectric
   END IF
 
   IF(isDielectric)THEN
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          !fills fJac,gJac,hJac
-          CALL EvalFluxJacobianDielectric(DielectricConstant_Inv(i,j,k,ElemToDielectric(iElem)),fJac,gJac,hJac) 
+    DO oo=0,PP_N
+      DO nn=0,PP_N
+        DO mm=0,PP_N
+          CALL EvalFluxJacobianDielectric(DielectricConstant_Inv(mm,nn,oo,ElemToDielectric(iElem)),fJac,gJac,hJac) 
+          fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
+              gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
+              hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
+          gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,mm,nn,oo,iElem) + &
+              gJac(:,:)*Metrics_gTilde(2,mm,nn,oo,iElem) + &
+              hJac(:,:)*Metrics_gTilde(3,mm,nn,oo,iElem)
+          hJacTilde(:,:) = fJac(:,:)*Metrics_hTilde(1,mm,nn,oo,iElem) + &
+              gJac(:,:)*Metrics_hTilde(2,mm,nn,oo,iElem) + &
+              hJac(:,:)*Metrics_hTilde(3,mm,nn,oo,iElem)
+          vni=PP_nVar*mm
+          vnj=PP_nVar*nn
+          vnk=PP_nVar*oo
+          r=0
+          DO l=0,PP_N
+            !dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+1,s+1:s+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:) 
+            !dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+1,s+1:s+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:) 
+            !dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+1,s+1:s+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:) 
+            dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) = dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) +D_hat(l,mm)*fJacTilde(:,:) 
+            dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) = dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) +D_hat(l,nn)*gJacTilde(:,:) 
+            dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) = dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) +D_hat(l,oo)*hJacTilde(:,:) 
+            r=r+PP_nVar
+          END DO ! l
+        END DO ! mm
+      END DO ! nn
+    END DO ! oo
 
-          fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,i,j,k,iElem) + &
-                           gJac(:,:)*Metrics_fTilde(2,i,j,k,iElem) + &
-                           hJac(:,:)*Metrics_fTilde(3,i,j,k,iElem) 
-          gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,i,j,k,iElem) + &
-                           gJac(:,:)*Metrics_gTilde(2,i,j,k,iElem) + &
-                           hJac(:,:)*Metrics_gTilde(3,i,j,k,iElem)
-          hJacTilde(:,:) = fJac(:,:)*Metrics_hTilde(1,i,j,k,iElem) + &
-                           gJac(:,:)*Metrics_hTilde(2,i,j,k,iElem) + &
-                           hJac(:,:)*Metrics_hTilde(3,i,j,k,iElem)
-          vni=PP_nVar*i
-          vnj=PP_nVar*j
-          vnk=PP_nVar*k
-          s=0
-          DO l=0,PP_N
-            !dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+1,s+1:s+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:) 
-            !dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+1,s+1:s+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:) 
-            !dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+1,s+1:s+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:) 
-            dRdXi  (s+1:s+PP_nVar,vni+1:vni+PP_nVar,j,k) = dRdXi  (s+1:s+PP_nVar,vni+1:vni+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:) 
-            dRdEta (s+1:s+PP_nVar,vnj+1:vnj+PP_nVar,i,k) = dRdEta (s+1:s+PP_nVar,vnj+1:vnj+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:) 
-            dRdZeta(s+1:s+PP_nVar,vnk+1:vnk+PP_nVar,i,j) = dRdZeta(s+1:s+PP_nVar,vnk+1:vnk+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:) 
-            s=s+PP_nVar
-          END DO ! l
-        END DO ! i
-      END DO ! j
-    END DO ! k
   ELSE
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,i,j,k,iElem) + &
-                           gJac(:,:)*Metrics_fTilde(2,i,j,k,iElem) + &
-                           hJac(:,:)*Metrics_fTilde(3,i,j,k,iElem) 
-          gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,i,j,k,iElem) + &
-                           gJac(:,:)*Metrics_gTilde(2,i,j,k,iElem) + &
-                           hJac(:,:)*Metrics_gTilde(3,i,j,k,iElem)
-          hJacTilde(:,:) = fJac(:,:)*Metrics_hTilde(1,i,j,k,iElem) + &
-                           gJac(:,:)*Metrics_hTilde(2,i,j,k,iElem) + &
-                           hJac(:,:)*Metrics_hTilde(3,i,j,k,iElem)
-          vni=PP_nVar*i
-          vnj=PP_nVar*j
-          vnk=PP_nVar*k
-          s=0
+    DO oo=0,PP_N
+      DO nn=0,PP_N
+        DO mm=0,PP_N
+          fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
+              gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
+              hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
+          gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,mm,nn,oo,iElem) + &
+              gJac(:,:)*Metrics_gTilde(2,mm,nn,oo,iElem) + &
+              hJac(:,:)*Metrics_gTilde(3,mm,nn,oo,iElem)
+          hJacTilde(:,:) = fJac(:,:)*Metrics_hTilde(1,mm,nn,oo,iElem) + &
+              gJac(:,:)*Metrics_hTilde(2,mm,nn,oo,iElem) + &
+              hJac(:,:)*Metrics_hTilde(3,mm,nn,oo,iElem)
+          vni=PP_nVar*mm
+          vnj=PP_nVar*nn
+          vnk=PP_nVar*oo
+          r=0
           DO l=0,PP_N
             !dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+1,s+1:s+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:) 
             !dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+1,s+1:s+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:) 
             !dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+1,s+1:s+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:) 
-            dRdXi  (s+1:s+PP_nVar,vni+1:vni+PP_nVar,j,k) = dRdXi  (s+1:s+PP_nVar,vni+1:vni+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:) 
-            dRdEta (s+1:s+PP_nVar,vnj+1:vnj+PP_nVar,i,k) = dRdEta (s+1:s+PP_nVar,vnj+1:vnj+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:) 
-            dRdZeta(s+1:s+PP_nVar,vnk+1:vnk+PP_nVar,i,j) = dRdZeta(s+1:s+PP_nVar,vnk+1:vnk+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:) 
-            s=s+PP_nVar
+            dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) = dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) +D_hat(l,mm)*fJacTilde(:,:) 
+            dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) = dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) +D_hat(l,nn)*gJacTilde(:,:) 
+            dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) = dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) +D_hat(l,oo)*hJacTilde(:,:) 
+            r=r+PP_nVar
           END DO ! l
-        END DO ! i
-      END DO ! j
-    END DO ! k
+        END DO ! mm
+      END DO ! nn
+    END DO ! oo
   END IF
 
 END SUBROUTINE DGVolIntJac1D
@@ -447,19 +459,42 @@ REAL,INTENT(INOUT) :: dRdEta (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdZeta(1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER :: p,q,l,s
+INTEGER :: i,j,k
+INTEGER :: ll,mm,nn,oo,v1,v2,r2
 !===================================================================================================================================
 
-DO p=0,PP_N
-  DO q=0,PP_N
-      DO l=0,PP_N
-      s=l*PP_nVar
-      dRdXi  (s+1:s+PP_nVar,:,p,q) = -sJ(l,p,q,iElem)*mass(1,l,p,q,iElem)*dRdXi  (s+1:s+PP_nVar,:,p,q)
-      dRdEta (s+1:s+PP_nVar,:,p,q) = -sJ(p,l,q,iElem)*mass(1,p,l,q,iElem)*dRdEta (s+1:s+PP_nVar,:,p,q)
-      dRdZeta(s+1:s+PP_nVar,:,p,q) = -sJ(p,q,l,iElem)*mass(1,p,q,l,iElem)*dRdZeta(s+1:s+PP_nVar,:,p,q)
-    END DO !l
-  END DO !p
-END DO ! q
+
+DO oo=0,PP_N; DO nn=0,PP_N; DO mm=0,PP_N
+  v1=0
+  v2=mm*PP_nVar
+  DO i=0,PP_N
+    dRdXi(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,nn,oo)=-dRdXi(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,nn,oo)*sJ(i,nn,oo,iElem) 
+    v1=v1+PP_nVar
+  END DO !ll
+  v1=0
+  v2=nn*PP_nVar
+  DO j=0,PP_N
+    dRdEta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo)=-dRdEta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo)*sJ(mm,j,oo,iElem) 
+    v1=v1+PP_nVar
+  END DO !ll
+  v1=0
+  v2=oo*PP_nVar
+  DO k=0,PP_N
+    dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn)=-dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn)*sJ(mm,nn,k,iElem) 
+    v1=v1+PP_nVar
+  END DO !ll
+END DO; END DO; END DO! mm,nn,oo=0,PP_N
+
+!DO p=0,PP_N
+!  DO q=0,PP_N
+!      DO l=0,PP_N
+!      s=l*PP_nVar
+!      dRdXi  (s+1:s+PP_nVar,:,p,q) = -sJ(l,p,q,iElem)*mass(1,l,p,q,iElem)*dRdXi  (s+1:s+PP_nVar,:,p,q)
+!      dRdEta (s+1:s+PP_nVar,:,p,q) = -sJ(p,l,q,iElem)*mass(1,p,l,q,iElem)*dRdEta (s+1:s+PP_nVar,:,p,q)
+!      dRdZeta(s+1:s+PP_nVar,:,p,q) = -sJ(p,q,l,iElem)*mass(1,p,q,l,iElem)*dRdZeta(s+1:s+PP_nVar,:,p,q)
+!    END DO !l
+!  END DO !p
+!END DO ! q
 
 END SUBROUTINE Apply_sJ1D
 

@@ -1260,19 +1260,38 @@ IF(PartMPI%MPIROOT)THEN
 END IF
 
 IF(DoRefMapping)THEN
+  IF(PartMPI%MPIROOT)THEN
+     WRITE(UNIT_stdOut,'(A)') ' Reshaping arrays to reduced list...'
+  END IF
   ! remove inner BezierControlPoints3D and SlabNormals, usw.
   CALL ReshapeBezierSides()
   ! compute side origin and radius for all sides in PartBCSideList
+  IF(PartMPI%MPIROOT)THEN
+     WRITE(UNIT_stdOut,'(A)') ' GetSideOrigin and Radius..'
+  END IF
+  ! remove inner BezierControlPoints3D and SlabNormals, usw.
   ALLOCATE( SideOrigin(1:3,1:nTotalBCSides) &
           , SideRadius(    1:nTotalBCSides) )
   CALL GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)
 END IF
 
 ! get BCElem mapping, epsOnCell and calculate number of different elements and sides
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' GetBCElemMap ...'
+END IF
 CALL GetBCElemMap()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' CaclElemAndSideNum ...'
+END IF
 CALL CalcElemAndSideNum()
 ! get basevectors for (bi-)linear sides
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' LinearSideBaseVectors ...'
+END IF
 CALL GetLinearSideBaseVectors()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A)') ' Elem-Connectivity ...'
+END IF
 ! check connectivity of particle mesh
 CALL ElemConnectivity()
 
@@ -3163,7 +3182,7 @@ END DO ! iElem=1,nTotalElems
 END SUBROUTINE MapElemToFIBGM
 
 
-SUBROUTINE CountPartsPerElem()
+SUBROUTINE CountPartsPerElem(ResetNumberOfParticles)
 !===================================================================================================================================
 ! count number of particles in element
 !===================================================================================================================================
@@ -3175,13 +3194,18 @@ USE MOD_Particle_Vars,           ONLY: PDM,PEM
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: ResetNumberOfParticles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iPart, ElemID
 !===================================================================================================================================
-
+! DO NOT NULL this here, if e.g. this routine is called in between RK-stages in which particles are created
+IF(ResetNumberOfParticles)THEN
+  nPartsPerElem=0
+END IF
+! loop over all particles and add them up
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     ElemID = PEM%Element(iPart)

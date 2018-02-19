@@ -219,11 +219,7 @@ END IF
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Read recordpoint definitions from data file "'//TRIM(FileString)//'" ...'
 ! Open data file
-#ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
-#else
-CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.FALSE.)
-#endif
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
 ! compare mesh file names
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile_RPList)
@@ -430,11 +426,7 @@ startT=MPI_WTIME()
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 IF(myRPrank.EQ.0)THEN
-#ifdef MPI
   CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.TRUE.,readOnly=.FALSE.)
-#else
-  CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,readOnly=.FALSE.)
-#endif
   IF(.NOT.RP_fileExists)THEN
     ! Create dataset attributes
     CALL WriteAttributeToHDF5(File_ID,'File_Type'  ,1,StrScalar=(/TRIM('RecordPoints_Data')/))
@@ -455,7 +447,7 @@ ELSE
   CALL OpenDataFile(Filestring,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=RP_COMM)
 END IF
 #else
-CALL OpenDataFile(Filestring,create=.FALSE.,readOnly=.FALSE.)
+CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
   
 IF(iSample.GT.0)THEN

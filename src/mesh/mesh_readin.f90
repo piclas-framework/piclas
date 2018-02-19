@@ -179,19 +179,24 @@ USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
 USE MOD_Mesh_Vars,          ONLY:Elems
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 #ifdef MPI
+USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 #endif
 USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
 USE MOD_IO_HDF5,            ONLY: AddToElemData,ElementOut
 #ifdef MPI
 USE MOD_io_hdf5
-USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,ParticleMPIWeight,WeightSum,TargetWeight,DoLoadBalance
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nPartsPerElem,nDeposPerElem,nTracksPerElem
-USE MOD_LoadDistribution,   ONLY:SingleStepOptimalPartition
+USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight,DoLoadBalance
+USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem
+#ifdef PARTICLES
+USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem
+#endif /*PARTICLES*/
+USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Restart_Vars,       ONLY:DoRestart,RestartFile
+USE MOD_StringTools,        ONLY:STRICMP
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -216,28 +221,19 @@ INTEGER                        :: ReduceData(10)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: iMortar,jMortar,nMortars
 #ifdef MPI
-REAL                           :: curWeight
 INTEGER                        :: ReduceData_glob(10)
-INTEGER                        :: iNbProc, locnPart
-INTEGER                        :: iProc, curiElem, MyElems, jProc,NewElems
+INTEGER                        :: iNbProc
+INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
-INTEGER,ALLOCATABLE            :: PartInt(:,:)
-INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
-INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 ! new weight distribution method
-INTEGER                        :: BalanceMethod,iDistriIter
-LOGICAL                        :: FoundDistribution
-REAL                           :: LastProcDiff
-REAL                           :: LoadDiff(0:nProcessors-1)
-REAL                           :: MaxLoadDiff,LastLoadDiff
-INTEGER                        :: ElemDistri(0:nProcessors-1),getElem
-INTEGER,ALLOCATABLE            :: PartsInElem(:)
-REAL                           :: diffLower,diffUpper
-INTEGER                        :: ErrorCode
 #endif
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: dexist
+LOGICAL                        :: isMortarMeshExists,ElemTimeExists
+INTEGER                        :: nVal(15),iVar
+REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
+REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
+CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -249,27 +245,19 @@ END IF
 SWRITE(UNIT_stdOut,'(A)')'READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
-! Open data file
-#ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
-#endif
-
+! Get ElemInfo from Mesh file
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+CALL CloseDataFile()
 CHECKSAFEINT(HSize(2),4)
 nGlobalElems=INT(HSize(2),4) !global number of elements
 DEALLOCATE(HSize)
-IF(MPIRoot)THEN
-  IF(nGlobalElems.LT.nProcessors) &
-     CALL abort(&
-__STAMP__&
-,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
-END IF
+IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
+    ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
 
 #ifdef MPI
 !simple partition: nGlobalelems/nprocs, do this on proc 0
-IF(ALLOCATED(offsetElemMPI)) DEALLOCATE(offsetElemMPI)
+SDEALLOCATE(offsetElemMPI)
 ALLOCATE(offsetElemMPI(0:nProcessors))
 offsetElemMPI=0
 SDEALLOCATE(LoadDistri)
@@ -278,423 +266,46 @@ LoadDistri(:)=0.
 SDEALLOCATE(PartDistri)
 ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
-CALL CloseDataFile()
-Dexist=.FALSE. 
-IF (DoRestart) THEN 
-#ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
-#endif /*MPI*/
+ElemTimeExists=.FALSE.
 
-#ifdef MPI
-  IF(MPIRoot)THEN
-    IF(DoLoadBalance) CALL H5LEXISTS_F(File_ID,'ElemTime',Dexist,iERROR)
-    SWRITE(Unit_StdOut,'(A,L)') ' ElemTime data set exists: ', Dexist
-  END IF
-  CALL MPI_BCAST (Dexist,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
-  !CALL CloseDataFile() 
-#endif /*MPI*/
+IF (DoRestart.AND.DoLoadBalance) THEN 
+  !--------------------------------------------------------------------------------------------------------------------------------!
+  ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
+  ! 1) Only MPIRoot does readin of ElemTime
+  SDEALLOCATE(ElemGlobalTime)
   ALLOCATE(ElemGlobalTime(1:nGlobalElems))
   ElemGlobalTime=0.
-  IF(Dexist)THEN
-    !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
-    CALL ReadArray('ElemTime',1,(/nGlobalElems/),0,1,RealArray=ElemGlobalTime)
-    !CALL CloseDataFile() 
+  IF(MPIRoot)THEN
+    ALLOCATE(ElemTime_local(1:nGlobalElems))
+    nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
+    offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
+    IPWRITE(UNIT_stdOut,*)"DONE"
+    CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
+    CALL CloseDataFile()
+    IF (ALLOCATED(VarNamesElemData_loc)) THEN
+      ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
+      ElemData_loc = RESHAPE(tmp,(/nVal(1),nVal(2)/))
+      DO iVar=1,nVal(1) ! Search for ElemTime
+        IF (STRICMP(VarNamesElemData_loc(iVar),"ElemTime")) THEN
+          ElemTime_local = REAL(ElemData_loc(iVar,:))
+          ElemTimeExists = .TRUE.
+        END IF
+      END DO
+      DEALLOCATE(ElemData_loc,VarNamesElemData_loc,tmp)
+    END IF
+    ElemGlobalTime = ElemTime_local
+    DEALLOCATE(ElemTime_local)
+    ! if the elemtime is 0.0, the value must be changed in order to prevent a division by zero
+    IF(MINVAL(ElemGlobalTime).LE.0.0)ElemGlobalTime=1.0
   END IF
-  ALLOCATE(PartInt(1:nGlobalElems,2))
-  PartInt(:,:)=0
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-  CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
-  CALL CloseDataFile() 
-  !CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-  
-  WeightSum = 0.0
-  CurWeight = 0.0
 
-  ! load balancing for particles
-  ! read in particle data
-  BalanceMethod     = GETINT('WeightDistributionMethod','1')
+  ! 2) Distribute logical information ElemTimeExists
+  CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 
-  ALLOCATE(PartsInElem(1:nGlobalElems))
-  
-  DO iElem = 1, nGlobalElems
-    locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
-    PartsInElem(iElem)=locnPart
-    IF(.NOT.Dexist) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
-    WeightSum = WeightSum + ElemGlobalTime(iElem)
-  END DO
+  ! Distribute the elements according to the selected distribution method
+  CALL ApplyWeightDistributionMethod(ElemTimeExists)
 
-  SELECT CASE(BalanceMethod)
-  CASE(-1) ! same as in no-restart: the elements are equally distributed
-    nElems=nGlobalElems/nProcessors
-    iElem=nGlobalElems-nElems*nProcessors
-    DO iProc=0,nProcessors-1
-      offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
-    END DO
-    offsetElemMPI(nProcessors)=nGlobalElems
-  CASE(0) ! old scheme
-    IF(nGlobalElems.EQ.nProcessors) THEN
-      DO iProc=0, nProcessors-1
-        offsetElemMPI(iProc) = iProc
-      END DO
-    ELSE
-      curiElem = 1
-      WeightSum=WeightSum/REAL(nProcessors)
-      DO iProc=0, nProcessors-1
-        offsetElemMPI(iProc)=curiElem - 1
-        DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
-          CurWeight=CurWeight+ElemGlobalTime(iElem)
-          IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
-            curiElem = iElem + 1
-            EXIT
-          END IF
-        END DO
-      END DO
-    END IF
-    offsetElemMPI(nProcessors)=nGlobalElems
-  CASE(1)
-    ! 1: last Proc receives the least load
-    ! 2: Root receives the least load
-    IF(MPIRoot)THEN
-      FoundDistribution=.FALSE.
-      targetWeight=WeightSum/REAL(nProcessors)
-      LastProcDiff=0.
-      iDistriIter=0
-      DO WHILE(.NOT.FoundDistribution)
-        iDistriIter=iDistriIter+1
-        SWRITE(*,'(A19,I4,A19,G0)') '... LoadDistriIter ',iDistriIter,' with targetWeight=',targetWeight
-        SWRITE(*,*)  lastprocdiff
-        targetWeight=targetWeight+LastProcDiff/REAL(nProcessors)
-        curiElem=1
-        offSetElemMPI=0
-        offsetElemMPI(nProcessors)=nGlobalElems
-        LoadDistri=0.
-        LoadDiff=0.
-        DO iProc=0,nProcessors-1
-          offSetElemMPI(iProc)=curiElem-1
-          CurWeight=0.
-          getElem=0
-          DO iElem=curiElem, nGlobalElems - nProcessors +1 + iProc
-            CurWeight=CurWeight+ElemGlobalTime(iElem)
-            getElem=getElem+1
-            IF((CurWeight.GT.targetWeight) .OR. (iElem .EQ. nGlobalElems - nProcessors +1 + iProc))THEN
-              diffLower=CurWeight-ElemGlobalTime(iElem)-targetWeight
-              diffUpper=Curweight-targetWeight
-              IF(getElem.GT.1)THEN
-                IF(iProc.EQ.nProcessors-1)THEN
-                  LoadDistri(iProc)=CurWeight
-                  LoadDiff(iProc)=diffUpper
-                  curiElem=iElem+1
-                  EXIT
-                ELSE
-                  IF(ABS(diffLower).LT.ABS(diffUpper) .AND. iElem.LT.nGlobalElems-nProcessors+1+iProc)THEN
-                   LoadDiff(iProc)=diffLower
-                   curiElem=iElem
-                   LoadDistri(iProc)=CurWeight-ElemGlobalTime(iElem)
-                   EXIT
-                  ELSE
-                    LoadDiff(iProc)=diffUpper
-                    curiElem=iElem+1
-                    LoadDistri(iProc)=CurWeight
-                    EXIT
-                  END IF
-                END IF
-              ELSE
-                LoadDiff(iProc)=diffUpper
-                curiElem=iElem+1
-                LoadDistri(iProc)=CurWeight
-                EXIT
-              END IF
-            END IF
-          END DO ! iElem
-        END DO ! iProc
-        ElemDistri=0
-        DO iProc=0,nProcessors-1
-          ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
-          ! sanity check
-          IF(ElemDistri(iProc).LE.0) CALL abort(&
-__STAMP__&
-,' Process received zero elements during load distribution',iProc)
-        END DO ! iPRoc
-        IF(Dexist)THEN
-          IF(ElemDistri(nProcessors-1).EQ.1)THEN
-            LoadDistri(nProcessors-1)=ElemGlobalTime(nGlobalElems)
-            LastLoadDiff = LoadDistri(nProcessors-1)-targetWeight
-          ELSE
-            LoadDistri(nProcessors-1)=SUM(ElemGlobalTime(offSetElemMPI(nProcessors-1)+1:nGlobalElems))
-            LastLoadDiff = LoadDistri(nProcessors-1)-targetWeight
-          END IF
-        ELSE
-          LoadDistri(nProcessors-1)=ElemDistri(nProcessors-1) +&
-                                    SUM(PartsInElem(offSetElemMPI(nProcessors-1)+1:nGlobalElems))*ParticleMPIWeight
-          LastLoadDiff = LoadDistri(nProcessors-1)-targetWeight
-        END IF
-        LoadDiff(nProcessors-1)=LastLoadDiff
-        MaxLoadDiff=MAXVAL(LoadDiff(0:nProcessors-2))
-        LastProcDiff=LastLoadDiff-MaxLoadDiff
-        IF(LastProcDiff.LT.0.01*targetWeight)THEN
-          FoundDistribution=.TRUE.
-        END IF
-        IF(iDistriIter.GT.nProcessors) THEN
-          SWRITE(UNIT_StdOut,'(A)') &
-          'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!'
-          FoundDistribution=.TRUE.
-        END IF         
-        IF(ABS(WeightSum-SUM(LoadDistri)).GT.0.5) THEN
-           CALL abort(&
-__STAMP__&
-,' Lost Elements and/or Particles during load distribution!')
-        END IF
-      END DO
-    END IF
-    ! thend the ound distribution to all other procs
-    CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
-    SWRITE(*,*) 'done'
-  CASE(2)
-     CALL abort(&
-__STAMP__&
-,' error in load distritubion. please fix me!')
-    ! 1: last Proc receives the least load
-    ! 2: Root receives the least load
-    IF(MPIRoot)THEN
-      FoundDistribution=.FALSE.
-      targetWeight=WeightSum/REAL(nProcessors)
-      LastProcDiff=0.
-      iDistriIter=0
-      DO WHILE(.NOT.FoundDistribution)
-        iDistriIter=iDistriIter+1
-        SWRITE(*,*) 'LoadDistriIter', iDistriIter
-        targetWeight=targetWeight+LastProcDiff/REAL(nProcessors)
-        curiElem=nGlobalElems
-        offSetElemMPI=0
-        LoadDistri=0.
-        LoadDiff=0.
-        DO iProc=nProcessors-1,0,-1
-          offSetElemMPI(iProc+1)=curiElem
-          CurWeight=0.
-          getElem=0
-          DO iElem=curiElem,  iProc+1,-1
-            CurWeight=CurWeight+ElemGlobalTime(iElem)
-            getElem=getElem+1
-            IF((CurWeight.GT.targetWeight) .OR. (iElem .EQ. iProc+1))THEN ! take lower and upper is special case
-              diffLower=CurWeight-ElemGlobalTime(iElem)-targetWeight
-              diffUpper=Curweight-targetWeight
-              IF(getElem.GT.1)THEN
-                IF(iProc.EQ.0)THEN
-                  LoadDistri(iProc)=CurWeight
-                  LoadDiff(iProc)=diffLower
-                  curiElem=iElem
-                  EXIT
-                ELSE
-                  IF(ABS(diffLower).GT.ABS(diffUpper) .AND. iElem.GT.iProc+1)THEN
-                    ! take upper
-                    LoadDiff(iProc)=diffUpper
-                    curiElem=iElem+1
-                    LoadDistri(iProc)=CurWeight-ElemGlobalTime(iElem)
-                    EXIT
-                  ELSE
-                    LoadDiff(iProc)=diffLower
-                    curiElem=iElem
-                    LoadDistri(iProc)=CurWeight!+ElemGlobalTime(iElem)
-                    EXIT
-                  END IF
-                END IF
-              ELSE
-                LoadDiff(iProc)=diffLower
-                curiElem=iElem
-                LoadDistri(iProc)=CurWeight
-                EXIT
-              END IF
-            END IF
-          END DO ! iElem
-        END DO ! iProc
-        ElemDistri=0
-        DO iProc=0,nProcessors-1
-          ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
-          ! sanity check
-          IF(ElemDistri(iProc).LE.0) CALL abort(&
-__STAMP__&
-,' Process received zero elements during load distribution',iProc)
-        END DO ! iPRoc
-        IF(DExist)THEN
-          LoadDistri(0)=SUM(ElemGlobalTime(1:offSetElemMPI(1)))
-        ELSE
-          LoadDistri(0)=ElemDistri(0) +&
-                                    SUM(PartsInElem(1:offSetElemMPI(1)))*ParticleMPIWeight
-        END IF
-        LastLoadDiff = LoadDistri(0)-targetWeight
-        LoadDiff(0)=LastLoadDiff
-        MaxLoadDiff=MAXVAL(LoadDiff(1:nProcessors-1))
-        LastProcDiff=LastLoadDiff-MaxLoadDiff
-        IF(LastProcDiff.GT.0)THEN
-          FoundDistribution=.TRUE.
-        END IF
-        IF(iDistriIter.EQ.nProcessors) CALL abort(&
-__STAMP__&
-,'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
-        IF(ABS(WeightSum-SUM(LoadDistri)).GT.0.5) THEN
-           WRITE(*,*) WeightSum-SUM(LoadDistri)
-           WRITE(*,*) OffSetElemMPI(1)
-           WRITE(*,*) ElemDistri
-           WRITE(*,*) LoadDistri
-           CALL abort(&
-__STAMP__&
-,' Lost Elements and/or Particles during load distribution!')
-        END IF
-      END DO
-    END IF
-    ! thend the ound distribution to all other procs
-    CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
-  CASE(3)
-    ! 1: last Proc receives the least load
-    targetWeight=WeightSum/REAL(nProcessors)
-    LastProcDiff=0.
-    curiElem=1
-    offSetElemMPI=0
-    offsetElemMPI(nProcessors)=nGlobalElems
-    LoadDistri=0.
-    LoadDiff=0.
-    DO iProc=0,nProcessors-1
-      offSetElemMPI(iProc)=curiElem-1
-      CurWeight=0.
-      getElem=0
-      DO iElem=curiElem, nGlobalElems - nProcessors +1 + iProc
-        CurWeight=CurWeight+ElemGlobalTime(iElem)
-        getElem=getElem+1
-        IF((CurWeight.GT.targetWeight) .OR. (iElem .EQ. nGlobalElems - nProcessors +1 + iProc))THEN
-          diffLower=CurWeight-ElemGlobalTime(iElem)-targetWeight
-          diffUpper=Curweight-targetWeight
-          IF(getElem.GT.1)THEN
-            IF(iProc.EQ.nProcessors-1)THEN
-              LoadDistri(iProc)=CurWeight
-              LoadDiff(iProc)=diffUpper
-              curiElem=iElem+1
-              EXIT
-            ELSE
-              IF(ABS(diffLower).LT.ABS(diffUpper) .AND. iElem.LT.nGlobalElems-nProcessors+1+iProc)THEN
-               LoadDiff(iProc)=diffLower
-               curiElem=iElem
-               LoadDistri(iProc)=CurWeight-ElemGlobalTime(iElem)
-               EXIT
-              ELSE
-                LoadDiff(iProc)=diffUpper
-                curiElem=iElem+1
-                LoadDistri(iProc)=CurWeight
-                EXIT
-              END IF
-            END IF
-          ELSE
-            LoadDiff(iProc)=diffUpper
-            curiElem=iElem+1
-            LoadDistri(iProc)=CurWeight
-            EXIT
-          END IF
-        END IF
-      END DO ! iElem
-    END DO ! iProc
-    ElemDistri=0
-    DO iProc=0,nProcessors-1
-      ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
-      ! sanity check
-      IF(ElemDistri(iProc).LE.0) CALL abort(&
-__STAMP__&
-,' Process received zero elements during load distribution',iProc)
-    END DO ! iPRoc
-    ! redistribute element weight
-    DO iProc=1,nProcessors
-      FirstElemInd=OffSetElemMPI(MyRank)+1
-      LastElemInd =OffSetElemMPI(MyRank+1)
-      MyElems=ElemDistri(MyRank)
-      CALL SingleStepOptimalPartition(MyElems,NewElems,ElemGlobalTime(FirstElemInd:LastElemInd))
-      ElemDistri=0
-      CALL MPI_ALLGATHER(NewElems,1,MPI_INTEGER,ElemDistri(:),1,MPI_INTEGER,MPI_COMM_WORLD,iERROR)
-      ! calculate proc offset
-      OffSetElemMPI(0)=0
-      DO jProc=0,nProcessors-1
-        OffSetElemMPI(jProc+1) = OffsetElemMPI(jProc) + ElemDistri(jProc)
-      END DO ! jProc=0,nProcessors-1
-    END DO ! iProc=1,nProcessors
-    ! compute load distri
-    DO iProc=0,nProcessors-1
-      FirstElemInd=OffSetElemMPI(iProc)+1
-      LastElemInd =OffSetElemMPI(iProc+1)
-      IF(DExist)THEN
-        LoadDistri(iProc) = SUM(ElemGlobalTime(FirstElemInd:LastElemInd))
-      ELSE
-        LoadDistri(iProc) = LastElemInd-OffSetElemMPI(iProc) &
-                          + SUM(PartsInElem(FirstElemInd:LastElemInd))*ParticleMPIWeight
-      END IF
-    !  SWRITE(*,*) FirstElemInd,LastElemInd,LoadDistri(iProc),SUM(PartsInElem(FirstElemInd:LastElemInd))
-    END DO ! iPRoc
-  CASE(4)
-    ! predistribute elements
-    curiElem = 1
-    targetWeight=WeightSum/REAL(nProcessors)
-    SWRITE(*,*) 'targetWeight', targetWeight,ParticleMPIWeight
-    offsetElemMPI(nProcessors)=nGlobalElems
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc)=curiElem - 1 
-      DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
-        CurWeight=CurWeight+ElemGlobalTime(iElem)  
-        IF (CurWeight.GE.targetWeight*(iProc+1)) THEN
-          curiElem = iElem + 1 
-          EXIT
-        END IF
-      END DO   
-    END DO
-    ElemDistri=0
-    DO iProc=0,nProcessors-1
-      ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
-      ! sanity check
-      IF(ElemDistri(iProc).LE.0) CALL abort(&
-__STAMP__&
-,' Process received zero elements during load distribution',iProc)
-    END DO ! iPRoc
-    ! redistribute element weight
-    DO iProc=1,nProcessors
-      !SWRITE(*,*) 'distri',iProc
-      ErrorCode=0
-      FirstElemInd=OffSetElemMPI(MyRank)+1
-      LastElemInd =OffSetElemMPI(MyRank+1)
-      MyElems=ElemDistri(MyRank)
-      CALL SingleStepOptimalPartition(MyElems,NewElems,ElemGlobalTime(FirstElemInd:LastElemInd))
-      ElemDistri=0
-      IF(NewElems.LE.0) ErrorCode=ErrorCode+100
-      CALL MPI_ALLGATHER(NewElems,1,MPI_INTEGER,ElemDistri(:),1,MPI_INTEGER,MPI_COMM_WORLD,iERROR)
-      ! calculate proc offset
-      OffSetElemMPI(0)=0
-      DO jProc=0,nProcessors-1
-        OffSetElemMPI(jProc+1) = OffsetElemMPI(jProc) + ElemDistri(jProc)
-      END DO ! jProc=1,nProcessors
-      IF(OffSetElemMPI(nProcessors).NE.nGlobalElems) ErrorCode=ErrorCode+10
-      IF(SUM(ElemDistri).NE.nGlobalElems) ErrorCode=ErrorCode+1
-      IF(ErrorCode.NE.0) CALL abort(&
-__STAMP__&
-,' Error during re-distribution! ErrorCode:', ErrorCode)
-    END DO ! jProc=0,nProcessors
-  ! compute load distri
-    LoadDistri=0.
-    DO iProc=0,nProcessors-1
-      FirstElemInd=OffSetElemMPI(iProc)+1
-      LastElemInd =OffSetElemMPI(iProc+1)
-      IF(Dexist)THEN
-        LoadDistri(iProc) = SUM(PartsInElem(FirstElemInd:LastElemInd))
-      ELSE
-        LoadDistri(iProc) = LastElemInd-OffSetElemMPI(iProc) &
-                          + SUM(PartsInElem(FirstElemInd:LastElemInd))*ParticleMPIWeight
-      END IF
-    !  SWRITE(*,*) FirstElemInd,LastElemInd,LoadDistri(iProc),SUM(PartsInElem(FirstElemInd:LastElemInd))
-    END DO ! iPRoc
-  END SELECT
-  offsetElemMPI(nProcessors)=nGlobalElems
-  DO iProc=0,nProcessors-1
-    DO iElem=offSetElemMPI(iProc)+1,offSetElemMPI(iProc+1)
-      PartDistri(iProc)=PartDistri(iProc)+PartsInElem(iElem)
-    END DO
-  END DO ! iProc
-  DEALLOCATE(PartsInElem)
-  DEALLOCATE(ElemGlobalTime)
 ELSE
   nElems=nGlobalElems/nProcessors
   iElem=nGlobalElems-nElems*nProcessors
@@ -702,58 +313,95 @@ ELSE
     offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
   END DO
   offsetElemMPI(nProcessors)=nGlobalElems
-END IF
+END IF ! IF(DoRestart.AND.DoLoadBalance)
 
-!local nElems and offset
+
+
+
+
+
+! Set local number of elements
 nElems=offsetElemMPI(myRank+1)-offsetElemMPI(myRank)
-IF(nElems.LE.0) CALL abort(&
-__STAMP__, &
- ' Process did not receive any elements/load! ')
 
+! Sanity check: local nElems and offset
+IF(nElems.LE.0) CALL abort(__STAMP__,&
+    ' Process did not receive any elements/load! ')
+
+! Set element offset for every processor and write info to log file
 offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,*)'offset,nElems',offsetElem,nElems
-! -- LoadBalance preparation
-! read in current elem weights
+
+
+
+! Set new ElemTime depending on new load distribution
 SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))
-IF(DExist)THEN
-  ! read in of ElemTime is required to check if load-balance step has been performed
-  ! successfully
-#ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
-#endif /*MPI*/
-  CALL ReadArray('ElemTime',1,(/nElems/),OffsetElem,1,RealArray=ElemTime)
-  CALL CloseDataFile() 
+ElemTime = 0.
+CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
+
+! Calculate new (theoretical) imbalance with offsetElemMPI information
+IF(ElemTimeExists.AND.MPIRoot)THEN
+  ALLOCATE(WeightSum_proc(0:nProcessors-1))
+  DO iProc=0,nProcessors-1
+    WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
+  END DO
+  SDEALLOCATE(ElemGlobalTime)
+  MaxWeight = MAXVAL(WeightSum_proc)
+  MinWeight = MINVAL(WeightSum_proc)
+  ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
+
+  ! new computation of current imbalance
+  TargetWeight=TargetWeight/nProcessors
+  NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+
+  IF(TargetWeight.LE.0.0) CALL abort(&
+      __STAMP__, &
+      ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
 ELSE
-  ElemTime=0.
+  NewImbalance = -1.
+  MaxWeight = -1.
+  MinWeight = -1.
 END IF
-#ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.TRUE.)
-#endif 
+
+
+
+
+#ifdef PARTICLES
+! Re-allocate nPartsPerElem depending on new number of elements
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))
-  CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
 ELSE
   SDEALLOCATE(nPartsPerElem)
   ALLOCATE(nPartsPerElem(1:nElems))
 END IF
 nPartsPerElem=0
+CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
 SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
+SDEALLOCATE(nSurfacefluxPerElem)
+ALLOCATE(nSurfacefluxPerElem(1:nElems))
+nSurfacefluxPerElem=0
+#endif /*PARTICLES*/
 ! --
 #else /* MPI */
-nElems=nGlobalElems   !local number of Elements 
-offsetElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
+nElems=nGlobalElems   ! Local number of Elements 
+offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
 #endif /* MPI */
 
+
+
+
+
+!IPWRITE (*,*) "MPI_BARRIER"
+!#ifdef MPI
+!CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
+!#endif /* MPI */
+
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL readBCs()
 !----------------------------------------------------------------------------------------------------------------------------
 !                              ELEMENTS
@@ -762,6 +410,7 @@ CALL readBCs()
 !read local ElemInfo from data file
 FirstElemInd=offsetElem+1
 LastElemInd=offsetElem+nElems
+WRITE (*,*) "FirstElemInd,LastElemInd =", FirstElemInd,LastElemInd
 ALLOCATE(Elems(                FirstElemInd:LastElemInd))
 ALLOCATE(ElemInfo(ElemInfoSize,FirstElemInd:LastElemInd))
 CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray=ElemInfo)
@@ -952,18 +601,18 @@ nNodes=nElems*(NGeo+1)**3
 
 !! IJK SORTING --------------------------------------------
 !!read local ElemInfo from data file
-!CALL DatasetExists(File_ID,'nElems_IJK',dexist)
-!IF(dexist)THEN
+!CALL DatasetExists(File_ID,'nElems_IJK',DExist)
+!IF(DExist)THEN
 !  CALL ReadArray('nElems_IJK',1,(/3/),0,1,IntegerArray=nElems_IJK)
 !  ALLOCATE(Elem_IJK(3,nLocalElems))
 !  CALL ReadArray('Elem_IJK',2,(/3,nElems/),offsetElem,2,IntegerArray=Elem_IJK)
 !END IF
 
 ! Get Mortar specific arrays
-dexist=.FALSE.
+isMortarMeshExists=.FALSE.
 iMortar=0
-CALL DatasetExists(File_ID,'isMortarMesh',dexist,.TRUE.)
-IF(dexist)&
+CALL DatasetExists(File_ID,'isMortarMesh',isMortarMeshExists,.TRUE.)
+IF(isMortarMeshExists)&
   CALL ReadAttribute(File_ID,'isMortarMesh',1,IntegerScalar=iMortar)
 isMortarMesh=(iMortar.EQ.1)
 IF(isMortarMesh)THEN

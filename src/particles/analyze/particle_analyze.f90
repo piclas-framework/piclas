@@ -861,7 +861,7 @@ SUBROUTINE AnalyzeParticles(Time)
 #endif
   END IF
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
+  tCurrent(LB_PARTANALYZE)=tCurrent(LB_PARTANALYZE)+tLBEnd-tLBStart
 #endif /*MPI*/
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
@@ -1182,7 +1182,7 @@ IF (PartMPI%MPIROOT) THEN
 !-----------------------------------------------------------------------------------------------------------------------------------
 #ifdef MPI 
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
+tCurrent(LB_PARTANALYZE)=tCurrent(LB_PARTANALYZE)+tLBEnd-tLBStart
 #endif /*MPI*/
 
 #if ( PP_TimeDiscMethod ==42 )

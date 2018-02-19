@@ -79,11 +79,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   SWRITE(UNIT_StdOut,'(A,A,A)')' | Restarting from file "',TRIM(RestartFile),'":'
   DoRestart = .TRUE.
-#ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL GetDataProps(nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
@@ -92,6 +88,10 @@ ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
 END IF
+
+! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
+RestartWallTime=BOLTZPLATZTIME()
+
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
   BuildNewMesh       =.TRUE.
   WriteNewMesh       =.TRUE.
@@ -150,7 +150,6 @@ SUBROUTINE Restart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_HDF5_Input,              ONLY:DatasetExists
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
 #ifdef PP_HDG
@@ -189,7 +188,9 @@ USE MOD_HDG,                     ONLY:RestartHDG
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
 #endif /*USE_QDS_DG*/
+#if (USE_QDS_DG) || (PARTICLES) || (PP_HDG)
 USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -231,7 +232,6 @@ REAL                     :: VFR_total
 CHARACTER(255)           :: TTMRestartFile !> TTM Data file for restart
 LOGICAL                  :: TTM_DG_SolutionExists
 #endif /*PARTICLES*/
-INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
 #if USE_QDS_DG
 CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
 LOGICAL                  :: QDS_DG_SolutionExists
@@ -239,6 +239,7 @@ INTEGER                  :: j,k
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES)
 INTEGER                  :: i
+INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
 #endif
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -255,11 +256,7 @@ IF(DoRestart)THEN
         __STAMP__&
         ,' Restart file does not contain "State" character string?! Supply restart file for reading TTM data')
       TTMRestartFile=TRIM(RestartFile(1:IndNum-1))//'TTM'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
-#ifdef MPI
-      CALL OpenDataFile(TTMRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-      CALL OpenDataFile(TTMRestartFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
+      CALL OpenDataFile(TTMRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
       ALLOCATE( TTM_DG(1:11,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
       CALL DatasetExists(File_ID,'DG_Solution',TTM_DG_SolutionExists)
       IF(TTM_DG_SolutionExists)THEN
@@ -285,11 +282,7 @@ IF(DoRestart)THEN
       __STAMP__&
       ,' Restart file does not contain "State" character string?! Supply restart file for reading QDS data')
     QDSRestartFile=TRIM(RestartFile(1:IndNum-1))//'QDS'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
-#ifdef MPI
-    CALL OpenDataFile(QDSRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-    CALL OpenDataFile(QDSRestartFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
+    CALL OpenDataFile(QDSRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     !ALLOCATE( QDSMacroValues(1:6,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
     CALL DatasetExists(File_ID,'DG_Solution',QDS_DG_SolutionExists)
 
@@ -323,11 +316,7 @@ IF(DoRestart)THEN
   END IF
 #endif /*USE_QDS_DG*/
 
-#ifdef MPI
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(RestartFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ! Read in time from restart file
   !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   ! Read in state

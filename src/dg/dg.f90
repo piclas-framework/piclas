@@ -261,16 +261,16 @@ REAL                            :: tLBStart,tLBEnd
 tLBStart = LOCALTIME() ! LB Time Start
 CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
 CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 
@@ -288,12 +288,12 @@ CALL VolInt(Ut,dofirstElems=.TRUE.)
 
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 ! Complete send / receive
 tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
 #endif /*MPI*/
 
 ! Initialization of the time derivative
@@ -302,18 +302,18 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 CALL StartReceiveMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
 ! fill the global surface flux list
 tLBStart = LOCALTIME() ! LB Time Start
 CALL FillFlux(t,tDeriv,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 
 tLBStart = LOCALTIME() ! LB Time Start
 CALL StartSendMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
 !CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /* MPI*/
 
@@ -328,19 +328,19 @@ CALL VolInt(Ut,dofirstElems=.FALSE.)
 
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 ! Complete send / receive
 tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
 
 !FINALIZE Fluxes for MPI Sides
 tLBStart = LOCALTIME() ! LB Time Start
 CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
 CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 #endif
 
@@ -352,7 +352,7 @@ IF(doSource) CALL CalcSource(tStage,1.0,Ut)
 
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 #endif /*MPI*/
 
 END SUBROUTINE DGTimeDerivative_weakForm

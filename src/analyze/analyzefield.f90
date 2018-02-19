@@ -85,7 +85,7 @@ unit_index = 535
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
       outfile = 'Database.csv'
-      IF (isRestart .and. FILEEXISTS(outputfile)) THEN
+      IF (isRestart .and. FILEEXISTS(outfile)) THEN
          OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
          !CALL FLUSH (unit_index)
       ELSE
@@ -362,9 +362,12 @@ SUBROUTINE OutputPoyntingInt(t,Sabs)
 ! Output of PoyntingVector Integral to *csv vile
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,PosPoyntingInt
-USE MOD_Restart_Vars          ,ONLY:DoRestart
-USE MOD_Globals
+USE MOD_Analyze_Vars ,ONLY: nPoyntingIntPlanes,PosPoyntingInt
+USE MOD_Restart_Vars ,ONLY: DoRestart
+USE MOD_Globals      ,ONLY: FILEEXISTS
+#ifdef MPI
+  USE MOD_Globals
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
