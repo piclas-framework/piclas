@@ -184,10 +184,10 @@ SUBROUTINE WriteUnused(this)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-CLASS(link), POINTER            :: current
+CLASS(link), POINTER         :: current
 !==================================================================================================================================
 
 ! iterate over all options and compare names
@@ -556,8 +556,8 @@ FUNCTION count_setentries(this) result(count)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
-INTEGER                         :: count !< number of found occurences of keyword
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+INTEGER                      :: count !< number of found occurences of keyword
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 CLASS(link),POINTER :: current
@@ -579,8 +579,8 @@ FUNCTION count_entries(this) result(count)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
-INTEGER                         :: count !< number of found occurences of keyword
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+INTEGER                      :: count !< number of found occurences of keyword
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 CLASS(link),POINTER :: current
@@ -602,8 +602,8 @@ FUNCTION count_unread(this) result(count)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
-INTEGER                         :: count !< number of found occurences of keyword
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+INTEGER                      :: count !< number of found occurences of keyword
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 CLASS(link),POINTER :: current
