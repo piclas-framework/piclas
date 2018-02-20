@@ -55,6 +55,8 @@ CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which a
                                                    'Default: 2*N.')
 CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER (Skip Analyze-Dt)')
 CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
