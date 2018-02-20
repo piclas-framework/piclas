@@ -49,12 +49,12 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Analyze")
-CALL prms%CreateLogicalOption('DoCalcErrorNorms' , "Set true to compute L2 and LInf error norms at analyze step.",'.TRUE.')
-CALL prms%CreateRealOption(   'Analyze_dt'       , "Specifies time intervall at which analysis routines are called.",'0.')
-CALL prms%CreateIntOption(    'NAnalyze'         , "Polynomial degree at which analysis is performed (e.g. for L2 errors). "//&
-                                                   "Default: 2*N.")
-CALL prms%CreateIntOption(    'nSkipAnalyze'     , "TODO-DEFINE-PARAMETER (Skip Analyze-Dt)")
-CALL prms%CreateLogicalOption('CalcTimeAverage'  , "TODO-DEFINE-PARAMETER")
+CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.TRUE.')
+CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
+CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors). '//&
+                                                   'Default: 2*N.')
+CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER (Skip Analyze-Dt)')
+CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER')
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
@@ -67,6 +67,13 @@ CALL prms%CreateLogicalOption('CalcTimeAverage'  , "TODO-DEFINE-PARAMETER")
 !CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
                                                  !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
+
+CALL prms%SetSection("Analyzefield")
+CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER', '1E-5')
+
 END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()
