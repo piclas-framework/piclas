@@ -39,13 +39,13 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle")
 
-CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'TODO-DEFINE-PARAMETER', '0.0')
+CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [sec]', '0.0')
 CALL prms%CreateIntOption(      'Part-nSpecies' , 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maimum number of Particles per proc (used for array init)', '1')
 CALL prms%CreateRealOption(     'Particles-dt_part_ratio'  , 'TODO-DEFINE-PARAMETER', '3.8')
 CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PARAMETER', '1.0')
-CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'  , 'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'  , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'  , 'Number of Seeds for Random Number Generator', '0')
+CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'  , 'Seed [$] for Random Number Generator', '0', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding',     'TODO-DEFINE-PARAMETER.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow',     'TODO-DEFINE-PARAMETER.', '.FALSE.')
@@ -124,7 +124,7 @@ CALL prms%CreateStringOption(   'DSMC-HOSampling-NodeType'  , 'TODO-DEFINE-PARAM
 CALL prms%CreateRealArrayOption('DSMCSampVolWe-BGMdeltas'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.')
 CALL prms%CreateRealArrayOption('DSMCSampVolWe-FactorBGM'  , 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
 CALL prms%CreateIntOption(      'DSMCSampVolWe-VolIntOrd'  , 'TODO-DEFINE-PARAMETER', '50')
-CALL prms%CreateIntOption(      'DSMC-nSurfSample'  , 'TODO-DEFINE-PARAMETER. =NGeo', '1')
+CALL prms%CreateIntOption(      'DSMC-nSurfSample'  , 'Define polynomial degree of particle BC sampling. Default: NGeo', '1')
 
 CALL prms%SetSection("Particle SurfCollis")
 CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_OnlySwaps',     'TODO-DEFINE-PARAMETER', '.FALSE.')
@@ -145,13 +145,14 @@ CALL prms%CreateLogicalOption(  'Part-ConstPressRemParts',     'TODO-DEFINE-PARA
 CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
-                                , 'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
+                                , 'Number of different initial particle placements for Species [$]', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+                                , 'Particle Charge (without MPF) of species[$] [TODO-DEFINE-PARAMETER] dim' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+                                , 'Particle Mass (without MPF) of species [$] [1E-3 kg]', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
-                                , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
+                                , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
 
@@ -160,7 +161,9 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForInit'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
-                                , 'TODO-DEFINE-PARAMETER', 'cuboid', numberedmulti=.TRUE.)
+                                , 'Specifying Keyword for particle space condition of species [$] in case of one init'// &
+                                'TODO-DEFINE-PARAMETER'&
+                                , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
                                 , 'TODO-DEFINE-PARAMETER', 'constant', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-rotation'  &
@@ -260,7 +263,8 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForInit' &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForEmission' &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-SpaceIC' &
-                                , 'TODO-DEFINE-PARAMETER', 'cuboid', numberedmulti=.TRUE.)
+                                , 'Specifying Keyword for particle space condition of species [$] in case of multiple inits' &
+                                , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-velocityDistribution'  &
                                 , 'TODO-DEFINE-PARAMETER', 'constant', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-rotation' &
