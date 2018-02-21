@@ -69,6 +69,10 @@ CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER',multi
 !CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
                                                  !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
+#ifndef PARTICLES
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER','.FALSE.')
+#endif
 
 CALL prms%SetSection("Analyzefield")
 CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER', '0')
@@ -122,6 +126,14 @@ Analyze_dt=GETREAL('Analyze_dt','0.')
 nSkipAnalyze=GETINT('nSkipAnalyze','1')
 doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
+
+#ifndef PARTICLES 
+PartAnalyzeStep = GETINT('Part-AnalyzeStep','1') 
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789 
+DoAnalyze = .FALSE. 
+CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
+IF(CalcEpot) DoAnalyze = .TRUE. 
+#endif /*PARTICLES*/ 
 
 AnalyzeInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
@@ -381,7 +393,9 @@ USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #ifdef LSERK
 USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
 #endif /*LSERK*/
+#ifndef PARTICLES
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+#endif
 #ifdef PARTICLES
 #if (PP_TimeDiscMethod==42 || PP_TimeDiscMethod==4)
 USE MOD_Globals_Vars           ,ONLY: ProjectName
