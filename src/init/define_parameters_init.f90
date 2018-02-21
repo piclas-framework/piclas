@@ -22,6 +22,9 @@ USE MOD_IO_HDF5          ,ONLY: DefineParametersIO
 USE MOD_Interpolation    ,ONLY: DefineParametersInterpolation
 USE MOD_Output           ,ONLY: DefineParametersOutput
 USE MOD_Restart          ,ONLY: DefineParametersRestart
+#if defined(IMEX) || defined(IMPA)
+USE MOD_LinearSolver     ,ONLY: DefineParametersLinearSolver
+#endif
 USE MOD_LoadBalance      ,ONLY: DefineParametersLoadBalance
 USE MOD_Analyze          ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints     ,ONLY: DefineParametersRecordPoints
@@ -49,9 +52,6 @@ USE MOD_PICInit          ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 USE MOD_LD_Init          ,ONLY: DefineParametersLD
-#if defined(IMEX) || defined(IMPA)
-USE MOD_LinearSolver     ,ONLY: DefineParametersLinearSolver
-#endif
 USE MOD_DSMC_SurfModelInit,ONLY: DefineParametersSurfModel
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
