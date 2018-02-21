@@ -177,9 +177,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
-#ifdef MPI
-USE MOD_LoadBalance_Vars,        ONLY:tcurrent
-#endif /*MPI*/
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage
@@ -213,6 +210,7 @@ USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+USE MOD_LoadBalance_Vars,        ONLY:tcurrent
 #endif /*MPI*/
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -234,6 +232,10 @@ INTEGER                    :: nFullNewtonIter
 INTEGER                    :: iPart,iCounter
 REAL                       :: tmpFac
 INTEGER                    :: AdaptIterRelaxation
+#ifdef MPI
+! load balance
+REAL                       :: tLBStart,tLBEnd
+#endif /*MPI*/
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,relTolerancePart,Criterion
 LOGICAL                    :: IsConverged
@@ -248,10 +250,6 @@ REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: Lambda ! Armijo rule
 INTEGER                    :: nArmijo, nMaxArmijo=10
-#ifdef MPI
-! load balance
-REAL                       :: tLBStart,tLBEnd
-#endif /*MPI*/
 !===================================================================================================================================
 !===================================================================================================================================
 
