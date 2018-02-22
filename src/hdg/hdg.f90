@@ -749,150 +749,18 @@ END DO
   IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
 
-CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
-
-!post processing:
-DO iElem=1,PP_nElems
-  ! for post-proc
-  DO iLocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    CALL DGEMV('T',nGP_face,nGP_vol,1., &
-                        Ehat(:,:,iLocSide,iElem), nGP_face, &
-                        lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face 
-                        RHS_vol(PP_nVar,:,iElem),1)  
-  END DO
-  CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                             -RHS_vol(PP_nVar,:,iElem),1,0., &
-                             U_out(PP_nVar,:,iElem),1)
-END DO !iElem
-
-IF(AdaptNewtonStartValue) THEN
-  IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(t,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(t,RestartTime))) THEN
-    DO iElem=1,PP_nElems
-      RegionID=GEO%ElemToRegion(iElem)
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        r=k*(PP_N+1)**2+j*(PP_N+1) + i+1     
-        IF (NewtonExactApprox) THEN
-          NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &         
-                       * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
-        ELSE
-          NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-        END IF
-      END DO; END DO; END DO !i,j,k
-    END DO !iElem
-    CALL Elem_Mat(td_iter)
-    CALL BuildPrecond()
-  END IF
-END IF
-
-converged =.false.
-beLinear=.false.
-AdaptIterNewton = AdaptIterNewtonOld
-DO iter=1,MaxIterFixPoint
-
-  IF (.NOT.beLinear) THEN
-    IF ((iter.EQ.AdaptIterNewtonToLinear)) THEN !.OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
-                                               !removed second cond. to ensure fast convergence with very small AdaptIterNewton
-      IF(MPIroot) WRITE(*,*) 'The linear way, baby !!!!!!!!!!!!'
-      DO iElem=1,PP_nElems
-        RegionID=GEO%ElemToRegion(iElem)
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-          NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-        END DO; END DO; END DO !i,j,k
-      END DO !iElem
-      CALL Elem_Mat(td_iter)
-      CALL BuildPrecond()
-      AdaptIterNewton = 0
-      beLinear=.true.
-    END IF
-  END IF
-  
-  IF (AdaptIterNewton.GT.0) THEN
-    IF (MOD(iter,AdaptIterNewton).EQ.0) THEN
-      DO iElem=1,PP_nElems
-        RegionID=GEO%ElemToRegion(iElem)
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-          IF (NewtonExactApprox) THEN
-            NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &         
-                       * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
-          ELSE
-            NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-          END IF
-        END DO; END DO; END DO !i,j,k
-      END DO !iElem
-      CALL Elem_Mat(td_iter)
-      CALL BuildPrecond()
-    END IF
-  END IF
-  !volume source (volume RHS of u system)
-  !SWRITE(*,*) '!!!!!!!!!!!!!!!!!', iter
-
-  DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-      CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
-    END DO; END DO; END DO !i,j,k
-    RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
-  END DO !iElem 
-
-  !prepare RHS_face ( RHS for lamdba system.)
-  RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
-
-  RHS_face(PP_nVar,:,:) =0.
-  DO iElem=1,PP_nElems
-    CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                               -RHS_vol(PP_nVar,:,iElem),1,0., &
-                               rtmp(:),1)
-    DO iLocSide=1,6
-      SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      CALL DGEMV('N',nGP_face,nGP_vol,1., &
-                          Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          rtmp,1,1.,& !add to RHS_face 
-                          RHS_face(PP_nVar,:,SideID),1)  
-    END DO
-  END DO !iElem 
-
-  !add Neumann
-  DO BCsideID=1,nNeumannBCSides
-    SideID=NeumannBC(BCsideID)
-    RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
-  END DO
-
-
-#ifdef MPI
-  startbuf=nSides-nMPISides+1
-  endbuf=nSides-nMPISides+nMPISides_MINE
-  IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-  CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-  IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-  IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-#endif /*MPI*/
-
-  ! SOLVE 
-  CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
-  IF (converged) THEN
+! SOLVE 
+CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
+IF (converged) THEN
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-    IF(DoPrintConvInfo)THEN
-      SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
-    END IF
-#else
-    IF(DoDisplayIter)THEN
-      IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
-        SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
-      END IF
-    END IF
-#endif
-    EXIT
-  ELSE IF (iter.EQ.MaxIterFixPoint) THEN
-    STOP 'Newton Iteration has NOT converged!'
-  !    SWRITE(*,*)'Norm_r2: ',Norm_r2
+  IF(DoPrintConvInfo)THEN
+    SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
   END IF
-
-  CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))   
+#else
+  SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
+#endif
+ELSE 
+  CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
 
   !post processing:
   DO iElem=1,PP_nElems
@@ -907,8 +775,152 @@ DO iter=1,MaxIterFixPoint
     CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                -RHS_vol(PP_nVar,:,iElem),1,0., &
                                U_out(PP_nVar,:,iElem),1)
-  END DO !iElem 
-END DO
+  END DO !iElem
+
+  IF(AdaptNewtonStartValue) THEN
+    IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(t,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(t,RestartTime))) THEN
+      DO iElem=1,PP_nElems
+        RegionID=GEO%ElemToRegion(iElem)
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+          r=k*(PP_N+1)**2+j*(PP_N+1) + i+1     
+          IF (NewtonExactApprox) THEN
+            NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &         
+                         * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+          ELSE
+            NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+          END IF
+        END DO; END DO; END DO !i,j,k
+      END DO !iElem
+      CALL Elem_Mat(td_iter)
+      CALL BuildPrecond()
+    END IF
+  END IF
+
+  converged =.false.
+  beLinear=.false.
+  AdaptIterNewton = AdaptIterNewtonOld
+  DO iter=1,MaxIterFixPoint
+
+    IF (.NOT.beLinear) THEN
+      IF ((iter.EQ.AdaptIterNewtonToLinear)) THEN !.OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
+                                                 !removed second cond. to ensure fast convergence with very small AdaptIterNewton
+        IF(MPIroot) WRITE(*,*) 'The linear way, baby !!!!!!!!!!!!'
+        DO iElem=1,PP_nElems
+          RegionID=GEO%ElemToRegion(iElem)
+          DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+            r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+            NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+          END DO; END DO; END DO !i,j,k
+        END DO !iElem
+        CALL Elem_Mat(td_iter)
+        CALL BuildPrecond()
+        AdaptIterNewton = 0
+        beLinear=.true.
+      END IF
+    END IF
+    
+    IF (AdaptIterNewton.GT.0) THEN
+      IF (MOD(iter,AdaptIterNewton).EQ.0) THEN
+        DO iElem=1,PP_nElems
+          RegionID=GEO%ElemToRegion(iElem)
+          DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+            r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+            IF (NewtonExactApprox) THEN
+              NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &         
+                         * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+            ELSE
+              NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+            END IF
+          END DO; END DO; END DO !i,j,k
+        END DO !iElem
+        CALL Elem_Mat(td_iter)
+        CALL BuildPrecond()
+      END IF
+    END IF
+    !volume source (volume RHS of u system)
+    !SWRITE(*,*) '!!!!!!!!!!!!!!!!!', iter
+
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+      END DO; END DO; END DO !i,j,k
+      RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
+    END DO !iElem 
+
+    !prepare RHS_face ( RHS for lamdba system.)
+    RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
+
+    RHS_face(PP_nVar,:,:) =0.
+    DO iElem=1,PP_nElems
+      CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
+                                 -RHS_vol(PP_nVar,:,iElem),1,0., &
+                                 rtmp(:),1)
+      DO iLocSide=1,6
+        SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+        CALL DGEMV('N',nGP_face,nGP_vol,1., &
+                            Ehat(:,:,iLocSide,iElem), nGP_face, &
+                            rtmp,1,1.,& !add to RHS_face 
+                            RHS_face(PP_nVar,:,SideID),1)  
+      END DO
+    END DO !iElem 
+
+    !add Neumann
+    DO BCsideID=1,nNeumannBCSides
+      SideID=NeumannBC(BCsideID)
+      RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
+    END DO
+
+
+#ifdef MPI
+    startbuf=nSides-nMPISides+1
+    endbuf=nSides-nMPISides+nMPISides_MINE
+    IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
+    CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
+    CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+    CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
+    IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
+    IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
+#endif /*MPI*/
+
+    ! SOLVE 
+    CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
+    IF (converged) THEN
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+      IF(DoPrintConvInfo)THEN
+        SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
+      END IF
+#else
+      IF(DoDisplayIter)THEN
+        IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+          SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
+        END IF
+      END IF
+#endif
+      EXIT
+    ELSE IF (iter.EQ.MaxIterFixPoint) THEN
+      STOP 'Newton Iteration has NOT converged!'
+    !    SWRITE(*,*)'Norm_r2: ',Norm_r2
+    END IF
+
+    CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))   
+
+    !post processing:
+    DO iElem=1,PP_nElems
+      ! for post-proc
+      DO iLocSide=1,6
+        SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+        CALL DGEMV('T',nGP_face,nGP_vol,1., &
+                            Ehat(:,:,iLocSide,iElem), nGP_face, &
+                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face 
+                            RHS_vol(PP_nVar,:,iElem),1)  
+      END DO
+      CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
+                                 -RHS_vol(PP_nVar,:,iElem),1,0., &
+                                 U_out(PP_nVar,:,iElem),1)
+    END DO !iElem 
+  END DO
+END IF
 
 #if (PP_nVar==1)
 CALL PostProcessGradient(U_out(PP_nVar,:,:),lambda(PP_nVar,:,:),E)
