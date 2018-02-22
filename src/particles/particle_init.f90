@@ -462,12 +462,61 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-ParamAntoine'  &
                                 , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps'  &
+CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
                                 , 'TODO-DEFINE-PARAMETER', '0 , 0', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName'  &
                                 , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseForQCrit'  &
                                 , 'TODO-DEFINE-PARAMETER', '.TRUE.', numberedmulti=.TRUE.)
+
+CALL prms%CreateIntOption(      'Part-nAuxBCs'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0')
+CALL prms%CreateIntOption(      'Part-AuxBC[$]-NbrOfSpeciesSwaps'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-AuxBC[$]-Condition'  &
+                                , 'TODO-DEFINE-PARAMETER',  'open', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-MomentumACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-WallTemp'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-TransACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-VibACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-RotACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-ElecACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-Resample'  &
+                                , 'TODO-DEFINE-PARAMETER',  '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-WallVelo'  &
+                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-ProbOfSpeciesSwaps'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'Part-AuxBC[$]-SpeciesSwaps[$]'  &
+                                , 'TODO-DEFINE-PARAMETER', '0 , 0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-AuxBC[$]-Type'  &
+                                , 'TODO-DEFINE-PARAMETER',  'plane', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-r_vec'  &
+                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-radius'  &
+                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-n_vec'  &
+                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-axis'  &
+                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmin'  &
+                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmax'  &
+                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. is calculated!!!
+CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-inwards'  &
+                                , 'TODO-DEFINE-PARAMETER',  '.TRUE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-rmax'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
+                                , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -1689,7 +1738,7 @@ IF (nAuxBCs.GT.0) THEN
   !--determine MaxNbrOfSpeciesSwaps for correct allocation
   MaxNbrOfSpeciesSwaps=0
   DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I2)') iPartBound
+    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
     PartAuxBC%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-AuxBC'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
     MaxNbrOfSpeciesSwaps=max(PartAuxBC%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
   END DO
@@ -1699,7 +1748,7 @@ IF (nAuxBCs.GT.0) THEN
   END IF
   !--
   DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I2)') iPartBound
+    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
     tmpString = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Condition','open'))
     SELECT CASE (TRIM(tmpString))
     CASE('open')
@@ -1718,7 +1767,7 @@ IF (nAuxBCs.GT.0) THEN
         !read Species to be changed at wall (in, out), out=0: delete
         PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
         DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(iPartBound)
-          WRITE(UNIT=hilf2,FMT='(I2)') iSwaps
+          WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
           PartAuxBC%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
             GETINTARRAY('Part-AuxBC'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
         END DO
@@ -1736,7 +1785,7 @@ IF (nAuxBCs.GT.0) THEN
   nAuxBCcones = 0
   nAuxBCparabols = 0
   DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I2)') iAuxBC
+    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
     AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
     SELECT CASE (TRIM(AuxBCType(iAuxBC)))
     CASE ('plane')
@@ -1773,7 +1822,7 @@ IF (nAuxBCs.GT.0) THEN
   END IF
   !- read type-specifics
   DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I2)') iAuxBC
+    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
     SELECT CASE (TRIM(AuxBCType(iAuxBC)))
     CASE ('plane')
       AuxBC_plane(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
