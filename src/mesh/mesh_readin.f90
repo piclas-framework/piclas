@@ -73,7 +73,7 @@ INTEGER                        :: iBC,iUserBC
 INTEGER                        :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
 ! read in boundary conditions from ini file, will overwrite BCs from meshfile!
-nUserBCs = CNTSTR('BoundaryName','0')
+nUserBCs = CNTSTR('BoundaryName')
 IF(nUserBCs.GT.0)THEN
   ALLOCATE(BoundaryName(1:nUserBCs))
   ALLOCATE(BoundaryType(1:nUserBCs,2))

@@ -61,8 +61,8 @@ INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
 SWRITE(UNIT_stdOut,'(132("~"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 
-BGFileName = GETSTR('PIC-BGFileName','blubb')
-IF(TRIM(BGFileName).EQ.'blubb')THEN 
+BGFileName = GETSTR('PIC-BGFileName','none')
+IF(TRIM(BGFileName).EQ.'none')THEN 
   CALL abort(&
   __STAMP__&
   ,'ERROR: No Filename for Background-Field defined!')

@@ -59,8 +59,61 @@ PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, Par
                 , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF, ParticleAdaptiveSurfaceflux &
                 , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn
 !===================================================================================================================================
-                                                                                                  
-CONTAINS                                                                                           
+PUBLIC::DefineParametersParticleEmission
+CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particle emission (surface flux)
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleEmission()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Particle Emission")
+
+CALL prms%CreateIntOption(      'Part-Species[$]-nSurfacefluxBCs' , 'TODO-DEFINE-PARAMETER' &
+                                , '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-BC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Surfaceflux[$]-velocityDistribution' &
+                                , 'TODO-DEFINE-PARAMETER' , 'constant', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-VeloIC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' , 'TODO-DEFINE-PARAMETER' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' , 'TODO-DEFINE-PARAMETER' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-preFac' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-powerFac' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-shiftFac' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' , 'TODO-DEFINE-PARAMETER' &
+                                , '1', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.0 , 0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' , 'TODO-DEFINE-PARAMETER' &
+                                , '1e21', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-PartDensity' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' , 'TODO-DEFINE-PARAMETER' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AcceptReject' , 'TODO-DEFINE-PARAMETER' &
+                                , '.TRUE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN' , 'TODO-DEFINE-PARAMETER' &
+                                , '1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Pressurefraction' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+
+END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
 SUBROUTINE InitializeParticleEmission()
 !===================================================================================================================================
@@ -3532,7 +3585,7 @@ sum_pressurefraction(:) = 0.
 !-- 1.: read/prepare parameters and determine nec. BCs
 DO iSpec=1,nSpecies
   Adaptive_Found_Flag(:) = .FALSE.
-  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs','0')
   ! if no surfacefluxes defined and only adaptive boundaries then first allocation with adaptive
   IF ((Species(iSpec)%nSurfacefluxBCs.EQ.0) .AND. (nAdaptiveBC.GT.0)) THEN
@@ -3551,7 +3604,7 @@ DO iSpec=1,nSpecies
     ! Initialize Surfaceflux to BC mapping and check if defined Surfacefluxes from init overlap with Adaptive BCs
     Species(iSpec)%Surfaceflux(:)%BC=-1
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      WRITE(UNIT=hilf2,FMT='(I2)') iSF
+      WRITE(UNIT=hilf2,FMT='(I0)') iSF
       hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
       Species(iSpec)%Surfaceflux(iSF)%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC','0')
       IF (nAdaptiveBC.GT.0) THEN
@@ -3591,7 +3644,7 @@ DO iSpec=1,nSpecies
 
   MaxSurfacefluxBCs=MAX(MaxSurfacefluxBCs,Species(iSpec)%nSurfacefluxBCs)
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-    WRITE(UNIT=hilf2,FMT='(I2)') iSF
+    WRITE(UNIT=hilf2,FMT='(I0)') iSF
     hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
     Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = 0
     Species(iSpec)%Surfaceflux(iSF)%InsertedParticleSurplus = 0
@@ -3676,7 +3729,7 @@ __STAMP__&
       SWRITE(*,*)'WARNING: The choosen small BezierSampleN (def.: NGeo) might result in inhom. SurfFluxes without ARM!'
     END IF
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-      WRITE( hilf3, '(I2.2)') NGeo*NGeo*NGeo !1 for linear elements, this is an arbitray estimation for higher N!
+      WRITE( hilf3, '(I0.2)') NGeo*NGeo*NGeo !1 for linear elements, this is an arbitray estimation for higher N!
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = GETINT('Part-Species'//TRIM(hilf2)//'-ARM_DmaxSampleN',hilf3)
     ELSE
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = 0
@@ -3709,7 +3762,7 @@ __STAMP__&
     END IF
     !Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
     Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
-    WRITE(UNIT=hilf2,FMT='(I2)') iSF-Species(iSpec)%nSurfacefluxBCs
+    WRITE(UNIT=hilf2,FMT='(I0)') iSF-Species(iSpec)%nSurfacefluxBCs
     hilf2=TRIM(hilf)//'-Adaptiveflux'//TRIM(hilf2)
     Species(iSpec)%Surfaceflux(iSF)%PressureFraction      = GETREAL('Part-Species'//TRIM(hilf2)//'-Pressurefraction','0.')
     sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
@@ -3823,7 +3876,7 @@ DO iBC=1,nDataBC
 __STAMP__&
 ,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
-        IPWRITE(*,'(I4,I7,A53,I2)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
+        IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
         DoSurfaceFlux=.TRUE.
         EXIT
       END IF

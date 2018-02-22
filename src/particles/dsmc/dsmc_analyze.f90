@@ -13,6 +13,10 @@ INTERFACE WriteDSMCToHDF5
   MODULE PROCEDURE WriteDSMCToHDF5
 END INTERFACE
 
+INTERFACE WriteDSMCHOToHDF5
+  MODULE PROCEDURE WriteDSMCHOToHDF5
+END INTERFACE
+
 INTERFACE CalcTVib
   MODULE PROCEDURE CalcTVib
 END INTERFACE
@@ -2094,7 +2098,6 @@ SUBROUTINE GenerateDSMCHOFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,O
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
-!USE MOD_ReadInTools,ONLY: GetParameters
 !USE MOD_PreProcFlags
 USE MOD_io_HDF5
 USE MOD_DSMC_Vars,            ONLY:HODSMC
@@ -2154,12 +2157,6 @@ ELSE
 END IF
 
 CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-
-! Write ini file parameters and compile flags
-!CALL GetParameters(params)
-!CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-!!CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-!DEALLOCATE(params)
 
 CALL CloseDataFile()
 END SUBROUTINE GenerateDSMCHOFileSkeleton
@@ -2988,7 +2985,6 @@ USE MOD_Particle_Vars,      ONLY: nSpecies
 USE MOD_Globals_Vars,       ONLY: ProjectName
 USE MOD_io_HDF5
 USE MOD_HDF5_Output,        ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
-USE MOD_ReadInTools,        ONLY: GetParameters
 USE MOD_PICDepo_Vars,       ONLY: SFResampleAnalyzeSurfCollis, LastAnalyzeSurfCollis, r_SF
 USE MOD_Particle_Boundary_Vars,ONLY: nPartBound, AnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
@@ -3118,12 +3114,6 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
     CALL WriteAttributeToHDF5(File_ID,'VarNames',PartDataSize,StrArray=StrVarNames)
     CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
     CALL WriteAttributeToHDF5(File_ID,'TotalFlowrateMPF',1,RealScalar=TotalFlowrateMPF)
-    
-    !! Write ini file parameters and compile flags
-    !CALL GetParameters(params)
-    !CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-    !CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-    !DEALLOCATE(params)
 
     CALL CloseDataFile()
   END IF

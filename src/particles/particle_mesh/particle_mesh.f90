@@ -93,7 +93,82 @@ PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitTriaParticleGeometry
 !===================================================================================================================================
 !
+PUBLIC::DefineParametersParticleMesh
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particle tracking
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleMesh()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection('Tracking')
+
+CALL prms%CreateLogicalOption( 'DoRefMapping'&
+  , 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
+  , '.TRUE.')
+
+CALL prms%CreateLogicalOption( 'TriaTracking'&
+  , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for tracing algorithms.'//&
+  ' Currently flag is only used in DSMC timediscs. Requries DoRefMapping=F.'&
+  ,'.FALSE.')
+
+CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
+  , 'Count number of lost particles during tracking that can not be found with fallbacks.','.FALSE.')
+CALL prms%CreateIntOption(     'PartOut'&
+  , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
+CALL prms%CreateIntOption(     'MPIRankOut'&
+  , 'If compiled with CODE_ANALYZE flag: This MPI-Proc writes the tracking information for the defined PartOut.','0')
+CALL prms%CreateLogicalOption( 'MeasureTrackTime'&
+  , 'If .TRUE. then the time how long the tracking routines are called are sampled and written for each MPI-Proc.','.FALSE.')
+CALL prms%CreateLogicalOption( 'CartesianPeriodic'&
+    , ' Simplified treatment for periodic box with Refmapping. Not computation of intersection points at periodic BCs.','.FALSE.')
+CALL prms%CreateLogicalOption( 'FastPeriodic'&
+  , ' Further simplification by directly moving particle into grid. Instead of moving the particle several times the periodic'//&
+    ' displacements, the particle is mapped directly back into the domain. ','.FALSE.')
+CALL prms%CreateIntOption(     'RefMappingGuess'&
+  , ' Initial guess of the Newton for mapping the particle into reference coordinates. (1) -'//&
+    ' linear, pseudo-Cartesian coordinates (2) - Xi of closest Gauss point (3) - Xi of '//&
+    ' closest XCL_ngeo point (4) -trival guess (0,0,0)^t')
+CALL prms%CreateRealOption(    'RefMappingEps'&
+  , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
+CALL prms%CreateRealOption(    'BezierEpsilonBilinear'&
+    , ' Desicion if face is bilinear or linear.' , '1e-6')
+CALL prms%CreateIntOption(     'BezierElevation'&
+  , ' Use BezierElevation>0 to tighten the bounding box. Typicall values>10','0')
+CALL prms%CreateIntOption(     'BezierSampleN'&
+  , 'TODO-DEFINE-PARAMETER. Defualt value: NGeo','0')
+
+! Background mesh init variables
+CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
+  , 'Define the deltas for the cartesian Fast-Init-Background-Mesh.'//&
+  ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
+  , '1. , 1. , 1.')
+CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
+  , 'Factor with which the background mesh will be scaled.'&
+  , '1. , 1. , 1.')
+CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
+    ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
+    ,'.FALSE.')
+
+CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between Bezierclipping '//& 
+'BezierNewton.' , '1.570796326')
+CALL prms%CreateRealOption(    'BezierClipTolerance'    , ' Tolerance for BezierClipping' , '1e-8')
+CALL prms%CreateRealOption(    'BezierNewtonTolerance'  , ' Tolerance for BezierNewton' , '1e-4')
+CALL prms%CreateIntOption(     'BezierNewtonGuess'      , ' Initial guess for BezierNewton '// &
+    '(1) - linear projected face (2) - cloesest projected BeziercontrolPoint (4) - (0,0)^t' , '1')
+CALL prms%CreateRealOption(    'BezierSplitLimit'       , ' Limit for splitting in BezierClipping.'// &
+   ' Value allows to detect multiple intersections and speed up computation. Parameter is multiplied by 2' , '0.6')
+CALL prms%CreateIntOption(     'BezierClipMaxIter'      , ' Max iteration of BezierClipping' , '100')
+CALL prms%CreateRealOption(    'epsilontol'             , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateRealOption(    'BezierClipHit'          , ' Tolerance in [-1,1] of BezierFace' , '0.')
+CALL prms%CreateRealOption(    'BezierNewtonHit'        , ' Tolerance in [-1,1] of BezierNewton' , '0.')
+CALL prms%CreateIntOption(     'BezierClipMaxIntersec'  , ' Max. number of multiple intersections. Default: 2*(NGeo+1)')
+
+END SUBROUTINE DefineParametersParticleMesh
 
 SUBROUTINE InitParticleMesh()
 !===================================================================================================================================
@@ -567,7 +642,7 @@ IF (TriaTracking) THEN
   IF (.NOT.ParticleFound) THEN
     PDM%ParticleInside(iPart) = .FALSE.
   END IF
-   RETURN
+  RETURN
 END IF
 
 !--- check all cells associated with this beckground mesh cell
@@ -1014,7 +1089,7 @@ LastPartPos(PartID,1:3) = LastPosTmp(1:3)
 END SUBROUTINE PartInElemCheck
 
 
-SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)                                      !
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 ! checks if particle is inside of linear element with planar faces
 !===================================================================================================================================

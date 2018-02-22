@@ -7,59 +7,36 @@ PROGRAM Boltzplatz
 ! MODULES
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Globals
-USE MOD_Boltzplatz_Tools,  ONLY:InitBoltzplatz,FinalizeBoltzplatz
-USE MOD_Restart,           ONLY:Restart
-USE MOD_Interpolation,     ONLY:InitInterpolation!,FinalizeInterpolation
-USE MOD_IO_HDF5,           ONLY:InitIO
-USE MOD_TimeDisc,          ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
-USE MOD_MPI,               ONLY:InitMPI
-USE MOD_RecordPoints_Vars, ONLY:RP_Data
-USE MOD_Mesh_Vars,         ONLY: DoSwapMesh
-USE MOD_Mesh,              ONLY: SwapMesh
+USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
+USE MOD_Commandline_Arguments
+USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
+USE MOD_Boltzplatz_Init        ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Restart_Vars           ,ONLY: RestartFile
+USE MOD_Restart                ,ONLY: Restart
+USE MOD_Interpolation          ,ONLY: InitInterpolation
+USE MOD_IO_HDF5                ,ONLY: InitIO
+USE MOD_TimeDisc               ,ONLY: InitTimeDisc,FinalizeTimeDisc,TimeDisc
+USE MOD_MPI                    ,ONLY: InitMPI
+USE MOD_RecordPoints_Vars      ,ONLY: RP_Data
+USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
+USE MOD_Mesh                   ,ONLY: SwapMesh
 #ifdef MPI
-USE MOD_LoadBalance,       ONLY:InitLoadBalance,FinalizeLoadBalance
-USE MOD_MPI,               ONLY:FinalizeMPI
+USE MOD_LoadBalance            ,ONLY: InitLoadBalance,FinalizeLoadBalance
+USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*MPI*/
-USE MOD_Output,           ONLY:InitOutput
-!USE MOD_ReadInTools,      ONLY:IgnoredStrings
-!
-!USE MOD_Restart,          ONLY:InitRestart,Restart,FinalizeRestart
-!USE MOD_Mesh,             ONLY:InitMesh,FinalizeMesh
-!USE MOD_Equation,         ONLY:InitEquation,FinalizeEquation
-!USE MOD_DG,               ONLY:InitDG,FinalizeDG
-!USE MOD_PML,              ONLY:InitPML,FinalizePML
-!USE MOD_Filter,           ONLY:InitFilter,FinalizeFilter
-!USE MOD_RecordPoints,     ONLY:InitRecordPoints,FinalizeRecordPoints
-!USE MOD_TimeDisc,         ONLY:TimeDisc
-!#ifdef MPI
-!!USE MOD_MPI,              ONLY:InitMPIvars,FinalizeMPI
-!!USE MOD_MPI,              ONLY:FinalizeMPI
-!#endif /*MPI*/
-!#ifdef PARTICLES
-!USE MOD_ParticleInit,     ONLY:InitParticles
-!USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces!, GetSideType
-!USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
-!USE MOD_Particle_Mesh,    ONLY:InitParticleMesh,FinalizeParticleMesh
-!USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
-!USE MOD_Particle_MPI,     ONLY:InitParticleMPI
-!USE MOD_PICDepo,          ONLY:FinalizeDeposition
-!USE MOD_ParticleInit,     ONLY:FinalizeParticles
-!USE MOD_DSMC_Init,        ONLY:FinalizeDSMC
-!#ifdef MPI
-!USE MOD_Particle_MPI,     ONLY:FinalizeParticleMPI
-!#endif /*MPI*/
-!#endif
-!USE MOD_ReadinTools,  ONLY: Readindone
-!USE MOD_Particle_MPI_Vars, ONLY: ParticleMPIInitisdone
-!USE MOD_Particle_Vars, ONLY: ParticlesInitIsDone
+USE MOD_Output                 ,ONLY: InitOutput
+USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters
+USE MOD_StringTools            ,ONLY:STRICMP, GetFileExtension
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL    :: Time
+REAL                    :: Time
+LOGICAL                 :: userblockFound
 !===================================================================================================================================
 
 CALL InitMPI()
+
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "
@@ -83,6 +60,76 @@ SWRITE(UNIT_stdOut,'(A)')&
  ' '
 SWRITE(UNIT_stdOut,'(132("="))')
 
+CALL ParseCommandlineArguments()
+
+! Check if the number of arguments is correct
+IF ((nArgs.GT.3) .OR. ((nArgs.EQ.0).AND.(doPrintHelp.EQ.0)) ) THEN
+  ! Print out error message containing valid syntax
+  CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+    'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+END IF
+
+CALL InitDefineParameters()
+
+! check for command line argument --help or --markdown
+IF (doPrintHelp.GT.0) THEN
+  CALL PrintDefaultParameterFile(doPrintHelp.EQ.2, Args(1))
+  STOP
+END IF
+
+ParameterFile = Args(1)
+IF (nArgs.EQ.2) THEN
+  ParameterDSMCFile = Args(2)
+  IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
+    ! Print out error message containing valid syntax
+    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+      'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  END IF
+  IF(STRICMP(GetFileExtension(ParameterDSMCFile), "h5")) THEN
+    RestartFile = ParameterDSMCFile
+    ParameterDSMCFile = '' !'no file found'
+  END IF
+ELSE IF (nArgs.GT.2) THEN
+  ParameterDSMCFile = Args(2)
+  RestartFile = Args(3)
+  IF (STRICMP(GetFileExtension(ParameterDSMCFile), "h5").OR.STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
+    ! Print out error message containing valid syntax
+    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+      'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  END IF
+ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
+  ! Print out error message containing valid syntax
+  !CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
+  !  'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  ParameterFile = ".boltzplatz.ini" 
+  CALL ExtractParameterFile(Args(1), ParameterFile, userblockFound)
+  IF (.NOT.userblockFound) THEN
+    CALL CollectiveStop(__STAMP__, "No userblock found in state file '"//TRIM(Args(1))//"'")
+  END IF
+  RestartFile = Args(1)
+END IF
+
+StartTime=BOLTZPLATZTIME()
+CALL prms%read_options(ParameterFile)
+! Measure init duration
+Time=BOLTZPLATZTIME()
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
+,prms%count_setentries(),' PARAMETERS ARE SET'
+SWRITE(UNIT_stdOut,'(132("="))')
+! Check if we want to read in DSMC.ini
+IF(nArgs.GE.2)THEN
+  IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
+    CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
+    ! Measure init duration
+    Time=BOLTZPLATZTIME()
+    SWRITE(UNIT_stdOut,'(132("="))')
+    SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
+    ,prms%count_setentries(),' PARAMETERS ARE SET'
+    SWRITE(UNIT_stdOut,'(132("="))')
+  END IF
+END IF
+
 CALL InitOutput()
 CALL InitIO()
 
@@ -92,42 +139,14 @@ CALL InitLoadBalance()
 #endif /*MPI*/
 ! call init routines
 ! Measure init duration
-StartTime=BOLTZPLATZTIME()
+!StartTime=BOLTZPLATZTIME()
 
 ! Initialization
 CALL InitInterpolation()
 CALL InitTimeDisc()
 
 CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
-!CALL InitRestart()
-!CALL InitMesh()
-!#ifdef MPI
-!CALL InitMPIVars()
-!#endif /*MPI*/
-!#ifdef PARTICLES
-!!#ifdef MPI
-!CALL InitParticleMPI
-!!#endif /*MPI*/
-!CALL InitParticleSurfaces()
-!!CALL InitParticleMesh()
-!#endif /*PARTICLES*/
-!CALL InitEquation()
-!!1#ifdef PARTICLES
-!!CALL InitParticles()
-!!#endif
-!CALL InitPML()
-!CALL InitDG()
-!CALL InitFilter()
-!#ifdef PARTICLES
-!CALL InitParticles()
-!!CALL GetSideType
-!#endif
-!CALL InitAnalyze()
-!CALL InitRecordPoints()
-!#ifdef PARTICLES
-!CALL InitParticleAnalyze()
-!#endif
-!CALL IgnoredStrings()
+
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
@@ -161,32 +180,6 @@ CALL TimeDisc()
 
 !Finalize
 CALL FinalizeBoltzplatz(IsLoadBalance=.FALSE.)
-!CALL FinalizeOutput()
-!CALL FinalizeRecordPoints()
-!CALL FinalizeAnalyze()
-!CALL FinalizeDG()
-!CALL FinalizePML()
-!CALL FinalizeEquation()
-!CALL FinalizeInterpolation()
-!CALL FinalizeTimeDisc()
-!CALL FinalizeRestart()
-!CALL FinalizeMesh()
-!CALL FinalizeFilter()
-!#ifdef PARTICLES
-!CALL FinalizeParticleSurfaces()
-!CALL FinalizeParticleMesh()
-!CALL FinalizeParticleAnalyze()
-!CALL FinalizeDeposition() 
-!#ifdef MPI
-!CALL FinalizeParticleMPI()
-!#endif /*MPI*/
-!CALL FinalizeDSMC()
-!CALL FinalizeParticles()
-!CALL FinalizeBackGroundField()
-!#endif
-!#ifdef MPI
-!CALL FinalizeMPI()
-!#endif
 
 CALL FinalizeTimeDisc()
 ! mssing arrays to deallocate
@@ -212,3 +205,4 @@ SWRITE(UNIT_stdOut,'(A,F8.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM Boltzplatz
+

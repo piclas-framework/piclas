@@ -3,7 +3,7 @@ stages:
   - error_clean
   - reggie_checkin
   - reggie_feature_checkin
-  - reggie_chemistry_nightly
+  - reggie_DSMC_nightly
   - reggie_tracking_nightly
   - reggie_nightly
   - reggie_nightly_build_all
@@ -101,7 +101,7 @@ gnu__PIC_IMD_coupling:
   script:
     - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
-gnu_DSMC:
+gnu_DSMC_check:
   stage: reggie_feature_checkin
   tags:
     - withmodules
@@ -139,13 +139,6 @@ intel__PIC_IMD_coupling:
   script:
     - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
-intel_DSMC:
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules
-  script:
-    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
-
 intel_PIC_maxwell_implicitBC:
   stage: reggie_feature_checkin
   tags:
@@ -189,19 +182,25 @@ intel_tracing_cylinder:
 # Stage "reggie_chemistry_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_chemistry:
-  stage: reggie_chemistry_nightly
+  stage: reggie_DSMC_nightly
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
 
 intel_chemistry:
-  stage: reggie_chemistry_nightly
+  stage: reggie_DSMC_nightly
   tags:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
 
+intel_DSMC_check:
+  stage: reggie_DSMC_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

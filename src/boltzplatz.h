@@ -22,6 +22,8 @@
 #  define IEEE_IS_NAN ISNAN
 #endif
 
+#define SIZEOF_F(x) (STORAGE_SIZE(x)/8)
+
 #ifdef GNU
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
@@ -117,7 +119,7 @@
 #define RIEMANN_VAC2DIELECTRIC 4
 
 ! format
-#define OUTPUTFORMAT '(E25.14E3)'
+#define WRITEFORMAT '(E25.14E3)'
 
 ! Load Balance (LB) position in array for measuring the time that is spent of specific operations
 #define LB_DG            1

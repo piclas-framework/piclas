@@ -26,8 +26,27 @@ END INTERFACE
 
 PUBLIC::InitQDS
 PUBLIC::FinalizeQDS
+PUBLIC::DefineParametersQDS
 !===================================================================================================================================
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for QDS
+!==================================================================================================================================
+SUBROUTINE DefineParametersQDS()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("QDS")
+
+CALL prms%CreateLOGICALOption(  'DoQDS'              , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateIntOption(      'QDSIniExactFunc'    , 'TODO-DEFINE-PARAMETER', '0')
+
+!QDS_Species = GETINT('Particles-QDSSpecies','0')
+
+END SUBROUTINE DefineParametersQDS
 
 
 SUBROUTINE InitQDS

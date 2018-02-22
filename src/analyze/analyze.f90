@@ -35,8 +35,52 @@ END INTERFACE
 !===================================================================================================================================
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
+PUBLIC::DefineParametersAnalyze
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersAnalyze()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+!USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Analyze")
+CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.TRUE.')
+CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
+CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors). '//&
+                                                   'Default: 2*N.')
+CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER (Skip Analyze-Dt)')
+CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
+!CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
+                                                 !'.FALSE.')
+!CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
+                                                 !"(e.g. State,TimeAvg,Fluc) are written.",&
+                                                 !'1')
+!CALL prms%CreateIntOption(    'AnalyzeExactFunc',"Define exact function used for analyze (e.g. for computing L2 errors). "//&
+                                                 !"Default: Same as IniExactFunc")
+!CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
+                                                 !"Default: Same as IniRefState")
+!CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
+                                                 !'.TRUE.')
+!CALL DefineParametersAnalyzeEquation()
+#ifndef PARTICLES
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER','.FALSE.')
+#endif
+
+CALL prms%SetSection("Analyzefield")
+CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER', '1E-5')
+
+END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()
 !===================================================================================================================================
@@ -83,13 +127,13 @@ nSkipAnalyze=GETINT('nSkipAnalyze','1')
 doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
-#ifndef PARTICLES
-PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
-DoAnalyze = .FALSE.
-CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
-IF(CalcEpot) DoAnalyze = .TRUE.
-#endif /*PARTICLES*/
+#ifndef PARTICLES 
+PartAnalyzeStep = GETINT('Part-AnalyzeStep','1') 
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789 
+DoAnalyze = .FALSE. 
+CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
+IF(CalcEpot) DoAnalyze = .TRUE. 
+#endif /*PARTICLES*/ 
 
 AnalyzeInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
@@ -243,11 +287,13 @@ INTEGER                        :: openStat! File IO status
 CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
 CHARACTER(LEN=30)              :: L2name(PP_nVar)              ! variable name for the Tecplot header
 CHARACTER(LEN=300)             :: Filename                     ! Output filename,
+!LOGICAL                        :: fileExists                   ! Error handler for file
 INTEGER                        :: ioUnit
 !===================================================================================================================================
 Filename = 'out.'//TRIM(ProjectName)//'.dat'
 ! Check for file
 ! INQUIRE(FILE = Filename, EXIST = fileExists) ! now -> FILEEXISTS(Filename)
+! FILEEXISTS(Filename)
 !! File processing starts here open old and extract information or create new file.
 ioUnit=1746 ! This number must be fixed?
   OPEN(UNIT   = ioUnit       ,&
@@ -347,7 +393,9 @@ USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #ifdef LSERK
 USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
 #endif /*LSERK*/
+#ifndef PARTICLES
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+#endif
 #ifdef PARTICLES
 #if (PP_TimeDiscMethod==42 || PP_TimeDiscMethod==4)
 USE MOD_Globals_Vars           ,ONLY: ProjectName
@@ -792,7 +840,7 @@ REAL,INTENT(IN)     :: Time
 ! LOCAL VARIABLES
 REAL                :: rDummy
 LOGICAL             :: isOpen
-CHARACTER(LEN=350)  :: outfile                                                      !
+CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 !===================================================================================================================================
 

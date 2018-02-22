@@ -27,8 +27,33 @@ INTERFACE DivCleaningDamping
 END INTERFACE
 PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping
 !===================================================================================================================================
-
+PUBLIC::DefineParametersEquation
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for equation
+!==================================================================================================================================
+SUBROUTINE DefineParametersEquation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Equation")
+
+CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER' , '0.999')
+CALL prms%CreateLogicalOption(  'ParabolicDamping' , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER')
+
+CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER', 'no file found')
+CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER' , '1.0')
+
+END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================

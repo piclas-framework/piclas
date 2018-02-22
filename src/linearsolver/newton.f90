@@ -177,9 +177,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
-#ifdef MPI
-USE MOD_LoadBalance_Vars,        ONLY:tcurrent
-#endif /*MPI*/
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage
@@ -213,6 +210,7 @@ USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+USE MOD_LoadBalance_Vars,        ONLY:tcurrent
 #endif /*MPI*/
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -234,6 +232,10 @@ INTEGER                    :: nFullNewtonIter
 INTEGER                    :: iPart,iCounter
 REAL                       :: tmpFac
 INTEGER                    :: AdaptIterRelaxation
+#ifdef MPI
+! load balance
+REAL                       :: tLBStart,tLBEnd
+#endif /*MPI*/
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,relTolerancePart,Criterion
 LOGICAL                    :: IsConverged
@@ -248,10 +250,6 @@ REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: Lambda ! Armijo rule
 INTEGER                    :: nArmijo, nMaxArmijo=10
-#ifdef MPI
-! load balance
-REAL                       :: tLBStart,tLBEnd
-#endif /*MPI*/
 !===================================================================================================================================
 !===================================================================================================================================
 
@@ -280,6 +278,10 @@ END IF
       CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     END IF
   END IF
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
+#endif /*MPI*/
   DO iPart=1,PDM%ParticleVecLength
     IF(PartIsImplicit(iPart))THEN
       IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
@@ -310,6 +312,8 @@ END IF
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
 #ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
@@ -394,10 +398,13 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     !                       ,AbortTol_In=relTolerancePart)
     !  END IF
     !ELSE
-      CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
-                         ,AbortTol_In=relTolerancePart)
+    ! call particle newton. 
+    ! LB-Measurement in ParticleNewton
+    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+                       ,AbortTol_In=relTolerancePart)
     !END IF
     ! particle relaxation betweeen old and new position
+    ! this is not needed any more
     IF(DoPartRelaxation)THEN
       SWRITE(UNIT_stdOut,'(A12)') ' relaxation newton:'
       DO iPart=1,PDM%ParticleVecLength
@@ -460,26 +467,28 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #endif /*MPI*/
       ! map particle from gamma v to v
 #ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
+      tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! compute particle source terms on field solver of implicit particles :)
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-tLBStart = LOCALTIME() ! LB Time Start
+      tLBEnd = LOCALTIME() ! LB Time End
+      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+      tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
 #ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
+      tLBEnd = LOCALTIME() ! LB Time End
+      tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
+      tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+      tLBEnd = LOCALTIME() ! LB Time End
+      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
 #endif /*MPI*/
     END IF ! .NOT.DoFullNewton
   END IF
@@ -509,6 +518,9 @@ tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
   END IF
 #endif /*PARTICLES*/
 
+  ! Next step is compute norm for normal Newton (DoFullNewton=T) or
+  ! optimized scheme. Only the time for the DG-Operator s measured, all other 
+  ! operations are neglected
 #ifdef PARTICLES
   IF(.NOT.DoFullNewton)THEN 
 #endif /*PARTICLES*/
@@ -573,10 +585,6 @@ tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
         END IF
       END IF
     END IF
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-#endif /*MPI*/
 #ifdef PARTICLES
   END IF ! .NOT. DoFullNewton
   !IF(DoPrintConvInfo.AND.MPIRoot) WRITE(UNIT_StdOut,'(A,I10,2x,E24.12,2x,E24.12,2x,E24.12)') ' iter,Norm_R,rel,abort' &
@@ -615,12 +623,13 @@ tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 #endif /*MPI*/
       ! map particle from gamma v to v
 #ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
+      tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+       tLBEnd = LOCALTIME() ! LB Time End
+       tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+       tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
       ! compute particle source terms on field solver of implicit particles :)
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
@@ -628,12 +637,14 @@ tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
 #ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
+       tLBEnd = LOCALTIME() ! LB Time End
+       tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
+       tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+      tLBEnd = LOCALTIME() ! LB Time End
+      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
 #endif /*MPI*/
     END IF
     ! update the Norm with all the new information of current state
