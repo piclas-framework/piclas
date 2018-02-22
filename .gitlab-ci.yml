@@ -200,7 +200,7 @@ intel_DSMC_check:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
