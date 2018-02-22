@@ -3,7 +3,7 @@ stages:
   - error_clean
   - reggie_checkin
   - reggie_feature_checkin
-  - reggie_chemistry_nightly
+  - reggie_DSMC_nightly
   - reggie_tracking_nightly
   - reggie_nightly
   - reggie_nightly_build_all
