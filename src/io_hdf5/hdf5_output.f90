@@ -517,9 +517,9 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars         ,ONLY: nGlobalElems, offsetElem
-USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell
+USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies
 USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
+USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
 #ifdef MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
@@ -547,11 +547,13 @@ INTEGER                        :: locnPart,offsetnPart
 INTEGER                        :: iPart,nPart_glob, iElem_glob, iElem_loc
 INTEGER,ALLOCATABLE            :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
+INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 #ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
 INTEGER                        :: minnParts
 #endif /* HDF5_F90 */
+INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 !=============================================
 ! Write properties -----------------------------------------------------------------------------------------------------------------
 ! Open dataset
@@ -592,6 +594,16 @@ INTEGER                        :: minnParts
     PartDataSize=7
   END IF  
 
+  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+    MaxQuantNum = 0
+    DO iSpec = 1, nSpecies
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+        IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
+      END IF
+    END DO
+  END IF
+
   locnPart =   0
   DO pcount = 1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(pcount)) THEN
@@ -630,6 +642,11 @@ INTEGER                        :: minnParts
 #endif
   ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
   ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
+  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+    ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
+    VibQuantData = 0
+    !+1 is real number of necessary vib quants for the particle
+  END IF
 
 !!! Kleiner Hack von JN (Teil 1/2):
   
@@ -736,6 +753,17 @@ INTEGER                        :: minnParts
         END IF
         !PartData(iPart,8)=Species(PartSpecies(pcount))%ChargeIC*Species(PartSpecies(pcount))%MacroParticleFactor
         !PartData(iPart,9)=Species(PartSpecies(pcount))%MassIC*Species(PartSpecies(pcount))%MacroParticleFactor
+
+        IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+          IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
+            iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
+            VibQuantData(iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = &
+              VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+          ELSE
+             VibQuantData(iPart,:) = 0
+          END IF
+        END IF
+
         pcount = PEM%pNext(pcount)
       END DO
       iPart = PartInt(iElem_glob,2)
@@ -791,6 +819,7 @@ INTEGER                        :: minnParts
   StrVarNames(5)='VelocityY'
   StrVarNames(6)='VelocityZ'
   StrVarNames(7)='Species'
+
   IF(withDSMC.AND.(.NOT.(useLD)))THEN
  ! IF(withDSMC)THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
@@ -874,13 +903,23 @@ INTEGER                        :: minnParts
   END IF
 
 #ifdef MPI
- CALL DistributedWriteArray(FileName,&
+  CALL DistributedWriteArray(FileName,&
                             DataSetName='PartData', rank=2         ,&
                             nValGlobal=(/nPart_glob,PartDataSize/) ,&
                             nVal=      (/locnPart,PartDataSize/)   ,&
                             offset=    (/offsetnPart,0/)           ,&
                             collective=.FALSE.,offSetDim=1         ,&
                             communicator=PartMPI%COMM,RealArray=PartData)
+  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+    CALL DistributedWriteArray(FileName,&
+                              DataSetName='VibQuantData', rank=2    ,&
+                              nValGlobal=(/nPart_glob,MaxQuantNum/) ,&
+                              nVal=      (/locnPart,MaxQuantNum  /) ,&
+                              offset=    (/offsetnPart , 0  /)      ,&
+                              collective=.FALSE.,offSetDim=1        ,&
+                              communicator=PartMPI%COMM,IntegerArray=VibQuantData)
+    DEALLOCATE(VibQuantData)
+  END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
@@ -888,6 +927,14 @@ INTEGER                        :: minnParts
                         nVal=      (/locnPart,PartDataSize  /),&
                         offset=    (/offsetnPart , 0  /),&
                         collective=.TRUE., RealArray=PartData)
+  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+    CALL WriteArrayToHDF5(DataSetName='VibQuantData', rank=2    ,&
+                          nValGlobal=(/nPart_glob,MaxQuantNum/) ,&
+                          nVal=      (/locnPart,MaxQuantNum  /) ,&
+                          offset=    (/offsetnPart , 0  /)      ,&
+                          collective=.TRUE.,IntegerArray=VibQuantData)
+    DEALLOCATE(VibQuantData)
+  END IF
   CALL CloseDataFile()
 #endif /*MPI*/                          
 
