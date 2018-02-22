@@ -76,7 +76,7 @@ END DO
 ! read-in periodic-vectors for particles
 ALLOCATE(GEO%PeriodicVectors(1:3,1:GEO%nPeriodicVectors))
 DO iVec = 1, GEO%nPeriodicVectors
-  WRITE(UNIT=hilf,FMT='(I2)') iVec
+  WRITE(UNIT=hilf,FMT='(I0)') iVec
   GEO%PeriodicVectors(1:3,iVec) = GETREALARRAY('Part-PeriodicVector'//TRIM(hilf),3,'1.,0.,0.')
 END DO
 

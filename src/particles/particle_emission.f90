@@ -59,8 +59,61 @@ PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, Par
                 , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF, ParticleAdaptiveSurfaceflux &
                 , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn
 !===================================================================================================================================
-                                                                                                  
-CONTAINS                                                                                           
+PUBLIC::DefineParametersParticleEmission
+CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particle emission (surface flux)
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleEmission()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Particle Emission")
+
+CALL prms%CreateIntOption(      'Part-Species[$]-nSurfacefluxBCs' , 'TODO-DEFINE-PARAMETER' &
+                                , '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-BC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Surfaceflux[$]-velocityDistribution' &
+                                , 'TODO-DEFINE-PARAMETER' , 'constant', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-VeloIC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' , 'TODO-DEFINE-PARAMETER' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' , 'TODO-DEFINE-PARAMETER' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-preFac' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-powerFac' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-shiftFac' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' , 'TODO-DEFINE-PARAMETER' &
+                                , '1', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.0 , 0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' , 'TODO-DEFINE-PARAMETER' &
+                                , '1e21', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-PartDensity' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' , 'TODO-DEFINE-PARAMETER' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AcceptReject' , 'TODO-DEFINE-PARAMETER' &
+                                , '.TRUE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN' , 'TODO-DEFINE-PARAMETER' &
+                                , '1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Pressurefraction' , 'TODO-DEFINE-PARAMETER' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+
+END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
 SUBROUTINE InitializeParticleEmission()
 !===================================================================================================================================
@@ -3532,7 +3585,7 @@ sum_pressurefraction(:) = 0.
 !-- 1.: read/prepare parameters and determine nec. BCs
 DO iSpec=1,nSpecies
   Adaptive_Found_Flag(:) = .FALSE.
-  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs','0')
   ! if no surfacefluxes defined and only adaptive boundaries then first allocation with adaptive
   IF ((Species(iSpec)%nSurfacefluxBCs.EQ.0) .AND. (nAdaptiveBC.GT.0)) THEN
@@ -3551,7 +3604,7 @@ DO iSpec=1,nSpecies
     ! Initialize Surfaceflux to BC mapping and check if defined Surfacefluxes from init overlap with Adaptive BCs
     Species(iSpec)%Surfaceflux(:)%BC=-1
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      WRITE(UNIT=hilf2,FMT='(I2)') iSF
+      WRITE(UNIT=hilf2,FMT='(I0)') iSF
       hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
       Species(iSpec)%Surfaceflux(iSF)%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC','0')
       IF (nAdaptiveBC.GT.0) THEN
@@ -3591,7 +3644,7 @@ DO iSpec=1,nSpecies
 
   MaxSurfacefluxBCs=MAX(MaxSurfacefluxBCs,Species(iSpec)%nSurfacefluxBCs)
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-    WRITE(UNIT=hilf2,FMT='(I2)') iSF
+    WRITE(UNIT=hilf2,FMT='(I0)') iSF
     hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
     Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = 0
     Species(iSpec)%Surfaceflux(iSF)%InsertedParticleSurplus = 0
@@ -3676,7 +3729,7 @@ __STAMP__&
       SWRITE(*,*)'WARNING: The choosen small BezierSampleN (def.: NGeo) might result in inhom. SurfFluxes without ARM!'
     END IF
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-      WRITE( hilf3, '(I2.2)') NGeo*NGeo*NGeo !1 for linear elements, this is an arbitray estimation for higher N!
+      WRITE( hilf3, '(I0.2)') NGeo*NGeo*NGeo !1 for linear elements, this is an arbitray estimation for higher N!
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = GETINT('Part-Species'//TRIM(hilf2)//'-ARM_DmaxSampleN',hilf3)
     ELSE
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = 0
@@ -3709,7 +3762,7 @@ __STAMP__&
     END IF
     !Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
     Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
-    WRITE(UNIT=hilf2,FMT='(I2)') iSF-Species(iSpec)%nSurfacefluxBCs
+    WRITE(UNIT=hilf2,FMT='(I0)') iSF-Species(iSpec)%nSurfacefluxBCs
     hilf2=TRIM(hilf)//'-Adaptiveflux'//TRIM(hilf2)
     Species(iSpec)%Surfaceflux(iSF)%PressureFraction      = GETREAL('Part-Species'//TRIM(hilf2)//'-Pressurefraction','0.')
     sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
@@ -3823,7 +3876,7 @@ DO iBC=1,nDataBC
 __STAMP__&
 ,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
-        IPWRITE(*,'(I4,I7,A53,I2)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
+        IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
         DoSurfaceFlux=.TRUE.
         EXIT
       END IF
@@ -4223,6 +4276,9 @@ USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
 USE MOD_Mesh_Vars,              ONLY : BC, ElemBaryNGeo
+#ifdef MPI
+USE MOD_LoadBalance_Vars,            ONLY:ElemTime,nSurfacefluxPerElem,tSurfaceFlux
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4254,6 +4310,10 @@ REAL                        :: EtraOld, EtraWall, EtraNew
 REAL                        :: ErotOld, ErotWall, ErotNew
 REAL                        :: EvibOld, EvibWall, EVibNew
 INTEGER                     :: p,q,SurfSideID,PartID
+#ifdef MPI
+! load balance
+REAL                        :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber))
 DO iSpec=1,nSpecies
@@ -4352,6 +4412,9 @@ __STAMP__&
 ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+#ifdef MPI
+      tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
       ElemID = SideToElem(1,BCSideID)
       IF (ElemID.LT.1) THEN !not sure if necessary
@@ -4562,32 +4625,27 @@ __STAMP__&
               PartState(ParticleIndexNbr,3+dir(2)) = veloR*cos(phi)
               PartState(ParticleIndexNbr,3+dir(3)) = veloR*sin(phi)
             END IF !VeloIsNormal or SimpleRadialVeloFit
-!!test
-!CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),Particle_pos(1:3))
-!IF (.NOT.ALMOSTEQUAL(Particle_pos(1),ElemBaryNGeo(1,ElemID))) STOP "blubb1!!!"
-!IF (.NOT.ALMOSTEQUAL(Particle_pos(2),ElemBaryNGeo(2,ElemID))) STOP "blubb2!!!"
-!IF (.NOT.ALMOSTEQUAL(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
-!!
+
             ! shift lastpartpos minimal into cell for fail-safe tracking
-LastPartPos(ParticleIndexNbr,1:3)=PartState(ParticleIndexNbr,1:3)
-!            SELECT CASE(SideType(SideID))
-!            CASE(PLANAR_RECT,PLANAR_NONRECT)
-!              LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
-!              + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
-!            CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
-!              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
-!              DO iLoop=1,3 !shift border-RefCoords into elem
-!                IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
-!                  Particle_pos(iLoop)=SIGN(1.0-epsInCell,Particle_pos(iLoop))
-!                END IF
-!              END DO
-!              CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
-!                ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
-!            CASE DEFAULT
-!              CALL abort(&
+            LastPartPos(ParticleIndexNbr,1:3)=PartState(ParticleIndexNbr,1:3)
+            !SELECT CASE(SideType(SideID))
+            !CASE(PLANAR_RECT,PLANAR_NONRECT)
+            !  LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
+            !  + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (0.9999)
+            !CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
+            !  CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
+            !  DO iLoop=1,3 !shift border-RefCoords into elem
+            !    IF( ABS(Particle_pos(iLoop)) .GT. 0.9999 ) THEN
+            !      Particle_pos(iLoop)=SIGN(0.999999,Particle_pos(iLoop))
+            !    END IF
+            !  END DO
+            !  CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
+            !    ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
+            !CASE DEFAULT
+            !  CALL abort(&
 !__STAMP__&
 !,'unknown SideType!')
-!            END SELECT
+            !END SELECT
 
 !#ifdef CODE_ANALYZE
 !          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
@@ -4655,8 +4713,15 @@ __STAMP__&
         END IF
         
         PartsEmitted = PartsEmitted + PartInsSubSide
+#ifdef MPI
+        nSurfacefluxPerElem(ElemID)=nSurfacefluxPerElem(ElemID)+PartInsSubSide !used for tSurfaceFlux of "2b.: set remaining properties"
+#endif /*MPI*/
         
-      END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
+      END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart ! the following lines (SetParticleVelocity etc., are still missing for ElemTime!!!)
+#endif /*MPI*/
     END DO ! iSide
       
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
@@ -4664,6 +4729,9 @@ __STAMP__&
 , 'Error 2 in ParticleSurfaceflux!')
       
 !----- 2b.: set remaining properties
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).EQ.'constant' &
       .AND. .NOT.Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit &
       .AND. .NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
@@ -4757,6 +4825,12 @@ __STAMP__&
     PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
     
     ! Sample Energies on Surfaces when particles are emitted from them
+    IF (NbrOfParticle.NE.PartsEmitted) THEN
+      ! should be equal for including the following lines in tSurfaceFlux
+      CALL abort(&
+__STAMP__&
+,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
+    END IF
     IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
       ! if desorption
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -4806,6 +4880,10 @@ __STAMP__&
       END IF
       END IF
     END IF
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tSurfaceFlux=tSurfaceFlux+tLBEnd-tLBStart
+#endif /*MPI*/
     
   END DO !iSF
 END DO !iSpec

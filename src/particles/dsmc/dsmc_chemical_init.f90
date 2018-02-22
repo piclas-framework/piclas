@@ -61,7 +61,7 @@ __STAMP__&
   ! Allowing unspecified non-reactive collision partner (CH4 + M -> CH3 + H + M, e.g. (/1,0,0/) -> (/2,0,3/)
   iReacDiss = ChemReac%NumOfReact
   DO iReac = 1, ReadInNumOfReact
-    WRITE(UNIT=hilf,FMT='(I3)') iReac
+    WRITE(UNIT=hilf,FMT='(I0)') iReac
     ChemReac%ArbDiss(iReac)%NumOfNonReactives = GETINT('DSMC-Reaction'//TRIM(hilf)//'-NumberOfNonReactives','0')
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.GT.0) THEN
       ALLOCATE(ChemReac%ArbDiss(iReac)%NonReactiveSpecies(ChemReac%ArbDiss(iReac)%NumOfNonReactives))
@@ -121,7 +121,7 @@ __STAMP__&
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
 
     DO iReac = 1, ReadInNumOfReact
-      WRITE(UNIT=hilf,FMT='(I3)') iReac
+      WRITE(UNIT=hilf,FMT='(I0)') iReac
       ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0'))
       ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
       CHemReac%QKMethod(iReac)       = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0') 

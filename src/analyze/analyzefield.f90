@@ -66,8 +66,8 @@ REAL,INTENT(IN)     :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL             :: isOpen, FileExists                                          !
-CHARACTER(LEN=350)  :: outfile                                                      !
+LOGICAL             :: isOpen
+CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 REAL                :: WEl, WMag
 !===================================================================================================================================
@@ -85,8 +85,7 @@ unit_index = 535
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
       outfile = 'Database.csv'
-      INQUIRE(file=TRIM(outfile),EXIST=FileExists)
-      IF (isRestart .and. FileExists) THEN
+      IF (isRestart .and. FILEEXISTS(outfile)) THEN
          OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
          !CALL FLUSH (unit_index)
       ELSE
@@ -117,19 +116,19 @@ IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
 #ifdef MPI
  IF(MPIROOT)THEN
 #endif    /* MPI */
-   WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') Time
+   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
    IF (CalcEpot) THEN 
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WEl
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,OUTPUTFORMAT,ADVANCE='NO') WMag
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
    END IF
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
  END IF
 #endif    /* MPI */
 
-!104    FORMAT (OUTPUTFORMAT)
+!104    FORMAT (WRITEFORMAT)
 
 !SWRITE(UNIT_stdOut,'(A)')' PARTCILE ANALYZE DONE!'
 !SWRITE(UNIT_StdOut,'(132("-"))')
@@ -363,8 +362,9 @@ SUBROUTINE OutputPoyntingInt(t,Sabs)
 ! Output of PoyntingVector Integral to *csv vile
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,PosPoyntingInt
-USE MOD_Restart_Vars          ,ONLY:DoRestart
+USE MOD_Analyze_Vars ,ONLY: nPoyntingIntPlanes,PosPoyntingInt
+USE MOD_Restart_Vars ,ONLY: DoRestart
+USE MOD_Globals      ,ONLY: FILEEXISTS
 #ifdef MPI
   USE MOD_Globals
 #endif
@@ -378,7 +378,7 @@ REAL,INTENT(IN)     :: t, Sabs(nPoyntingIntPlanes)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: ioUnit,iPlane
-LOGICAL             :: isRestart, isOpen,FileExists
+LOGICAL             :: isRestart, isOpen
 CHARACTER(LEN=64)   :: filename_PI
 !===================================================================================================================================
 isRestart=.FALSE.
@@ -395,8 +395,7 @@ IF(MPIRoot)THEN
 
 INQUIRE(UNIT=ioUnit,OPENED=isOpen)
 IF(.NOT.isOpen)THEN
-  INQUIRE(file=TRIM(filename_PI),EXIST=FileExists)
-  IF(isRestart.AND.FileExists)THEN
+  IF(isRestart.AND.FILEEXISTS(filename_PI))THEN
     OPEN(ioUnit,file=TRIM(filename_PI),position="APPEND",status="OLD")
   ELSE
     OPEN(ioUnit,file=TRIM(filename_PI))
@@ -410,10 +409,10 @@ IF(.NOT.isOpen)THEN
   END IF
 END IF
 ! write data to file
-WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') t
+WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') t
 DO iPlane=1,nPoyntingIntPlanes
   WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
-  WRITE(ioUnit,OUTPUTFORMAT,ADVANCE='NO') Sabs(iPlane)
+  WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') Sabs(iPlane)
 END DO
 WRITE(ioUnit,'(A1)') ''
 

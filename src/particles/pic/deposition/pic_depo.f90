@@ -215,7 +215,7 @@ CASE('shape_function','shape_function_simple')
       ,'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesBounds!')
     END IF
     DO iSFfix=1,NbrOfSFdepoFixes
-      WRITE(UNIT=hilf,FMT='(I2)') iSFfix
+      WRITE(UNIT=hilf,FMT='(I0)') iSFfix
       SFdepoFixesGeo(iSFfix,1,1:3) = &
         GETREALARRAY('PIC-SFdepoFixes'//TRIM(hilf)//'-Basepoint',3,'0. , 0. , 0.')
       SFdepoFixesGeo(iSFfix,2,1:3) = &
@@ -248,7 +248,7 @@ CASE('shape_function','shape_function_simple')
           ,'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesChargeMult!')
       END IF
       DO iSFfix=1,NbrOfSFdepoFixLinks
-        WRITE(UNIT=hilf,FMT='(I2)') iSFfix
+        WRITE(UNIT=hilf,FMT='(I0)') iSFfix
         SFdepoFixLinks(iSFfix,1:2) = &
           GETINTARRAY('PIC-SFdepoFixLink'//TRIM(hilf),2,'1 , 2')
         IF (   SFdepoFixLinks(iSFfix,1).GT.NbrOfSFdepoFixes &
@@ -346,7 +346,7 @@ CASE('shape_function','shape_function_simple')
       CALL abort(__STAMP__, &
         ' NbrOfSFdepoLayers are only implemented for electrostatic HDG!')
 #endif
-      WRITE(UNIT=hilf,FMT='(I2)') iSFfix
+      WRITE(UNIT=hilf,FMT='(I0)') iSFfix
       SFdepoLayersGeo(iSFfix,1,1:3) = &
         GETREALARRAY('PIC-SFdepoLayers'//TRIM(hilf)//'-Basepoint',3,'0. , 0. , 0.')
       SFdepoLayersGeo(iSFfix,2,1:3) = &
@@ -800,7 +800,7 @@ CASE('delta_distri')
     ,' Cannot allocate partposref!')
   END IF
   DeltaType = GETINT('PIC-DeltaType','1')
-  WRITE(hilf,'(I2)') PP_N
+  WRITE(hilf,'(I0)') PP_N
   NDepo     = GETINT('PIC-DeltaType-N',hilf)
   SELECT CASE(DeltaType)
   CASE(1)

@@ -937,8 +937,8 @@ DO ii = 1, ncounts
     diff_check = VariableExternalField(1,ii) - VariableExternalField(1,ii-1)
     IF( (.NOT.ALMOSTEQUALRELATIVE(diff_comp,diff_check,1E-5)) .AND. ((diff_comp.GT.0.0).AND.(diff_check.GT.0.0)) )THEN
       SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field." 
-      SWRITE(UNIT_stdOut,OUTPUTFORMAT) diff_comp
-      SWRITE(UNIT_stdOut,OUTPUTFORMAT) diff_check
+      SWRITE(UNIT_stdOut,WRITEFORMAT) diff_comp
+      SWRITE(UNIT_stdOut,WRITEFORMAT) diff_check
       CALL abort(&
 __STAMP__&
         ,' Error in dataset!')

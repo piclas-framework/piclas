@@ -94,7 +94,7 @@ INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:) !help ar
 !===================================================================================================================================
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
-WRITE(UNIT=hilf,FMT='(I2)') NGeo
+WRITE(UNIT=hilf,FMT='(I0)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo
@@ -1107,8 +1107,9 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255),ALLOCATABLE      :: StrVarNames(:), StrOutNames(:)
-INTEGER                             :: nVar, Species_nOut, iSpec
+CHARACTER(LEN=255)                  :: SpecID
+CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec
 REAL                                :: tstart,tend
 LOGICAL                             :: calcWallModel
 !===================================================================================================================================
@@ -1130,97 +1131,86 @@ IF(useDSMC)THEN
   IF (DSMC%WallModel.GT.0) calcWallModel=.TRUE.
 END IF
 
+! Create dataset attribute "SurfVarNames"
+nVar2D = 5
+IF (calcWallModel) THEN
+  nVar2D_Spec=4
+ELSE
+  nVar2D_Spec=1
+END IF
+nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #ifdef MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-#else
-  CALL OpenDataFile(FileString,create=.TRUE.,readOnly=.FALSE.)
 #endif
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
   Statedummy = 'DSMCSurfState'  
   
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
-  ! Write dataset properties "Time","MeshFile","DSMC_nSurfSampl","DSMC_nSpecies","DSMC_CollisMode"
   CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
   CALL WriteAttributeToHDF5(File_ID,'BC_Surf',nSurfBC,StrArray=SurfBCName)
+  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=nSurfSample)
   NodeTypeTemp='VISU'
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
 
-  ! Create dataset attribute "VarNames" and write to file
-  nVar=5
-  ALLOCATE(StrVarNames(1:nVar))
-  StrVarNames(1)='ForceX'
-  StrVarNames(2)='ForceY'
-  StrVarNames(3)='ForceZ'
-  StrVarNames(4)='HeatFlux'
-  StrVarNames(5)='Counter_Total'
-  
-  CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
-  
-! Create dataset attribute "Species_Varnames" and write to file
-  IF(calcWallModel)THEN
-    Species_nOut=4
-    ALLOCATE(StrOutNames(1:Species_nOut))
-    StrOutNames(1)='Spec_Counter'
-    StrOutNames(2)='Accomodation'
-    StrOutNames(3)='Coverage'
-    StrOutNames(4)='Recomb_Coeff'
-  ELSE
-    Species_nOut=1
-    ALLOCATE(StrOutNames(1:Species_nOut))
-    StrOutNames(1)='Spec_Counter'
-  END IF
-  
-  CALL WriteAttributeToHDF5(File_ID,'Species_Varnames',Species_nOut,StrArray=StrOutNames)
+  ALLOCATE(Str2DVarNames(1:nVar2D_Total))
+  nVarCount=0
+  DO iSpec=1,nSpecies
+    WRITE(SpecID,'(I3.3)') iSpec
+    Str2DVarNames(nVarCount+1) ='Spec'//TRIM(SpecID)//'_Counter'
+    IF (calcWallModel) THEN
+      Str2DVarNames(nVarCount+2) ='Spec'//TRIM(SpecID)//'_Accomodation'
+      Str2DVarNames(nVarCount+3) ='Spec'//TRIM(SpecID)//'_Coverage'
+      Str2DVarNames(nVarCount+4) ='Spec'//TRIM(SpecID)//'_Recomb_Coeff'
+    END IF
+    nVarCount=nVarCount+nVar2D_Spec
+  END DO ! iSpec=1,nSpecies
 
+  ! fill varnames for total values
+  Str2DVarNames(nVarCount+1) ='ForceX'
+  Str2DVarNames(nVarCount+2) ='ForceY'
+  Str2DVarNames(nVarCount+3) ='ForceZ'
+  Str2DVarNames(nVarCount+4) ='HeatFlux'
+  Str2DVarNames(nVarCount+5) ='Counter_Total'
+  
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
+  
   CALL CloseDataFile()
-  DEALLOCATE(StrVarNames)
-  DEALLOCATE(StrOutNames)
+  DEALLOCATE(Str2DVarNames)
 #ifdef MPI
 END IF
 
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif /*MPI*/
 
-#ifdef MPI
 !   IF(SurfCOMM%nProcs.GT.1)THEN
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
 !   ELSE
 !     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
 !   END IF
-#else
-  CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.FALSE.)
-#endif
 
-CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
-                    nValGlobal=(/5,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                    nVal=      (/5,nSurfSample,nSurfSample,SurfMesh%nSides/),&
-                    offset=    (/0,          0,          0,offsetSurfSide/),&
+nVarCount=0
+WRITE(H5_Name,'(A,I3.3,A)') 'SurfaceData'
+DO iSpec = 1,nSpecies
+    CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
+                    nValGlobal=(/nVar2D_Total,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
+                    nVal=      (/nVar2D_Spec ,nSurfSample,nSurfSample,SurfMesh%nSides/),&
+                    offset=    (/nVarCount   ,          0,          0,offsetSurfSide/),&
+                    collective=.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
+nVarCount = nVarCount + 1
+END DO
+CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
+                    nValGlobal=(/NVar2D_Total,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
+                    nVal=      (/nVar2D      ,nSurfSample,nSurfSample,SurfMesh%nSides/),&
+                    offset=    (/nVarCount   ,          0,          0,offsetSurfSide/),&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
-IF(calcWallModel)THEN
-  DO iSpec = 1,nSpecies
-      WRITE(H5_Name,'(A,I3.3,A)') 'DSMC_Spec',iSpec,'_SurfaceSampling'
-      CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
-                      nValGlobal=(/4,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                      nVal=      (/4,nSurfSample,nSurfSample,SurfMesh%nSides/),&
-                      offset=    (/0,          0,          0,offsetSurfSide/),&
-                      collective=.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
-  END DO
-ELSE
-  DO iSpec = 1,nSpecies
-      WRITE(H5_Name,'(A,I3.3,A)') 'DSMC_Spec',iSpec,'_SurfaceSampling'
-      CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
-                      nValGlobal=(/1,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                      nVal=      (/1,nSurfSample,nSurfSample,SurfMesh%nSides/),&
-                      offset=    (/0,          0,          0,offsetSurfSide/),&
-                      collective=.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
-  END DO
-END IF
+                  
 CALL CloseDataFile()
 
 IF(SurfCOMM%MPIOutputROOT)THEN
@@ -1252,7 +1242,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: Filename, H5_Name
 INTEGER                        :: PartDataSize, iSpec
-LOGICAL                        :: fileExists
 REAL, ALLOCATABLE              :: PartSpecData(:,:,:)
 INTEGER                        :: TotalNumberMPF, counter2, counter, BCTotalNumberMPF, counter3
 REAL                           :: TotalFlowrateMPF, RandVal, BCTotalFlowrateMPF
@@ -1264,14 +1253,9 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   !-- initialize data (check if file exists and determine size of arrays)
   PartDataSize=10
   IF(MPIRoot) THEN
-    INQUIRE (FILE=TRIM(FileName), EXIST=fileExists)
-    IF(.NOT.FileExists)  CALL abort(__STAMP__, &
+    IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
           'DSMCSurfCollis-File "'//TRIM(FileName)//'" does not exist',999,999.)
-#ifdef MPI
     CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-#else
-    CALL OpenDataFile(TRIM(FileName),create=.FALSE.,readOnly=.TRUE.)
-#endif
     DO iSpec=1,nSpecies
       WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
       CALL GetDataSize(File_ID,TRIM(H5_Name),nDims,HSize)
@@ -1295,10 +1279,8 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   !-- open file for actual read-in
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,readOnly=.TRUE.)
 #endif
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ! Read in state
   DO iSpec=1,nSpecies
     WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
