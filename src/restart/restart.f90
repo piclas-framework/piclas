@@ -231,7 +231,7 @@ INTEGER,PARAMETER        :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER        :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE         :: PartData(:,:)
 REAL                     :: xi(3)
-LOGICAL                  :: InElementCheck,PartIntExists
+LOGICAL                  :: InElementCheck,PartIntExists,PartDataExists
 INTEGER                  :: COUNTER, COUNTER2
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
@@ -460,51 +460,55 @@ __STAMP__&
     ! read local Particle Data from HDF5
     locnPart=PartInt(LastElemInd,ELEM_LastPartInd)-PartInt(FirstElemInd,ELEM_FirstPartInd)
     offsetnPart=PartInt(FirstElemInd,ELEM_FirstPartInd)
-    ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
-    CALL ReadArray('PartData',2,(/locnPart,PartDataSize/),offsetnPart,1,RealArray=PartData)!,&
-                           !xfer_mode_independent=.TRUE.)
-    IF (locnPart.GT.0) THEN
-      PartState(1:locnPart,1)   = PartData(offsetnPart+1:offsetnPart+locnPart,1)
-      PartState(1:locnPart,2)   = PartData(offsetnPart+1:offsetnPart+locnPart,2)
-      PartState(1:locnPart,3)   = PartData(offsetnPart+1:offsetnPart+locnPart,3)
-      PartState(1:locnPart,4)   = PartData(offsetnPart+1:offsetnPart+locnPart,4)
-      PartState(1:locnPart,5)   = PartData(offsetnPart+1:offsetnPart+locnPart,5)
-      PartState(1:locnPart,6)   = PartData(offsetnPart+1:offsetnPart+locnPart,6)
-      PartSpecies(1:locnPart)= INT(PartData(offsetnPart+1:offsetnPart+locnPart,7))
-      IF (useDSMC) THEN
-        IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-          PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-          PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-          PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-          PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-        ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-          PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-          PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-          PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-          PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-          PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-          PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        ELSE IF (CollisMode.GT.1) THEN
-          PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-          PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+    CALL DatasetExists(File_ID,'PartData',PartDataExists)
+    IF(PartDataExists)THEN
+      ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
+      CALL ReadArray('PartData',2,(/locnPart,PartDataSize/),offsetnPart,1,RealArray=PartData)!,&
+                             !xfer_mode_independent=.TRUE.)
+      IF (locnPart.GT.0) THEN
+        PartState(1:locnPart,1)   = PartData(offsetnPart+1:offsetnPart+locnPart,1)
+        PartState(1:locnPart,2)   = PartData(offsetnPart+1:offsetnPart+locnPart,2)
+        PartState(1:locnPart,3)   = PartData(offsetnPart+1:offsetnPart+locnPart,3)
+        PartState(1:locnPart,4)   = PartData(offsetnPart+1:offsetnPart+locnPart,4)
+        PartState(1:locnPart,5)   = PartData(offsetnPart+1:offsetnPart+locnPart,5)
+        PartState(1:locnPart,6)   = PartData(offsetnPart+1:offsetnPart+locnPart,6)
+        PartSpecies(1:locnPart)= INT(PartData(offsetnPart+1:offsetnPart+locnPart,7))
+        IF (useDSMC) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
+            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+            PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
+            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
+            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+            PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+          ELSE IF (CollisMode.GT.1) THEN
+            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+          ELSE IF (usevMPF) THEN
+            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)        
+          END IF
         ELSE IF (usevMPF) THEN
-          PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)        
+          PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         END IF
-      ELSE IF (usevMPF) THEN
-        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+        DO iElem=FirstElemInd,LastElemInd
+          IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
+            PEM%Element(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 : &
+                                   PartInt(iElem,ELEM_LastPartInd) -offsetnPart)  = iElem-offsetElem
+            PEM%LastElement(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 : &
+                                   PartInt(iElem,ELEM_LastPartInd) -offsetnPart)  = iElem-offsetElem
+          END IF
+        END DO
+        PDM%ParticleInside(1:locnPart) = .TRUE.
       END IF
-      DO iElem=FirstElemInd,LastElemInd
-        IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
-          PEM%Element(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 : &
-                                 PartInt(iElem,ELEM_LastPartInd) -offsetnPart)  = iElem-offsetElem
-          PEM%LastElement(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 : &
-                                 PartInt(iElem,ELEM_LastPartInd) -offsetnPart)  = iElem-offsetElem
-        END IF
-      END DO
-      PDM%ParticleInside(1:locnPart) = .TRUE.
+      DEALLOCATE(PartData)
     END IF
-    DEALLOCATE(PartInt,PartData)
+    DEALLOCATE(PartInt)
     PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
     CALL UpdateNextFreePosition()
     SWRITE(UNIT_stdOut,*)' DONE!' 
@@ -524,9 +528,10 @@ __STAMP__&
     END DO
     ! if ParticleVecLength GT maxParticleNumber: Stop
     IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
-      CALL abort(&
-  __STAMP__&
-  ,' Number of Particles in Restart higher than MaxParticleNumber!')
+      SWRITE (UNIT_stdOut,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
+      SWRITE (UNIT_stdOut,*) "PDM%maxParticleNumber =", PDM%maxParticleNumber
+      CALL abort(__STAMP__&
+          ,' Number of Particles in Restart file is higher than MaxParticleNumber! Increase MaxParticleNumber!')
     END IF
     ! Since the elementside-local node number are NOT persistant and dependent on the location
     ! of the MPI borders, all particle-element mappings need to be checked after a restart
