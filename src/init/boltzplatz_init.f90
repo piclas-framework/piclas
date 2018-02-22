@@ -192,7 +192,12 @@ CALL InitQDS()
 
 ! do this last!
 !CALL IgnoredStrings()
-IF (.NOT.IsLoadBalance) CALL prms%WriteUnused()
+! write out parameters that are not used and remove multiple and unused, that are not needed to do restart if no parameter.ini is
+! read in
+IF (.NOT.IsLoadBalance) THEN
+  CALL prms%WriteUnused()
+  CALL prms%RemoveUnnecessary()
+END IF
 
 END SUBROUTINE InitBoltzplatz
 

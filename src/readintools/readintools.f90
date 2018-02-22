@@ -86,6 +86,7 @@ CONTAINS
   PROCEDURE :: count_setentries           !< routine that counts the number of set parameters of linked list
   PROCEDURE :: count_entries              !< routine that counts the current length of linked list
   PROCEDURE :: count_unread               !< routine that counts the number of parameters, that are set in ini but not read
+  PROCEDURE :: removeUnnecessary          !< routine that removes unused parameters from linked list
 END TYPE Parameters
 
 INTERFACE IgnoredParameters
@@ -294,6 +295,49 @@ ELSE
 END IF
 
 END SUBROUTINE finalize
+
+!==================================================================================================================================
+!> Remove not used entries in the linked list of THIS parameters. 
+!> reduce size of list for faster loadbalance init
+!==================================================================================================================================
+SUBROUTINE removeUnnecessary(this)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: tmp
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+current =>  this%firstLink
+DO WHILE (associated(current%next))
+  tmp => current%next%next
+  !this%lastLink => current%next
+  !this%lastLink%next => current%next
+  IF (current%next%opt%numberedmulti) THEN
+    DEALLOCATE(current%next%opt)
+    NULLIFY(current%next%opt)
+    DEALLOCATE(current%next)
+    NULLIFY(current%next)
+    current%next => tmp
+  ELSE
+    current => current%next
+  END IF
+END DO
+
+!current =>  this%firstLink
+!IF (associated(current).AND.(current%opt%numberedmulti)) THEN
+!  IF (associated(current%next)) THEN
+!    this%firstLink => current%next
+!  ELSE
+!    this%firstLink => null()
+!    this%LastLink  => null()
+!  END IF
+!END IF
+
+END SUBROUTINE removeUnnecessary
 
 
 !==================================================================================================================================
@@ -618,7 +662,7 @@ END DO
 END FUNCTION  count_unread
 
 !==================================================================================================================================
-!> Insert a option in front of option with same name in the 'prms' linked list. 
+!> Insert an option in front of option with same name in the 'prms' linked list. 
 !==================================================================================================================================
 SUBROUTINE insertOption(first, opt)
 ! MODULES
