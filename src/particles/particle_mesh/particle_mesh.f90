@@ -642,7 +642,7 @@ IF (TriaTracking) THEN
   IF (.NOT.ParticleFound) THEN
     PDM%ParticleInside(iPart) = .FALSE.
   END IF
-   RETURN
+  RETURN
 END IF
 
 !--- check all cells associated with this beckground mesh cell
@@ -1089,7 +1089,7 @@ LastPartPos(PartID,1:3) = LastPosTmp(1:3)
 END SUBROUTINE PartInElemCheck
 
 
-SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)                                      !
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 ! checks if particle is inside of linear element with planar faces
 !===================================================================================================================================

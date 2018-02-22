@@ -721,7 +721,7 @@ __STAMP__&
          __STAMP__&
         ,'ERROR: No single-mode polyatomic relaxation possible with chosen selection procedure! SelectionProc:', SelectionProc)
       END IF
-      ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
+      IF(.NOT.ALLOCATED(VibQuantsPar)) ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
       ALLOCATE(PolyatomMolDSMC(DSMC%NumPolyatomMolecs))
       DO iSpec = 1, nSpecies
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -1504,11 +1504,23 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER       :: iPoly
 !===================================================================================================================================
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(DSMC_RHS)
 SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(SpecDSMC)
+IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+  DO iPoly=1,DSMC%NumPolyatomMolecs
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%CharaTVibDOF)
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%LastVibQuantNums)
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%MaxVibQuantDOF)
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%GammaVib)
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%VibRelaxProb)
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%CharaTRotDOF)
+  END DO
+  SDEALLOCATE(PolyatomMolDSMC)
+END IF
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
@@ -1553,7 +1565,7 @@ SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
-SDEALLOCATE(VibQuantsPar)
+!SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(ElemNodeVol)
