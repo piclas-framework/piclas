@@ -3466,17 +3466,6 @@ __STAMP__&
     C=MATMUL(MATMUL(TRANSPOSE(matLambda),geomatrix),matLambda)
     !- solve quadratic equation from trajectory inserted in cone-equation
     CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot,roots(1),roots(2))
-    !matU=MATMUL(rotmatrix,matU)
-    !matLambda=MATMUL(rotmatrix,matLambda)
-    !A=MATMUL(MATMUL(TRANSPOSE(matU),geomatrix2),matU)
-    !B=2.*MATMUL(MATMUL(TRANSPOSE(matU),geomatrix2),matLambda)
-    !C=MATMUL(MATMUL(TRANSPOSE(matLambda),geomatrix2),matLambda)
-    !!- solve quadratic equation from trajectory inserted in cone-equation
-    !CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot2,roots2(1),roots2(2))
-!IF (nRoot.NE.nRoot2) THEN
-!print*,roots(:),roots2(:)
-!STOP "nRoot.NE.nRoot2!!!"
-!END IF
   ELSE IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'parabol') THEN
     r_vec=AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
     axis=AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
@@ -3506,13 +3495,6 @@ __STAMP__&
   END IF !cylinder, cone, or paraboloid
   SELECT CASE (nRoot)
   CASE (1)
-!IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
-!    IF (.NOT.ALMOSTEQUALRELATIVE(roots(1),roots2(1),1e-6) &
-!        .AND. .NOT.(ALMOSTZERO(0.001*roots(1)).AND.ALMOSTZERO(0.001*roots2(1))) ) THEN
-!print*,roots(1),roots2(1)
-!STOP "Roots1.NE.Roots1!!!"
-!END IF
-!END IF
     alpha=roots(1)
     !- check for normal vec / trajectory direction
     ! (already here since no inner auxBCs possible (can happen due to tolerances)
@@ -3542,19 +3524,6 @@ __STAMP__&
       RETURN
     END IF
   CASE (2)
-!IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cone') THEN
-!    IF((.NOT.ALMOSTEQUALRELATIVE(roots(1),roots2(1),1e-6) &
-!        .AND. .NOT.(100.<ABS(roots(1)).AND.100.<ABS(roots2(1))) ).OR.&
-!(.NOT.ALMOSTEQUALRELATIVE(roots(2),roots2(2),1e-6) &
-!        .AND. .NOT.(ALMOSTZERO(0.001*roots(2)).AND.ALMOSTZERO(0.001*roots2(2))) ) )THEN
-!print*,roots(:),roots2(:)
-!print*,.NOT.ALMOSTEQUALRELATIVE(roots(1),roots2(1),1e-6) &
-!        , .NOT.(100.<ABS(roots(1)).AND.100.<ABS(roots2(1))) ,&
-!       .NOT.ALMOSTEQUALRELATIVE(roots(2),roots2(2),1e-6) &
-!        , .NOT.(ALMOSTZERO(0.001*roots(2)).AND.ALMOSTZERO(0.001*roots2(2))) ,"last",ABS((roots(2))-(roots2(2)))/MAX(ABS(roots(2)),ABS(roots2(2)))
-!STOP "Roots12.NE.Roots12!!!"
-!END IF
-!END IF
     !- 2 roots: check for smallest alpha>-eps
     IF (roots(1).LT.roots(2)) THEN
       IF (roots(1).GE.-epsilontol*lengthPartTrajectory) THEN

@@ -1886,35 +1886,6 @@ IF (nAuxBCs.GT.0) THEN
         = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
       AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
         = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
-
-      !testing approach with coordtrafo:
-      !n(:,1)=AuxBC_cone(AuxBCMap(iAuxBC))%axis
-      !IF (.NOT.ALMOSTZERO(SQRT(n(1,1)**2+n(3,1)**2))) THEN !collinear with y?
-      !  alpha1=ATAN2(n(1,1),n(3,1))
-      !  CALL roty(rot1,alpha1)
-      !  n1=MATMUL(rot1,n)
-      !ELSE
-      !  alpha1=0.
-      !  CALL ident(rot1)
-      !  n1=n
-      !END IF
-      !!print*,'alpha1=',alpha1/PI*180.,'n1=',n1
-      !IF (.NOT.ALMOSTZERO(SQRT(n1(2,1)**2+n1(3,1)**2))) THEN !collinear with x?
-      !  alpha2=-ATAN2(n1(2,1),n1(3,1))
-      !  CALL rotx(rot2,alpha2)
-      !  n2=MATMUL(rot2,n1)
-      !ELSE
-      !  CALL abort(&
-      !    __STAMP__&
-      !    ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
-      !END IF
-      !!print*,'alpha2=',alpha2/PI*180.,'n2=',n2
-      !AuxBC_cone(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
-      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(:,:)=0.
-      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(1,1)=1.
-      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(2,2)=1.
-      !AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix2(3,3)=1. - 1./cos2
-
     CASE ('parabol')
       AuxBC_parabol(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
       n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
