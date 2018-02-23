@@ -4425,6 +4425,7 @@ __STAMP__&
       END IF
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
       DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+        ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/subsides (e.g. desorption)
         IF (useDSMC .AND. (.NOT. KeepWallParticles)) THEN !to be checked!!!
           IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
@@ -4434,11 +4435,7 @@ __STAMP__&
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
               ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
             END IF
-          ELSE
-            ExtraParts = 0
           END IF
-        ELSE
-          ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/subsides (e.g. desorption)
         END IF
 
 !----- 1.: set positions
