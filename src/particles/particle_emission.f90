@@ -3694,7 +3694,7 @@ __STAMP__&
           CALL abort(__STAMP__&
             ,'ERROR in init: axialDir for SFradial must be between 1 and 3!')
         END IF
-        IF ( Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(2)).NE.0. .AND. &
+        IF ( Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(2)).NE.0. .OR. &
              Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(Species(iSpec)%Surfaceflux(iSF)%dir(3)).NE.0. ) THEN
           CALL abort(__STAMP__&
             ,'ERROR in init: axialDir for SFradial do not correspond to VeloVecIC!')
@@ -3991,8 +3991,21 @@ DO iSpec=1,nSpecies
               Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=0
               nType0(iSF,iSpec)=nType0(iSF,iSpec)+1
             ELSE
-              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=1
-              nType1(iSF,iSpec)=nType1(iSF,iSpec)+1
+              ! all points are outside of rmax, but when rmax is smaller than box, it can intersect it:
+              IF ( Species(iSpec)%Surfaceflux(iSF)%origin(1) + Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(1) - Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) ) THEN !circle completely or partly inside box
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
+                nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
+              ELSE !points are really outside
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=1
+                nType1(iSF,iSpec)=nType1(iSF,iSpec)+1
+              END IF
             END IF
           END IF
         END IF !SimpleRadialVeloFit: check r-bounds
@@ -4612,41 +4625,37 @@ __STAMP__&
               PartState(ParticleIndexNbr,3+dir(2)) = veloR*cos(phi)
               PartState(ParticleIndexNbr,3+dir(3)) = veloR*sin(phi)
             END IF !VeloIsNormal or SimpleRadialVeloFit
-!!test
-!CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),Particle_pos(1:3))
-!IF (.NOT.ALMOSTEQUAL(Particle_pos(1),ElemBaryNGeo(1,ElemID))) STOP "blubb1!!!"
-!IF (.NOT.ALMOSTEQUAL(Particle_pos(2),ElemBaryNGeo(2,ElemID))) STOP "blubb2!!!"
-!IF (.NOT.ALMOSTEQUAL(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
-!!
-            ! shift lastpartpos minimal into cell for fail-safe tracking
-            SELECT CASE(SideType(SideID))
-            CASE(PLANAR_RECT,PLANAR_NONRECT)
-              LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
-              + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (0.9999)
-            CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
-              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
-              DO iLoop=1,3 !shift border-RefCoords into elem
-                IF( ABS(Particle_pos(iLoop)) .GT. 0.9999 ) THEN
-                  Particle_pos(iLoop)=SIGN(0.999999,Particle_pos(iLoop))
-                END IF
-              END DO
-              CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
-                ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
-            CASE DEFAULT
-              CALL abort(&
-__STAMP__&
-,'unknown SideType!')
-            END SELECT
 
-#ifdef CODE_ANALYZE
-          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
-          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
-            IPWRITE(*,*) 'Particle_pos: ',Particle_pos
-            CALL abort(&
-__STAMP__&
-,'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
-          END IF
-#endif /*CODE_ANALYZE*/ 
+            ! shift lastpartpos minimal into cell for fail-safe tracking
+            LastPartPos(ParticleIndexNbr,1:3)=PartState(ParticleIndexNbr,1:3)
+            !SELECT CASE(SideType(SideID))
+            !CASE(PLANAR_RECT,PLANAR_NONRECT)
+            !  LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
+            !  + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (0.9999)
+            !CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
+            !  CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
+            !  DO iLoop=1,3 !shift border-RefCoords into elem
+            !    IF( ABS(Particle_pos(iLoop)) .GT. 0.9999 ) THEN
+            !      Particle_pos(iLoop)=SIGN(0.999999,Particle_pos(iLoop))
+            !    END IF
+            !  END DO
+            !  CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
+            !    ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
+            !CASE DEFAULT
+            !  CALL abort(&
+!__STAMP__&
+!,'unknown SideType!')
+            !END SELECT
+
+!#ifdef CODE_ANALYZE
+!          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
+!          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
+!            IPWRITE(*,*) 'Particle_pos: ',Particle_pos
+!            CALL abort(&
+!__STAMP__&
+!,'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
+!          END IF
+!#endif /*CODE_ANALYZE*/ 
 #ifdef IMPA
             IF(DoRefMapping)THEN
               CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
@@ -4655,12 +4664,12 @@ __STAMP__&
             PartState(ParticleIndexNbr,1:3)=LastPartPos(ParticleIndexNbr,1:3)
 #endif /*IMPA*/
 #ifdef CODE_ANALYZE
-            IF(   (LastPartPos(ParticleIndexNbr,1).GT.GEO%xmaxglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,1).LT.GEO%xminglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,2).GT.GEO%ymaxglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,2).LT.GEO%yminglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,3).GT.GEO%zmaxglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,3).LT.GEO%zminglob) ) THEN
+            IF(   (LastPartPos(ParticleIndexNbr,1).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,1),GEO%xmaxglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,1).LT.GEO%xminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,1),GEO%xminglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,2).GT.GEO%ymaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,2),GEO%ymaxglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,2).LT.GEO%yminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,2),GEO%yminglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,3).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,3),GEO%zmaxglob) &
+              .OR.(LastPartPos(ParticleIndexNbr,3).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,3),GEO%zminglob) ) THEN
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ',PDM%ParticleInside(ParticleIndexNbr)
 #ifdef IMPA
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(ParticleIndexNbr)
@@ -5392,8 +5401,13 @@ END IF !.NOT.SimpleRadialVeloFit
 !-- 0b.: initialize DataTriaSF if particle-dependent (as in case of SimpleRadialVeloFit), drift vector is already in PartState!!!
       ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
         VeloIC = SQRT(DOT_PRODUCT(PartState(PositionNbr,4:6),PartState(PositionNbr,4:6)))
-        projFak = DOT_PRODUCT(vec_nIn,PartState(PositionNbr,4:6)) / VeloIC
-        a = VeloIC * projFak / SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC) !speed ratio proj. to inwards n (can be negative!)
+        IF (ALMOSTZERO(VeloIC)) THEN
+          projFak = 1. !dummy
+          a = 0.
+        ELSE
+          projFak = DOT_PRODUCT(vec_nIn,PartState(PositionNbr,4:6)) / VeloIC
+          a = VeloIC * projFak / SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC) !speed ratio proj. to inwards n (can be negative!)
+        END IF
         Velo_t1 = DOT_PRODUCT(vec_t1,PartState(PositionNbr,4:6)) !v in t1-dir
         Velo_t2 = DOT_PRODUCT(vec_t2,PartState(PositionNbr,4:6)) !v in t2-dir
         !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]

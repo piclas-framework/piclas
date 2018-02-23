@@ -3699,7 +3699,7 @@ DO iStage=2,nRKStages
       ElemID=PEM%Element(iPart)
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
       IF(.NOT.isHit)THEN  ! particle not inside
-        IPWRITE(UNIT_stdOut,'(A)') ' PartPos not inside of element! '
+        IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
         IF(ElemID.LE.PP_nElems)THEN
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
         ELSE

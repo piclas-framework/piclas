@@ -22,6 +22,22 @@ INTERFACE FinalizeParticles
   MODULE PROCEDURE FinalizeParticles
 END INTERFACE
 
+INTERFACE rotx
+  MODULE PROCEDURE rotx
+END INTERFACE
+
+INTERFACE roty
+  MODULE PROCEDURE roty
+END INTERFACE
+
+INTERFACE rotz
+  MODULE PROCEDURE rotz
+END INTERFACE
+
+INTERFACE Ident
+  MODULE PROCEDURE Ident
+END INTERFACE
+
 PUBLIC::InitParticles,FinalizeParticles
 
 PUBLIC::DefineParametersParticles
@@ -446,12 +462,61 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-ParamAntoine'  &
                                 , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps'  &
+CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
                                 , 'TODO-DEFINE-PARAMETER', '0 , 0', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName'  &
                                 , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseForQCrit'  &
                                 , 'TODO-DEFINE-PARAMETER', '.TRUE.', numberedmulti=.TRUE.)
+
+CALL prms%CreateIntOption(      'Part-nAuxBCs'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0')
+CALL prms%CreateIntOption(      'Part-AuxBC[$]-NbrOfSpeciesSwaps'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-AuxBC[$]-Condition'  &
+                                , 'TODO-DEFINE-PARAMETER',  'open', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-MomentumACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-WallTemp'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-TransACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-VibACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-RotACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-ElecACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-Resample'  &
+                                , 'TODO-DEFINE-PARAMETER',  '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-WallVelo'  &
+                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-ProbOfSpeciesSwaps'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'Part-AuxBC[$]-SpeciesSwaps[$]'  &
+                                , 'TODO-DEFINE-PARAMETER', '0 , 0', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-AuxBC[$]-Type'  &
+                                , 'TODO-DEFINE-PARAMETER',  'plane', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-r_vec'  &
+                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-radius'  &
+                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-n_vec'  &
+                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-AuxBC[$]-axis'  &
+                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmin'  &
+                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmax'  &
+                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. is calculated!!!
+CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-inwards'  &
+                                , 'TODO-DEFINE-PARAMETER',  '.TRUE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-rmax'  &
+                                , 'TODO-DEFINE-PARAMETER',  '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
+                                , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -558,7 +623,8 @@ USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC
+USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
+USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
@@ -567,7 +633,7 @@ USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
 USE MOD_PICInit,               ONLY:InitPIC
-USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem
+USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem,MarkAuxBCElems
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
@@ -588,15 +654,19 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
 INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude
+INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAuxBCparabols
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
 LOGICAL               :: TrueRandom, PartDens_OnlyInit                                                  !
 INTEGER,ALLOCATABLE   :: iSeeds(:)
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
-REAL                  :: lineVector(3), v_drift_line, A_ins
+REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
+REAL, DIMENSION(3,1)  :: n,n1,n2
+REAL, DIMENSION(3,3)  :: rot1, rot2
+REAL                  :: alpha1, alpha2
 INTEGER               :: dummy_int
 !===================================================================================================================================
 ! Read print flags
@@ -1646,6 +1716,235 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
+
+!-- AuxBCs
+nAuxBCs=GETINT('Part-nAuxBCs','0')
+IF (nAuxBCs.GT.0) THEN
+  UseAuxBCs=.TRUE.
+  ALLOCATE (AuxBCType(1:nAuxBCs) &
+            ,AuxBCMap(1:nAuxBCs) )
+  AuxBCMap=0
+  !- Read in BC parameters
+  ALLOCATE(PartAuxBC%TargetBoundCond(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%MomentumACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%WallTemp(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%TransACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%VibACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%RotACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%ElecACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%Resample(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%WallVelo(1:3,1:nAuxBCs))
+  ALLOCATE(PartAuxBC%NbrOfSpeciesSwaps(1:nAuxBCs))
+  !--determine MaxNbrOfSpeciesSwaps for correct allocation
+  MaxNbrOfSpeciesSwaps=0
+  DO iPartBound=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+    PartAuxBC%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-AuxBC'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
+    MaxNbrOfSpeciesSwaps=max(PartAuxBC%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
+  END DO
+  IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
+    ALLOCATE(PartAuxBC%ProbOfSpeciesSwaps(1:nAuxBCs))
+    ALLOCATE(PartAuxBC%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nAuxBCs))
+  END IF
+  !--
+  DO iPartBound=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+    tmpString = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Condition','open'))
+    SELECT CASE (TRIM(tmpString))
+    CASE('open')
+      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%OpenBC          ! definitions see typesdef_pic
+    CASE('reflective')
+      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%ReflectiveBC
+      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC','0')
+      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp','0')
+      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC','0')
+      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC','0')
+      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC','0')
+      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC','0')
+      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample','.FALSE.')
+      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
+      IF (PartAuxBC%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
+        !read Species to be changed at wall (in, out), out=0: delete
+        PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+        DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(iPartBound)
+          WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
+          PartAuxBC%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+            GETINTARRAY('Part-AuxBC'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+        END DO
+      END IF
+    CASE DEFAULT
+      SWRITE(*,*) ' AuxBC Condition does not exists: ', TRIM(tmpString)
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC Condition does not exist')
+    END SELECT
+  END DO
+  !- read and count types
+  nAuxBCplanes = 0
+  nAuxBCcylinders = 0
+  nAuxBCcones = 0
+  nAuxBCparabols = 0
+  DO iAuxBC=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
+    AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
+    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
+    CASE ('plane')
+      nAuxBCplanes = nAuxBCplanes + 1
+      AuxBCMap(iAuxBC) = nAuxBCplanes
+    CASE ('cylinder')
+      nAuxBCcylinders = nAuxBCcylinders + 1
+      AuxBCMap(iAuxBC) = nAuxBCcylinders
+    CASE ('cone')
+      nAuxBCcones = nAuxBCcones + 1
+      AuxBCMap(iAuxBC) = nAuxBCcones
+    CASE ('parabol')
+      nAuxBCparabols = nAuxBCparabols + 1
+      AuxBCMap(iAuxBC) = nAuxBCparabols
+    CASE DEFAULT
+      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC does not exist')
+    END SELECT
+  END DO
+  !- allocate type-specifics
+  IF (nAuxBCplanes.GT.0) THEN
+    ALLOCATE (AuxBC_plane(1:nAuxBCplanes))
+  END IF
+  IF (nAuxBCcylinders.GT.0) THEN
+    ALLOCATE (AuxBC_cylinder(1:nAuxBCcylinders))
+  END IF
+  IF (nAuxBCcones.GT.0) THEN
+    ALLOCATE (AuxBC_cone(1:nAuxBCcones))
+  END IF
+  IF (nAuxBCparabols.GT.0) THEN
+    ALLOCATE (AuxBC_parabol(1:nAuxBCparabols))
+  END IF
+  !- read type-specifics
+  DO iAuxBC=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
+    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
+    CASE ('plane')
+      AuxBC_plane(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_plane(AuxBCMap(iAuxBC))%radius)
+      AuxBC_plane(AuxBCMap(iAuxBC))%radius= GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius',TRIM(hilf2))
+      n_vec                               = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-n_vec',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-n_vec is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_plane(AuxBCMap(iAuxBC))%n_vec = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+    CASE ('cylinder')
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                                  = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_cylinder(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%radius  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius','1.')
+      WRITE(UNIT=hilf2,FMT='(G0)') -HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin',TRIM(hilf2))
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+    CASE ('cone')
+      AuxBC_cone(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_cone(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_cone(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
+      IF (AuxBC_cone(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-lminis .lt. zero for AuxBC',iAuxBC)
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cone(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_cone(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      rmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-rmax','0.')
+      ! either define rmax at lmax or the halfangle
+      IF (rmax.EQ.0.) THEN
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')*PI/180.
+      ELSE
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)
+      END IF
+      IF (AuxBC_cone(AuxBCMap(iAuxBC))%halfangle.LE.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-halfangle is .le. zero for AuxBC',iAuxBC)
+      AuxBC_cone(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle)**2
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,1) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(1)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/cos2,0.,0./)
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,2) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
+    CASE ('parabol')
+      AuxBC_parabol(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_parabol(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_parabol(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
+      IF (AuxBC_parabol(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-lmin is .lt. zero for AuxBC',iAuxBC)
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_parabol(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_parabol(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
+      AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+
+      n(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
+      IF (.NOT.ALMOSTZERO(SQRT(n(1,1)**2+n(3,1)**2))) THEN !collinear with y?
+        alpha1=ATAN2(n(1,1),n(3,1))
+        CALL roty(rot1,alpha1)
+        n1=MATMUL(rot1,n)
+      ELSE
+        alpha1=0.
+        CALL ident(rot1)
+        n1=n
+      END IF
+      !print*,'alpha1=',alpha1/PI*180.,'n1=',n1
+      IF (.NOT.ALMOSTZERO(SQRT(n1(2,1)**2+n1(3,1)**2))) THEN !collinear with x?
+        alpha2=-ATAN2(n1(2,1),n1(3,1))
+        CALL rotx(rot2,alpha2)
+        n2=MATMUL(rot2,n1)
+      ELSE
+        CALL abort(&
+          __STAMP__&
+          ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
+      END IF
+      !print*,'alpha2=',alpha2/PI*180.,'n2=',n2
+      AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(2,2)=1.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,3)=0.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,4)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(4,3)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
+    CASE DEFAULT
+      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC does not exist for AuxBC',iAuxBC)
+    END SELECT
+  END DO
+  CALL MarkAuxBCElems()
+ELSE
+  UseAuxBCs=.FALSE.
+END IF
+
 !-- Finalizing InitializeVariables
 CALL InitFIBGM()
 !CALL InitSFIBGM()
@@ -1836,5 +2135,38 @@ SDEALLOCATE(seeds)
 SDEALLOCATE(RegionBounds)
 SDEALLOCATE(RegionElectronRef)
 END SUBROUTINE FinalizeParticles
+
+!-- matrices for coordtrafo:
+SUBROUTINE rotz(mat,a)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+REAL, INTENT(IN) :: a
+mat(:,1)=(/COS(a) ,-SIN(a) , 0./)
+mat(:,2)=(/SIN(a) , COS(a) , 0./)
+mat(:,3)=(/0.     , 0.     , 1./)
+END SUBROUTINE
+SUBROUTINE rotx(mat,a)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+REAL, INTENT(IN) :: a
+mat(:,1)=(/1.0 , 0.     , 0.  /)
+mat(:,2)=(/0.0 , COS(a) ,-SIN(a)/)
+mat(:,3)=(/0.0 , SIN(a) , COS(a)/)
+END SUBROUTINE
+SUBROUTINE roty(mat,a)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+REAL, INTENT(IN) :: a
+mat(:,1)=(/ COS(a) , 0., SIN(a)/)
+mat(:,2)=(/ 0.     , 1., 0.  /)
+mat(:,3)=(/-SIN(a) , 0., COS(a)/)
+END SUBROUTINE
+SUBROUTINE ident(mat)
+IMPLICIT NONE
+REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+INTEGER :: j
+mat = 0.
+FORALL(j = 1:3) mat(j,j) = 1.
+END SUBROUTINE
 
 END MODULE MOD_ParticleInit
