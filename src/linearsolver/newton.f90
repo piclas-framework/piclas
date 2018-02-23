@@ -277,11 +277,11 @@ END IF
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     END IF
-  END IF
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
 #endif /*MPI*/
+  END IF
   DO iPart=1,PDM%ParticleVecLength
     IF(PartIsImplicit(iPart))THEN
       IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
