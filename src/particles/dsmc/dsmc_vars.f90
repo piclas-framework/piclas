@@ -134,6 +134,7 @@ TYPE tDSMC
   INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
   LOGICAL                       :: UseOctree                ! Flag for Octree
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
+  LOGICAL                       :: CalcSampleSurfaceflux
   LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean             ! Summation of collision probability

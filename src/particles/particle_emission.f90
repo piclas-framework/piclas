@@ -3481,8 +3481,10 @@ USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 #endif
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
-USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
+USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
+USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide !,GEO
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3493,7 +3495,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
 INTEGER               :: iPartBound,iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
-INTEGER               :: iCopy1, iCopy2, iCopy3, iPoint
+INTEGER               :: iCopy1, iCopy2, iCopy3, iPoint, nSides
 CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF, projFak, v_thermal
 REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2), radius
@@ -3508,18 +3510,27 @@ INTEGER,ALLOCATABLE   :: TmpSideNext(:)                      ! Next Side in same
 INTEGER,ALLOCATABLE   :: nType0(:,:), nType1(:,:), nType2(:,:)
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 REAL                  :: totalArea
-REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN)     :: tmp_SubSideAreas, tmp_SubSideDmax
-REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN) :: tmp_Vec_nOut, tmp_Vec_t1, tmp_Vec_t2
-REAL,DIMENSION(1:2,0:NGeo,0:NGeo,1:BezierSampleN,1:BezierSampleN)                   :: tmp_BezierControlPoints2D
-REAL,DIMENSION(1:3,1:8)                             :: BoundingBox
+REAL,ALLOCATABLE      :: tmp_SubSideAreas(:,:), tmp_SubSideDmax(:,:)
+REAL,ALLOCATABLE      :: tmp_Vec_nOut(:,:,:), tmp_Vec_t1(:,:,:), tmp_Vec_t2(:,:,:)
+REAL,ALLOCATABLE      :: tmp_BezierControlPoints2D(:,:,:,:,:)
+REAL,DIMENSION(1:3,1:8)  :: BoundingBox
 INTEGER,ALLOCATABLE   :: Adaptive_BC_Map(:), tmp_Surfaceflux_BCs(:)
 LOGICAL,ALLOCATABLE   :: Adaptive_Found_Flag(:)
 INTEGER               :: nAdaptive_Found, iSS, nSurffluxBCs_old, nSurffluxBCs_new, iSFx
 REAL,ALLOCATABLE      :: sum_pressurefraction(:)
 !===================================================================================================================================
-! global calculations for sampling the bezier faces for area and vector calculations (checks the integration with CODE_ANALYZE)
-ALLOCATE(SurfMeshSubSideData(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
+! global calculations for sampling the faces for area and vector calculations (checks the integration with CODE_ANALYZE)
+ALLOCATE (tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2)), &
+  tmp_Vec_nOut(3,SurfFluxSideSize(1),SurfFluxSideSize(2)), &
+  tmp_Vec_t1(3,SurfFluxSideSize(1),SurfFluxSideSize(2)), &
+  tmp_Vec_t2(3,SurfFluxSideSize(1),SurfFluxSideSize(2)), &
+  SurfMeshSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:nBCSides)    )
+IF (.NOT.TriaSurfaceFlux) THEN
+  ALLOCATE (tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2)), &
+    tmp_BezierControlPoints2D(2,0:NGeo,0:NGeo,SurfFluxSideSize(1),SurfFluxSideSize(2)) )
+END IF
 ALLOCATE(SurfMeshSideAreas(1:nBCSides))
+SurfMeshSideAreas=0.
 totalArea=0.
 DO BCSideID=1,nBCSides
   ElemID = SideToElem(1,BCSideID)
@@ -3530,15 +3541,32 @@ DO BCSideID=1,nBCSides
     iLocSide = SideToElem(3,BCSideID)
   END IF
   SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-  CALL GetBezierSampledAreas(SideID=SideID &
-    ,BezierSampleN=BezierSampleN &
-    ,SurfMeshSubSideAreas=tmp_SubSideAreas &
-    ,SurfMeshSideArea_opt=SurfMeshSideAreas(BCSideID) &
-    ,SurfMeshSubSideVec_nOut_opt=tmp_Vec_nOut &
-    ,SurfMeshSubSideVec_t1_opt=tmp_Vec_t1 &
-    ,SurfMeshSubSideVec_t2_opt=tmp_Vec_t2)
+  IF (TriaSurfaceFlux) THEN
+    IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(&
+__STAMP__&
+, 'SurfFluxSideSize must be 1,2 for TriaSurfaceFlux!')
+    DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+      CALL CalcNormAndTangTriangle(SideID=SideID,nVec=tmp_Vec_nOut(:,iSample,jSample) &
+        ,tang1=tmp_Vec_t1(:,iSample,jSample) &
+        ,tang2=tmp_Vec_t2(:,iSample,jSample) &
+        ,area=tmp_SubSideAreas(iSample,jSample) &
+        ,TriNum=jSample,ElemID_opt=ElemID,LocSideID_opt=ilocSide)
+      SurfMeshSideAreas(BCSideID)=SurfMeshSideAreas(BCSideID)+tmp_SubSideAreas(iSample,jSample)
+    END DO; END DO  
+  ELSE
+    IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(&
+__STAMP__&
+, 'SurfFluxSideSize must be BezierSampleN,BezierSampleN for .NOT.TriaSurfaceFlux!')
+    CALL GetBezierSampledAreas(SideID=SideID &
+      ,BezierSampleN=BezierSampleN &
+      ,SurfMeshSubSideAreas=tmp_SubSideAreas &
+      ,SurfMeshSideArea_opt=SurfMeshSideAreas(BCSideID) &
+      ,SurfMeshSubSideVec_nOut_opt=tmp_Vec_nOut &
+      ,SurfMeshSubSideVec_t1_opt=tmp_Vec_t1 &
+      ,SurfMeshSubSideVec_t2_opt=tmp_Vec_t2)
+  END IF
   totalArea=totalArea+SurfMeshSideAreas(BCSideID)
-  DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+  DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn=-tmp_Vec_nOut(:,iSample,jSample)
     SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1=tmp_Vec_t1(:,iSample,jSample)
     SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2=tmp_Vec_t2(:,iSample,jSample)
@@ -3738,7 +3766,11 @@ __STAMP__&
         SWRITE(*,*)'switching now to Random rounding...'
         DoTimeDepInflow   = .FALSE.
       END IF
-      Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AcceptReject','.TRUE.')
+      IF (TriaSurfaceFlux) THEN
+        Species(iSpec)%Surfaceflux(iSF)%AcceptReject=.FALSE.
+      ELSE
+        Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AcceptReject','.TRUE.')
+      END IF
     ELSE !Adaptive
       !Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
       Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
@@ -3752,11 +3784,16 @@ __STAMP__&
         / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)    
       !Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Init(0)%PartDensity
       Species(iSpec)%Surfaceflux(iSF)%ReduceNoise           = .FALSE.
-      Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = .FALSE. !!!change to read-in?!?
+      !Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = .FALSE. !!!change to read-in?!?
+      IF (TriaSurfaceFlux) THEN
+        Species(iSpec)%Surfaceflux(iSF)%AcceptReject=.FALSE.
+      ELSE
+        Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AcceptReject','.TRUE.')
+      END IF
     END IF
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.GT.1) THEN
       SWRITE(*,*)'WARNING: BezierSampleN > 0 may not be necessary as ARM is used for SurfaceFlux!'
-    ELSE IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.LE.NGeo) THEN
+    ELSE IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.LE.NGeo .AND. .NOT.TriaSurfaceFlux) THEN
       SWRITE(*,*)'WARNING: The choosen small BezierSampleN (def.: NGeo) might result in inhom. SurfFluxes without ARM!'
     END IF
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
@@ -3831,10 +3868,14 @@ DO iBC=1,nDataBC
   BCdata_auxSF(TmpMapToBC(iBC))%SideNumber=TmpSideNumber(iBC)
   IF (TmpSideNumber(iBC).EQ.0) CYCLE
   ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%SideList(1:TmpSideNumber(iBC)))
+  IF (TriaSurfaceFlux) THEN
+    ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSwapGeo(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
+    ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSideGeo(1:TmpSideNumber(iBC)))
+  END IF
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
       IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
-        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(1:BezierSampleN,1:BezierSampleN,1:TmpSideNumber(iBC)) )
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)) )
         IF (AnySimpleRadialVeloFit .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
@@ -3846,9 +3887,34 @@ DO iBC=1,nDataBC
   DO !follow BCSideID list seq. with iCount
     iCount=iCount+1
     BCdata_auxSF(TmpMapToBC(iBC))%SideList(iCount)=BCSideID
+    IF (TriaSurfaceFlux) THEN
+      ElemID = SideToElem(1,BCSideID)
+      IF (ElemID.LT.1) THEN !not sure if necessary
+        ElemID = SideToElem(2,BCSideID)
+        iLocSide = SideToElem(4,BCSideID)
+      ELSE
+        iLocSide = SideToElem(3,BCSideID)
+      END IF
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+
+      IF (.NOT.TriaTracking) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
+        IF (SideType(SideID).NE.PLANAR_RECT .AND. SideType(SideID).NE.PLANAR_NONRECT) CALL abort(&
+__STAMP__&
+,'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
+      END IF !.NOT.TriaTracking
+
+      DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+        CALL CalcNormAndTangTriangle(SideID=SideID &
+          ,midpoint=BCdata_auxSF(TmpMapToBC(iBC))%TriaSwapGeo(iSample,jSample,iCount)%midpoint &
+          ,ndist=BCdata_auxSF(TmpMapToBC(iBC))%TriaSwapGeo(iSample,jSample,iCount)%ndist &
+          ,xyzNod=BCdata_auxSF(TmpMapToBC(iBC))%TriaSideGeo(iCount)%xyzNod &
+          ,Vectors=BCdata_auxSF(TmpMapToBC(iBC))%TriaSideGeo(iCount)%Vectors &
+          ,TriNum=jSample,ElemID_opt=ElemID,LocSideID_opt=ilocSide)
+      END DO; END DO
+    END IF !TriaSurfaceFlux
 
     !-- BC-list specific data
-    DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+    DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
       BCdata_auxSF(TmpMapToBC(iBC))%LocalArea = BCdata_auxSF(TmpMapToBC(iBC))%LocalArea &
         + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
     END DO; END DO
@@ -3931,11 +3997,15 @@ DO iSpec=1,nSpecies
             ,DmaxSampleN_opt=Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN &
             ,Dmax_opt=tmp_SubSideDmax &
             ,BezierControlPoints2D_opt=tmp_BezierControlPoints2D)
-        ELSE
+        ELSE IF (.NOT.TriaSurfaceFlux) THEN
           CALL GetBezierSampledAreas(SideID=SideID &
             ,BezierSampleN=BezierSampleN &
             ,BezierSurfFluxProjection_opt=.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal &
             ,SurfMeshSubSideAreas=tmp_SubSideAreas)  !SubSide-areas proj. to inwards normals
+        ELSE !TriaSurfaceFlux
+          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+            tmp_SubSideAreas(iSample,jSample)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+          END DO; END DO
         END IF
         !-- check where the sides are located relative to rmax (based on corner nodes of bounding box)
         !- RejectType=0 : complete side is inside valid bounds
@@ -4003,7 +4073,7 @@ DO iSpec=1,nSpecies
             END IF
           END IF
         END IF !SimpleRadialVeloFit: check r-bounds
-        DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
           vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
           vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
           vec_t2 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2
@@ -4066,7 +4136,7 @@ __STAMP__&
               END DO; END DO; END DO
             END IF !.NOT.VeloIsNormal
           END IF
-        END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
+        END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         IF (.NOT.noAdaptive) THEN
           ! initialize velocity, tans_temperature and density of macrovalues
           Adaptive_MacroVal(1:3,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
@@ -4108,6 +4178,74 @@ __STAMP__&
     END IF !ReduceNoise
   END DO !iSF
 END DO !iSpec
+!-- write debug-mesh for tria-surfflux
+IF (WriteTriaSurfaceFluxDebugMesh) THEN
+  !count sides
+  nSides=0
+  DO iSpec=1,nSpecies
+    DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
+      currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
+      IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+        nSides=nSides+BCdata_auxSF(currentBC)%SideNumber
+      ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
+        CALL abort(&
+  __STAMP__&
+  ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
+      END IF
+    END DO !iSF
+  END DO !iSpec
+  WRITE(UNIT=hilf,FMT='(I4.4)') myRank
+  OPEN(UNIT   = 103, &
+         FILE   = 'Tria-Surfflux-debugmesh_'//TRIM(hilf)//'.tec' ,&
+         STATUS = 'UNKNOWN')
+  WRITE(103,*) 'TITLE="Tria-Surfflux-debugmesh" '
+  WRITE(103,'(102a)') 'VARIABLES ="x","y","z","BC","iSF","iSpec"'
+  WRITE(103,*) 'ZONE NODES=',4*nSides,', ELEMENTS=',2*nSides,'DATAPACKING=POINT, ZONETYPE=FEQUADRILATERAL'
+  ! Write nodes
+  DO iSpec=1,nSpecies
+    DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
+      currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
+      IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+        DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+          BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+          ElemID = SideToElem(1,BCSideID)
+          IF (ElemID.LT.1) THEN !not sure if necessary
+            ElemID = SideToElem(2,BCSideID)
+            iLocSide = SideToElem(4,BCSideID)
+          ELSE
+            iLocSide = SideToElem(3,BCSideID)
+          END IF
+          !WRITE(103,'(3(F0.10,1X),3(I0,1X))')GEO%NodeCoords(1:3,1,iLocSide,ElemID),currentBC,iSF,iSpec
+          !WRITE(103,'(3(F0.10,1X),3(I0,1X))')GEO%NodeCoords(1:3,2,iLocSide,ElemID),currentBC,iSF,iSpec
+          !WRITE(103,'(3(F0.10,1X),3(I0,1X))')GEO%NodeCoords(1:3,3,iLocSide,ElemID),currentBC,iSF,iSpec
+          !WRITE(103,'(3(F0.10,1X),3(I0,1X))')GEO%NodeCoords(1:3,4,iLocSide,ElemID),currentBC,iSF,iSpec
+          WRITE(103,'(3(F0.10,1X),3(I0,1X))')BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod,currentBC,iSF,iSpec
+          WRITE(103,'(3(F0.10,1X),3(I0,1X))')BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod &
+            +BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,1),currentBC,iSF,iSpec
+          WRITE(103,'(3(F0.10,1X),3(I0,1X))')BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod &
+            +BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,2),currentBC,iSF,iSpec
+          WRITE(103,'(3(F0.10,1X),3(I0,1X))')BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod &
+            +BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,3),currentBC,iSF,iSpec
+        END DO ! iSide
+      END IF
+    END DO !iSF
+  END DO !iSpec
+  ! Write sides
+  nSides=0
+  DO iSpec=1,nSpecies
+    DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
+      currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
+      IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+        DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+          WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+2,nSides*4+3,nSides*4+3 !1. tria
+          WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+3,nSides*4+4,nSides*4+4 !2. tria
+          nSides=nSides+1
+        END DO ! iSide
+      END IF
+    END DO !iSF
+  END DO !iSpec
+  CLOSE(103)
+END IF !TriaSurfaceFlux
 
 #ifdef MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
@@ -4156,15 +4294,13 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-#ifdef CODE_ANALYZE
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-#endif /*CODE_ANALYZE*/ 
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SideType, SurfMeshSubSideData
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SideType, SurfMeshSubSideData
 USE MOD_Timedisc_Vars          ,ONLY: dt
 #ifdef IMPA
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #endif /*IMPA*/
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
@@ -4197,7 +4333,7 @@ INTEGER                     :: NbrOfParticle, ExtraParts
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSF, PartInsSubSide, iPart, iPartTotal, IntSample
 INTEGER                     :: ParticleIndexNbr, allocStat
 REAL                        :: PartIns,VFR_total
-REAL                        :: Particle_pos(3), RandVal1, RandVal2(2)
+REAL                        :: Particle_pos(3), RandVal1, RandVal2(2), xNod,yNod,zNod
 REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
 INTEGER(KIND=8)             :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
 INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:,:)
@@ -4213,7 +4349,8 @@ REAL                        :: VelXold, VelYold, VelZold, VeloReal
 REAL                        :: EtraOld, EtraWall, EtraNew
 REAL                        :: ErotOld, ErotWall, ErotNew
 REAL                        :: EvibOld, EvibWall, EVibNew
-INTEGER                     :: p,q,SurfSideID,PartID
+REAL                        :: Vector1(3),Vector2(3),PartDistance,ndist(3),midpoint(3)
+INTEGER                     :: p,q,SurfSideID,PartID,Node1,Node2
 REAL                        :: ElemPartDensity, VeloVec(1:3), VeloIC
 REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure
 #ifdef MPI
@@ -4221,12 +4358,12 @@ REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nV
 REAL                        :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
-ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber))
+IF (DSMC%CalcSampleSurfaceflux) ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber)) !is this size really necessary?!?
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
       noAdaptive=.TRUE.
-      PartInsIndexes(:,:) = 0
+      IF (ALLOCATED(PartInsIndexes)) PartInsIndexes(:,:) = 0
       PartsEmitted = 0
     ELSE
       noAdaptive=.FALSE.
@@ -4300,17 +4437,17 @@ DO iSpec=1,nSpecies
 
       !-- calc global to-be-inserted number of parts and distribute to SubSides (proc local)
       SDEALLOCATE(PartInsSubSides)
-      ALLOCATE(PartInsSubSides(1:BezierSampleN,1:BezierSampleN,1:BCdata_auxSF(currentBC)%SideNumber))
+      ALLOCATE(PartInsSubSides(SurfFluxSideSize(1),SurfFluxSideSize(2),1:BCdata_auxSF(currentBC)%SideNumber))
       PartInsSubSides=0
       IF (BCdata_auxSF(currentBC)%SideNumber.LT.1) THEN
         IF (PartInsSF.NE.0) CALL abort(&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: Someting is wrong with PartInsSF of BC ',currentBC)
       ELSE
-        CALL IntegerDivide(PartInsSF,BCdata_auxSF(currentBC)%SideNumber*BezierSampleN*BezierSampleN &
-          ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(1:BezierSampleN,1:BezierSampleN &
+        CALL IntegerDivide(PartInsSF,BCdata_auxSF(currentBC)%SideNumber*SurfFluxSideSize(1)*SurfFluxSideSize(2) &
+          ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2) &
                                                               ,1:BCdata_auxSF(currentBC)%SideNumber)%nVFR &
-          ,PartInsSubSides(1:BezierSampleN,1:BezierSampleN,1:BCdata_auxSF(currentBC)%SideNumber) )
+          ,PartInsSubSides(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2),1:BCdata_auxSF(currentBC)%SideNumber) )
       END IF
     END IF !.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow .AND. noAdaptive
 
@@ -4335,8 +4472,22 @@ __STAMP__&
         iLocSide = SideToElem(3,BCSideID)
       END IF
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-      DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+      IF (TriaSurfaceFlux) THEN
+        xNod = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(1)
+        yNod = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(2)
+        zNod = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(3)
+      END IF
+      DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
         ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/subsides (e.g. desorption)
+        IF (TriaSurfaceFlux) THEN
+          !-- compute parallelogram of triangle
+          Node1 = jSample+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+          Node2 = jSample+2     !          and 1-3 and 1-4 for second triangle
+          Vector1 = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node1-1)
+          Vector2 = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node2-1)
+          midpoint(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
+          ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
+        END IF
         IF (useDSMC .AND. (.NOT. KeepWallParticles) .AND. noAdaptive) THEN !to be checked!!!
           IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
@@ -4436,7 +4587,7 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: cannot allocate particle_positions!')
         END IF
-        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
           ALLOCATE( particle_xis(1:PartInsSubSide*2), STAT=allocStat )
           IF (allocStat .NE. 0) THEN
             CALL abort(&
@@ -4449,57 +4600,69 @@ __STAMP__&
         nReject=0
         allowedRejections=0
         DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
-          iLoop=0
-          DO !ARM for xi considering the dA of the Subside in RefSpace
-            iLoop = iLoop+1
+          IF (TriaSurfaceFlux) THEN
             CALL RANDOM_NUMBER(RandVal2)
-            xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
-            xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
-            xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
-            IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-              IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-                CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,2 &
-                ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo) &
-                ,Gradient=gradXiEta2D)
-                E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
-                F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
-                G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
-              ELSE
-                CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-                  ,Gradient=gradXiEta3D)
-                E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-                F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-                G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-              END IF !.NOT.VeloIsNormal
-              D=SQRT(E*G-F*F)
-              D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
-              IF (D .GT. 1.01) THEN !arbitrary warning threshold
-                IPWRITE(*,'(I4,x,A28,I0,A9,I0,A22,I0)') &
-                  'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
-              END IF
-              CALL RANDOM_NUMBER(RandVal1)
-              IF (RandVal1.LE.D) THEN
-                EXIT !accept xi
-              ELSE
-                IF (MOD(iLoop,100).EQ.0) THEN !arbitrary warning threshold
-                  IPWRITE(*,'(I4,x,A28,I0,A9,I0,A18,I0)') &
-                    'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has reached loop ',iLoop
-                  IPWRITE(*,'(I4,x,A19,2(x,E16.8))') &
-                    '         R, D/Dmax:',RandVal1,D
-                END IF
-              END IF
-            ELSE !no ARM -> accept xi
-              EXIT
+            Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1)
+            Particle_pos =       Particle_pos + Vector2 * RandVal2(2)
+            PartDistance = ndist(1)*(Particle_pos(1)-midpoint(1)) & !Distance from v1-v2
+                         + ndist(2)*(Particle_pos(2)-midpoint(2)) &
+                         + ndist(3)*(Particle_pos(3)-midpoint(3))
+            IF (PartDistance.GT.0.) THEN !flip into right triangle if outside
+              Particle_pos(1:3) = 2*midpoint(1:3)-Particle_pos(1:3)
             END IF
-          END DO !Jacobian-based ARM-loop
-          IF(MINVAL(XI).LT.-1.)THEN
-            IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi<-1',XI
-          END IF
-          IF(MAXVAL(XI).GT.1.)THEN
-            IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi>1',XI
-          END IF
-          CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
+          ELSE !.NOT.TriaSurfaceFlux
+            iLoop=0
+            DO !ARM for xi considering the dA of the Subside in RefSpace
+              iLoop = iLoop+1
+              CALL RANDOM_NUMBER(RandVal2)
+              xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
+              xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
+              xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
+              IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+                IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+                  CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,2 &
+                    ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                    ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo) &
+                    ,Gradient=gradXiEta2D)
+                  E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
+                  F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
+                  G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
+                ELSE
+                  CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                    ,Gradient=gradXiEta3D)
+                  E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+                  F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+                  G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+                END IF !.NOT.VeloIsNormal
+                D=SQRT(E*G-F*F)
+                D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
+                IF (D .GT. 1.01) THEN !arbitrary warning threshold
+                  IPWRITE(*,'(I4,x,A28,I0,A9,I0,A22,I0)') &
+                    'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
+                END IF
+                CALL RANDOM_NUMBER(RandVal1)
+                IF (RandVal1.LE.D) THEN
+                  EXIT !accept xi
+                ELSE
+                  IF (MOD(iLoop,100).EQ.0) THEN !arbitrary warning threshold
+                    IPWRITE(*,'(I4,x,A28,I0,A9,I0,A18,I0)') &
+                      'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has reached loop ',iLoop
+                    IPWRITE(*,'(I4,x,A19,2(x,E16.8))') &
+                      '         R, D/Dmax:',RandVal1,D
+                  END IF
+                END IF
+              ELSE !no ARM -> accept xi
+                EXIT
+              END IF
+            END DO !Jacobian-based ARM-loop
+            IF(MINVAL(XI).LT.-1.)THEN
+              IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi<-1',XI
+            END IF
+            IF(MAXVAL(XI).GT.1.)THEN
+              IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi>1',XI
+            END IF
+            CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
+          END IF !TriaSurfaceFlux
 
           IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
             SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
@@ -4533,7 +4696,7 @@ __STAMP__&
             particle_positions(iPart*3-2) = Particle_pos(1)
             particle_positions(iPart*3-1) = Particle_pos(2)
             particle_positions(iPart*3  ) = Particle_pos(3)
-            IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+            IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
               particle_xis(iPart*2-1) = xi(1)
               particle_xis(iPart*2  ) = xi(2)
             END IF !VeloIsNormal
@@ -4558,11 +4721,13 @@ __STAMP__&
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
             IF (noAdaptive) THEN
-              PartInsIndexes(1,PartsEmitted+iPart) = ParticleIndexNbr
-              PartInsIndexes(2,PartsEmitted+iPart) = iSample
-              PartInsIndexes(3,PartsEmitted+iPart) = jSample
-              PartInsIndexes(4,PartsEmitted+iPart) = iSide
-              IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+              IF (ALLOCATED(PartInsIndexes)) THEN
+                PartInsIndexes(1,PartsEmitted+iPart) = ParticleIndexNbr
+                PartInsIndexes(2,PartsEmitted+iPart) = iSample
+                PartInsIndexes(3,PartsEmitted+iPart) = jSample
+                PartInsIndexes(4,PartsEmitted+iPart) = iSide
+              END IF
+              IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
                 PartState(ParticleIndexNbr,4:5) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
               ELSE IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !PartState is used as drift for case of MB-distri!
                 point(1)=PartState(ParticleIndexNbr,dir(2))-origin(1)
@@ -4665,7 +4830,7 @@ __STAMP__&
           END IF
         END DO
         DEALLOCATE(particle_positions)
-        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) DEALLOCATE(particle_xis)
+        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) DEALLOCATE(particle_xis)
 !----- 2a.: set velocities if special for each subside
         IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant' &
           .OR. Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
@@ -4794,7 +4959,7 @@ __STAMP__&
       IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
         ! if desorption
         IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        IF (DSMC%WallModel.GT.0) THEN
+          IF (DSMC%WallModel.GT.0 .AND. ALLOCATED(PartInsIndexes)) THEN
           IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
               .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
             DO iPart = 1,PartsEmitted
@@ -4860,7 +5025,7 @@ SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,iSample,jSample,iSide,BCSideID,
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY : PI
 USE MOD_Particle_Vars
-USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData
+USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Boundary_Vars, ONLY : PartBound
 !USE Ziggurat,                   ONLY : rnor
@@ -4954,7 +5119,11 @@ CASE('constant') !constant with normal velocities (for VeloVecIC see SetParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN 
 !-- In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
-      IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+        vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+        vec_t1(1:3) = 0. !dummy
+        vec_t2(1:3) = 0. !dummy
+      ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
         CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
         vec_nIn(1:3) = -vec_nIn(1:3)
         vec_t1(1:3) = 0. !dummy
@@ -4971,33 +5140,37 @@ __STAMP__&
     END IF !PositionNbr .NE. 0
   END DO !i = ...NbrOfParticle
 CASE('maxwell_surfaceflux')
-!-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
-IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
-  IF (ALMOSTZERO(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*projFak)) THEN
-  ! Rayleigh distri
-    envelope = 0
-  ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
-  ! low speed flow
-    IF (a.LE.0.) THEN
-      envelope = 1
+  !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
+  IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+    IF (ALMOSTZERO(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*projFak)) THEN
+      ! Rayleigh distri
+      envelope = 0
+    ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
+      ! low speed flow
+      IF (a.LE.0.) THEN
+        envelope = 1
+      ELSE
+        envelope = 3
+      END IF !choose envelope based on flow direction
     ELSE
-      envelope = 3
-    END IF !choose envelope based on flow direction
-  ELSE
-  ! high speed / general flow
-    IF (a.LT.0.) THEN
-      envelope = 2
-    ELSE
-      envelope = 4
-    END IF !choose envelope based on flow direction
-  END IF !low speed / high speed / rayleigh flow
-END IF !.NOT.SimpleRadialVeloFit
+      ! high speed / general flow
+      IF (a.LT.0.) THEN
+        envelope = 2
+      ELSE
+        envelope = 4
+      END IF !choose envelope based on flow direction
+    END IF !low speed / high speed / rayleigh flow
+  END IF !.NOT.SimpleRadialVeloFit
 
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN 
 !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
-      IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+        vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+        vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
+        vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
+      ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
         CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
           ,xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
         vec_nIn(1:3) = -vec_nIn(1:3)

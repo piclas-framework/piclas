@@ -912,6 +912,11 @@ END IF
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
 DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
 DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.') 
+IF (DSMC%CalcSurfaceVal) THEN
+  DSMC%CalcSampleSurfaceflux = GETLOGICAL('Particles-DSMC-CalcSampleSurfaceflux','.FALSE.')
+ELSE
+  DSMC%CalcSampleSurfaceflux = .FALSE.
+END IF
 IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
   IF(DSMC%TimeFracSamp.GT.0.0) CALL abort(&
 __STAMP__&
