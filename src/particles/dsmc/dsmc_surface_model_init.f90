@@ -503,6 +503,11 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1) = INT(surfsquare**2)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
+    IF (surfsquare.LT.2)THEN
+      CALL abort(&
+        __STAMP__&
+        ,'not enough surface spaces for distribution. Surface MacroParticleFactor to to high',surfsquare)
+    END IF
     
     Max_Surfsites_num = Max_Surfsites_num + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
     IF (iSurfSide.LE.SurfMesh%nSides) THEN
