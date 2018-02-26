@@ -117,7 +117,16 @@ CALL prms%CreateLogicalOption( 'DoRefMapping'&
 
 CALL prms%CreateLogicalOption( 'TriaTracking'&
   , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for tracing algorithms.'//&
-  ' Currently flag is only used in DSMC timediscs. Requries DoRefMapping=F.'&
+  ' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
+  ,'.FALSE.')
+CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
+  , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
+  ,'.FALSE.')
+CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
+  , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for surfaceflux.'&
+  ,'.FALSE.')
+CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
+  , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
   ,'.FALSE.')
 
 CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
@@ -145,6 +154,7 @@ CALL prms%CreateIntOption(     'BezierElevation'&
   , ' Use BezierElevation>0 to tighten the bounding box. Typicall values>10','0')
 CALL prms%CreateIntOption(     'BezierSampleN'&
   , 'TODO-DEFINE-PARAMETER. Defualt value: NGeo','0')
+
 
 ! Background mesh init variables
 CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&

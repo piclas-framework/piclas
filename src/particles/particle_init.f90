@@ -131,8 +131,11 @@ CALL prms%CreateIntOption(      'Particles-NumberForDSMCOutputs'&
   ' Default value is 1 if Part-TimeFracForSampling is enabled.', '0')
 
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
-  , 'Set [T] to acitave sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
+  , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSampleSurfaceflux'&
+  , 'Set [F] to activate CalcSurfaceVal-Sampling also at Surfacefluxsides when Wallmodels are used. High memory demand for'//&
+  ' large MaxPartNum!', '.FALSE.')
 
 CALL prms%CreateStringOption(   'DSMC-HOSampling-Type'  , 'TODO-DEFINE-PARAMETER', 'cell_mean')
 CALL prms%CreateIntOption(      'Particles-DSMC-OutputOrder'  , 'TODO-DEFINE-PARAMETER', '1')
