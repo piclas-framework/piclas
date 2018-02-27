@@ -35,7 +35,51 @@ PUBLIC::FinalizeMesh
 PUBLIC::GetMeshMinMaxBoundaries
 !===================================================================================================================================
 
+PUBLIC::DefineParametersMesh
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for Mesh
+!==================================================================================================================================
+SUBROUTINE DefineParametersMesh()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Mesh")
+CALL prms%CreateLogicalOption( 'DoSwapMesh',  "Swap mesh for calculation.TODO-DEFINE-PARAMETER",'.FALSE.')
+CALL prms%CreateStringOption(  'SwapMeshExePath',            "(relative) path to swap-meshfile (mandatory).")
+CALL prms%CreateIntOption(     'SwapMeshLevel',           "TODO-DEFINE-PARAMETER",'0')
+
+CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory).")
+CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
+                                                      "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
+
+CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file. TODO-DEFINE-PARAMETER",'.TRUE.')
+CALL prms%CreateLogicalOption( 'interpolateFromTree', "For non-conforming meshes, built by refinement from a tree structure, "//&
+                                                      "the metrics can be built from the tree geometry if it is contained "//&
+                                                      "in the mesh. Can improve free-stream preservation.",&
+                                                      '.TRUE.')
+CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
+                                                      '1.0')
+CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
+                                                      '.FALSE.')
+CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER",&
+                                                      '.FALSE.')
+CALL prms%CreateLogicalOption( 'crossProductMetrics', "Compute mesh metrics using cross product form. Caution: in this case "//&
+                                                      "free-stream preservation is only guaranteed for N=3*NGeo.",&
+                                                      '.FALSE.')
+CALL prms%CreateStringOption(  'BoundaryName',        "Names of boundary conditions to be set (must be present in the mesh!)."//&
+                                                      "For each BoundaryName a BoundaryType needs to be specified.",&
+                                                      multiple=.TRUE.)
+CALL prms%CreateIntArrayOption('BoundaryType',        "Type of boundary conditions to be set. Format: (BC_TYPE,BC_STATE)",&
+                                                      multiple=.TRUE.)
+CALL prms%CreateLogicalOption( 'writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
+
+CALL prms%CreateIntOption(     'WeightDistributionMethod',           "TODO-DEFINE-PARAMETER",'1')
+
+END SUBROUTINE DefineParametersMesh
 
 SUBROUTINE InitMesh()
 !===================================================================================================================================
@@ -129,11 +173,7 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
-#ifdef MPI
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-CALL OpenDataFile(MeshFile,create=.FALSE.,readOnly=.TRUE.)
-#endif
+CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
 
@@ -149,7 +189,7 @@ ELSE
   END IF
 END IF
 
-CALL readMesh(MeshFile) !set nElems
+CALL ReadMesh(MeshFile) !set nElems
 
 !schmutz fink
 PP_nElems=nElems
@@ -307,6 +347,14 @@ NormVec=0.
 TangVec1=0.
 TangVec2=0.
 SurfElem=0.
+#ifdef maxwell
+#if defined(IMEX) || defined(IMPA)
+ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
+ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
+nVecLoc=0.
+SurfLoc=0.
+#endif /*IMEX or IMPA*/
+#endif /*maxwell*/
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
@@ -802,6 +850,12 @@ SDEALLOCATE(NormVec)
 SDEALLOCATE(TangVec1) 
 SDEALLOCATE(TangVec2)  
 SDEALLOCATE(SurfElem)  
+#ifdef maxwell
+#if defined(IMEX) || defined(IMPA)
+SDEALLOCATE(nVecLoc)
+SDEALLOCATE(SurfLoc)
+#endif /*IMEX or IMPA*/
+#endif /*maxwell*/
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)

@@ -29,9 +29,65 @@ PUBLIC:: LinearSolver
 #endif /*NOT HDG*/
 
 PUBLIC:: InitLinearSolver, FinalizeLinearSolver
+PUBLIC:: DefineParametersLinearSolver
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for Linear solver
+!==================================================================================================================================
+SUBROUTINE DefineParametersLinearSolver()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Linear Solver")
+
+CALL prms%CreateRealOption(     'EpsNewton'   , 'Tolerance for implicit Newton schem. Only TimeDisc=104.', '0.001')
+CALL prms%CreateIntOption(      'nNewtonIter' , 'Max iter in implicit Newton method. Only TimeDisc=104.', '20')
+CALL prms%CreateLogicalOption(  'EisenstatWalker' , 'Use EistenstatWalker in Newton. Only TimeDisc=104.', '.FALSE.')
+CALL prms%CreateRealOption(     'gammaEW'   , 'Change in abort-criterion for EisenstatWalker. Only TimeDisc=104.', '0.9')
+CALL prms%CreateIntOption(      'nRestarts' , 'Number of restarts for linear solver, important for GMRES.', '1')
+CALL prms%CreateRealOption(     'eps_LinearSolver'   , 'Relative abort criterion for linear solver.', '1e-3')
+CALL prms%CreateIntOption(      'maxIter_LinearSolver' , 'maxinum number of iterations for linear solver.', '60')
+CALL prms%CreateIntOption(      'nKDim' , 'Size up Krylov-subspace in GMRES(l). nkDim*nRestarts is max iter.', '25')
+CALL prms%CreateIntOption(      'maxFullNewtonIter' , 'Number of outer Newton iteration in implicit PIC.', '100')
+CALL prms%CreateRealOption(     'eps_FullNewton'   , 'Tolerance for outer Newton in implicit PIC.', '1e-3')
+CALL prms%CreateIntOption(      'FullEisenstatWalker' , 'EisenstatWalker: for Field>1, Field+Particle>2', '0')
+CALL prms%CreateRealOption(     'FullgammaEW'   , 'Drop of tolerance in EW during outer Newton.', '0.9')
+
+CALL prms%CreateLogicalOption(  'DoPrintConvInfo' , 'Print Convergence information for implicit PIC.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'DoFieldUpdate' , 'Disable call of field solver for implicit PIC.', '.TRUE.')
+CALL prms%CreateRealOption(     'PartNewtonRelaxation'   , 'Particle-relaxation factor in Newton.', '1.')
+CALL prms%CreateLogicalOption(  'DoUpdateInStage' , 'UpdateNextFreePosition in each RK-Stage', '.FALSE.')
+CALL prms%CreateIntOption(      'UpdateInIter' , 'UpdateNextFreePosition each nth iteration during outer Newton.', '-1')
+CALL prms%CreateRealOption(     'PartRelaxationFac'   , 'ParticleRelaxation factor. Obsolete.', '0.0')
+CALL prms%CreateIntOption(      'AdaptIterRelaxation0' , 'Obsolete.', '2')
+CALL prms%CreateLogicalOption(  'withmass' , 'Withmass=F is defaul DG with mass matrix on RHS.', '.FALSE.')
+CALL prms%CreateIntOption(      'LinSolver' , 'Select linear solver. 2-BiCGStab,4-GMRES,7-BiCGStab(l)', '2')
+CALL prms%CreateIntOption(      'ldim' , 'Size of subspace for BiCGStab(l)', '1')
+
+CALL prms%CreateIntOption(      'Predictor' , 'Predictor for field solver. 0-Uold,1-RHS,2-second-order,3-third-order', '0')
+
+#ifdef maxwell
+CALL prms%CreateIntOption(      'PrecondType' , 'Preconditioner: 1-FD-BJ,2-BJ,3-BJ-ILU(0),4-BJ-8ILU(0),201-ADI', '0')
+#endif /*maxwell*/
+CALL prms%CreateIntOption(      'PrecondMethod' , 'Switch if blas or loop for BJ preconditioner', '0')
+CALL prms%CreateIntOption(      'DebugMatrix' , 'Write: 1-BJ-Jacobian and 2-BJ-Jacobian+Inv to dat-file per element.', '0')
+
+CALL prms%SetSection("Linear Solver Particle")
+
+CALL prms%CreateRealOption(     'EpsPartNewton'   , 'Tolerance of the inner ParticleNewton.', '0.001')
+CALL prms%CreateRealOption(     'EpsPartLinSolver'   , 'Tolerance for GMRES(6x6) in ParticleNewton', '0.0')
+CALL prms%CreateIntOption(      'nPartNewtonIter' , 'Max. number of iteration in ParticleNewton.', '20')
+CALL prms%CreateIntOption(      'FreezePartInNewton' , 'Fix matrix for n-iteration (no interpolation,localization)', '1')
+CALL prms%CreateRealOption(     'PartgammaEW'   , 'Drop of tolerance in particle-ew', '0.9')
+CALL prms%CreateRealOption(     'scaleps'   , 'Scaling factor for finite difference which approximates matrix-vector prod.', '1.')
+CALL prms%CreateLogicalOption(  'DoFullNewton' , 'Switch between normal Newton or optimized Newton with subiteration.', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-ImplicitMethod' , 'Selection criterion for implicit particles. Only per species.', '1')
+
+END SUBROUTINE DefineParametersLinearSolver
 
 SUBROUTINE InitLinearSolver()
 !===================================================================================================================================

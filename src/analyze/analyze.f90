@@ -35,8 +35,52 @@ END INTERFACE
 !===================================================================================================================================
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
+PUBLIC::DefineParametersAnalyze
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersAnalyze()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+!USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Analyze")
+CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.TRUE.')
+CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
+CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors). '//&
+                                                   'Default: 2*N.')
+CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER (Skip Analyze-Dt)')
+CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
+!CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
+                                                 !'.FALSE.')
+!CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
+                                                 !"(e.g. State,TimeAvg,Fluc) are written.",&
+                                                 !'1')
+!CALL prms%CreateIntOption(    'AnalyzeExactFunc',"Define exact function used for analyze (e.g. for computing L2 errors). "//&
+                                                 !"Default: Same as IniExactFunc")
+!CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
+                                                 !"Default: Same as IniRefState")
+!CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
+                                                 !'.TRUE.')
+!CALL DefineParametersAnalyzeEquation()
+#ifndef PARTICLES
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER','.FALSE.')
+#endif
+
+CALL prms%SetSection("Analyzefield")
+CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER', '1E-5')
+
+END SUBROUTINE DefineParametersAnalyze
 
 SUBROUTINE InitAnalyze()
 !===================================================================================================================================
@@ -83,13 +127,13 @@ nSkipAnalyze=GETINT('nSkipAnalyze','1')
 doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
-#ifndef PARTICLES
-PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
-DoAnalyze = .FALSE.
-CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
-IF(CalcEpot) DoAnalyze = .TRUE.
-#endif /*PARTICLES*/
+#ifndef PARTICLES 
+PartAnalyzeStep = GETINT('Part-AnalyzeStep','1') 
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789 
+DoAnalyze = .FALSE. 
+CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
+IF(CalcEpot) DoAnalyze = .TRUE. 
+#endif /*PARTICLES*/ 
 
 AnalyzeInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
@@ -243,14 +287,15 @@ INTEGER                        :: openStat! File IO status
 CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
 CHARACTER(LEN=30)              :: L2name(PP_nVar)              ! variable name for the Tecplot header
 CHARACTER(LEN=300)             :: Filename                     ! Output filename,
-LOGICAL                        :: fileExists                   ! Error handler for file
+!LOGICAL                        :: fileExists                   ! Error handler for file
 INTEGER                        :: ioUnit
 !===================================================================================================================================
 Filename = 'out.'//TRIM(ProjectName)//'.dat'
 ! Check for file
-INQUIRE(FILE = Filename, EXIST = fileExists)
-!! File processing starts here open old and extratct information or create new file.
-ioUnit=1746
+! INQUIRE(FILE = Filename, EXIST = fileExists) ! now -> FILEEXISTS(Filename)
+! FILEEXISTS(Filename)
+!! File processing starts here open old and extract information or create new file.
+ioUnit=1746 ! This number must be fixed?
   OPEN(UNIT   = ioUnit       ,&
        FILE   = Filename     ,&
        STATUS = 'Unknown'    ,&
@@ -336,54 +381,57 @@ SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms
-USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 #if (PP_nVar>=6)
-USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif
-USE MOD_RecordPoints,          ONLY: RecordPoints
+USE MOD_RecordPoints           ,ONLY: RecordPoints
 #if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
-USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
+USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #endif
 #ifdef LSERK
-USE MOD_Recordpoints_Vars,     ONLY: RPSkip
+USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
 #endif /*LSERK*/
-USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
+#ifndef PARTICLES
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+#endif
 #ifdef PARTICLES
 #if (PP_TimeDiscMethod==42 || PP_TimeDiscMethod==4)
-USE MOD_Globals_Vars,ONLY:ProjectName
+USE MOD_Globals_Vars           ,ONLY: ProjectName
 #endif
-USE MOD_Mesh_Vars,             ONLY: MeshFile
-USE MOD_TimeDisc_Vars,         ONLY: dt
-USE MOD_Particle_Vars,         ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
-USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
-USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
-USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
-USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution, useDSMC
-USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
-USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
-USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
+USE MOD_Mesh_Vars              ,ONLY: MeshFile
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
+USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
+USE MOD_DSMC_Vars              ,ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
+USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution, useDSMC
+USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
+USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 #if (PP_TimeDiscMethod==42)
 #elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #else
-USE MOD_LD_Vars,               ONLY: useLD
+USE MOD_LD_Vars                ,ONLY: useLD
 #endif
-USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
+USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
 #if (PP_TimeDiscMethod==1001)
 USE MOD_LD_DSMC_TOOLS
 #endif
 #else
-USE MOD_AnalyzeField,          ONLY: AnalyzeField
+USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 #endif /*CODE_ANALYZE*/
 #ifdef MPI
-USE MOD_LoadBalance_Vars,      ONLY: tCurrent
+USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
 #endif /*MPI*/
-USE MOD_Globals_Vars,          ONLY:ProjectName
-USE MOD_TimeDisc_Vars,         ONLY:tEnd
+USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_TimeDisc_Vars          ,ONLY: tEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -397,7 +445,6 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter_In
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ioUnit
 #ifdef PARTICLES
 INTEGER                       :: iSide
 #ifdef MPI
@@ -412,27 +459,13 @@ REAL                          :: tLBStart,tLBEnd
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
-CHARACTER(LEN=255)            :: outfile
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: CalcTime
 !===================================================================================================================================
 
-! Create .csv file for performance analysis and load blaaaance
-IF(MPIRoot)THEN
-  IF(iter.EQ.0)THEN
-    outfile='ElemTimeStatistics.csv'
-    ioUnit=GETFREEUNIT()
-    OPEN(UNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') "time"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MinWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",MaxWeight"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",CurrentImbalance"
-    WRITE(ioUnit,'(A25)',ADVANCE='NO') ",TargetWeight (mean)"
-    WRITE(ioUnit,'(A1)') ' '
-    CLOSE(ioUnit) 
-  END IF
-END IF
+! Create .csv file for performance analysis and load balance: write header line
+CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 
 ! not for first iteration (when analysis is called within RK steps)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -509,7 +542,7 @@ IF (CalcPoyntingInt) THEN
 #endif
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
 #endif /*MPI*/
 END IF
 
@@ -530,7 +563,7 @@ IF(RP_onProc) THEN
 #endif /*LSERK*/
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
 #endif /*MPI*/
 END IF
 #endif
@@ -599,7 +632,7 @@ IF (DoAnalyze)  THEN
 #endif
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
 #endif /*MPI*/
 #endif /*PARTICLES*/
 END IF
@@ -746,7 +779,7 @@ IF(OutPut .AND. MeasureTrackTime)THEN
 END IF ! only during output like Doftime
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
+tCurrent(LB_PARTANALYZE)=tCurrent(LB_PARTANALYZE)+tLBEnd-tLBStart
 #endif /*MPI*/
 #endif /*PARTICLES*/
 
@@ -806,8 +839,8 @@ REAL,INTENT(IN)     :: Time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: rDummy
-LOGICAL             :: isOpen, FileExists                                          !
-CHARACTER(LEN=350)  :: outfile                                                      !
+LOGICAL             :: isOpen
+CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 !===================================================================================================================================
 
@@ -825,8 +858,7 @@ IF (DoAnalyze) THEN
    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
    IF (.NOT.isOpen) THEN
      outfile = 'CodeAnalyze.csv'
-     INQUIRE(file=TRIM(outfile),EXIST=FileExists)
-     IF (isRestart .and. FileExists) THEN
+     IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
      ELSE

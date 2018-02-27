@@ -61,8 +61,8 @@ INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
 SWRITE(UNIT_stdOut,'(132("~"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 
-BGFileName = GETSTR('PIC-BGFileName','blubb')
-IF(TRIM(BGFileName).EQ.'blubb')THEN 
+BGFileName = GETSTR('PIC-BGFileName','none')
+IF(TRIM(BGFileName).EQ.'none')THEN 
   CALL abort(&
   __STAMP__&
   ,'ERROR: No Filename for Background-Field defined!')
@@ -77,11 +77,7 @@ IF(TRIM(InterpolationType).NE.'particle_position')  CALL abort(&
 
 SWRITE(UNIT_stdOut,'(A)')' Reading BackGround-Field from file... '
 
-#ifdef MPI
-  CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-#else
-  CALL OpenDataFile(BGFileName,create=.FALSE.,readOnly=.TRUE.)
-#endif
+CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
 ! get attributes
 CALL H5DOPEN_F(File_ID, 'BGField', Dset_ID, iError)

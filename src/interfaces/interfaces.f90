@@ -686,12 +686,12 @@ INTEGER :: I
 SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
 DO I=1,3
-  SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  MinMax(2*I-1)
+  SWRITE(UNIT_stdOut,WRITEFORMAT,ADVANCE='NO')  MinMax(2*I-1)
 END DO
 SWRITE(UNIT_stdOut,'(A)') ''
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
 DO I=1,3
-  SWRITE(UNIT_stdOut,OUTPUTFORMAT,ADVANCE='NO')  MinMax(2*I)
+  SWRITE(UNIT_stdOut,WRITEFORMAT,ADVANCE='NO')  MinMax(2*I)
 END DO
 SWRITE(UNIT_stdOut,'(A)') ''
 END SUBROUTINE DisplayMinMax

@@ -10,6 +10,14 @@ USE ISO_C_BINDING
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,PARAMETER :: OUTPUTFORMAT_NONE         = 0
+INTEGER,PARAMETER :: OUTPUTFORMAT_TECPLOT      = 1
+INTEGER,PARAMETER :: OUTPUTFORMAT_TECPLOTASCII = 2
+INTEGER,PARAMETER :: OUTPUTFORMAT_PARAVIEW     = 3
+
+! Output format for ASCII data files
+INTEGER,PARAMETER :: ASCIIOUTPUTFORMAT_CSV     = 0
+INTEGER,PARAMETER :: ASCIIOUTPUTFORMAT_TECPLOT = 1
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
@@ -45,9 +53,40 @@ INTERFACE FinalizeOutput
 END INTERFACE
 
 PUBLIC:: InitOutput,FinalizeOutput
+
+PUBLIC::DefineParametersOutput
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersOutput()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Output")
+!CALL prms%CreateIntOption(          'NVisu',       "Polynomial degree at which solution is sampled for visualization.")
+!CALL prms%CreateIntOption(          'NOut',        "Polynomial degree at which solution is written. -1: NOut=N, >0: NOut", '-1')
+CALL prms%CreateStringOption(       'ProjectName', "Name of the current simulation (mandatory).")
+CALL prms%CreateLogicalOption(      'Logging',     "Write log files containing debug output.", '.FALSE.')
+CALL prms%CreateLogicalOption(      'WriteErrorFiles',  "Write error files containing error output.", '.TRUE.')
+CALL prms%CreateIntFromStringOption('OutputFormat',"File format for visualization: None, Tecplot, TecplotASCII, ParaView. "//&
+                                                 " Note: Tecplot output is currently unavailable due to licensing issues.", 'None')
+CALL addStrListEntry('OutputFormat','none',        OUTPUTFORMAT_NONE)
+CALL addStrListEntry('OutputFormat','tecplot',     OUTPUTFORMAT_TECPLOT)
+CALL addStrListEntry('OutputFormat','tecplotascii',OUTPUTFORMAT_TECPLOTASCII)
+CALL addStrListEntry('OutputFormat','paraview',    OUTPUTFORMAT_PARAVIEW)
+CALL prms%CreateIntFromStringOption('ASCIIOutputFormat',"File format for ASCII files, e.g. body forces: CSV, Tecplot."&
+                                                       , 'CSV')
+CALL addStrListEntry('ASCIIOutputFormat','csv',    ASCIIOUTPUTFORMAT_CSV)
+CALL addStrListEntry('ASCIIOutputFormat','tecplot',ASCIIOUTPUTFORMAT_TECPLOT)
+CALL prms%CreateLogicalOption(      'doPrintStatusLine','Print: percentage of time, ...', '.FALSE.')
+CALL prms%CreateLogicalOption(      'WriteStateFiles','Write HDF5 state files. Disable this only for debugging issues. \n'// & 
+                                                      'NO SOLUTION WILL BE WRITTEN!', '.TRUE.')
+END SUBROUTINE DefineParametersOutput
 
 SUBROUTINE InitOutput()
 !===================================================================================================================================
@@ -98,7 +137,7 @@ ELSE
 END IF
 
 IF (MPIRoot) THEN
-  ! read userblock length in bytes from data section of flexi-executable
+  ! read userblock length in bytes from data section of boltzplatz-executable
   userblock_len = get_userblock_size()
   inifile_len = get_inifile_size(TRIM(ParameterFile)//C_NULL_CHAR)
   ! prepare userblock file

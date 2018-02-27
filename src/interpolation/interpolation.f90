@@ -2,7 +2,12 @@
 
 MODULE MOD_Interpolation
 !===================================================================================================================================
-! Add comments please!
+!> Contains routines to prepare for interpolation procedures:
+!> - Initialize interpolation variables
+!> - Calculate node positions and weights
+!> - Build Vandermonde matrices
+!> - Build derivative matrices
+!> Also contains routines to map the solution between physical and reference space.
 !===================================================================================================================================
 ! MODULES
 USE MOD_basis
@@ -60,10 +65,30 @@ PUBLIC::GetDerivativeMatrix
 PUBLIC::GetVandermonde
 PUBLIC::InitInterpolationBasis
 
+PUBLIC::DefineParametersInterpolation
 
 !===================================================================================================================================
 
 CONTAINS
+
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersInterpolation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!==================================================================================================================================
+CALL prms%SetSection("Interpolation")
+CALL prms%CreateIntOption('N'    , "Polynomial degree of computation to represent to solution")
+END SUBROUTINE DefineParametersInterpolation
 
 
 SUBROUTINE InitInterpolation()
@@ -76,7 +101,7 @@ SUBROUTINE InitInterpolation()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
-USE MOD_ReadInTools,ONLY:GETINT,GETREAL
+USE MOD_ReadInTools,ONLY:GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------

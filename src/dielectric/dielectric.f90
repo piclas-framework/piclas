@@ -24,7 +24,36 @@ END INTERFACE
 
 PUBLIC::InitDielectric,FinalizeDielectric
 !===================================================================================================================================
+PUBLIC::DefineParametersDielectric
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for surfaces (particle-sides)
+!==================================================================================================================================
+SUBROUTINE DefineParametersDielectric()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Dielectric Region")
+
+CALL prms%CreateLogicalOption(  'DoDielectric'                 , 'Use dielectric regions with EpsR and MuR' , '.FALSE.')
+CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
+CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
+CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens"' , 'default')
+CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
+CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
+    //' if a DOF is within a dielectric region' ,'.FALSE.')
+CALL prms%CreateRealOption(     'DielectricRadiusValue'        , 'Additional parameter radius for checking if a DOF is'&
+    //' within a dielectric region' , '-1.')
+CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
+    //'dielectric region by giving the bounding box coordinates of the PHYSICAL region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzDielectricMinMax'          , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
+    //'dielectric region by giving the bounding box coordinates of the DIELECTRIC region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealOption(     'Dielectric_E_0'               , 'Electric field strength parameter for functions' , '1.')
+
+END SUBROUTINE DefineParametersDielectric
 
 SUBROUTINE InitDielectric()
 !===================================================================================================================================

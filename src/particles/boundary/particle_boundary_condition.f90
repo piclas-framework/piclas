@@ -22,11 +22,15 @@ INTERFACE GetBoundaryInteractionRef
   MODULE PROCEDURE GetBoundaryInteractionRef
 END INTERFACE
 
+INTERFACE GetBoundaryInteractionAuxBC
+  MODULE PROCEDURE GetBoundaryInteractionAuxBC
+END INTERFACE
+
 INTERFACE PartSwitchElement
   MODULE PROCEDURE PartSwitchElement
 END INTERFACE
 
-PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,PartSwitchElement
+PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,GetBoundaryInteractionAuxBC,PartSwitchElement
 !===================================================================================================================================
 
 CONTAINS
@@ -506,18 +510,122 @@ END SELECT !PartBound%MapToPartBC(BC(SideID)
 END SUBROUTINE GetBoundaryInteractionRef
 
 
+SUBROUTINE GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,alpha,iPart,AuxBCIdx,crossedBC)
+!===================================================================================================================================
+! Computes the post boundary state of a particle that interacts with an auxBC
+!  OpenBC                  = 1  
+!  ReflectiveBC            = 2
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals,                ONLY:Abort
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
+USE MOD_Particle_Boundary_Vars, ONLY:PartAuxBC
+!USE MOD_Particle_Surfaces_vars, ONLY:epsilontol
+USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
+#if defined(LSERK)
+USE MOD_TimeDisc_Vars,          ONLY:RK_a
+#endif
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                   :: iPart,AuxBCIdx
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
+LOGICAL,INTENT(OUT)                  :: crossedBC
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: RanNum
+LOGICAL                              :: isSpeciesSwap
+!===================================================================================================================================
+
+IsSpeciesSwap=.FALSE.
+crossedBC    =.FALSE.
+! Select the corresponding boundary condition and calculate particle treatment
+SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(1) !PartAuxBC%OpenBC
+!-----------------------------------------------------------------------------------------------------------------------------------
+!  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
+!    IF (.NOT.TriaTracking) THEN
+!      SELECT CASE(SideType(SideID))
+!      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+!        n_loc=SideNormVec(1:3,SideID)
+!      CASE(BILINEAR)
+!        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+!      CASE(CURVED)
+!        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+!      END SELECT 
+!      IF(flip.NE.0) n_loc=-n_loc
+!      IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
+!    END IF
+!  END IF
+  IF(CalcPartBalance) THEN
+      nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+      PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+  END IF ! CalcPartBalance
+  PDM%ParticleInside(iPart) = .FALSE.
+  alpha=-1.
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(2) !PartAuxBC%ReflectiveBC)
+!-----------------------------------------------------------------------------------------------------------------------------------
+  !---- swap species?
+!print*,'*********************'
+!print*,AuxBCIdx
+!print*,iPart,alpha,PartState(iPart,4:6)
+!print*,iPart,alpha,LastPartPos(iPart,1:3),PartState(iPart,1:3)
+  IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
+    CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
+      IsSpeciesSwap=IsSpeciesSwap,AuxBCIdx=AuxBCIdx)
+  END IF
+  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+      ! simple reflection (previously used wall interaction model, maxwellian scattering)
+        CALL RANDOM_NUMBER(RanNum)
+        IF(RanNum.GE.PartAuxBC%MomentumACC(AuxBCIdx)) THEN
+          ! perfectly reflecting, specular re-emission
+          CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
+            IsSpeciesSwap=IsSpeciesSwap,opt_Reflected=crossedBC,AuxBCIdx=AuxBCIdx)
+        ELSE
+          CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
+            IsSpeciesSwap=IsSpeciesSwap,opt_Reflected=crossedBC,AuxBCIdx=AuxBCIdx)
+        END IF
+  END IF
+!print*,iPart,alpha,LastPartPos(iPart,1:3),PartState(iPart,1:3)
+!print*,iPart,alpha,PartState(iPart,4:6)
+!print*,'*********************'
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE DEFAULT
+CALL abort(&
+__STAMP__&
+,' ERROR: AuxBC bound not associated!. (unknown case)',999,999.)
+END SELECT
+
+! compiler warnings
+IF(1.EQ.2)THEN
+  WRITE(*,*) 'AuxBCIdx', AuxBCIdx
+END IF
+
+END SUBROUTINE GetBoundaryInteractionAuxBC
+
+
 SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID, &
-  opt_Symmetry,opt_Reflected,TriNum)
+  opt_Symmetry,opt_Reflected,TriNum,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
+USE MOD_Globals_Vars,           ONLY:PI
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking,DoRefMapping
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,PartSideToElem
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -537,6 +645,7 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
 USE MOD_Particle_Vars,          ONLY:PEM
@@ -552,12 +661,13 @@ LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), WallVelo(3)
+REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3),WallVelo(3),intersec(3),r_vec(3),axis(3),cos2inv
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !#if defined(LSERK)
 !REAL                                 :: absPt_temp
@@ -567,55 +677,102 @@ REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3
 REAL                                  :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
-LOGICAL                              :: Symmetry
+LOGICAL                              :: Symmetry, IsAuxBC
 #ifdef IMPA
 INTEGER                              :: iCounter
 REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
 #endif /*IMPA*/
 !===================================================================================================================================
-
-!OneMinus=1.0-MAX(epsInCell,epsilontol)
-epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
-WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
-locBCID=PartBound%MapToPartBC(BC(SideID))
-
-IF(PRESENT(BCSideID))THEN
-  SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,BCSideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-  END SELECT 
+IF (PRESENT(AuxBCIdx)) THEN
+  IsAuxBC=.TRUE.
 ELSE
-  IF (TriaTracking) THEN
-    CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
-  ELSE 
-    SELECT CASE(SideType(SideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,SideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    END SELECT 
-    IF(flip.NE.0) n_loc=-n_loc
+  IsAuxBC=.FALSE.
+END IF
+IF (IsAuxBC) THEN
+  SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
+  CASE ('plane')
+    n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+  CASE ('cylinder')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
+    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('cone')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
+    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
+    IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('parabol')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
+    IF (.NOT.AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE DEFAULT
+    CALL abort(&
+      __STAMP__&
+      ,'AuxBC does not exist')
+  END SELECT
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    !RETURN
+    CALL abort(&
+      __STAMP__&
+      ,'Error in PerfectReflection: Particle coming from outside!')
+  ELSE IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+  ELSE
+    CALL abort(&
+      __STAMP__&
+      ,'Error in PerfectReflection: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)
   END IF
-END IF
-IF(PRESENT(opt_Symmetry)) THEN
-  Symmetry = opt_Symmetry
+  WallVelo=PartAuxBC%WallVelo(1:3,AuxBCIdx)
 ELSE
-  Symmetry = .FALSE.
-END IF
+  !OneMinus=1.0-MAX(epsInCell,epsilontol)
+  epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
+  WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
+  locBCID=PartBound%MapToPartBC(BC(SideID))
 
-IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  RETURN
-ELSE
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-END IF
-
+  IF(PRESENT(BCSideID))THEN
+    SELECT CASE(SideType(BCSideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,BCSideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+    END SELECT
+  ELSE
+    IF (TriaTracking) THEN
+      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
+    ELSE
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        n_loc=SideNormVec(1:3,SideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      END SELECT
+      IF(flip.NE.0) n_loc=-n_loc
+    END IF
+  END IF
+  IF(PRESENT(opt_Symmetry)) THEN
+    Symmetry = opt_Symmetry
+  ELSE
+    Symmetry = .FALSE.
+  END IF
+  
+  IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    RETURN
+  ELSE
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+  END IF
+END IF !IsAuxBC
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
 
@@ -645,6 +802,7 @@ PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartI
                          (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
 #endif
 
+IF (.NOT.IsAuxBC) THEN
 ! Wall sampling Macrovalues
 IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -704,6 +862,7 @@ __STAMP__&
     END IF
   END IF
 END IF
+END IF !.NOT.IsAuxBC
 
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
@@ -779,10 +938,20 @@ IF(iStage.GT.0)THEN
     END DO ! iCounter=1,iStage-2
     PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
     ! rotate PartXK do not roate...
+    ! move particle on face, which is wrong, but Armijo method now does not required 
+    ! to back-rotate all RK stages AFTER reflection is rejected
+    PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
+    ! rotate velocity vector
+    PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
     !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
-    !PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
+    ! new change in part-position is length of rest of tracing
+    PartDeltaX(1:3,PartID) = lengthPartTrajectory*PartTrajectory
     !PartDeltaX(1:3,PartID)=MATMUL(RotationMat,PartDeltaX(1:3,PartID))
-    !PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+    PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+    ! set lastElement for tracing
+    IF(.NOT.DoRefMapping)THEN
+      PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+    END IF
 #if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ELSE
     ! explicit particle
@@ -801,7 +970,7 @@ END SUBROUTINE PerfectReflection
 
 
 SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID &
-  ,opt_Reflected,TriNum)
+  ,opt_Reflected,TriNum,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the diffuse reflection in 3D
 ! only implemented for DoRefMapping tracking
@@ -812,7 +981,7 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies,WriteMacroSurfaceValues
@@ -826,6 +995,7 @@ USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -836,6 +1006,7 @@ INTEGER,INTENT(IN)                :: PartID, SideID, flip
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: Opt_Reflected
@@ -860,58 +1031,135 @@ INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:),
 ! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
 ! REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
 !REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
+LOGICAL                              :: IsAuxBC
+REAL                                 :: intersec(3), r_vec(3), axis(3), cos2inv
 !===================================================================================================================================
-
-!OneMinus=1.0-epsInCell
-
-! additional states
-locBCID=PartBound%MapToPartBC(BC(SideID))
-! get BC values
-WallVelo   = PartBound%WallVelo(1:3,locBCID)
-WallTemp   = PartBound%WallTemp(locBCID)
-TransACC   = PartBound%TransACC(locBCID)
-VibACC     = PartBound%VibACC(locBCID)
-RotACC     = PartBound%RotACC(locBCID)
-
-IF(PRESENT(BCSideID))THEN
-  SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,BCSideID)
-    tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
-    tang2=CROSSNORM(n_loc,tang1)
-    !tang2=BezierControlPoints3D(:,0,NGeo,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-  !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
-  END SELECT 
+IF (PRESENT(AuxBCIdx)) THEN
+  IsAuxBC=.TRUE.
 ELSE
-  IF (TriaTracking) THEN
-    CALL CalcNormAndTangTriangle(n_loc,tang1,tang2,TriNum,SideID)
-  ELSE 
-    SELECT CASE(SideType(SideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,SideID)
-      tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
-      tang2=CROSSNORM(n_loc,tang1)
-      !tang2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,SideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,SideID)
-    !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
-    END SELECT 
-    IF(flip.NE.0) n_loc=-n_loc
+  IsAuxBC=.FALSE.
+END IF
+IF (IsAuxBC) THEN
+  SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
+  CASE ('plane')
+    n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
+  CASE ('cylinder')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
+    IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('cone')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
+    cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
+    IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE ('parabol')
+    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
+    axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
+    n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
+    IF (.NOT.AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
+  CASE DEFAULT
+    CALL abort(&
+      __STAMP__&
+      ,'AuxBC does not exist')
+  END SELECT
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    !RETURN
+    CALL abort(&
+      __STAMP__&
+      ,'Error in DiffuseReflection: Particle coming from outside!')
+  ELSE IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+  ELSE
+    CALL abort(&
+      __STAMP__&
+      ,'Error in DiffuseReflection: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)
   END IF
-END IF
-
-IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  RETURN
+  WallVelo   = PartAuxBC%WallVelo(1:3,AuxBCIdx)
+  WallTemp   = PartAuxBC%WallTemp(AuxBCIdx)
+  TransACC   = PartAuxBC%TransACC(AuxBCIdx)
+  VibACC     = PartAuxBC%VibACC(AuxBCIdx)
+  RotACC     = PartAuxBC%RotACC(AuxBCIdx)
+  IF (n_loc(3).NE.0.) THEN
+    tang1(1) = 1.0
+    tang1(2) = 1.0
+    tang1(3) = -(n_loc(1)+n_loc(2))/n_loc(3)
+  ELSE
+    IF (n_loc(2).NE.0.) THEN
+      tang1(1) = 1.0
+      tang1(3) = 1.0
+      tang1(2) = -(n_loc(1)+n_loc(3))/n_loc(2)
+    ELSE
+      IF (n_loc(1).NE.0.) THEN
+        tang1(2) = 1.0
+        tang1(3) = 1.0
+        tang1(1) = -(n_loc(2)+n_loc(3))/n_loc(1)
+      ELSE
+        CALL abort(&
+__STAMP__&
+,'Error in DiffuseReflection, n_vec is zero for AuxBC',AuxBCIdx)
+      END IF
+    END IF
+  END IF
+  tang1=UNITVECTOR(tang1)
+  tang2=CROSSNORM(n_loc,tang1)
 ELSE
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-END IF
+  !OneMinus=1.0-epsInCell
+  
+  ! additional states
+  locBCID=PartBound%MapToPartBC(BC(SideID))
+  ! get BC values
+  WallVelo   = PartBound%WallVelo(1:3,locBCID)
+  WallTemp   = PartBound%WallTemp(locBCID)
+  TransACC   = PartBound%TransACC(locBCID)
+  VibACC     = PartBound%VibACC(locBCID)
+  RotACC     = PartBound%RotACC(locBCID)
+  
+  IF(PRESENT(BCSideID))THEN
+    SELECT CASE(SideType(BCSideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,BCSideID)
+      tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
+      tang2=CROSSNORM(n_loc,tang1)
+      !tang2=BezierControlPoints3D(:,0,NGeo,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
+      !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
+    END SELECT
+  ELSE
+    IF (TriaTracking) THEN
+      CALL CalcNormAndTangTriangle(n_loc,tang1,tang2,TriNum,SideID)
+    ELSE
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        n_loc=SideNormVec(1:3,SideID)
+        tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
+        tang2=CROSSNORM(n_loc,tang1)
+        !tang2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,SideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,SideID)
+        !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
+      END SELECT
+      IF(flip.NE.0) n_loc=-n_loc
+    END IF
+  END IF
+  
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    RETURN
+  ELSE
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+  END IF
+END IF !IsAuxBC
 
 ! calculate new velocity vector (Extended Maxwellian Model)
 VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + &
@@ -934,28 +1182,30 @@ VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
 VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
 VeloCz  = Cmr * VeloCz
 
-IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-!----  Sampling for energy (translation) accommodation at walls
-! has to be corrected to new scheme
-  SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-  ! compute p and q
-  ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  IF (TriaTracking) THEN
-    p=1 ; q=1
-  ELSE
-    Xitild =MIN(MAX(-1.,xi ),0.99)
-    Etatild=MIN(MAX(-1.,eta),0.99)
-    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+IF (.NOT.IsAuxBC) THEN
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    !----  Sampling for energy (translation) accommodation at walls
+    ! has to be corrected to new scheme
+    SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+    ! compute p and q
+    ! correction of xi and eta, can only be applied if xi & eta are not used later!
+    IF (TriaTracking) THEN
+      p=1 ; q=1
+    ELSE
+      Xitild =MIN(MAX(-1.,xi ),0.99)
+      Etatild=MIN(MAX(-1.,eta),0.99)
+      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+    END IF
+    
+    SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld       &
+      *Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
+      *Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q)+EtraNew       &
+      *Species(PartSpecies(PartID))%MacroParticleFactor
   END IF
-
-  SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld       &
-                                   *Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
-                                   *Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q)+EtraNew       &
-                                   *Species(PartSpecies(PartID))%MacroParticleFactor
-END IF
+END IF !.NOT.IsAuxBC
  
 !   Transformation local distribution -> global coordinates
 ! from flux comutaion
@@ -964,6 +1214,7 @@ END IF
 !NewVelo = VeloCx*tang1+CROSS(-n_loc,tang1)*VeloCy-VeloCz*n_loc
 NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
 
+IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 !---- Internal energy accommodation
 IF (useDSMC) THEN
 IF (CollisMode.GT.1) THEN
@@ -1243,6 +1494,7 @@ __STAMP__&
     END IF
   END IF
 END IF
+END IF !.NOT.IsAuxBC
 
 ! intersection point with surface
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
@@ -1253,7 +1505,11 @@ TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)
 POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
 ! travel rest of particle vector
 !PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
-IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+IF (IsAuxBC) THEN
+  IF (PartAuxBC%Resample(AuxBCIdx)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+ELSE
+  IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+END IF
 PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
 
 !----  saving new particle velocity
@@ -1273,7 +1529,7 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 
 END SUBROUTINE DiffuseReflection
 
-SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID,TriNum)
+SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID,TriNum,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1281,7 +1537,7 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesS
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:abort
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
@@ -1306,6 +1562,7 @@ REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
+INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap
@@ -1317,7 +1574,36 @@ REAL                              :: Xitild,EtaTild
 INTEGER                           :: p,q,SurfSideID,locBCID
 INTEGER                           :: iCC
 REAL                              :: n_loc(1:3)
+LOGICAL                           :: IsAuxBC
 !===================================================================================================================================
+IF (PRESENT(AuxBCIdx)) THEN
+  IsAuxBC=.TRUE.
+ELSE
+  IsAuxBC=.FALSE.
+END IF
+IF (IsAuxBC) THEN
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps(AuxBCIdx)) THEN
+    targetSpecies=-1 !dummy init value
+    DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx)
+      IF (PartSpecies(PartID).eq.PartAuxBC%SpeciesSwaps(1,iSwaps,AuxBCIdx)) &
+        targetSpecies = PartAuxBC%SpeciesSwaps(2,iSwaps,AuxBCIdx)
+    END DO
+    !swap species
+    IF (targetSpecies.ge.0) IsSpeciesSwap=.TRUE.
+    IF (targetSpecies.eq.0) THEN !delete particle -> same as PartAuxBC%OpenBC
+      IF(CalcPartBalance) THEN
+        nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
+        PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
+      END IF ! CalcPartBalance
+      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
+      PDM%ParticleInside(PartID) = .FALSE.
+      alpha=-1.
+    ELSEIF (targetSpecies.gt.0) THEN !swap species
+      PartSpecies(PartID)=targetSpecies
+    END IF
+  END IF !RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps
+ELSE
 #ifndef IMPA
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
@@ -1345,9 +1631,10 @@ ELSE
 END IF
 
 IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,'SpeciesSwap was called for an particle coming from outside of the mesh!')
+  RETURN
+!  CALL Abort(&
+!    __STAMP__&
+!    ,'SpeciesSwap was called for an particle coming from outside of the mesh!')
 END IF
 #endif /*NOT IMPA*/
 
@@ -1460,7 +1747,8 @@ __STAMP__&
     END DO
     PartSpecies(PartID)=targetSpecies
   END IF
-END IF
+END IF !RanNum.LE.PartBound%ProbOfSpeciesSwaps
+END IF !IsAuxBC
 END SUBROUTINE SpeciesSwap
 
 
@@ -2672,8 +2960,8 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
     END IF
   END IF
   
-  Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-  Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
+  !Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
+  !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
   
   EvaporationEnthalpie = 0.
   
