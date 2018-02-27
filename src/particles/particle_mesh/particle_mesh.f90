@@ -315,14 +315,15 @@ __STAMP__&
 BezierControlPoints3DElevated=0.
 
 ! BezierAreaSample stuff:
-WRITE(hilf,'(I2.2)') NGeo
-BezierSampleN = GETINT('BezierSampleN',hilf)
 WRITE(hilf,'(L1)') .FALSE. !TriaTracking !to-be changed to TriaTracking if TriaSurfaceFlux fully working
 TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(hilf))
 IF (TriaSurfaceFlux) THEN
+  BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
   WriteTriaSurfaceFluxDebugMesh = GETLOGICAL('Write-TriaSurfaceFlux-DebugMesh','.FALSE.')
 ELSE
+  WRITE(hilf,'(I2.2)') NGeo
+  BezierSampleN = GETINT('BezierSampleN',hilf)
   WriteTriaSurfaceFluxDebugMesh=.FALSE.
   SurfFluxSideSize=BezierSampleN
   ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)

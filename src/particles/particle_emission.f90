@@ -4349,8 +4349,8 @@ REAL                        :: VelXold, VelYold, VelZold, VeloReal
 REAL                        :: EtraOld, EtraWall, EtraNew
 REAL                        :: ErotOld, ErotWall, ErotNew
 REAL                        :: EvibOld, EvibWall, EVibNew
-REAL                        :: Vector1(3),Vector2(3),PartDistance,ndist(3),midpoint(3)
-INTEGER                     :: p,q,SurfSideID,PartID,Node1,Node2
+REAL                        :: Vector1(3),Vector2(3),PartDistance,ndist(3),midpoint(3),AreasTria(2)
+INTEGER                     :: p,q,SurfSideID,PartID,Node1,Node2,ExtraPartsTria(2)
 REAL                        :: ElemPartDensity, VeloVec(1:3), VeloIC
 REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure
 #ifdef MPI
@@ -4488,16 +4488,31 @@ __STAMP__&
           midpoint(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
           ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
         END IF
-        IF (useDSMC .AND. (.NOT. KeepWallParticles) .AND. noAdaptive) THEN !to be checked!!!
-          IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) THEN
+        IF (useDSMC .AND. (.NOT. KeepWallParticles) .AND. noAdaptive) THEN
+          IF ( (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) .OR. &
+            (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0)) ) THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-              ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-            END IF
-          ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0))THEN
-            IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-              ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-            END IF
-          END IF
+              IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) THEN
+                ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+              ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0))THEN
+                ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+              ELSE
+                CALL abort(&
+__STAMP__&
+,'ERROR in ParticleSurfaceflux: The code should not go here...')
+              END IF
+              IF (TriaSurfaceFlux) THEN
+                IF (iSample.EQ.1 .AND. jSample.EQ.1) THEN !first tria
+                  AreasTria(1)=SurfMeshSubSideData(1,1,BCSideID)%area
+                  AreasTria(2)=SurfMeshSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),BCSideID)%area
+                  CALL IntegerDivide(ExtraParts, 2, AreasTria, ExtraPartsTria)
+                  ExtraParts = ExtraPartsTria(1)
+                ELSE !second tria
+                  ExtraParts = ExtraPartsTria(2)
+                END IF
+              END IF !TriaSurfaceFlux
+            END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
+          END IF !SolidSimFlag .OR. LiquidSimFlag
         END IF
 
 !----- 1.: set positions
