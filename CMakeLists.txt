@@ -84,11 +84,13 @@ MACRO(SUBDIRLIST result curdir)
   SET(${result} ${dirlist})
 ENDMACRO()
 SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
+
 OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 CN ImplicitO3 ImplicitO4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
 
 OPTION(BOLTZPLATZ_QDS_DG "enable QDS method discretized by DGSEM" OFF)
+OPTION(BOLTZPLATZ_BUILDPOSTI "Build POSTI toolset" OFF)
 OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
 OPTION(BOLTZPLATZ_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(BOLTZPLATZ_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
@@ -96,7 +98,7 @@ SET(BOLTZPLATZ_BUILD_HDF5 OFF  CACHE BOOL "Compile and build hdf5 library")
 OPTION(BOLTZPLATZ_HDF5F90 "enable old HDF5 interface" OFF)
 
 SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
-SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS maxwell maxwell_pois electrostatic electrostatic_pois poisson)
+SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS ${EQNSYSTEMS})
 
 
 SET(BOLTZPLATZ_POLYNOMIAL_DEGREE "N" CACHE STRING "N: compile with variable polynomial degree. 1,2,3,...: compile with fixed polynomial degree for performance (untested).")
@@ -548,7 +550,8 @@ endfunction()
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src) 
 
 # collect all F90 files needed for boltzplatzlib
-FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
+FILE(GLOB_RECURSE boltzplatzF90 ./src/init/*.f90
+                                ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
                                 ./src/mortar/*.f90
@@ -669,6 +672,24 @@ FOREACH (def ${comp_defs})
    SET(comp_defs_str "${comp_defs_str} -D${def}")
 ENDFOREACH()
 ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
+
+# =========================================================================
+# Add H5BOLTZ2VTK tool
+# =========================================================================
+add_exec(h5boltz2vtk ./src/h5boltz2vtk.f90)
+ADD_DEPENDENCIES(h5boltz2vtk boltzplatzlib HDF5)
+
+# =========================================================================
+# Posti
+# =========================================================================
+IF(BOLTZPLATZ_BUILDPOSTI)
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/posti/CMakeLists.txt)
+ELSE()
+  GETLISTOFVARSSTARTINGWITH("POSTI_" postiVars)
+  FOREACH (_var IN LISTS postiVars)
+    UNSET(${_var} CACHE)
+  ENDFOREACH()
+ENDIF()
 
 #   # =========================================================================
 #   # RegressionCheck tool && Examples

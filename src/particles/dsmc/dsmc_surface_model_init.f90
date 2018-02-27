@@ -25,8 +25,118 @@ END INTERFACE
 PUBLIC                       :: InitDSMCSurfModel
 PUBLIC                       :: FinalizeDSMCSurfModel
 !===================================================================================================================================
+PUBLIC::DefineParametersSurfModel
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for surface model in DSMC
+!==================================================================================================================================
+SUBROUTINE DefineParametersSurfModel()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("DSMC Surfmodel")
+
+CALL prms%CreateLogicalOption(  'Particles-KeepWallParticles'&
+  , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles--DSMC-Adsorption-doTPD'&
+  , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateRealOption(     'Particles-DSMC-Adsorption-TPD-Beta'&
+  , 'TODO-DEFINE-PARAMETER','0.')
+
+CALL prms%CreateRealOption(     'Part-Species[$]-MaximumCoverage'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-InitialStick'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-PrefactorStick'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Adsorbexp'&
+  , 'TODO-DEFINE-PARAMETER','1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Nu-a'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Nu-b'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Desorption-Energy-K'&
+  , 'TODO-DEFINE-PARAMETER','1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Intensification-K'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateIntOption(      'Part-Species[$]-Recomb-PartnerSpec'&
+  , 'TODO-DEFINE-PARAMETER','-1', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Recomb-ResultSpec'&
+  , 'TODO-DEFINE-PARAMETER','-1', numberedmulti=.TRUE.)
+
+CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationCoeff'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationEnergy'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationAccomodation'&
+  , 'TODO-DEFINE-PARAMETER','1.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-Coordination'&
+  , 'TODO-DEFINE-PARAMETER','0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-DiCoordination'&
+  , 'TODO-DEFINE-PARAMETER','0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-InitialCoverage'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+
+
+CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
+  , 'TODO-DEFINE-PARAMETER. Default: Species(1)%MPF')
+CALL prms%CreateIntOption(      'Part-Species-MaxDissNum'&
+  , 'TODO-DEFINE-PARAMETER','0')
+CALL prms%CreateIntOption(      'Part-SurfChem-Nbr-DissocReactions'&
+  , 'TODO-DEFINE-PARAMETER','0')
+CALL prms%CreateIntOption(      'Part-SurfChem-Nbr-ExchangeReactions'&
+  , 'TODO-DEFINE-PARAMETER','0')
+
+
+CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-Powerfactor'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-Prefactor'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBond'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBondPoly1'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBondPoly2'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateIntArrayOption( 'Part-Species[$]-SurfDiss[$]-Products'&
+  , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Powerfactor'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Prefactor'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-EDissBond'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateRealOption(     'Part-Species[$]-Surf-ER[$]-Powerfactor'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surf-ER[$]-Prefactor'&
+  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+
+
+CALL prms%CreateIntArrayOption( 'Part-SurfChem-Disprop[$]-Reactants'&
+  , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'Part-SurfChem-Disprop[$]-Products'&
+  , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-SurfChem-Disprop[$]-DissBond_K-Reactants'&
+  , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-SurfChem-Disprop[$]-DissBond_K-Products'&
+  , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateIntOption(      'Particles-DSMC-Adsorption-CalcTST'&
+  , 'TODO-DEFINE-PARAMETER','0')
+CALL prms%CreateRealOption(     'Particles-DSMC-AdsorptionTST-PartitionMaxTemp'&
+  , 'TODO-DEFINE-PARAMETER','10000.')
+CALL prms%CreateRealOption(     'Particles-DSMC-AdsorptionTST-PartitionInterval'&
+  , 'TODO-DEFINE-PARAMETER','20.')
+
+END SUBROUTINE DefineParametersSurfModel
 
 
 SUBROUTINE InitDSMCSurfModel()
@@ -114,7 +224,7 @@ DO iSpec = 1,nSpecies
   Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
   Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
 #endif
-  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   IF (DSMC%WallModel.EQ.1) THEN
     Adsorption%MaxCoverage(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
     Adsorption%InitStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
@@ -130,7 +240,7 @@ DO iSpec = 1,nSpecies
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
         IF(PartBound%SolidCatalytic(iPartBound))THEN
-          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound 
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
           Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
@@ -147,13 +257,13 @@ __STAMP__,&
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
         IF(PartBound%SolidCatalytic(iPartBound))THEN
-          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound 
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
           Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
           Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
           IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
-          WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound 
             CALL abort(&
 __STAMP__,&
 'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
@@ -208,9 +318,9 @@ END DO
 ALLOCATE(Coverage_tmp(1:nPartBound,1:nSpecies))
 Coverage_tmp(:,:) = 0.
 DO iSpec = 1,nSpecies
-  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   DO iPartBound=1,nPartBound
-    WRITE(UNIT=hilf2,FMT='(I2)') iPartBound 
+    WRITE(UNIT=hilf2,FMT='(I0)') iPartBound 
     hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
     Coverage_tmp(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-InitialCoverage','0.')
   END DO
@@ -393,6 +503,11 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(1) = INT(surfsquare**2)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
+    IF (surfsquare.LT.2)THEN
+      CALL abort(&
+        __STAMP__&
+        ,'not enough surface spaces for distribution. Surface MacroParticleFactor to to high',surfsquare)
+    END IF
     
     Max_Surfsites_num = Max_Surfsites_num + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
     IF (iSurfSide.LE.SurfMesh%nSides) THEN
@@ -837,7 +952,7 @@ Adsorption%NumOfExchReact = 0
 ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
           Adsorption%Ads_Prefactor(1:nSpecies))
 DO iSpec = 1,nSpecies            
-  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Adsorption%Ads_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor','0.')
   Adsorption%Ads_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor','0.')
 END DO
@@ -856,9 +971,9 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
             Adsorption%Diss_Prefactor(1:MaxDissNum,1:nSpecies))
   ! Read in dissociative reactions and respective dissociation bond energies
   DO iSpec = 1,nSpecies            
-    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
     DO iReactNum = 1,MaxDissNum
-      WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
+      WRITE(UNIT=hilf2,FMT='(I0)') iReactNum
       Adsorption%DissocReact(:,iReactNum,iSpec) = &
                                        GETINTARRAY('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Products',2,'0,0')
       IF ((Adsorption%DissocReact(1,iReactNum,iSpec).GT.nSpecies).OR.(Adsorption%DissocReact(2,iReactNum,iSpec).GT.nSpecies) ) THEN
@@ -901,14 +1016,14 @@ __STAMP__&
   Adsorption%EDissBond(0:MaxReactNum,1:nSpecies) = 0.
   Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies) = 0.
   DO iSpec = 1,nSpecies            
-    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
     DO iReactNum = 1,MaxDissNum
-      WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
+      WRITE(UNIT=hilf2,FMT='(I0)') iReactNum
       Adsorption%EDissBond(iReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
     END DO
   END DO
   DO iSpec = 1,nSpecies
-    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
     IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
       Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -929,7 +1044,7 @@ __STAMP__&
     END IF
   END DO
   DO iSpec = 1,nSpecies
-    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
     ReactNum = 1
     DO iSpec2 = 1,nSpecies
     DO iReactNum2 = 1,MaxDissNum
@@ -937,7 +1052,7 @@ __STAMP__&
         Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(2,iReactNum2,iSpec2)
         Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
         Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
-        WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
+        WRITE(UNIT=hilf2,FMT='(I0)') ReactNum
         Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
             GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.') 
         Adsorption%ER_Prefactor(ReactNum,iSpec) = &
@@ -947,7 +1062,7 @@ __STAMP__&
         Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,iReactNum2,iSpec2)
         Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
         Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
-        WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
+        WRITE(UNIT=hilf2,FMT='(I0)') ReactNum
         Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
             GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.') 
         Adsorption%ER_Prefactor(ReactNum,iSpec) = &
@@ -1033,7 +1148,7 @@ __STAMP__&
   END DO
   ! fill disproportionation reactions (fancy stuff)
   DO iReactNum = 1,nDisProp
-    WRITE(UNIT=hilf,FMT='(I2)') iReactNum
+    WRITE(UNIT=hilf,FMT='(I0)') iReactNum
     Adsorption%ChemReactant(:,iReactNum+nDissoc) = &
                                       GETINTARRAY('Part-SurfChem-Disprop'//TRIM(hilf)//'-Reactants',2,'0,0')
     Adsorption%ChemProduct(:,iReactNum+nDissoc) = &
@@ -1058,14 +1173,14 @@ __STAMP__&
     DO iReactant=1,2
       IF ( (SpecDSMC(Adsorption%ChemReactant(iReactant,iReactNum+nDissoc))%InterID.EQ.2) .AND. &
             (Adsorption%DissocReact(1,1,Adsorption%ChemReactant(iReactant,iReactNum+nDissoc)).EQ.0) ) THEN
-      WRITE(UNIT=hilf2,FMT='(I2)') Adsorption%ChemReactant(iReactant,iReactNum+nDissoc)
+      WRITE(UNIT=hilf2,FMT='(I0)') Adsorption%ChemReactant(iReactant,iReactNum+nDissoc)
         CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem Disproportionation: Dissociation for reactant species '//TRIM(hilf2)//' not defined!')
       END IF
       IF (SpecDSMC(Adsorption%ChemProduct(iReactant,iReactNum+nDissoc))%InterID.EQ.2 .AND. &
             (Adsorption%DissocReact(1,1,Adsorption%ChemProduct(iReactant,iReactNum+nDissoc)).EQ.0) ) THEN
-      WRITE(UNIT=hilf2,FMT='(I2)') Adsorption%ChemProduct(iReactant,iReactNum+nDissoc)
+      WRITE(UNIT=hilf2,FMT='(I0)') Adsorption%ChemProduct(iReactant,iReactNum+nDissoc)
         CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem Disproportionation: Dissociation for product species '//TRIM(hilf2)//' not defined!')
@@ -1092,7 +1207,7 @@ __STAMP__&
           !-------------------------------------------------------------------------------------------------------------------------
           CASE DEFAULT !more than one dissociation possible per species (special case for some polyatomic)
           !-------------------------------------------------------------------------------------------------------------------------
-          WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
+          WRITE(UNIT=hilf2,FMT='(I0)') iReactNum
             CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem: Dissocation bond energy in Disproportionation reaction'//TRIM(hilf2)//' not defined!')
@@ -1115,7 +1230,7 @@ __STAMP__&
           !-------------------------------------------------------------------------------------------------------------------------
           CASE DEFAULT !more than one dissociation possible per species (special case for some polyatomic)
           !-------------------------------------------------------------------------------------------------------------------------
-          WRITE(UNIT=hilf2,FMT='(I2)') iReactNum
+          WRITE(UNIT=hilf2,FMT='(I0)') iReactNum
             CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem: Dissocation bond energy in Disproportionation reaction'//TRIM(hilf2)//' not defined!')
@@ -1136,7 +1251,7 @@ ELSE !MaxDissNum = 0
   Adsorption%EDissBond(:,:)=0.
   Adsorption%EDissBondAdsorbPoly(:,:) = 0.
   DO iSpec = 1,nSpecies
-    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
     IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
       Adsorption%EDissBond(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBond','0.')
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN

@@ -32,8 +32,29 @@ END INTERFACE
 
 PUBLIC::InitRecordPoints,RecordPoints,FinalizeRecordPoints,WriteRPToHDF5
 !===================================================================================================================================
+PUBLIC::DefineParametersRecordPoints
 
 CONTAINS
+
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersRecordPoints()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("RecordPoints")
+CALL prms%CreateLogicalOption('RP_inUse',          "Set true to compute solution history at points defined in recordpoints file.",&
+                                                   '.FALSE.')
+CALL prms%CreateStringOption( 'RP_DefFile',        "File containing element-local parametric recordpoint coordinates and structure.")
+CALL prms%CreateRealOption(   'RP_MaxMemory',      "Maximum memory in MiB to be used for storing recordpoint state history. "//&
+                                                   "If memory is exceeded before regular IO level states are written to file.",&
+                                                   '100.')
+CALL prms%CreateIntOption(    'RP_SamplingOffset', "Multiple of timestep at which recordpoints are evaluated.",&
+                                                   '1')
+END SUBROUTINE DefineParametersRecordPoints
 
 SUBROUTINE InitRecordPoints()
 !===================================================================================================================================

@@ -43,8 +43,34 @@ PUBLIC :: TimeStepPoissonByLSERK
 PUBLIC :: TimeStepPoisson
 #endif
 !===================================================================================================================================
+PUBLIC :: DefineParametersTimeDisc
 
 CONTAINS
+
+!=================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersTimeDisc()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("TimeDisc")
+!CALL prms%CreateStringOption('TimeDiscMethod', "Specifies the type of time-discretization to be used, \ne.g. the name of"//&
+                                               !" a specific Runge-Kutta scheme. Possible values:\n"//&
+                                               !"  * standardrk3-3\n  * carpenterrk4-5\n  * niegemannrk4-14\n"//&
+                                               !"  * toulorgerk4-8c\n  * toulorgerk3-7c\n  * toulorgerk4-8f\n"//&
+                                               !"  * ketchesonrk4-20\n  * ketchesonrk4-18", value='CarpenterRK4-5')
+CALL prms%CreateRealOption(  'TEnd',           "End time of the simulation (mandatory).")
+CALL prms%CreateRealOption(  'CFLScale',       "Scaling factor for the theoretical CFL number, typical range 0.1..1.0 (mandatory)")
+!CALL prms%CreateRealOption(  'DFLScale',       "Scaling factor for the theoretical DFL number, typical range 0.1..1.0 (mandatory)")
+CALL prms%CreateIntOption(   'maxIter',        "Stop simulation when specified number of timesteps has been performed.", value='-1')
+CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every Nth timestep.", value='1')
+
+CALL prms%CreateIntOption(   'IterDisplayStep',"Step size of iteration that are displayed.", value='1')
+CALL prms%CreateLogicalOption(  'DoDisplayEmissionWarning', 'TODO-DEFINE-PARAMETER', '.TRUE.')
+
+END SUBROUTINE DefineParametersTimeDisc
 
 SUBROUTINE InitTimeDisc()
 !===================================================================================================================================
@@ -3673,7 +3699,7 @@ DO iStage=2,nRKStages
       ElemID=PEM%Element(iPart)
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
       IF(.NOT.isHit)THEN  ! particle not inside
-        IPWRITE(UNIT_stdOut,'(A)') ' PartPos not inside of element! '
+        IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
         IF(ElemID.LE.PP_nElems)THEN
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
         ELSE

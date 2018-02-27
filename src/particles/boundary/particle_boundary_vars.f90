@@ -165,6 +165,71 @@ INTEGER                                  :: nPartBound                       ! n
 INTEGER                                  :: nAdaptiveBC
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
+INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing
+LOGICAL                                  :: UseAuxBCs                     ! number of aux. BCs that are checked during tracing
+CHARACTER(LEN=200), ALLOCATABLE          :: AuxBCType(:)                ! type of BC (plane, ...)
+INTEGER           , ALLOCATABLE          :: AuxBCMap(:)                 ! index of AuxBC in respective Type
+
+TYPE tAuxBC_plane
+  REAL                                   :: r_vec(3)
+  REAL                                   :: n_vec(3)
+  REAL                                   :: radius
+END TYPE tAuxBC_plane
+TYPE(tAuxBC_plane), ALLOCATABLE          :: AuxBC_plane(:)
+
+TYPE tAuxBC_cylinder
+  REAL                                   :: r_vec(3)
+  REAL                                   :: axis(3)
+  REAL                                   :: radius
+  REAL                                   :: lmin
+  REAL                                   :: lmax
+  LOGICAL                                :: inwards
+END TYPE tAuxBC_cylinder
+TYPE(tAuxBC_cylinder), ALLOCATABLE       :: AuxBC_cylinder(:)
+
+TYPE tAuxBC_cone
+  REAL                                   :: r_vec(3)
+  REAL                                   :: axis(3)
+  REAL                                   :: halfangle
+  REAL                                   :: lmin
+  REAL                                   :: lmax
+  REAL                                   :: geomatrix(3,3)
+  !REAL                                   :: geomatrix2(3,3)
+  REAL                                   :: rotmatrix(3,3)
+  LOGICAL                                :: inwards
+END TYPE tAuxBC_cone
+TYPE(tAuxBC_cone), ALLOCATABLE       :: AuxBC_cone(:)
+
+TYPE tAuxBC_parabol
+  REAL                                   :: r_vec(3)
+  REAL                                   :: axis(3)
+  REAL                                   :: zfac
+  REAL                                   :: lmin
+  REAL                                   :: lmax
+  REAL                                   :: geomatrix4(4,4)
+  REAL                                   :: rotmatrix(3,3)
+  LOGICAL                                :: inwards
+END TYPE tAuxBC_parabol
+TYPE(tAuxBC_parabol), ALLOCATABLE       :: AuxBC_parabol(:)
+
+TYPE tPartAuxBC
+  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
+  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)
+  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
+  REAL    , ALLOCATABLE                  :: WallTemp(:)     
+  REAL    , ALLOCATABLE                  :: TransACC(:)     
+  REAL    , ALLOCATABLE                  :: VibACC(:) 
+  REAL    , ALLOCATABLE                  :: RotACC(:) 
+  REAL    , ALLOCATABLE                  :: ElecACC(:)
+  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
+  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
+  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
+  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
+END TYPE
+TYPE(tPartAuxBC)                         :: PartAuxBC                         ! auxBC Data for Particles
+
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

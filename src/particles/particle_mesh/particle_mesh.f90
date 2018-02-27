@@ -82,6 +82,9 @@ INTERFACE ParticleInsideQuad3D
   MODULE PROCEDURE ParticleInsideQuad3D
 END INTERFACE
 
+INTERFACE MarkAuxBCElems
+  MODULE PROCEDURE MarkAuxBCElems
+END INTERFACE
 
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
@@ -91,9 +94,85 @@ PUBLIC::InsideElemBoundingBox
 PUBLIC::PartInElemCheck
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitTriaParticleGeometry
+PUBLIC::MarkAuxBCElems
 !===================================================================================================================================
 !
+PUBLIC::DefineParametersParticleMesh
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particle tracking
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleMesh()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection('Tracking')
+
+CALL prms%CreateLogicalOption( 'DoRefMapping'&
+  , 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
+  , '.TRUE.')
+
+CALL prms%CreateLogicalOption( 'TriaTracking'&
+  , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for tracing algorithms.'//&
+  ' Currently flag is only used in DSMC timediscs. Requries DoRefMapping=F.'&
+  ,'.FALSE.')
+
+CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
+  , 'Count number of lost particles during tracking that can not be found with fallbacks.','.FALSE.')
+CALL prms%CreateIntOption(     'PartOut'&
+  , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
+CALL prms%CreateIntOption(     'MPIRankOut'&
+  , 'If compiled with CODE_ANALYZE flag: This MPI-Proc writes the tracking information for the defined PartOut.','0')
+CALL prms%CreateLogicalOption( 'MeasureTrackTime'&
+  , 'If .TRUE. then the time how long the tracking routines are called are sampled and written for each MPI-Proc.','.FALSE.')
+CALL prms%CreateLogicalOption( 'CartesianPeriodic'&
+    , ' Simplified treatment for periodic box with Refmapping. Not computation of intersection points at periodic BCs.','.FALSE.')
+CALL prms%CreateLogicalOption( 'FastPeriodic'&
+  , ' Further simplification by directly moving particle into grid. Instead of moving the particle several times the periodic'//&
+    ' displacements, the particle is mapped directly back into the domain. ','.FALSE.')
+CALL prms%CreateIntOption(     'RefMappingGuess'&
+  , ' Initial guess of the Newton for mapping the particle into reference coordinates. (1) -'//&
+    ' linear, pseudo-Cartesian coordinates (2) - Xi of closest Gauss point (3) - Xi of '//&
+    ' closest XCL_ngeo point (4) -trival guess (0,0,0)^t')
+CALL prms%CreateRealOption(    'RefMappingEps'&
+  , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
+CALL prms%CreateRealOption(    'BezierEpsilonBilinear'&
+    , ' Desicion if face is bilinear or linear.' , '1e-6')
+CALL prms%CreateIntOption(     'BezierElevation'&
+  , ' Use BezierElevation>0 to tighten the bounding box. Typicall values>10','0')
+CALL prms%CreateIntOption(     'BezierSampleN'&
+  , 'TODO-DEFINE-PARAMETER. Defualt value: NGeo','0')
+
+! Background mesh init variables
+CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
+  , 'Define the deltas for the cartesian Fast-Init-Background-Mesh.'//&
+  ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
+  , '1. , 1. , 1.')
+CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
+  , 'Factor with which the background mesh will be scaled.'&
+  , '1. , 1. , 1.')
+CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
+    ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
+    ,'.FALSE.')
+
+CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between Bezierclipping '//& 
+'BezierNewton.' , '1.570796326')
+CALL prms%CreateRealOption(    'BezierClipTolerance'    , ' Tolerance for BezierClipping' , '1e-8')
+CALL prms%CreateRealOption(    'BezierNewtonTolerance'  , ' Tolerance for BezierNewton' , '1e-4')
+CALL prms%CreateIntOption(     'BezierNewtonGuess'      , ' Initial guess for BezierNewton '// &
+    '(1) - linear projected face (2) - cloesest projected BeziercontrolPoint (4) - (0,0)^t' , '1')
+CALL prms%CreateRealOption(    'BezierSplitLimit'       , ' Limit for splitting in BezierClipping.'// &
+   ' Value allows to detect multiple intersections and speed up computation. Parameter is multiplied by 2' , '0.6')
+CALL prms%CreateIntOption(     'BezierClipMaxIter'      , ' Max iteration of BezierClipping' , '100')
+CALL prms%CreateRealOption(    'epsilontol'             , 'TODO-DEFINE-PARAMETER' , '0.')
+CALL prms%CreateRealOption(    'BezierClipHit'          , ' Tolerance in [-1,1] of BezierFace' , '0.')
+CALL prms%CreateRealOption(    'BezierNewtonHit'        , ' Tolerance in [-1,1] of BezierNewton' , '0.')
+CALL prms%CreateIntOption(     'BezierClipMaxIntersec'  , ' Max. number of multiple intersections. Default: 2*(NGeo+1)')
+
+END SUBROUTINE DefineParametersParticleMesh
 
 SUBROUTINE InitParticleMesh()
 !===================================================================================================================================
@@ -567,7 +646,7 @@ IF (TriaTracking) THEN
   IF (.NOT.ParticleFound) THEN
     PDM%ParticleInside(iPart) = .FALSE.
   END IF
-   RETURN
+  RETURN
 END IF
 
 !--- check all cells associated with this beckground mesh cell
@@ -1014,7 +1093,7 @@ LastPartPos(PartID,1:3) = LastPosTmp(1:3)
 END SUBROUTINE PartInElemCheck
 
 
-SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)                                      !
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 ! checks if particle is inside of linear element with planar faces
 !===================================================================================================================================
@@ -5045,5 +5124,352 @@ DO iElem=1,nTotalElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE GetElemToSideDistance
+
+
+SUBROUTINE MarkAuxBCElems()
+!===================================================================================================================================
+! check if auxBCs are inside BoundingBox of Elems
+! -- plane: use plane equation f=a1*x+a2*y+a3*z+a4=0 and insert corresponding intervals of box -> fmin and fmax
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemHasAuxBCs
+USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iElem,iAuxBC,icoord,dir(3),positiontype,positiontype_tmp
+REAL                     :: r_vec(3),n_vec(3),fmin,fmax,Bounds(1:2,1:3),radius,BoundsBC(1:2,1:3)
+REAL                     :: lmin,lmax,deltamin,deltamax,origin(2),halfangle
+LOGICAL                  :: cartesian, backwards
+!===================================================================================================================================
+
+ALLOCATE(ElemHasAuxBCs(1:PP_nElems , 1:nAuxBCs))
+ElemHasAuxBCs=.FALSE.
+
+DO iAuxBC=1,nAuxBCs
+  SELECT CASE (TRIM(AuxBCType(iAuxBC)))
+  CASE ('plane')
+    r_vec=AuxBC_plane(AuxBCMap(iAuxBC))%r_vec
+    n_vec=AuxBC_plane(AuxBCMap(iAuxBC))%n_vec
+    radius=AuxBC_plane(AuxBCMap(iAuxBC))%radius
+    ! loop over all  elements
+    DO iElem=1,PP_nElems
+      CALL BoundsOfElement(iElem,Bounds)
+      fmin=-DOT_PRODUCT(r_vec,n_vec)
+      fmax=fmin
+      DO icoord=1,3
+        IF (n_vec(icoord).GE.0) THEN
+          fmin = fmin + n_vec(icoord)*Bounds(1,icoord)
+          fmax = fmax + n_vec(icoord)*Bounds(2,icoord)
+        ELSE
+          fmin = fmin + n_vec(icoord)*Bounds(2,icoord)
+          fmax = fmax + n_vec(icoord)*Bounds(1,icoord)
+        END IF
+      END DO
+      IF ((fmin.LE.0 .AND. fmax.GT.0).OR.(fmin.LT.0 .AND. fmax.GE.0)) THEN !plane intersects the box!
+        !radius check needs to be implemented (compute intersection polygon and minimum radii): would sort out further elements!!!
+        !quick, conservative solution: calculate bounding box of disc in space and compare with bb of element
+        ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
+        IF (radius .LT. 0.5*HUGE(radius)) THEN !huge was default
+          BoundsBC(1,1:3) = r_vec - radius * SQRT(1.-(n_vec*n_vec))
+          BoundsBC(2,1:3) = r_vec + radius * SQRT(1.-(n_vec*n_vec))
+          DO icoord=1,3
+            IF ( BoundsBC(2,icoord).LT.Bounds(1,icoord) .OR. BoundsBC(1,icoord).GT.Bounds(2,icoord) ) THEN
+              ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+              EXIT
+            END IF
+          END DO         
+        END IF
+      ELSE IF ((fmin.LT.0 .AND. fmax.LT.0).OR.(fmin.GT.0 .AND. fmax.GT.0)) THEN !plane does not intersect the box!
+        ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+      ELSE !e.g. if elem has zero volume...
+        CALL abort(&
+          __STAMP__&
+          ,'Error in MarkAuxBCElems for AuxBC:',iAuxBC)
+      END IF
+    END DO
+  CASE ('cylinder','cone')
+    IF (TRIM(AuxBCType(iAuxBC)).EQ.'cylinder') THEN
+      r_vec=AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec
+      n_vec=AuxBC_cylinder(AuxBCMap(iAuxBC))%axis
+      radius=AuxBC_cylinder(AuxBCMap(iAuxBC))%radius
+      lmin=AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin
+      lmax=AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax
+    ELSE !cone
+      r_vec=AuxBC_cone(AuxBCMap(iAuxBC))%r_vec
+      n_vec=AuxBC_cone(AuxBCMap(iAuxBC))%axis
+      halfangle=AuxBC_cone(AuxBCMap(iAuxBC))%halfangle
+      lmin=AuxBC_cone(AuxBCMap(iAuxBC))%lmin
+      lmax=AuxBC_cone(AuxBCMap(iAuxBC))%lmax
+    END IF
+    cartesian=.TRUE.
+    backwards=.FALSE.
+    IF (ABS(n_vec(1)).EQ.1.) THEN
+      dir(1)=1
+      dir(2)=2
+      dir(3)=3
+      IF (n_vec(1).LT.0.) backwards=.TRUE.
+    ELSE IF (ABS(n_vec(2)).EQ.1.) THEN
+      dir(1)=2
+      dir(2)=3
+      dir(3)=1
+      IF (n_vec(2).LT.0.) backwards=.TRUE.
+    ELSE IF (ABS(n_vec(3)).EQ.1.) THEN
+      dir(1)=3
+      dir(2)=1
+      dir(3)=2
+      IF (n_vec(3).LT.0.) backwards=.TRUE.
+    ELSE
+      cartesian=.FALSE.
+      SWRITE(*,*) 'WARNING in MarkAuxBCElems: all Elems are set to ElemHasAuxBCs=.TRUE. for AuxBC:',iAuxBC
+      ElemHasAuxBCs(:,iAuxBC)=.TRUE. !actual intersection with box check to-be implemented!!!
+    END IF
+    IF (cartesian) THEN
+      IF (backwards) THEN
+        deltamin = -lmax
+        deltamax = -lmin
+      ELSE
+        deltamin = lmin
+        deltamax = lmax
+      END IF
+      origin(1) = r_vec(dir(2))
+      origin(2) = r_vec(dir(3))
+      ! loop over all  elements
+      DO iElem=1,PP_nElems
+        CALL BoundsOfElement(iElem,Bounds)
+        ! check for lmin and lmax
+        IF ( r_vec(dir(1))+deltamax.LT.Bounds(1,dir(1)) .OR. r_vec(dir(1))+deltamin.GT.Bounds(2,dir(1)) ) THEN
+          ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+        ELSE !between lmin and lmax
+          IF (TRIM(AuxBCType(iAuxBC)).EQ.'cylinder') THEN
+            CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+          ELSE !cone
+            !local minimum radius
+            IF (backwards) THEN
+              radius = MAX(-Bounds(2,dir(1))+r_vec(dir(1)),lmin)*TAN(halfangle)
+            ELSE
+              radius = MAX(Bounds(1,dir(1))-r_vec(dir(1)),lmin)*TAN(halfangle)
+            END IF
+            CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype_tmp)
+            !local maximum radius
+            IF (backwards) THEN
+              radius = MIN(-Bounds(1,dir(1))+r_vec(dir(1)),lmax)*TAN(halfangle)
+            ELSE
+              radius = MIN(Bounds(2,dir(1))-r_vec(dir(1)),lmax)*TAN(halfangle)
+            END IF
+            CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+            !if both are type 0 or both are type 1 than the "total" type is not 2:
+            IF ( .NOT.(positiontype_tmp.EQ.0 .AND. positiontype.EQ.0) &
+              .AND. .NOT.(positiontype_tmp.EQ.1 .AND. positiontype.EQ.1) ) THEN
+              positiontype=2
+            END IF
+          END IF
+          IF (positiontype.EQ.2) THEN
+            ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
+          ELSE
+            ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+          END IF
+        END IF !check for lmin and lmax
+      END DO !iElem
+    END IF !cartesian
+  CASE('parabol')
+    ElemHasAuxBCs(:,iAuxBC)=.TRUE. ! to be implemented!!!
+  CASE DEFAULT
+    SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
+    CALL abort(&
+      __STAMP__&
+      ,'AuxBC does not exist')
+  END SELECT
+END DO
+
+END SUBROUTINE MarkAuxBCElems
+
+SUBROUTINE BoundsOfElement(ElemID,Bounds)
+!===================================================================================================================================
+! computes the min/max of element in xyz (Based on BGMIndexOfElement)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
+USE MOD_Mesh_Vars,                          ONLY:NGeo
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN)        :: ElemID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)          :: Bounds(1:2,1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: ilocSide, SideID
+REAL                      :: xmin,xmax,ymin,ymax,zmin,zmax
+REAL                      :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
+!===================================================================================================================================
+
+xmin = HUGE(1.0)
+xmax =-HUGE(1.0)
+ymin = HUGE(1.0)
+ymax =-HUGE(1.0)
+zmin = HUGE(1.0)
+zmax =-HUGE(1.0)
+
+! get min,max of BezierControlPoints of Element
+DO iLocSide = 1,6
+  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, ElemID)
+  IF(DoRefMapping)THEN
+    IF(SideID.GT.0)THEN
+      IF(PartElemToSide(E2S_FLIP,ilocSide,ElemID).EQ.0)THEN
+        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      ELSE
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(XI_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ZETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+        CASE(ZETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+        END SELECT
+      END IF
+    ELSE
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(XI_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ZETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+      CASE(ZETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+      END SELECT
+    END IF
+  ELSE ! pure tracing
+    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+  END IF
+  xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
+  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
+  ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
+  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
+  zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
+  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
+END DO ! ilocSide
+Bounds(:,1)=(/xmin,xmax/)
+Bounds(:,2)=(/ymin,ymax/)
+Bounds(:,3)=(/zmin,zmax/)
+
+END SUBROUTINE BoundsOfElement
+
+
+SUBROUTINE CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+!===================================================================================================================================
+! checks how a cartesian bb is located with regard to a radius with cartesian axis (dir is cartesian axis and origin in orth. dirs)
+!- positiontype=0 : complete bb is inside of radius
+!- positiontype=1 : complete bb is outside of radius
+!- positiontype=2 : bb is partly inside of radius
+! (based on "check where the sides are located relative to rmax" in particle_emission for SimpleRadialVeloFit)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL,INTENT(IN)           :: Bounds(1:2,1:3), origin(2), radius
+INTEGER,INTENT(IN)        :: dir(3)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)       :: positiontype
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iDir1, iDir2, iDir3, iPoint
+REAL                      :: BoundingBox(1:3,1:8), point(2), pointRadius
+LOGICAL                   :: done, insideBound
+!===================================================================================================================================
+!-- convert minmax-values to bb-points
+DO iDir1=0,1
+  DO iDir2=0,1
+      DO iDir3=0,1
+        BoundingBox(1,iDir1*4 + iDir2*2 + iDir3+1) = Bounds(iDir1+1,1)
+        BoundingBox(2,iDir1*4 + iDir2*2 + iDir3+1) = Bounds(iDir2+1,2)
+        BoundingBox(3,iDir1*4 + iDir2*2 + iDir3+1) = Bounds(iDir3+1,3)
+      END DO
+  END DO
+END DO
+
+!-- check where the points are located relative to radius
+done=.FALSE.
+DO iDir1=0,1
+  IF(done) EXIT
+  DO iDir2=0,1
+    IF(done) EXIT
+    DO iDir3=0,1
+      !-- coords orth. to axis of point:
+      iPoint=iDir1*4 + iDir2*2 + iDir3+1
+      point(1) = BoundingBox(dir(2),iPoint)-origin(1)
+      point(2) = BoundingBox(dir(3),iPoint)-origin(2)
+      pointRadius = SQRT( (point(1))**2+(point(2))**2 )
+      IF (iPoint.EQ.1) THEN
+        IF (pointRadius.LE.radius) THEN
+          insideBound=.TRUE.
+        ELSE !outside
+          insideBound=.FALSE.
+        END IF !in-/outside?
+      ELSE !iPoint.GT.1: type must be 2 if state of point if different from last point
+        IF (pointRadius.LE.radius) THEN
+          IF (.NOT.insideBound) THEN !different from last point
+            positiontype=2
+            done=.TRUE.
+            EXIT
+          END IF
+        ELSE !outside
+          IF (insideBound) THEN !different from last point
+            positiontype=2
+            done=.TRUE.
+            EXIT
+          END IF
+        END IF !in-/outside?
+      END IF !iPoint.EQ.1
+    END DO !iDir3
+  END DO !iDir2
+END DO !iDir1
+IF (.NOT.done) THEN
+  IF (insideBound) THEN
+    positiontype=0
+  ELSE
+    ! all points are outside of radius, but when radius is smaller than box, it can intersect it:
+    IF ( origin(1) + radius .GE. Bounds(1,dir(2)) .AND. &
+         origin(1) - radius .LE. Bounds(2,dir(2)) .AND. &
+         origin(2) + radius .GE. Bounds(1,dir(3)) .AND. &
+         origin(2) - radius .LE. Bounds(2,dir(3)) ) THEN !circle completely or partly inside box
+      positiontype=2
+    ELSE !points are really outside
+      positiontype=1
+    END IF
+  END IF
+END IF
+
+END SUBROUTINE CheckBoundsWithCartRadius
 
 END MODULE MOD_Particle_Mesh

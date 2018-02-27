@@ -37,9 +37,29 @@ PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance
 !PUBLIC::LoadMeasure
 PUBLIC::ComputeElemLoad
 #endif /*MPI*/
+
+PUBLIC::DefineParametersLoadBalance
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersLoadBalance()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("LoadBalance")
+
+CALL prms%CreateLogicalOption( 'DoLoadBalance'                 ,  "Flag for doing LoadBalance.", '.FALSE.')
+CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "TODO-DEFINE-PARAMETER"      , value='0.10')
+CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "TODO-DEFINE-PARAMETER"      , value='0.02')
+CALL prms%CreateIntOption(     'Particles-WeightMethod'        ,  "TODO-DEFINE-PARAMETER"      , value='1')
+CALL prms%CreateIntOption(     'Particles-WeightAverageMethod' ,  "TODO-DEFINE-PARAMETER"      , value='1')
+
+END SUBROUTINE DefineParametersLoadBalance
 
 #ifdef MPI
 SUBROUTINE InitLoadBalance()
@@ -296,7 +316,7 @@ USE MOD_Globals
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
-USE MOD_Boltzplatz_Tools ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Boltzplatz_Init  ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars     ,ONLY: DepositionType

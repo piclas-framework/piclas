@@ -63,9 +63,26 @@ INTERFACE ClearElemData
   MODULE PROCEDURE ClearElemData
 END INTERFACE
 
+PUBLIC::DefineParametersIO,InitIO,OpenDataFile,CloseDataFile
+PUBLIC::AddToElemData
+
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersIO()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("IO_HDF5")
+CALL prms%CreateLogicalOption('gatheredWrite', "Set true to activate gathered HDF5 IO for parallel computations. "//&
+                                               "Only local group masters will write data after gathering from local slaves.",&
+                                               '.FALSE.')
+END SUBROUTINE DefineParametersIO
 
 SUBROUTINE InitIO_HDF5()
 !===================================================================================================================================
@@ -73,7 +90,7 @@ SUBROUTINE InitIO_HDF5()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETSTR
+USE MOD_ReadInTools,        ONLY:GETLOGICAL
 #ifdef INTEL
 USE IFPORT
 #endif

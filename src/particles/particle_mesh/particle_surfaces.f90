@@ -78,7 +78,6 @@ PUBLIC::OutputBezierControlPoints
 #endif /*CODE_ANALYZE*/
 
 !===================================================================================================================================
-
 CONTAINS
 
 SUBROUTINE InitParticleSurfaces()
