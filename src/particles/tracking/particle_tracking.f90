@@ -2262,7 +2262,7 @@ SUBROUTINE ParticleCollectCharges(initialCall_opt)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF,BezierSampleN,SurfMeshSubSideData
+USE MOD_Particle_Surfaces_Vars,  ONLY : BCdata_auxSF,SurfMeshSubSideData,SurfFluxSideSize,TriaSurfaceFlux,SideType
 USE MOD_Equation_Vars,           ONLY : eps0
 USE MOD_TimeDisc_Vars,           ONLY : iter,IterDisplayStep,DoDisplayIter, dt,RKdtFrac
 USE MOD_Particle_Mesh_Vars,      ONLY : GEO,NbrOfRegions
@@ -2331,7 +2331,12 @@ __STAMP__,&
             END IF
             source_e = source_e*SQRT(RegionElectronRef(3,RegionID))*1.67309567E+05 !rho*v_flux, const.=sqrt(q/(2*pi*m_el))
             area=0.
-            DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+            IF (TriaSurfaceFlux) THEN
+              IF (SideType(SideID).NE.PLANAR_RECT .AND. SideType(SideID).NE.PLANAR_NONRECT) CALL abort(&
+__STAMP__&
+,'SurfMeshSubSideData has been triangulated for surfaceflux. It can be used only for planar_rect/nonrect!')
+            END IF
+            DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
               area = area &
                 + SurfMeshSubSideData(iSample,jSample,SideID)%area
             END DO; END DO

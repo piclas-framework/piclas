@@ -45,6 +45,7 @@ USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARR
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_HDF5_Input,             ONLY:ReadTimeAverage
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 #endif
@@ -66,6 +67,7 @@ REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 REAL                      :: SFdepoLayersCross(3),BaseVector(3),BaseVector2(3),SFdepoLayersChargedens,n1(3),n2(3),nhalf
 REAL                      :: NormVecCheck(3),eps,diff,BoundPoints(3,8),BVlengths(2),DistVec(3),Dist(3)
 CHARACTER(32)             :: hilf, hilf2
+CHARACTER(255)            :: TimeAverageFile
 LOGICAL                   :: LayerOutsideOfBounds, ChangeOccured
 !===================================================================================================================================
 
@@ -95,6 +97,17 @@ IF (ALLOCSTAT.NE.0) THEN
   ,'ERROR in pic_depo.f90: Cannot allocate PartSource!')
 END IF
 PartSource=0.
+
+!--- check if chargedensity is computed from TimeAverageFile
+TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
+IF (TRIM(TimeAverageFile).NE.'none') THEN
+  CALL ReadTimeAverage(TimeAverageFile)
+  DoDeposition=.FALSE.
+  DepositionType='NONE'
+  RETURN
+END IF
+
+!--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
 CASE('nearest_blurycenter')

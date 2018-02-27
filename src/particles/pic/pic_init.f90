@@ -60,6 +60,7 @@ CALL prms%SetSection("PIC Deposition")
 
 CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'TODO-DEFINE-PARAMETER', '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , 'TODO-DEFINE-PARAMETER', 'nearest-blurrycenter')
+CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
 
 CALL prms%CreateRealOption(     'PIC-epanechnikov-radius'  , 'TODO-DEFINE-PARAMETER', '1.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'TODO-DEFINE-PARAMETER', '1.')

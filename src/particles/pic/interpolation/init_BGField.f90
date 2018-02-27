@@ -96,7 +96,7 @@ CALL ReadAttribute(File_ID,'NodeType',1,StrScalar=NodeType_BGField)
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile_BGField)
 
 ALLOCATE(VarNames(Dims(1)))
-CALL ReadAttribute(File_ID,'VarNames',1,StrArray=VarNames)
+CALL ReadAttribute(File_ID,'VarNames',INT(Dims(1),4),StrArray=VarNames)
 
 CALL ReadAttribute(File_ID,'NBG',1,IntegerScalar=N_in)
 

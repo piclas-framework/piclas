@@ -1135,7 +1135,7 @@ ELSE
     END SELECT
   ELSE
     IF (TriaTracking) THEN
-      CALL CalcNormAndTangTriangle(n_loc,tang1,tang2,TriNum,SideID)
+      CALL CalcNormAndTangTriangle(nVec=n_loc,tang1=tang1,tang2=tang2,TriNum=TriNum,SideID=SideID)
     ELSE
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)

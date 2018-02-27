@@ -329,6 +329,7 @@ dtStep = (dtOld+dt)*0.5
 IF(Finalize) dtStep = dt*0.5
 dtAvg  = dtAvg+dtStep
 dtOld  = dt
+tmpVars=0. !initialize for case that CalcAvg is T (defined just by name in ini), but not actually calculated (i.e., when DoPowerDensity=F)
 
 #ifdef PARTICLES
 IF(ANY(DoPowerDensity))THEN
