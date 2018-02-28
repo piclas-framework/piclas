@@ -86,6 +86,10 @@ INTERFACE MarkAuxBCElems
   MODULE PROCEDURE MarkAuxBCElems
 END INTERFACE
 
+INTERFACE BoundsOfElement
+  MODULE PROCEDURE BoundsOfElement
+END INTERFACE
+
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
@@ -95,6 +99,7 @@ PUBLIC::PartInElemCheck
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitTriaParticleGeometry
 PUBLIC::MarkAuxBCElems
+PUBLIC::BoundsOfElement
 !===================================================================================================================================
 !
 PUBLIC::DefineParametersParticleMesh
@@ -1095,7 +1100,7 @@ END SUBROUTINE PartInElemCheck
 
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
-! checks if particle is inside of linear element with planar faces
+! checks if particle is inside of linear element with triangulated faces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars,  ONLY : GEO
@@ -1158,7 +1163,7 @@ REAL                          :: A(1:3,1:4), cross(3)
        IF (NegCheck) InElementCheck = .FALSE.
      END IF
   END DO
- RETURN
+  RETURN
 END SUBROUTINE ParticleInsideQuad3D
 
 
