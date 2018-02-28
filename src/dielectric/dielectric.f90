@@ -41,7 +41,7 @@ CALL prms%SetSection("Dielectric Region")
 CALL prms%CreateLogicalOption(  'DoDielectric'                 , 'Use dielectric regions with EpsR and MuR' , '.FALSE.')
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
-CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens"' , 'default')
+CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens" or "FH_lens"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
     //' if a DOF is within a dielectric region' ,'.FALSE.')
@@ -132,12 +132,14 @@ IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
   CALL FindElementInRegion(isDielectricElem,xyzDielectricMinMax,&
                            ElementIsInside=.TRUE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
-                           DisplayInfo=.TRUE.)
+                           DisplayInfo=.TRUE.,&
+                           Geometry=DielectricTestCase)
 ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
   CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
                            ElementIsInside=.FALSE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
-                           DisplayInfo=.TRUE.)
+                           DisplayInfo=.TRUE.,&
+                           Geometry=DielectricTestCase)
 END IF
 
 ! find all faces in the Dielectric region
