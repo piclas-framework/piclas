@@ -66,6 +66,7 @@ REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 REAL                      :: SFdepoLayersCross(3),BaseVector(3),BaseVector2(3),SFdepoLayersChargedens,n1(3),n2(3),nhalf
 REAL                      :: NormVecCheck(3),eps,diff,BoundPoints(3,8),BVlengths(2),DistVec(3),Dist(3)
 CHARACTER(32)             :: hilf, hilf2
+CHARACTER(255)            :: TimeAverageFile
 LOGICAL                   :: LayerOutsideOfBounds, ChangeOccured
 !===================================================================================================================================
 
@@ -95,6 +96,17 @@ IF (ALLOCSTAT.NE.0) THEN
   ,'ERROR in pic_depo.f90: Cannot allocate PartSource!')
 END IF
 PartSource=0.
+
+!--- check if chargedensity is computed from TimeAverageFile
+TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
+IF (TRIM(TimeAverageFile).NE.'none') THEN
+  CALL ReadTimeAverage(TimeAverageFile)
+  DoDeposition=.FALSE.
+  DepositionType='NONE'
+  RETURN
+END IF
+
+!--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
 CASE('nearest_blurycenter')
@@ -3597,6 +3609,135 @@ DO ElemID=1,PP_nElems
 END DO !ElemID=1,PP_nElems
   
 END SUBROUTINE depoChargeOnDOFs_sf_simple
+
+
+SUBROUTINE ReadTimeAverage(FileName)
+!===================================================================================================================================
+! Read in ChargeDensity and save to PartSource
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_IO_HDF5
+USE MOD_HDF5_Input,              ONLY:ReadArray,ReadAttribute,File_ID,OpenDataFile,CloseDataFile,DatasetExists
+USE MOD_Particle_Vars,           ONLY:nSpecies
+USE MOD_PICDepo_Vars,            ONLY:PartSource
+USE MOD_Mesh_Vars,               ONLY:OffsetElem,nGlobalElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,ALLOCATABLE         :: U(:,:,:,:,:)
+INTEGER                  :: iSpec, iElem, kk, ll, mm
+INTEGER                  :: Rank
+INTEGER                  :: nVars, iVar, N_HDF5
+INTEGER,ALLOCATABLE      :: PartSourceToVar(:)
+INTEGER(HID_T)           :: Dset_ID,FileSpace
+INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
+LOGICAL                  :: SolutionExists
+CHARACTER(LEN=255),ALLOCATABLE          :: VarNames(:)
+CHARACTER(LEN=10)        :: strhelp
+#ifdef MPI
+REAL                     :: StartT,EndT
+#endif /*MPI*/
+!===================================================================================================================================
+
+  SWRITE(UNIT_stdOut,*)'Using TimeAverage as constant PartSource(4) from file:',TRIM(FileName)
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
+
+  IF(MPIRoot) THEN
+    IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
+          'TimeAverage-File "'//TRIM(FileName)//'" does not exist',999,999.)
+  END IF
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+  ! get attributes
+  CALL DatasetExists(File_ID,'DG_Solution',SolutionExists)
+  IF(MPIRoot)THEN
+    IF(.NOT.SolutionExists)  CALL abort(&
+      __STAMP__&
+      ,'DG_Solution in TimeAverage-File "'//TRIM(FileName)//'" does not exist!')
+  END IF
+  CALL H5DOPEN_F(File_ID, 'DG_Solution', Dset_ID, iError)
+  ! Get the data space of the dataset.
+  CALL H5DGET_SPACE_F(Dset_ID, FileSpace, iError)
+  ! Get number of dimensions of data space
+  CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, Rank, iError)
+  ! Get size and max size of data space
+  Dims   =0
+  DimsMax=0
+  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Dims(1:Rank), DimsMax(1:Rank), iError)
+  CALL H5SCLOSE_F(FileSpace, iError)
+  CALL H5DCLOSE_F(Dset_ID, iError)
+  IF(MPIRoot)THEN
+    IF(INT(Dims(Rank),4).NE.nGlobalElems)  CALL abort(&
+      __STAMP__&
+      ,' MeshSize and Size of TimeAverage-File "'//TRIM(FileName)//'" does not match!')
+  END IF
+  nVars=INT(Dims(1),4)
+  ALLOCATE(VarNames(nVars))
+  CALL ReadAttribute(File_ID,'VarNames',nVars,StrArray=VarNames)
+
+  ALLOCATE(PartSourceToVar(nSpecies))
+  PartSourceToVar=0
+  DO iSpec=1,nSpecies
+    WRITE(strhelp,'(I2.2)') iSpec
+    DO iVar=1,nVars
+      IF (VarNames(iVar).EQ.TRIM('ChargeDensity-Spec')//TRIM(strhelp)) THEN
+        PartSourceToVar(iSpec)=iVar
+        EXIT
+      END IF
+    END DO
+  END DO
+  IF (.NOT.ANY(PartSourceToVar.NE.0)) CALL abort(__STAMP__, &
+    'No PartSource found in TimeAverage-File "'//TRIM(FileName)//'"!!!',999,999.)
+  DEALLOCATE(VarNames)
+
+  !-- read state
+  ALLOCATE(U(nVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  CALL ReadAttribute(File_ID,'N',1,IntegerScalar=N_HDF5)
+  IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
+    CALL ReadArray('DG_Solution',5,(/nVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+  ELSE
+    CALL abort(__STAMP__, &
+          'N_HDF5.NE.PP_N !',999,999.)
+  END IF
+  CALL CloseDataFile() 
+
+  !-- save to PartSource
+  PartSource(4,:,:,:,:)=0.
+  DO iSpec=1,nSpecies
+    IF (PartSourceToVar(iSpec).NE.0) THEN
+      DO iElem=1,PP_nElems
+        DO kk = 0, PP_N
+          DO ll = 0, PP_N
+            DO mm = 0, PP_N
+              PartSource(4,mm,ll,kk,iElem)=PartSource(4,mm,ll,kk,iElem)+U(PartSourceToVar(iSpec),mm,ll,kk,iElem)
+            END DO
+          END DO
+        END DO
+      END DO
+    END IF
+  END DO
+  DEALLOCATE(U)
+  DEALLOCATE(PartSourceToVar)
+
+#ifdef MPI
+  EndT=MPI_WTIME()
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Readin took  [',EndT-StartT,'s].'
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' DONE!' 
+#else
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' DONE!' 
+#endif
+
+END SUBROUTINE ReadTimeAverage
 
 
 SUBROUTINE FinalizeDeposition() 

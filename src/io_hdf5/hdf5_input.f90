@@ -45,7 +45,6 @@ INTERFACE ReadAttribute
   MODULE PROCEDURE ReadAttribute
 END INTERFACE
 
-
 PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
@@ -595,5 +594,6 @@ ELSE
 END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE GetHDF5NextFileName
+
 
 END MODULE MOD_HDF5_Input

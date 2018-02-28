@@ -26,3 +26,10 @@ The following libraries are installed locally within Boltzplatz and build automa
          
          installed with config script: export HDF5_DIR = /opt/hdf5/1.X.X/
          installed with cmake: export HDF5_DIR = /opt/hdf5/1.X.X/shared/cmake/XXX
+
+* CMAKE>3.9.+
+
+    CMake uses a new findPackage, hence **HDF5_ROOT** is used, e.g.
+    
+         export HDF5_ROOT=/opt/hdf5/1.10.0-patch1/mpi/
+
