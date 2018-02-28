@@ -116,15 +116,15 @@ CALL prms%CreateLogicalOption( 'DoRefMapping'&
   , '.TRUE.')
 
 CALL prms%CreateLogicalOption( 'TriaTracking'&
-  , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for tracing algorithms.'//&
+  , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for tracing algorithms.'//&
   ' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
   ,'.FALSE.')
 CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
   ,'.FALSE.')
 CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
-  , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for surfaceflux.'&
-  ,'.FALSE.')
+  , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
+  ' Default is set to TriaTracking')
 CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
   ,'.FALSE.')
@@ -315,7 +315,7 @@ __STAMP__&
 BezierControlPoints3DElevated=0.
 
 ! BezierAreaSample stuff:
-WRITE(hilf,'(L1)') .FALSE. !TriaTracking !to-be changed to TriaTracking if TriaSurfaceFlux fully working
+WRITE(hilf,'(L1)') TriaTracking
 TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(hilf))
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
