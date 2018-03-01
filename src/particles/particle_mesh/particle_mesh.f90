@@ -116,8 +116,17 @@ CALL prms%CreateLogicalOption( 'DoRefMapping'&
   , '.TRUE.')
 
 CALL prms%CreateLogicalOption( 'TriaTracking'&
-  , 'Using Triangle-aproximation [T] or (bi-)liniear and bezier (curved) description [F] of sides for tracing algorithms.'//&
-  ' Currently flag is only used in DSMC timediscs. Requries DoRefMapping=F.'&
+  , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for tracing algorithms.'//&
+  ' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
+  ,'.FALSE.')
+CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
+  , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
+  ,'.FALSE.')
+CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
+  , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
+  ' Default is set to TriaTracking')
+CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
+  , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
   ,'.FALSE.')
 
 CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
@@ -145,6 +154,7 @@ CALL prms%CreateIntOption(     'BezierElevation'&
   , ' Use BezierElevation>0 to tighten the bounding box. Typicall values>10','0')
 CALL prms%CreateIntOption(     'BezierSampleN'&
   , 'TODO-DEFINE-PARAMETER. Defualt value: NGeo','0')
+
 
 ! Background mesh init variables
 CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
@@ -184,13 +194,13 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking, WriteTriaDebugMesh
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
 USE MOD_Mesh_Vars,              ONLY:useCurveds,NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -226,7 +236,7 @@ __STAMP__&
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 #if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
-TriaTracking       = GETLOGICAL('TriaTracking','.FALSE')
+TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
 #else
 TriaTracking       = .FALSE.
 #endif
@@ -234,6 +244,10 @@ IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
   CALL abort(&
 __STAMP__&
 ,'DoRefMapping=T .OR. UseCurveds=T .OR. NGEO>1! Not possible with TriaTracking=T at the same time!')
+ELSE IF (TriaTracking) THEN
+  WriteTriaDebugMesh = GETLOGICAL('Write-Tria-DebugMesh','.FALSE.')
+ELSE
+  WriteTriaDebugMesh = .FALSE.
 END IF
 CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
 nLostParts         = 0 
@@ -301,12 +315,22 @@ __STAMP__&
 BezierControlPoints3DElevated=0.
 
 ! BezierAreaSample stuff:
-WRITE(hilf,'(I2.2)') NGeo
-BezierSampleN = GETINT('BezierSampleN',hilf)
-ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
-DO iSample=0,BezierSampleN
-  BezierSampleXi(iSample)=-1.+2.0/BezierSampleN*iSample
-END DO
+WRITE(hilf,'(L1)') TriaTracking
+TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(hilf))
+IF (TriaSurfaceFlux) THEN
+  BezierSampleN = 1
+  SurfFluxSideSize=(/1,2/)
+  WriteTriaSurfaceFluxDebugMesh = GETLOGICAL('Write-TriaSurfaceFlux-DebugMesh','.FALSE.')
+ELSE
+  WRITE(hilf,'(I2.2)') NGeo
+  BezierSampleN = GETINT('BezierSampleN',hilf)
+  WriteTriaSurfaceFluxDebugMesh=.FALSE.
+  SurfFluxSideSize=BezierSampleN
+  ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
+  DO iSample=0,BezierSampleN
+    BezierSampleXi(iSample)=-1.+2.0/BezierSampleN*iSample
+  END DO
+END IF
 
 ! copy
 DO iElem=1,PP_nElems
@@ -337,6 +361,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,          ONLY : nElems, XCL_NGeo, NGeo
 USE MOD_Particle_Mesh_Vars, ONLY : GEO, PartElemToSide
+USE MOD_Particle_Tracking_Vars, ONLY:WriteTriaDebugMesh
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -345,12 +370,13 @@ USE MOD_Particle_Mesh_Vars, ONLY : GEO, PartElemToSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, iLocSide
+INTEGER           :: iElem, iLocSide, nSides
 INTEGER           :: NodeNum
 REAL              :: A(3,3),detcon
 INTEGER           :: flip,p,q
 REAL              :: SideCoord(1:3,0:1,0:1)
 REAL              :: SideCoord_tmp(1:3,0:1,0:1)
+CHARACTER(32)     :: hilf
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -465,6 +491,37 @@ DO iElem=1,nElems
     !read(*,*)
   END DO
 END DO
+
+!-- write debug-mesh
+IF (WriteTriaDebugMesh) THEN
+  nSides=nElems*6
+  WRITE(UNIT=hilf,FMT='(I4.4)') myRank
+  OPEN(UNIT   = 103, &
+         FILE   = 'Tria-debugmesh_'//TRIM(hilf)//'.tec' ,&
+         STATUS = 'UNKNOWN')
+  WRITE(103,*) 'TITLE="Tria-debugmesh" '
+  WRITE(103,'(102a)') 'VARIABLES ="x","y","z"'
+  WRITE(103,*) 'ZONE NODES=',4*nSides,', ELEMENTS=',2*nSides,'DATAPACKING=POINT, ZONETYPE=FEQUADRILATERAL'
+  ! Write nodes
+  DO iElem=1,nElems
+    DO iLocSide=1,6
+      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,1,iLocSide,iElem)
+      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,2,iLocSide,iElem)
+      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,3,iLocSide,iElem)
+      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,4,iLocSide,iElem)
+    END DO
+  END DO
+  ! Write sides
+  nSides=0
+  DO iElem=1,nElems
+    DO iLocSide=1,6
+      WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+2,nSides*4+3,nSides*4+3 !1. tria
+      WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+3,nSides*4+4,nSides*4+4 !2. tria
+      nSides=nSides+1
+    END DO
+  END DO
+  CLOSE(103)
+END IF !WriteTriaDebugMesh
 
 !--- Save whether Side is concave or convex
 DO iElem = 1,nElems
