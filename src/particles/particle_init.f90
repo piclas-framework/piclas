@@ -180,7 +180,24 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForInit'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
-                                , 'Specifying Keyword for particle space condition of species [$] in case of one init'// &
+                                , 'Specifying Keyword for particle space condition of species [$] in case of one init.\n'// &
+                                '1:  point \n'//&
+                                '2:  line_with_equidistant_distribution \n'//&
+                                '3:  line_with_equidistant_distribution \n'//&
+                                '4:  line \n'//&
+                                '5:  disc \n'//&
+                                '6:  gyrotron_circle \n'//&
+                                '7:  circle_equidistant \n'//&
+                                '8:  cuboid \n'//&
+                                '9:  cylinder \n'//&
+                                '10: cuboid_vpi \n'//&
+                                '11: cylinder_vpi \n'//&
+                                '12: LD_insert \n'//&
+                                '13: cell_local \n'//&
+                                '14: cuboid_equal \n'//&
+                                '15: cuboid_with_equidistant_distribution \n'//&
+                                '16: sin_deviation \n'//&
+                                '17: IMD \n'//&
                                 'TODO-DEFINE-PARAMETER'&
                                 , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
@@ -1266,7 +1283,8 @@ __STAMP__&
             , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
-      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
+      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')&
+           .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
         IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) &

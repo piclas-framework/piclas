@@ -2081,6 +2081,8 @@ DO iSpec=1,nSpecies
 
     CASE('LD_insert')
       RegionOnProc=.TRUE.
+    CASE('cell_local')
+      RegionOnProc=.TRUE.
     CASE('cuboid_equal')
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
