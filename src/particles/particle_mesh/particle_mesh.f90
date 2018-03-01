@@ -1213,8 +1213,6 @@ IF(DoRefMapping) THEN
   ! compute distance between each side associated with  the element and its origin
   CALL GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
   DEALLOCATE( SideOrigin, SideRadius)
-ELSE
-  IF(.NOT.TriaTracking) CALL TracingElemSanity()
 END IF
 SWRITE(UNIT_stdOut,'(A)')' ... DONE!' 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -4996,73 +4994,5 @@ DO iElem=1,nTotalElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE GetElemToSideDistance
-
-SUBROUTINE TracingElemSanity() 
-!===================================================================================================================================
-! sanity check for tracing. each corner node of an element is checked with the in-element check (with virtual barycenter)
-! critical elements are marked!
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Globals
-USE MOD_IO_HDF5,                            ONLY:AddToElemData,ElementOut
-USE MOD_Particle_Mesh_Vars,                 ONLY:isTracingTrouble,ElemTolerance
-USE MOD_Mesh_Vars,                          ONLY:nElems,ElemBaryNGeo,XCL_NGeo,NGeo
-!----------------------------------------------------------------------------------------------------------------------------------!
-! insert modules here
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: iElem,i,j,k
-REAL                            :: CornerNode(1:3),InterP(1:3),tol1
-LOGICAL                         :: Inside
-!===================================================================================================================================
-
-SWRITE(UNIT_stdOut,'(A)')' ElemSanityCheck for Tracing....'
-
-! allocate output buffer
-ALLOCATE(isTracingTrouble(1:nElems))
-isTracingTrouble=.FALSE.
-ALLOCATE(ElemTolerance(1:nElems))
-ElemTolerance=-1
-CALL AddToElemData(ElementOut,'isTroubleElement',LogArray=isTracingTrouble(1:nElems))
-CALL AddToElemData(ElementOut,'ElemTolerance',RealArray=ElemTolerance(1:nElems))
-
-DO iElem=1,nElems
-  print*,'iElem',iElem
-  DO k=0,NGeo,NGeo
-    DO j=0,NGeo,NGeo
-      DO i=0,NGeo,NGeo
-        CornerNode(1:3)=XCL_NGeo(1:3,i,j,k,iElem)
-        CALL PartInElemCheck(XCL_NGeo(1:3,i,j,k,iElem),iElem,iElem,Inside,IntersectPoint_Opt=InterP &
-                            ,Sanity_Opt=.TRUE.,tol_Opt=tol1)
-        ElemTolerance(iElem)=max(ElemTolerance(iElem),tol1)
-        IF(.NOT.Inside)THEN
-          IPWRITE(UNIT_StdOut,'(I0,A,4(x,I0))') ' Trouble Corner' , i,j,k,iElem
-          WRITE(UNIT_stdout,'(A,3(E24.12,A))')  ' CornerCoord = [ ',XCL_NGeo(1,i,j,k,iElem), ','  &
-                                                                   ,XCL_NGeo(2,i,j,k,iElem), ','  &
-                                                                   ,XCL_NGeo(3,i,j,k,iElem), '];'
-    
-          WRITE(UNIT_stdout,'(A,3(E24.12,A))')  ' ElemBary = [ '   ,ElemBaryNGeo(1,iElem), ','  &
-                                                                   ,ElemBaryNGeo(2,iElem), ','  &
-                                                                   ,ElemBaryNGeo(3,iElem), '];'
-          WRITE(UNIT_stdout,'(A,3(E24.12,A))')  ' InterP = [ '     ,InterP(1), ','  &
-                                                                   ,InterP(2), ','  &
-                                                                   ,InterP(3), '];'
-          isTracingTrouble(iElem)=.TRUE.
-          !read*
-        END IF
-      END DO ! i=0,NGeo,NGeo
-    END DO ! j=0,NGeo,NGeo
-  END DO ! k=0,NGeo,NGeo
-END DO ! iElem=1,nElems
-
-SWRITE(UNIT_stdOut,'(A)')' Done.'
-
-END SUBROUTINE TracingElemSanity
 
 END MODULE MOD_Particle_Mesh
