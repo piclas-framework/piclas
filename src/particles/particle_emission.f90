@@ -738,6 +738,10 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
         ALLOCATE(ProcNbrOfParticle(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
         ALLOCATE(NbrOfParticleSendRequest(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
         ProcMeshVol=0.
+        ProcNbrOfParticle=0
+      ELSE
+        ALLOCATE(ProcMeshVol(1))
+        ProcMeshVol=0.
       END IF !MPIroot
       CALL MPI_GATHER(GEO%LocalVolume,1,MPI_DOUBLE_PRECISION &
                      ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
@@ -748,7 +752,7 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
                          NbrOfParticleSendRequest(iProc), IERROR)
         END DO
         !DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-        !  CALL MPI_WAIT(nbrInsertPartSendRequest(iProc),msg_status(:),IERROR)
+        !  CALL MPI_WAIT(NbrOfParticleSendRequest(iProc),msg_status(:),IERROR)
         !END DO
         chunksize = ProcNbrOfParticle(0)
         SDEALLOCATE(ProcMeshVol)
@@ -5643,6 +5647,7 @@ INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
 __STAMP__,&
 'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
     END IF
+    CellChunkSize(:)=0
     CALL IntegerDivide(chunkSize,nElems,GEO%Volume(:),CellChunkSize(:))
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
