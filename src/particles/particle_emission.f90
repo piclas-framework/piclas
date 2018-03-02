@@ -169,11 +169,19 @@ IF (.NOT.DoRestart) THEN
   DO i=1,nSpecies
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
       IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+        IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
+#ifdef MPI
+          insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
+#else
+          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+#endif
+        ELSE
+          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+        END IF
       ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
            .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
 #ifdef MPI
-        insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber/PartMPI%InitGroup(iInit)%nProcs))
+        insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
 #else
         insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
 #endif
@@ -727,7 +735,7 @@ END IF
 #endif /*MPI*/
 
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-  IF (NbrofParticle.EQ.0) RETURN
+  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) DoExactPartNumInsert = .TRUE.
   chunksize = 0
 #ifdef MPI
