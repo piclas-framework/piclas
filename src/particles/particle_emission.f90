@@ -189,8 +189,8 @@ IF (.NOT.DoRestart) THEN
     END DO
   END DO
   IF (insertParticles.GT.PDM%maxParticleNumber) THEN
-    WRITE(UNIT_stdOut,'(A40,I0)')'Maximum particle number : ',PDM%maxParticleNumber
-    WRITE(UNIT_stdOut,'(A40,I0)')'To be inserted particles: ',insertParticles
+    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
+    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
     CALL abort(&
 __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
@@ -239,13 +239,16 @@ __STAMP__&
 __STAMP__&
 ,' Integer of initial particle number larger than max integer size: ',HUGE(1))
         NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
+        SWRITE(UNIT_stdOut,'(A)') ' Set particle position... '
 #ifdef MPI
         CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
         CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
         CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif /*MPI*/
+        SWRITE(UNIT_stdOut,'(A)') ' Set particle velocities... '
         CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+        SWRITE(UNIT_stdOut,'(A)') ' Set particle charge and mass... '
         CALL SetParticleChargeAndMass(i,NbrOfParticle)
         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
         IF (useDSMC) THEN
