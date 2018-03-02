@@ -164,24 +164,25 @@ IF (.NOT.DoRestart) THEN
 !    Species(i)%InsertedParticle = INT(Species(i)%ParticleEmission * Time)
 !  END DO
 !ELSE
-! Do insanity check of max. particle number compared to the number that is to be inserted
+! Do insanity check of max. particle number compared to the number that is to be inserted for certain insertion types
   insertParticles = 0
   DO i=1,nSpecies
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-      insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
-      IF (Species(i)%Init(iInit)%initialParticleNumber.EQ.0) THEN
-        insertParticles = insertParticles + INT(Species(i)%Init(iInit)%PartDensity*GEO%MeshVolume / Species(i)%MacroParticleFactor)
+      IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+      ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
+           .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
+#ifdef MPI
+        insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber/PartMPI%InitGroup(iInit)%nProcs))
+#else
+        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+#endif
       END IF
     END DO
   END DO
-#ifdef MPI
-  IF (insertParticles.GT.(PDM%maxParticleNumber*PartMPI%nProcs)) THEN
-    SWRITE(UNIT_stdOut,'(A40,I0)')'Maximum particle number : ',PDM%maxParticleNumber*PartMPI%nProcs
-#else
   IF (insertParticles.GT.PDM%maxParticleNumber) THEN
-    SWRITE(UNIT_stdOut,'(A40,I0)')'Maximum particle number : ',PDM%maxParticleNumber
-#endif
-    SWRITE(UNIT_stdOut,'(A40,I0)')'To be inserted particles: ',insertParticles
+    WRITE(UNIT_stdOut,'(A40,I0)')'Maximum particle number : ',PDM%maxParticleNumber
+    WRITE(UNIT_stdOut,'(A40,I0)')'To be inserted particles: ',insertParticles
     CALL abort(&
 __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
