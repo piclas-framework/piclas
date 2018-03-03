@@ -180,7 +180,24 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForInit'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
-                                , 'Specifying Keyword for particle space condition of species [$] in case of one init'// &
+                                , 'Specifying Keyword for particle space condition of species [$] in case of one init.\n'// &
+                                '1:  point \n'//&
+                                '2:  line_with_equidistant_distribution \n'//&
+                                '3:  line_with_equidistant_distribution \n'//&
+                                '4:  line \n'//&
+                                '5:  disc \n'//&
+                                '6:  gyrotron_circle \n'//&
+                                '7:  circle_equidistant \n'//&
+                                '8:  cuboid \n'//&
+                                '9:  cylinder \n'//&
+                                '10: cuboid_vpi \n'//&
+                                '11: cylinder_vpi \n'//&
+                                '12: LD_insert \n'//&
+                                '13: cell_local \n'//&
+                                '14: cuboid_equal \n'//&
+                                '15: cuboid_with_equidistant_distribution \n'//&
+                                '16: sin_deviation \n'//&
+                                '17: IMD \n'//&
                                 'TODO-DEFINE-PARAMETER'&
                                 , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
@@ -628,7 +645,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
+USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
 USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC
@@ -1343,6 +1360,35 @@ __STAMP__&
           ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
         ELSE
           SWRITE(*,*) "PartDensity is used for VPI of Species, Init ", iSpec, iInit !Value is calculated inside SetParticlePostion!
+        END IF
+      ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
+        IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
+          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') )) THEN
+          IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
+            CALL abort(&
+__STAMP__&
+            ,'Either ParticleEmission or PartDensity can be defined for cell_local emission parameters, not both!')
+          END IF
+          IF (GEO%LocalVolume.GT.0.) THEN
+            IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
+              IF (Species(iSpec)%Init(iInit)%initialParticleNumber .GT. 0) THEN
+                CALL abort(&
+__STAMP__&
+                  ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
+              END IF
+              Species(iSpec)%Init(iInit)%initialParticleNumber &
+                  = INT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor * GEO%LocalVolume)
+            END IF
+          ELSE
+            CALL abort(&
+__STAMP__&
+              ,'Local mesh volume is zero!')
+          END IF
+        ELSE
+          CALL abort(&
+__STAMP__&
+          ,'Only const. or maxwell(_lpn) is supported as velocityDistr. using cell_local inserting with PartDensity!')
         END IF
       ELSE
         CALL abort(&
