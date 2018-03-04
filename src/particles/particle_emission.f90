@@ -189,8 +189,13 @@ IF (.NOT.DoRestart) THEN
     END DO
   END DO
   IF (insertParticles.GT.PDM%maxParticleNumber) THEN
+#ifdef MPI
     WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
     WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
+#else
+    WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
+    WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
+#endif
     CALL abort(&
 __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
