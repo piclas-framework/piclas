@@ -268,7 +268,7 @@ IF(PRESENT(Geometry))THEN
   CASE('FishEyeLens')
     ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
   CASE DEFAULT
-    WRITE(UNIT_stdOut,'(A)') ' TRIM(Geometry)='//TRIM(Geometry)
+    SWRITE(UNIT_stdOut,'(A)') ' TRIM(Geometry)='//TRIM(Geometry)
     CALL abort(&
         __STAMP__,&
         'Error in CALL FindElementInRegion(): Geometry name not defined!')
@@ -962,28 +962,28 @@ CASE('FH_lens')
   Geometry=Geometry/1000.
 !DO I=1,GeometryNPoints
   !DO J=1,dim_2
-   !WRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') Geometry(I,J)
+   !SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') Geometry(I,J)
   !END DO
-   !WRITE(UNIT_stdOut,'(A)') ' '
+   !SWRITE(UNIT_stdOut,'(A)') ' '
   !!READ*
 !END DO
   Geometry(:,1)=Geometry(:,1)-array_shift
 
-  WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MIN="
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MIN="
   ALLOCATE(GeometryMin(1:dim_2))
   DO I=1,dim_2
     GeometryMin(I)=MINVAL(Geometry(:,I))
-    WRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMin(I)
+    SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMin(I)
   END DO
-  WRITE(UNIT_stdOut,'(A)') ' '
+  SWRITE(UNIT_stdOut,'(A)') ' '
 
   ALLOCATE(GeometryMax(1:dim_2))
-  WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MAX="
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MAX="
   DO I=1,dim_2
     GeometryMax(I)=MAXVAL(Geometry(:,I))
-    WRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMax(I)
+    SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMax(I)
   END DO
-  WRITE(UNIT_stdOut,'(A)') ' '
+  SWRITE(UNIT_stdOut,'(A)') ' '
 
   !!!!               ! use X points for averaged gradient
   !!!!               PMLGradientEntry=0
@@ -1002,7 +1002,7 @@ CASE('FH_lens')
 
 
 CASE DEFAULT
-  WRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
+  SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
   CALL abort(&
   __STAMP__,&
   'Error in CALL SetGeometry(GeometryName): GeometryName name not defined!')
