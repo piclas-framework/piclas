@@ -167,11 +167,11 @@ USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)                     :: ElementIsInside ! check whether and element DOF in inside/outside of a region or radius
+LOGICAL,INTENT(IN)                     :: ElementIsInside ! Check whether and element DOF in inside/outside of a region or radius
 REAL,INTENT(IN)                        :: region(1:6)     ! MIN/MAX for x,y,z of bounding box region
-LOGICAL,INTENT(IN)                     :: DoRadius        ! check if DOF is inside/outside of radius
-REAL,INTENT(IN)                        :: Radius          ! check if DOF is inside/outside of radius
-LOGICAL,INTENT(IN),OPTIONAL            :: DisplayInfo     ! output to stdOut with region size info
+LOGICAL,INTENT(IN)                     :: DoRadius        ! Check if DOF is inside/outside of radius
+REAL,INTENT(IN)                        :: Radius          ! Check if DOF is inside/outside of radius
+LOGICAL,INTENT(IN),OPTIONAL            :: DisplayInfo     ! Output to stdOut with region size info
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: Geometry
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -180,18 +180,18 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 ! LOCAL VARIABLES
 INTEGER             :: iElem,i,j,k,m
 REAL                :: r
-LOGICAL                          :: DoGeometry ! check if DOF is inside/outside of a rotationally symmetric geometry
+LOGICAL                          :: DoGeometry ! Check if DOF is inside/outside of a rotationally symmetric geometry
 REAL              :: rInterpolated
 !===================================================================================================================================
-! Display debugging output by each rank
+! Display region information (how elements are checked + min-max region extensions)
 IF(PRESENT(DisplayInfo))THEN
   IF(DisplayInfo)THEN
-    IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
+    IF(ElementIsInside)THEN ! Display information regarding the orientation of the element-region-search
       SWRITE(UNIT_stdOut,'(A)')'  Checking for elements INSIDE region'
     ELSE
       SWRITE(UNIT_stdOut,'(A)')'  Checking for elements OUTSIDE region'
     END IF
-  CALL DisplayMinMax(region) ! display table with min-max info of region
+  CALL DisplayMinMax(region) ! Display table with min-max info of region
   END IF
 END IF
 
@@ -199,24 +199,28 @@ END IF
 ALLOCATE(isElem(1:PP_nElems))
 isElem=.FALSE.
 
-IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
+IF(ElementIsInside)THEN ! Display information regarding the orientation of the element-region-search
   isElem(:)=.TRUE.
 ELSE
   isElem(:)=.FALSE.
 END IF
 
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) use standard bounding box region
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded
 DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
   DO m=1,3 ! m=x,y,z
     IF ( (Elem_xGP(m,i,j,k,iElem) .LT. region(2*m-1)) .OR. & ! 1,3,5
          (Elem_xGP(m,i,j,k,iElem) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
-          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
     END IF
   END DO
 END DO; END DO; END DO; END DO !iElem,k,j,i
 
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) Additionally check radius (e.g. half sphere regions)
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! if option 'DoRadius' is applied, elements are double checked if they are within a certain radius
 IF(DoRadius.AND.Radius.GT.0.0)THEN
   DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -224,39 +228,51 @@ IF(DoRadius.AND.Radius.GT.0.0)THEN
              Elem_xGP(2,i,j,k,iElem)**2+&
              Elem_xGP(3,i,j,k,iElem)**2  )
     ! check if r is larger than the supplied value .AND.
-    ! if r is not almost euqal to the radius
+    ! if r is not almost equal to the radius
     IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
-        isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+        isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
       END IF
     END IF
   END DO; END DO; END DO; END DO !iElem,k,j,i
 END IF
 
-! 3.) Additonally check special geometries (e.g. lenes defined by rotationally symmetry geometries)
+! ----------------------------------------------------------------------------------------------------------------------------------
+! 3.) Additionally check special geometries (e.g. Lenses defined by rotationally symmetry geometries)
+! ----------------------------------------------------------------------------------------------------------------------------------
 IF(PRESENT(Geometry))THEN
-  IF(TRIM(Geometry).EQ.'FH_lens')THEN
-    CALL SetGeometry('FH_lens')
+  ! Set the geometrical coordinates (e.g. Axial symmetric with r(x) dependency)
+  CALL SetGeometry(Geometry)
 
-    ! loop every element
+  ! inquire if DOFs/Elems are within/outside of a region 
+  SELECT CASE(TRIM(Geometry)) 
+  CASE('FH_lens')
+    ! loop every element and compare the DOF position
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      ! get interpoalted radius of lens geometry
-      CALL InterpolateGeometry(Elem_xGP(1,i,j,k,iElem),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! scale radius
+      ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
+      CALL InterpolateGeometry(Elem_xGP(1,i,j,k,iElem),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
 
-      ! calculate 2D radius for y-z-plane
+      ! calculate 2D radius for y-z-plane for comparison with interpolated lens radius
       r = SQRT(&
           Elem_xGP(2,i,j,k,iElem)**2+&
           Elem_xGP(3,i,j,k,iElem)**2  )
 
-      ! check if r is larger than the supplied value .AND.
-      ! if r is not almost euqal to the radius
+      ! check if r is larger than the interpolated radius of the geometry .AND.
+      ! if r is not almost equal to the radius invert the "isElem" logical value
       IF(r.GT.rInterpolated.AND.(.NOT.ALMOSTEQUALRELATIVE(r,rInterpolated,1e-3)))THEN
         IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
-          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
         END IF
       END IF
     END DO; END DO; END DO; END DO !iElem,k,j,i
-  END IF
+  CASE('FishEyeLens')
+    ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
+  CASE DEFAULT
+    WRITE(UNIT_stdOut,'(A)') ' TRIM(Geometry)='//TRIM(Geometry)
+    CALL abort(&
+        __STAMP__,&
+        'Error in CALL FindElementInRegion(): Geometry name not defined!')
+  END SELECT
 END IF
 
 END SUBROUTINE  FindElementInRegion
@@ -805,8 +821,10 @@ CHARACTER(LEN=*)  ,INTENT(IN)   :: GeometryName             !< name of the pre-d
 !===================================================================================================================================
 IF(GeometryIsSet)RETURN
 
-WRITE(UNIT_stdOut,'(A)') 'Selecting geometry: ['//TRIM(GeometryName)//']'
+SWRITE(UNIT_stdOut,'(A)') 'Selecting geometry: ['//TRIM(GeometryName)//']'
 SELECT CASE(TRIM(GeometryName)) 
+CASE('FishEyeLens')
+  ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
 CASE('FH_lens')
   array_shift=0.0 !-0.038812
   !array_shift=347.6000
@@ -987,7 +1005,7 @@ CASE DEFAULT
   WRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
   CALL abort(&
   __STAMP__,&
-  'POST DEFORM: SetGeometry name not defined!')
+  'Error in CALL SetGeometry(GeometryName): GeometryName name not defined!')
 END SELECT
 
 GeometryIsSet=.TRUE.
