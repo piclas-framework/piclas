@@ -54,8 +54,8 @@ SUBROUTINE AnalyzeField(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoAnalyze
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEpot, IsRestart
+USE MOD_Analyze_Vars           ,ONLY: DoAnalyze,CalcEpot
+USE MOD_Particle_Analyze_Vars  ,ONLY: IsRestart
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

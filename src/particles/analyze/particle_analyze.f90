@@ -97,7 +97,7 @@ SUBROUTINE InitParticleAnalyze()
 ! MODULES
   USE MOD_Globals
   USE MOD_Preproc
-  USE MOD_Analyze_Vars            ,ONLY: DoAnalyze
+  USE MOD_Analyze_Vars            ,ONLY: DoAnalyze,CalcEpot
   USE MOD_Particle_Analyze_Vars 
   USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
   USE MOD_Particle_Vars           ,ONLY: nSpecies
@@ -252,7 +252,7 @@ SUBROUTINE AnalyzeParticles(Time)
 ! MODULES
   USE MOD_Globals
   USE MOD_Preproc
-  USE MOD_Analyze_Vars,          ONLY: DoAnalyze
+  USE MOD_Analyze_Vars,          ONLY: DoAnalyze,CalcEpot
   USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
   USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
