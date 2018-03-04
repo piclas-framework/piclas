@@ -410,7 +410,6 @@ CALL readBCs()
 !read local ElemInfo from data file
 FirstElemInd=offsetElem+1
 LastElemInd=offsetElem+nElems
-WRITE (*,*) "FirstElemInd,LastElemInd =", FirstElemInd,LastElemInd
 ALLOCATE(Elems(                FirstElemInd:LastElemInd))
 ALLOCATE(ElemInfo(ElemInfoSize,FirstElemInd:LastElemInd))
 CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray=ElemInfo)
