@@ -779,7 +779,7 @@ DO iElem=1,nElems
 #endif /*PP_HDG*/
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs * DielectricEps(i,j,k,ElemToDielectric(iElem))
 #if (PP_nVar==8)
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
 #endif /*PP_nVar=8*/        
     END DO; END DO; END DO
   ELSE
