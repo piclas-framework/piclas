@@ -257,8 +257,9 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
   USE MOD_Restart_Vars,          ONLY: DoRestart
-  USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
+  USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
   USE MOD_DSMC_Vars,             ONLY: DSMC
+  USE MOD_Dielectric_Vars,       ONLY: DoDielectric
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   USE MOD_TimeDisc_Vars,         ONLY: iter
   USE MOD_DSMC_Analyze,          ONLY: CalcMeanFreePath
@@ -821,7 +822,13 @@ SUBROUTINE AnalyzeParticles(Time)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
   IF(CalcCharge) CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
-  IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
+  IF(CalcEpot)THEN
+    IF(DoDielectric)THEN
+      CALL CalcPotentialEnergy_Dielectric(WEl,WMag)
+    ELSE
+      CALL CalcPotentialEnergy(WEl,WMag)
+    END IF
+  END IF
   IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================

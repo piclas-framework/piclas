@@ -133,13 +133,13 @@ IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
                            ElementIsInside=.TRUE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
                            DisplayInfo=.TRUE.,&
-                           Geometry=DielectricTestCase)
+                           GeometryName=DielectricTestCase)
 ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
   CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
                            ElementIsInside=.FALSE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
                            DisplayInfo=.TRUE.,&
-                           Geometry=DielectricTestCase)
+                           GeometryName=DielectricTestCase)
 END IF
 
 ! find all faces in the Dielectric region
@@ -154,7 +154,7 @@ CALL CountAndCreateMappings('Dielectric',&
                             FaceToDielectricInter,DielectricInterToFace,& ! these two are allocated
                             DisplayInfo=.TRUE.)
 
-! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell
+! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell + HDG
 CALL SetDielectricVolumeProfile()
 
 #ifndef PP_HDG

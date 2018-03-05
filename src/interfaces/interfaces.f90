@@ -148,7 +148,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterfaces
 
 
-SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo,Geometry)
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo,GeometryName)
 !===================================================================================================================================
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
 !> Additionally, a radius can be supplied for determining if an element belongs to a special region or not
@@ -172,7 +172,7 @@ REAL,INTENT(IN)                        :: region(1:6)     ! MIN/MAX for x,y,z of
 LOGICAL,INTENT(IN)                     :: DoRadius        ! Check if DOF is inside/outside of radius
 REAL,INTENT(IN)                        :: Radius          ! Check if DOF is inside/outside of radius
 LOGICAL,INTENT(IN),OPTIONAL            :: DisplayInfo     ! Output to stdOut with region size info
-CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: Geometry
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: GeometryName    ! Name of special geometry with user-defined coordinates 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
@@ -240,12 +240,12 @@ END IF
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) Additionally check special geometries (e.g. Lenses defined by rotationally symmetry geometries)
 ! ----------------------------------------------------------------------------------------------------------------------------------
-IF(PRESENT(Geometry))THEN
+IF(PRESENT(GeometryName))THEN
   ! Set the geometrical coordinates (e.g. Axial symmetric with r(x) dependency)
-  CALL SetGeometry(Geometry)
+  CALL SetGeometry(GeometryName)
 
   ! inquire if DOFs/Elems are within/outside of a region 
-  SELECT CASE(TRIM(Geometry)) 
+  SELECT CASE(TRIM(GeometryName)) 
   CASE('FH_lens')
     ! loop every element and compare the DOF position
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -267,11 +267,14 @@ IF(PRESENT(Geometry))THEN
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('FishEyeLens')
     ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
+  CASE('default') 
+    ! Nothing to do, because the geometry is set by using the box coordinates
   CASE DEFAULT
-    SWRITE(UNIT_stdOut,'(A)') ' TRIM(Geometry)='//TRIM(Geometry)
+    SWRITE(UNIT_stdOut,'(A)') ' '
+    SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
     CALL abort(&
         __STAMP__,&
-        'Error in CALL FindElementInRegion(): Geometry name not defined!')
+        'Error in CALL FindElementInRegion(): GeometryName is not defined!')
   END SELECT
 END IF
 
@@ -823,8 +826,6 @@ IF(GeometryIsSet)RETURN
 
 SWRITE(UNIT_stdOut,'(A)') 'Selecting geometry: ['//TRIM(GeometryName)//']'
 SELECT CASE(TRIM(GeometryName)) 
-CASE('FishEyeLens')
-  ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
 CASE('FH_lens')
   array_shift=0.0 !-0.038812
   !array_shift=347.6000
@@ -1000,12 +1001,16 @@ CASE('FH_lens')
   !!!!               PMLGradientEntry = PMLGradientEntry/(PMLNGradientPoints(1)-1)
   !!!!               PMLGradientExit  = PMLGradientExit /(PMLNGradientPoints(2)-1)
 
-
+CASE('FishEyeLens')
+  ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
+CASE('default') 
+  ! Nothing to do, because the geometry is set by using the box coordinates
 CASE DEFAULT
+  SWRITE(UNIT_stdOut,'(A)') ' '
   SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
   CALL abort(&
   __STAMP__,&
-  'Error in CALL SetGeometry(GeometryName): GeometryName name not defined!')
+  'Error in CALL SetGeometry(GeometryName): GeometryName is not defined!')
 END SELECT
 
 GeometryIsSet=.TRUE.
