@@ -675,7 +675,7 @@ Part-Species[$]-Init[$]-BaseVector1IC                     =                (/ 1.
                                                                                                 
 Part-Species[$]-Init[$]-BaseVector2IC                     =                (/ 0.0, 1.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? second base vector for IC cuboid
                                                                                                 
-Part-Species[$]-Init[$]-CuboidHeightIC                    =                                1.0 ! TODO-DEFINE-PARAMETER  ??? ! third measure of cuboid (set 0 for flat rectangle),negative value = opposite direction
+Part-Species[$]-Init[$]-CuboidHeightIC                    =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Height of cuboid if SpaceIC = cuboid. (set 0 for flat rectangle),negative value = opposite direction
                                                                                                 
 Part-Species[$]-Init[$]-CylinderHeightIC                  =                                1.0 ! TODO-DEFINE-PARAMETER  ???  third measure of cylinder
                                                                              ! (set 0 for flat rectangle),
@@ -740,34 +740,38 @@ Part-Species[$]-Init[$]-vpiDomainType                     =            perpendic
                                                                              !              - orifice
                                                                              !              - ...more following...
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV1BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-vpiBV1BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  ??? don't know
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV1BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-vpiBV1BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  ??? don't know	
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV2BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-vpiBV2BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  ??? don't know
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV2BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-vpiBV2BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  ?? don't know
                                                                                                 
 !=================================================================================================================================================
 ! Particle Species Init RegionExculdes
 !=================================================================================================================================================
-Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC          =                             cuboid ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC          =                             cuboid ! TODO-DEFINE-PARAMETER  ???  specified keyword for excluded particle space condition of species[$] in case of multiple inits  
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-RadiusIC         =                                1.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-RadiusIC         =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Radius for excluded IC circle
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-Radius2IC        =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-Radius2IC        =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Radius2 for excluded IC cylinder (ring) 
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-NormalIC         =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-NormalIC         =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? Normal orientation of excluded circle
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-BasePointIC      =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-BasePointIC      =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Base point for excluded IC cuboid and IC sphere 
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-BaseVector1IC    =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-BaseVector1IC    =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? First base vector for excluded IC cuboid
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-BaseVector2IC    =                (/ 0.0, 1.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-BaseVector2IC    =                (/ 0.0, 1.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Second base vector for excluded IC cuboid
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-CuboidHeightIC   =                                1.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-CuboidHeightIC   =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Height of excluded cuboid, if Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC=cuboid
+                                                                            (set 0 for flat rectangle),
+                                                                             negative value = opposite direction
                                                                                                 
-Part-Species[$]-Init[$]-ExcludeRegion[$]-CylinderHeightIC =                                1.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-ExcludeRegion[$]-CylinderHeightIC =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Height of excluded cylinder, if Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC=cylinder
+! (set 0 for flat circle),
+                                                                             ! negative value = opposite direction 
                                                                                                 
 !=================================================================================================================================================
 ! Particle Boundaries
