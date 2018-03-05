@@ -356,8 +356,8 @@ INTEGER, OPTIONAL                :: mode_opt
 ! Local variable declaration                                                                       
 INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
 INTEGER                , SAVE    :: NbrOfParticle=0                                             
-INTEGER(KIND=8)                 :: inserted_Particle_iter,inserted_Particle_time               
-INTEGER(KIND=8)                 :: inserted_Particle_diff  
+INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time               
+INTEGER(KIND=8)                  :: inserted_Particle_diff  
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime
 #ifdef MPI
@@ -724,7 +724,7 @@ REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_le
 REAL                                     :: intersecPoint(3), orifice_delta, lPeri, ParaCheck(3)
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
-LOGICAL                                  :: DoExactPartNumInsert=.FALSE.
+LOGICAL                                  :: DoExactPartNumInsert
 #ifdef MPI
 INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
@@ -732,7 +732,6 @@ REAL,ALLOCATABLE                         :: ProcMeshVol(:)
 INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif                        
 !===================================================================================================================================
-
 ! emission group communicator
 #ifdef MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
@@ -743,6 +742,7 @@ END IF
 #endif /*MPI*/
 
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+  DoExactPartNumInsert =  .FALSE.
   ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
   ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
   ! ParticleEmission and Partdensity not working together
