@@ -729,7 +729,7 @@ LOGICAL                                  :: DoExactPartNumInsert=.FALSE.
 INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
-INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:),NbrOfParticleSendRequest(:)
+INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif                        
 !===================================================================================================================================
 
@@ -753,31 +753,22 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
         ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
         ALLOCATE(ProcNbrOfParticle(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
-        ALLOCATE(NbrOfParticleSendRequest(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
         ProcMeshVol=0.
         ProcNbrOfParticle=0
-      ELSE
+      ELSE ! to reduce global memory allocation if a lot of procs are used
         ALLOCATE(ProcMeshVol(1))
+        ALLOCATE(ProcNbrOfParticle(1))
         ProcMeshVol=0.
-      END IF !MPIroot
+        ProcNbrOfParticle=0
+      END IF !InitGroup%MPIroot
       CALL MPI_GATHER(GEO%LocalVolume,1,MPI_DOUBLE_PRECISION &
                      ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
         CALL IntegerDivide(NbrOfParticle,PartMPI%InitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)
-        DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-          CALL MPI_ISEND(ProcNbrOfParticle(iProc), 1, MPI_INTEGER, iProc, 5001+FractNbr, PartMPI%InitGroup(InitGroup)%COMM, &
-                         NbrOfParticleSendRequest(iProc), IERROR)
-        END DO
-        !DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-        !  CALL MPI_WAIT(NbrOfParticleSendRequest(iProc),msg_status(:),IERROR)
-        !END DO
-        chunksize = ProcNbrOfParticle(0)
-        SDEALLOCATE(ProcMeshVol)
-        SDEALLOCATE(ProcNbrOfParticle)
-        SDEALLOCATE(NbrOfParticleSendRequest)
-      ELSE
-        CALL MPI_RECV(chunksize, 1, MPI_INTEGER, 0, 5001+FractNbr, PartMPI%InitGroup(InitGroup)%COMM,MPISTATUS, IERROR)
       END IF
+      CALL MPI_SCATTER(ProcNbrOfParticle, 1, MPI_INTEGER, chunksize, 1, MPI_INTEGER, 0, PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+      SDEALLOCATE(ProcMeshVol)
+      SDEALLOCATE(ProcNbrOfParticle)
     END IF
   ELSE
     chunksize = NbrOfParticle
