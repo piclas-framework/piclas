@@ -743,8 +743,14 @@ END IF
 #endif /*MPI*/
 
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+  ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
+  ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
+  ! ParticleEmission and Partdensity not working together
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) DoExactPartNumInsert = .TRUE.
+  IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
+__STAMP__&
+,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
   chunksize = 0
 #ifdef MPI
   IF (mode.EQ.2) RETURN
