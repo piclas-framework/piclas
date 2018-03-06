@@ -2659,7 +2659,7 @@ IF(nTotalBCSides.EQ.0) RETURN
 
 ! allocate & fill dummy
 ! BezierControlPoints3D
-ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
+ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
 IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummyBezierControlPoints3D in ReshapeBezierSides')
@@ -2674,7 +2674,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate BezierControlPoints3D in ReshapeBezierSides')
 ! SideSlabNormals
-ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
+ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nTotalSides))
 IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummySideSlabNormals in ReshapeBezierSides')
@@ -2686,7 +2686,7 @@ __STAMP__& !wunderschoen!!!
 ,'Could not allocate SideSlabNormals in ReshapeBezierSides')
 SideSlabNormals=0.
 ! SideSlabIntervals
-ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
+ALLOCATE(DummySideSlabIntervals(1:6,1:nTotalSides))
 IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummySideSlabIntervals in ReshapeBezierSides')
@@ -2698,7 +2698,7 @@ __STAMP__& !wunderschoen!!!
 ,'Could not allocate ElemIndex in ReshapeBezierSides')
 SideSlabIntervals=0.
 ! BoundingBoxIsEmpty
-ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
+ALLOCATE(DummyBoundingBoxIsEmpty(1:nTotalSides))
 IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummyBoundingBoxIsEmpty in ReshapeBezierSides')
