@@ -2663,9 +2663,9 @@ ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummyBezierControlPoints3D in ReshapeBezierSides')
-IF (SIZE(DummyBezierControlPoints3D).NE.SIZE(BezierControlPoints3D)) CALL abort(&
-__STAMP__&
-,'size of DummyBezierControlPoionts3D and BezierControlPoints3D not equal!')
+!IF (SIZE(DummyBezierControlPoints3D).NE.SIZE(BezierControlPoints3D)) CALL abort(&
+!__STAMP__&
+!,'size of DummyBezierControlPoionts3D and BezierControlPoints3D not equal!')
 DummyBezierControlPoints3d=BezierControlPoints3d
 DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
