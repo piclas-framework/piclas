@@ -356,8 +356,8 @@ INTEGER, OPTIONAL                :: mode_opt
 ! Local variable declaration                                                                       
 INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
 INTEGER                , SAVE    :: NbrOfParticle=0                                             
-INTEGER(KIND=8)                 :: inserted_Particle_iter,inserted_Particle_time               
-INTEGER(KIND=8)                 :: inserted_Particle_diff  
+INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time               
+INTEGER(KIND=8)                  :: inserted_Particle_diff  
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime
 #ifdef MPI
@@ -724,15 +724,14 @@ REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_le
 REAL                                     :: intersecPoint(3), orifice_delta, lPeri, ParaCheck(3)
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
-LOGICAL                                  :: DoExactPartNumInsert=.FALSE.
+LOGICAL                                  :: DoExactPartNumInsert
 #ifdef MPI
 INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
-INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:),NbrOfParticleSendRequest(:)
+INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif                        
 !===================================================================================================================================
-
 ! emission group communicator
 #ifdef MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
@@ -743,8 +742,15 @@ END IF
 #endif /*MPI*/
 
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+  DoExactPartNumInsert =  .FALSE.
+  ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
+  ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
+  ! ParticleEmission and Partdensity not working together
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) DoExactPartNumInsert = .TRUE.
+  IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
+__STAMP__&
+,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
   chunksize = 0
 #ifdef MPI
   IF (mode.EQ.2) RETURN
@@ -753,31 +759,22 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
         ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
         ALLOCATE(ProcNbrOfParticle(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
-        ALLOCATE(NbrOfParticleSendRequest(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
         ProcMeshVol=0.
         ProcNbrOfParticle=0
-      ELSE
+      ELSE ! to reduce global memory allocation if a lot of procs are used
         ALLOCATE(ProcMeshVol(1))
+        ALLOCATE(ProcNbrOfParticle(1))
         ProcMeshVol=0.
-      END IF !MPIroot
+        ProcNbrOfParticle=0
+      END IF !InitGroup%MPIroot
       CALL MPI_GATHER(GEO%LocalVolume,1,MPI_DOUBLE_PRECISION &
                      ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
         CALL IntegerDivide(NbrOfParticle,PartMPI%InitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)
-        DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-          CALL MPI_ISEND(ProcNbrOfParticle(iProc), 1, MPI_INTEGER, iProc, 5001+FractNbr, PartMPI%InitGroup(InitGroup)%COMM, &
-                         NbrOfParticleSendRequest(iProc), IERROR)
-        END DO
-        !DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-        !  CALL MPI_WAIT(NbrOfParticleSendRequest(iProc),msg_status(:),IERROR)
-        !END DO
-        chunksize = ProcNbrOfParticle(0)
-        SDEALLOCATE(ProcMeshVol)
-        SDEALLOCATE(ProcNbrOfParticle)
-        SDEALLOCATE(NbrOfParticleSendRequest)
-      ELSE
-        CALL MPI_RECV(chunksize, 1, MPI_INTEGER, 0, 5001+FractNbr, PartMPI%InitGroup(InitGroup)%COMM,MPISTATUS, IERROR)
       END IF
+      CALL MPI_SCATTER(ProcNbrOfParticle, 1, MPI_INTEGER, chunksize, 1, MPI_INTEGER, 0, PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+      SDEALLOCATE(ProcMeshVol)
+      SDEALLOCATE(ProcNbrOfParticle)
     END IF
   ELSE
     chunksize = NbrOfParticle
