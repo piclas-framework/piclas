@@ -1298,7 +1298,7 @@ CALL DuplicateSlavePeriodicSides()
 ! CAUTION: in MarkAllBCSides, a counter is reset for refmapping
 CALL MarkAllBCSides()
 ! get elem and side types
-CALL GetElemAndSideType() ! normally called AFTER reshape
+CALL GetElemAndSideType()
 
 StartT=BOLTZPLATZTIME()
 #ifdef MPI
@@ -4593,9 +4593,32 @@ END SUBROUTINE ElemConnectivity
 
 SUBROUTINE DuplicateSlavePeriodicSides() 
 !===================================================================================================================================
-! increases to side list to periodic sides
-! duplicate only MY slave sides
+! duplicate periodic sides from old nPartSides=nSides to nPartSidesNew=nSides+nDuplicatePeriodicSides
+! without MPI 
+! 1) loop over all sides and detect periodic sides
+! 2) increase BezierControlPoints and SideXXX from old nSides to nSides+nDuplicatePeriodicSides
+! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
+!    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
+! 4) shift and map sideperiodicvector and displacement to match new sides
+! with MPI
+! 1) loop over all sides and detect periodic sides
+! 2) increase BezierControlPoints and SideXXX from old nSides to nSides+nDuplicatePeriodicSides
+! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
+!    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
+! 3b) newSideId depends on localSideID and yourMPISide
+!     a) both periodic sides are on proc:
+!        * duplicate side and two separate sideids with changes in partsidetoelem
+!        * build missing side with own data
+!     b) periodic side is MPI Side
+!        I) mySide (Master)-Side
+!           *  nothing to due, old side can be reused
+!        II) yourSide (Slave)-Side
+!           *  build new Side with own data
+! 4) shift and map sideperiodicvector and displacement to match new sides
+! Note:
 ! periodic sides are unique for the DG operator and duplicated for the particle tracking
+! CAUTION:
+! Routine has to be called before MarkAllBCSides
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
@@ -4635,6 +4658,7 @@ LOGICAL                              :: MapPeriodicSides
 REAL                                 :: MinMax(1:2),MinMaxGlob(1:6)
 !===================================================================================================================================
 
+! 1) loop over all sides and detect periodic sides
 nPartPeriodicSides=0
 MapPeriodicSides=.FALSE.
 IF(.NOT.CartesianPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
@@ -4672,6 +4696,7 @@ IF(MapPeriodicSides)THEN
   MinMaxGlob(5)=GEO%ymaxglob
   MinMaxGlob(6)=GEO%zmaxglob
 
+  ! 2) increase BezierControlPoints and SideXXX from old nSides to nSides+nDuplicatePeriodicSides
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
   ALLOCATE(DummyBezierControlPoints3dElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
   ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nTotalSides))
@@ -4738,6 +4763,8 @@ IF(MapPeriodicSides)THEN
   PartSideToElem(1:5,1:tmpnSides)                      = DummyPartSideTOElem(1:5,1:tmpnSides)
   SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
 
+  ! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
+  !    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
   nPartPeriodicSides=0
   DO iSide=1,tmpnSides
     IF(SidePeriodicType(iSide).NE.0)THEN
@@ -4748,6 +4775,7 @@ IF(MapPeriodicSides)THEN
       flip=PartSideToElem(S2E_FLIP,iSide)
       locSideID=PartSideToElem(S2E_LOC_SIDE_ID,iSide)
       ElemID   =PartSideToElem(S2E_ELEM_ID,iSide)
+      ! 3b) set newSideID and sidedata
       IF(ElemID.EQ.-1) THEN
         ! MPI side
         newSideID=iSide
@@ -4773,7 +4801,7 @@ IF(MapPeriodicSides)THEN
       ! the flip has to be set to -1, artificial master side
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
       PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = newSideID
-      ! rebuild BezierControlPoints3D
+      ! rebuild BezierControlPoints3D (simplified version, all BezierControlPoints3D are rebuild)
       CALL GetBezierControlPoints3D(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,NBElemID),NBElemID,ilocSide_In=NBlocSideID,SideID_In=NewSideID)
       ! remains equal because of MOVEMENT and MIRRORING of periodic side
       ! periodic displacement 
@@ -4839,6 +4867,7 @@ IF(MapPeriodicSides)THEN
   DEALLOCATE(DummySidePeriodicType)
 
 END IF ! nPartPeriodicSides .GT.0
+! reset side-counter
 nPartSides     =nPartPeriodicSides+nSides
 nTotalBCSides =nPartPeriodicSides+nSides
 
