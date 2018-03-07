@@ -65,8 +65,8 @@ CHARACTER(LEN=2)               :: strhelp
 #endif /*PARTICLES*/
 !==================================================================================================================================
 
-nVarAvg  = CNTSTR('VarNameAvg','0')
-nVarFluc = CNTSTR('VarNameFluc','0')
+nVarAvg  = CNTSTR('VarNameAvg')
+nVarFluc = CNTSTR('VarNameFluc')
 IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
   CALL CollectiveStop(__STAMP__, &
     'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')
@@ -329,6 +329,7 @@ dtStep = (dtOld+dt)*0.5
 IF(Finalize) dtStep = dt*0.5
 dtAvg  = dtAvg+dtStep
 dtOld  = dt
+tmpVars=0. !initialize for case that CalcAvg is T (defined just by name in ini), but not actually calculated (i.e., when DoPowerDensity=F)
 
 #ifdef PARTICLES
 IF(ANY(DoPowerDensity))THEN

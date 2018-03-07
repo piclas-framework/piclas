@@ -458,7 +458,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Equation_Vars,   ONLY:IniExactFunc,ExactFluxDir
 USE MOD_Equation,        ONLY:ExactFunc
-USE MOD_PML_Vars,        ONLY:xyzPhysicalMinMax
 USE MOD_PML_vars,        ONLY:PMLnVar
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
 USE MOD_Dielectric_vars, ONLY:Dielectric_Master
@@ -498,9 +497,6 @@ ELSE
 __STAMP__&
 ,'weired mesh?')
 END IF
-
-!abfrage auskommentiert: ueberfluessig?
-!IF(.NOT.ALMOSTEQUALRELATIVE(Face_xGP(ExactFluxDir,0,0),xyzPhysicalMinMax(ExactFluxDir*2-1),1e-4)) RETURN
 
 U_Slave_loc =U_Slave
 U_Master_loc=U_Master

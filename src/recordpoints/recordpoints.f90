@@ -32,8 +32,29 @@ END INTERFACE
 
 PUBLIC::InitRecordPoints,RecordPoints,FinalizeRecordPoints,WriteRPToHDF5
 !===================================================================================================================================
+PUBLIC::DefineParametersRecordPoints
 
 CONTAINS
+
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersRecordPoints()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("RecordPoints")
+CALL prms%CreateLogicalOption('RP_inUse',          "Set true to compute solution history at points defined in recordpoints file.",&
+                                                   '.FALSE.')
+CALL prms%CreateStringOption( 'RP_DefFile',        "File containing element-local parametric recordpoint coordinates and structure.")
+CALL prms%CreateRealOption(   'RP_MaxMemory',      "Maximum memory in MiB to be used for storing recordpoint state history. "//&
+                                                   "If memory is exceeded before regular IO level states are written to file.",&
+                                                   '100.')
+CALL prms%CreateIntOption(    'RP_SamplingOffset', "Multiple of timestep at which recordpoints are evaluated.",&
+                                                   '1')
+END SUBROUTINE DefineParametersRecordPoints
 
 SUBROUTINE InitRecordPoints()
 !===================================================================================================================================
@@ -184,7 +205,6 @@ CHARACTER(LEN=255),INTENT(IN) :: FileString
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                       :: fileExists
 CHARACTER(LEN=255)            :: MeshFile_RPList
 INTEGER(8)                    :: nGlobalElems_RPList
 INTEGER                       :: iElem,iRP1,iRP_glob
@@ -192,19 +212,14 @@ INTEGER                       :: OffsetRPArray(2,PP_nElems)
 REAL,ALLOCATABLE              :: xi_RP(:,:)
 !===================================================================================================================================
 IF(MPIRoot)THEN
-  INQUIRE (FILE=TRIM(FileString), EXIST=fileExists)
-  IF(.NOT.FileExists)  CALL abort(&
+  IF(.NOT.FILEEXISTS(FileString))  CALL abort(&
 __STAMP__&
 ,'RPList from data file "'//TRIM(FileString)//'" does not exist',999,999.)
 END IF
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Read recordpoint definitions from data file "'//TRIM(FileString)//'" ...'
 ! Open data file
-#ifdef MPI
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
-#else
-CALL OpenDataFile(FileString,create=.FALSE.,readOnly=.FALSE.)
-#endif
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
 ! compare mesh file names
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile_RPList)
@@ -411,11 +426,7 @@ startT=MPI_WTIME()
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 IF(myRPrank.EQ.0)THEN
-#ifdef MPI
   CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.TRUE.,readOnly=.FALSE.)
-#else
-  CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,readOnly=.FALSE.)
-#endif
   IF(.NOT.RP_fileExists)THEN
     ! Create dataset attributes
     CALL WriteAttributeToHDF5(File_ID,'File_Type'  ,1,StrScalar=(/TRIM('RecordPoints_Data')/))
@@ -436,7 +447,7 @@ ELSE
   CALL OpenDataFile(Filestring,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=RP_COMM)
 END IF
 #else
-CALL OpenDataFile(Filestring,create=.FALSE.,readOnly=.FALSE.)
+CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
   
 IF(iSample.GT.0)THEN

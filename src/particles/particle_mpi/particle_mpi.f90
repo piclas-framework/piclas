@@ -216,6 +216,8 @@ PartCommSize   = PartCommSize + 6
 PartCommSize   = PartCommSize + 1
 ! PartDtFrac
 PartCommSize   = PartCommSize + 1
+! last element
+PartCommSize   = PartCommSize + 1
 #endif
 ! if iStage=0, then the PartStateN is not communicated
 PartCommSize0  = PartCommSize
@@ -575,6 +577,7 @@ USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Nor
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemToGlobalElemID
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -803,7 +806,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ELSE
         PartSendBuf(iProc)%content(jPos+9) = 0.
       END IF
-      jPos=jPos+2
+      PartSendBuf(iProc)%content(jPos+10) =-REAL(ElemToGlobalElemID(PEM%LastElement(iPart)))
+      jPos=jPos+3
 #endif
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
@@ -1345,7 +1349,8 @@ DO iProc=1,PartMPI%nMPINeighbors
         __STAMP__&
         ,'Error with IsNewPart in MPIParticleRecv!')
     END IF
-    jPos=jPos+2
+    PEM%LastElement(PartID)=INT(PartRecvBuf(iProc)%content(jPos+10),KIND=4)
+    jPos=jPos+3
 #endif
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
@@ -1413,20 +1418,21 @@ DO iProc=1,PartMPI%nMPINeighbors
       END IF
     END IF
     ! Set Flag for received parts in order to localize them later
-    PEM%lastElement(PartID) = -888 
     PDM%ParticleInside(PartID) = .TRUE.
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! only for fully implicit
-    IF(PartIsImplicit(PartID))THEN
-        ! get LastElement in local system
-        ! element position is verified in armijo if it is needed. This prevents a
-        ! circular definition.
-        PEM%LastElement(PartID)=-1
-     END IF
-!    PEM%StageElement(PartID)= PEM%Element(PartID)
+    !IF(PartIsImplicit(PartID))THEN
+    !    ! get LastElement in local system
+    !    ! element position is verified in armijo if it is needed. This prevents a
+    !    ! circular definition.
+    !    PEM%LastElement(PartID)=-1
+    ! END IF
+!   ! PEM%StageElement(PartID)= PEM%Element(PartID)
 !    StagePartPos(PartID,1)  = PartState(PartID,1)
 !    StagePartPos(PartID,2)  = PartState(PartID,2)
 !    StagePartPos(PartID,3)  = PartState(PartID,3)
+#else
+    PEM%lastElement(PartID) = -888 
 #endif
   END DO
   IF(DoExternalParts)THEN
@@ -1748,7 +1754,9 @@ __STAMP__&
 ,'Could not deallocate SideIndex')
 END IF
 
+#ifdef CODE_ANALYZE
 IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
+#endif /*CODE_ANALYZE*/
 
 ! Make sure PMPIVAR%MPINeighbor is consistent
 DO iProc=0,PartMPI%nProcs-1
@@ -2075,6 +2083,8 @@ DO iSpec=1,nSpecies
 
     CASE('LD_insert')
       RegionOnProc=.TRUE.
+    CASE('cell_local')
+      RegionOnProc=.TRUE.
     CASE('cuboid_equal')
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -2330,7 +2340,10 @@ END FUNCTION PointInProc
 
 SUBROUTINE CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
 !===================================================================================================================================
-! resize the partilce mesh data
+! check if any entry of the checked arrays exists and if the entry is not NAN 
+! instead of using IEEE standard, the infamous nan-check a(i).NE.a(i) is used
+! Sanity check for refmapping and mpi-communication. 
+! PO: not sure if it is required any more.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

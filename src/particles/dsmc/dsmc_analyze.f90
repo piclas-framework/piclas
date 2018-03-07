@@ -13,6 +13,10 @@ INTERFACE WriteDSMCToHDF5
   MODULE PROCEDURE WriteDSMCToHDF5
 END INTERFACE
 
+INTERFACE WriteDSMCHOToHDF5
+  MODULE PROCEDURE WriteDSMCHOToHDF5
+END INTERFACE
+
 INTERFACE CalcTVib
   MODULE PROCEDURE CalcTVib
 END INTERFACE
@@ -84,11 +88,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
   SWRITE(*,*) ' WRITE DSMCSTATE TO HDF5 FILE...'
   FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime)
   FileString=TRIM(FileName)//'.h5'
-#ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,readOnly=.FALSE.)
-#else
-  CALL OpenDataFile(FileString,create=.TRUE.,readOnly=.FALSE.)
-#endif
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
   Statedummy = 'DSMCState'
   CALL WriteHDF5Header(Statedummy,File_ID)
 
@@ -432,7 +432,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
     MacroSurfaceSpecVal=0.
   END IF
   IF (CalcSurfCollis%Output) THEN
-    ALLOCATE(CounterTotal(1:nSpecies+1))
+    ALLOCATE(CounterTotal(1:nSpecies))
     ALLOCATE(SumCounterTotal(1:nSpecies+1))
     CounterTotal(1:nSpecies)=0
     SumCounterTotal(1:nSpecies+1)=0
@@ -494,7 +494,7 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 #ifdef MPI
     CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
 #else
-    SumCounterTotal=CounterTotal
+    SumCounterTotal(1:nSpecies)=CounterTotal
 #endif
     DO iSpec=1,nSpecies
       IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
@@ -2043,11 +2043,7 @@ IF(MPIRoot) CALL GenerateDSMCHOFileSkeleton('DSMCHOState',nVar+nVar_quality,StrV
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
-#ifdef MPI
-CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.)
-#else
-CALL OpenDataFile(FileName,create=.false.,readOnly=.FALSE.)
-#endif
+CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
 ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
@@ -2057,11 +2053,19 @@ __STAMP__&
 END IF
 CALL DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 
-CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
+IF (HODSMC%SampleType.EQ.'cell_mean') THEN
+  CALL WriteArrayToHDF5(DataSetName='ElemData', rank=2,&
+                    nValGlobal=(/nVar+nVar_quality,nGlobalElems/),&
+                    nVal=      (/nVar+nVar_quality,PP_nElems/),&
+                    offset=    (/0,     offsetElem/),&
+                    collective=.false.,  RealArray=DSMC_MacroVal(:,1,1,1,:))
+ELSE
+  CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
                     nValGlobal=(/nVar+nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,nGlobalElems/),&
                     nVal=      (/nVar+nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,PP_nElems/),&
                     offset=    (/0,      0,     0,     0,     offsetElem/),&
                     collective=.false.,  RealArray=DSMC_MacroVal)
+END IF
 !IF (DSMC%CalcQualityFactors) THEN
 !  CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
 !                    nValGlobal=(/nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,nGlobalElems/),&
@@ -2094,7 +2098,6 @@ SUBROUTINE GenerateDSMCHOFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,O
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
-!USE MOD_ReadInTools,ONLY: GetParameters
 !USE MOD_PreProcFlags
 USE MOD_io_HDF5
 USE MOD_DSMC_Vars,            ONLY:HODSMC
@@ -2120,11 +2123,7 @@ CHARACTER(LEN=255)             :: NodeTypeTemp
 !===================================================================================================================================
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-#ifdef MPI
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-#else
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,readOnly=.FALSE.)
-#endif
 
 SELECT CASE(TRIM(HODSMC%NodeType))
 CASE('visu')
@@ -2139,12 +2138,10 @@ __STAMP__&
 ,'Unknown HODSMCNodeType in dsmc_analyze.f90')
 END SELECT
 
-! Write file header
-!CALL WriteHDF5Header(TRIM(TypeString),File_ID)
-CALL WriteHDF5Header(TRIM('DG_Solution'),File_ID)
+CALL WriteHDF5Header(TRIM('DSMCHOState'),File_ID)
 
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-!CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=N)
+CALL WriteAttributeToHDF5(File_ID,'SampleType',1,StrScalar=(/TRIM(HODSMC%SampleType)/))
 CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=HODSMC%nOutputDSMC)
 CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
@@ -2153,18 +2150,13 @@ IF(PRESENT(FutureTime))THEN
   MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),FutureTime))//'.h5'
   CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
 END IF
-!CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
-!CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
-CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
+IF (HODSMC%SampleType.EQ.'cell_mean') THEN
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarNames)
+ELSE
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
+END IF
 
-!CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=HODSMC%nOutputDSMC)
 CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-
-! Write ini file parameters and compile flags
-!CALL GetParameters(params)
-!CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-!!CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-!DEALLOCATE(params)
 
 CALL CloseDataFile()
 END SUBROUTINE GenerateDSMCHOFileSkeleton
@@ -2993,7 +2985,6 @@ USE MOD_Particle_Vars,      ONLY: nSpecies
 USE MOD_Globals_Vars,       ONLY: ProjectName
 USE MOD_io_HDF5
 USE MOD_HDF5_Output,        ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
-USE MOD_ReadInTools,        ONLY: GetParameters
 USE MOD_PICDepo_Vars,       ONLY: SFResampleAnalyzeSurfCollis, LastAnalyzeSurfCollis, r_SF
 USE MOD_Particle_Boundary_Vars,ONLY: nPartBound, AnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
@@ -3113,11 +3104,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 
   IF(MPIRoot) THEN !create File-Skeleton
     ! Create file
-#ifdef MPI
     CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-#else
-    CALL OpenDataFile(TRIM(FileName),create=.TRUE.,readOnly=.FALSE.)
-#endif
     
     ! Write file header
     CALL WriteHDF5Header(TRIM(TypeString),File_ID)
@@ -3127,22 +3114,14 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
     CALL WriteAttributeToHDF5(File_ID,'VarNames',PartDataSize,StrArray=StrVarNames)
     CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
     CALL WriteAttributeToHDF5(File_ID,'TotalFlowrateMPF',1,RealScalar=TotalFlowrateMPF)
-    
-    !! Write ini file parameters and compile flags
-    !CALL GetParameters(params)
-    !CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-    !CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-    !DEALLOCATE(params)
 
     CALL CloseDataFile()
   END IF
   
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-#else
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,readOnly=.FALSE.)
 #endif
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
   IF (SFResampleAnalyzeSurfCollis) THEN
     IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts to MaxPartNumber

@@ -1,32 +1,100 @@
+!=================================================================================================================================
+! Copyright (c) 2010-2016  Prof. Claus-Dieter Munz 
+! This file is part of FLEXI, a high-order accurate framework for numerically solving PDEs with discontinuous Galerkin methods.
+! For more information see https://www.flexi-project.org and https://nrg.iag.uni-stuttgart.de/
+!
+! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
+! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+!
+! FLEXI is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
+!=================================================================================================================================
 #include "boltzplatz.h"
 
+!==================================================================================================================================
+!> Module providing routines for reading BOLTZPLATZ parameter files. 
+!> 
+!> The whole structure to read options from the parameter file is as follows:
+!> 
+!> All the options are stored in a linked list, which is defined as a class and has a single global instance'prms'.
+!> 
+!> The options are appended to this list via the DefineParametersXXX() routines, which exist for all the modules that 
+!> have an option, which can be specified in the parameter file. This is done at the beginning of the execution. After calling
+!> all DefineParametersXXX() routines the prms list contains all possible options (with name, description, default value (optional)).
+!> 
+!> After that the prms\%read_options() routine is called, which actually reads the options from the parameter file. Therefore the
+!> parameter file is read line by line and each line is parsed for an option.
+!> By this the values of the options, that are already in the linked list 'prms' are set.
+!> 
+!> Now all the options are filled with the data from the parameter file and can be accessed via the functions GETINT(ARRAY), 
+!> GETREAL(ARRAY), ...
+!> A call of these functions then removes the specific option from the linked list, such that 
+!> every option can only be read once. This is necessary for options with the same name, that occure multiple times in the parameter
+!> file.
+!==================================================================================================================================
 MODULE MOD_ReadInTools
-!===================================================================================================================================
-! MODULES
-!===================================================================================================================================
+
 USE MOD_Globals
 USE MOD_ISO_VARYING_STRING
-!----------------------------------------------------------------------------------------------------------------------------------
+USE MOD_Options
+USE MOD_StringTools
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-!----------------------------------------------------------------------------------------------------------------------------------
-! Public Part
-PUBLIC::GETSTR
-PUBLIC::CNTSTR
-PUBLIC::GETINT
-PUBLIC::GETREAL
-PUBLIC::GETLOGICAL
-PUBLIC::GETINTARRAY
-PUBLIC::GETREALARRAY
-PUBLIC::DeleteStrings
-PUBLIC::IgnoredStrings
-PUBLIC::GetParameters
 
-!===================================================================================================================================
+!================================================
+!> Link for linked List 
+!================================================
+TYPE,PUBLIC :: LINK
+  CLASS(OPTION), POINTER :: opt => null()
+  CLASS(LINK), POINTER   :: next => null()
+END TYPE LINK
 
-INTERFACE GETSTR
-  MODULE PROCEDURE GETSTR
+!==================================================================================================================================
+!> Class to store all options.
+!> This is basically a linked list of options.
+!==================================================================================================================================
+TYPE,PUBLIC :: Parameters
+  CLASS(LINK), POINTER :: firstLink => null() !< first option in the list
+  CLASS(LINK), POINTER :: lastLink  => null() !< last option in the list
+  INTEGER              :: maxNameLen          !< maximal string length of the name of an option in the list
+  INTEGER              :: maxValueLen         !< maximal string length of the value of an option in the list
+  CHARACTER(LEN=255)   :: actualSection = ""  !< actual section, to set section of an option, when inserted into list
+  LOGICAL              :: removeAfterRead=.TRUE. !< specifies whether options shall be marked as removed after being read
+CONTAINS 
+  PROCEDURE :: WriteUnused                !< routine that writes out parameters taht were set but not used
+  PROCEDURE :: SetSection                 !< routine to set 'actualSection'
+  PROCEDURE :: CreateOption               !< general routine to create a option and insert it into the linked list
+                                          !< also checks if option is already created in the linked list
+  PROCEDURE :: CreateIntOption            !< routine to generate an integer option
+  PROCEDURE :: CreateIntFromStringOption  !< routine to generate an integer option with a optional string representation
+  PROCEDURE :: CreateLogicalOption        !< routine to generate an logical option 
+  PROCEDURE :: CreateRealOption           !< routine to generate an real option
+  PROCEDURE :: CreateStringOption         !< routine to generate an string option
+  PROCEDURE :: CreateIntArrayOption       !< routine to generate an integer array option
+  PROCEDURE :: CreateLogicalArrayOption   !< routine to generate an logical array option 
+  PROCEDURE :: CreateRealArrayOption      !< routine to generate an real array option
+  !PROCEDURE :: CreateStringArrayOption    !< routine to generate an string array option
+  PROCEDURE :: CountOption_               !< function to count the number of options of a given name
+  PROCEDURE :: read_options               !< routine that loops over the lines of a parameter files 
+                                          !< and calls read_option for every option. Outputs all unknow options
+  PROCEDURE :: read_option                !< routine that parses a single line from the parameter file.
+  PROCEDURE :: check_options              !< routine that parses a given name and returns flag if found in linkes list.
+  PROCEDURE :: finalize                   !< routine that resets the parameters either for loadbalance, restart or end
+  PROCEDURE :: count_setentries           !< routine that counts the number of set parameters of linked list
+  PROCEDURE :: count_entries              !< routine that counts the current length of linked list
+  PROCEDURE :: count_unread               !< routine that counts the number of parameters, that are set in ini but not read
+  PROCEDURE :: removeUnnecessary          !< routine that removes unused parameters from linked list
+END TYPE Parameters
+
+INTERFACE IgnoredParameters
+  MODULE PROCEDURE IgnoredParameters
+END INTERFACE
+
+INTERFACE PrintDefaultParameterFile
+  MODULE PROCEDURE PrintDefaultParameterFile
 END INTERFACE
 
 INTERFACE CNTSTR
@@ -37,915 +105,1682 @@ INTERFACE GETINT
   MODULE PROCEDURE GETINT
 END INTERFACE
 
+INTERFACE GETLOGICAL
+  MODULE PROCEDURE GETLOGICAL
+END INTERFACE
+
 INTERFACE GETREAL
   MODULE PROCEDURE GETREAL
 END INTERFACE
 
-INTERFACE GETLOGICAL
-  MODULE PROCEDURE GETLOGICAL
+INTERFACE GETSTR
+  MODULE PROCEDURE GETSTR
 END INTERFACE
 
 INTERFACE GETINTARRAY
   MODULE PROCEDURE GETINTARRAY
 END INTERFACE
 
+INTERFACE GETLOGICALARRAY
+  MODULE PROCEDURE GETLOGICALARRAY
+END INTERFACE
+
 INTERFACE GETREALARRAY
   MODULE PROCEDURE GETREALARRAY
 END INTERFACE
 
-INTERFACE DeleteStrings
-  MODULE PROCEDURE DeleteStrings
+INTERFACE GETSTRARRAY
+  MODULE PROCEDURE GETSTRARRAY
 END INTERFACE
 
-INTERFACE IgnoredStrings
-  MODULE PROCEDURE IgnoredStrings
+INTERFACE GETINTFROMSTR
+  MODULE PROCEDURE GETINTFROMSTR
 END INTERFACE
 
-INTERFACE FillStrings
-  MODULE PROCEDURE FillStrings
+INTERFACE GETDESCRIPTION
+  MODULE PROCEDURE GETDESCRIPTION
 END INTERFACE
 
-INTERFACE FindStr
-  MODULE PROCEDURE FindStr
+INTERFACE addStrListEntry
+  MODULE PROCEDURE addStrListEntry
 END INTERFACE
 
-INTERFACE LowCase
-  MODULE PROCEDURE LowCase
+INTERFACE ExtractParameterFile
+  MODULE PROCEDURE ExtractParameterFile
 END INTERFACE
 
-INTERFACE GetNewString
-  MODULE PROCEDURE GetNewString
-END INTERFACE
+PUBLIC :: IgnoredParameters
+PUBLIC :: PrintDefaultParameterFile
+PUBLIC :: CNTSTR
+PUBLIC :: GETINT
+PUBLIC :: GETLOGICAL
+PUBLIC :: GETREAL
+PUBLIC :: GETSTR
+PUBLIC :: GETINTARRAY
+PUBLIC :: GETLOGICALARRAY
+PUBLIC :: GETREALARRAY
+PUBLIC :: GETSTRARRAY
+PUBLIC :: GETDESCRIPTION
+PUBLIC :: GETINTFROMSTR
+PUBLIC :: addStrListEntry
+PUBLIC :: ExtractParameterFile
 
-INTERFACE DeleteString
-  MODULE PROCEDURE DeleteString
-END INTERFACE
+TYPE(Parameters) :: prms
+PUBLIC :: prms
 
-INTERFACE GetParameters
-  MODULE PROCEDURE GetParameters
-END INTERFACE
-
-TYPE tString
-  TYPE(Varying_String)::Str
-  TYPE(tString),POINTER::NextStr,PrevStr
-END TYPE tString
-
-LOGICAL,PUBLIC::ReadInDone=.FALSE.
-TYPE(tString),POINTER,PUBLIC::FirstString
-TYPE(tString),POINTER,PUBLIC::parameters
+  type, public :: STR255
+     private
+     character(LEN=255) :: chars
+  end type STR255
+!==================================================================================================================================
 
 CONTAINS
 
-FUNCTION GETSTR(Key,Proposal)
-!===================================================================================================================================
-! Read string named "key" from setup file and store in "GETINT". If keyword "Key" is not found in ini file,
-! the default value "Proposal" is used for "GETINT" (error if "Proposal" not given).
-! Ini file was read in before and is stored as list of character strings starting with "FirstString".
-!===================================================================================================================================
+
+!==================================================================================================================================
+!> Writes all names that are set but not read during init
+!==================================================================================================================================
+SUBROUTINE WriteUnused(this)
 ! MODULES
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key      ! Search for this keyword in ini file
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal ! Default values as character string (as in ini file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-CHARACTER(LEN=255)                   :: GetStr   ! String read from setup file or initialized with default value
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+!----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-CHARACTER(LEN=8)                     :: DefMsg
-!===================================================================================================================================
-! Read-in ini file if not done already
-CALL FillStrings
-ReadInDone=.TRUE.
+CLASS(link), POINTER         :: current
+!==================================================================================================================================
 
-IF (PRESENT(Proposal)) THEN
-  CALL FindStr(Key,GetStr,DefMsg,Proposal)
-ELSE
-  CALL FindStr(Key,GetStr,DefMsg)
-END IF
-SWRITE(UNIT_StdOut,'(a3,a45,a3,a33,a3,a7,a3)')' | ',TRIM(Key),' | ', TRIM(GetStr),' | ',TRIM(DefMsg),' | '
-END FUNCTION GETSTR
-
-
-
-FUNCTION CNTSTR(Key,Proposal)
-!===================================================================================================================================
-! Counts all occurances of string named "key" from inifile and store in "GETSTR". If keyword "Key" is not found in ini file,
-! the default value "Proposal" is used for "GETINT" (error if "Proposal" not given).
-! Inifile was read in before and is stored as list of character strings starting with "FirstString".
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key      ! Search for this keyword in ini file
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal ! Default values as character string (as in ini file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER                              :: CntStr   ! Number of parameters named "Key" in inifile
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                              :: IntProposal
-CHARACTER(LEN=LEN(Key))              :: TmpKey
-TYPE(tString),POINTER                :: Str1
-!===================================================================================================================================
-! Read-in ini file if not done already
-CALL FillStrings
-ReadInDone=.TRUE.
-
-CntStr=0
-CALL LowCase(Key,TmpKey)
-! Remove blanks
-TmpKey=REPLACE(TmpKey," ","",Every=.TRUE.)
-
-! Search
-Str1=>FirstString
-DO WHILE (ASSOCIATED(Str1))
-  IF (INDEX(CHAR(Str1%Str),TRIM(TmpKey)//'=').EQ.1) THEN
-    CntStr=CntStr+1
-  END IF ! (INDEX...
-  ! Next string in list
-  Str1=>Str1%NextStr
+! iterate over all options and compare names
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,I0,A)') ' Following ',this%count_unread(),' Parameters are defined in INI but not called!'
+current => this%firstLink
+DO WHILE (associated(current))
+  ! compare name
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) THEN
+    CALL set_formatting("red")
+    SWRITE(UNIT_stdOut,"(A)") TRIM(current%opt%name)
+    CALL clear_formatting()
+  END IF
+  current => current%next
 END DO
-IF (CntStr.EQ.0) THEN
-  IF (PRESENT(Proposal)) THEN
-    READ(Proposal,'(I3)')IntProposal
-    CntStr=IntProposal
+SWRITE(UNIT_stdOut,'(132("="))')
+
+END SUBROUTINE WriteUnused
+
+!==================================================================================================================================
+!> Set actual section. All options created after calling this subroutine are in this 'section'. The section property is only
+!> used to get nicer looking parameter files when using --help or --markdown.
+!==================================================================================================================================
+SUBROUTINE SetSection(this, section)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this                   !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)     :: section                !< section to set
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!==================================================================================================================================
+this%actualSection = section
+END SUBROUTINE SetSection
+
+!==================================================================================================================================
+!> Parses the given name and returns found=true if already defined in linked list.
+!> Therefore it iterates over all entries of this linked list and compares the names to given name.
+!==================================================================================================================================
+FUNCTION check_options(this, name) result(found)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)  :: name  !< line to be parsed
+LOGICAL                      :: found !< marker if option found
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER         :: current
+!==================================================================================================================================
+found = .FALSE.
+
+! iterate over all options and compare names
+current => this%firstLink
+DO WHILE (associated(current))
+  ! compare name
+  IF (current%opt%NAMEEQUALS(name)) THEN
+    found = .TRUE.
+    RETURN
+  END IF
+  current => current%next
+END DO
+
+END FUNCTION check_options
+
+!==================================================================================================================================
+!> Resets all parameters defined in THIS linked list.
+!> Therefore, if loadbalance, it iterates over all entries of this linked list and sets removed flag to false.
+!> If no loadbalance, then all entries are deallocated and pointers nullified
+!==================================================================================================================================
+SUBROUTINE finalize(this, loadbalance)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this               !< CLASS(Parameters)
+LOGICAL          ,INTENT(IN)    :: loadbalance        !< flag if load balance is done
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER            :: current, tmp
+!==================================================================================================================================
+
+IF(loadbalance) THEN
+  ! iterate over all options and set removed to false
+  current => this%firstLink
+  DO WHILE (associated(current))
+    current%opt%isRemoved=.FALSE.
+    current => current%next
+  END DO
+ELSE
+  current => this%firstLink
+  DO WHILE (associated(current))
+    DEALLOCATE(current%opt)
+    NULLIFY(current%opt)
+    tmp => current%next
+    DEALLOCATE(current)
+    NULLIFY(current)
+    current => tmp
+  END DO
+  this%firstLink => null()
+  this%lastLink  => null()
+END IF
+
+END SUBROUTINE finalize
+
+!==================================================================================================================================
+!> Remove not used entries in the linked list of THIS parameters. 
+!> reduce size of list for faster loadbalance init
+!==================================================================================================================================
+SUBROUTINE removeUnnecessary(this)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: tmp
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+current =>  this%firstLink
+DO WHILE (associated(current%next))
+  tmp => current%next%next
+  !this%lastLink => current%next
+  !this%lastLink%next => current%next
+  IF (current%next%opt%numberedmulti) THEN
+    DEALLOCATE(current%next%opt)
+    NULLIFY(current%next%opt)
+    DEALLOCATE(current%next)
+    NULLIFY(current%next)
+    current%next => tmp
   ELSE
-    SWRITE(UNIT_StdOut,*) 'Inifile missing necessary keyword item : ',TRIM(TmpKey)
-    CALL abort(&
-__STAMP__&
-,'Code stopped!',999,999.)
+    current => current%next
   END IF
-END IF
-END FUNCTION CNTSTR
-
-
-
-FUNCTION GETINT(Key,Proposal)
-!===================================================================================================================================
-! Read integer named "key" from setup file and store in "GETINT". If keyword "Key" is not found in ini file,
-! the default value "Proposal" is used for "GETINT" (error if "Proposal" not given).
-! Ini file was read in before and is stored as list of character strings starting with "FirstString".
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key      ! Search for this keyword in ini file
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal ! Default values as character string (as in ini file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER                              :: GetInt  ! Integer read from setup file or initialized with default value
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-CHARACTER(LEN=255)                   :: HelpStr
-CHARACTER(LEN=8)                     :: DefMsg
-!===================================================================================================================================
-! Read-in ini file if not done already
-CALL FillStrings
-ReadInDone=.TRUE.
-
-IF (PRESENT(Proposal)) THEN
-  CALL FindStr(Key,HelpStr,DefMsg,Proposal)
-ELSE
-  CALL FindStr(Key,HelpStr,DefMsg)
-END IF
-READ(HelpStr,*)GetInt
-SWRITE(UNIT_StdOut,'(a3,a45,a3,i33,a3,a7,a3)')' | ',TRIM(Key),' | ', GetInt,' | ',TRIM(DefMsg),' | '
-END FUNCTION GETINT
-
-
-
-FUNCTION GETREAL(Key,Proposal)
-!===================================================================================================================================
-! Read real named "key" from setup file and store in "GETINT". If keyword "Key" is not found in ini file,
-! the default value "Proposal" is used for "GETINT" (error if "Proposal" not given).
-! Ini file was read in before and is stored as list of character strings starting with "FirstString".
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key      ! Search for this keyword in ini file
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal ! Default values as character string (as in ini file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                                 :: GetReal  ! Real read from setup file or initialized with default value
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-CHARACTER(LEN=255)                   :: HelpStr
-CHARACTER(LEN=8)                     :: DefMsg
-!===================================================================================================================================
-! Read-in ini file if not done already
-CALL FillStrings
-ReadInDone=.TRUE.
-
-IF (PRESENT(Proposal)) THEN
-  CALL FindStr(Key,HelpStr,DefMsg,Proposal)
-ELSE
-  CALL FindStr(Key,HelpStr,DefMsg)
-END IF
-READ(HelpStr,*)GetReal
-SWRITE(UNIT_StdOut,'(a3,a45,a3,e33.5,a3,a7,a3)')' | ',TRIM(Key),' | ', GetReal,' | ',TRIM(DefMsg),' | '
-END FUNCTION GETREAL
-
-
-
-FUNCTION GETLOGICAL(Key,Proposal)
-!===================================================================================================================================
-! Read logical named "key" from setup file and store in "GETINT". If keyword "Key" is not found in ini file,
-! the default value "Proposal" is used for "GETINT" (error if "Proposal" not given).
-! Ini file was read in before and is stored as list of character strings starting with "FirstString".
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key        ! Search for this keyword in ini file
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal   ! Default values as character string (as in ini file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL                              :: GetLogical ! Logical read from setup file or initialized with default value
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-CHARACTER(LEN=255)                   :: HelpStr
-CHARACTER(LEN=8)                     :: DefMsg
-!===================================================================================================================================
-! Read-in ini file if not done already
-CALL FillStrings
-ReadInDone=.TRUE.
-
-IF (PRESENT(Proposal)) THEN
-  CALL FindStr(Key,HelpStr,DefMsg,Proposal)
-ELSE
-  CALL FindStr(Key,HelpStr,DefMsg)
-END IF
-READ(HelpStr,*)GetLogical
-SWRITE(UNIT_StdOut,'(a3,a45,a3,l33,a3,a7,a3)')' | ',TRIM(Key),' | ', GetLogical,' | ',TRIM(DefMsg),' | '
-END FUNCTION GETLOGICAL
-
-
-
-FUNCTION GETINTARRAY(Key,nIntegers,Proposal)
-!===================================================================================================================================
-! Read array of "nIntegers" integer values named "Key" from ini file. If keyword "Key" is not found in setup file, the default
-! values "Proposal" are used to create the array (error if "Proposal" not given). Setup file was read in before and is stored as
-! list of character strings starting with "FirstString".
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-    IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key              ! Search for this keyword in ini file
-INTEGER,INTENT(IN)                   :: nIntegers        ! Number of values in array
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal         ! Default values as character string (as in setup file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER                   :: GetIntArray(nIntegers)      ! Integer array read from setup file or initialized with default values
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-CHARACTER(LEN=255)        :: HelpStr
-CHARACTER(LEN=8)          :: DefMsg
-INTEGER                   :: iInteger
-!===================================================================================================================================
-! Read-in ini file if not done already
-CALL FillStrings
-ReadInDone=.TRUE.
-
-IF (PRESENT(Proposal)) THEN
-  CALL FindStr(Key,HelpStr,DefMsg,Proposal)
-ELSE
-  CALL FindStr(Key,HelpStr,DefMsg)
-END IF
-READ(HelpStr,*)GetIntArray
-SWRITE(UNIT_stdOut,'(a3,a45,a3,a28,i4,a4,a7,a3)',ADVANCE='NO') ' | ',TRIM(Key),' | ',&
-                                                               'Integer array of size (',nIntegers,') | ',TRIM(DefMsg),' | '
-DO iInteger=0,nIntegers-1
-  IF ((iInteger.GT.0) .AND. (MOD(iInteger,8).EQ.0)) THEN
-    SWRITE(UNIT_stdOut,*)
-    SWRITE(UNIT_stdOut,'(a80,a3)',ADVANCE='NO')'',' | '
-  END IF
-  SWRITE(UNIT_stdOut,'(i5)',ADVANCE='NO')GetIntArray(iInteger+1)
 END DO
-SWRITE(UNIT_stdOut,*)
-END FUNCTION GETINTARRAY
+
+!current =>  this%firstLink
+!IF (associated(current).AND.(current%opt%numberedmulti)) THEN
+!  IF (associated(current%next)) THEN
+!    this%firstLink => current%next
+!  ELSE
+!    this%firstLink => null()
+!    this%LastLink  => null()
+!  END IF
+!END IF
+
+END SUBROUTINE removeUnnecessary
 
 
-
-FUNCTION GETREALARRAY(Key,nReals,Proposal)
-!===================================================================================================================================
-! Read array of "nReals" real values named "Key" from ini file. If keyword "Key" is not found in setup file, the default
-! values "Proposal" are used to create the array (error if "Proposal" not given). Setup file was read in before and is stored as
-! list of character strings starting with "FirstString".
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key              ! Search for this keyword in ini file
-INTEGER,INTENT(IN)                   :: nReals           ! Number of values in array
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal         ! Default values as character string (as in setup file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                      :: GetRealArray(nReals)        ! Real array read from setup file or initialized with default values
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-CHARACTER(LEN=255)        :: HelpStr
-CHARACTER(LEN=8)          :: DefMsg
-INTEGER                   :: iReal
-!===================================================================================================================================
-! Read-in ini file if not done already
-CALL FillStrings
-ReadInDone=.TRUE.
-
-IF (PRESENT(Proposal)) THEN
-  CALL FindStr(Key,HelpStr,DefMsg,Proposal)
-ELSE
-  CALL FindStr(Key,HelpStr,DefMsg)
-END IF
-CALL getPImultiplies(helpstr)
-READ(HelpStr,*)GetRealArray
-SWRITE(UNIT_stdOut,'(a3,a45,a3,a28,i4,a4,a7,a3)',ADVANCE='NO') ' | ',TRIM(Key),' | ',&
-                                                               'Real array of size (',nReals,') | ',TRIM(DefMsg),' | '
-DO iReal=0,nReals-1
-  IF ((iReal.GT.0) .AND. (MOD(iReal,8).EQ.0)) THEN
-    SWRITE(UNIT_stdOut,*)
-    SWRITE(UNIT_stdOut,'(a80,a3)',ADVANCE='NO')'',' | '
-  END IF
-  SWRITE(UNIT_stdOut,'(f5.2)',ADVANCE='NO')GetRealArray(iReal+1)
-END DO
-SWRITE(UNIT_stdOut,*)
-END FUNCTION GETREALARRAY
-
-
-
-SUBROUTINE IgnoredStrings()
-!===================================================================================================================================
-! Prints out remaining strings in list after read-in is complete
-!===================================================================================================================================
-! MODULES
-USE MOD_ISO_VARYING_STRING
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
+!==================================================================================================================================
+!> General routine to create an option. 
+!> Fills all fields of the option. Since the prms\%parse function is used to set the value, this routine can be abstract for all 
+!> types of options. 
+!> before creating check if option is already existing
+!==================================================================================================================================
+SUBROUTINE CreateOption(this, opt, name, description, value, multiple, numberedmulti)
 ! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
+CLASS(Parameters),INTENT(INOUT)       :: this             !< CLASS(Parameters)
+CLASS(OPTION),INTENT(INOUT)           :: opt              !< option class
+CHARACTER(LEN=*),INTENT(IN)           :: name             !< option name
+CHARACTER(LEN=*),INTENT(IN)           :: description      !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL  :: value            !< option value
+LOGICAL,INTENT(IN),OPTIONAL           :: multiple         !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered multiple option
 ! LOCAL VARIABLES
-TYPE(tString),POINTER                  :: Str1
-!===================================================================================================================================
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')" THE FOLLOWING INI-FILE PARAMETERS WERE IGNORED:"
-Str1=>FirstString
-DO WHILE(ASSOCIATED(Str1))
-  SWRITE(UNIT_stdOut,'(A4,A)')" |- ",TRIM(CHAR(Str1%Str))
-  Str1=>Str1%NextStr
-END DO
-SWRITE(UNIT_stdOut,'(132("-"))')
-
-END SUBROUTINE IgnoredStrings
-
-
-
-SUBROUTINE FillStrings(IniFile)
-!===================================================================================================================================
-! Read ini file and put each line in a string object. All string objects are connected to a list of string objects starting
-! with "firstString"
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars, ONLY: ParameterFile,ParameterDSMCFile
-USE MOD_ISO_VARYING_STRING
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN),OPTIONAL   :: IniFile                    ! Name of ini file to be read in
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
-CHARACTER(LEN=255)                          :: HelpStr,Str
-TYPE(Varying_String)                        :: aStr,bStr,Separator
-INTEGER                                     :: stat,iniUnit,nLines,i
-CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent
-CHARACTER(LEN=1)                            :: tmpChar=''
-#ifdef PARTICLES
-INTEGER                                     :: NArgs,NChar
-CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent2
-LOGICAL                                     :: DoReadDSMC
-#endif
-!===================================================================================================================================
-! Check if we have read in ini file already
-nLines=0
-iniUnit=0
-IF (ReadInDone) RETURN
-! Get name of ini file
-IF (PRESENT(IniFile)) THEN
-  ParameterFile = TRIM(IniFile)
-ELSE
-  CALL GETARG(1,ParameterFile)
+CLASS(link), POINTER :: newLink
+!==================================================================================================================================
+IF(this%check_options(name)) THEN
+  CALL Abort(__STAMP__, &
+      'Option "'//TRIM(name)//'" is already defined, can not be defined with the same name twice!')
 END IF
-SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(ParameterFile),'":'
 
-IF(MPIRoot)THEN
-  iniUnit=GETFREEUNIT()
-  OPEN(UNIT   = iniUnit,       &
-       FILE   = ParameterFile, &
-       STATUS = 'OLD',         &
-       ACTION = 'READ',        &
-       ACCESS = 'SEQUENTIAL',  &
+opt%hasDefault = PRESENT(value)
+IF (opt%hasDefault) THEN
+  CALL opt%parse(value)
+END IF
+
+opt%multiple   = .FALSE.
+IF (PRESENT(multiple)) opt%multiple = multiple
+IF (opt%multiple.AND.opt%hasDefault) THEN
+  CALL Abort(__STAMP__, &
+      "A default value can not be given, when multiple=.TRUE. in creation of option: '"//TRIM(name)//"'")
+END IF
+
+opt%numberedmulti = .FALSE.
+IF (PRESENT(numberedmulti)) opt%numberedmulti = numberedmulti
+
+opt%isSet = .FALSE.
+opt%name = name
+opt%description = description
+opt%section = this%actualSection
+opt%isRemoved = .FALSE.
+
+! insert option into linked list
+IF (.not. associated(this%firstLink)) then
+  this%firstLink => constructor_Link(opt, this%firstLink)
+  this%lastLink => this%firstLink
+ELSE
+  newLink => constructor_Link(opt, this%lastLink%next)
+  this%lastLink%next => newLink
+  this%lastLink => newLink
+END IF
+END SUBROUTINE CreateOption
+
+!==================================================================================================================================
+!> Create a new integer option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateIntOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(IntOption),ALLOCATABLE,TARGET :: intopt
+!==================================================================================================================================
+ALLOCATE(intopt)
+CALL this%CreateOption(intopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateIntOption
+
+!==================================================================================================================================
+!> Create a new integer option with a optional string representation. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateIntFromStringOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(IntFromStringOption),ALLOCATABLE,TARGET :: intfromstropt
+!==================================================================================================================================
+ALLOCATE(intfromstropt)
+CALL this%CreateOption(intfromstropt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateIntFromStringOption
+
+!==================================================================================================================================
+!> Create a new logical option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateLogicalOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(LogicalOption),ALLOCATABLE,TARGET :: logicalopt
+!==================================================================================================================================
+ALLOCATE(logicalopt)
+CALL this%CreateOption(logicalopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateLogicalOption
+
+!==================================================================================================================================
+!> Create a new real option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateRealOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(RealOption),ALLOCATABLE,TARGET :: realopt
+!==================================================================================================================================
+ALLOCATE(realopt)
+CALL this%CreateOption(realopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateRealOption
+
+!==================================================================================================================================
+!> Create a new string option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateStringOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(StringOption),ALLOCATABLE,TARGET :: stringopt
+!==================================================================================================================================
+ALLOCATE(stringopt)
+CALL this%CreateOption(stringopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateStringOption
+
+!==================================================================================================================================
+!> Create a new integer array option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateIntArrayOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(IntArrayOption),ALLOCATABLE,TARGET :: intopt
+!==================================================================================================================================
+ALLOCATE(intopt)
+CALL this%CreateOption(intopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateIntArrayOption
+
+!==================================================================================================================================
+!> Create a new logical array option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateLogicalArrayOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(LogicalArrayOption),ALLOCATABLE,TARGET :: logicalopt
+!==================================================================================================================================
+ALLOCATE(logicalopt)
+CALL this%CreateOption(logicalopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateLogicalArrayOption
+
+!==================================================================================================================================
+!> Create a new real array option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+SUBROUTINE CreateRealArrayOption(this, name, description, value, multiple, numberedmulti) 
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(RealArrayOption),ALLOCATABLE,TARGET :: realopt
+!==================================================================================================================================
+ALLOCATE(realopt)
+CALL this%CreateOption(realopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+END SUBROUTINE CreateRealArrayOption
+
+!==================================================================================================================================
+!> Create a new string array option. Only calls the general prms\%createoption routine.
+!==================================================================================================================================
+!SUBROUTINE CreateStringArrayOption(this, name, description, value, multiple, numberedmulti) 
+!! INPUT/OUTPUT VARIABLES
+!CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
+!CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
+!CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
+!CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
+!LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
+!LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+!!----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES 
+!CLASS(StringArrayOption),ALLOCATABLE,TARGET :: stringopt
+!!==================================================================================================================================
+!ALLOCATE(stringopt)
+!CALL this%CreateOption(stringopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+!END SUBROUTINE CreateStringArrayOption
+
+!==================================================================================================================================
+!> Count number of occurrence of option with given name.
+!==================================================================================================================================
+FUNCTION CountOption_(this, name) result(count)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this  !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)     :: name  !< Search for this keyword in ini file
+INTEGER                         :: count !< number of found occurences of keyword
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+count = 0
+! iterate over all options and compare names
+current => this%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%NAMEEQUALS(name)) THEN
+    IF (current%opt%isSet) count = count + 1
+  END IF
+  current => current%next
+END DO
+END FUNCTION  CountOption_
+
+!==================================================================================================================================
+!> Count number of set parameters of linked list.
+!==================================================================================================================================
+FUNCTION count_setentries(this) result(count)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+INTEGER                      :: count !< number of found occurences of keyword
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+count = 0
+! iterate over all entries and count them
+current => this%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%isSet) count = count + 1
+  current => current%next
+END DO
+END FUNCTION  count_setentries
+
+!==================================================================================================================================
+!> Count number of parameters of linked list.
+!==================================================================================================================================
+FUNCTION count_entries(this) result(count)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+INTEGER                      :: count !< number of found occurences of keyword
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+count = 0
+! iterate over all entries and count them
+current => this%firstLink
+DO WHILE (associated(current))
+  count = count + 1
+  current => current%next
+END DO
+END FUNCTION  count_entries
+
+!==================================================================================================================================
+!> Count number of set but unread parameters of linked list.
+!==================================================================================================================================
+FUNCTION count_unread(this) result(count)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+INTEGER                      :: count !< number of found occurences of keyword
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+count = 0
+! iterate over all entries and count them
+current => this%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) count = count + 1
+  current => current%next
+END DO
+END FUNCTION  count_unread
+
+!==================================================================================================================================
+!> Insert an option in front of option with same name in the 'prms' linked list. 
+!==================================================================================================================================
+SUBROUTINE insertOption(first, opt)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(link),POINTER,INTENT(IN) :: first !< first item in linked list
+CLASS(OPTION),INTENT(IN)       :: opt   !< option to be inserted
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link),POINTER :: newLink
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+current =>  first
+DO WHILE (associated(current%next))
+  IF (.NOT.current%next%opt%NAMEEQUALS(opt%name)) THEN
+    EXIT
+  END IF
+  current => current%next
+END DO
+newLink => constructor_Link(opt, current%next)
+current%next => newLink
+END SUBROUTINE insertOption    
+
+!==================================================================================================================================
+!> Read options from parameter file. 
+!>
+!> Therefore the file is read line by line. After removing comments and all white spaces each line is parsed in the 
+!> prms\%read_option() routine. Outputs all unknown options.
+!==================================================================================================================================
+SUBROUTINE read_options(this, filename, furtherini) 
+! MODULES
+USE MOD_StringTools ,ONLY: STRICMP,GetFileExtension
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(Parameters),INTENT(INOUT) :: this     !< CLASS(Parameters)
+CHARACTER(LEN=255),INTENT(IN)   :: filename !< name of file to be read
+LOGICAL,INTENT(IN),OPTIONAL     :: furtherini !< flag if read ini file is first or further
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER  :: current
+INTEGER               :: stat,iniUnit,nLines,i
+TYPE(Varying_String)  :: aStr,bStr
+CHARACTER(LEN=255)    :: HelpStr
+LOGICAL               :: firstWarn=.TRUE.
+LOGICAL               :: furtherini_loc=.FALSE.
+CHARACTER(LEN=255),ALLOCATABLE :: FileContent(:)
+CHARACTER(LEN=1)      :: tmpChar=''
+!==================================================================================================================================
+IF (Present(furtherini)) furtherini_loc = furtherini
+IF (.NOT.furtherini_loc) THEN
+  CALL this%CreateLogicalOption('ColoredOutput','Colorize stdout, included for compatibility with FLEXI', '.TRUE.')
+END IF
+
+IF(MPIROOT)THEN
+  ! Get name of ini file
+  WRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(filename),'":'
+  IF (.NOT.FILEEXISTS(filename)) THEN
+    CALL Abort(__STAMP__,&
+        "Ini file does not exist.")
+  END IF
+  ! Check if first argument is the ini-file 
+  IF(.NOT.(STRICMP(GetFileExtension(filename),'ini'))) THEN
+    SWRITE(*,*) "Usage: boltzplatz parameter.ini [DSMC.ini] [restart.h5] [keyword arguments]"
+    !SWRITE(*,*) "   or: boltzplatz restart.h5 [keyword arguments]"
+    CALL CollectiveStop(__STAMP__,&
+      'ERROR - Not an parameter file (file-extension must be .ini) or restart file (*.h5): '//TRIM(filename))
+  END IF
+
+  OPEN(NEWUNIT= iniUnit,        &
+       FILE   = TRIM(filename), &
+       STATUS = 'OLD',          &
+       ACTION = 'READ',         &
+       ACCESS = 'SEQUENTIAL',   &
        IOSTAT = stat)
-  IF(stat.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,"Could not open ini file.")
-  ELSE
-    stat=0
-    DO
-      READ(iniunit,"(A)",IOSTAT=stat)tmpChar
-      IF(stat.NE.0)EXIT
-      nLines=nLines+1
-    END DO
+  IF(stat.NE.0)THEN
+    CALL abort(__STAMP__,&
+      "Could not open ini file.")
   END IF
+
+  ! parallel IO: ROOT reads file and sends it to all other procs
+  nLines=0
+  stat=0
+  DO
+    READ(iniunit,"(A)",IOSTAT=stat)tmpChar
+    IF(stat.NE.0)EXIT
+    nLines=nLines+1
+  END DO
 END IF
+
+!broadcast number of lines, read and broadcast file content
 #ifdef MPI
 CALL MPI_BCAST(nLines,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 #endif
 ALLOCATE(FileContent(nLines))
-IF (MPIRoot) THEN
+
+IF ((MPIROOT).AND.(nLines.GT.0)) THEN
   !read file
   REWIND(iniUnit)
-  READ(iniUnit,'(A)')FileContent
-  CLOSE(iniUnit)
+  READ(iniUnit,'(A)') FileContent
 END IF
+IF (MPIROOT) CLOSE(iniUnit)
 #ifdef MPI
 CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_WORLD,iError)
 #endif
 
-NULLIFY(Str1,Str2)
+! infinte loop. Exit at EOF
 DO i=1,nLines
-  IF(.NOT.ASSOCIATED(Str1)) CALL GetNewString(Str1)
-  ! Read line from memory
-  aStr=var_str(FileContent(i))
-  Str=aStr
+  !! Lower case
+  CALL LowCase(FileContent(i),FileContent(i))
+  ! read a line into 'aStr'
+  aStr=Var_Str(FileContent(i))
   ! Remove comments with "!"
-  CALL Split(aStr,Str1%Str,"!")
+  CALL Split(aStr,bStr,"!")
   ! Remove comments with "#"
-  CALL Split(Str1%Str,bStr,"#")
-  Str1%Str=bStr
-  ! Remove "%" sign from old ini files, i.e. mesh% disc% etc.
-  CALL Split(Str1%Str,bStr,"%",Separator,Back=.false.)
+  CALL Split(bStr,aStr,"#")
+  ! aStr may hold an option 
 
-  ! If we have a newtype ini file, take the other part
-  IF(LEN(CHAR(Separator)).EQ.0) Str1%Str=bStr
   ! Remove blanks
-  Str1%Str=Replace(Str1%Str," ","",Every=.true.)
+  aStr=Replace(aStr," ","",Every=.true.)
   ! Replace brackets
-  Str1%Str=Replace(Str1%Str,"(/"," ",Every=.true.)
-  Str1%Str=Replace(Str1%Str,"/)"," ",Every=.true.)
-  ! Replace commas
-  Str1%Str=Replace(Str1%Str,","," ",Every=.true.)
+  aStr=Replace(aStr,"(/"," ",Every=.true.)
+  aStr=Replace(aStr,"/)"," ",Every=.true.)
   ! Lower case
-  CALL LowCase(CHAR(Str1%Str),HelpStr)
-  ! If we have a remainder (no comment only)
-  IF(LEN_TRIM(HelpStr).GT.2) THEN
-    Str1%Str=Var_Str(HelpStr)
-    IF(.NOT.ASSOCIATED(Str2)) THEN
-      FirstString=>Str1
-    ELSE
-      Str2%NextStr=>Str1
-      Str1%PrevStr=>Str2
-    END IF
-    Str2=>Str1
-    CALL GetNewString(Str1)
-  END IF
-END DO
-
-ParameterDSMCFile=''
-#ifdef PARTICLES
-! Check if we want to perform a restart
-nArgs=COMMAND_ARGUMENT_COUNT()
-DoReadDSMC=.FALSE.
-IF(nArgs.GE.2)THEN
-  ! Read in the state file we want to restart from
-  CALL GETARG(2,ParameterDSMCFile)
-  nChar=LEN(TRIM(ParameterDSMCFile))
-  IF(TRIM(ParameterDSMCFile(nChar-2:nChar)).EQ.'ini') THEN
-    DoReadDSMC=.TRUE.
-  ELSE
-    ParameterDSMCFile=''
-  END IF
-END IF
-IF (DoReadDSMC) THEN
-  !CALL GETARG(2,ParameterDSMCFile)
-  IF(MPIRoot) THEN  
-    SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(ParameterDSMCFile),'":'
-    iniUnit=GETFREEUNIT()
-    OPEN(UNIT   = iniUnit,    &
-         FILE   = ParameterDSMCFile,       &
-         STATUS = 'OLD',      &
-         ACTION = 'READ',     &
-         ACCESS = 'SEQUENTIAL',&
-         IOSTAT = stat)
-    IF(stat.NE.0) THEN
-      CALL abort(&
-__STAMP__&
-,"Could not open ini file.")
-    ELSE
-      nLines=0
-      stat=0
-      DO
-        READ(iniunit,"(A)",IOSTAT=stat)tmpChar
-        IF(stat.NE.0)EXIT
-        nLines=nLines+1
-      END DO
-    END IF
-  END IF
-#ifdef MPI
-  CALL MPI_BCAST(nLines,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-#endif
-  ALLOCATE(FileContent2(nLines))
-  IF (MPIRoot) THEN
-    !read file
-    REWIND(iniUnit)
-    READ(iniUnit,'(A)')FileContent2
-    CLOSE(iniUnit)
-  END IF
-#ifdef MPI
-  CALL MPI_BCAST(FileContent2,LEN(FileContent2)*nLines,MPI_CHARACTER,0,MPI_COMM_WORLD,iError)
-#endif
-!  NULLIFY(Str1,Str2)
-  DO i=1,nLines
-    IF(.NOT.ASSOCIATED(Str1)) CALL GetNewString(Str1)
-    ! Read line from memory
-    aStr=var_str(FileContent2(i))
-    Str=aStr
-    ! Remove comments with "!"
-    CALL Split(aStr,Str1%Str,"!")
-    ! Remove comments with "#"
-    CALL Split(Str1%Str,bStr,"#")
-    Str1%Str=bStr
-    ! Remove "%" sign from old ini files, i.e. mesh% disc% etc.
-    CALL Split(Str1%Str,bStr,"%",Separator,Back=.false.)
-  
-    ! If we have a newtype ini file, take the other part
-    IF(LEN(CHAR(Separator)).EQ.0) Str1%Str=bStr
-    ! Remove blanks
-    Str1%Str=Replace(Str1%Str," ","",Every=.true.)
-    ! Replace brackets
-    Str1%Str=Replace(Str1%Str,"(/"," ",Every=.true.)
-    Str1%Str=Replace(Str1%Str,"/)"," ",Every=.true.)
-    ! Replace commas
-    Str1%Str=Replace(Str1%Str,","," ",Every=.true.)
-    ! Lower case
-    CALL LowCase(CHAR(Str1%Str),HelpStr)
-    ! If we have a remainder (no comment only)
-    IF(LEN_TRIM(HelpStr).GT.2) THEN
-      Str1%Str=Var_Str(HelpStr)
-      IF(.NOT.ASSOCIATED(Str2)) THEN
-        FirstString=>Str1
-      ELSE
-        Str2%NextStr=>Str1
-        Str1%PrevStr=>Str2
+  HelpStr=CHAR(aStr)
+  ! If something remaind, this should be an option
+  IF (LEN_TRIM(HelpStr).GT.2) THEN
+    ! read the option
+    IF (.NOT.this%read_option(HelpStr)) THEN
+      IF (firstWarn) THEN
+        firstWarn=.FALSE.
+        SWRITE(UNIT_StdOut,'(100("!"))')
+        SWRITE(UNIT_StdOut, *) "WARNING: The following options are unknown!"
       END IF
-      Str2=>Str1
-      CALL GetNewString(Str1)
+      SWRITE(UNIT_StdOut,*) "   ", TRIM(HelpStr)
     END IF
-  END DO
+  END IF
+END DO
+IF (.NOT.firstWarn) THEN
+  SWRITE(UNIT_StdOut,'(100("!"))')
 END IF
-#endif /*PARTICLES*/
+DEALLOCATE(FileContent)
+
+! calculate the maximal string length of all option-names and option-values
+this%maxNameLen  = 0
+this%maxValueLen = 0
+current => prms%firstLink
+DO WHILE (associated(current))
+  this%maxNameLen = MAX(this%maxNameLen, current%opt%GETNAMELEN())
+  this%maxValueLen = MAX(this%maxValueLen, current%opt%GETVALUELEN())
+  current => current%next
+END DO
+
+! check for colored output 
+IF (.NOT.use_escape_codes_read) THEN
+  use_escape_codes = GETLOGICAL("ColoredOutput")
+  use_escape_codes_read = .TRUE.
+END IF
+END SUBROUTINE read_options
 
 
-END SUBROUTINE FillStrings
 
-
-
-SUBROUTINE GetNewString(Str)
-!===================================================================================================================================
-! Create and initialize new string object.
-!===================================================================================================================================
+!==================================================================================================================================
+!> Parses one line of parameter file and sets the value of the specific option in the 'prms' linked list.
+!> Therefore it iterate over all entries of the linked list and compares the names.
+!==================================================================================================================================
+FUNCTION read_option(this, line) result(found)
 ! MODULES
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-TYPE(tString),POINTER :: Str ! New string
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
+CLASS(Parameters),INTENT(IN) :: this  !< CLASS(Parameters)
+CHARACTER(LEN=*),INTENT(IN)  :: line  !< line to be parsed
+LOGICAL                      :: found !< marker if option found
+!----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-!===================================================================================================================================
-NULLIFY(Str)
-ALLOCATE(Str)
-NULLIFY(Str%NextStr,Str%PrevStr)
-END SUBROUTINE GetNewString
+CHARACTER(LEN=255)           :: name
+CHARACTER(LEN=255)           :: rest
+CLASS(link), POINTER         :: current
+CLASS(OPTION),ALLOCATABLE    :: newopt
+INTEGER                      :: i
+!==================================================================================================================================
+found = .FALSE.
 
+! split at '='
+i = index(line, '=')
+IF (i==0) return
+name = line(1:i-1)
+rest = line(i+1:)
 
-
-SUBROUTINE DeleteString(Str)
-!===================================================================================================================================
-! Remove string "Str" from list of strings witFirstString,h first element "DirstString" and delete string.
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-    TYPE(tString),POINTER :: Str         ! String to delete
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-!===================================================================================================================================
-IF (ASSOCIATED(Str%NextStr)) Str%NextStr%PrevStr=>Str%PrevStr
-IF (ASSOCIATED(Str,FirstString)) THEN
-  FirstString=>Str%NextStr
-ELSE
-  Str%PrevStr%NextStr=>Str%NextStr
-END IF
-DEALLOCATE(Str)
-NULLIFY(Str)
-END SUBROUTINE DeleteString
-
-
-
-SUBROUTINE DeleteStrings(first)
-!===================================================================================================================================
-! Remove string "Str" from list of strings witFirstString,h first element "DirstString" and delete string.
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tString),POINTER :: first       ! String to delete
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-TYPE(tString),POINTER :: Str         ! String to delete
-!===================================================================================================================================
-DO WHILE(ASSOCIATED(first))
-  Str=>first%NextStr
-  DEALLOCATE(first)
-  first=>Str
-END DO
-NULLIFY(first)
-ReadInDone=.FALSE.
-END SUBROUTINE DeleteStrings
-
-
-
-SUBROUTINE AppendString(Str, text)
-!===================================================================================================================================
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tString),POINTER,INTENT(INOUT) :: Str         ! String to delete
-TYPE(Varying_String),INTENT(IN)     :: text
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-TYPE(tString),POINTER :: tmp,new
-!===================================================================================================================================
-IF (.NOT.ASSOCIATED(Str)) THEN
-  CALL GetNewString(Str)
-  Str%Str = text
-ELSE
-  tmp=>Str
-  DO WHILE(ASSOCIATED(tmp%NextStr))
-    tmp=>tmp%NextStr
-  END DO
-  CALL GetNewString(new)
-  new%Str = text
-  tmp%NextStr => new
-  new%PrevStr => tmp
-END IF
-END SUBROUTINE AppendString
-
-
-
-FUNCTION GetLen(Str)
-!===================================================================================================================================
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tString),POINTER,INTENT(IN) :: Str         ! String to delete
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER                          :: GetLen
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-TYPE(tString),POINTER :: tmp
-!===================================================================================================================================
-GetLen = 0
-tmp => Str
-DO WHILE(ASSOCIATED(tmp))
-  GetLen = GetLen + 1
-  tmp => tmp%NextStr
-END DO
-END FUNCTION GetLen 
-
-
-
-SUBROUTINE GetParameters(params)
-!===================================================================================================================================
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=255),INTENT(OUT),ALLOCATABLE :: params(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-TYPE(tString),POINTER :: tmp
-INTEGER               :: length,i
-!===================================================================================================================================
-tmp => parameters
-length = GetLen(parameters)
-i = 0
-ALLOCATE(params(length))
-DO WHILE(ASSOCIATED(tmp))
-  i = i + 1
-  params(i) = CHAR(tmp%Str)
-  tmp=>tmp%NextStr
-END DO
-END SUBROUTINE GetParameters
-
-
-
-SUBROUTINE FindStr(Key,Str,DefMsg,Proposal)
-!===================================================================================================================================
-! Find parameter string containing keyword "Key" in list of strings starting with "FirstString" and return string "Str" without
-! keyword. If keyword is not found in list of strings, return default values "Proposal" (error if not given).
-! Ini file was read in before and is stored as list of character strings starting with "FirstString".
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)          :: Key         ! Search for this keyword in ini file
-CHARACTER(LEN=8),INTENT(INOUT)       :: DefMsg      ! Default message = keyword not found, return default parameters (if available)
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: Proposal    ! Default values as character string (as in ini file)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(OUT)         :: Str         ! Parameter string without keyword
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-CHARACTER(LEN=LEN(Key))              :: TmpKey 
-TYPE(tString),POINTER                :: Str1
-LOGICAL                              :: Found
-!===================================================================================================================================
-DefMsg='*CUSTOM'
-! Convert to lower case
-CALL LowCase(Key,TmpKey)
-! Remove blanks
-TmpKey=REPLACE(TmpKey," ","",Every=.TRUE.)
-Found=.FALSE.
-Str1=>FirstString
-DO WHILE(.NOT.Found)
-  IF (.NOT.ASSOCIATED(Str1)) THEN
-    IF (.NOT.PRESENT(Proposal)) THEN
-      CALL abort(&
-__STAMP__&
-,'Inifile missing necessary keyword item : '//TRIM(TmpKey)//' - Code stopped!',999,999.)
-    ELSE ! Return default value
-      CALL LowCase(TRIM(Proposal),Str)
-      IF (Str(1:1).NE.'@') THEN
-        DefMsg='DEFAULT'
+! iterate over all options and compare names with all except numberedmulti options
+! already added new names from numberedmulti comparison are checked if they reappear
+current => this%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%numberedmulti) THEN
+    current => current%next
+  ELSE
+    ! compare name
+    IF (current%opt%NAMEEQUALS(name)) THEN
+      found = .TRUE.
+      IF (current%opt%isSet) THEN
+        IF (.NOT.(current%opt%multiple)) THEN
+          ! option already set, but is not a multiple option 
+          SWRITE(UNIT_StdOut,*) 'Option "', TRIM(name), '" is already set, but is not a multiple option!'
+          STOP
+        ELSE
+          ! create new instance of multiple option
+          ALLOCATE(newopt, source=current%opt)
+          CALL newopt%parse(rest)
+          newopt%isSet = .TRUE.
+          ! insert option
+          CALL insertOption(current, newopt)
+          RETURN
+        END IF
+      END IF
+      ! parse option
+      IF(LEN_TRIM(rest).NE.0)THEN
+        CALL current%opt%parse(rest)
+        current%opt%isSet = .TRUE.
+      ELSE
+        CALL set_formatting("bright red")
+        SWRITE(UNIT_StdOut,*) 'WARNING: Option "', TRIM(name), '" is specified in file but is empty!'
+        CALL clear_formatting()
       END IF
       RETURN
-    END IF ! (.NOT.PRESENT(Proposal))
-  END IF ! (.NOT.ASSOCIATED(Str1))
+    END IF
+    current => current%next
+  END IF
+END DO
 
-  IF (INDEX(CHAR(Str1%Str),TRIM(TmpKey)//'=').EQ.1) THEN
-    Found=.TRUE.
-    CALL AppendString(parameters, Str1%Str)
-    Str1%Str=replace(Str1%Str,TRIM(TmpKey)//'=',"",Every=.TRUE.)
-    Str=TRIM(CHAR(Str1%Str))
-    ! Remove string from list
-    CALL DeleteString(Str1)
+! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+current => this%firstLink
+DO WHILE (associated(current))
+  IF (.NOT.current%opt%numberedmulti) THEN
+    current => current%next
   ELSE
-    ! Next string in list
-    Str1=>Str1%NextStr
+    ! compare reduced name with reduced option name
+    IF (current%opt%NAMEEQUALSNUMBERED(name)) THEN
+      found = .TRUE.
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      ! parse option
+      IF(LEN_TRIM(rest).NE.0)THEN
+        CALL newopt%parse(rest)
+        newopt%isSet = .TRUE.
+        ! insert option
+        CALL insertOption(current, newopt)
+      ELSE
+        CALL set_formatting("bright red")
+        SWRITE(UNIT_StdOut,*) 'WARNING: Option "', TRIM(name), '" is specified in file but is empty!'
+        CALL clear_formatting()
+      END IF
+      RETURN
+    END IF
+    current => current%next
+  END IF
+END DO
+
+END FUNCTION read_option
+
+!==================================================================================================================================
+!> Output all parameters, which are defined but NOT set in the parameter file. 
+!==================================================================================================================================
+SUBROUTINE IgnoredParameters() 
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER :: current
+!==================================================================================================================================
+current => prms%firstLink
+CALL set_formatting("bright red")
+SWRITE(UNIT_StdOut,'(100("!"))')
+SWRITE(UNIT_StdOut,'(A)') "WARNING: The following options are defined, but NOT set in parameter-file or readin:"
+DO WHILE (associated(current))
+  IF (.NOT.current%opt%isRemoved) THEN
+    SWRITE(UNIT_StdOut,*) "   ", TRIM(current%opt%name)
+  END IF
+  current => current%next
+END DO
+SWRITE(UNIT_StdOut,'(100("!"))')
+CALL clear_formatting()
+END SUBROUTINE IgnoredParameters 
+
+!==================================================================================================================================
+!> Print a default parameter file. The command line argument --help prints it in the format, that is used for reading the parameter
+!> file. With --markdown one can print a default parameter file in markdown format.
+!> Also prints the descriptions of a single parameter or parameter sections, if name corresponds to one of them.
+!==================================================================================================================================
+SUBROUTINE PrintDefaultParameterFile(markdown,name)
+! MODULES
+USE MOD_StringTools ,ONLY: STRICMP
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+LOGICAL,INTENT(IN)   :: markdown  !< marker whether markdown format is used for output
+CHARACTER(LEN=255)   :: name      !< for this parameter help is printed. If empty print all.
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+CLASS(link), POINTER   :: current
+CLASS(OPTION), POINTER :: currentOpt
+INTEGER                :: maxNameLen
+INTEGER                :: maxValueLen
+INTEGER                :: lineLen
+INTEGER                :: spaceNameLen
+INTEGER                :: spaceValueLen
+INTEGER                :: mode
+CHARACTER(LEN=255)     :: section = "-"
+CHARACTER(LEN=255)     :: singlesection = ""
+CHARACTER(LEN=255)     :: singleoption = ""
+CHARACTER(LEN=20)      :: fmtLineLen
+CHARACTER(LEN=20)      :: fmtName
+CHARACTER(LEN=20)      :: fmtValue
+CHARACTER(LEN=20)      :: fmtComment
+CHARACTER(LEN=20)      :: fmtNamespace
+CHARACTER(LEN=20)      :: fmtValuespace
+INTEGER                :: i
+CHARACTER(LEN=255)     :: intFromStringOutput
+CHARACTER(LEN=255)     :: fmtIntFromStringLength
+CHARACTER(LEN=255)     :: fmtStringIntFromString
+!==================================================================================================================================
+
+
+maxNameLen  = 0
+maxValueLen = 0
+current => prms%firstLink
+! check if name is a section or a option
+DO WHILE (associated(current))
+  IF (STRICMP(current%opt%section,name)) THEN
+    singlesection = TRIM(name)
+    EXIT
+  END IF
+  IF (current%opt%NAMEEQUALS(name)) THEN
+    singleoption = TRIM(name)
+    singlesection = TRIM(current%opt%section)
+    EXIT
+  END IF
+  current => current%next
+END DO
+
+! if name is not specified, the complete parameter files needs to be printed
+IF ((.NOT.markdown).AND.(LEN_TRIM(name).EQ.0)) THEN
+  SWRITE(UNIT_StdOut,'(A80)')  "!==============================================================================="
+  SWRITE(UNIT_StdOut,'(A)')    "! Default Parameter File generated using 'boltzplatz --help' "
+  SWRITE(UNIT_StdOut,'(4A)')   "!   compiled at : ", __DATE__," ", __TIME__ 
+  SWRITE(UNIT_StdOut,'(A80)')  "!==============================================================================="
+END IF
+
+mode = 1
+IF (markdown) THEN
+  mode = 2
+  SWRITE(UNIT_StdOut,'(A)') "## Parameterfile"
+  SWRITE(UNIT_StdOut,'(A)') ""
+END IF
+
+! Find longest parameter name and length of the standard values
+current => prms%firstLink
+DO WHILE (associated(current))
+  maxNameLen = MAX(maxNameLen, current%opt%GETNAMELEN())
+  maxValueLen = MAX(maxValueLen, current%opt%GETVALUELEN())
+  current => current%next
+END DO
+lineLen = maxNameLen + maxValueLen + 4 + 50
+spaceNameLen = maxNameLen - 9
+spaceValueLen = maxValueLen - 10
+WRITE(fmtLineLen,*) lineLen
+WRITE(fmtName,*)    maxNameLen
+WRITE(fmtValue,*)   maxValueLen
+WRITE(fmtComment,*) 50
+WRITE(fmtNamespace,*) spaceNameLen
+WRITE(fmtValuespace,*) spaceValueLen
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF ((LEN_TRIM(singlesection).EQ.0).OR.(STRICMP(singlesection,current%opt%section))) THEN
+    IF (.NOT.STRICMP(section,current%opt%section)) THEN
+      section = current%opt%section
+      IF (markdown) THEN
+        SWRITE(UNIT_StdOut,'('//fmtLineLen//'("-"))')
+        SWRITE(UNIT_StdOut,'(A2,A,A2)')                                 "**",TRIM(section),"**"
+        SWRITE(UNIT_StdOut,'('//fmtName//'("-")"--"A1)', ADVANCE='NO')  " "
+        SWRITE(UNIT_StdOut,'('//fmtValue//'("-")A1)', ADVANCE='NO')     " "
+        SWRITE(UNIT_StdOut,'('//fmtComment//'("-"))')
+        SWRITE(UNIT_StdOut,'(A)', ADVANCE='NO')                         "**Variable**"
+        SWRITE(UNIT_StdOut,'('//fmtNamespace//'(" "))', ADVANCE='NO') 
+        SWRITE(UNIT_StdOut,'(A)', ADVANCE='NO')                         "**Default**"
+        SWRITE(UNIT_StdOut,'('//fmtValuespace//'(" "))', ADVANCE='NO') 
+        SWRITE(UNIT_StdOut,'(A)')                                       "**Description**"
+        SWRITE(UNIT_StdOut,'(A80)')                                     ""
+      ELSE
+        SWRITE(UNIT_StdOut,'(A1,'//fmtLineLen//'("="))') "!"
+        SWRITE(UNIT_StdOut,'(A2,A)') "! ", TRIM(section)
+        SWRITE(UNIT_StdOut,'(A1,'//fmtLineLen//'("="))') "!"
+      END IF
+    END IF
+
+    IF ((LEN_TRIM(singleoption).EQ.0).OR.(current%opt%NAMEEQUALS(singleoption))) THEN
+      CALL current%opt%print(maxNameLen, maxValueLen,mode)
+    END IF
+
+    ! If help is called for a single IntFromStringOption, print the possible values of this parameter
+    IF (current%opt%NAMEEQUALS(singleoption)) THEN
+      currentOpt => current%opt
+      SELECT TYPE(currentOpt)
+      CLASS IS (IntFromStringOption)
+        SWRITE(UNIT_StdOut,'(A)') 'Possible options for this parameter are:'
+        WRITE(fmtIntFromStringLength,*) currentOpt%maxLength   ! The biggest lenght of a named option
+        WRITE(fmtStringIntFromString,*) "(A"//TRIM(fmtIntFromStringLength)//",A,I0,A)"
+        DO i=1,SIZE(currentOpt%strList)
+          ! Output is in the format STRING (INTEGER)
+          WRITE(intFromStringOutput,TRIM(fmtStringIntFromString)) TRIM(currentOpt%strList(i)), ' (', currentOpt%intList(i), ')'
+          SWRITE(UNIT_StdOut,'(A)') TRIM(intFromStringOutput)
+        END DO
+      END SELECT
+    END IF
+ 
+    ! print ------ line at the end of a section in markdown mode
+    IF (associated(current%next).AND.markdown) THEN 
+      IF (.NOT.STRICMP(section,current%next%opt%section)) THEN
+        SWRITE(UNIT_StdOut,'('//fmtLineLen//'("-"))')
+        SWRITE(UNIT_StdOut,*) ''    
+      END IF
+    END IF
+  END IF
+  current => current%next
+END DO
+END SUBROUTINE
+
+!==================================================================================================================================
+!> Creates a new link to a option-object, 'next' is the following link in the linked list
+!==================================================================================================================================
+FUNCTION constructor_Link(opt, next)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CLASS(link),POINTER            :: constructor_Link  !< new link
+CLASS(OPTION),INTENT(IN)       :: opt               !< option to be linked
+CLASS(link),INTENT(IN),POINTER :: next              !< next link
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!==================================================================================================================================
+ALLOCATE(constructor_Link)
+constructor_Link%next => next
+ALLOCATE(constructor_Link%opt, SOURCE=opt)
+END FUNCTION constructor_Link
+
+!==================================================================================================================================
+!> Count number of times a parameter is used within a file in case of multiple parameters. This only calls the internal
+!> function countoption_ of the parameters class.
+!==================================================================================================================================
+FUNCTION CNTSTR(name) result(no)
+! MODULES
+USE MOD_Options
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN) :: name  !< parameter name
+INTEGER                     :: no    !< number of parameters
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+no = prms%CountOption_(name)
+END FUNCTION CNTSTR
+
+!==================================================================================================================================
+!> General routine to get an option. This routine is called from GETINT,GETREAL,GETLOGICAL,GETSTR to get the value a non-array
+!> option. 
+!==================================================================================================================================
+SUBROUTINE GetGeneralOption(value, name, proposal)
+USE MOD_Options
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name     !< parameter name
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value
+CLASS(*)                             :: value    !< parameter value 
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CLASS(link),POINTER   :: current
+CLASS(Option),POINTER :: opt
+CHARACTER(LEN=255)    :: proposal_loc
+CLASS(OPTION),ALLOCATABLE    :: newopt
+!==================================================================================================================================
+
+! iterate over all options
+current => prms%firstLink
+DO WHILE (associated(current))
+  ! if name matches option
+  IF (.NOT.current%opt%isRemoved) THEN
+    IF (current%opt%NAMEEQUALS(name)) THEN
+      opt => current%opt
+      ! if proposal is present and the option is not set due to the parameter file, then return the proposal
+      IF ((PRESENT(proposal)).AND.(.NOT.opt%isSet)) THEN
+        proposal_loc = TRIM(proposal)
+        CALL opt%parse(proposal_loc)
+      ELSE
+        ! no proposal, no default and also not set in parameter file => abort
+        IF ((.NOT.opt%hasDefault).AND.(.NOT.opt%isSet)) THEN
+          CALL ABORT(__STAMP__, &
+              "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+          RETURN
+        END IF
+      END IF
+      ! copy value from option to result variable
+      SELECT TYPE (opt)
+      CLASS IS (IntOption)
+        SELECT TYPE(value)
+        TYPE IS (INTEGER)
+          value = opt%value
+        END SELECT
+      CLASS IS (RealOption)
+        SELECT TYPE(value)
+        TYPE IS (REAL)
+          value = opt%value
+        END SELECT
+      CLASS IS (LogicalOption)
+        SELECT TYPE(value)
+        TYPE IS (LOGICAL)
+          value = opt%value
+        END SELECT
+      CLASS IS (StringOption)
+        SELECT TYPE(value)
+        TYPE IS (STR255)
+          value%chars = opt%value
+        END SELECT
+      END SELECT
+      ! print option and value to stdout
+      CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      ! remove the option from the linked list of all parameters
+      IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
+      RETURN
+    END IF 
+  END IF
+  current => current%next
+END DO
+
+! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (.NOT.current%opt%numberedmulti) THEN
+    current => current%next
+  ELSE
+    ! compare reduced name with reduced option name
+    IF (current%opt%NAMEEQUALSNUMBERED(name).AND.(.NOT.current%opt%isRemoved)) THEN
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      newopt%isSet = .FALSE.
+      IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
+        proposal_loc = TRIM(proposal)
+        CALL newopt%parse(proposal_loc)
+      ELSE
+        ! no proposal, no default and also not set in parameter file => abort
+        IF ((.NOT.newopt%hasDefault).AND.(.NOT.newopt%isSet)) THEN
+          CALL ABORT(__STAMP__, &
+              "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+          RETURN
+        END IF
+      END IF
+      ! copy value from option to result variable
+      SELECT TYPE (newopt)
+      CLASS IS (IntOption)
+        SELECT TYPE(value)
+        TYPE IS (INTEGER)
+          value = newopt%value
+        END SELECT
+      CLASS IS (RealOption)
+        SELECT TYPE(value)
+        TYPE IS (REAL)
+          value = newopt%value
+        END SELECT
+      CLASS IS (LogicalOption)
+        SELECT TYPE(value)
+        TYPE IS (LOGICAL)
+          value = newopt%value
+        END SELECT
+      CLASS IS (StringOption)
+        SELECT TYPE(value)
+        TYPE IS (STR255)
+          value%chars = newopt%value
+        END SELECT
+      END SELECT
+      ! print option and value to stdout
+      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      ! remove the option from the linked list of all parameters
+      IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+      ! insert option
+      CALL insertOption(current, newopt)
+      RETURN
+    END IF
+    current => current%next
+  END IF
+END DO
+CALL ABORT(__STAMP__, &
+    'Option "'//TRIM(name)//'" is not defined in any DefineParameters... routine '//&
+    'or already read (use GET... routine only for multiple options more than once).')
+END SUBROUTINE GetGeneralOption
+    
+!==================================================================================================================================
+!> General routine to get an array option. This routine is called from GETINTARRAY,GETREALARRAY,GETLOGICALARRAY,GETSTRARRAY to get
+!> the value an array option.
+!==================================================================================================================================
+SUBROUTINE GetGeneralArrayOption(value, name, no, proposal)
+USE MOD_Options
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
+INTEGER,INTENT(IN)                   :: no        !< size of array
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value
+CLASS(*)                             :: value(no) !< parameter value 
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CLASS(link),POINTER   :: current
+CLASS(Option),POINTER :: opt
+CHARACTER(LEN=255)    :: proposal_loc
+CLASS(OPTION),ALLOCATABLE    :: newopt
+!INTEGER               :: i
+!==================================================================================================================================
+
+! iterate over all options
+current => prms%firstLink
+DO WHILE (associated(current))
+  ! if name matches option
+  IF (current%opt%NAMEEQUALS(name).AND.(.NOT.current%opt%isRemoved)) THEN
+    opt => current%opt
+    ! if proposal is present and the option is not set due to the parameter file, then return the proposal
+    IF ((PRESENT(proposal)).AND.(.NOT.opt%isSet)) THEN
+      proposal_loc = TRIM(proposal)
+      CALL opt%parse(proposal_loc)
+    ELSE
+      ! no proposal, no default and also not set in parameter file => abort
+      IF ((.NOT.opt%hasDefault).AND.(.NOT.opt%isSet)) THEN
+        CALL ABORT(__STAMP__, &
+            "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+        RETURN
+      END IF
+    END IF
+    ! copy value from option to result variable
+    SELECT TYPE (opt)
+    CLASS IS (IntArrayOption)
+      IF (SIZE(opt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+      SELECT TYPE(value)
+      TYPE IS (INTEGER)
+        value = opt%value
+      END SELECT
+    CLASS IS (RealArrayOption)
+      IF (SIZE(opt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+      SELECT TYPE(value)
+      TYPE IS (REAL)
+        value = opt%value
+      END SELECT
+    CLASS IS (LogicalArrayOption)
+      IF (SIZE(opt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+      SELECT TYPE(value)
+      TYPE IS (LOGICAL)
+        value = opt%value
+      END SELECT
+    !CLASS IS (StringArrayOption)
+      !IF (SIZE(opt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+      !SELECT TYPE(value)
+      !TYPE IS (STR255)
+        !DO i=1,no
+          !value(i)%chars = opt%value(i)
+        !END DO
+      !END SELECT
+    END SELECT
+    ! print option and value to stdout
+    CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+    ! remove the option from the linked list of all parameters
+    IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
+    RETURN
+  END IF 
+  current => current%next
+END DO
+
+! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (.NOT.current%opt%numberedmulti) THEN
+    current => current%next
+  ELSE
+    ! compare reduced name with reduced option name
+    IF (current%opt%NAMEEQUALSNUMBERED(name).AND.(.NOT.current%opt%isRemoved)) THEN
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      newopt%isSet = .FALSE.
+      IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
+        proposal_loc = TRIM(proposal)
+        CALL newopt%parse(proposal_loc)
+      ELSE
+        ! no proposal, no default and also not set in parameter file => abort
+        IF ((.NOT.newopt%hasDefault).AND.(.NOT.newopt%isSet)) THEN
+          CALL ABORT(__STAMP__, &
+              "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+          RETURN
+        END IF
+      END IF
+      ! copy value from option to result variable
+      SELECT TYPE (newopt)
+      CLASS IS (IntArrayOption)
+        IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        SELECT TYPE(value)
+        TYPE IS (INTEGER)
+          value = newopt%value
+        END SELECT
+      CLASS IS (RealArrayOption)
+        IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        SELECT TYPE(value)
+        TYPE IS (REAL)
+          value = newopt%value
+        END SELECT
+      CLASS IS (LogicalArrayOption)
+        IF (SIZE(newopt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        SELECT TYPE(value)
+        TYPE IS (LOGICAL)
+          value = newopt%value
+        END SELECT
+      !CLASS IS (StringArrayOption)
+        !IF (SIZE(opt%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
+        !SELECT TYPE(value)
+        !TYPE IS (STR255)
+          !DO i=1,no
+            !value(i)%chars = opt%value(i)
+          !END DO
+        !END SELECT
+      END SELECT
+      ! print option and value to stdout
+      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      ! remove the option from the linked list of all parameters
+      IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+      ! insert option
+      CALL insertOption(current, newopt)
+      RETURN
+    END IF
+    current => current%next
+  END IF
+END DO
+CALL ABORT(__STAMP__, &
+    'Option "'//TRIM(name)//'" is not defined in any DefineParameters... routine '//&
+    'or already read (use GET... routine only for multiple options more than once).')
+END SUBROUTINE GetGeneralArrayOption
+
+!==================================================================================================================================
+!> Get integer, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETINT(name, proposal) result(value)
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN) :: name              !< parameter name
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value 
+INTEGER                     :: value             !< parameter value 
+!==================================================================================================================================
+value = -1
+CALL GetGeneralOption(value, name, proposal)
+END FUNCTION GETINT
+
+!==================================================================================================================================
+!> Get logical, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETLOGICAL(name, proposal) result(value)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN) :: name              !< parameter name
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value 
+LOGICAL                     :: value             !< parameter value 
+!==================================================================================================================================
+value = .FALSE.
+CALL GetGeneralOption(value, name, proposal)
+END FUNCTION GETLOGICAL
+
+!==================================================================================================================================
+!> Get real, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETREAL(name, proposal) result(value)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name     !< parameter name
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value 
+REAL                                 :: value    !< parameter value 
+!==================================================================================================================================
+value = -1.0
+CALL GetGeneralOption(value, name, proposal)
+END FUNCTION GETREAL
+
+!==================================================================================================================================
+!> Get string, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETSTR(name, proposal) result(value)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name     !< parameter name
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value
+CHARACTER(LEN=255)                   :: value    !< parameter value
+! LOCAL VARIABLES
+TYPE(STR255) :: tmp ! compiler bug workaround (gfortran 4.8.4)
+!==================================================================================================================================
+CALL GetGeneralOption(tmp, name, proposal)
+value = tmp%chars
+END FUNCTION GETSTR
+
+!==================================================================================================================================
+!> Get integer array, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETINTARRAY(name, no, proposal) result(value)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
+INTEGER,INTENT(IN)                   :: no        !< size of array
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value 
+INTEGER                              :: value(no) !< array of integers
+!==================================================================================================================================
+value = -1
+CALL GetGeneralArrayOption(value, name, no, proposal)
+END FUNCTION GETINTARRAY
+
+!==================================================================================================================================
+!> Get logical array, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETLOGICALARRAY(name, no, proposal) result(value)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
+INTEGER,INTENT(IN)                   :: no        !< size of array
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value 
+LOGICAL                              :: value(no) !< array of logicals
+!==================================================================================================================================
+value = .FALSE.
+CALL GetGeneralArrayOption(value, name, no, proposal)
+END FUNCTION GETLOGICALARRAY
+
+!==================================================================================================================================
+!> Get real array, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETREALARRAY(name, no, proposal) RESULT(value)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
+INTEGER,INTENT(IN)                   :: no        !< size of array
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value 
+REAL                                 :: value(no) !< array of reals
+!==================================================================================================================================
+value = -1.
+CALL GetGeneralArrayOption(value, name, no, proposal)
+END FUNCTION GETREALARRAY
+
+!==================================================================================================================================
+!> Get string array, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETSTRARRAY(name, no, proposal) result(value)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
+INTEGER,INTENT(IN)                   :: no        !< size of array
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value 
+CHARACTER(LEN=255)                   :: value(no) !< array of strings
+! LOCAL VARIABLES
+TYPE(STR255) :: tmp(no) ! compiler bug workaround (gfortran 4.8.4)
+INTEGER      :: i
+!==================================================================================================================================
+CALL GetGeneralArrayOption(tmp, name, no, proposal)
+DO i = 1, no
+  value(i)=tmp(i)%chars
+END DO ! i = 1, no
+END FUNCTION GETSTRARRAY
+
+!==================================================================================================================================
+!> Get string array, where proposal is used as default value, if the option was not set in parameter file 
+!==================================================================================================================================
+FUNCTION GETDESCRIPTION(name) result(description)
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)          :: name        !< parameter name
+CHARACTER(LEN=1000)                  :: description !< description
+! LOCAL VARIABLES
+CLASS(link),POINTER :: current
+!==================================================================================================================================
+! iterate over all options and compare names
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%NAMEEQUALS(name)) THEN
+    description = current%opt%description
+  END IF
+  current => current%next
+END DO
+END FUNCTION GETDESCRIPTION
+
+!==================================================================================================================================
+!> GETINT for options with string values. Requires a map that provides the link between the 
+!> possible integer values and the corresponding named values. This map is set using the addStrListEntry routine during 
+!> parameter definition. If there is no named value to an option passed as int a warning is returned.
+!==================================================================================================================================
+FUNCTION GETINTFROMSTR(name) result(value)
+USE MOD_StringTools ,ONLY: ISINT, STRICMP
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)   :: name        !< parameter name
+INTEGER                       :: value       !< return value
+! LOCAL VARIABLES
+CLASS(link),POINTER           :: current
+CLASS(Option),POINTER         :: opt
+INTEGER                       :: i
+LOGICAL                       :: found
+INTEGER                       :: listSize         ! current size of list
+!==================================================================================================================================
+! iterate over all options and compare names
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%NAMEEQUALS(name).AND.(.NOT.current%opt%isRemoved)) THEN
+    opt => current%opt
+    SELECT TYPE (opt)
+    CLASS IS (IntFromStringOption)
+      ! Set flag indicating the given option has an entry in the mapping
+      opt%foundInList = .TRUE.
+      ! Size of list with string-integer pairs
+      listSize = SIZE(opt%strList) 
+      ! Check if an integer has been specfied directly
+      IF (ISINT(opt%value)) THEN
+        READ(opt%value,*) value
+        found=.FALSE.
+        ! Check if the integer is present in the list of possible integers
+        DO i=1,listSize
+          IF (opt%intList(i).EQ.value)THEN
+            found=.TRUE.
+            opt%listIndex = i ! Store index of the mapping
+            EXIT
+          END IF
+        END DO
+        ! If it is not found, print a warning and set the flag to later use the correct output format
+        IF(.NOT.found)THEN
+          CALL PrintWarning("No named option for parameter " //TRIM(name)// " exists for this number, please ensure your input is correct.")
+          opt%foundInList = .FALSE.
+        END IF
+        CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+        ! remove the option from the linked list of all parameters
+        IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
+        RETURN
+      END IF
+      ! If a string has been supplied, check if this string exists in the list and set it's integer representation according to the
+      ! mapping
+      DO i=1,listSize
+        IF (STRICMP(opt%strList(i), opt%value)) THEN
+          value = opt%intList(i)
+          opt%listIndex = i ! Store index of the mapping
+          CALL opt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+          ! remove the option from the linked list of all parameters
+          IF(prms%removeAfterRead) current%opt%isRemoved = .TRUE.
+          RETURN
+        END IF
+      END DO
+      CALL Abort(__STAMP__,&
+          "Unknown value for option: "//TRIM(name))
+    END SELECT
+  END IF
+  current => current%next
+END DO
+CALL Abort(__STAMP__,&
+    "Unknown option: "//TRIM(name)//" or already read (use GET... routine only for multiple options more than once).")
+END FUNCTION GETINTFROMSTR
+
+!===================================================================================================================================
+!> Add an entry to the mapping of string and integer values for the StringToInt option.
+!===================================================================================================================================
+SUBROUTINE addStrListEntry(name,string_in,int_in) 
+USE MOD_Globals,     ONLY: abort
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(IN)    :: name      !< parameter name
+CHARACTER(LEN=*),INTENT(IN)    :: string_in !< (IN) string used for the option value
+INTEGER         ,INTENT(IN)    :: int_in    !< (IN) integer used internally for the option value
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CLASS(link), POINTER           :: current
+CLASS(OPTION),POINTER          :: opt
+INTEGER                        :: listSize         ! current size of list
+CHARACTER(LEN=255),ALLOCATABLE :: strListTmp(:)    ! temporary string list
+INTEGER           ,ALLOCATABLE :: intListTmp(:)    ! temporary integer list
+!===================================================================================================================================
+! iterate over all options and compare names
+current => prms%firstLink
+DO WHILE (associated(current))
+  IF (current%opt%NAMEEQUALS(name)) THEN
+    opt => current%opt
+    SELECT TYPE (opt)
+    CLASS IS (IntFromStringOption)
+      ! Check if the arrays containing the string and integer values are already allocated
+      IF (.NOT.(ALLOCATED(opt%strList))) THEN
+        ! This is the first call to addEntry, allocate the arrays with dimension one
+        ALLOCATE(opt%strList(1))
+        ALLOCATE(opt%intList(1))
+        ! Store the values in the lists
+        opt%strList(1) = TRIM(string_in)
+        opt%intList(1) = int_in
+        ! Save biggest length of string entry
+        opt%maxLength = LEN_TRIM(string_in)+4+INT(LOG10(REAL(ABS(int_in))+EPSILON(0.0)))
+      ELSE
+        ! Subsequent call to addEntry, re-allocate the lists with one additional entry
+        listSize = SIZE(opt%strList)    ! opt size of the list
+        ! store opt values in temporary arrays
+        ALLOCATE(strListTmp(listSize))
+        ALLOCATE(intListTmp(listSize))
+        strListTmp = opt%strList
+        intListTmp = opt%intList
+        ! Deallocate and re-allocate the list arrays
+        SDEALLOCATE(opt%strList)
+        SDEALLOCATE(opt%intList)
+        ALLOCATE(opt%strList(listSize+1))
+        ALLOCATE(opt%intList(listSize+1))
+        ! Re-write the old values
+        opt%strList(1:listSize) = strListTmp
+        opt%intList(1:listSize) = intListTmp
+        ! Deallocate temp arrays
+        SDEALLOCATE(strListTmp)
+        SDEALLOCATE(intListTmp)
+        ! Now save the actual new entry in the list
+        opt%strList(listSize+1) = TRIM(string_in)
+        opt%intList(listSize+1) = int_in
+        ! Save biggest length of string entry
+        opt%maxLength = MAX(opt%maxLength,LEN_TRIM(string_in)+4+INT(LOG10(REAL(ABS(int_in))+EPSILON(0.0))))
+      END IF
+      RETURN
+    CLASS DEFAULT
+      CALL Abort(__STAMP__,&
+        "Option is not of type IntFromString: "//TRIM(name))
+    END SELECT
+  END IF
+  current => current%next
+END DO
+CALL Abort(__STAMP__,&
+    "Option not yet set: "//TRIM(name))
+
+END SUBROUTINE addStrListEntry
+
+SUBROUTINE ExtractParameterFile(filename,prmfile,userblockFound) 
+! MODULES
+USE MOD_StringTools ,ONLY: STRICMP
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN) :: filename !< name of file to be read
+CHARACTER(LEN=*),INTENT(IN)   :: prmfile  !< name of file to be written
+LOGICAL,INTENT(OUT)           :: userblockFound
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER               :: stat,iniUnit,fileUnit
+TYPE(Varying_String)  :: aStr
+CHARACTER(LEN=3)      :: tmp
+LOGICAL               :: iniFound
+!==================================================================================================================================
+
+IF (MPIRoot) THEN
+  IF (.NOT.FILEEXISTS(filename)) THEN
+    CALL CollectiveStop(__STAMP__,&
+        "File '"//TRIM(filename)//"' does not exist.")
   END IF
 
-END DO
-END SUBROUTINE FindStr
+  SWRITE(UNIT_StdOut,*)'| Extract parameter file from "',TRIM(filename),'" to "',TRIM(prmfile),'"'
 
+  ! Open parameter file for reading
+  OPEN(NEWUNIT=fileUnit,FILE=TRIM(filename),STATUS='OLD',ACTION='READ',ACCESS='SEQUENTIAL',IOSTAT=stat)
+  IF(stat.NE.0) THEN
+    CALL Abort(__STAMP__,&
+        "Could not open '"//TRIM(filename)//"'")
+  END IF
 
+  OPEN(NEWUNIT=iniUnit,FILE=TRIM(prmfile),STATUS='UNKNOWN',ACTION='WRITE',ACCESS='SEQUENTIAL',IOSTAT=stat)
+  IF(stat.NE.0) THEN
+    CALL Abort(__STAMP__,&
+        "Could not open '"//TRIM(prmfile)//"'")
+  END IF
 
-SUBROUTINE LowCase(Str1,Str2)
-!===================================================================================================================================
-! Transform upper case letters in "Str1" into lower case letters, result is "Str2"
-!==================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)  :: Str1 ! Input string 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(OUT) :: Str2 ! Output string, lower case letters only
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-INTEGER                      :: iLen,nLen,Upper
-CHARACTER(LEN=*),PARAMETER   :: lc='abcdefghijklmnopqrstuvwxyz'
-CHARACTER(LEN=*),PARAMETER   :: UC='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-LOGICAL                      :: HasEq
-!===================================================================================================================================
-HasEq=.FALSE.
-Str2=Str1
-nLen=LEN_TRIM(Str1)
-DO iLen=1,nLen
-  ! Transformation stops at "="
-  IF(Str1(iLen:iLen).EQ.'=') HasEq=.TRUE.
-  Upper=INDEX(UC,Str1(iLen:iLen))
-  IF ((Upper > 0).AND. .NOT. HasEq) Str2(iLen:iLen) = lc(Upper:Upper)
-END DO
-END SUBROUTINE LowCase
-
-SUBROUTINE getPImultiplies(helpstr)
-!===================================================================================================================================
-! Searches for the occurence of 'PI','Pi','pi' and 'pI' in a helpstr and replaces
-! it with the value of pi=3.1415... etc. and oes a multiplication.
-!===================================================================================================================================
-! IMPLICIT VARIABLE HANDLING
-    IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT OUTPUT VARIABLE
-    CHARACTER(LEN=*) :: helpstr   ! Input character string
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-    type(varying_string)      :: separator
-    type(varying_string)      :: astr,bstr,cstr,dstr
-    CHARACTER(LEN=500)        :: dummystr
-    REAL                      :: PI
-    REAL                      :: adummy
-    LOGICAL                   :: finished
-!===================================================================================================================================
-  !Initialiazation
-  dstr=var_str("")
-  PI=ACOS(-1.)
-  finished=.false.
-  !Replace all occurences of pi in the string by one symbol
-  helpstr=replace(helpstr,"PI","@",every=.true.)  ! Insert value of Pi
-  helpstr=replace(helpstr,"pi","@",every=.true.)  ! Insert value of Pi
-  helpstr=replace(helpstr,"pI","@",every=.true.)  ! Insert value of Pi
-  helpstr=replace(helpstr,"Pi","@",every=.true.)  ! Insert value of Pi
-  astr=var_str(helpstr)
-  ! loop over string
-  DO WHILE(.NOT. finished)
-    !split sting at "@-occurences"
-    CALL split(astr,bstr,"@",separator,back=.false.) !bStr is string in front of @
-    IF(len(char(separator)) .NE. 0)THEN 
-      ! we have found something, bnow get the factor in front of @
-      CALL split(bstr,cstr," ",separator,back=.true.)
-      IF(LEN(char(cstr)) .EQ. 0)THEN
-        !no factor
-        adummy=1
-      ELSE
-        !extract factor 
-        dummystr=trim(char(cstr))
-        READ(dummystr,*)adummy
-      ENDIF
-      !do the multiplication and recombine the string into "dstr"
-      adummy=PI*adummy
-      WRITE(dummystr,'(2a,F15.12)')trim(char(dstr)),trim(char(bstr)),adummy
-      dstr=var_str(dummystr)
-    ELSE
-      ! we did not find anything now recombine the remaining string into "dstr"
-      WRITE(dummystr,'(2a)')trim(char(dstr)),trim(char(bstr))
-      dstr=var_str(dummystr)
-      finished=.true.
+  iniFound = .FALSE.
+  userblockFound = .FALSE.
+  ! infinte loop. Exit at EOF
+  DO
+    ! read a line into 'aStr'
+    CALL Get(fileUnit,aStr,iostat=stat)
+    ! exit loop if EOF
+    IF(IS_IOSTAT_END(stat)) EXIT 
+    IF(.NOT.IS_IOSTAT_EOR(stat)) THEN
+      CALL Abort(__STAMP__,&
+          'Error during ini file read')
     END IF
-  END DO
-  helpstr=trim(char(dstr))
+    ! check if file starts "{[(" and therewith has a userblock
+    IF (.NOT.userblockFound) THEN
+      tmp = CHAR(extract(aStr,1,3))
+      userblockFound = STRICMP(tmp,"{[(")
+    END IF
+    IF (.NOT.userblockFound) THEN
+      SWRITE(*,*) "No Userblock found!"
+      EXIT
+    END IF
 
-END SUBROUTINE getPImultiplies
+    ! search for begin of inifile
+    IF (STRICMP(CHAR(aStr),"{[( INIFILE )]}")) THEN
+      iniFound = .TRUE.
+      CYCLE
+    END IF
+    IF (.NOT.iniFound) THEN
+      ! if not found cycle (other userblock stuff)
+      CYCLE
+    ELSE
+      ! if found and string starts with {[(, than this is the beginning of another userblock entry
+      ! => finish reading of inifile
+      tmp = CHAR(extract(aStr,1,3))
+      IF (STRICMP(tmp, "{[(")) THEN
+        EXIT
+      END IF
+    END IF
+    WRITE(iniUnit,'(A)') CHAR(aStr)
+  END DO
+
+  CLOSE(fileUnit)
+  CLOSE(iniUnit)
+END IF
+#ifdef MPI
+CALL MPI_BCAST(userblockFound,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+#endif /*MPI*/
+
+END SUBROUTINE ExtractParameterFile
 
 END MODULE MOD_ReadInTools

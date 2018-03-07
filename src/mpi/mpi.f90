@@ -45,9 +45,28 @@ END INTERFACE
 
 PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 #endif
+PUBLIC::DefineParametersMPI
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters 
+!==================================================================================================================================
+SUBROUTINE DefineParametersMPI()
+! MODULES
+USE MOD_ReadInTools,              ONLY: prms
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!==================================================================================================================================
+CALL prms%SetSection("MPI")
+CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.g. perform grouped IO, where group master\n"//&
+                                       "collects and outputs data.",&
+                                       '0')
+END SUBROUTINE DefineParametersMPI
 
 SUBROUTINE InitMPI()
 !===================================================================================================================================

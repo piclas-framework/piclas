@@ -75,6 +75,7 @@ REAL                 :: time0, time
 IF(DoPrintConvInfo)THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
   SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
+  time0=BOLTZPLATZTIME()
 END IF
 #else
 IF(DoDisplayIter)THEN
@@ -276,7 +277,7 @@ END DO !iElem
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 IF(DoPrintConvInfo)THEN
   time=BOLTZPLATZTIME()
-  SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+  SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
   SWRITE(UNIT_stdOut,'(132("-"))')
 END IF
 #else

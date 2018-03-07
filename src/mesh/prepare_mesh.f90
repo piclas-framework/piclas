@@ -976,9 +976,8 @@ DO iElem=1,nElems
       IF(aSide%NbProc.EQ.-1) CYCLE !no MPISide
       IF(aSide%SideID.GT.offsetMPISides_YOUR(0))THEN
         IF(aSide%flip.EQ.0)THEN
-          IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(&
-  __STAMP__&
-  ,'problem in exchangeflip') 
+          IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(__STAMP__&
+              ,'problem in exchangeflip') 
 #ifdef PARTICLES
           ! switch side-alpha if flip is changed. The other side now constructs the side, thus it has to be changed
           IF(aSide%flip.NE.Flip_YOUR(aSide%SideID))  SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)

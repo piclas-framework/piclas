@@ -29,9 +29,65 @@ PUBLIC:: LinearSolver
 #endif /*NOT HDG*/
 
 PUBLIC:: InitLinearSolver, FinalizeLinearSolver
+PUBLIC:: DefineParametersLinearSolver
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for Linear solver
+!==================================================================================================================================
+SUBROUTINE DefineParametersLinearSolver()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Linear Solver")
+
+CALL prms%CreateRealOption(     'EpsNewton'   , 'Tolerance for implicit Newton schem. Only TimeDisc=104.', '0.001')
+CALL prms%CreateIntOption(      'nNewtonIter' , 'Max iter in implicit Newton method. Only TimeDisc=104.', '20')
+CALL prms%CreateLogicalOption(  'EisenstatWalker' , 'Use EistenstatWalker in Newton. Only TimeDisc=104.', '.FALSE.')
+CALL prms%CreateRealOption(     'gammaEW'   , 'Change in abort-criterion for EisenstatWalker. Only TimeDisc=104.', '0.9')
+CALL prms%CreateIntOption(      'nRestarts' , 'Number of restarts for linear solver, important for GMRES.', '1')
+CALL prms%CreateRealOption(     'eps_LinearSolver'   , 'Relative abort criterion for linear solver.', '1e-3')
+CALL prms%CreateIntOption(      'maxIter_LinearSolver' , 'maxinum number of iterations for linear solver.', '60')
+CALL prms%CreateIntOption(      'nKDim' , 'Size up Krylov-subspace in GMRES(l). nkDim*nRestarts is max iter.', '25')
+CALL prms%CreateIntOption(      'maxFullNewtonIter' , 'Number of outer Newton iteration in implicit PIC.', '100')
+CALL prms%CreateRealOption(     'eps_FullNewton'   , 'Tolerance for outer Newton in implicit PIC.', '1e-3')
+CALL prms%CreateIntOption(      'FullEisenstatWalker' , 'EisenstatWalker: for Field>1, Field+Particle>2', '0')
+CALL prms%CreateRealOption(     'FullgammaEW'   , 'Drop of tolerance in EW during outer Newton.', '0.9')
+
+CALL prms%CreateLogicalOption(  'DoPrintConvInfo' , 'Print Convergence information for implicit PIC.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'DoFieldUpdate' , 'Disable call of field solver for implicit PIC.', '.TRUE.')
+CALL prms%CreateRealOption(     'PartNewtonRelaxation'   , 'Particle-relaxation factor in Newton.', '1.')
+CALL prms%CreateLogicalOption(  'DoUpdateInStage' , 'UpdateNextFreePosition in each RK-Stage', '.FALSE.')
+CALL prms%CreateIntOption(      'UpdateInIter' , 'UpdateNextFreePosition each nth iteration during outer Newton.', '-1')
+CALL prms%CreateRealOption(     'PartRelaxationFac'   , 'ParticleRelaxation factor. Obsolete.', '0.0')
+CALL prms%CreateIntOption(      'AdaptIterRelaxation0' , 'Obsolete.', '2')
+CALL prms%CreateLogicalOption(  'withmass' , 'Withmass=F is defaul DG with mass matrix on RHS.', '.FALSE.')
+CALL prms%CreateIntOption(      'LinSolver' , 'Select linear solver. 2-BiCGStab,4-GMRES,7-BiCGStab(l)', '2')
+CALL prms%CreateIntOption(      'ldim' , 'Size of subspace for BiCGStab(l)', '1')
+
+CALL prms%CreateIntOption(      'Predictor' , 'Predictor for field solver. 0-Uold,1-RHS,2-second-order,3-third-order', '0')
+
+#ifdef maxwell
+CALL prms%CreateIntOption(      'PrecondType' , 'Preconditioner: 1-FD-BJ,2-BJ,3-BJ-ILU(0),4-BJ-8ILU(0),201-ADI', '0')
+#endif /*maxwell*/
+CALL prms%CreateIntOption(      'PrecondMethod' , 'Switch if blas or loop for BJ preconditioner', '0')
+CALL prms%CreateIntOption(      'DebugMatrix' , 'Write: 1-BJ-Jacobian and 2-BJ-Jacobian+Inv to dat-file per element.', '0')
+
+CALL prms%SetSection("Linear Solver Particle")
+
+CALL prms%CreateRealOption(     'EpsPartNewton'   , 'Tolerance of the inner ParticleNewton.', '0.001')
+CALL prms%CreateRealOption(     'EpsPartLinSolver'   , 'Tolerance for GMRES(6x6) in ParticleNewton', '0.0')
+CALL prms%CreateIntOption(      'nPartNewtonIter' , 'Max. number of iteration in ParticleNewton.', '20')
+CALL prms%CreateIntOption(      'FreezePartInNewton' , 'Fix matrix for n-iteration (no interpolation,localization)', '1')
+CALL prms%CreateRealOption(     'PartgammaEW'   , 'Drop of tolerance in particle-ew', '0.9')
+CALL prms%CreateRealOption(     'scaleps'   , 'Scaling factor for finite difference which approximates matrix-vector prod.', '1.')
+CALL prms%CreateLogicalOption(  'DoFullNewton' , 'Switch between normal Newton or optimized Newton with subiteration.', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-ImplicitMethod' , 'Selection criterion for implicit particles. Only per species.', '1')
+
+END SUBROUTINE DefineParametersLinearSolver
 
 SUBROUTINE InitLinearSolver()
 !===================================================================================================================================
@@ -48,6 +104,7 @@ USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Precond,              ONLY:InitPrecond
+USE MOD_TimeDisc_Vars,        ONLY:nRKStages
 #endif /*NOT HDG*/
 USE MOD_Predictor,            ONLY:InitPredictor
 ! IMPLICIT VARIABLE HANDLING
@@ -79,6 +136,7 @@ nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
 #endif /*NOT HDG*/
+
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ImplicitSource=0.
@@ -129,11 +187,16 @@ Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
+#ifndef PP_HDG
+ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
+#endif
 #ifdef PARTICLES
+DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 ! allocate explicit particle source
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 ALLOCATE(ExplicitPartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ExplicitPartSource=0.
+PartNewtonRelaxation= GETREAL('PartNewtonRelaxation','1.')
 #endif
 ! flag to enforce updatenextfree position in all rk stages
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
@@ -203,7 +266,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT LINEAR SOLVER DONE!'
 END SUBROUTINE InitLinearSolver
 
 #ifndef PP_HDG
-SUBROUTINE LinearSolver(t,Coeff,relTolerance)
+SUBROUTINE LinearSolver(t,Coeff,relTolerance,Norm_R0)
 !==================================================================================================================================
 ! Selection between different linear solvers
 !==================================================================================================================================
@@ -213,28 +276,46 @@ USE MOD_LinearSolver_Vars              ,ONLY: LinSolver
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)       :: t,Coeff
-REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(INOUT)          :: t,Coeff
+REAL,INTENT(IN),OPTIONAL    :: relTolerance
+REAL,INTENT(IN),OPTIONAL    :: Norm_R0
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !==================================================================================================================================
 
-IF(PRESENT(relTolerance))THEN
+IF(PRESENT(relTolerance).AND.PRESENT(Norm_R0))THEN
   SELECT CASE(LinSolver)
   CASE(1)
-   CALL LinearSolver_CGS(t,Coeff,relTolerance)
+   CALL LinearSolver_CGS(t,Coeff,relTolerance,Norm_R0)
   CASE(2)
-   CALL LinearSolver_BiCGSTAB_PM(t,Coeff,relTolerance)
+   CALL LinearSolver_BiCGSTAB_PM(t,Coeff,relTolerance,Norm_R0)
   CASE(3)
-   CALL LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance)
+   CALL LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance,Norm_R0)
   CASE(4)
-   CALL LinearSolver_GMRES_P(t,Coeff,relTolerance)
+   CALL LinearSolver_GMRES_P(t,Coeff,relTolerance,Norm_R0)
   CASE(5)
-   CALL LinearSolver_BiCGSTAB_LRP(t,Coeff,relTolerance)
+   CALL LinearSolver_BiCGSTAB_LRP(t,Coeff,relTolerance,Norm_R0)
   CASE(6)
-   CALL LinearSolver_BiCGSTAB_LP(t,Coeff,relTolerance)
+   CALL LinearSolver_BiCGSTAB_LP(t,Coeff,relTolerance,Norm_R0)
   CASE(7)
-   CALL LinearSolver_BiCGSTABl(t,Coeff,relTolerance)
+   CALL LinearSolver_BiCGSTABl(t,Coeff,relTolerance,Norm_R0)
+  END SELECT
+ELSE IF(PRESENT(Norm_R0))THEN
+  SELECT CASE(LinSolver)
+  CASE(1)
+   CALL LinearSolver_CGS(t,Coeff,Norm_R0)
+  CASE(2)
+   CALL LinearSolver_BiCGSTAB_PM(t,Coeff,Norm_R0)
+  CASE(3)
+   CALL LinearSolver_StabBiCGSTAB_P(t,Coeff,Norm_R0)
+  CASE(4)
+   CALL LinearSolver_GMRES_P(t,Coeff,Norm_R0)
+  CASE(5)
+   CALL LinearSolver_BiCGSTAB_LRP(t,Coeff,Norm_R0)
+  CASE(6)
+   CALL LinearSolver_BiCGSTAB_LP(t,Coeff,Norm_R0)
+  CASE(7)
+   CALL LinearSolver_BiCGSTABl(t,Coeff,Norm_R0)
   END SELECT
 ELSE
   SELECT CASE(LinSolver)
@@ -257,7 +338,8 @@ END IF
 
 END SUBROUTINE LinearSolver
 
-SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance)
+
+SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance,Norm_R0_in)
 !==================================================================================================================================
 ! Solves Linear system Ax=b using CGS
 ! Matrix A = I - Coeff*R
@@ -270,7 +352,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
-USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
+USE MOD_LinearOperator,       ONLY:MatrixVector, VectorDotProduct,MatrixVectorSource
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -278,17 +360,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)          :: t,Coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(IN),OPTIONAL :: Norm_R0_in
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAl                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Q(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Tvec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Norm_R0,sigma,alpha,beta,Norm_R
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: sigma,alpha,beta,Norm_R,Norm_R0
 REAL                     :: AbortCrit
 INTEGER                  :: iterLinSolver,Restart
 ! preconditioner
@@ -313,10 +396,18 @@ Uold = U
 Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
+! always required, because of predictor
 CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 ! compute  A*U^n
-CALL VectorDotProduct(R0,R0,Norm_R0)
-Norm_R0=SQRT(Norm_R0)
+IF(PRESENT(Norm_R0_in))THEN
+  Norm_R0=Norm_R0_in
+ELSE
+  CALL VectorDotProduct(R0,R0,Norm_R0)
+  Norm_R0=SQRT(Norm_R0)
+END IF
+! absolute tolerance check, if initial solution already matches old solution or 
+! RHS is zero. Maybe it is here better to use relTolerance?
+IF(Norm_R0.LT.1e-14) RETURN
 
 ! Init
 P=R0
@@ -393,240 +484,8 @@ __STAMP__ &
 ,'CGS NOT CONVERGED WITH RESTARTS AND CGS ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 END SUBROUTINE LinearSolver_CGS
 
-#ifdef donotcompilethis
-SUBROUTINE LinearSolver_BiCGStab(t,Coeff)
-!===================================================================================================================================
-! Solves Linear system Ax=b using BiCGStab 
-! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_DG_Vars,        ONLY: U
-USE MOD_LinearSolver_Vars,  ONLY: eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
-USE MOD_LinearSolver_Vars,  ONLY: ImplicitSource,LinsolverRHS
-USE MOD_LinearOperator, ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER          :: iter
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R
-INTEGER          :: chance
-!===================================================================================================================================
-chance=0
-1002 CONTINUE 
-! Save old time step
-! Compute A*U^n
-!CALL MatrixVector(t,Coeff)
-! Compute first residual b-A*U^n 
-! Equation System:
-! U_n+1 = U_n + dt*(DG_Operator(U_n+1)+Sources_n+1)
-! (I-dt*DG_Operator)U_n+1 = U_n+dt(Sources_n+1)
-!          A          x   =        b
-! ==>
-! R0 = b - Ax_0
-!    = U_n + dt*Sources_n - (I-dt*DG_Operator)*x_0
-!    = U_n + dt*Sources_n - x_0 + dt*DG_Operator*x_0
-!    = U_n + dt*Sourvce_n - U_n + dt*DG_Operator*U_n
-! with x_0 = U_n and Ut from MatrixVectorSource (see above)
-!    = U_n - Ut
 
-
-Un=U
-UOld=U
-CALL MatrixVectorSource(t,Coeff,R0) ! coeff*DG_Operator(Un)
-
-! Init
-P=R0
-R=R0
-
-CALL VectorDotProduct(R,R,Norm_R0)
-Norm_R0=SQRT(Norm_R0)
-
-DO iter=1,maxIter_LinearSolver
-  CALL MatrixVector(t,Coeff,P,V)
-  CALL VectorDotProduct(V,R0,sigma)
-  CALL VectorDotProduct(R,R0,alpha)
-  alpha=alpha/sigma
-  S = R - alpha*V
-  CALL MatrixVector(t,Coeff,S,TVec)
-  CALL VectorDotProduct(TVec,TVec,Norm_T2)
-  CALL VectorDotProduct(TVec,S,omega)
-  omega=omega/Norm_T2
-  Un=Un+alpha*P+omega*S
-  R=S-omega*TVec
-  CALL VectorDotProduct(R,R0,beta)
-  beta=beta/(omega*sigma)
-  P=R+beta*(P-omega*V)
-  CALL VectorDotProduct(R,R,Norm_R)
-  Norm_R=SQRT(Norm_R)
-  !IF((Norm_R.LE.eps_LinearSolver*Norm_R0).OR.(Norm_R.LT.1.E-12)) THEN
-  IF((Norm_R.LE.eps_LinearSolver*Norm_R0).OR.(Norm_R.LT.1.E-12)) THEN
-    U=Un
-    ! Debug Ausgabe, Anzahl der Iterationen...
-    SWRITE(*,*)'iter,t,Norm_R,Norm_R0',iter,t,Norm_R,Norm_R0
-    RETURN
-  ENDIF
-  IF((iter.GT.maxIter_LinearSolver).AND.(chance.LT.2)) THEN
-    U=0.5*(UOld+Un)
-    chance=chance+1
-    ! restart
-    ImplicitSource = 0.
-    LinSolverRHS  =U
-    SWRITE(*,*)'SAUARSCH,iter,t,Norm_R,Norm_R0',iter,t,Norm_R,Norm_R0
-    GOTO 1002
-  END IF 
-END DO !iter
-SWRITE(*,*)'No Convergence: maxIter,last,initial residual',iter,Norm_R,Norm_R0
-SWRITE(*,*)'flummi',Norm_R,eps_LinearSolver,Norm_R0
-CALL abort(&
-__STAMP__&
-,' No convergence!')
-END SUBROUTINE LinearSolver_BiCGSTAB
-#endif
-
-
-#ifdef donotcompilethis
-SUBROUTINE LinearSolver_BiCGStab_P(t,Coeff)
-!===================================================================================================================================
-! Solves Linear system Ax=b using BiCGStab with right preconditioner P_r
-! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_DG_Vars,             ONLY: U
-USE MOD_LinearSolver_Vars,   ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,   ONLY: LinSolverRHS,ImplicitSource
-USE MOD_ApplyPreconditioner, ONLY:Preconditioner
-USE MOD_LinearOperator,      ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,Norm_R,Norm_T2
-INTEGER          :: iterLinSolver,chance
-REAL             :: alpha,sigma,omega,beta
-! preconditioner
-REAL             :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!===================================================================================================================================
-
-! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
-! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
-!       A                x   = b
-! 
-! Residuum
-! for initial guess, x0 is set to U^n
-! R0 = b - A x0
-!    = U^n + dt*Sources^n -( I - dt*DG_Operator ) U^n
-!    = dt*DG_Operator U^n 
-!    = dt * Ut
-
-
-! store here for later use
-Un   = U ! here, n stands for U^n
-Uold = U
-
-chance=0
-DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
-
-  CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut
-  ! compute  A*U^n
-  CALL VectorDotProduct(R0,R0,Norm_R0)
-  Norm_R0=SQRT(Norm_R0)
-  P  = R0
-  R  = R0
-  
-  DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
-    ! Preconditioner
-    CALL Preconditioner(P,Pt)
-    CALL MatrixVector(t,Coeff,Pt,V)
-
-    CALL VectorDotProduct(V,R0,sigma)
-    CALL VectorDotProduct(R,R0,alpha)
-
-    alpha=alpha/sigma
-    S = R - alpha*V
-
-    ! Preconditioner
-    CALL Preconditioner(S,St)
-    CALL MatrixVector(t,Coeff,St,TVec)
-
-    CALL VectorDotProduct(TVec,TVec,Norm_T2)
-    CALL VectorDotProduct(TVec,S,omega)
-    omega=omega/Norm_T2
-
-    Un=Un+alpha*Pt+omega*St
-    R=S-omega*TVec
-    CALL VectorDotProduct(R,R0,beta)
-    beta=beta/(omega*sigma)
-    P=R+beta*(P-omega*V)
-    CALL VectorDotProduct(R,R,Norm_R)
-    Norm_R=SQRT(Norm_R)
-    ! test if success
-    IF((Norm_R.LE.eps_LinearSolver*Norm_R0).OR.(Norm_R.LT.1.E-12)) THEN
-      U=Un
-      totalIterLinearSolver=totalIterLinearSolver+iterLinSolver
-      ! Debug Ausgabe, Anzahl der Iterationen...
-      SWRITE(*,*)'Iter LinSolver: ',iterLinSolver
-      SWRITE(*,*)'t             : ',t
-      SWRITE(*,*)'Norm_R        : ',Norm_R
-      SWRITE(*,*)'Norm_R0       : ',Norm_R0
-      RETURN
-    ENDIF
-  END DO ! iterLinSolver
-  ! restart with new U
-  U    = 0.5*(Uold+Un)
-  Un   = U
-  Uold = U
-  ! restart
-  ImplicitSource = 0.
-  LinSolverRHS  =U
-  chance = chance+1
-  totalIterLinearSolver=totalIterLinearSolver+iterLinSolver
-  SWRITE(*,*) 'No convergence during first half of iterations.'
-  SWRITE(*,*) 'Iter,t,Norm_R,Norm_R0',iterLinSolver,t,Norm_R,Norm_R0
-
-END DO ! while chance < 2 
-
-SWRITE(*,*)'Norm_R        : ',Norm_R
-SWRITE(*,*)'Norm_R0       : ',Norm_R0
-IF(MPIRoot) CALL abort(&
-__STAMP__ &
-,'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance,REAL(iterLinSolver))
-
-END SUBROUTINE LinearSolver_BiCGSTAB_P
-#endif
-
-SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance)
+SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with right preconditioner P_r
 ! Matrix A = I - Coeff*R
@@ -639,7 +498,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
-USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
+USE MOD_LinearOperator,       ONLY:MatrixVector,  VectorDotProduct,MatrixVectorSource
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -647,6 +506,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)          :: t,Coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(IN),OPTIONAL :: Norm_R0_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -657,7 +517,7 @@ REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Norm_R0,Norm_R,Norm_T2
+REAL                     :: Norm_R,Norm_T2, Norm_R0
 INTEGER                  :: iterLinSolver,Restart
 REAL                     :: alpha,sigma,omega,beta
 REAL                     :: AbortCrit
@@ -694,12 +554,17 @@ Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
 CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-! compute  A*U^n
-CALL VectorDotProduct(R0,R0,Norm_R0)
+CALL VectorDotProduct(R0,R0,alpha)
 
-! check this out
-alpha=Norm_R0
-Norm_R0=SQRT(Norm_R0)
+! compute  A*U^n
+IF(PRESENT(Norm_R0_in))THEN
+  Norm_R0=Norm_R0_in
+ELSE
+  Norm_R0=SQRT(alpha)
+END IF
+! absolute tolerance check, if initial solution already matches old solution or 
+! RHS is zero. Maybe it is here better to use relTolerance?
+IF(Norm_R0.LT.1e-14) RETURN
 
 P  = R0
 R  = R0
@@ -807,140 +672,8 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_BiCGSTAB_PM
 
-#ifdef donotcompilethis
-SUBROUTINE LinearSolver_StabBiCGSTAB(t,Coeff)
-!===================================================================================================================================
-! Solves Linear system Ax=b using stabilized BiCGStab 
-! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_DG_Vars,       ONLY:U
-USE MOD_LinearSolver_Vars, ONLY:eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
-USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,ImplicitSource
-USE MOD_LinearOperator, ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER          :: iter
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R, Norm_R02, Norm_V, Norm_S
-INTEGER          :: chance
-!===================================================================================================================================
 
-! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
-! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
-!       A                x   = b
-! 
-! Residuum
-! for initial guess, x0 is set to U^n
-! R0 = b - A x0
-!    = U^n + dt*Sources^n -( I - dt*DG_Operator ) U^n
-!    = dt*DG_Operator U^n 
-!    = dt * Ut
-
-
-! store here for later use
-Un   = U ! here, n stands for U^n
-Uold = U
-
-chance=0
-DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
-
-  ! Compute residual vector
-  CALL MatrixVectorSource(t,Coeff,R0) ! coeff*DG_Operator(Un)
-  
-  P=R0
-  R=R0
-  
-  CALL VectorDotProduct(R,R,Norm_R0)
-  Norm_R0=SQRT(Norm_R0)
-  
-  DO iter=1,maxIter_LinearSolver
-    CALL MatrixVector(t,Coeff,P,V)
-    CALL VectorDotProduct(V,R0,sigma)
-    CALL VectorDotProduct(R0,R0,Norm_R02)
-    CALL VectorDotProduct(V,V,Norm_V) 
-   ! IF((sigma.GT.1E-4*Norm_R02*Norm_V).AND.(iter.GT.10)) THEN
-      CALL VectorDotProduct(R,R0,alpha)
-      alpha=alpha/sigma
-      S = R - alpha*V
-      CALL VectorDotProduct(S,S,Norm_S)
-      IF(Norm_S.GT.1.E-12) THEN
-        CALL MatrixVector(t,Coeff,S,TVec)
-        CALL VectorDotProduct(TVec,TVec,Norm_T2)
-        CALL VectorDotProduct(TVec,S,omega)
-        omega=omega/Norm_T2
-        Un=Un+alpha*P+omega*S
-        R=S-omega*TVec
-        CALL VectorDotProduct(R,R0,beta)
-        beta=beta/(omega*sigma)
-        P=R+beta*(P-omega*V)
-        CALL VectorDotProduct(R,R,Norm_R)
-        Norm_R=SQRT(Norm_R)
-        IF((Norm_R.LE.eps_LinearSolver*Norm_R0).OR.(Norm_R.LT.1.E-12)) THEN
-          U=Un
-          ! Debug Ausgabe, Anzahl der Iterationen...
-          SWRITE(*,*)'Iter LinSolver: ',iter
-          SWRITE(*,*)'t             : ',t
-          SWRITE(*,*)'Norm_R        : ',Norm_R
-          SWRITE(*,*)'Norm_R0       : ',Norm_R0
-          RETURN
-        ENDIF
-      ELSE
-        Un=Un+alpha*P
-        R=S
-        CALL VectorDotProduct(R,R,Norm_R)
-        Norm_R=SQRT(Norm_R)
-        IF((Norm_R.LE.eps_LinearSolver*Norm_R0).OR.(Norm_R.LT.1.E-12)) THEN
-          U=Un
-          ! Debug Ausgabe, Anzahl der Iterationen...
-          SWRITE(*,*)'Iter LinSolver: ',iter
-          SWRITE(*,*)'t             : ',t
-          SWRITE(*,*)'Norm_R        : ',Norm_R
-          SWRITE(*,*)'Norm_R0       : ',Norm_R0
-          RETURN
-        ENDIF
-      END IF
-  END DO !iter
-    ! restart with new U
-  U    = 0.5*(Uold+Un)
-  Un   = U
-  Uold = U
-  ! restart
-  ImplicitSource = 0.
-  LinSolverRHS  =U
-  chance = chance+1
-  SWRITE(*,*) 'No convergence during first half of iterations.'
-  SWRITE(*,*) 'Iter,t,Norm_R,Norm_R0',iter,t,Norm_R,Norm_R0
-
-END DO ! while
-
-SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
-SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-IF(MPIRoot) CALL abort(&
-__STAMP__ &
-,'StabBiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance)
-
-END SUBROUTINE LinearSolver_StabBiCGSTAB
-#endif 
-
-
-SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance)
+SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using stabilized BiCGStab 
 ! Matrix A = I - Coeff*R
@@ -961,6 +694,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)          :: t,Coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(IN),OPTIONAL :: Norm_R0_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: iter
@@ -972,7 +706,7 @@ REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL                     :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,   Norm_S
+REAL                     :: sigma,alpha,Norm_T2,omega,beta,Norm_R,Norm_S,Norm_R0
 REAL                     :: AbortCrit,AbortCrit2
 INTEGER                  :: chance
 ! preconditioner
@@ -1003,9 +737,20 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   ! init and get first error norm
   ! Compute A*U^n
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff * DG_Operator(Un)
-  CALL VectorDotProduct(R0,R0,Norm_R0)
-  alpha  = Norm_R0
-  Norm_R0=SQRT(Norm_R0)
+  CALL VectorDotProduct(R0,R0,alpha)
+  IF(chance.GT.0) THEN
+    Norm_R0=SQRT(alpha)
+  ELSE
+    ! compute  A*U^n
+    IF(PRESENT(Norm_R0_in))THEN
+      Norm_R0=Norm_R0_in
+    ELSE
+      Norm_R0=SQRT(alpha)
+    END IF
+    ! absolute tolerance check, if initial solution already matches old solution or 
+    ! RHS is zero. Maybe it is here better to use relTolerance?
+    IF(Norm_R0.LT.1e-14) RETURN
+  END IF
   P=R0
   R=R0
   IF(PRESENT(relTolerance))THEN
@@ -1025,8 +770,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
     CALL MatrixVector(t,coeff,Pt,V)
     CALL CPU_TIME(tend)
     tDG=tDG+tend-tStart
-    CALL VectorDotProduct(V,R0,sigma)
-
+    CALL VectorDotProduct(V,R0,sigma) 
 !    CALL VectorDotProduct(V,V,Norm_V) 
 !    Norm_V = SQRT(Norm_V)
 !    AbortCrit2 = epsTilde_LinearSolver*Norm_V*Norm_R0
@@ -1114,7 +858,7 @@ __STAMP__ &
 END SUBROUTINE LinearSolver_StabBiCGSTAB_P
 
 
-SUBROUTINE LinearSolver_GMRES_P(t,coeff,relTolerance)
+SUBROUTINE LinearSolver_GMRES_P(t,coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Uses matrix free to solve the linear system
 ! Attention: We use DeltaX=0 as our initial guess   ! why not Un??
@@ -1135,6 +879,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)          :: t,coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(IN),OPTIONAL :: Norm_R0_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1142,7 +887,7 @@ REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim
 REAL                     :: W(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
-REAL                     :: Norm_R0,Resu,Temp,Bet
+REAL                     :: Resu,Temp,Bet,Norm_R, Norm_R0
 REAL                     :: AbortCrit
 INTEGER                  :: Restart
 INTEGER                  :: m,nn,o
@@ -1179,9 +924,20 @@ Un=U
 
 ! compute starting residual 
 CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-CALL VectorDotProduct(R0,R0,Norm_R0)
-Norm_R0=SQRT(Norm_R0)
-! define relative abort criteria
+CALL VectorDotProduct(R0,R0,Norm_R)
+Norm_R=SQRT(Norm_R) ! Norm_r is already computed
+
+! compute  A*U^n
+IF(PRESENT(Norm_R0_in))THEN
+  Norm_R0=Norm_R0_in
+ELSE
+  Norm_R0=Norm_R
+END IF
+! absolute tolerance check, if initial solution already matches old solution or 
+! RHS is zero. Maybe it is here better to use relTolerance?
+IF(Norm_R0.LT.1e-14) RETURN
+
+! define relative abort criteria, Norm_R0 is computed outside
 IF(PRESENT(relTolerance))THEN
   AbortCrit = Norm_R0*relTolerance
 ELSE
@@ -1189,8 +945,8 @@ ELSE
 END IF
 
 ! GMRES(m)  inner loop
-V(:,:,:,:,:,1)=R0/Norm_R0
-Gam(1)=Norm_R0
+V(:,:,:,:,:,1)=R0/Norm_R
+Gam(1)=Norm_R
 
 DO WHILE (Restart<nRestarts)
   DO m=1,nKDim
@@ -1280,7 +1036,8 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_GMRES_P
 
-SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff,relTolerance)
+
+SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with left and right preconditioners
 ! left preconditioner is right preconditioner
@@ -1303,6 +1060,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)          :: t,Coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(IN),OPTIONAL :: Norm_R0_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1310,7 +1068,6 @@ REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Norm_R0,Norm_R,Norm_T2,Norm_Rn
@@ -1346,13 +1103,23 @@ Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
 CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-!P = R0
-R = R0
-CALL VectorDotProduct(R0,R0,Norm_R0)
-IF(PRESENT(relTolerance))THEN
-  AbortCrit = SQRT(Norm_R0)*relTolerance
+
+! compute  A*U^n
+IF(PRESENT(Norm_R0_in))THEN
+  Norm_R0=Norm_R0_in
 ELSE
-  AbortCrit = SQRT(Norm_R0)*eps_LinearSolver
+  CALL VectorDotProduct(R0,R0,Norm_R0)
+  Norm_R0=SQRT(Norm_R0)
+END IF
+! absolute tolerance check, if initial solution already matches old solution or 
+! RHS is zero. Maybe it is here better to use relTolerance?
+IF(Norm_R0.LT.1e-14) RETURN
+
+R = R0
+IF(PRESENT(relTolerance))THEN
+  AbortCrit = (Norm_R0)*relTolerance
+ELSE
+  AbortCrit = (Norm_R0)*eps_LinearSolver
 END IF
 
 ! left precondtioning of residuum
@@ -1458,7 +1225,8 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LRP
 
-SUBROUTINE LinearSolver_BiCGStab_LP(t,Coeff,relTolerance)
+
+SUBROUTINE LinearSolver_BiCGStab_LP(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with left and right preconditioners
 ! left preconditioner is right preconditioner
@@ -1482,6 +1250,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)          :: t,Coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(IN),OPTIONAL :: Norm_R0_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1489,7 +1258,6 @@ REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Norm_R0,Norm_R,Norm_T2,Norm_Rn
@@ -1524,9 +1292,19 @@ Restart=0
 nInnerIter = 0
 ! LinSolverRHS and X0 = U
 CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
-!P = R0
+
+! compute  A*U^n
+IF(PRESENT(Norm_R0_in))THEN
+  Norm_R0=Norm_R0_in
+ELSE
+  CALL VectorDotProduct(R0,R0,Norm_R0)
+  Norm_R0=SQRT(Norm_R0)
+END IF
+! absolute tolerance check, if initial solution already matches old solution or 
+! RHS is zero. Maybe it is here better to use relTolerance?
+IF(Norm_R0.LT.1e-14) RETURN
+
 R = R0
-CALL VectorDotProduct(R0,R0,Norm_R0)
 IF(PRESENT(relTolerance))THEN
   AbortCrit = SQRT(Norm_R0)*relTolerance
 ELSE
@@ -1629,7 +1407,8 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LP
 
-SUBROUTINE LinearSolver_BiCGSTABl(t,Coeff,relTolerance)
+
+SUBROUTINE LinearSolver_BiCGSTABl(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab(l) with right preconditioner P_r
 ! Matrix A = I - Coeff*R
@@ -1651,6 +1430,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)          :: t,Coeff
 REAL,INTENT(IN),OPTIONAL :: relTolerance
+REAL,INTENT(IN),OPTIONAL :: Norm_R0_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1690,8 +1470,16 @@ deltaX=0.0d0
 CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 
 ! compute  A*U^n
-CALL VectorDotProduct(R0,R0,Norm_R0)
-Norm_R0=SQRT(Norm_R0)
+IF(PRESENT(Norm_R0_in))THEN
+  Norm_R0=Norm_R0_in
+ELSE
+  CALL VectorDotProduct(R0,R0,Norm_R0)
+  Norm_R0=SQRT(Norm_R0)
+END IF
+! absolute tolerance check, if initial solution already matches old solution or 
+! RHS is zero. Maybe it is here better to use relTolerance?
+IF(Norm_R0.LT.1e-14) RETURN
+
 IF(PRESENT(relTolerance))THEN
   AbortCrit = Norm_R0*relTolerance
 ELSE

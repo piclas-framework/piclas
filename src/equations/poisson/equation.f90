@@ -31,8 +31,41 @@ END INTERFACE
 
 PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
 !===================================================================================================================================
-
+PUBLIC::DefineParametersEquation
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for equation
+!==================================================================================================================================
+SUBROUTINE DefineParametersEquation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Equation")
+
+!CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER' , '1.')
+!CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER' , '0.999')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
+CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
+CALL prms%CreateRealOption(     'IniAmplitude'     , 'TODO-DEFINE-PARAMETER' , '0.1')
+CALL prms%CreateRealOption(     'IniHalfwidth'     , 'TODO-DEFINE-PARAMETER' , '0.1')
+CALL prms%CreateRealOption(     'ACfrequency'      , 'TODO-DEFINE-PARAMETER' , '0.0')
+CALL prms%CreateRealOption(     'ACamplitude'      , 'TODO-DEFINE-PARAMETER' , '0.0')
+
+CALL prms%CreateIntOption(      'chitensWhichField', 'TODO-DEFINE-PARAMETER', '-1')
+CALL prms%CreateRealOption(     'chitensValue'     , 'TODO-DEFINE-PARAMETER', '-1.0')
+CALL prms%CreateRealOption(     'chitensRadius'    , 'TODO-DEFINE-PARAMETER', '-1.0')
+
+CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER' , '1.0')
+
+END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
@@ -55,8 +88,8 @@ USE MOD_TimeDisc_Vars,           ONLY:TEnd
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: chitensValue,chitensRadius  ! depricated variables, remove in future (by the end of 2017)
-INTEGER                      :: chitensWhichField           ! depricated variables, remove in future (by the end of 2017)
+REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
+INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
 !===================================================================================================================================
 TEnd=GetReal('TEnd') 
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
@@ -133,7 +166,7 @@ USE MOD_Globals,         ONLY:Abort,mpiroot
 USE MOD_Equation_Vars,   ONLY:Pi
 USE MOD_Equation_Vars,   ONLY: IniCenter,IniHalfwidth,IniAmplitude
 USE MOD_Equation_Vars,   ONLY: ACfrequency,ACamplitude
-USE MOD_Dielectric_Vars, ONLY:DielectricRatio,Dielectric_E_0,DielectricRadiusValue
+USE MOD_Dielectric_Vars, ONLY:DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars,       ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -238,31 +271,40 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
 CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric field E_0: adjusted from CASE(200)
   ! R = DielectricRadiusValue
   ! DielectricRatio = eps/eps0
+  IF(.NOT.PRESENT(ElemID))THEN
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+    RETURN
+  END IF
 
   ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
-  IF(ABS(ElemBaryNGeo(3,ElemID)).LT.DielectricRadiusValue)THEN ! inside sphere: DOF and element bary center
-    ! Phi_inner = 
+  IF(ABS(ElemBaryNGeo(3,ElemID)).LT.DielectricRadiusValue)THEN ! inside box: DOF and element bary center
+    ! Phi_inner = ?
 
     ! marcel
-    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(1 - (DielectricRatio-1)/(DielectricRatio+2))
+    !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(1 - (DielectricRatio-1)/(DielectricRatio+2))
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
 
     ! linear
     !resu(1:PP_nVar) = -(1./(DielectricRatio))*Dielectric_E_0*x(3)
 
+    ! from sphere
+    ! Phi_inner = - (3 / (2 + eps_inner / eps_outer)) * E_1 * z
+    !resu(1:PP_nVar) = -(3./(DielectricRatio+2.))*x(3)*Dielectric_E_0
+
 
 
   ELSEIF(ABS(ElemBaryNGeo(3,ElemID)).GT.DielectricRadiusValue)THEN ! outside sphere
-    ! Phi_outer = 
+    ! Phi_outer = ?
     !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
                        !( (DielectricRadiusValue**3) / (x(3)**(3.)) ) - 1 )*(Dielectric_E_0 * x(3))
                        !( (DielectricRadiusValue**3) / ((x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
 
 
     ! marcel
-    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
 
     ! linear
-    !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-2.0*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+    resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
 
     !resu(1:PP_nVar) = -Dielectric_E_0*(x(3) - sign(1.0,x(3))*((DielectricRatio-1)/(DielectricRatio+2))*((2**3)/(x(3)**2)) )
     !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
@@ -277,6 +319,24 @@ CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric 
     ,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 
+CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
+  !                                                epsR_2 != 1 for x > 0 (dielectric region)
+  ! DielectricRadiusValue is used as distance between dielectric interface and position of chargeed point particle
+  ! set radius and angle for DOF position x(1:3)
+  r_2D   = SQRT(x(1)**2+x(2)**2)
+  r1 = SQRT(r_2D**2 + (DielectricRadiusValue-x(3))**2)
+  r2 = SQRT(r_2D**2 + (DielectricRadiusValue+x(3))**2)
+
+  IF(x(3).GT.0.0)THEN
+    IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
+      print*, "HERE?!?!?!"
+    END IF
+    resu(1:PP_nVar) = (1./DielectricEpsR)*(&
+                                   1./r1 - ((1-DielectricEpsR)/(1+DielectricEpsR))*&
+                                   1./r2 )
+  ELSE
+    resu(1:PP_nVar) = (2./(1.+DielectricEpsR)) * 1./r1
+  END IF
 
 CASE DEFAULT
   CALL abort(&
@@ -414,6 +474,30 @@ REAL                             :: r1,r2, source_e
 REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 INTEGER                         :: RegionID
 !===================================================================================================================================
+! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
+SELECT CASE (IniExactFunc)
+CASE(0) ! Particles
+  ! empty
+CASE(103)
+ x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
+ dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
+ dx2=(x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
+ r1=SQRT(SUM(dx1**2))
+ r2=SQRT(SUM(dx2**2))
+ dr1dx(:)= r1*dx1
+ dr2dx(:)= r2*dx2
+ dr1dx2(:)= r1+dr1dx(:)*dx1
+ dr2dx2(:)= r2+dr2dx(:)*dx2
+ resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
+                         -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
+CASE DEFAULT
+  resu=0.
+!  CALL abort(__STAMP__,&
+             !'Exactfunction not specified!',999,999.)
+END SELECT ! ExactFunction
+
+
+
 #ifdef PARTICLES
 IF(DoDeposition)THEN
   source_e=0.
@@ -440,27 +524,6 @@ IF(DoDeposition)THEN
 #endif
 END IF
 #endif /*PARTICLES*/
-
-SELECT CASE (IniExactFunc)
-CASE(0) ! Particles
-  ! empty
-CASE(103)
- x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
- dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
- dx2=(x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
- r1=SQRT(SUM(dx1**2))
- r2=SQRT(SUM(dx2**2))
- dr1dx(:)= r1*dx1
- dr2dx(:)= r2*dx2
- dr1dx2(:)= r1+dr1dx(:)*dx1
- dr2dx2(:)= r2+dr2dx(:)*dx2
- resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
-                         -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
-CASE DEFAULT
-  resu=0.
-!  CALL abort(__STAMP__,&
-             !'Exactfunction not specified!',999,999.)
-END SELECT ! ExactFunction
 END SUBROUTINE CalcSourceHDG
 
 

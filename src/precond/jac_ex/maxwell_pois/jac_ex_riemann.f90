@@ -1,3 +1,5 @@
+#include "boltzplatz.h"
+
 MODULE MOD_JacExRiemann
 !===================================================================================================================================
 ! Contains routines to compute the jacobian of the riemann (Flux-Vector Splitting, Aplus, Aminus) for a given Face
@@ -16,6 +18,10 @@ INTERFACE ConstructJacRiemann
   MODULE PROCEDURE ConstructJacRiemann
 END INTERFACE
 
+INTERFACE ConstructJacRiemannDielectric
+  MODULE PROCEDURE ConstructJacRiemannDielectric
+END INTERFACE
+
 INTERFACE ConstructJacBCRiemann
   MODULE PROCEDURE ConstructJacBCRiemann
 END INTERFACE
@@ -24,7 +30,7 @@ INTERFACE ConstructJacNeighborRiemann
   MODULE PROCEDURE ConstructJacNeighborRiemann
 END INTERFACE
 
-PUBLIC::ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacNeighborRiemann
+PUBLIC::ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacNeighborRiemann,ConstructJacRiemannDielectric
 
 !===================================================================================================================================
 
@@ -115,6 +121,111 @@ INTEGER                                          :: i,j
   END DO
 
 END SUBROUTINE ConstructJacRiemann
+
+
+SUBROUTINE ConstructJacRiemannDielectric(nVec_loc,SurfElem_loc,Aside,locSideID,ElemID)
+!===================================================================================================================================
+! Computes the Aplus and the Aminus in the Flux-Vector Splittung of the numerical flux
+! prolongation of the dielectric values to the side
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc ! PP_N
+USE MOD_Equation_Vars,      ONLY: eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_Dielectric_Vars,    ONLY: DoDielectric,isDielectricElem, ElemToDielectric,DielectricConstant_inv
+USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_ProlongToFace,      ONLY: ProlongToFace_Elementlocal
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                                  :: nVec_loc(1:3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)                                  :: SurfElem_loc(0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)                               :: locSideID,ElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,DIMENSION(8,8,0:PP_N,0:PP_N),INTENT(OUT)    :: Aside
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL                                             :: n_loc(3), A_p(1:8,1:8)
+INTEGER                                          :: p,q,l
+REAL                                             :: DielectricConstant_inv_Face(0:PP_N,0:PP_N)
+REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
+!===================================================================================================================================
+
+
+CALL ProlongToFace_Elementlocal(nVar=1                                                      &
+                               ,locSideID=locSideID                                         &
+                               ,Uvol=DielectricConstant_inv(:,:,:,ElemToDielectric(ElemID)) &
+                               ,Uface=DielectricConstant_inv_Face                           )
+
+! Gauss point p,q
+DO q=0 ,PP_N
+  DO p =0,PP_N
+    ! normal vector of element
+    n_loc(:)=nVec_loc(:,p,q)
+
+    ! set dielectric values
+    c_dielectric     = c*DielectricConstant_inv_Face(p,q)            !         c/sqrt(EpsR*MuR)
+    eta_c_dielectric = c_corr_c - c_dielectric                       ! (chi - 1./sqrt(EpsR*MuR))*c
+    c2_dielectric    = c_dielectric*c_dielectric                     !          c**2/(EpsR*MuR)
+
+    !--- for original version see below (easier to understand)
+    A_p(7,1:3)=0.
+    A_p(1:3,7)=0.
+    A_p(8,4:7)=0.
+    A_p(4:7,8)=0.
+    
+    !D-Teilmatrix: Since chi and gamma is equal we
+    ! consider D(chi,gamma) = D(gamma,chi)
+    ! ATTENTION: if chi .ne. gamma this have to be changed. 
+    ! Then we need D_1 and D_2 (see commented section below)
+    A_p(1,1) = c_dielectric + n_loc(1)*n_loc(1)*eta_c        !  D(1,1)=(1./sqrt(EpsR*MuR)+n_loc(1)*n_loc(1)*(chi-1.))*c
+    A_p(1,2) = n_loc(1)*n_loc(2)*eta_c_dielectric            !  D(1,2)=n_loc(1)*n_loc(2)*(chi-1./sqrt(EpsR*MuR))*c
+    A_p(1,3) = n_loc(1)*n_loc(3)*eta_c_dielectric            !  D(1,3)=n_loc(1)*n_loc(3)*(chi-1./sqrt(EpsR*MuR))*c
+    A_p(2,1) = A_p(1,2)                                      !  D(2,1)=n_loc(1)*n_loc(2)*(chi-1./sqrt(EpsR*MuR))*c
+    A_p(2,2) = c_dielectric + n_loc(2)*n_loc(2)*eta_c        !  D(2,2)=(1./sqrt(EpsR*MuR)+n_loc(2)*n_loc(2)*(chi-1.))*c
+    A_p(2,3) = n_loc(2)*n_loc(3)*eta_c_dielectric            !  D(2,3)=n_loc(2)*n_loc(3)*(chi-1./sqrt(EpsR*MuR))*c
+    A_p(3,1) = A_p(1,3)                                      !  D(3,1)=n_loc(1)*n_loc(3)*(chi-1./sqrt(EpsR*MuR))*c
+    A_p(3,2) = A_p(2,3)                                      !  D(3,2)=n_loc(2)*n_loc(3)*(chi-1./sqrt(EpsR*MuR))*c     
+    A_p(3,3) = c_dielectric+n_loc(3)*n_loc(3)*eta_c          !  D(3,3)=(1./sqrt(EpsR*MuR)+n_loc(3)*n_loc(3)*(mu-1.))*c
+    ! epsilon-Teilmatrix
+    !E_trans=transpose(E)
+    A_p(1,4:6)= (/0.,c2_dielectric*n_loc(3),-c2_dielectric*n_loc(2)/)
+    A_p(2,4:6)= (/-c2_dielectric*n_loc(3),0.,c2_dielectric*n_loc(1)/)
+    A_p(3,4:6)= (/c2_dielectric*n_loc(2),-c2_dielectric*n_loc(1),0./)
+    A_p(4,1:3)= (/0.,-n_loc(3),n_loc(2)/)
+    A_p(5,1:3)= (/n_loc(3),0.,-n_loc(1)/)
+    A_p(6,1:3)= (/-n_loc(2),n_loc(1),0./)
+    !composition of the Matrix
+    !positive A-Matrx
+    A_p(4:6,4:6)=A_p(1:3,1:3)
+
+    !positive A-Matrix-Divergence-Correction-Term
+    A_p(1,8) = c_corr_c2*n_loc(1)
+    A_p(2,8) = c_corr_c2*n_loc(2)
+    A_p(3,8) = c_corr_c2*n_loc(3)
+    A_p(4,7) = c_corr*n_loc(1)
+    A_p(5,7) = c_corr*n_loc(2)
+    A_p(6,7) = c_corr*n_loc(3)
+    A_p(7,4) = c_corr_c2*n_loc(1)
+    A_p(7,5) = c_corr_c2*n_loc(2)
+    A_p(7,6) = c_corr_c2*n_loc(3)
+    A_p(7,7) = c_corr_c
+    A_p(8,1) = c_corr*n_loc(1)
+    A_p(8,2) = c_corr*n_loc(2)
+    A_p(8,3) = c_corr*n_loc(3)
+    A_p(8,8) = c_corr_c
+
+
+    ! calculate the contribution on the flux jacobian through the surface 
+    Aside (:,:,p,q)=0.5*A_p(:,:)*SurfElem_loc(p,q) 
+  END DO
+END DO
+
+END SUBROUTINE ConstructJacRiemannDielectric
+
 
 SUBROUTINE ConstructJacNeighborRiemann(nVec_loc,SurfElem_loc,Aside)
 !===================================================================================================================================
@@ -235,7 +346,7 @@ SELECT CASE(BCType)
   ! as long as it does not depend on interior value
     ! has to be nullyfied as long as it does not depend on inner values
     Aside(:,:,:,:) = 0.
-  CASE(3) ! 1st order absorbing BC 
+  CASE(3,5) ! 1st order absorbing BC 
           ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
 
 ! Gauss point i,j
@@ -348,15 +459,14 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
     END DO ! p
   END DO ! q
 
-  CASE(5) ! open boundary condition with no force of divergenz cleaning
-    ! has to be nullyfied
-    Aside(:,:,:,:) = 0.
+  !CASE(5) ! open boundary condition with no force of divergenz cleaning
+  !  ! has to be nullyfied
+  !  Aside(:,:,:,:) = 0.
 
 
 END SELECT
 
 END SUBROUTINE ConstructJacBCRiemann
-
 
 
 END MODULE MOD_JacExRiemann
