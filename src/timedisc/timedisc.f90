@@ -68,7 +68,9 @@ CALL prms%CreateIntOption(   'maxIter',        "Stop simulation when specified n
 CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every Nth timestep.", value='1')
 
 CALL prms%CreateIntOption(   'IterDisplayStep',"Step size of iteration that are displayed.", value='1')
-CALL prms%CreateLogicalOption(  'DoDisplayEmissionWarning', 'TODO-DEFINE-PARAMETER', '.TRUE.')
+CALL prms%CreateLogicalOption(  'DoDisplayEmissionWarning', 'TODO-DEFINE-PARAMETER displays the following warning:'//&
+							 '"WARNING in ParticleEmission_parallel: Fraction Nbr X matched'//&
+							' only X particles, when __ particles were required!"', '.TRUE.')
 
 END SUBROUTINE DefineParametersTimeDisc
 

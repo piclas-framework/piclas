@@ -54,9 +54,9 @@ CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at 
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors). '//&
                                                    'Default: 2*N.')
 CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER (Skip Analyze-Dt)')
-CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
-CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER',multiple=.TRUE.)
+CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER Flag if time averaging should be performed')
+CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER Count of time average variables',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER Count of fluctuation variables',multiple=.TRUE.)
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
@@ -75,10 +75,10 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER','
 #endif
 
 CALL prms%SetSection("Analyzefield")
-CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER Count of planes ', '0')
 CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER', '1E-5')
+CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER Tolerance in plane searching', '1E-5')
 
 END SUBROUTINE DefineParametersAnalyze
 

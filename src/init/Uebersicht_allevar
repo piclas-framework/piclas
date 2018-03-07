@@ -27,13 +27,15 @@ gatheredWrite                                             =                     
 !=================================================================================================================================================
 DoLoadBalance                                             =                                  F ! Flag for doing LoadBalance.  
                                                                                                 
-Load-DeviationThreshold                                   =                               0.10 ! TODO-DEFINE-PARAMETER  ??? Threshold for load-balancing
+Load-DeviationThreshold                                   =                               0.10 ! TODO-DEFINE-PARAMETER   Threshold for load-balancing
                                                                                                 
-Particles-MPIWeight                                       =                               0.02 ! TODO-DEFINE-PARAMETER ??? Necessary for particle load balancing.
+Particles-MPIWeight                                       =                               0.02 ! TODO-DEFINE-PARAMETER Necessary for particle load balancing.
                                                                                                 
-Particles-WeightMethod                                    =                                  1 ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-WeightMethod                                    =                                  1 ! TODO-DEFINE-PARAMETER   method to compute the particle weight
+
                                                                                                 
-Particles-WeightAverageMethod                             =                                  1 ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-WeightAverageMethod                             =                                  1 ! TODO-DEFINE-PARAMETER   method to average the particle weight
+
                                                                                                 
 !=================================================================================================================================================
 ! Interpolation
@@ -53,7 +55,7 @@ WriteErrorFiles                                           =                     
 OutputFormat                                              =                               None ! File format for visualization: None, Tecplot,  
                                                                                                ! TecplotASCII, ParaView.  Note: Tecplot output is  
                                                                                                ! currently unavailable due to licensing issues.  
-												!??? DEFAULT=1 Necessary for post processing. (1:tecplot ASCII [only with visPart], 4:vtk [visPart and visDSMC])
+												
                                                                                                 
 ASCIIOutputFormat                                         =                                CSV ! File format for ASCII files, e.g. body forces:  
                                                                                                ! CSV, Tecplot.  
@@ -86,25 +88,25 @@ NCalcTimeStepMax                                          =                     
                                                                                                 
 IterDisplayStep                                           =                                  1 ! Step size of iteration that are displayed.   ??? Default = 1. Show shell output for iterations each 'IterDisplayStep' iterations. Type '0' for no output.
                                                                                                 
-DoDisplayEmissionWarning                                  =                                  T ! TODO-DEFINE-PARAMETER ???  displays the following warning: "WARNING in ParticleEmission_parallel: Fraction Nbr __ matched only __ particles, when __ particles were required!"  
+DoDisplayEmissionWarning                                  =                                  T ! TODO-DEFINE-PARAMETER  displays the following warning: "WARNING in ParticleEmission_parallel: Fraction Nbr __ matched only __ particles, when __ particles were required!"  
                                                                                                 
 !=================================================================================================================================================
 ! Mesh
 !=================================================================================================================================================
-DoSwapMesh                                                =                                  F ! Swap mesh for calculation.TODO-DEFINE-PARAMETER  ??? flag for SwapMesh routines
+DoSwapMesh                                                =                                  F ! Flag to swap mesh for calculation.TODO-DEFINE-PARAMETER  
                                                                                                 
 SwapMeshExePath                                           =                                    ! (relative) path to swap-meshfile (mandatory).  
                                                                                                 
-SwapMeshLevel                                             =                                  0 ! TODO-DEFINE-PARAMETER ??? 0: initial grid, 1: first swap mesh, 2: second swap mesh  
+SwapMeshLevel                                             =                                  0 ! TODO-DEFINE-PARAMETER  0: initial grid, 1: first swap mesh, 2: second swap mesh  
                                                                                                 
-MeshFile                                                  =                                    ! (relative) path to meshfile (mandatory) ??? usually located in directory of project.ini
+MeshFile                                                  =                                    ! (relative) path to meshfile (mandatory)  usually located in directory of project.ini
                                                                                                 
-useCurveds                                                =                                  T ! Controls usage of high-order information in mesh. ??? Used curved cell boundaries.
+useCurveds                                                =                                  T ! Controls usage of high-order information in mesh. 
                                                                                                ! Turn off to discard high-order data and treat  
-                                                                                               ! curved meshes as linear meshes.  ??? DEFAULT=F
+                                                                                               ! curved meshes as linear meshes.  HALOWIKI Used curved cell boundaries.
                                                                                                 
 DoWriteStateToHDF5                                        =                                  T ! Write state of calculation to hdf5-file.  
-                                                                                               ! TODO-DEFINE-PARAMETER ???  Only write HDF5 output if this is true
+                                                                                               ! TODO-DEFINE-PARAMETER
 
                                                                                                 
 interpolateFromTree                                       =                                  T ! For non-conforming meshes, built by refinement  
@@ -117,7 +119,7 @@ meshScale                                                 =                     
 meshdeform                                                =                                  F ! Apply simple sine-shaped deformation on cartesion  
                                                                                                ! mesh (for testing).  
                                                                                                 
-CalcPoyntingVecIntegral                                   =                                  F ! TODO-DEFINE-PARAMETER  ??? calulate pointing vector integral | only perp to z axis
+CalcPoyntingVecIntegral                                   =                                  F ! TODO-DEFINE-PARAMETER  calculate pointing vector integral | only perp to z axis
 
                                                                                                 
 crossProductMetrics                                       =                                  F ! Compute mesh metrics using cross product form.  
@@ -134,77 +136,77 @@ BoundaryType                                              =                     
 writePartitionInfo                                        =                                  F ! Write information about MPI partitions into a  
                                                                                                ! file.  
                                                                                                 
-WeightDistributionMethod                                  =                                  1 ! TODO-DEFINE-PARAMETER  ??? don't know
+WeightDistributionMethod                                  =                                  1 ! TODO-DEFINE-PARAMETER   
                                                                                                 
 !=================================================================================================================================================
 ! Equation
 !=================================================================================================================================================
-c_corr                                                    =                                1.0 ! TODO-DEFINE-PARAMETER  ??? multiplied with c0 results in the velocity of introduced artificial correcting waves (HDC)
+c_corr                                                    =                                1.0 ! TODO-DEFINE-PARAMETER  multiplied with c0 results in the velocity of introduced artificial correcting waves (HDC)
                                                                                                 
-c0                                                        =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Velocity of light (in vacuum)
+c0                                                        =                                1.0 ! TODO-DEFINE-PARAMETER   Velocity of light (in vacuum)
                                                                                                 
-eps                                                       =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Electric constant (vacuum permittivity)
+eps                                                       =                                1.0 ! TODO-DEFINE-PARAMETER   Electric constant (vacuum permittivity)
                                                                                                 
-mu                                                        =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Magnetic constant (vacuum permeability = 4πE−7H/m)
+mu                                                        =                                1.0 ! TODO-DEFINE-PARAMETER   Magnetic constant (vacuum permeability = 4πE−7H/m)
                                                                                                 
-fDamping                                                  =                              0.999 ! TODO-DEFINE-PARAMETER  ??? apply the damping factor also to PML source terms but only to PML variables for Phi_E and Phi_B to prevent charge-related instabilities (accumulation of divergence compensation over timeU2 = U2 * fDamping
+fDamping                                                  =                              0.999 ! TODO-DEFINE-PARAMETER   apply the damping factor also to PML source terms but only to PML variables for Phi_E and Phi_B to prevent charge-related instabilities (accumulation of divergence compensation over timeU2 = U2 * fDamping
                                                                                                 
-ParabolicDamping                                          =                                  F ! TODO-DEFINE-PARAMETER  ??? don't know
+ParabolicDamping                                          =                                  F ! TODO-DEFINE-PARAMETER   not defined in "equations/electrostatic_pois/equation_vars.f90"
                                                                                                 
-CentralFlux                                               =                                  F ! TODO-DEFINE-PARAMETER  ??? flag for central or upwind flux
+CentralFlux                                               =                                  F ! TODO-DEFINE-PARAMETER   flag for central or upwind flux
                                                                                                 
-IniExactFunc                                              =                                    ! TODO-DEFINE-PARAMETER  ??? Define exact function ???necessary for linear scalar advection???
+IniExactFunc                                              =                                    ! TODO-DEFINE-PARAMETER   Define exact function necessary for linear scalar advection
  
                                                                                                 
-DoExactFlux                                               =                                  F ! TODO-DEFINE-PARAMETER  ??? Flag to switch emission to flux superposition at certain positions
+DoExactFlux                                               =                                  F ! TODO-DEFINE-PARAMETER  Flag to switch emission to flux superposition at certain positions
                                                                                                 
-xDipole                                                   =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ???  base point of electromagnetic dipole
+xDipole                                                   =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER    base point of electromagnetic dipole
                                                                                                
-omega                                                     =                       0.628318E+09 ! TODO-DEFINE-PARAMETER  ??? 2*pi*f (f=100 MHz default)
+omega                                                     =                       0.628318E+09 ! TODO-DEFINE-PARAMETER   2*pi*f (f=100 MHz default)
                                                                                                 
-tPulse                                                    =                           0.30E-07 ! TODO-DEFINE-PARAMETER   ??? half length of pulse
+tPulse                                                    =                           0.30E-07 ! TODO-DEFINE-PARAMETER    half length of pulse
                                                                                                 
-TEFrequency                                               =                           0.35E+11 ! TODO-DEFINE-PARAMETER   ??? frequency of TE wave
+TEFrequency                                               =                           0.35E+11 ! TODO-DEFINE-PARAMETER    Frequency of TE wave
                                                                                                 
-TEScale                                                   =                                1.0 ! TODO-DEFINE-PARAMETER  ??? scaling of input TE-wave strength
+TEScale                                                   =                                1.0 ! TODO-DEFINE-PARAMETER   Scaling of input TE-wave strength
                                                                                                 
-TEPolarization                                            =                                  T ! TODO-DEFINE-PARAMETER  ??? linear or circular polarized
+TEPolarization                                            =                                  T ! TODO-DEFINE-PARAMETER   Linear or circular polarized
                                                                                                 
-TERotation                                                =                                  1 ! TODO-DEFINE-PARAMETER  ??? left or right rotating TE wave
+TERotation                                                =                                  1 ! TODO-DEFINE-PARAMETER   Left or right rotating TE wave
                                                                                                 
-TEPulse                                                   =                                  F ! TODO-DEFINE-PARAMETER  ??? Flag for pulsed or continuous wave
+TEPulse                                                   =                                  F ! TODO-DEFINE-PARAMETER   Flag for pulsed or continuous wave
                                                                                                 
-TEMode                                                    =                         (/ 1, 1 /) ! TODO-DEFINE-PARAMETER  ??? input of TE_n,m mode
+TEMode                                                    =                         (/ 1, 1 /) ! TODO-DEFINE-PARAMETER   Input of TE_n,m mode
                                                                                                 
-TERadius                                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Radius of Input TE wave, if wave is inserted over a plane
+TERadius                                                  =                                0.0 ! TODO-DEFINE-PARAMETER   Radius of Input TE wave, if wave is inserted over a plane
                                                                                                 
-WaveLength                                                =                                1.0 ! TODO-DEFINE-PARAMETER  ??? wave length
+WaveLength                                                =                                1.0 ! TODO-DEFINE-PARAMETER 
                                                                                                 
-WaveVector                                                =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? wave vector
+WaveVector                                                =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER 
                                                                                                 
-WaveBasePoint                                             =                (/ 0.5, 0.5, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? wave base point || origin
+WaveBasePoint                                             =                (/ 0.5, 0.5, 0.0 /) ! TODO-DEFINE-PARAMETER  
                                                                                                 
-I_0                                                       =                                1.0 ! TODO-DEFINE-PARAMETER  ??? max. intensity
+I_0                                                       =                                1.0 ! TODO-DEFINE-PARAMETER   max. intensity
                                                                                                 
-sigma_t                                                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? sigma_t can be used instead of tFWHM (time For Full Wave Half Maximum)
+sigma_t                                                   =                                0.0 ! TODO-DEFINE-PARAMETER   Can be used instead of tFWHM (time For Full Wave Half Maximum)
                                                                                                 
-tFWHM                                                     =                                0.0 ! TODO-DEFINE-PARAMETER ??? time For Full Wave Half Maximum  
+tFWHM                                                     =                                0.0 ! TODO-DEFINE-PARAMETER  Time For Full Wave Half Maximum  
                                                                                                 
-Beam_a0                                                   =                               -1.0 ! TODO-DEFINE-PARAMETER  ???  value to scale max. electric field
+Beam_a0                                                   =                               -1.0 ! TODO-DEFINE-PARAMETER    Value to scale max. electric field
                                                                                                 
-omega_0                                                   =                                1.0 ! TODO-DEFINE-PARAMETER  ??? spot size and inv of spot size
+omega_0                                                   =                                1.0 ! TODO-DEFINE-PARAMETER   Spot size and inv of spot size
                                                                                                 
-BCStateFile                                               =                      no file found ! TODO-DEFINE-PARAMETER  ??? Boundary Condition State File???
+BCStateFile                                               =                      no file found ! TODO-DEFINE-PARAMETER   Boundary Condition State File
                                                                                                 
-AlphaShape                                                =                                  2 ! TODO-DEFINE-PARAMETER  ??? alpha_shape???
+AlphaShape                                                =                                  2 ! TODO-DEFINE-PARAMETER  
                                                                                                 
-r_cutoff                                                  =                                1.0 ! TODO-DEFINE-PARAMETER ???modified for curved and shape-function influence (c*dt*SafetyFactor+r_cutoff)
+r_cutoff                                                  =                                1.0 ! TODO-DEFINE-PARAMETER modified for curved and shape-function influence (c*dt*SafetyFactor+r_cutoff)
                                                                                                 
-FluxDir                                                   =                                 -1 ! TODO-DEFINE-PARAMETER   ??? ??? Flux direction
+FluxDir                                                   =                                 -1 ! TODO-DEFINE-PARAMETER    Flux direction
                                                                                                 
-ExactFluxDir                                              =                                  3 ! TODO-DEFINE-PARAMETER  ??? direction of flux for ExactFlux
+ExactFluxDir                                              =                                  3 ! TODO-DEFINE-PARAMETER   direction of flux for ExactFlux
                                                                                                 
-ExactFluxPosition                                         =                                    ! TODO-DEFINE-PARAMETER  ??? x,y, or z-position of interface
+ExactFluxPosition                                         =                                    ! TODO-DEFINE-PARAMETER   x,y, or z-position of interface
 
                                                                                                 
 !=================================================================================================================================================
@@ -284,9 +286,9 @@ Dielectric_E_0                                            =                     
 !=================================================================================================================================================
 ! Filter
 !=================================================================================================================================================
-FilterType                                                =                                  0 ! TODO-DEFINE-PARAMETER ??? don'T know
+FilterType                                                =                                  0 ! TODO-DEFINE-PARAMETER ??? 
                                                                                                 
-HestFilterParam                                           =              (/ 36.0, 12.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? don'T know
+HestFilterParam                                           =              (/ 36.0, 12.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? 
                                                                                                 
 !=================================================================================================================================================
 ! Analyze
@@ -297,29 +299,32 @@ DoCalcErrorNorms                                          =                     
 Analyze_dt                                                =                                0.0 ! Specifies time intervall at which analysis  
                                                                                                ! routines are called.  
                                                                                                 
-NAnalyze                                                  =                                    ! Polynomial degree at which analysis is performed   ??? Number of analyze points ??? Ersetzt das GeometricNGeo und N?
+NAnalyze                                                  =                                    ! Polynomial degree at which analysis is performed   
                                                                                                ! (e.g. for L2 errors). Default: 2*N.  
                                                                                                 
 nSkipAnalyze                                              =                                    ! TODO-DEFINE-PARAMETER (Skip Analyze-Dt)  
                                                                                                 
-CalcTimeAverage                                           =                                    ! TODO-DEFINE-PARAMETER  ??? ??? CalcTimeAverage(.FALSE.,dt,time,tFuture)
+CalcTimeAverage                                           =                                    ! TODO-DEFINE-PARAMETER  Flag if time averaging should be performed
 
                                                                                                 
-VarNameAvg                                                =                                    ! TODO-DEFINE-PARAMETER  ??? don't know
+VarNameAvg                                                =                                    ! TODO-DEFINE-PARAMETER   number of time averag variables
+
                                                                                                 
-VarNameFluc                                               =                                    ! TODO-DEFINE-PARAMETER  ??? don't know
+VarNameFluc                                               =                                    ! TODO-DEFINE-PARAMETER   number of fluctuation variables
+
                                                                                                 
 !=================================================================================================================================================
 ! Analyzefield
 !=================================================================================================================================================
-PoyntingVecInt-Planes                                     =                                  0 ! TODO-DEFINE-PARAMETER  ??? ??? number of planes (nPoyntingIntPlanes)
+PoyntingVecInt-Planes                                     =                                  0 ! TODO-DEFINE-PARAMETER  number of planes (nPoyntingIntPlanes)
 
                                                                                                 
-Plane-[$]-z-coord                                         =                                0.0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Plane-[$]-z-coord                                         =                                0.0 ! TODO-DEFINE-PARAMETER   
                                                                                                 
-Plane-[$]-factor                                          =                                1.0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Plane-[$]-factor                                          =                                1.0 ! TODO-DEFINE-PARAMETER   
                                                                                                 
-Plane-Tolerance                                           =                            0.1E-04 ! TODO-DEFINE-PARAMETER  ??? don't know
+Plane-Tolerance                                           =                            0.1E-04 ! TODO-DEFINE-PARAMETER   tolerance in plane searching
+
                                                                                                 
 !=================================================================================================================================================
 ! RecordPoints
@@ -348,90 +353,91 @@ Part-nSpecies                                             =                     
 Part-MaxParticleNumber                                    =                                  1 ! ??? Maximum number of Particles per process (used for  
                                                                                                ! array init)  
                                                                                                 
-Particles-dt_part_ratio                                   =                                3.8 ! TODO-DEFINE-PARAMETER  ??? ???factors for td200/201 overrelaxation/subcycling 
+Particles-dt_part_ratio                                   =                                3.8 ! TODO-DEFINE-PARAMETER  factors for td200/201 overrelaxation/subcycling 
                                                                                                 
-Particles-overrelax_factor                                =                                1.0 ! TODO-DEFINE-PARAMETER  ??? factors for td200/201 overrelaxation/subcycling
+Particles-overrelax_factor                                =                                1.0 ! TODO-DEFINE-PARAMETER   factors for td200/201 overrelaxation/subcycling
                                                                                                 
 Part-NumberOfRandomSeeds                                  =                                  0 ! Number of Seeds for Random Number Generator  k=1,.... 
                                                                                                 
 Particles-RandomSeed[$]                                   =                                  0 ! Seed [$] for Random Number Generator 
                                                                                                 
-Particles-DoPoissonRounding                               =                                  F ! TODO-DEFINE-PARAMETER.  ??? Perform Poisson sampling instead of random rounding
+Particles-DoPoissonRounding                               =                                  F ! TODO-DEFINE-PARAMETER.   Flag to perform Poisson sampling instead of random rounding
                                                                                                 
-Particles-DoTimeDepInflow                                 =                                  F ! TODO-DEFINE-PARAMETER.  ??? Insertion and SurfaceFlux w simple random rounding. Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow
+Particles-DoTimeDepInflow                                 =                                  F ! TODO-DEFINE-PARAMETER.   Insertion and SurfaceFlux w simple random rounding. Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow
                                                                                                 
-Part-nPeriodicVectors                                     =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of the periodic vectors j=1,...,n. Value has to be the same as defined in preprog.ini
+Part-nPeriodicVectors                                     =                                  0 ! TODO-DEFINE-PARAMETER   Number of the periodic vectors j=1,...,n. Value has to be the same as defined in preprog.ini
                                                                                                 
-Part-PeriodicVector[$]                                    =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Vector for periodic boundaries. Has to be the same as defined in preproc.ini in their respective order.                                                                      
-Part-DelayTime                                            =                                0.0 ! TODO-DEFINE-PARAMETER  ???  During delay time the particles won't be moved, so the EM field can be evolved
+Part-PeriodicVector[$]                                    =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER   Vector for periodic boundaries. Has to be the same as defined in preproc.ini in their respective order.                                                                      
+Part-DelayTime                                            =                                0.0 ! TODO-DEFINE-PARAMETER    During delay time the particles won't be moved, so the EM field can be evolved
                                                                 
-Particles-OutputVpiWarnings                               =                                  F ! TODO-DEFINE-PARAMETER.  ??? Flag for warnings for rejected v if VPI+PartDensity
+Particles-OutputVpiWarnings                               =                                  F ! TODO-DEFINE-PARAMETER.   Flag for warnings for rejected v if VPI+PartDensity
                                                                                                 
-Part-SafetyFactor                                         =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Factor to scale the halo region with MPI
+Part-SafetyFactor                                         =                                1.0 ! TODO-DEFINE-PARAMETER   Factor to scale the halo region with MPI
 
                                                                                                 
-Particles-HaloEpsVelo                                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Halo region radius
+Particles-HaloEpsVelo                                     =                                0.0 ! TODO-DEFINE-PARAMETER   Halo region radius
                                                                                                 
-NbrOfRegions                                              =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of regions to be mapped to Elements
+NbrOfRegions                                              =                                  0 ! TODO-DEFINE-PARAMETER  Number of regions to be mapped to Elements
                                                                                                 
-RegionBounds[$]                                           = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
+RegionBounds[$]                                           = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER   RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
 
                                                                                                 
-Part-RegionElectronRef[$]                                 =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER ??? RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
+Part-RegionElectronRef[$]                                 =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
                                                                                                 
-Part-LorentzType                                          =                                  3 ! TODO-DEFINE-PARAMETER  ??? don'T know
+Part-LorentzType                                          =                                  3 ! TODO-DEFINE-PARAMETER   Used Lorentz boost 
                                                                                                 
 PrintrandomSeeds                                          =                                  F ! Flag defining if random seeds are written.  
                                                                                                 
 Particles-NumberOfRandomVectors                           =                             100000 ! Option defining how many random vectors are  
                                                                                                ! calculated  
                                                                                                 
-IMDTimeScale                                              =                         0.1018E-13 ! TODO-DEFINE-PARAMETER  ???  Time unit of input file
+IMDTimeScale                                              =                         0.1018E-13 ! TODO-DEFINE-PARAMETER    Time unit of input file
 
                                                                                                 
-IMDLengthScale                                            =                           0.10E-09 ! TODO-DEFINE-PARAMETER  ??? global IMD length scale
+IMDLengthScale                                            =                           0.10E-09 ! TODO-DEFINE-PARAMETER   global IMD length scale
                                                                                                 
-IMDAtomFile                                               =                      no file found ! TODO-DEFINE-PARAMETER  ??? Laser data file name containing PartState(1:6)
+IMDAtomFile                                               =                      no file found ! TODO-DEFINE-PARAMETER   Laser data file name containing PartState(1:6)
 
                                                                                                 
-IMDCutOff                                                 =                          no cutoff ! TODO-DEFINE-PARAMETER  ???  cut-off type for IMD data reduction: 1.) no_cutoff
+IMDCutOff                                                 =                          no cutoff ! TODO-DEFINE-PARAMETER   Cut-off type for IMD data reduction: 1.) no_cutoff
                                                                                                 
-IMDCutOffxValue                                           =                             -999.9 ! TODO-DEFINE-PARAMETER  ???  cut-off coordinate for IMDCutOff='coordiantes'
+IMDCutOffxValue                                           =                             -999.9 ! TODO-DEFINE-PARAMETER   Cut-off coordinate for IMDCutOff='coordiantes'
 
                                                                                                 
-IMDnSpecies                                               =                                  1 ! TODO-DEFINE-PARAMETER  ??? number of IMD species
+IMDnSpecies                                               =                                  1 ! TODO-DEFINE-PARAMETER   number of IMD species
 
                                                                                                 
-IMDInputFile                                              =                      no file found ! TODO-DEFINE-PARAMETER  ??? Laser data file name containing PartState(1:6) 
+IMDInputFile                                              =                      no file found ! TODO-DEFINE-PARAMETER   Laser data file name containing PartState(1:6) 
 
                                                                                                 
-Part-vMPF                                                 =                                  F ! TODO-DEFINE-PARAMETER  ???Use variable Macro Particle Factor.
+Part-vMPF                                                 =                                  F ! TODO-DEFINE-PARAMETER  Use variable Macro Particle Factor.
                                                                                                 
-Part-vMPFPartMerge                                        =                                  F ! TODO-DEFINE-PARAMETER  ??? Enable Particle Merge routines.
+Part-vMPFPartMerge                                        =                                  F ! TODO-DEFINE-PARAMETER   Enable Particle Merge routines.
                                                                                                 
-Part-vMPFMergePolOrder                                    =                                  2 ! TODO-DEFINE-PARAMETER  ??? Polynomial degree for vMPF particle merge.
+Part-vMPFMergePolOrder                                    =                                  2 ! TODO-DEFINE-PARAMETER   Polynomial degree for vMPF particle merge.
                                                                                                 
-Part-vMPFCellSplitOrder                                   =                                 15 ! TODO-DEFINE-PARAMETER  ??? Order for cell splitting of variable MPF
+Part-vMPFCellSplitOrder                                   =                                 15 ! TODO-DEFINE-PARAMETER   Order for cell splitting of variable MPF
                                                                                                 
-Part-vMPFMergeParticleTarget                              =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of particles wanted after merge.
+Part-vMPFMergeParticleTarget                              =                                  0 ! TODO-DEFINE-PARAMETER  Number of particles wanted after merge.
                                                                                                 
-Part-vMPFSplitParticleTarget                              =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of particles wanted after merge.
+Part-vMPFSplitParticleTarget                              =                                  0 ! TODO-DEFINE-PARAMETER   Number of particles wanted after split.
                                                                                                 
-Part-vMPFMergeParticleIter                                =                                100 ! TODO-DEFINE-PARAMETER  ??? Number of iterations between particle merges.
+Part-vMPFMergeParticleIter                                =                                100 ! TODO-DEFINE-PARAMETER   Number of iterations between particle merges.
                                                                                                 
-Part-vMPFvelocityDistribution                             =                               OVDR ! TODO-DEFINE-PARAMETER  ??? Velocity distribution for variable MPF.
+Part-vMPFvelocityDistribution                             =                               OVDR ! TODO-DEFINE-PARAMETER   Velocity distribution for variable MPF.
                                                                                                 
-Part-vMPFrelativistic                                     =                                  F ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-vMPFrelativistic                                     =                                  F ! TODO-DEFINE-PARAMETER    	
                                                                                                 
 !=================================================================================================================================================
 ! Particle Sampling
 !=================================================================================================================================================
-Part-WriteMacroValues                                     =                                  F ! Set [T] to activate ITERATION DEPENDANT h5 output  ??? Default = False. Write macro values (e.g. rotational Temperature).
+Part-WriteMacroValues                                     =                                  F ! Set [T] to activate ITERATION DEPENDANT h5 output  
                                                                                                ! of macroscopic values sampled every  
                                                                                                ! [Part-IterationForMacroVal] iterations from  
                                                                                                ! particles. Sampling starts from simulation start.  
                                                                                                ! Can not be enabled together with  
                                                                                                ! Part-TimeFracForSampling.  
+												HALOWIKI Write macro values (e.g. rotational Temperature).
                                                                                                 
 Part-WriteMacroVolumeValues                               =                                  F ! Similar to Part-WriteMacroValues. Set [T] to  
                                                                                                ! activate iteration dependant sampling and h5  
@@ -457,7 +463,7 @@ Part-TimeFracForSampling                                  =                     
                                                                                                 
 Particles-NumberForDSMCOutputs                            =                                  0 ! Give the number of outputs for time fraction  
                                                                                                ! sampling. Default value is 1 if  
-                                                                                               ! Part-TimeFracForSampling is enabled.  ???otherwise DEFAULT=0, number of DSMC outputs
+                                                                                               ! Part-TimeFracForSampling is enabled.  
                                                                                                 
 Particles-DSMC-CalcSurfaceVal                             =                                  F ! Set [T] to activate sampling, analyze and h5  
                                                                                                ! output for surfaces. Therefore either time  
@@ -468,17 +474,17 @@ Particles-DSMC-CalcSampleSurfaceflux                      =                     
                                                                                                ! at Surfacefluxsides when Wallmodels are used. High  
                                                                                                ! memory demand for large MaxPartNum!  
                                                                                                 
-DSMC-HOSampling-Type                                      =                          cell_mean ! TODO-DEFINE-PARAMETER ??? don't know
+DSMC-HOSampling-Type                                      =                          cell_mean ! TODO-DEFINE-PARAMETER  
                                                                                                 
-Particles-DSMC-OutputOrder                                =                                  1 ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-DSMC-OutputOrder                                =                                  1 ! TODO-DEFINE-PARAMETER   
                                                                                                 
-DSMC-HOSampling-NodeType                                  =                               visu ! TODO-DEFINE-PARAMETER  ??? don't know
+DSMC-HOSampling-NodeType                                  =                               visu ! TODO-DEFINE-PARAMETER   
                                                                                                 
-DSMCSampVolWe-BGMdeltas                                   =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER ??? don't know
+DSMCSampVolWe-BGMdeltas                                   =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
                                                                                                 
-DSMCSampVolWe-FactorBGM                                   =                (/ 1.0, 1.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? don't know
+DSMCSampVolWe-FactorBGM                                   =                (/ 1.0, 1.0, 1.0 /) ! TODO-DEFINE-PARAMETER  
                                                                                                 
-DSMCSampVolWe-VolIntOrd                                   =                                 50 ! TODO-DEFINE-PARAMETER  ??? don't know
+DSMCSampVolWe-VolIntOrd                                   =                                 50 ! TODO-DEFINE-PARAMETER   
                                                                                                 
 DSMC-nSurfSample                                          =                                  1 ! Define polynomial degree of particle BC sampling.  
                                                                                                ! Default: NGeo  
@@ -486,25 +492,28 @@ DSMC-nSurfSample                                          =                     
 !=================================================================================================================================================
 ! Particle SurfCollis
 !=================================================================================================================================================
-Particles-CalcSurfCollis_OnlySwaps                        =                                  F ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-CalcSurfCollis_OnlySwaps                        =                                  F ! TODO-DEFINE-PARAMETER   Count only wall collisions being SpeciesSwaps
                                                                                                 ä
-Particles-CalcSurfCollis_Only0Swaps                       =                                  F ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-CalcSurfCollis_Only0Swaps                       =                                  F ! TODO-DEFINE-PARAMETER  Count only wall collisions being delete-SpeciesSwaps 
                                                                                                 
-Particles-CalcSurfCollis_Output                           =                                  F ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-CalcSurfCollis_Output                           =                                  F ! TODO-DEFINE-PARAMETER   Print sums of all counted wall collisions
                                                                                                 
-Particles-AnalyzeSurfCollis                               =                                  F ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-AnalyzeSurfCollis                               =                                  F ! TODO-DEFINE-PARAMETER   Output of collided/swaped particles during Sampling period? 
                                                                                                 
-Particles-DSMC-maxSurfCollisNumber                        =                                  0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-DSMC-maxSurfCollisNumber                        =                                  0 ! TODO-DEFINE-PARAMETER   Max. number of collided/swaped particles during Sampling
                                                                                                 
-Particles-DSMC-NumberOfBCs                                =                                  1 ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-DSMC-NumberOfBCs                                =                                  1 ! TODO-DEFINE-PARAMETER   Count of BC to be analyzed 
                                                                                                 
-Particles-DSMC-SurfCollisBC                               =                                  0 ! TODO-DEFINE-PARAMETER. 0 means all bc  ??? don't know
+Particles-DSMC-SurfCollisBC                               =                                  0 ! TODO-DEFINE-PARAMETER  BCs to be analyzed (def.: 0 = all)
+
                                                                                                 
-Particles-SurfCollisBC                                    =                                    ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-SurfCollisBC                                    =                                    ! TODO-DEFINE-PARAMETER   BCs to be analyzed (def.: 0 = all)
+
                                                                                                 
-Particles-CalcSurfCollis_NbrOfSpecies                     =                                  0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-CalcSurfCollis_NbrOfSpecies                     =                                  0 ! TODO-DEFINE-PARAMETER   Count of Species for wall collisions (def. 0: all)
                                                                                                 
-Particles-CalcSurfCollis_Species                          =                                    ! TODO-DEFINE-PARAMETER  ??? don't know
+Particles-CalcSurfCollis_Species                          =                                    ! TODO-DEFINE-PARAMETER   Help array for reading surface stuff
+
                                                                                                 
 Part-WriteFieldsToVTK                                     =                                  F ! TODO-DEFINE-PARAMETER  ???Not in Code anymore, but read-in has to be deleted in particle_init.f90 ???
 !=================================================================================================================================================
@@ -514,7 +523,7 @@ Part-Species[$]-nInits                                    =                     
                                                                                                ! for Species [$]  
                                                                                                 
 Part-Species[$]-ChargeIC                                  =                                0.0 ! Particle Charge (without MPF) of species[$]  
-                                                                                               ! [TODO-DEFINE-PARAMETER] dim ??? Charge of particles of species [$]. 
+                                                                                               ! [TODO-DEFINE-PARAMETER] dim
                                                                                                 
 Part-Species[$]-MassIC                                    =                                0.0 ! Particle Mass (without MPF) of species [$] [1E-3  
                                                                                                ! kg]  
@@ -522,76 +531,75 @@ Part-Species[$]-MassIC                                    =                     
 Part-Species[$]-MacroParticleFactor                       =                                1.0 ! Number of Microparticle per Macroparticle for  
                                                                                                ! species [$]  
                                                                                                 
-Part-Species[$]-IsImplicit                                =                                  F ! TODO-DEFINE-PARAMETER  ??? select, if specific particle is explicit or implicit
+Part-Species[$]-IsImplicit                                =                                  F ! TODO-DEFINE-PARAMETER   Flag if specific particle is implicit
                                                                                                 
-Part-Species[$]-UseForInit                                =                                  F ! TODO-DEFINE-PARAMETER ??? use species [$] for initialization?  
+Part-Species[$]-UseForInit                                =                                  F ! TODO-DEFINE-PARAMETER Flag to use species[$] for initialization  
                                                                                                 
-Part-Species[$]-UseForEmission                            =                                  F ! TODO-DEFINE-PARAMETER   ??? Use species[$] for emission?
+Part-Species[$]-UseForEmission                            =                                  F ! TODO-DEFINE-PARAMETER   Use species[$] for emission?
                                                                                                 
 Part-Species[$]-SpaceIC                                   =                             cuboid ! Specifying Keyword for particle space condition of  
                                                                                                ! species [$] in case of one  
                                                                                                ! init TODO-DEFINE-PARAMETER  
                                                                                                 
-Part-Species[$]-velocityDistribution                      =                           constant ! TODO-DEFINE-PARAMETER  ???Used velocity distribution (e.g. maxwell) Default = OVDR. Velocity distribution for variable MPF.
+Part-Species[$]-velocityDistribution                      =                           constant ! TODO-DEFINE-PARAMETER  Used velocity distribution (e.g. maxwell) Default = OVDR. Velocity distribution for variable MPF.
 if (Particle-Species[$]:=PS) PS-vD=maxwell[_lpn] set value for: PS-MWTemperatureIC
 if PS-vD=weibel, use:PS-WeibelVeloPar,WeibelVeloPer 
 if PS-vD=OneD-twostreaminstability, use: PS-OneDTwoStreamVelo,PS-OneDTwoStreamTransRatio
                                                                                                 
-Part-Species[$]-rotation                                  =                                  1 ! TODO-DEFINE-PARAMETER  ???
+Part-Species[$]-rotation                                  =                                  1 ! TODO-DEFINE-PARAMETER Direction of rotation, similar to TE-mode
                                                                                                 
-Part-Species[$]-velocityspread                            =                                0.0 ! TODO-DEFINE-PARAMETER  ???velocity spread in percent
+Part-Species[$]-velocityspread                            =                                0.0 ! TODO-DEFINE-PARAMETER  Velocity spread in percent
 
                                                                                                 
-Part-Species[$]-velocityspreadmethod                      =                                  0 ! TODO-DEFINE-PARAMETER  ??? method to compute the velocity spread
+Part-Species[$]-velocityspreadmethod                      =                                  0 ! TODO-DEFINE-PARAMETER  Method to compute the velocity spread
                                                                                                 
-Part-Species[$]-InflowRiseTime                            =                                0.0 ! TODO-DEFINE-PARAMETER  ??? time to ramp the number of inflow particles,linearly from zero to unity
+Part-Species[$]-InflowRiseTime                            =                                0.0 ! TODO-DEFINE-PARAMETER  Time to ramp the number of inflow particles,linearly from zero to unity
                                                                                                 
-Part-Species[$]-initialParticleNumber                     =                                  0 ! TODO-DEFINE-PARAMETER  ??? Initial particle number 
+Part-Species[$]-initialParticleNumber                     =                                  0 ! TODO-DEFINE-PARAMETER  Initial particle number 
                                                                                                 
-Part-Species[$]-RadiusIC                                  =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Radius for IC circle
+Part-Species[$]-RadiusIC                                  =                                1.0 ! TODO-DEFINE-PARAMETER  Radius for IC circle
                                                                                                 
-Part-Species[$]-Radius2IC                                 =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Radius for IC cylinder (ring)
+Part-Species[$]-Radius2IC                                 =                                0.0 ! TODO-DEFINE-PARAMETER  Radius for IC cylinder (ring)
                                                                                                 
-Part-Species[$]-RadiusICGyro                              =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Gyrotron radius
+Part-Species[$]-RadiusICGyro                              =                                1.0 ! TODO-DEFINE-PARAMETER  Gyrotron radius
                                                                                                 
-Part-Species[$]-NormalIC                                  =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? Normal orientation of circle.
+Part-Species[$]-NormalIC                                  =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  Normal orientation of circle.
                                                                                                 
-Part-Species[$]-BasePointIC                               =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? base point for IC cuboid and IC sphere
+Part-Species[$]-BasePointIC                               =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  Base point for IC cuboid and IC sphere
                                                                                                 
-Part-Species[$]-BaseVector1IC                             =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? First base vector for IC cuboid
+Part-Species[$]-BaseVector1IC                             =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  First base vector for IC cuboid
                                                                                                 
-Part-Species[$]-BaseVector2IC                             =                (/ 0.0, 1.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Second base vector for IC cuboid
+Part-Species[$]-BaseVector2IC                             =                (/ 0.0, 1.0, 0.0 /) ! TODO-DEFINE-PARAMETER  Second base vector for IC cuboid
                                                                                                 
-Part-Species[$]-CuboidHeightIC                            =                                1.0 ! TODO-DEFINE-PARAMETER   ??? Height of cuboid if SpaceIC=cuboid
+Part-Species[$]-CuboidHeightIC                            =                                1.0 ! TODO-DEFINE-PARAMETER  Height of cuboid if SpaceIC=cuboid
                                                                                                 
-Part-Species[$]-CylinderHeightIC                          =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Height of cylinder if SpaceIC=cylinder
+Part-Species[$]-CylinderHeightIC                          =                                1.0 ! TODO-DEFINE-PARAMETER  Height of cylinder if SpaceIC=cylinder
                                                                                                 
-Part-Species[$]-CalcHeightFromDt                          =                                  F ! TODO-DEFINE-PARAMETER  ??? Calc. cuboid/cylinder height from v and dt?
+Part-Species[$]-CalcHeightFromDt                          =                                  F ! TODO-DEFINE-PARAMETER   Calculated cuboid/cylinder height from v and dt
                                                                                                 
-Part-Species[$]-VeloIC                                    =                                0.0 ! TODO-DEFINE-PARAMETER  ???Absolute value of initial velocity. 
+Part-Species[$]-VeloIC                                    =                                0.0 ! TODO-DEFINE-PARAMETER  Absolute value of initial velocity. 
                                                                                                 
-Part-Species[$]-VeloVecIC                                 =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? normalized velocity vector
+Part-Species[$]-VeloVecIC                                 =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  Normalized velocity vector
                                                                                                 
-Part-Species[$]-Amplitude                                 =                               0.01 ! TODO-DEFINE-PARAMETER ??? Amplitude for sin-deviation 
+Part-Species[$]-Amplitude                                 =                               0.01 ! TODO-DEFINE-PARAMETER  Amplitude for sin-deviation 
                                                                                                 
-Part-Species[$]-WaveNumber                                =                                2.0 ! TODO-DEFINE-PARAMETER  ??? Wave number for sin-deviation
+Part-Species[$]-WaveNumber                                =                                2.0 ! TODO-DEFINE-PARAMETER  Wave number for sin-deviation
                                                                                                 
-Part-Species[$]-maxParticleNumber-x                       =                                  0 ! TODO-DEFINE-PARAMETER  ??? MaximumNumber of all particles in x-direction
+Part-Species[$]-maxParticleNumber-x                       =                                  0 ! TODO-DEFINE-PARAMETER  MaximumNumber of all particles in x-direction
                                                                                                 
-Part-Species[$]-maxParticleNumber-y                       =                                  0 ! TODO-DEFINE-PARAMETER  ??? MaximumNumber of all particles in y-direction
+Part-Species[$]-maxParticleNumber-y                       =                                  0 ! TODO-DEFINE-PARAMETER  MaximumNumber of all particles in y-direction
                                                                                                 
-Part-Species[$]-maxParticleNumber-z                       =                                  0 ! TODO-DEFINE-PARAMETER  ??? MaximumNumber of all particles in z-direction
+Part-Species[$]-maxParticleNumber-z                       =                                  0 ! TODO-DEFINE-PARAMETER  MaximumNumber of all particles in z-direction
                                                                                                 
-Part-Species[$]-Alpha                                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Factor for normal speed in gyrotron simulations.
+Part-Species[$]-Alpha                                     =                                0.0 ! TODO-DEFINE-PARAMETER  Factor for normal speed in gyrotron simulations.
                                                                                                 
-Part-Species[$]-MWTemperatureIC                           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Initial temperature for Maxwell distribution initialization.
+Part-Species[$]-MWTemperatureIC                           =                                0.0 ! TODO-DEFINE-PARAMETER  Initial temperature for Maxwell distribution initialization.
                                                                                                 
-Part-Species[$]-ConstantPressure                          =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Pressure for an area with constant pressure
+Part-Species[$]-ConstantPressure                          =                                0.0 ! TODO-DEFINE-PARAMETER  Pressure for an area with constant pressure
                                                                                                 
-Part-Species[$]-ConstPressureRelaxFac                     =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Relaxation Factor for constant pressure sampling.
+Part-Species[$]-ConstPressureRelaxFac                     =                                1.0 ! TODO-DEFINE-PARAMETER  Relaxation Factor for constant pressure sampling.
                                                                                                 
-Part-Species[$]-PartDensity                               =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Used particle density for an area.! PartDensity (real particles per m^3) for LD_insert or
-                                                                             ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
+Part-Species[$]-PartDensity                               =                                0.0 ! TODO-DEFINE-PARAMETER  Used particle density for an area.! PartDensity (real particles per m^3) for LD_insert or (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
 
                                                                                                 
 Part-Species[$]-ParticleEmissionType                      =                                  2 ! TODO-DEFINE-PARAMETER  ??? Emission Type 1 = emission rate in 1/s,
@@ -627,15 +635,15 @@ Part-Species[$]-vpiDomainType                             =            perpendic
                                                                              !              - orifice
                                                                              !              - ...more following...
                                                                                                 
-Part-Species[$]-vpiBV1BufferNeg                           =                                  T ! TODO-DEFINE-PARAMETER ???  don't know
+Part-Species[$]-vpiBV1BufferNeg                           =                                  T ! TODO-DEFINE-PARAMETER ??? incl. buffer region in -BV1 direction?
                                                                                                 
-Part-Species[$]-vpiBV1BufferPos                           =                                  T ! TODO-DEFINE-PARAMETER  ???  don't know
+Part-Species[$]-vpiBV1BufferPos                           =                                  T ! TODO-DEFINE-PARAMETER  ???  incl. buffer region in +BV1 direction?
                                                                                                 
-Part-Species[$]-vpiBV2BufferNeg                           =                                  T ! TODO-DEFINE-PARAMETER  ???  don't know
+Part-Species[$]-vpiBV2BufferNeg                           =                                  T ! TODO-DEFINE-PARAMETER  ???  incl. buffer region in -BV2 direction?
                                                                                                 
-Part-Species[$]-vpiBV2BufferPos                           =                                  T ! TODO-DEFINE-PARAMETER  ???  don't know
+Part-Species[$]-vpiBV2BufferPos                           =                                  T ! TODO-DEFINE-PARAMETER  ???  incl. buffer region in +BV2 direction?
                                                                                                 
-Part-Species[$]-IsIMDSpecies                              =                                  F ! TODO-DEFINE-PARAMETER  ???  don't know
+Part-Species[$]-IsIMDSpecies                              =                                  F ! TODO-DEFINE-PARAMETER  ??? 
                                                                                                 
 !=================================================================================================================================================
 ! Particle Species Ninits
@@ -740,13 +748,13 @@ Part-Species[$]-Init[$]-vpiDomainType                     =            perpendic
                                                                              !              - orifice
                                                                              !              - ...more following...
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV1BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Species[$]-Init[$]-vpiBV1BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  ??? incl. buffer region in -BV1 direction?
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV1BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  ??? don't know	
+Part-Species[$]-Init[$]-vpiBV1BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  ??? incl. buffer region in +BV1 direction?
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV2BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Species[$]-Init[$]-vpiBV2BufferNeg                   =                                  T ! TODO-DEFINE-PARAMETER  ??? incl. buffer region in -BV2 direction?
                                                                                                 
-Part-Species[$]-Init[$]-vpiBV2BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  ?? don't know
+Part-Species[$]-Init[$]-vpiBV2BufferPos                   =                                  T ! TODO-DEFINE-PARAMETER  ?? incl. buffer region in +BV2 direction?
                                                                                                 
 !=================================================================================================================================================
 ! Particle Species Init RegionExculdes
@@ -787,7 +795,7 @@ If condition=periodic:Part-nPeriodicVectors.Part-PeriodicVector[j]
                                                                                                 
 Part-Boundary[$]-AmbientCondition                         =                                  F ! TODO-DEFINE-PARAMETER  ??? Use ambient condition (condition 'behind' boundary).
                                                                                                 
-Part-Boundary[$]-AmbientConditionFix                      =                                  T ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-AmbientConditionFix                      =                                  T ! TODO-DEFINE-PARAMETER  ??? 
                                                                                                 
 Part-Boundary[$]-AmbientTemp                              =                                0.0 ! TODO-DEFINE-PARAMETER ??? Ambient temperature 
                                                                                                 
@@ -801,13 +809,13 @@ Part-Boundary[$]-AmbientDynamicVisc                       =              0.17232
                                                                                                 
 Part-Boundary[$]-AmbientThermalCond                       =              0.242948500556027E-01 ! TODO-DEFINE-PARAMETER  ??? Ambient thermal conductivity
                                                                                                 
-Part-Boundary[$]-Adaptive                                 =                                  F ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-Adaptive                                 =                                  F ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
-Part-Boundary[$]-AdaptiveType                             =                                  2 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-AdaptiveType                             =                                  2 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
-Part-Boundary[$]-AdaptiveTemp                             =                                0.0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-AdaptiveTemp                             =                                0.0 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
-Part-Boundary[$]-AdaptivePressure                         =                                0.0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-AdaptivePressure                         =                                0.0 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
 Part-Boundary[$]-Voltage                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Voltage on boundary [$]
                                                                                                 
@@ -821,7 +829,7 @@ Part-Boundary[$]-VibACC                                   =                     
                                                                                                 
 Part-Boundary[$]-RotACC                                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Rotational accommodation on boundary [$]
                                                                                                 
-Part-Boundary[$]-ElecACC                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-ElecACC                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
 Part-Boundary[$]-Resample                                 =                                  F ! TODO-DEFINE-PARAMETER  ??? Resample Equilibirum Distribution with reflection
                                                                                                 
@@ -831,15 +839,15 @@ Part-Boundary[$]-SolidState                               =                     
                                                                                                 
 Part-Boundary[$]-SolidCatalytic                           =                                  F ! TODO-DEFINE-PARAMETER  ??? flag defining if solid surface treated catalytically
                                                                                                 
-Part-Boundary[$]-SolidSpec                                =                                  0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-SolidSpec                                =                                  0 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
-Part-Boundary[$]-SolidPartDens                            =                           0.10E+20 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-SolidPartDens                            =                           0.10E+20 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
-Part-Boundary[$]-SolidMassIC                              =                        0.32395E-24 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-SolidMassIC                              =                        0.32395E-24 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
-Part-Boundary[$]-SolidAreaIncrease                        =                                1.0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-SolidAreaIncrease                        =                                1.0 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
-Part-Boundary[$]-SolidCrystalIndx                         =                                  4 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-Boundary[$]-SolidCrystalIndx                         =                                  4 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
 Part-Boundary[$]-LiquidSpec                               =                                  0 ! TODO-DEFINE-PARAMETER  ??? Species of Liquid Boundary
                                                                                                 
@@ -869,7 +877,7 @@ Part-AuxBC[$]-VibACC                                      =                     
                                                                                                 
 Part-AuxBC[$]-RotACC                                      =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Rotational accommodation on boundary [$]
                                                                                                 
-Part-AuxBC[$]-ElecACC                                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? don't know
+Part-AuxBC[$]-ElecACC                                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? not defined in "particles/boundary/particle_boundary_vars.f90"
                                                                                                 
 Part-AuxBC[$]-Resample                                    =                                  F ! TODO-DEFINE-PARAMETER  Resample Equilibirum Distribution with reflection
                                                                                                 
@@ -881,25 +889,25 @@ Part-AuxBC[$]-SpeciesSwaps[$]                             =                     
                                                                                                 
 Part-AuxBC[$]-Type                                        =                              plane ! TODO-DEFINE-PARAMETER  ??? type of BC (plane, ...)
                                                                                                 
-Part-AuxBC[$]-r_vec                                       =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-r_vec                                       =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ????  ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-radius                                      =                                    ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-radius                                      =                                    ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-n_vec                                       =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-n_vec                                       =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-axis                                        =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-axis                                        =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-lmin                                        =                                    ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-lmin                                        =                                    ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-lmax                                        =                                    ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-lmax                                        =                                    ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-inwards                                     =                                  T ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-inwards                                     =                                  T ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-rmax                                        =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-rmax                                        =                                0.0 ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-halfangle                                   =                               45.0 ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-halfangle                                   =                               45.0 ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
-Part-AuxBC[$]-zfac                                        =                                1.0 ! TODO-DEFINE-PARAMETER  
+Part-AuxBC[$]-zfac                                        =                                1.0 ! TODO-DEFINE-PARAMETER  ??? ist in "particles/boundary/particle_boundary_vars.f90" nicht beschrieben
                                                                                                 
 !=================================================================================================================================================
 ! Tracking
@@ -1003,13 +1011,13 @@ BezierClipMaxIntersec                                     =                     
 !=================================================================================================================================================
 ! Particle Analyze
 !=================================================================================================================================================
-Part-AnalyzeStep                                          =                                  1 ! TODO-DEFINE-PARAMETER  
+Part-AnalyzeStep                                          =                                  1 ! TODO-DEFINE-PARAMETER  ??? Analyze is performed each Nth time step
                                                                                                 
 CalcPotentialEnergy                                       =                                  F ! TODO-DEFINE-PARAMETER  ??? Default = False. Calculate Potential Energy.
                                                                                                 
-PIC-VerifyCharge                                          =                                  F ! TODO-DEFINE-PARAMETER  
+PIC-VerifyCharge                                          =                                  F ! TODO-DEFINE-PARAMETER  ??? validate the charge after each deposition and produces an output in std.out
                                                                                                 
-CalcCharge                                                =                                  F ! TODO-DEFINE-PARAMETER  
+CalcCharge                                                =                                  F ! TODO-DEFINE-PARAMETER  ??? Compute the whole deposited charge and abs and relative charge error
                                                                                                 
 CalcKineticEnergy                                         =                                  F ! TODO-DEFINE-PARAMETER ??? Default = False. Calculate Kinetic Energy. 
                                                                                                 
@@ -1017,7 +1025,7 @@ CalcInternalEnergy                                        =                     
                                                                                                 
 CalcTemp                                                  =                                  F ! TODO-DEFINE-PARAMETER  ??? Default = False. Calculate Translational temperature.
                                                                                                 
-CalcPartBalance                                           =                                  F ! TODO-DEFINE-PARAMETER  
+CalcPartBalance                                           =                                  F ! TODO-DEFINE-PARAMETER  ???  Particle Power Balance - input and outflow energy of all particles
                                                                                                 
 CalcVelos                                                 =                                  F ! TODO-DEFINE-PARAMETER  ???Default = False. Calculate thermal and flow velocities.
 ??? if CalcVelos        = T
@@ -1028,52 +1036,52 @@ VelocityDirections                                        =                   (/
                                                                                                 
 Part-TrackPosition                                        =                                  F ! TODO-DEFINE-PARAMETER ??? track position of particles  
                                                                                                 
-printDiff                                                 =                                  F ! TODO-DEFINE-PARAMETER  
+printDiff                                                 =                                  F ! TODO-DEFINE-PARAMETER ??? ist nicht beschrieben in "particles/analyze/particle_analyze_vars.f90"
                                                                                                 
-printDiffTime                                             =                               12.0 ! TODO-DEFINE-PARAMETER  
+printDiffTime                                             =                               12.0 ! TODO-DEFINE-PARAMETER  ??? ist nicht beschrieben in "particles/analyze/particle_analyze_vars.f90"
                                                                                                 
-printDiffVec                                              = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+printDiffVec                                              = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? ist nicht beschrieben in "particles/analyze/particle_analyze_vars.f90"
                                                                                                 
 CalcNumSpec                                               =                                  F ! TODO-DEFINE-PARAMETER  ??? Default = False. Calculate Species number.
                                                                                                 
-CalcCollRates                                             =                                  F ! TODO-DEFINE-PARAMETER  
+CalcCollRates                                             =                                  F ! TODO-DEFINE-PARAMETER  ???  Calculate the collision rates per collision pair
                                                                                                 
-CalcReacRates                                             =                                  F ! TODO-DEFINE-PARAMETER  
+CalcReacRates                                             =                                  F ! TODO-DEFINE-PARAMETER  ??? Calculate the reaction rate per reaction
                                                                                                 
-CalcSurfNumSpec                                           =                                  F ! TODO-DEFINE-PARAMETER  
+CalcSurfNumSpec                                           =                                  F ! TODO-DEFINE-PARAMETER  ??? Calculate the number of simulated particles per species on surfaces
                                                                                                 
-CalcSurfCoverage                                          =                                  F ! TODO-DEFINE-PARAMETER  
+CalcSurfCoverage                                          =                                  F ! TODO-DEFINE-PARAMETER  ??? Calculate the surface coverages for each species
                                                                                                 
-CalcAccomodation                                          =                                  F ! TODO-DEFINE-PARAMETER  
+CalcAccomodation                                          =                                  F ! TODO-DEFINE-PARAMETER  ??? Calculate the surface accomodation coefficient
                                                                                                 
-CalcEvaporation                                           =                                  F ! TODO-DEFINE-PARAMETER  
+CalcEvaporation                                           =                                  F ! TODO-DEFINE-PARAMETER  ??? Calculate rate of evaporation [kg/s]
                                                                                                 
-CalcAdsorbRates                                           =                                  F ! TODO-DEFINE-PARAMETER  
+CalcAdsorbRates                                           =                                  F ! TODO-DEFINE-PARAMETER  ???  Calcualte the adsorption probabilities of species
                                                                                                 
-CalcSurfRates                                             =                                  F ! TODO-DEFINE-PARAMETER  
+CalcSurfRates                                             =                                  F ! TODO-DEFINE-PARAMETER  ??? Calculate the surface reaction rate per reaction (k_r)
                                                                                                 
 CalcShapeEfficiency                                       =                                  F ! TODO-DEFINE-PARAMETER  ??? Default = False. Use efficiency methods for shape functions.
 ??? if CalcShapeEfficiency = T
   CalcShapeEfficiencyMethod = [char]. Default = AllParts. Efficiency method for shape functions (AllParts, SomeParts)
                                                                                                 
-CalcShapeEfficiencyMethod                                 =                           AllParts ! TODO-DEFINE-PARAMETER  
+CalcShapeEfficiencyMethod                                 =                           AllParts ! TODO-DEFINE-PARAMETER  ??? choose between 'AllParts'and 'SomeParts', to either use all particles or a certain percentage(ShapeEfficiencyNumber) of the currently used particles
                                                                                                 
 ShapeEfficiencyNumber                                     =                                100 ! TODO-DEFINE-PARAMETER  ??? ShapeEfficiencyNumber     = [integer]. Default = 100. Percentage of currently used particles is used.
                                                                                                 
-IsRestart                                                 =                                  F ! TODO-DEFINE-PARAMETER ???Default = False. Is current calculation a restart? 
+IsRestart                                                 =                                  F ! TODO-DEFINE-PARAMETER ??? Flag, if the current calculation is a restart. 
                                                                                                 
 !=================================================================================================================================================
 ! TTM
 !=================================================================================================================================================
-DoImportTTMFile                                           =                                  F ! TODO-DEFINE-PARAMETER  
+DoImportTTMFile                                           =                                  F ! TODO-DEFINE-PARAMETER  ??? read IMD Two-Temperature Model (TTM) data (FD grid)
                                                                                                 
-TTMLogFile                                                =                  no file specified ! TODO-DEFINE-PARAMETER  
+TTMLogFile                                                =                  no file specified ! TODO-DEFINE-PARAMETER  ??? TTW Data file
                                                                                                 
-TTMFile                                                   =                      no file found ! TODO-DEFINE-PARAMETER  
+TTMFile                                                   =                      no file found ! TODO-DEFINE-PARAMETER  ??? TTW Data file
                                                                                                 
-TTMGridFDdim                                              =                      (/ 0, 0, 0 /) ! TODO-DEFINE-PARAMETER  
+TTMGridFDdim                                              =                      (/ 0, 0, 0 /) ! TODO-DEFINE-PARAMETER  ??? number of FD grid cells in each direction
                                                                                                 
-TTMElemBaryTolerance                                      =                            0.1E-05 ! TODO-DEFINE-PARAMETER  
+TTMElemBaryTolerance                                      =                            0.1E-05 ! TODO-DEFINE-PARAMETER  ??? TTM FD bary center tolerance to DG bary center
                                                                                                 
 !=================================================================================================================================================
 ! PIC
@@ -1084,7 +1092,7 @@ PIC-InterpolationElemLoop                                 =                     
                                                                                                 
 PIC-externalField                                         = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? External field is added to the maxwell-solver-field
                                                                                                 
-PIC-scaleexternalField                                    =                                1.0 ! TODO-DEFINE-PARAMETER  
+PIC-scaleexternalField                                    =                                1.0 ! TODO-DEFINE-PARAMETER  ??? don't know
                                                                                                 
 PIC-DoInterpolation                                       =                                  T ! TODO-DEFINE-PARAMETER ??? Compute the self field's influence on the Particle 
                                                                                                 
@@ -1099,183 +1107,187 @@ PIC-BGFieldScaling                                        =                     
                                                                                                 
 PIC-curvedexternalField                                   =                               none ! TODO-DEFINE-PARAMETER  ??? [char] File to curved external field data.
                                                                                                 
-PIC-variableexternalField                                 =                               none ! TODO-DEFINE-PARAMETER  
+PIC-variableexternalField                                 =                               none ! TODO-DEFINE-PARAMETER  ??? filename containing the externanl field csv table
+
                                                                                                 
-PIC-nCollectChargesBCs                                    =                                  0 ! TODO-DEFINE-PARAMETER  
+PIC-nCollectChargesBCs                                    =                                  0 ! TODO-DEFINE-PARAMETER  ??? no description in "particles/particle_vars.f90"
                                                                                                 
-PIC-CollectCharges[$]-BC                                  =                                  0 ! TODO-DEFINE-PARAMETER  
+PIC-CollectCharges[$]-BC                                  =                                  0 ! TODO-DEFINE-PARAMETER  ??? no description in "particles/particle_vars.f90"
                                                                                                 
-PIC-CollectCharges[$]-NumOfRealCharges                    =                                0.0 ! TODO-DEFINE-PARAMETER  
+PIC-CollectCharges[$]-NumOfRealCharges                    =                                0.0 ! TODO-DEFINE-PARAMETER  ??? no description in "particles/particle_vars.f90"
                                                                                                 
-PIC-CollectCharges[$]-ChargeDist                          =                                0.0 ! TODO-DEFINE-PARAMETER  
+PIC-CollectCharges[$]-ChargeDist                          =                                0.0 ! TODO-DEFINE-PARAMETER  ??? no description in "particles/particle_vars.f90"
                                                                                                 
-PIC-NormVecOfWall                                         =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+PIC-NormVecOfWall                                         =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? normVec for pushTimeStep
                                                                                                 
 PIC-DeltaType                                             =                                  1 ! TODO-DEFINE-PARAMETER ??? Flag 
                                                                                                 
 PIC-DeltaType-N                                           =                                  1 ! TODO-DEFINE-PARAMETER =PP_N  ??? nDepot polynomial degree of delta distri
                                                                                                 
-PIC-BGMdeltas                                             =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Dimensions if PIC background mesh 
+PIC-BGMdeltas                                             =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Dimensions of PIC background mesh 
                                                                                                 
 PIC-FactorBGM                                             =                (/ 1.0, 1.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? Denominator of PIC-BGMdeltas
                                                                                                 
-PIC-OutputSource                                          =                                  F ! TODO-DEFINE-PARAMETER  
+PIC-OutputSource                                          =                                  F ! TODO-DEFINE-PARAMETER  ??? writes the source to hdf5
                                                                                                 
 !=================================================================================================================================================
 ! PIC Deposition
 !=================================================================================================================================================
-PIC-DoDeposition                                          =                                  T ! TODO-DEFINE-PARAMETER  
+PIC-DoDeposition                                          =                                  T ! TODO-DEFINE-PARAMETER  ??? flag to switch deposition on/off
                                                                                                 
 PIC-Deposition-Type                                       =               nearest-blurrycenter ! TODO-DEFINE-PARAMETER  ??? if Deposition-Type=shape_function, define: PIC-shapefunction-radius,PIC-shapefunction-alpha. if Deposition-Type = (cartmesh_volumeweighting / cartmesh_splines), define: PIC-BGMdeltas,PIC-FactorBGM
                                                                                                 
-PIC-TimeAverageFile                                       =                               none ! TODO-DEFINE-PARAMETER  
+PIC-TimeAverageFile                                       =                               none ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-epanechnikov-radius                                   =                                1.0 ! TODO-DEFINE-PARAMETER  
+PIC-epanechnikov-radius                                   =                                1.0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
 PIC-shapefunction-radius                                  =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Radius of shape function
                                                                                                 
 PIC-shapefunction-alpha                                   =                                  2 ! TODO-DEFINE-PARAMETER ??? Exponent of shape function
                                                                                                 
-PIC-shapefunction-equi                                    =                                  F ! TODO-DEFINE-PARAMETER  
+PIC-shapefunction-equi                                    =                                  F ! TODO-DEFINE-PARAMETER ??? use equidistant points for SF
                                                                                                 
-PIC-shapefunction1d-direction                             =                                  1 ! TODO-DEFINE-PARAMETER  
+PIC-shapefunction1d-direction                             =                                  1 ! TODO-DEFINE-PARAMETER ??? direction of 1D shape function
                                                                                                 
-PIC-shapefunction-radius0                                 =                                1.0 ! TODO-DEFINE-PARAMETER  
+PIC-shapefunction-radius0                                 =                                1.0 ! TODO-DEFINE-PARAMETER ??? minimal shape function radius
                                                                                                 
-PIC-shapefunction-scale                                   =                                0.0 ! TODO-DEFINE-PARAMETER  
+PIC-shapefunction-scale                                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? scaling of shape function radius
                                                                                                 
-PIC-NbrOfSFdepoFixes                                      =                                  0 ! TODO-DEFINE-PARAMETER  
+PIC-NbrOfSFdepoFixes                                      =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of fixes for shape func depo at planar BCs
                                                                                                 
-PrintSFDepoWarnings                                       =                                  F ! TODO-DEFINE-PARAMETER  
+PrintSFDepoWarnings                                       =                                  F ! TODO-DEFINE-PARAMETER  ??? flag to print the warnings
                                                                                                 
-PIC-SFdepoFixesEps                                        =                                0.0 ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixesEps                                        =                                0.0 ! TODO-DEFINE-PARAMETER  ??? epsilon for defined planes
                                                                                                 
-PIC-SFdepoFixes[$]-Basepoint                              =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-Basepoint                              =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
                                                                                                 
-PIC-SFdepoFixes[$]-Normal                                 =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-Normal                                 =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
                                                                                                 
-PIC-SFdepoFixes[$]-ChargeMult                             =                                1.0 ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-ChargeMult                             =                                1.0 ! TODO-DEFINE-PARAMETER  ??? multiplier for mirrored charges (wall: -1.0, sym: 1.0)
                                                                                                 
-PIC-SFdepoFixes[$]-xmin                                   =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-xmin                                   =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoFixes[$]-ymin                                   =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-ymin                                   =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoFixes[$]-zmin                                   =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-zmin                                   =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoFixes[$]-xmax                                   =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-xmax                                   =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoFixes[$]-ymax                                   =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-ymax                                   =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoFixes[$]-zmax                                   =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixes[$]-zmax                                   =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-NbrOfSFdepoFixLinks                                   =                                  0 ! TODO-DEFINE-PARAMETER  
+PIC-NbrOfSFdepoFixLinks                                   =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of linked SFdepoFixes
                                                                                                 
-PIC-SFdepoFixLink[$]                                      =                         (/ 1, 2 /) ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoFixLink[$]                                      =                         (/ 1, 2 /) ! TODO-DEFINE-PARAMETER  ??? 1:nLinks;1:3 (2 fixes are linked with each other!) (:,3 is fraction of 180 deg)
                                                                                                 
-PIC-NbrOfSFdepoLayers                                     =                                  0 ! TODO-DEFINE-PARAMETER  
+PIC-NbrOfSFdepoLayers                                     =                                  0 ! TODO-DEFINE-PARAMETER ???  Number of const. source layer for sf-depo at planar BCs
                                                                                                 
-PIC-SFdepoLayers[$]-Basepoint                             =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-Basepoint                             =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ???  SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
                                                                                                 
-PIC-SFdepoLayers[$]-Normal                                =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-Normal                                =                (/ 1.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ???  SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
                                                                                                 
-PIC-SFdepoLayers[$]-xmin                                  =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-xmin                                  =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoLayers[$]-ymin                                  =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-ymin                                  =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoLayers[$]-zmin                                  =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-zmin                                  =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoLayers[$]-xmax                                  =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-xmax                                  =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoLayers[$]-ymax                                  =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-ymax                                  =                                    ! TODO-DEFINE-PARAMETER ??? SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z) 
                                                                                                 
-PIC-SFdepoLayers[$]-zmax                                  =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-zmax                                  =                                    ! TODO-DEFINE-PARAMETER  ??? SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
                                                                                                 
-PIC-SFdepoLayers[$]-UseFixBounds                          =                                  T ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-UseFixBounds                          =                                  T ! TODO-DEFINE-PARAMETER  ??? use alls planes of SFdepoFixes as additional bounds?
                                                                                                 
-PIC-SFdepoLayers[$]-Space                                 =                             cuboid ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-Space                                 =                             cuboid ! TODO-DEFINE-PARAMETER  ??? name of space (cuboid or cylinder)
                                                                                                 
-PIC-SFdepoLayers[$]-BaseVector1                           =                (/ 0.0, 1.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Base Vector 1
+PIC-SFdepoLayers[$]-BaseVector1                           =                (/ 0.0, 1.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? Base Vector 1 (SFdepoLayersBaseVector(:,:,:)     !1:nFixes;1:2;1:3(x,y,z))
                                                                                                 
-PIC-SFdepoLayers[$]-BaseVector2                           =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? Base Vector 2
+PIC-SFdepoLayers[$]-BaseVector2                           =                (/ 0.0, 0.0, 1.0 /) ! TODO-DEFINE-PARAMETER  ??? Base Vector 2 (SFdepoLayersBaseVector(:,:,:)     !1:nFixes;1:2;1:3(x,y,z))
                                                                                                 
-PIC-SFdepoLayers[$]-SFdepoLayersRadius                    =                                1.0 ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-SFdepoLayersRadius                    =                                1.0 ! TODO-DEFINE-PARAMETER  ??? radius for cylinder-space
                                                                                                 
-PIC-SFdepoLayers[$]-Chargedens                            =                                1.0 ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-Chargedens                            =                                1.0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-SFdepoLayers[$]-Spec                                  =                                  1 ! TODO-DEFINE-PARAMETER  
+PIC-SFdepoLayers[$]-Spec                                  =                                  1 ! TODO-DEFINE-PARAMETER  ??? species of particles for respective layer
                                                                                                 
-PIC-SFResampleAnalyzeSurfCollis                           =                                  F ! TODO-DEFINE-PARAMETER  
+PIC-SFResampleAnalyzeSurfCollis                           =                                  F ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-SFResampleSurfCollisBC                                =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFResampleSurfCollisBC                                =                                    ! TODO-DEFINE-PARAMETER  ??? ??? BCs to be analyzed (def.: 0 = all)
                                                                                                 
-PIC-SFResampleReducePartNumber                            =                                  F ! TODO-DEFINE-PARAMETER  
+PIC-SFResampleReducePartNumber                            =                                  F ! TODO-DEFINE-PARAMETER  ??? reduce PartNumberSamp to PartNumberReduced
                                                                                                 
-PIC-PartNumThreshold                                      =                                  0 ! TODO-DEFINE-PARAMETER  
+PIC-PartNumThreshold                                      =                                  0 ! TODO-DEFINE-PARAMETER  ??? Threshold for checking inserted parts per depo (otherwise abort)
                                                                                                 
-PIC-SFResampleNumberOfBCs                                 =                                  1 ! TODO-DEFINE-PARAMETER  
+PIC-SFResampleNumberOfBCs                                 =                                  1 ! TODO-DEFINE-PARAMETER  ??? Nbr of BC to be analyzed (def.: 1)
                                                                                                 
-PIC-SFResamplePartNumberReduced                           =                                  0 ! TODO-DEFINE-PARAMETER  
+PIC-SFResamplePartNumberReduced                           =                                  0 ! TODO-DEFINE-PARAMETER  ??? max. allowed number of parts to be saved
+
                                                                                                 
-PIC-SFResampleRestart                                     =                                  F ! TODO-DEFINE-PARAMETER  
+PIC-SFResampleRestart                                     =                                  F ! TODO-DEFINE-PARAMETER  ??? read-in old DSMCSurfCollis-file for restart
                                                                                                 
-PIC-SFResampleRestartFile                                 =                              dummy ! TODO-DEFINE-PARAMETER  
+PIC-SFResampleRestartFile                                 =                              dummy ! TODO-DEFINE-PARAMETER  ??? name of the new DSMCSurfCollis-file to read-in by restart
                                                                                                 
-PIC-SFResample-xmin                                       =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFResample-xmin                                       =                                    ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-SFResample-ymin                                       =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFResample-ymin                                       =                                    ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-SFResample-zmin                                       =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFResample-zmin                                       =                                    ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-SFResample-xmax                                       =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFResample-xmax                                       =                                    ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-SFResample-ymax                                       =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFResample-ymax                                       =                                    ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-PIC-SFResample-zmax                                       =                                    ! TODO-DEFINE-PARAMETER  
+PIC-SFResample-zmax                                       =                                    ! TODO-DEFINE-PARAMETER ??? 
                                                                                                 
-PIC-SFResample-UseFixBounds                               =                                  T ! TODO-DEFINE-PARAMETER  
+PIC-SFResample-UseFixBounds                               =                                  T ! TODO-DEFINE-PARAMETER  ??? Flag if all planes of SFdepoFixes are to be used as additional bounds
+
+
                                                                                                 
 !=================================================================================================================================================
 ! Particle Emission
 !=================================================================================================================================================
 Part-Species[$]-nSurfacefluxBCs                           =                                  0 ! TODO-DEFINE-PARAMETER  
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-BC                         =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-BC                         =                                  0 ! TODO-DEFINE-PARAMETER  ??? PartBound to be emitted from
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-velocityDistribution       =                           constant ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-velocityDistribution       =                           constant ! TODO-DEFINE-PARAMETER  ??? velocityDistribution
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-VeloIC                     =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-VeloIC                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? velocity for inital Data
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-VeloIsNormal               =                                  F ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-VeloIsNormal               =                                  F ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-VeloVecIC                  =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-VeloVecIC                  =                (/ 0.0, 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? normalized velocity vector
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit        =                                  F ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit        =                                  F ! TODO-DEFINE-PARAMETER  ??? fit of veloR/veloTot=-r*(A*exp(B*r)+C)
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-preFac                     =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-preFac                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? A
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-powerFac                   =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-powerFac                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? B
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-shiftFac                   =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-shiftFac                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? C
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-axialDir                   =                                  1 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-axialDir                   =                                  1 ! TODO-DEFINE-PARAMETER  ??? axial direction of coordinates in polar system
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-origin                     =                     (/ 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-origin                     =                     (/ 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? origin in orth. coordinates of polar system
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-rmax                       =                            0.1E+22 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-rmax                       =                            0.1E+22 ! TODO-DEFINE-PARAMETER  ??? max radius of to-be inserted particles
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-MWTemperatureIC            =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-MWTemperatureIC            =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Temperature for Maxwell Distribution
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-PartDensity                =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-PartDensity                =                                0.0 ! TODO-DEFINE-PARAMETER  ??? PartDensity (real particles per m^3) for LD_insert or (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-ReduceNoise                =                                  F ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-ReduceNoise                =                                  F ! TODO-DEFINE-PARAMETER  ??? reduce stat. noise by global calc. of PartIns
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-AcceptReject               =                                  T ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-AcceptReject               =                                  T ! TODO-DEFINE-PARAMETER  ??? perform ARM for skewness of RefMap-positioning
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN            =                                  1 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN            =                                  1 ! TODO-DEFINE-PARAMETER ??? number of sample intervals in xi/eta for Dmax-calc.
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-Pressurefraction           =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-Pressurefraction           =                                0.0 ! TODO-DEFINE-PARAMETER ??? 
                                                                                                 
-DoForceFreeSurfaceFlux                                    =                                  F ! TODO-DEFINE-PARAMETER  
+DoForceFreeSurfaceFlux                                    =                                  F ! TODO-DEFINE-PARAMETER ??? switch if the stage reconstruction uses a force
                                                                                                 
 !=================================================================================================================================================
 ! DSMC
@@ -1406,51 +1418,52 @@ Part-Species[$]-VHSReferenceDiam                          =                     
                                                                                                 
 Part-Species[$]-omegaVHS                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Reference value for exponent omega for variable hard sphere model.
                                                                                                 
-Part-Species[$]-CharaTempVib                              =                                0.0 ! TODO-DEFINE-PARAMETER  ??? 
+Part-Species[$]-CharaTempVib                              =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Characteristic vibrational temperature.
                                                                                                 
-Part-Species[$]-CharaTempRot                              =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-CharaTempRot                              =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Characteristic rotational temperature
                                                                                                 
 Part-Species[$]-Ediss_eV                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Energy of Dissoziation in [eV].
                                                                                                 
 Part-Species[$]-VFDPhi3                                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Factor of Phi3 in VFD Method: Phi3 = 0 => VFD
                                                                                                 
-Part-Species[$]-CollNumRotInf                             =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-CollNumRotInf                             =                                0.0 ! TODO-DEFINE-PARAMETER  ???  Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
                                                                                                 
-Part-Species[$]-TempRefRot                                =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-TempRefRot                                =                                0.0 ! TODO-DEFINE-PARAMETER  ??? referece temperature for rotational relaxation according to Parker or Zhang, ini_2 -> model dependent!
                                                                                                 
-Part-Species[$]-CollNumVib                                =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-CollNumVib                                =                                0.0 ! TODO-DEFINE-PARAMETER  ??? vibrational collision number according to Boyd, ini_2
                                                                                                 
 Part-Species[$]-TempVib                                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Vibrational temperature.
                                                                                                 
 Part-Species[$]-TempRot                                   =                                0.0 ! TODO-DEFINE-PARAMETER ??? Rotational temperature.
                                                                                                 
-Part-Species[$]-TempElec                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ??? 
+Part-Species[$]-TempElec                                  =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Electronic temperature.
                                                                                                 
-Part-Species[$]-Init[$]-TempVib                           =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-TempVib                           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Vibrational temperature.
                                                                                                 
-Part-Species[$]-Init[$]-TempRot                           =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-TempRot                           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Rotational temperature.
                                                                                                 
-Part-Species[$]-Init[$]-TempElec                          =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Init[$]-TempElec                          =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Electronic temperature.
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-TempVib                    =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-TempVib                    =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Rotational temperature.
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-TempRot                    =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-TempRot                    =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Rotational temperature.
                                                                                                 
-Part-Species[$]-Surfaceflux[$]-TempElec                   =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surfaceflux[$]-TempElec                   =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Electronic temperature.
                                                                                                 
-Part-Species[$]-HeatOfFormation_K                         =                        0.123456789 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-HeatOfFormation_K                         =                        0.123456789 ! TODO-DEFINE-PARAMETER  ??? Heat of formation of the respective species [Kelvin]
                                                                                                 
-Part-Species[$]-PreviousState                             =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PreviousState                             =                                  0 ! TODO-DEFINE-PARAMETER ??? Species number of the previous state (e.g. N for NIon) 
                                                                                                 
-Part-Species[$]-NextIonizationSpecies                     =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-NextIonizationSpecies                     =                                  0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-Part-Species[$]-NumElectronicLevels                       =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-NumElectronicLevels                       =                                  0 ! TODO-DEFINE-PARAMETER  ??? Max elec quantum number + 1 ???
+
                                                                                                 
-Part-Species[$]-ElectronicDegeneracy-Level[$]             =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-ElectronicDegeneracy-Level[$]             =                                  0 ! TODO-DEFINE-PARAMETER  ??? Electronic degeneracy level of respective species
                                                                                                 
-Part-Species[$]-ElectronicEnergyLevel-Level[$]            =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-ElectronicEnergyLevel-Level[$]            =                                0.0 ! TODO-DEFINE-PARAMETER  ??? ??? Electronic energy level of respective species
                                                                                                 
-Part-Species[$]-SymmetryFactor                            =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-SymmetryFactor                            =                                  0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
 Part-Species[$]-IonizationEn_eV                           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Energy of Ionization in [eV].
                                                                                                 
@@ -1465,22 +1478,22 @@ Part-Species[$]-NumOfProtons                              =                     
 !=================================================================================================================================================
 Part-Species[$]-PolyatomicMol                             =                                  F ! TODO-DEFINE-PARAMETER  ??? Allow usage of polyatomic moleculs?
                                                                                                 
-Part-Species[$]-LinearMolec                               =                                  F ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-LinearMolec                               =                                  F ! TODO-DEFINE-PARAMETER  ??? Flag if it is a linear molecule
                                                                                                 
-Part-Species[$]-NumOfAtoms                                =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-NumOfAtoms                                =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of Atoms in Molecule
                                                                                                 
 Part-Species[$]-CharaTempVib[$]                           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Characteristic vibrational temperature.
                                                                                                 
-Part-Species[$]-CharaTempRot[$]                           =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-CharaTempRot[$]                           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Characteristic rotational temperature
                                                                                                 
 !=================================================================================================================================================
 ! DSMC Chemistry
 !=================================================================================================================================================
 DSMC-NumOfReactions                                       =                                  0 ! TODO-DEFINE-PARAMETER  ??? Number of reactions.
                                                                                                 
-DSMC-Reaction[$]-NumberOfNonReactives                     =                                  0 ! TODO-DEFINE-PARAMETER  
+DSMC-Reaction[$]-NumberOfNonReactives                     =                                  0 ! TODO-DEFINE-PARAMETER  ??? 
                                                                                                 
-DSMC-Reaction[$]-NonReactiveSpecies                       =                                    ! TODO-DEFINE-PARAMETER  
+DSMC-Reaction[$]-NonReactiveSpecies                       =                                    ! TODO-DEFINE-PARAMETER  ??? Array with the non-reactive collision partners for dissociation
                                                                                                 
 DSMC-Reaction[$]-ReactionType                             =                               none ! TODO-DEFINE-PARAMETER  ??? Used reaction type (i:electron impact ionization; R:molecular recombination; D:molecular dissociation;E:molecular exchange reaction; x:simple charge exchange reaction)
                                                                                                 
@@ -1513,106 +1526,111 @@ DSMC-Reaction[$]-MEXb                                     =                     
 !=================================================================================================================================================
 ! LD
 !=================================================================================================================================================
-LD-ModelForMultiTemp                                      =                                  0 ! TODO-DEFINE-PARAMETER.  
+LD-ModelForMultiTemp                                      =                                  0 ! TODO-DEFINE-PARAMETER. ??? Modell choice for MultiTemperature ! 0 = no MultiTemperature Modeling
+                                                              ! 1 = LD1 see Paper
+                                                              ! 2 = LD2
+                                                              ! 3 = LD3
+
                                                                                                 
-LD-InitialGuess                                           =                               10.0 ! TODO-DEFINE-PARAMETER  
+LD-InitialGuess                                           =                               10.0 ! TODO-DEFINE-PARAMETER  ??? 2nd guess, plus user defined value, [m/s], (default 10 m/s)
+
                                                                                                 
-LD-MaxIterNumForLagVelo                                   =                                100 ! TODO-DEFINE-PARAMETER.  
+LD-MaxIterNumForLagVelo                                   =                                100 ! TODO-DEFINE-PARAMETER. ??? Max. number of iterations for LAGRANGIAN vell calculation
                                                                                                 
-LD-AccuracyForLagVelo                                     =                              0.001 ! TODO-DEFINE-PARAMETER  
+LD-AccuracyForLagVelo                                     =                              0.001 ! TODO-DEFINE-PARAMETER  ??? accuracy for LAGRANGIAN vell calculation
                                                                                                 
-LD-RepositionsFaktor                                      =                                0.0 ! TODO-DEFINE-PARAMETER  
+LD-RepositionsFaktor                                      =                                0.0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-LD-RelaxationsFaktor                                      =                                0.0 ! TODO-DEFINE-PARAMETER  
+LD-RelaxationsFaktor                                      =                                0.0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-LD-DSMC-RelaxationsFaktorForBufferA                       =                                0.0 ! TODO-DEFINE-PARAMETER  
+LD-DSMC-RelaxationsFaktorForBufferA                       =                                0.0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-LD_CalcResidual                                           =                                  F ! TODO-DEFINE-PARAMETER  
+LD_CalcResidual                                           =                                  F ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
 !=================================================================================================================================================
 ! DSMC Surfmodel
 !=================================================================================================================================================
-Particles-KeepWallParticles                               =                                  F ! TODO-DEFINE-PARAMETER  
+Particles-KeepWallParticles                               =                                  F ! TODO-DEFINE-PARAMETER  ??? Flag for tracking of adsorbed Particles
                                                                                                 
-Particles--DSMC-Adsorption-doTPD                          =                                  F ! TODO-DEFINE-PARAMETER  
+Particles--DSMC-Adsorption-doTPD                          =                                  F ! TODO-DEFINE-PARAMETER  ???Flag for TPD spectrum calculation
                                                                                                 
-Particles-DSMC-Adsorption-TPD-Beta                        =                                0.0 ! TODO-DEFINE-PARAMETER  
+Particles-DSMC-Adsorption-TPD-Beta                        =                                0.0 ! TODO-DEFINE-PARAMETER  ??? temperature slope for TPD [K/s]
                                                                                                 
-Part-Species[$]-MaximumCoverage                           =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-MaximumCoverage                           =                                0.0 ! TODO-DEFINE-PARAMETER  ???  maximum coverage of surface i with species n
                                                                                                 
-Part-Species[$]-InitialStick                              =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-InitialStick                              =                                0.0 ! TODO-DEFINE-PARAMETER  ??? initial sticking coefficient (S_0) for surface n
                                                                                                 
-Part-Species[$]-PrefactorStick                            =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PrefactorStick                            =                                0.0 ! TODO-DEFINE-PARAMETER ??? prefactor of sticking coefficient for surface n 
                                                                                                 
-Part-Species[$]-Adsorbexp                                 =                                  1 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Adsorbexp                                 =                                  1 ! TODO-DEFINE-PARAMETER  ??? Adsorption exponent for surface n
                                                                                                 
-Part-Species[$]-Nu-a                                      =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Nu-a                                      =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Nu exponent a for surface n
                                                                                                 
-Part-Species[$]-Nu-b                                      =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Nu-b                                      =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Nu exponent b for surface n
                                                                                                 
-Part-Species[$]-Desorption-Energy-K                       =                                1.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Desorption-Energy-K                       =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Desorption energy (K) for surface n
                                                                                                 
-Part-Species[$]-Intensification-K                         =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Intensification-K                         =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Intensification energy (K) for surface n
                                                                                                 
-Part-Species[$]-Recomb-PartnerSpec                        =                                 -1 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Recomb-PartnerSpec                        =                                 -1 ! TODO-DEFINE-PARAMETER  ??? Partner recombination species (nSpecies)
                                                                                                 
-Part-Species[$]-Recomb-ResultSpec                         =                                 -1 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Recomb-ResultSpec                         =                                 -1 ! TODO-DEFINE-PARAMETER  ??? Resulting recombination species (nSpecies)
                                                                                                 
-Part-Species[$]-PartBound[$]-RecombinationCoeff           =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PartBound[$]-RecombinationCoeff           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Recombinationcoeff (nPartBound,nSpecies) ??? ist das sinnvoll anzugegben?
                                                                                                 
-Part-Species[$]-PartBound[$]-RecombinationEnergy          =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PartBound[$]-RecombinationEnergy          =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Energy transformed by reaction (nPartBound,nSpecies)
                                                                                                 
-Part-Species[$]-PartBound[$]-RecombinationAccomodation    =                                1.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PartBound[$]-RecombinationAccomodation    =                                1.0 ! TODO-DEFINE-PARAMETER  ??? Energy Accomodation coefficient (nPartBound,nSpecies)
                                                                                                 
-Part-Species[$]-PartBound[$]-Coordination                 =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PartBound[$]-Coordination                 =                                  0 ! TODO-DEFINE-PARAMETER  ??? site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
                                                                                                 
-Part-Species[$]-PartBound[$]-DiCoordination               =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PartBound[$]-DiCoordination               =                                  0 ! TODO-DEFINE-PARAMETER  ??? (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
                                                                                                 
-Part-Species[$]-PartBound[$]-HeatOfAdsorption-K           =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PartBound[$]-HeatOfAdsorption-K           =                                0.0 ! TODO-DEFINE-PARAMETER  ??? heat of adsorption (K) on clear surfaces for surface n
                                                                                                 
-Part-Species[$]-PartBound[$]-InitialCoverage              =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-PartBound[$]-InitialCoverage              =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Initial coverage (nPartBound,nSpecies)
                                                                                                 
-Particles-Surface-MacroParticleFactor                     =                                    ! TODO-DEFINE-PARAMETER. Default: Species(1)%MPF  
+Particles-Surface-MacroParticleFactor                     =                                    ! TODO-DEFINE-PARAMETER. Default: Species(1)%MPF  ??? Used macro particle factor of species[i].
                                                                                                 
-Part-Species-MaxDissNum                                   =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-Species-MaxDissNum                                   =                                  0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-Part-SurfChem-Nbr-DissocReactions                         =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-SurfChem-Nbr-DissocReactions                         =                                  0 ! TODO-DEFINE-PARAMETER  ??? Resulting species for given dissoc (2,MaxDissNum,nSpecies)
                                                                                                 
-Part-SurfChem-Nbr-ExchangeReactions                       =                                  0 ! TODO-DEFINE-PARAMETER  
+Part-SurfChem-Nbr-ExchangeReactions                       =                                  0 ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-Species[$]-Adsorption-Powerfactor                    =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Adsorption-Powerfactor                    =                                0.0 ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-Species[$]-Adsorption-Prefactor                      =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Adsorption-Prefactor                      =                                0.0 ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-Species[$]-Adsorption-EDissBond                      =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Adsorption-EDissBond                      =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Bond dissociation energy (K) for diss into resulting species (ReactNum,nspecies)
                                                                                                 
-Part-Species[$]-Adsorption-EDissBondPoly1                 =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Adsorption-EDissBondPoly1                 =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Bond dissociation energy (K) for diss into resulting species (ReactNum,nspecies)
                                                                                                 
-Part-Species[$]-Adsorption-EDissBondPoly2                 =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Adsorption-EDissBondPoly2                 =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Bond dissociation energy (K) for diss into resulting species (ReactNum,nspecies)
                                                                                                 
-Part-Species[$]-SurfDiss[$]-Products                      =                         (/ 0, 0 /) ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-SurfDiss[$]-Products                      =                         (/ 0, 0 /) ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-Species[$]-SurfDiss[$]-Powerfactor                   =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-SurfDiss[$]-Powerfactor                   =                                0.0 ! TODO-DEFINE-PARAMETER ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-Species[$]-SurfDiss[$]-Prefactor                     =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-SurfDiss[$]-Prefactor                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-Species[$]-SurfDiss[$]-EDissBond                     =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-SurfDiss[$]-EDissBond                     =                                0.0 ! TODO-DEFINE-PARAMETER  ??? Bond dissociation energy (K) for diss into resulting species (ReactNum,nspecies)
                                                                                                 
-Part-Species[$]-Surf-ER[$]-Powerfactor                    =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surf-ER[$]-Powerfactor                    =                                0.0 ! TODO-DEFINE-PARAMETER   ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-Species[$]-Surf-ER[$]-Prefactor                      =                                0.0 ! TODO-DEFINE-PARAMETER  
+Part-Species[$]-Surf-ER[$]-Prefactor                      =                                0.0 ! TODO-DEFINE-PARAMETER   ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-SurfChem-Disprop[$]-Reactants                        =                         (/ 0, 0 /) ! TODO-DEFINE-PARAMETER  
+Part-SurfChem-Disprop[$]-Reactants                        =                         (/ 0, 0 /) ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-SurfChem-Disprop[$]-Products                         =                         (/ 0, 0 /) ! TODO-DEFINE-PARAMETER  
+Part-SurfChem-Disprop[$]-Products                         =                         (/ 0, 0 /) ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-SurfChem-Disprop[$]-DissBond_K-Reactants             =                     (/ 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-SurfChem-Disprop[$]-DissBond_K-Reactants             =                     (/ 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Part-SurfChem-Disprop[$]-DissBond_K-Products              =                     (/ 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  
+Part-SurfChem-Disprop[$]-DissBond_K-Products              =                     (/ 0.0, 0.0 /) ! TODO-DEFINE-PARAMETER  ??? not described in "particles/dmsc/dsmc_vars.f90"
                                                                                                 
-Particles-DSMC-Adsorption-CalcTST                         =                                  0 ! TODO-DEFINE-PARAMETER  
+Particles-DSMC-Adsorption-CalcTST                         =                                  0 ! TODO-DEFINE-PARAMETER  ???
                                                                                                 
-Particles-DSMC-AdsorptionTST-PartitionMaxTemp             =                            10000.0 ! TODO-DEFINE-PARAMETER  
+Particles-DSMC-AdsorptionTST-PartitionMaxTemp             =                            10000.0 ! TODO-DEFINE-PARAMETER  ??? Temperature limit for pre-stored partition function (DEF: 20 000K)
                                                                                                 
-Particles-DSMC-AdsorptionTST-PartitionInterval            =                               20.0 ! TODO-DEFINE-PARAMETER  
+Particles-DSMC-AdsorptionTST-PartitionInterval            =                               20.0 ! TODO-DEFINE-PARAMETER  ??? Temperature interval for pre-stored partition function (DEF: 10K)
  

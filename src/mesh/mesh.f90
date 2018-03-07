@@ -48,11 +48,15 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Mesh")
-CALL prms%CreateLogicalOption( 'DoSwapMesh',  "Swap mesh for calculation.TODO-DEFINE-PARAMETER",'.FALSE.')
+CALL prms%CreateLogicalOption( 'DoSwapMesh',  " Flag to swap mesh for calculation.TODO-DEFINE-PARAMETER",'.FALSE.')
 CALL prms%CreateStringOption(  'SwapMeshExePath',            "(relative) path to swap-meshfile (mandatory).")
-CALL prms%CreateIntOption(     'SwapMeshLevel',           "TODO-DEFINE-PARAMETER",'0')
+CALL prms%CreateIntOption(     'SwapMeshLevel',           "TODO-DEFINE-PARAMETER\n"//&
+							  "0: initial grid\n"//&
+							  "1: first swap mesh\n"//&	
+							  "2: second swap mesh\n",'0')
 
-CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory).")
+CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory)\n"//%"
+						      "(HALOWIKI:) usually located in directory of project.ini")
 CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
                                                       "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
 
@@ -65,7 +69,8 @@ CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this fa
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER",&
+CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER calculate pointing vector integral "//&	
+							 "| only perpendicular to z axis",&
                                                       '.FALSE.')
 CALL prms%CreateLogicalOption( 'crossProductMetrics', "Compute mesh metrics using cross product form. Caution: in this case "//&
                                                       "free-stream preservation is only guaranteed for N=3*NGeo.",&
