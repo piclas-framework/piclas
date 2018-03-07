@@ -649,8 +649,6 @@ DO iPart=1,PDM%ParticleVecLength
           IF(locAlpha(ilocSide).GT.-1.0) THEN
             IF (PartDoubleCheck.EQ.0) THEN
               alphaOld = locAlpha(ilocSide)
-            ELSE IF (PartDoubleCheck.EQ.1) THEN
-              PartDoubleCheck=2
             END IF
             hitlocSide=ilocSide
             SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
@@ -719,10 +717,14 @@ DO iPart=1,PDM%ParticleVecLength
             PartDoubleCheck = 1
             PartIsDone= .FALSE.
           ELSE
-            PartDoubleCheck = 2
             PartIsDone= .TRUE.
             PEM%Element(iPart)=ElemID !periodic BC always exits with one hit from outside
             EXIT 
+          END IF
+        ELSE !IF(CrossedBC.OR.SwitchedElem)
+          IF (PartDoubleCheck.EQ.1) THEN
+            PartDoubleCheck=0
+            alphaOld = -1.0
           END IF
         END IF
         IF(CrossedBC)THEN
@@ -749,14 +751,17 @@ DO iPart=1,PDM%ParticleVecLength
           IF (PartDoubleCheck.EQ.0) THEN
             DO iLocSide=1,6+nAuxBCs
               IF (HasAuxBC) THEN
-                IF (locAlphaAll(ilocSide).GT.-1.0) alphaOld = locAlphaAll(ilocSide)
+                IF (locAlphaAll(ilocSide).GT.-1.0) THEN
+                  alphaOld = locAlphaAll(ilocSide)
+                  EXIT
+                END IF
               ELSE
-                IF (locAlpha(ilocSide).GT.-1.0) alphaOld = locAlpha(ilocSide)
+                IF (locAlpha(ilocSide).GT.-1.0) THEN
+                  alphaOld = locAlpha(ilocSide)
+                  EXIT
+                END IF
               END IF
             END DO
-          ELSE IF (PartDoubleCheck.EQ.1) THEN
-            PartDoubleCheck=2
-            alphaOld = -1.0
           END IF
           SwitchedElement=.FALSE.
           crossedBC=.FALSE.
@@ -842,9 +847,13 @@ DO iPart=1,PDM%ParticleVecLength
               PartDoubleCheck = 1
               PartIsDone= .FALSE.
             ELSE
-              PartDoubleCheck = 2
               PartIsDone= .TRUE.
               EXIT 
+            END IF
+          ELSE !IF(CrossedBC.OR.SwitchedElem)
+            IF (PartDoubleCheck.EQ.1) THEN
+              PartDoubleCheck=0
+              alphaOld = -1.0
             END IF
           END IF
           IF(CrossedBC)THEN
