@@ -1754,7 +1754,9 @@ __STAMP__&
 ,'Could not deallocate SideIndex')
 END IF
 
+#ifdef CODE_ANALYZE
 IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
+#endif /*CODE_ANALYZE*/
 
 ! Make sure PMPIVAR%MPINeighbor is consistent
 DO iProc=0,PartMPI%nProcs-1
@@ -2338,7 +2340,10 @@ END FUNCTION PointInProc
 
 SUBROUTINE CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
 !===================================================================================================================================
-! resize the partilce mesh data
+! check if any entry of the checked arrays exists and if the entry is not NAN 
+! instead of using IEEE standard, the infamous nan-check a(i).NE.a(i) is used
+! Sanity check for refmapping and mpi-communication. 
+! PO: not sure if it is required any more.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
