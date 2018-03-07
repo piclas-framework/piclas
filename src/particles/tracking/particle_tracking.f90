@@ -1488,7 +1488,7 @@ DO WHILE(DoTracing)
     IF (doublecheck) THEN
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-        IF(iPart.EQ.PARTOUT)THEN
+        IF(PartID.EQ.PARTOUT)THEN
           WRITE(UNIT_stdout,'(110("="))')
           WRITE(UNIT_stdout,'(A)')    '     | Particle is double checked: '
         END IF
