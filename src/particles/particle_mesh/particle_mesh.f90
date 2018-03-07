@@ -1295,6 +1295,7 @@ END IF
 SWRITE(UNIT_StdOut,'(66("-"))')
 
 CALL DuplicateSlavePeriodicSides()
+! CAUTION: in MarkAllBCSides, a counter is reset for refmapping
 CALL MarkAllBCSides()
 ! get elem and side types
 CALL GetElemAndSideType() ! normally called AFTER reshape
@@ -2663,9 +2664,9 @@ ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
 IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummyBezierControlPoints3D in ReshapeBezierSides')
-!IF (SIZE(DummyBezierControlPoints3D).NE.SIZE(BezierControlPoints3D)) CALL abort(&
-!__STAMP__&
-!,'size of DummyBezierControlPoionts3D and BezierControlPoints3D not equal!')
+IF (SIZE(DummyBezierControlPoints3D).NE.SIZE(BezierControlPoints3D)) CALL abort(&
+__STAMP__&
+,'size of DummyBezierControlPoionts3D and BezierControlPoints3D not equal!')
 DummyBezierControlPoints3d=BezierControlPoints3d
 DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
@@ -4865,14 +4866,36 @@ END SUBROUTINE DuplicateSlavePeriodicSides
 
 SUBROUTINE MarkAllBCSides() 
 !===================================================================================================================================
-! mark all bc-sides for ref-mapping
+! CAUTION: nTotalBCSides is reset from old value to new current,process-local BCSides
+! The PartBCSideList contains a mapping from the global side list to a local, pure BC side list
+! DG-SideList
+! 1:nBCSides - nInnerSides - nMortarSides - nMPISides
+! DG: periodic sides are no BC sides
+! ParticleTracking treats periodic sides as BC sides and the process needs the actual side,
+! hence it may be required to be duplicated (side at correct position)
+! Particle-Tracking-List before MarkAllBCSides
+! 1:nBCSides - nInnerSides - nSomePeriodicSides - nMortarSides - nMPISides - nMissingPeriodicSides
+! As RefMapping requires only the BC sides, a shorter list is generated over all
+! nTotalBCSides which is NOW smaller than nPartSides or nTotalSides
+! CAUTION and BRAIN-FUCK: 
+! This smaller list is used to build: from 1:nTotalBCSides < nTotalSides and is used for
+! SideNormVec,SideTypes,SideDistance
+! BUT: 1:nTotalSides is STILL used for 
+! BezierControlPoints3D, SideSlabInterVals,SideSlabNormals,BoundingBoxIsEmpty
+! and are NOT reshaped yet, hence, the length of the array remains nTotalSides
+! BRAIN-FUCK CONTINUOUS: 
+! During building of the HALO region, the BezierControlPoints variables are further increased with nTotalSides while the 
+! already small arrays increases with nTotalBCSides
+! After building the HALO region, the actual arrays are reshaped and a stored in shorter arrays
+! 
+! AND no rule without a break:
+! SidePeriodicType is still on nTotalSides and NOT reshaped
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Mesh_Vars,               ONLY:nSides
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,SidePeriodicType,nTotalBCSides,nPartSides
 USE MOD_Mesh_Vars,               ONLY:BC,nBCSides,BoundaryType
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-
 USE MOD_Globals
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
