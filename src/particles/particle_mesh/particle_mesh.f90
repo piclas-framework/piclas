@@ -179,9 +179,11 @@ CALL prms%CreateRealOption(    'BezierClipTolerance'    , ' Tolerance for Bezier
 CALL prms%CreateRealOption(    'BezierNewtonTolerance'  , ' Tolerance for BezierNewton' , '1e-4')
 CALL prms%CreateIntOption(     'BezierNewtonGuess'      , ' Initial guess for BezierNewton '// &
     '(1) - linear projected face (2) - cloesest projected BeziercontrolPoint (4) - (0,0)^t' , '1')
+CALL prms%CreateIntOption(     'BezierNewtonMaxIter'    , ' TODO-DEFINE-PARAMETER' , '100')
 CALL prms%CreateRealOption(    'BezierSplitLimit'       , ' Limit for splitting in BezierClipping.'// &
    ' Value allows to detect multiple intersections and speed up computation. Parameter is multiplied by 2' , '0.6')
 CALL prms%CreateIntOption(     'BezierClipMaxIter'      , ' Max iteration of BezierClipping' , '100')
+CALL prms%CreateIntOption(     'BezierClipLineVectorMethod' , ' TODO-DEFINE-PARAMETER' , '2')
 CALL prms%CreateRealOption(    'epsilontol'             , 'TODO-DEFINE-PARAMETER' , '0.')
 CALL prms%CreateRealOption(    'BezierClipHit'          , ' Tolerance in [-1,1] of BezierFace' , '0.')
 CALL prms%CreateRealOption(    'BezierNewtonHit'        , ' Tolerance in [-1,1] of BezierNewton' , '0.')
