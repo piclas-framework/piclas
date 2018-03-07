@@ -3142,7 +3142,11 @@ REAL                    :: radicant
 ! Use P-Q-formula and calculate first solution R1
 ! Use Theorem of Vieta (R1*R2=C/A) to calculate R2
 ! cf: wikipedia 2017.06.13 https://de.wikipedia.org/wiki/Quadratische_Gleichung
-IF(ABS(A).GT.0.)THEN
+IF (A.NE.0. .AND. B.EQ.0. .AND. C.EQ.0.) THEN
+  nRoot=1
+  R1=0.
+  R2=0.
+ELSE IF(A.NE.0.)THEN
   radicant = (0.5*B/A)**2 - (C/A)
   IF (radicant.LT.0.) THEN
     nRoot=0
@@ -3154,7 +3158,7 @@ IF(ABS(A).GT.0.)THEN
     R2=(C/A)/R1
   END IF
 ELSE
-  IF(ABS(B).GT.0.)THEN
+  IF(B.NE.0.)THEN
     nRoot=1
     R1=-C/B
     R2=0.
@@ -3214,21 +3218,33 @@ REAL                                 :: t
 
 #ifdef CODE_ANALYZE
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
-  t = t/ PartTrajectory(1)-epsilontol 
+  IF (PartTrajectory(1).EQ.0.) THEN
+    t=SIGN(HUGE(t),t)
+  ELSE
+    t = t/ PartTrajectory(1)-epsilontol
+  END IF
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t1: ',t
    END IF
   END IF
   t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
-  t = t/ PartTrajectory(2)-epsilontol 
+  IF (PartTrajectory(2).EQ.0.) THEN
+    t=SIGN(HUGE(t),t)
+  ELSE
+    t = t/ PartTrajectory(2)-epsilontol
+  END IF
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t2: ',t
     END IF
   END IF
   t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
-  t = t/ PartTrajectory(3)-epsilontol 
+  IF (PartTrajectory(3).EQ.0.) THEN
+    t=SIGN(HUGE(t),t)
+  ELSE
+    t = t/ PartTrajectory(3)-epsilontol
+  END IF
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t3: ',t
