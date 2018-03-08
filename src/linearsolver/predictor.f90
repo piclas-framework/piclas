@@ -94,7 +94,7 @@ USE MOD_PreProc
 USE MOD_DG_Vars,          ONLY: U,Un
 USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict,tpast
 USE MOD_TimeDisc_Vars,    ONLY: time,iter
-#if (PP_TimeDiscMethod==120) 
+#if (PP_TimeDiscMethod==120)  || (PP_TimeDiscMethod==131)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c
 #endif
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
@@ -331,7 +331,7 @@ USE MOD_DG_Vars,          ONLY:U,Ut,Un
 USE MOD_LinearSolver_Vars,ONLY:Upast,Upredict,tpast
 USE MOD_TimeDisc_Vars,    ONLY:dt,iStage,nRKStages,time
 USE MOD_LinearSolver_Vars,ONLY:FieldStage,ImplicitSource
-#if (PP_TimeDiscMethod==120) 
+#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==131)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c
 #endif
 #if (PP_TimeDiscMethod==122)

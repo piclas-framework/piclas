@@ -364,7 +364,42 @@ REAL,PARAMETER :: RK4_bs6(1:2) = (/ RK4_bs61, RK4_bs62 /)
 REAL,PARAMETER :: RK_bs(1:6,1:2)=RESHAPE((/RK4_bs1,RK4_bs2,RK4_bs3,RK4_bs4,RK4_bs5,RK4_bs6/),(/6,2/),ORDER =(/2,1/))
 #endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+! || (PP_TimeDiscMethod==131)
 REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
+#endif
+#if (PP_TimeDiscMethod==131) 
+! wikipedia
+INTEGER,PARAMETER :: nRKStages = 2
+REAL,PARAMETER  :: RK_a21=  2. / 3.
+REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
+REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_gamma=0.5*(1.+1./SQRT(3.))
+REAL,PARAMETER  :: RK_g21=  -4./6.*(1.+1./SQRT(3.))
+REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
+REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_c2 = 2./3.
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
+REAL,PARAMETER  :: RK_b1= 1./4.
+REAL,PARAMETER  :: RK_b2= 3./4.
+REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
+! explicit scheme
+! INTEGER,PARAMETER :: nRKStages = 4
+! aij
+! REAL,PARAMETER  :: ERK3_a21=  0.462
+! REAL,PARAMETER  :: ERK3_a31= -0.0815668168327
+! REAL,PARAMETER  :: ERK3_a32=  0.961775150166
+! REAL,PARAMETER  :: ERK3_a41=  0.    
+! REAL,PARAMETER  :: ERK3_a42=  0.   
+! REAL,PARAMETER  :: ERK3_a43=  0.   
+! REAL,PARAMETER  :: ERK3_a2(1:3) = (/ERK3_a21,      0.,      0./) 
+! REAL,PARAMETER  :: ERK3_a3(1:3) = (/ERK3_a31,ERK3_a32,      0./)
+! REAL,PARAMETER  :: ERK3_a4(1:3) = (/ERK3_a41,ERK3_a42,ERK3_a43/)
+! REAL,PARAMETER  :: ERK_a(2:4,1:3) = RESHAPE( (/ERK3_a2(:),ERK3_a3(:),ERK3_a4(:)/),(/3,3/),ORDER =(/2,1/))
+! ! c
+! REAL,PARAMETER  :: RK3_c2=   1767732205903.0  / 2027836641118.0
+! REAL,PARAMETER  :: RK3_c3=               3.0  / 5.0
+! REAL,PARAMETER  :: RK3_c4=               1.0
+! REAL,PARAMETER  :: RK_c(2:4) = (/RK3_c2,RK3_c3,RK3_c4/)
 #endif
 #if (PP_TimeDiscMethod==103)
 INTEGER,PARAMETER :: nRKStages = 2

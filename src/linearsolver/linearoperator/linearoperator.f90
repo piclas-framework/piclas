@@ -429,7 +429,11 @@ PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
 PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
 PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
+#if (PP_TimeDiscMethod==131)
+Y(1:6) = (X(1:6) - (coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+#else
 Y(1:6) = (X(1:6) - (PartDtFrac(PartID)*coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+#endif
 
 ! compiler warnings
 IF(1.EQ.2)THEN

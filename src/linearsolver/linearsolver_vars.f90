@@ -57,7 +57,7 @@ REAL                 :: Eps2Newton
 LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
 #endif
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122) || (PP_TimeDiscMethod==131)
 REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
                                                                                     ! disables Armijo rule and uses a fixed value
 REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122
@@ -80,10 +80,10 @@ INTEGER              :: PartImplicitMethod                                      
 #ifdef PARTICLES
 LOGICAL              :: DoUpdateInStage                                             ! perform updatenextfree position 
                                                                                     ! in each rk stage
+LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration 
 INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
                                                                                     ! due to overflow of free positions...
                                                                                     ! UNFP each nth iteration
-LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration 
                                                                                     ! scheme
 #endif /*PARTICLES*/
 #endif

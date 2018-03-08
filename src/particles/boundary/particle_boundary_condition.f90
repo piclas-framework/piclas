@@ -640,15 +640,15 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ,PartDeltaX
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
-USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
-USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
 USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
-USE MOD_Particle_Vars,          ONLY:PEM
+USE MOD_Particle_Vars,          ONLY:PEM,PartIsImplicit
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -896,6 +896,7 @@ END IF
 #endif  /*LSERK*/
 
 #ifdef IMPA
+#if (PP_TimeDiscMethod!=131)
 ! rotate the Runge-Kutta coefficients into the new system 
 ! this rotation is a housholder rotation
 RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
@@ -963,6 +964,7 @@ IF(iStage.GT.0)THEN
   END IF
 #endif
 END IF
+#endif
 #endif /*IMPA*/
 !END IF
 
@@ -1770,12 +1772,15 @@ USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXk
 #endif /*IMPA*/
 #if defined(IMPA) || defined(IMEX)
-USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
-USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
 #endif
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1880,6 +1885,7 @@ END IF
 
 !PartShiftVector = OldPartPos - NewPartPos = -SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 #ifdef IMPA 
+#if (PP_TimeDiscMethod!=131)
 ! recompute PartStateN to kill jump in integration through periodic BC
 IF(iStage.GT.0)THEN
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
@@ -1923,6 +1929,7 @@ IF(iStage.GT.0)THEN
  END IF
 #endif
 END IF
+#endif
 #endif /*IMPA*/
 
 ! refmapping and tracing

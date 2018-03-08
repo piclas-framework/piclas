@@ -1731,11 +1731,11 @@ USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
 #ifdef IMPA
 USE MOD_Particle_Vars,               ONLY: PartQ
 USE MOD_TimeDisc_Vars,               ONLY: dt,iStage
-USE MOD_TimeDisc_Vars,               ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
 USE MOD_LinearSolver_Vars,           ONLY: PartXK
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_TimeDisc_Vars,               ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_Particle_Vars,              ONLY: PartIsImplicit
 #endif 
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2025,6 +2025,7 @@ IF(isMoved)THEN
 #endif /*IMEX*/
 
 #ifdef IMPA 
+#if (PP_TimeDiscMethod!=131)
   ! recompute PartStateN to kill jump in integration through periodic BC
   IF(iStage.GT.0)THEN
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
@@ -2058,6 +2059,7 @@ IF(isMoved)THEN
    END IF
 #endif
   END IF
+#endif
 #endif /*IMPA*/
 END IF
 

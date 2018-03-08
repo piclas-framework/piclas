@@ -723,12 +723,21 @@ END IF
 
 #ifdef IMPA
 #if (PP_TimeDiscMethod!=110)
+#if (PP_TimeDiscMethod==131)
+ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate ParStage arrays!')
+END IF
+#else
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
   ,' Cannot allocate ParStage arrays!')
 END IF
+#endif
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&

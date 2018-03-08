@@ -27,6 +27,10 @@ INTERFACE FinalizePartSolver
   MODULE PROCEDURE FinalizePartSolver
 END INTERFACE
 
+INTERFACE Particle_GMRES
+  MODULE PROCEDURE Particle_GMRES
+END INTERFACE
+
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 INTERFACE SelectImplicitParticles
   MODULE PROCEDURE SelectImplicitParticles
@@ -35,6 +39,7 @@ END INTERFACE
 
 PUBLIC:: InitPartSolver,FinalizePartSolver
 PUBLIC:: ParticleNewton
+PUBLIC:: Particle_GMRES
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PUBLIC:: SelectImplicitParticles
 #endif

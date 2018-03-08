@@ -30,7 +30,7 @@ REAL,ALLOCATABLE                      :: U_master(:,:,:,:),U_slave(:,:,:,:)
 REAL,ALLOCATABLE                      :: Flux_Master(:,:,:,:)
 REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
 LOGICAL                               :: DGInitIsDone=.FALSE.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) || (PP_TimeDiscMethod==131)
 REAL,ALLOCATABLE                      :: Un(:,:,:,:,:) ! computed from JU
 #endif
 !===================================================================================================================================

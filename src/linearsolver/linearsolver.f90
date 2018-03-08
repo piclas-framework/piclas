@@ -179,6 +179,11 @@ nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
 
+#if (PP_TimeDiscMethod==131)
+#ifndef PP_HDG
+ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
+#endif
+#endif
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
 maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
 TotalFullNewtonIter  = 0
