@@ -4048,6 +4048,7 @@ REAL               :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
 
+coeff=dt*RK_gamma
 #ifndef PP_HDG
 #ifdef maxwell
 ! caution hard coded
@@ -4055,7 +4056,6 @@ IF (iter==0) CALL BuildPrecond(t,t,0,RK_gamma,dt)
 #endif /*maxwell*/
 #endif /*DG*/
 tRatio = 1.
-coeff=RK_gamma*dt
 
 #ifdef PARTICLES
 #ifdef MPI
@@ -4338,22 +4338,19 @@ END IF ! t.GE. DelayTime
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.)
-iStage=0
 Un = U
+! solve linear system for electromagnetic field
+! RHS is f(u^n+0) = DG_u^n + source^n
+CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.)
+LinSolverRHS = Ut
+CALL LinearSolver(tStage,coeff)
+FieldStage (:,:,:,:,:,1) = U
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 #endif /*MPI*/
 #endif /*DG*/
 
-! solve linear system for electromagnetic field
-coeff=dt*RK_gamma
-! RHS is f(u^n+0) = DG_u^n + source^n
-! LinSolverRHS = Ut
-! CALL LinearSolver(tStage,coeff)
-! DG-solver, Maxwell's equations
-!FieldStage (:,:,:,:,:,iStage-1) = U
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 2 to 6
@@ -4365,39 +4362,29 @@ DO iStage=2,nRKStages
     SWRITE(UNIT_StdOut,'(A)')    '-----------------------------'
     SWRITE(UNIT_StdOut,'(A,I2)') 'istage:',istage
   END IF
-#ifndef PP_HDG
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
-  ! compute the f(u^s-1)
-  ! compute the f(u^s-1)
-  ! DG-solver, Maxwell's equations
-!  FieldStage (:,:,:,:,:,iStage-1) = U
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-#endif /*MPI*/
-#endif /*DG*/
 
   !--------------------------------------------------------------------------------------------------------------------------------
   ! DGSolver: explicit contribution and T * sum  
   ! is the state before the linear system is solved
   !--------------------------------------------------------------------------------------------------------------------------------
   ! compute contribution of h T * sum_j=1^iStage-1
-!  LinSolverRHS = RK_g(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
-!  DO iCounter=1,iStage-2
-!    LinSolverRHS = RK_g(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
-!  END DO ! iCounter=1,iStage-2
-!  ! matrix vector WITH dt and contribution of T * sum
-!  CALL MatrixVector(t,dt,LinSolverRHS,DeltaU) 
-!  ! remove identity matrix and invert sign
-!  LinSolverRHS=dt*(LinSolverRHS - DeltaU)
-!  ! compute explicit contribution 
-!  U = RK_a(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
-!  DO iCounter=1,iStage-2
-!    U=U+RK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
-!  END DO ! iCounter=1,iStage-2
-!  U=Un+dt*U
+  LinSolverRHS = RK_g(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
+  DO iCounter=1,iStage-2
+    LinSolverRHS = RK_g(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
+  END DO ! iCounter=1,iStage-2
+  ! matrix vector WITH dt and contribution of T * sum
+  ! Jacobian times sum_j^iStage-1 gamma_ij k_j
+  U=LinSolverRHS
+  CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+  LinSolverRHS=Ut*dt
+  ! compute explicit contribution 
+  U = RK_a(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
+  DO iCounter=1,iStage-2
+    U=U+RK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
+  END DO ! iCounter=1,iStage-2
+  U=Un+dt*U
+  ! this U is required for the particles and the interpolation, hence, we have to continue with the particles
+  ! which gives us the source terms, too...
 
   !--------------------------------------------------------------------------------------------------------------------------------
   ! particle  pusher: explicit contribution and T * sum  
@@ -4534,15 +4521,23 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-!  CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.)
-!  LinSolverRHS = Ut + LinSolverRHS
-!  CALL LinearSolver(tStage,coeff)
-! #ifndef PP_HDG
-!   CALL DivCleaningDamping()
-! #endif /*DG*/
-!  FieldStage (:,:,:,:,:,iStage) = U
-  
+  !--------------------------------------------------------------------------------------------------------------------------------
+  ! DGSolver: now, we can add teh contribution of the particles
+  !--------------------------------------------------------------------------------------------------------------------------------
+  ! next DG call is f(u^n + dt sum_j^i-1 a_ij k_j) + source terms
+  CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.)
+  LinSolverRHS = LinSolverRHS + Ut
+  CALL LinearSolver(tStage,coeff)
+  ! and store U in fieldstage
+  FieldStage (:,:,:,:,:,iStage) = U
 END DO
+
+! updete particle step
+U = RK_b(nRKStages)* FieldStage(:,:,:,:,:,nRKStages)
+DO iCounter=1,nRKStages-1
+  U = U +  RK_b(iCounter)* FieldStage(:,:,:,:,:,iCounter)
+END DO ! counter
+U = Un + dt * U
 
 #ifdef PARTICLES
 ! particle step || only explicit particles
