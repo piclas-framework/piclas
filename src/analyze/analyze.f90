@@ -70,8 +70,8 @@ CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER Count 
                                                  !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
 #ifndef PARTICLES
-CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER','1') 
-CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER Analyze is performed each Nth time step','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER Calculate Potential Energy.','.FALSE.')
 #endif
 
 CALL prms%SetSection("Analyzefield")

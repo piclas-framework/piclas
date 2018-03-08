@@ -33,10 +33,17 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("LD")
 
-CALL prms%CreateIntOption(      'LD-ModelForMultiTemp'    , 'TODO-DEFINE-PARAMETER.' , '0')
-CALL prms%CreateRealOption(     'LD-InitialGuess'         , 'TODO-DEFINE-PARAMETER','10')
-CALL prms%CreateIntOption(      'LD-MaxIterNumForLagVelo' , 'TODO-DEFINE-PARAMETER.' , '100')
-CALL prms%CreateRealOption(     'LD-AccuracyForLagVelo'   , 'TODO-DEFINE-PARAMETER','0.001')
+CALL prms%CreateIntOption(      'LD-ModelForMultiTemp' ,'TODO-DEFINE-PARAMETER Modell choice for MultiTemperature (see Paper)\n'//&
+							'0 = no MultiTemperature Modeling\n'//&
+							'1 = LD1 \n'//&
+							'2 = LD2\n'//&
+							'3 = LD3', '0')
+CALL prms%CreateRealOption(     'LD-InitialGuess'         , 'TODO-DEFINE-PARAMETER 2nd guess, plus user defined value, '//&
+							    '[m/s], (default 10 m/s)','10')
+CALL prms%CreateIntOption(      'LD-MaxIterNumForLagVelo' , 'TODO-DEFINE-PARAMETER Max. number of iterations for '//&
+				 			    'LAGRANGIAN vell calculation' , '100')
+CALL prms%CreateRealOption(     'LD-AccuracyForLagVelo'   , 'TODO-DEFINE-PARAMETER Accuracy for LAGRANGIAN vell calculation'&
+							  , '0.001')
 CALL prms%CreateRealOption(     'LD-RepositionsFaktor'    , 'TODO-DEFINE-PARAMETER','0.0')
 CALL prms%CreateRealOption(     'LD-RelaxationsFaktor'    , 'TODO-DEFINE-PARAMETER','0.0')
 CALL prms%CreateRealOption(     'LD-DSMC-RelaxationsFaktorForBufferA'         , 'TODO-DEFINE-PARAMETER','0.0')

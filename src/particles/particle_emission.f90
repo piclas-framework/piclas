@@ -69,45 +69,60 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Emission")
 
-CALL prms%CreateIntOption(      'Part-Species[$]-nSurfacefluxBCs' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateIntOption(      'Part-Species[$]-nSurfacefluxBCs' , 'TODO-DEFINE-PARAMETER Number of SF emissions
+' &
                                 , '0', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-BC' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-BC' , 'TODO-DEFINE-PARAMETER  PartBound to be emitted from' &
                                 , '0', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-Surfaceflux[$]-velocityDistribution' &
-                                , 'TODO-DEFINE-PARAMETER' , 'constant', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-VeloIC' , 'TODO-DEFINE-PARAMETER' &
+                                , 'TODO-DEFINE-PARAMETER Specifying keyword for velocity distribution' , 'constant'&
+, numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-VeloIC' , 'TODO-DEFINE-PARAMETER Velocity for inital Data' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' , 'TODO-DEFINE-PARAMETER VeloIC is in'//&
+										' Surf-Normal instead of VeloVecIC' &
                                 , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' , 'TODO-DEFINE-PARAMETER Normalized velocity vector' &
                                 , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' , 'TODO-DEFINE-PARAMETER Fit of '//&
+										       'veloR/veloTot=-r*(A*exp(B*r)+C)' &
                                 , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-preFac' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-preFac' , 'TODO-DEFINE-PARAMETER A , see SimpleRadialVeloFit' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-powerFac' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-powerFac  B , see SimpleRadialVeloFit' , 'TODO-DEFINE-PARAMETER' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-shiftFac' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-shiftFac  C , see SimpleRadialVeloFit' , 'TODO-DEFINE-PARAMETER' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' , 'TODO-DEFINE-PARAMETER Axial direction of '//&
+									    'coordinates in polar system' &
                                 , '1', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' , 'TODO-DEFINE-PARAMETER Origin in orth(ogonal?)  '//&
+									  'coordinates of polar system' &
                                 , '0.0 , 0.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' , 'TODO-DEFINE-PARAMETER Max radius of to-be '//&
+									'inserted particles' &
                                 , '1e21', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' , 'TODO-DEFINE-PARAMETER Temperature for '//&
+										   'Maxwell Distribution' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-PartDensity' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-PartDensity' , 'TODO-DEFINE-PARAMETER PartDensity (real'//&
+									       ' particles per m^3) for LD_insert or'//&
+									       ' (vpi_)cub./cyl. as alternative to'//&
+									       ' Part.Emis. in Type1' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' , 'TODO-DEFINE-PARAMETER Reduce stat. noise by '//&
+									       ' global calc. of PartIns' &
                                 , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AcceptReject' , 'TODO-DEFINE-PARAMETER' &
-                                , '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN' , 'TODO-DEFINE-PARAMETER' &
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AcceptReject' , 'TODO-DEFINE-PARAMETER Perform ARM for '//&
+										'skewness of RefMap-positioning' &
+                                						, '.TRUE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN' , 'TODO-DEFINE-PARAMETER Number of sample'//&
+										   ' intervals in xi/eta for Dmax-calc.' &
                                 , '1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Pressurefraction' , 'TODO-DEFINE-PARAMETER' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' , 'TODO-DEFINE-PARAMETER Flag if the stage reconstruction '//&
+							   'uses a force' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleEmission
                                                                                                    

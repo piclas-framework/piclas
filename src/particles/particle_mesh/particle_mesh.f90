@@ -153,7 +153,7 @@ CALL prms%CreateRealOption(    'BezierEpsilonBilinear'&
 CALL prms%CreateIntOption(     'BezierElevation'&
   , ' Use BezierElevation>0 to tighten the bounding box. Typicall values>10','0')
 CALL prms%CreateIntOption(     'BezierSampleN'&
-  , 'TODO-DEFINE-PARAMETER. Defualt value: NGeo','0')
+  , 'TODO-DEFINE-PARAMETER. Default value: NGeo equidistant sampling of bezier surface for emission','0')
 
 
 ! Background mesh init variables
