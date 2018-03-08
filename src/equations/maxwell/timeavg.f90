@@ -65,8 +65,8 @@ CHARACTER(LEN=2)               :: strhelp
 #endif /*PARTICLES*/
 !==================================================================================================================================
 
-nVarAvg  = CNTSTR('VarNameAvg','0')
-nVarFluc = CNTSTR('VarNameFluc','0')
+nVarAvg  = CNTSTR('VarNameAvg')
+nVarFluc = CNTSTR('VarNameFluc')
 IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
   CALL CollectiveStop(__STAMP__, &
     'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')

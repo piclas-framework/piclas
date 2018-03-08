@@ -46,6 +46,8 @@ SELECT CASE(PrecondType)
     CALL ApplyILU(V,Vprecond)
   CASE(4)
     CALL ApplyBILU0_BCSR(V,Vprecond)
+  CASE(201)
+    CALL ApplyADI(V,Vprecond)
   CASE DEFAULT
     Vprecond=V
 END SELECT
@@ -273,5 +275,83 @@ END DO ! iElem
 
 
 END SUBROUTINE ApplyBILU0_BCSR
+
+
+SUBROUTINE ApplyADI(Vin,Vout)
+!===================================================================================================================================
+! Apply BJ Preconditioner which is constructed per element
+! which is infact an additive schwarz preconditioner
+! the question is now, why is the multiplicative schwarz worse?
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Precond_Vars      ,ONLY:invXi,invEta,invZeta
+USE MOD_LinearSolver_Vars ,ONLY:nDOFLine
+USE MOD_LinearOperator    ,ONLY:DENSE_MATMUL
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)              :: Vin(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)             :: Vout(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!REAL                         :: Vcalc (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
+!REAL                         :: Vcalc2(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
+REAL                         :: Vcalc(1:PP_nVar,0:PP_N)
+INTEGER                      :: iElem,i,j,k,iVar,l,vn1,vn2,vni,vnj,vnk,p,q
+!===================================================================================================================================
+
+Vout(:,:,:,:,:)=0.
+DO iElem=1,PP_nElems
+  ! optimize
+  DO q=0,PP_N
+    DO p=0,PP_N
+      ! xi direction
+      CALL DENSE_MATMUL(nDOFLine,invXI(:,:,p,q,iElem),Vin(:,:,p,q,iElem),Vcalc)
+      Vout(:,:,p,q,iElem)=Vout(:,:,p,q,iElem)+Vcalc
+      ! eta direction
+      CALL DENSE_MATMUL(nDOFLine,invEta(:,:,p,q,iElem),Vin(:,p,:,q,iElem),Vcalc)
+      Vout(:,p,:,q,iElem)=Vout(:,p,:,q,iElem)+Vcalc
+      ! zeta direction
+      CALL DENSE_MATMUL(nDOFLine,invZeta(:,:,p,q,iElem),Vin(:,p,q,:,iElem),Vcalc)
+      Vout(:,p,q,:,iElem)=Vout(:,p,q,:,iElem)+Vcalc
+    END DO ! p=0,PP_N
+  END DO ! q=0,PP_N
+
+! ! xi direction
+!  DO j=0,PP_N
+!    DO k=0,PP_N
+!      CALL DENSE_MATMUL(nDOFLine,invXI(:,:,j,k,iElem),Vin(:,:,j,k,iElem),Vcalc(:,:,j,k))
+!      !Vcalc2=MATMUL(invXI(:,:,j,k,iElem),Vin(:,:,j,k,iElem))
+!      !Vout(:,:,j,k,iElem)=Vcalc2
+!    END DO ! j
+!  END DO ! k
+! ! eta direction
+!  DO k=0,PP_N
+!    DO i=0,PP_N
+!      CALL DENSE_MATMUL(nDOFLine,invEta(:,:,i,k,iElem),Vcalc(:,i,:,k),Vcalc2(:,i,:,k))
+!      !Vcalc2=MATMUL(invEta(:,i,:,k,iElem),Vin(:,i,:,k,iElem))
+!      !Vout(:,i,:,k,iElem)=Vout(:,i,:,k,iElem)+Vcalc2
+!    END DO ! i
+!  END DO ! k
+!!  ! zeta direction
+!  DO j=0,PP_N
+!    DO i=0,PP_N
+!      !CALL DENSE_MATMUL(nDOFLine,invZeta(:,:,i,j,iElem),Vout(:,i,j,:,iElem),Vout(:,i,j,:,iElem))
+!      CALL DENSE_MATMUL(nDOFLine,invZeta(:,:,i,j,iElem),Vcalc2(:,i,j,:),Vout(:,i,j,:,iElem))
+!      !Vcalc2=MATMUL(invZeta(:,i,j,:,iElem),Vin(:,i,j,:,iElem))
+!      !Vout(:,i,j,:,iElem)=Vout(:,i,j,:,iElem)+Vcalc2
+!    END DO ! i
+!  END DO ! j
+!!  ! missing?
+!!  !Vout=1./3.*Vout -- not working
+
+END DO ! iElem
+!Vout=1./3.*Vout
+
+END SUBROUTINE  ApplyADI
 
 END MODULE MOD_ApplyPreconditioner

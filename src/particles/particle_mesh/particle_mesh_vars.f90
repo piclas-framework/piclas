@@ -63,6 +63,7 @@ INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                                   
 LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                                                 ! is an elem with BC sides for tracing
                                                                                           ! or BC in halo-eps distance to BC
 INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
+LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
 INTEGER             :: nTotalBCSides                                                      ! total number of BC sides (my+halo)
 INTEGER             :: nTotalBCElems                                                      ! total number of bc elems (my+halo)
 INTEGER,ALLOCATABLE :: PartBCSideList(:)                                                  ! mapping from SideID to BCSideID
@@ -177,9 +178,9 @@ TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
 
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
 REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
-INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
 LOGICAL,ALLOCATABLE                      :: isTracingTrouble(:)
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
+INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
 !===================================================================================================================================
 
 

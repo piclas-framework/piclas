@@ -41,10 +41,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars           ,ONLY: ElemToSide
 USE MOD_Mesh_Vars           ,ONLY: BC,BoundaryType,nBCSides
-USE MOD_Precond_Vars        ,ONLY: nVec, Surf
+USE MOD_Mesh_Vars           ,ONLY: nVecLoc, SurfLoc
 USE MOD_LinearSolver_Vars   ,ONLY: nDOFElem
 USE MOD_Jac_Ex_Vars         ,ONLY: LL_minus, LL_plus
-USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann
+USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacRiemannDielectric
+USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,29 +79,31 @@ JacA = 0.
 JacBC = 0.
 
 DO iLocSide = 1,6
- ! debug
- !IF(iLocSide.NE.ZETA_MINUS) CYCLE
-
- SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-  ! debgug
- !print*,'SideID,flip,locSide,iElem',SideID,flip,ilocSide,iElem
- !read*
- ! get derivative of flux maxtrix
- CALL ConstructJacRiemann(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
- IF (SideID.LE.nBCSides) THEN
-  BCType=Boundarytype(BC(SideID),BC_TYPE)
- ! debug
- ! print*,BCTYPE
- ! read*
-  CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacBC)
-  JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
- END IF
+  SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+  IF(DoDielectric) THEN
+    ! if it is a dielectric element, the preconditioner has to consider the it on the face
+    IF(isDielectricElem(iElem))THEN !  master is DIELECTRIC and slave PHYSICAL
+      CALL ConstructJacRiemannDielectric(nVecLoc(:,:,:,iLocSide,iElem) &
+                                        ,SurfLoc(  :,:,iLocSide,iElem) &
+                                        ,JacA   (:,:,:,:,iLocSide),ilocSide,iElem)
+      CYCLE
+    END IF
+  END IF
+  ! get derivative of flux maxtrix
+  CALL ConstructJacRiemann(nVecLoc(:,:,:,iLocSide,iElem),SurfLoc(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
+  IF (SideID.LE.nBCSides) THEN
+    BCType=Boundarytype(BC(SideID),BC_TYPE)
+    CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,iLocSide,iElem),SurfLoc(:,:,iLocSide,iElem),JacBC)
+    JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
+  END IF
 END DO ! iLocSide 
 
+ ! loop over columns: oo,mm,nn -> s
  DO oo = 0,PP_N
    DO nn = 0,PP_N
      DO mm = 0,PP_N
        s = vn2 * oo + vn1 * nn + PP_nVar * mm
+       ! loop over rows: i,j,k  -> r
        DO k = 0,PP_N
           DO j = 0,PP_N
             DO i = 0,PP_N
@@ -131,10 +134,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars           ,ONLY: ElemToSide
 USE MOD_Mesh_Vars           ,ONLY: BC,BoundaryType,nBCSides
-USE MOD_Precond_Vars        ,ONLY: nVec, Surf
+USE MOD_Mesh_Vars           ,ONLY: nVecLoc, SurfLoc
 USE MOD_LinearSolver_Vars   ,ONLY: nDOFLine
 USE MOD_Jac_Ex_Vars         ,ONLY: LL_minus, LL_plus
-USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann
+USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacRiemannDielectric
+USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -149,7 +153,7 @@ REAL,INTENT(INOUT)                                  :: dRdZeta(1:nDOFLine,1:nDOF
 ! LOCAL VARIABLES
 INTEGER                                             :: SideID
 REAL,DIMENSION(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,6) :: JacA
-INTEGER                                             :: i,j,k,l,vni,vnj,vnk,s
+INTEGER                                             :: i,j,k,mm,nn,oo,vni,vnj,vnk,s
 INTEGER                                             :: iLocSide
 REAL,DIMENSION(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N)   :: JacBC
 INTEGER                                             :: BCType
@@ -160,51 +164,83 @@ JacA = 0.
 JacBC = 0.
 
 DO iLocSide = 1,6
- ! debug
- !IF(iLocSide.NE.ZETA_MINUS) CYCLE
-
- SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-  ! debgug
- !print*,'SideID,flip,locSide,iElem',SideID,flip,ilocSide,iElem
- !read*
- ! get derivative of flux maxtrix
- CALL ConstructJacRiemann(nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
- IF (SideID.LE.nBCSides) THEN
-  BCType=Boundarytype(BC(SideID),BC_TYPE)
- ! debug
- ! print*,BCTYPE
- ! read*
-  CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,iLocSide,iElem),Surf(:,:,iLocSide,iElem),JacBC)
-  JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
- END IF
+  SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+  ! check for dielectric 
+  IF(DoDielectric) THEN
+    ! if it is a dielectric element, the preconditioner has to consider the it on the face
+    IF(isDielectricElem(iElem))THEN !  master is DIELECTRIC and slave PHYSICAL
+      CALL ConstructJacRiemannDielectric(nVecloc(:,:,:,iLocSide,iElem),Surfloc(:,:,iLocSide,iElem) &
+                                        ,JacA(:,:,:,:,iLocSide),ilocSide,iElem)
+      CYCLE
+    END IF
+  END IF
+  ! normal element
+  CALL ConstructJacRiemann(nVecLoc(:,:,:,iLocSide,iElem),SurfLoc(:,:,iLocSide,iElem),JacA(:,:,:,:,iLocSide))
+  IF (SideID.LE.nBCSides) THEN
+   BCType=Boundarytype(BC(SideID),BC_TYPE)
+   CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,iLocSide,iElem),SurfLoc(:,:,iLocSide,iElem),JacBC)
+   JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
+  END IF
 END DO ! iLocSide 
 
 
-  DO k=0,PP_N
-    DO j=0,PP_N
+DO oo = 0,PP_N
+  DO nn = 0,PP_N
+    DO mm = 0,PP_N
+      s=mm*PP_nVar
       DO i=0,PP_N
         vni=PP_nVar*i
-        vnj=PP_nVar*j
-        vnk=PP_nVar*k
-        s=0
-        DO l=0,PP_N
-          dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k)  &
-                                              + ( LL_Minus(i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_MINUS) &
-                                                + LL_Plus (i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_PLUS)  )
-
-          dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k)   &
-                                              + ( LL_Minus(j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_MINUS) &
-                                                + LL_Plus (j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_PLUS)  )
-
-          dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) &
-                                              + ( LL_Minus(k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_MINUS) &
-                                                + LL_Plus (k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_PLUS)  )
-
-          s=s+PP_nVar
-        END DO ! l
+        dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,nn,oo) = dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,nn,oo)  &
+                                              + ( LL_Minus(i,mm)*JacA(1:PP_nVar,1:PP_nVar,nn,oo,XI_MINUS) &
+                                              +   LL_Plus (i,mm)*JacA(1:PP_nVar,1:PP_nVar,nn,oo,XI_PLUS)  )
       END DO ! i
-    END DO ! j
-  END DO ! k
+
+      s=nn*PP_nVar
+      DO j=0,PP_N
+        vnj=PP_nVar*j
+        dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,mm,oo) = dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,mm,oo)   &
+                                            + ( LL_Minus(j,nn)*JacA(1:PP_nVar,1:PP_nVar,mm,oo,ETA_MINUS) &
+                                              + LL_Plus (j,nn)*JacA(1:PP_nVar,1:PP_nVar,mm,oo,ETA_PLUS)  )
+      END DO ! j
+
+      s=oo*PP_nVar
+      DO k=0,PP_N
+        vnk=PP_nVar*k
+        dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,mm,nn) = dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,mm,nn)   &
+                                            + ( LL_Minus(k,oo)*JacA(1:PP_nVar,1:PP_nVar,mm,nn,ZETA_MINUS) &
+                                              + LL_Plus (k,oo)*JacA(1:PP_nVar,1:PP_nVar,mm,nn,ZETA_PLUS)  )
+      END DO ! k
+    END DO ! nn
+  END DO ! mm 
+END DO ! oo
+
+
+
+!  DO k=0,PP_N
+!    DO j=0,PP_N
+!      DO i=0,PP_N
+!        vni=PP_nVar*i
+!        vnj=PP_nVar*j
+!        vnk=PP_nVar*k
+!        s=0
+!        DO l=0,PP_N
+!          dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k)  &
+!                                              + ( LL_Minus(i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_MINUS) &
+!                                                + LL_Plus (i,l)*JacA(1:PP_nVar,1:PP_nVar,j,k,XI_PLUS)  )
+!
+!          dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k)   &
+!                                              + ( LL_Minus(j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_MINUS) &
+!                                                + LL_Plus (j,l)*JacA(1:PP_nVar,1:PP_nVar,i,k,ETA_PLUS)  )
+!
+!          dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) &
+!                                              + ( LL_Minus(k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_MINUS) &
+!                                                + LL_Plus (k,l)*JacA(1:PP_nVar,1:PP_nVar,i,j,ZETA_PLUS)  )
+!
+!          s=s+PP_nVar
+!        END DO ! l
+!      END DO ! i
+!    END DO ! j
+!  END DO ! k
 
 END SUBROUTINE DGJacSurfInt1D
 
@@ -221,8 +257,8 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,       ONLY: nBCSides
 USE MOD_Mesh_Vars       ,ONLY: ElemToSide
 USE MOD_Mesh_Vars,       ONLY: BC,BoundaryType
-USE MOD_Precond_Vars    ,ONLY: nVec, Surf
-USE MOD_LinearSolver_Vars   ,ONLY: nDOFElem,nDOFSide
+USE MOD_Mesh_Vars       ,ONLY: nVecLoc, SurfLoc
+USE MOD_LinearSolver_Vars   ,ONLY: nDOFElem
 USE MOD_Jac_Ex_Vars     ,ONLY: LL_minus, LL_plus
 USE MOD_JacExRiemann    ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann
 ! IMPLICIT VARIABLE HANDLING
@@ -335,12 +371,12 @@ END DO ! i
  flip   = ElemToSide(E2S_FLIP,   ETA_MINUS,iELEM)
  ! get derivative of flux maxtrix
  print*,'eta minus',flip
- CALL ConstructJacRiemann(flip,nVec(:,:,:,ETA_MINUS,iElem),Surf(:,:,ETA_MINUS,iElem),JacA)
+ CALL ConstructJacRiemann(flip,nVecLoc(:,:,:,ETA_MINUS,iElem),SurfLoc(:,:,ETA_MINUS,iElem),JacA)
  IF (SideID.LE.nBCSides) THEN
    BCType=Boundarytype(BC(SideID),BC_TYPE)
    print*,'BC Side, BcType',BcType
    read*
-   CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,ETA_MINUS,iElem),Surf(:,:,ETA_MINUS,iElem),JacBC)
+   CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,ETA_MINUS,iElem),SurfLoc(:,:,ETA_MINUS,iElem),JacBC)
    JacA = JacA + JacBC
  END IF
 
@@ -376,7 +412,8 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,SideToElem
 USE MOD_Mesh_Vars              ,ONLY: nBCSides
 USE MOD_Mappings               ,ONLY: VolToSide,SideToVol
-USE MOD_Precond_Vars           ,ONLY: nVec, Surf, neighborElemID
+USE MOD_Mesh_Vars              ,ONLY: nVecLoc, SurfLoc
+USE MOD_Precond_Vars           ,ONLY: neighborElemID
 USE MOD_LinearSolver_Vars      ,ONLY: nDOFElem
 USE MOD_Interpolation_Vars     ,ONLY: L_PlusMinus
 USE MOD_CSR_Vars               ,ONLY: L_HatPlusMinus
@@ -419,9 +456,7 @@ flip = ElemToSide(E2S_FLIP,locSideID,ElemID)
 
 ! get derivative of flux maxtrix
 IF (SideID.LE.nBCSides) RETURN
-!nloc=-1.0*nVec(:,:,:,locSideID,ElemID)
-!CALL ConstructJacRiemann(nloc,Surf(:,:,locSideID,ElemID),JacA(:,:,:,:))
-CALL ConstructJacNeighborRiemann(nVec(:,:,:,locSideID,ElemID),Surf(:,:,locSideID,ElemID),JacA(:,:,:,:))
+CALL ConstructJacNeighborRiemann(nVecLoc(:,:,:,locSideID,ElemID),SurfLoc(:,:,locSideID,ElemID),JacA(:,:,:,:))
 
 ! in SideTOElem, the information is stored for the master-side, the slave side is the neighbor side !!!!
 IF(flip.EQ.0)THEN

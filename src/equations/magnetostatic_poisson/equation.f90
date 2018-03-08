@@ -28,8 +28,34 @@ END INTERFACE
 
 PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG
 !===================================================================================================================================
-
+PUBLIC::DefineParametersEquation
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for equation
+!==================================================================================================================================
+SUBROUTINE DefineParametersEquation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Equation")
+
+!CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER' , '1.')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
+CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
+CALL prms%CreateRealOption(     'IniAmplitude'     , 'TODO-DEFINE-PARAMETER' , '0.1')
+CALL prms%CreateRealOption(     'IniHalfwidth'     , 'TODO-DEFINE-PARAMETER' , '0.1')
+
+CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER' , '1.0')
+
+END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
