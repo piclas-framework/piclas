@@ -229,13 +229,26 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Powerfactor'  &
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Activation-Energy_K'  &
                                 , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXa'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+                                , 'CEX log-factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '-27.2' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXb'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+                                , 'CEX const. factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-DoScat'  &
+                                , 'Perform scattering-based charge-exchange instead of isotropic '//&
+                                '(model of Samuel Araki by lookup table)', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-ELa'  &
+                                , 'with DoScat=T: EL log-factor '//&
+                                '(g&cut-off-angle-dep. cs in Angstrom, def.: value for Xe+)', '-26.8' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-ELb'  &
+                                , 'with DoScat=T: EL const. factor '//&
+                                '(g&cut-off-angle-dep. cs in Angstrom, def.: value for Xe+)', '148.975' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXa'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+                                , 'with DoScat=F: MEX log-factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '-27.2' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.' , numberedmulti=.TRUE.)
+                                , 'with DoScat=F: MEX const. factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
