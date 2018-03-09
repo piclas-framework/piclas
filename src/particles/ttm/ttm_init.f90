@@ -44,17 +44,17 @@ IMPLICIT NONE
 CALL prms%SetSection("TTM")
 
 CALL prms%CreateLogicalOption(  'DoImportTTMFile'      , 'TODO-DEFINE-PARAMETER\n'//&
-							 'Read IMD Two-Temperature Model (TTM) data (FD grid)','.FALSE.')
-							 
+                                                         'Read IMD Two-Temperature Model (TTM) data (FD grid)','.FALSE.')
+                                                         
 CALL prms%CreateStringOption(   'TTMLogFile'           , 'TODO-DEFINE-PARAMETER'//&
-							 'TTW Data file','no file specified')
+                                                         'TTW Data file','no file specified')
 CALL prms%CreateStringOption(   'TTMFile'              , 'TODO-DEFINE-PARAMETER'//&
-							 'TTW Data file','no file found')
+                                                         'TTW Data file','no file found')
 CALL prms%CreateIntArrayOption( 'TTMGridFDdim'         , 'TODO-DEFINE-PARAMETER'//&
-							 'Number of FD grid cells in each direction','0 , 0 , 0')
-						     
+                                                         'Number of FD grid cells in each direction','0 , 0 , 0')
+                                                     
 CALL prms%CreateRealOption(     'TTMElemBaryTolerance' , 'TODO-DEFINE-PARAMETER'//&
-							 'TTM FD bary center tolerance to DG bary center','1e-6')
+                                                         'TTM FD bary center tolerance to DG bary center','1e-6')
 
 END SUBROUTINE DefineParametersTTM
 

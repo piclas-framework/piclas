@@ -54,13 +54,13 @@ CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at 
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N.')
 CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER\n'//&
-						   '(Skip Analyze-Dt)')
+                                                   '(Skip Analyze-Dt)')
 CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER\n'//&
-						   'Flag if time averaging should be performed')
+                                                   'Flag if time averaging should be performed')
 CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER\n'//&
-						   'Count of time average variables',multiple=.TRUE.)
+                                                   'Count of time average variables',multiple=.TRUE.)
 CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER\n'//&
-						   'Count of fluctuation variables',multiple=.TRUE.)
+                                                   'Count of fluctuation variables',multiple=.TRUE.)
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
@@ -75,18 +75,18 @@ CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER\n'//&
 !CALL DefineParametersAnalyzeEquation()
 #ifndef PARTICLES
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER\n'//&
-						       'Analyze is performed each Nth time step','1') 
+                                                       'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER\n'//&
-						       'Calculate Potential Energy.','.FALSE.')
+                                                       'Calculate Potential Energy.','.FALSE.')
 #endif
 
 CALL prms%SetSection("Analyzefield")
 CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER\n'//&
-							 'Count of planes ', '0')
+                                                         'Count of planes ', '0')
 CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER\n'//&
-							 'Tolerance in plane searching', '1E-5')
+                                                         'Tolerance in plane searching', '1E-5')
 
 END SUBROUTINE DefineParametersAnalyze
 
