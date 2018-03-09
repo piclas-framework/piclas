@@ -140,6 +140,9 @@ SUBROUTINE InitializeParticleEmission()
 ! Initialize particles / Insert initial particles
 !===================================================================================================================================
 ! MODULES
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
+#endif /* MPI*/
 USE MOD_Globals
 USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
@@ -147,6 +150,7 @@ USE MOD_Restart_Vars,   ONLY : DoRestart
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
 USE MOD_part_pressure,  ONLY : ParticleInsideCheck
+USE MOD_Particle_Mesh_Vars,ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -156,7 +160,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: i, NbrOfParticle,iInit,iPart,PositionNbr
-INTEGER               :: nPartInside
+INTEGER               :: nPartInside,insertParticles
 REAL                  :: EInside,TempInside
 LOGICAL               :: EmType6
 !===================================================================================================================================
@@ -184,6 +188,42 @@ IF (.NOT.DoRestart) THEN
 !    Species(i)%InsertedParticle = INT(Species(i)%ParticleEmission * Time)
 !  END DO
 !ELSE
+! Do insanity check of max. particle number compared to the number that is to be inserted for certain insertion types
+  insertParticles = 0
+  DO i=1,nSpecies
+    DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+      IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+        IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
+#ifdef MPI
+          insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
+#else
+          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+#endif
+        ELSE
+          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+        END IF
+      ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
+           .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
+#ifdef MPI
+        insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
+#else
+        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+#endif
+      END IF
+    END DO
+  END DO
+  IF (insertParticles.GT.PDM%maxParticleNumber) THEN
+#ifdef MPI
+    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
+    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
+#else
+    WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
+    WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
+#endif
+    CALL abort(&
+__STAMP__&
+,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+  END IF
   DO i = 1,nSpecies
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
       ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
@@ -226,15 +266,18 @@ __STAMP__&
       ELSE IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
         IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
 __STAMP__&
-,' Integer to large!')
+,' Integer of initial particle number larger than max integer size: ',HUGE(1))
         NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
+        SWRITE(UNIT_stdOut,'(A)') ' Set particle position... '
 #ifdef MPI
         CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
         CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
         CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif /*MPI*/
+        SWRITE(UNIT_stdOut,'(A)') ' Set particle velocities... '
         CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+        SWRITE(UNIT_stdOut,'(A)') ' Set particle charge and mass... '
         CALL SetParticleChargeAndMass(i,NbrOfParticle)
         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
         IF (useDSMC) THEN
@@ -337,8 +380,8 @@ INTEGER, OPTIONAL                :: mode_opt
 ! Local variable declaration                                                                       
 INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
 INTEGER                , SAVE    :: NbrOfParticle=0                                             
-INTEGER(KIND=8)                 :: inserted_Particle_iter,inserted_Particle_time               
-INTEGER(KIND=8)                 :: inserted_Particle_diff  
+INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time               
+INTEGER(KIND=8)                  :: inserted_Particle_diff  
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime
 #ifdef MPI
@@ -705,12 +748,14 @@ REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_le
 REAL                                     :: intersecPoint(3), orifice_delta, lPeri, ParaCheck(3)
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
+LOGICAL                                  :: DoExactPartNumInsert
 #ifdef MPI
 INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
+REAL,ALLOCATABLE                         :: ProcMeshVol(:)
+INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif                        
 !===================================================================================================================================
-
 ! emission group communicator
 #ifdef MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
@@ -719,6 +764,56 @@ IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
   RETURN
 END IF
 #endif /*MPI*/
+
+IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+  DoExactPartNumInsert =  .FALSE.
+  ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
+  ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
+  ! ParticleEmission and Partdensity not working together
+  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
+  IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) DoExactPartNumInsert = .TRUE.
+  IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
+__STAMP__&
+,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
+  chunksize = 0
+#ifdef MPI
+  IF (mode.EQ.2) RETURN
+  IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
+    IF (DoExactPartNumInsert) THEN
+      IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
+        ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
+        ALLOCATE(ProcNbrOfParticle(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
+        ProcMeshVol=0.
+        ProcNbrOfParticle=0
+      ELSE ! to reduce global memory allocation if a lot of procs are used
+        ALLOCATE(ProcMeshVol(1))
+        ALLOCATE(ProcNbrOfParticle(1))
+        ProcMeshVol=0.
+        ProcNbrOfParticle=0
+      END IF !InitGroup%MPIroot
+      CALL MPI_GATHER(GEO%LocalVolume,1,MPI_DOUBLE_PRECISION &
+                     ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
+      IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
+        CALL IntegerDivide(NbrOfParticle,PartMPI%InitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)
+      END IF
+      CALL MPI_SCATTER(ProcNbrOfParticle, 1, MPI_INTEGER, chunksize, 1, MPI_INTEGER, 0, PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+      SDEALLOCATE(ProcMeshVol)
+      SDEALLOCATE(ProcNbrOfParticle)
+    END IF
+  ELSE
+    chunksize = NbrOfParticle
+  END IF
+#else
+  IF (DoExactPartNumInsert) chunksize = NbrOfParticle
+#endif /*MPI*/
+  !------------------SpaceIC-case: cell_local-------------------------------------------------------------------------------------
+  IF ((chunksize.GT.0).OR.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) THEN
+    CALL SetCellLocalParticlePosition(chunkSize,FractNbr,iInit,DoExactPartNumInsert)
+  END IF
+  NbrOfParticle = chunksize
+  RETURN
+END IF
+
 
 PartIns=0.
 lineVector = 0.0
@@ -886,6 +981,7 @@ sumOfMatchedParticles = 0
 mySumOfMatchedParticles = 0
 
 chunkSize = nbrOfParticle
+
 ! process myRank=0 generates the complete list of random positions for all emitted particles
 #ifdef MPI
 IF(( (nbrOfParticle.GT.PartMPI%InitGroup(InitGroup)%nProcs*10                             ) .AND.  &
@@ -893,7 +989,7 @@ IF(( (nbrOfParticle.GT.PartMPI%InitGroup(InitGroup)%nProcs*10                   
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution').AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'line_with_equidistant_distribution' )).OR.   &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'LD_insert'))THEN
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'LD_insert'                          ) )THEN
    nChunks = PartMPI%InitGroup(InitGroup)%nProcs
 ELSE
    nChunks = 1
@@ -938,6 +1034,7 @@ __STAMP__&
                          !  2.: excludeRegions (orig. chunksize is for SpaceIC without taking excludeRegions into account)
     !------------------SpaceIC-cases: start-----------------------------------------------------------!
     SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
+    !------------------SpaceIC-case: point------------------------------------------------------------------------------------------
     CASE ('point')
        Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC
        DO i=1,chunkSize
@@ -945,6 +1042,7 @@ __STAMP__&
           particle_positions(i*3-1) = Particle_pos(2)
           particle_positions(i*3  ) = Particle_pos(3)
        END DO
+    !------------------SpaceIC-case: line_with_equidistant_distribution-------------------------------------------------------------
     CASE ('line_with_equidistant_distribution')
       IF(NbrOfParticle.EQ.1)THEN
          Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + 0.5 * Species(FractNbr)%Init(iInit)%BaseVector1IC
@@ -957,6 +1055,7 @@ __STAMP__&
           particle_positions(i*3  ) = Particle_pos(3)
         END DO
       END IF
+    !------------------SpaceIC-case: line-------------------------------------------------------------------------------------------
     CASE ('line')
       DO i=1,chunkSize
         CALL RANDOM_NUMBER(RandVal1)
@@ -965,6 +1064,7 @@ __STAMP__&
         particle_positions(i*3-1) = Particle_pos(2)
         particle_positions(i*3  ) = Particle_pos(3)
       END DO
+    !------------------SpaceIC-case: disc-------------------------------------------------------------------------------------------
     CASE('disc')
       IF (Species(FractNbr)%Init(iInit)%NormalIC(3).NE.0) THEN
         lineVector(1) = 1.0
@@ -1073,6 +1173,7 @@ __STAMP__&
          particle_positions(i*3-1) = Particle_pos(2)
          particle_positions(i*3  ) = Particle_pos(3)
       END DO
+    !------------------SpaceIC-case: gyrotron_circle--------------------------------------------------------------------------------
     CASE('gyrotron_circle')
       IF (Species(FractNbr)%Init(iInit)%NormalIC(3).NE.0) THEN
          lineVector(1) = 1.0
@@ -1172,6 +1273,7 @@ __STAMP__&
          particle_positions(i*3-1) = Particle_pos(2) + radius_vec(2)
          !particle_positions(i*3  )=0.
       END DO
+    !------------------SpaceIC-case: circle_equidistant-----------------------------------------------------------------------------
     CASE('circle_equidistant')
       IF (Species(FractNbr)%Init(iInit)%NormalIC(3).NE.0) THEN
          lineVector(1) = 1.0
@@ -1221,6 +1323,7 @@ __STAMP__&
          particle_positions(i*3-1) = Particle_pos(2)
          particle_positions(i*3  ) = Particle_pos(3)
       END DO
+    !------------------SpaceIC-case: cuboid-----------------------------------------------------------------------------------------
     CASE('cuboid')
       lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
         Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
@@ -1269,6 +1372,7 @@ __STAMP__&
          i=i+1
          chunkSize2=chunkSize2+1
       END DO
+    !------------------SpaceIC-case: cylinder---------------------------------------------------------------------------------------
     CASE('cylinder')
       lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
         Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
@@ -1324,6 +1428,7 @@ __STAMP__&
          i=i+1
          chunkSize2=chunkSize2+1
       END DO
+    !------------------SpaceIC-case: cuboid_vpi-------------------------------------------------------------------------------------
     CASE('cuboid_vpi')
       i=1
       chunkSize2=0
@@ -1436,6 +1541,7 @@ __STAMP__&
         i=i+1
         chunkSize2=chunkSize2+1
       END DO
+    !------------------SpaceIC-case: cylinder_vpi-----------------------------------------------------------------------------------
     CASE('cylinder_vpi')
       i=1
       chunkSize2=0
@@ -1510,6 +1616,7 @@ __STAMP__&
         i=i+1
         chunkSize2=chunkSize2+1
       END DO
+    !------------------SpaceIC-case: LD_insert--------------------------------------------------------------------------------------
     CASE('LD_insert')
       CALL LD_SetParticlePosition(chunkSize2,particle_positions_Temp,FractNbr,iInit)
       DEALLOCATE( particle_positions, STAT=allocStat )
@@ -1523,10 +1630,10 @@ __STAMP__&
       particle_positions(1:3*chunkSize2) = particle_positions_Temp(1:3*chunkSize2)
       DEALLOCATE( particle_positions_Temp, STAT=allocStat )
       IF (allocStat .NE. 0) THEN
-        CALL abort(&
-__STAMP__&
-,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+        CALL abort(__STAMP__,&
+          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
       END IF
+    !------------------SpaceIC-case: cuboid_equal-----------------------------------------------------------------------------------
     CASE('cuboid_equal')
 #ifdef MPI
       IF (PartMPI%InitGroup(InitGroup)%nProcs.GT. 1) THEN
@@ -1585,6 +1692,7 @@ __STAMP__&
         particle_positions(i*3-2 : i*3) = PartState(ParticleIndexNbr-Species(FractNbr)%Init(iInit)%initialParticleNumber,1:3)
       END DO
 #endif
+    !------------------SpaceIC-case: cuboid_with_equidistant_distribution-----------------------------------------------------------
     CASE ('cuboid_with_equidistant_distribution') 
        IF(Species(FractNbr)%Init(iInit)%initialParticleNumber.NE. &
             (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
@@ -1627,6 +1735,7 @@ __STAMP__&
            END DO
          END DO
        END DO
+    !------------------SpaceIC-case: sin_deviation----------------------------------------------------------------------------------
     CASE('sin_deviation')
        IF(Species(FractNbr)%Init(iInit)%initialParticleNumber.NE. &
             (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
@@ -1659,6 +1768,7 @@ __STAMP__&
             END DO
           END DO
        END DO
+    !------------------SpaceIC-case: IMD--------------------------------------------------------------------------------------------
     CASE('IMD') ! read IMD particle position from *.chkpt file
       ! set velocity distribution to read external data
       SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(IMDAtomFile)
@@ -1778,7 +1888,7 @@ __STAMP__&
         Species(FractNbr)%Init(iInit)%velocityDistribution=''
       END IF
     END SELECT
-    !------------------SpaceIC-cases: end-----------------------------------------------------------!
+    !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
     chunkSize=chunkSize2
 
 #ifdef MPI
@@ -2048,8 +2158,8 @@ __STAMP__&
         IF(DoDisplayEmissionWarnings)THEN
           SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
           SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-          SWRITE(UNIT_StdOut,'(I8,A)') sumOfMatchedParticles, ' particles reached the domain when'
-          SWRITE(UNIT_StdOut,'(I8,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
+          SWRITE(UNIT_StdOut,'(I0,A)') sumOfMatchedParticles, ' particles reached the domain when'
+          SWRITE(UNIT_StdOut,'(I0,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
         END IF
       END IF
     ELSE
@@ -2060,8 +2170,8 @@ __STAMP__&
         IF(DoDisplayEmissionWarnings)THEN
           SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
           SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-          SWRITE(UNIT_StdOut,'(A,I8,A)')'matched only ', sumOfMatchedParticles, ' particles'
-          SWRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
+          SWRITE(UNIT_StdOut,'(A,I0,A)')'matched only ', sumOfMatchedParticles, ' particles'
+          SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
         END IF
       ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
@@ -2070,8 +2180,8 @@ __STAMP__&
 #endif
             SWRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
             SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-            SWRITE(UNIT_StdOut,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
-            SWRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
+            SWRITE(UNIT_StdOut,'(A,I0,A)')'matched ', sumOfMatchedParticles, ' particles'
+            SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
          END IF
        END IF
@@ -4529,6 +4639,7 @@ __STAMP__&
                 IF (iSample.EQ.1 .AND. jSample.EQ.1) THEN !first tria
                   AreasTria(1)=SurfMeshSubSideData(1,1,BCSideID)%area
                   AreasTria(2)=SurfMeshSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),BCSideID)%area
+                  ExtraPartsTria(:) = 0
                   CALL IntegerDivide(ExtraParts, 2, AreasTria, ExtraPartsTria)
                   ExtraParts = ExtraPartsTria(1)
                 ELSE !second tria
@@ -5529,6 +5640,106 @@ END IF
 !IPWRITE(*,*)'Error=',Error
 
 END SUBROUTINE IntegerDivide
+
+
+SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
+!===================================================================================================================================
+!> routine for inserting particles positions locally in every cell
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM
+USE MOD_Particle_Tracking_Vars,ONLY : DoRefMapping, TriaTracking
+USE MOD_Mesh_Vars,             ONLY : nElems
+USE MOD_Particle_Mesh,         ONLY : BoundsOfElement, ParticleInsideQuad3D, PartInElemCheck
+USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck
+USE MOD_Particle_Mesh_Vars,    ONLY : GEO, epsOneCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)              :: iSpec
+INTEGER, INTENT(IN)              :: iInit
+LOGICAL, INTENT(IN)              :: UseExactPartNum
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+INTEGER, INTENT(INOUT)           :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iElem, ichunkSize
+INTEGER                          :: iPart,  nPart
+REAL                             :: iRan, RandomPos(3)
+REAL                             :: PartDens
+LOGICAL                          :: InsideFlag
+REAL                             :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
+REAL                             :: Det(6,2)
+REAL                             :: RefPos(1:3)
+INTEGER                          :: CellChunkSize(1:nElems)
+INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
+!-----------------------------------------------------------------------------------------------------------------------------------
+  IF (UseExactPartNum) THEN
+    IF(chunkSize.GE.PDM%maxParticleNumber) THEN
+      CALL abort(&
+__STAMP__,&
+'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
+    END IF
+    CellChunkSize(:)=0
+    CALL IntegerDivide(chunkSize,nElems,GEO%Volume(:),CellChunkSize(:))
+  ELSE
+    PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
+    chunkSize_tmp = PartDens * GEO%LocalVolume
+    IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
+      CALL abort(&
+__STAMP__,&
+'ERROR in SetCellLocalParticlePosition: Maximum particle number during insanity check! max. particles needed: ',chunkSize_tmp)
+    END IF
+  END IF
+
+  ichunkSize = 1
+  ParticleIndexNbr = 1
+  DO iElem = 1, nElems
+    CALL BoundsOfElement(iElem,Bounds)
+    IF (UseExactPartNum) THEN
+      nPart = CellChunkSize(iElem)
+    ELSE
+      CALL RANDOM_NUMBER(iRan)
+      nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
+    END IF
+    DO iPart = 1, nPart
+      ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
+      IF (ParticleIndexNbr .ne. 0) THEN
+        InsideFlag=.FALSE.
+        DO WHILE(.NOT.InsideFlag)
+          CALL RANDOM_NUMBER(RandomPos)
+          RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+          IF (DoRefMapping) THEN
+            CALL Eval_xyz_ElemCheck(RandomPos,RefPos,iElem)
+            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+          ELSE
+            IF (TriaTracking) THEN
+              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+            ELSE
+              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+            END IF
+          END IF
+        END DO
+        PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
+        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+        PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+        PEM%Element(ParticleIndexNbr) = iElem
+        ichunkSize = ichunkSize + 1
+      ELSE
+        CALL abort(&
+__STAMP__&
+,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
+      END IF
+    END DO
+  END DO
+  chunkSize = ichunkSize - 1
+
+END SUBROUTINE SetCellLocalParticlePosition
 
 
 FUNCTION SYNGE(velabs, temp, mass, BK2)

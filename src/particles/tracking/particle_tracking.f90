@@ -335,7 +335,8 @@ REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                          :: tLBStart,tLBEnd
 #endif /*MPI*/
 INTEGER                       :: inElem
-INTEGER ::local
+INTEGER                       :: PartDoubleCheck
+REAL                          :: alphaOld
 #ifdef CODE_ANALYZE
 REAL                          :: IntersectionPoint(1:3)
 #endif /*CODE_ANALYZE*/
@@ -352,6 +353,8 @@ IF (UseAuxBCs) THEN
 END IF
 
 DO iPart=1,PDM%ParticleVecLength
+  PartDoubleCheck=0
+  alphaOld = -1.0
   IF(DoParticle(iPart))THEN
 #ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
@@ -447,7 +450,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
-    local=0
     firstElem=ElemID
     OnlyAuxBC=.FALSE.
     HasAuxBC=.FALSE.
@@ -490,36 +492,75 @@ DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-        flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+        flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
         isCriticalParallelInFace=.FALSE.
-        SELECT CASE(SideType(SideID))
-        CASE(PLANAR_RECT)
-          CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide)   &
-                                                                                        ,xi (ilocSide)      &
-                                                                                        ,eta(ilocSide)      &
-                                                                                        ,iPart,flip,SideID  & 
-                                                                                        ,isCriticalParallelInFace)
-        CASE(BILINEAR,PLANAR_NONRECT)
-          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                        ,xi (ilocSide)      &
-                                                                                        ,eta(ilocSide)      &
-                                                                                        ,iPart,flip,SideID)
-        CASE(PLANAR_CURVED)
-          CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                        ,xi (ilocSide)      &
-                                                                                        ,eta(ilocSide)   ,iPart,flip,SideID &
-                                                                                        ,isCriticalParallelInFace)
+        IF (PartDoubleCheck.EQ.1) THEN
+#ifdef CODE_ANALYZE
+          IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+            IF(iPart.EQ.PARTOUT)THEN
+              WRITE(UNIT_stdout,'(110("="))')
+              WRITE(UNIT_stdout,'(A)')    '     | Particle is double checked: '
+            END IF
+          END IF
+#endif /*CODE_ANALYZE*/
+          SELECT CASE(SideType(SideID))
+          CASE(PLANAR_RECT)
+            CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide)   &
+                                                                                          ,xi (ilocSide)      &
+                                                                                          ,eta(ilocSide)      &
+                                                                                          ,iPart,flip,SideID  & 
+                                                                                          ,isCriticalParallelInFace)
+          CASE(BILINEAR,PLANAR_NONRECT)
+            CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                          ,xi (ilocSide)      &
+                                                                                          ,eta(ilocSide)      &
+                                                                                          ,iPart,flip,SideID,alpha2=alphaOld)
+          CASE(PLANAR_CURVED)
+            CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                          ,xi (ilocSide)      &
+                                                                                          ,eta(ilocSide)   ,iPart,flip,SideID &
+                                                                                          ,isCriticalParallelInFace)
 
-        CASE(CURVED)
-          CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                  ,xi (ilocSide)      &
-                                                                                  ,eta(ilocSide)      ,iPart,SideID &
-                                                                                  ,isCriticalParallelInFace)
-        CASE DEFAULT
-          CALL abort(&
-          __STAMP__ &
-          ,' Missing required side-data. Please increase halo region. ',SideID)
-        END SELECT
+          CASE(CURVED)
+            CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                    ,xi (ilocSide)      &
+                                                                                    ,eta(ilocSide)      ,iPart,SideID &
+                                                                                    ,isCriticalParallelInFace)
+          CASE DEFAULT
+            CALL abort(&
+            __STAMP__ &
+            ,' Missing required side-data. Please increase halo region. ',SideID)
+          END SELECT
+        ELSE
+          SELECT CASE(SideType(SideID))
+          CASE(PLANAR_RECT)
+            CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide)   &
+                                                                                          ,xi (ilocSide)      &
+                                                                                          ,eta(ilocSide)      &
+                                                                                          ,iPart,flip,SideID  & 
+                                                                                          ,isCriticalParallelInFace)
+          CASE(BILINEAR,PLANAR_NONRECT)
+            CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                          ,xi (ilocSide)      &
+                                                                                          ,eta(ilocSide)      &
+                                                                                          ,iPart,flip,SideID)
+          CASE(PLANAR_CURVED)
+            CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                          ,xi (ilocSide)      &
+                                                                                          ,eta(ilocSide)   ,iPart,flip,SideID &
+                                                                                          ,isCriticalParallelInFace)
+
+          CASE(CURVED)
+            CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                    ,xi (ilocSide)      &
+                                                                                    ,eta(ilocSide)      ,iPart,SideID &
+                                                                                    ,isCriticalParallelInFace)
+          CASE DEFAULT
+            CALL abort(&
+            __STAMP__ &
+            ,' Missing required side-data. Please increase halo region. ',SideID)
+          END SELECT
+        END IF
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
           IF(iPart.EQ.PARTOUT)THEN
@@ -606,6 +647,9 @@ DO iPart=1,PDM%ParticleVecLength
         crossedBC=.FALSE.
         DO ilocSide=1,6
           IF(locAlpha(ilocSide).GT.-1.0) THEN
+            IF (PartDoubleCheck.EQ.0) THEN
+              alphaOld = locAlpha(ilocSide)
+            END IF
             hitlocSide=ilocSide
             SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
             flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
@@ -668,10 +712,20 @@ DO iPart=1,PDM%ParticleVecLength
           END DO !iAuxBC
         END IF !HasAuxBC
 
-        IF((.NOT.CrossedBC).AND.(.NOT.SwitchedElement)) THEN
-          PartIsDone=.TRUE.
-          PEM%Element(iPart)=ElemID !periodic BC always exits with one hit from outside
-          EXIT 
+        IF((.NOT.crossedBC).AND.(.NOT.SwitchedElement)) THEN
+          IF (PartDoubleCheck.EQ.0) THEN
+            PartDoubleCheck = 1
+            PartIsDone= .FALSE.
+          ELSE
+            PartIsDone= .TRUE.
+            PEM%Element(iPart)=ElemID !periodic BC always exits with one hit from outside
+            EXIT 
+          END IF
+        ELSE !IF(CrossedBC.OR.SwitchedElem)
+          IF (PartDoubleCheck.EQ.1) THEN
+            PartDoubleCheck=0
+            alphaOld = -1.0
+          END IF
         END IF
         IF(CrossedBC)THEN
           IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
@@ -693,6 +747,21 @@ DO iPart=1,PDM%ParticleVecLength
           ELSE
             CALL InsertionSort(locAlpha,locSideList,6)
             AuxBCsToCheck=0
+          END IF
+          IF (PartDoubleCheck.EQ.0) THEN
+            DO iLocSide=1,6+nAuxBCs
+              IF (HasAuxBC) THEN
+                IF (locAlphaAll(ilocSide).GT.-1.0) THEN
+                  alphaOld = locAlphaAll(ilocSide)
+                  EXIT
+                END IF
+              ELSE
+                IF (locAlpha(ilocSide).GT.-1.0) THEN
+                  alphaOld = locAlpha(ilocSide)
+                  EXIT
+                END IF
+              END IF
+            END DO
           END IF
           SwitchedElement=.FALSE.
           crossedBC=.FALSE.
@@ -722,6 +791,7 @@ DO iPart=1,PDM%ParticleVecLength
                   CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
                     ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
                 END IF
+
                 IF(ElemID.NE.OldElemID)THEN
                   IF((firstElem.EQ.ElemID).AND.(.NOT.CrossedBC))THEN
                     IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located at undefined location. '
@@ -773,8 +843,18 @@ DO iPart=1,PDM%ParticleVecLength
             END IF !IsIntersec
           END DO ! ilocSide
           IF((.NOT.crossedBC).AND.(.NOT.SwitchedElement)) THEN
-            PartIsDone=.TRUE.
-            EXIT 
+            IF (PartDoubleCheck.EQ.0) THEN
+              PartDoubleCheck = 1
+              PartIsDone= .FALSE.
+            ELSE
+              PartIsDone= .TRUE.
+              EXIT 
+            END IF
+          ELSE !IF(CrossedBC.OR.SwitchedElem)
+            IF (PartDoubleCheck.EQ.1) THEN
+              PartDoubleCheck=0
+              alphaOld = -1.0
+            END IF
           END IF
           IF(CrossedBC)THEN
             IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
@@ -1337,6 +1417,9 @@ USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Tracking_Vars,      ONLY:CartesianPeriodic
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1358,7 +1441,8 @@ REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastS
 INTEGER                       :: nInter,flip,BCSideID,OldElemID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                       :: DoTracing,PeriMoved,Reflected
-integer :: iloop
+REAL                          :: alphaOld
+LOGICAL                       :: doubleCheck
 !===================================================================================================================================
 
 
@@ -1377,10 +1461,12 @@ PartTrajectory=PartTrajectory/lengthPartTrajectory
 
 PartisMoved=.FALSE.
 DoTracing=.TRUE.
-iloop=0
 lengthPartTrajectory0=MAX(lengthPartTrajectory0,lengthPartTrajectory)
+! init variables for double check if lastpartpos is close to side and first intersection is found for this position (negative alpha)
+doubleCheck = .FALSE.
+alphaOld = -1.0
+
 DO WHILE(DoTracing)
-  iloop=iloop+1
   IF(GEO%nPeriodicVectors.GT.0.AND.CartesianPeriodic)THEN
     ! call here function for mapping of partpos and lastpartpos
     CALL PeriodicMovement(PartID,PeriMoved)
@@ -1399,25 +1485,79 @@ DO WHILE(DoTracing)
     ! get correct flip, wrong for inner sides!!!
     flip  = 0 
     !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
-    SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR_RECT)
-      CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                    ,xi (ilocSide)            &
-                                                                                    ,eta(ilocSide)   ,PartID,flip,BCSideID)
-    CASE(BILINEAR,PLANAR_NONRECT)
-      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                       ,xi (ilocSide)      &
-                                                                                       ,eta(ilocSide)      &
-                                                                                       ,PartID,flip,BCSideID)
-    CASE(PLANAR_CURVED)
-      CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                    ,xi (ilocSide)      &
-                                                                                    ,eta(ilocSide)   ,PartID,flip,BCSideID)
-    CASE(CURVED)
-      CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                              ,xi (ilocSide)      &
-                                                                              ,eta(ilocSide)      ,PartID,BCSideID)
-    END SELECT
+    IF (doublecheck) THEN
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(PartID.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(110("="))')
+          WRITE(UNIT_stdout,'(A)')    '     | Particle is double checked: '
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
+      SELECT CASE(SideType(BCSideID))
+      CASE(PLANAR_RECT)
+        CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                      ,xi (ilocSide)            &
+                                                                                      ,eta(ilocSide)   ,PartID,flip,BCSideID)
+      CASE(BILINEAR,PLANAR_NONRECT)
+        CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                         ,xi (ilocSide)      &
+                                                                                         ,eta(ilocSide)      &
+                                                                                         ,PartID,flip,BCSideID &
+                                                                                         ,alpha2=alphaOld)
+      CASE(PLANAR_CURVED)
+        CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                      ,xi (ilocSide)      &
+                                                                                      ,eta(ilocSide)   ,PartID,flip,BCSideID)
+      CASE(CURVED)
+        CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                ,xi (ilocSide)      &
+                                                                                ,eta(ilocSide)      ,PartID,BCSideID)
+      END SELECT
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(PartID.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(30("-"))')
+          WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (DoubleCheck dorefmapping): '
+          WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(BCSideID),' | SideID: ',BCSideID,' | Hit: ',isHit
+          WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha(ilocSide),' | LengthPartTrajectory: ', lengthPartTrajectory
+          WRITE(UNIT_stdout,'((A,G0))') '     | AlphaOld: ',alphaOld
+          WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi(ilocSide),eta(ilocSide)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
+    ELSE
+      SELECT CASE(SideType(BCSideID))
+      CASE(PLANAR_RECT)
+        CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                      ,xi (ilocSide)            &
+                                                                                      ,eta(ilocSide)   ,PartID,flip,BCSideID)
+      CASE(BILINEAR,PLANAR_NONRECT)
+        CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                         ,xi (ilocSide)      &
+                                                                                         ,eta(ilocSide)      &
+                                                                                         ,PartID,flip,BCSideID)
+      CASE(PLANAR_CURVED)
+        CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                      ,xi (ilocSide)      &
+                                                                                      ,eta(ilocSide)   ,PartID,flip,BCSideID)
+      CASE(CURVED)
+        CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                ,xi (ilocSide)      &
+                                                                                ,eta(ilocSide)      ,PartID,BCSideID)
+      END SELECT
+#ifdef CODE_ANALYZE
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(PartID.EQ.PARTOUT)THEN
+          WRITE(UNIT_stdout,'(30("-"))')
+          WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (dorefmapping, BCTracing): '
+          WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(BCSideID),' | SideID: ',BCSideID,' | Hit: ',isHit
+          WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha(ilocSide),' | LengthPartTrajectory: ', lengthPartTrajectory
+          WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi(ilocSide),eta(ilocSide)
+        END IF
+      END IF
+#endif /*CODE_ANALYZE*/
+    END IF
     IF(locAlpha(ilocSide).GT.-1.0)THEN
       nInter=nInter+1
     END IF
@@ -1430,6 +1570,12 @@ DO WHILE(DoTracing)
     !CALL BubbleSortID(locAlpha,locSideList,6)
     PartIsMoved=.TRUE.
     CALL InsertionSort(locAlpha,locSideList,nlocSides)
+    DO ilocSide=1,nlocSides
+      IF(locAlpha(ilocSide).GT.-1)THEN
+        alphaOld = locAlpha(ilocSide)
+        EXIT
+      END IF
+    END DO
     DO ilocSide=1,nlocSides
       IF(locAlpha(ilocSide).GT.-1)THEN
         hitlocSide=locSideList(ilocSide)
@@ -1462,7 +1608,13 @@ DO WHILE(DoTracing)
       PartisDone = .TRUE.
        RETURN
     END IF
-    IF(.NOT.reflected) DoTracing=.FALSE.
+    IF(.NOT.reflected) THEN
+      IF (.NOT.doubleCheck) THEN
+        doubleCheck = .TRUE.
+      ELSE
+        DoTracing=.FALSE.
+      END IF
+    END IF
   END IF ! nInter>0
 END DO
 

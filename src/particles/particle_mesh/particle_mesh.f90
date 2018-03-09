@@ -86,6 +86,10 @@ INTERFACE MarkAuxBCElems
   MODULE PROCEDURE MarkAuxBCElems
 END INTERFACE
 
+INTERFACE BoundsOfElement
+  MODULE PROCEDURE BoundsOfElement
+END INTERFACE
+
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
@@ -95,6 +99,7 @@ PUBLIC::PartInElemCheck
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitTriaParticleGeometry
 PUBLIC::MarkAuxBCElems
+PUBLIC::BoundsOfElement
 !===================================================================================================================================
 !
 PUBLIC::DefineParametersParticleMesh
@@ -1157,7 +1162,7 @@ END SUBROUTINE PartInElemCheck
 
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
-! checks if particle is inside of linear element with planar faces
+! checks if particle is inside of linear element with triangulated faces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars,  ONLY : GEO
@@ -1220,7 +1225,7 @@ REAL                          :: A(1:3,1:4), cross(3)
        IF (NegCheck) InElementCheck = .FALSE.
      END IF
   END DO
- RETURN
+  RETURN
 END SUBROUTINE ParticleInsideQuad3D
 
 
@@ -1295,9 +1300,10 @@ END IF
 SWRITE(UNIT_StdOut,'(66("-"))')
 
 CALL DuplicateSlavePeriodicSides()
+! CAUTION: in MarkAllBCSides, a counter is reset for refmapping
 CALL MarkAllBCSides()
 ! get elem and side types
-CALL GetElemAndSideType() ! normally called AFTER reshape
+CALL GetElemAndSideType()
 
 StartT=BOLTZPLATZTIME()
 #ifdef MPI
@@ -2659,10 +2665,13 @@ IF(nTotalBCSides.EQ.0) RETURN
 
 ! allocate & fill dummy
 ! BezierControlPoints3D
-ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
+ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
 IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummyBezierControlPoints3D in ReshapeBezierSides')
+IF (SIZE(DummyBezierControlPoints3D).NE.SIZE(BezierControlPoints3D)) CALL abort(&
+__STAMP__&
+,'size of DummyBezierControlPoionts3D and BezierControlPoints3D not equal!')
 DummyBezierControlPoints3d=BezierControlPoints3d
 DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
@@ -2671,7 +2680,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate BezierControlPoints3D in ReshapeBezierSides')
 ! SideSlabNormals
-ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
+ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nTotalSides))
 IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummySideSlabNormals in ReshapeBezierSides')
@@ -2683,7 +2692,7 @@ __STAMP__& !wunderschoen!!!
 ,'Could not allocate SideSlabNormals in ReshapeBezierSides')
 SideSlabNormals=0.
 ! SideSlabIntervals
-ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
+ALLOCATE(DummySideSlabIntervals(1:6,1:nTotalSides))
 IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummySideSlabIntervals in ReshapeBezierSides')
@@ -2695,7 +2704,7 @@ __STAMP__& !wunderschoen!!!
 ,'Could not allocate ElemIndex in ReshapeBezierSides')
 SideSlabIntervals=0.
 ! BoundingBoxIsEmpty
-ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
+ALLOCATE(DummyBoundingBoxIsEmpty(1:nTotalSides))
 IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate DummyBoundingBoxIsEmpty in ReshapeBezierSides')
@@ -4589,9 +4598,32 @@ END SUBROUTINE ElemConnectivity
 
 SUBROUTINE DuplicateSlavePeriodicSides() 
 !===================================================================================================================================
-! increases to side list to periodic sides
-! duplicate only MY slave sides
+! duplicate periodic sides from old nPartSides=nSides to nPartSidesNew=nSides+nDuplicatePeriodicSides
+! without MPI 
+! 1) loop over all sides and detect periodic sides
+! 2) increase BezierControlPoints and SideXXX from old nSides to nSides+nDuplicatePeriodicSides
+! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
+!    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
+! 4) shift and map sideperiodicvector and displacement to match new sides
+! with MPI
+! 1) loop over all sides and detect periodic sides
+! 2) increase BezierControlPoints and SideXXX from old nSides to nSides+nDuplicatePeriodicSides
+! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
+!    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
+! 3b) newSideId depends on localSideID and yourMPISide
+!     a) both periodic sides are on proc:
+!        * duplicate side and two separate sideids with changes in partsidetoelem
+!        * build missing side with own data
+!     b) periodic side is MPI Side
+!        I) mySide (Master)-Side
+!           *  nothing to due, old side can be reused
+!        II) yourSide (Slave)-Side
+!           *  build new Side with own data
+! 4) shift and map sideperiodicvector and displacement to match new sides
+! Note:
 ! periodic sides are unique for the DG operator and duplicated for the particle tracking
+! CAUTION:
+! Routine has to be called before MarkAllBCSides
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
@@ -4631,6 +4663,7 @@ LOGICAL                              :: MapPeriodicSides
 REAL                                 :: MinMax(1:2),MinMaxGlob(1:6)
 !===================================================================================================================================
 
+! 1) loop over all sides and detect periodic sides
 nPartPeriodicSides=0
 MapPeriodicSides=.FALSE.
 IF(.NOT.CartesianPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
@@ -4668,6 +4701,7 @@ IF(MapPeriodicSides)THEN
   MinMaxGlob(5)=GEO%ymaxglob
   MinMaxGlob(6)=GEO%zmaxglob
 
+  ! 2) increase BezierControlPoints and SideXXX from old nSides to nSides+nDuplicatePeriodicSides
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
   ALLOCATE(DummyBezierControlPoints3dElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
   ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nTotalSides))
@@ -4734,6 +4768,8 @@ IF(MapPeriodicSides)THEN
   PartSideToElem(1:5,1:tmpnSides)                      = DummyPartSideTOElem(1:5,1:tmpnSides)
   SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
 
+  ! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
+  !    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
   nPartPeriodicSides=0
   DO iSide=1,tmpnSides
     IF(SidePeriodicType(iSide).NE.0)THEN
@@ -4744,6 +4780,7 @@ IF(MapPeriodicSides)THEN
       flip=PartSideToElem(S2E_FLIP,iSide)
       locSideID=PartSideToElem(S2E_LOC_SIDE_ID,iSide)
       ElemID   =PartSideToElem(S2E_ELEM_ID,iSide)
+      ! 3b) set newSideID and sidedata
       IF(ElemID.EQ.-1) THEN
         ! MPI side
         newSideID=iSide
@@ -4769,7 +4806,7 @@ IF(MapPeriodicSides)THEN
       ! the flip has to be set to -1, artificial master side
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
       PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = newSideID
-      ! rebuild BezierControlPoints3D
+      ! rebuild BezierControlPoints3D (simplified version, all BezierControlPoints3D are rebuild)
       CALL GetBezierControlPoints3D(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,NBElemID),NBElemID,ilocSide_In=NBlocSideID,SideID_In=NewSideID)
       ! remains equal because of MOVEMENT and MIRRORING of periodic side
       ! periodic displacement 
@@ -4835,6 +4872,7 @@ IF(MapPeriodicSides)THEN
   DEALLOCATE(DummySidePeriodicType)
 
 END IF ! nPartPeriodicSides .GT.0
+! reset side-counter
 nPartSides     =nPartPeriodicSides+nSides
 nTotalBCSides =nPartPeriodicSides+nSides
 
@@ -4862,14 +4900,36 @@ END SUBROUTINE DuplicateSlavePeriodicSides
 
 SUBROUTINE MarkAllBCSides() 
 !===================================================================================================================================
-! mark all bc-sides for ref-mapping
+! CAUTION: nTotalBCSides is reset from old value to new current,process-local BCSides
+! The PartBCSideList contains a mapping from the global side list to a local, pure BC side list
+! DG-SideList
+! 1:nBCSides - nInnerSides - nMortarSides - nMPISides
+! DG: periodic sides are no BC sides
+! ParticleTracking treats periodic sides as BC sides and the process needs the actual side,
+! hence it may be required to be duplicated (side at correct position)
+! Particle-Tracking-List before MarkAllBCSides
+! 1:nBCSides - nInnerSides - nSomePeriodicSides - nMortarSides - nMPISides - nMissingPeriodicSides
+! As RefMapping requires only the BC sides, a shorter list is generated over all
+! nTotalBCSides which is NOW smaller than nPartSides or nTotalSides
+! CAUTION and BRAIN-FUCK: 
+! This smaller list is used to build: from 1:nTotalBCSides < nTotalSides and is used for
+! SideNormVec,SideTypes,SideDistance
+! BUT: 1:nTotalSides is STILL used for 
+! BezierControlPoints3D, SideSlabInterVals,SideSlabNormals,BoundingBoxIsEmpty
+! and are NOT reshaped yet, hence, the length of the array remains nTotalSides
+! BRAIN-FUCK CONTINUOUS: 
+! During building of the HALO region, the BezierControlPoints variables are further increased with nTotalSides while the 
+! already small arrays increases with nTotalBCSides
+! After building the HALO region, the actual arrays are reshaped and a stored in shorter arrays
+! 
+! AND no rule without a break:
+! SidePeriodicType is still on nTotalSides and NOT reshaped
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Mesh_Vars,               ONLY:nSides
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,SidePeriodicType,nTotalBCSides,nPartSides
 USE MOD_Mesh_Vars,               ONLY:BC,nBCSides,BoundaryType
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-
 USE MOD_Globals
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
