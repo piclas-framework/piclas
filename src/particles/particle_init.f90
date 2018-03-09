@@ -267,7 +267,7 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
 				  'Use species[$] for emission?', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 , ' TODO-DEFINE-PARAMETER\n'//&
-                                , 'Specifying Keyword for particle space condition of species [$] in case of one init.\n'// &
+                                'Specifying Keyword for particle space condition of species [$] in case of one init.\n'//&
                                 '1:  point \n'//&
                                 '2:  line_with_equidistant_distribution \n'//&
                                 '3:  line_with_equidistant_distribution \n'//&
@@ -284,7 +284,7 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 '14: cuboid_equal \n'//&
                                 '15: cuboid_with_equidistant_distribution \n'//&
                                 '16: sin_deviation \n'//&
-                                '17: IMD \n'//&
+                                '17: IMD'&
                               , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
