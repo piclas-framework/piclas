@@ -40,106 +40,133 @@ IMPLICIT NONE
 CALL prms%SetSection("DSMC Surfmodel")
 
 CALL prms%CreateLogicalOption(  'Particles-KeepWallParticles'&
-  , 'TODO-DEFINE-PARAMETER Flag to track adsorbed Particles','.FALSE.')
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Flag to track adsorbed Particles','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles--DSMC-Adsorption-doTPD'&
-  , 'TODO-DEFINE-PARAMETER Flag for TPD spectrum calculation','.FALSE.')
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  				 	  'Flag for TPD spectrum calculation','.FALSE.')
 CALL prms%CreateRealOption(     'Particles-DSMC-Adsorption-TPD-Beta'&
-  , 'TODO-DEFINE-PARAMETER Temperature slope for TPD [K/s]','0.')
+ 					, 'TODO-DEFINE-PARAMETER\n'//&
+    					  'Temperature slope for TPD [K/s]','0.')
 
 CALL prms%CreateRealOption(     'Part-Species[$]-MaximumCoverage'&
-  , 'TODO-DEFINE-PARAMETER Maximum coverage of surface i with species n','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Maximum coverage of surface i with species n','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-InitialStick'&
-  , 'TODO-DEFINE-PARAMETER Initial sticking coefficient (S_0) for surface n','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Initial sticking coefficient (S_0) for surface n','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PrefactorStick'&
-  , 'TODO-DEFINE-PARAMETER Prefactor of sticking coefficient for surface n ','0.', numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Prefactor of sticking coefficient for surface n ','0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Adsorbexp'&
-  , 'TODO-DEFINE-PARAMETER Adsorption exponent for surface n','1', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Adsorption exponent for surface n','1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Nu-a'&
-  , 'TODO-DEFINE-PARAMETER Nu exponent a for surface n','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Nu exponent a for surface n','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Nu-b'&
-  , 'TODO-DEFINE-PARAMETER Nu exponent b for surface n','0.', numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER\n'//&
+    					  'Nu exponent b for surface n','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Desorption-Energy-K'&
-  , 'TODO-DEFINE-PARAMETER Desorption energy (K) for surface n','1.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Desorption energy (K) for surface n','1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Intensification-K'&
-  , 'TODO-DEFINE-PARAMETER Intensification energy (K) for surface n','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Intensification energy (K) for surface n','0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Part-Species[$]-Recomb-PartnerSpec'&
-  , 'TODO-DEFINE-PARAMETER Partner recombination species (nSpecies)','-1', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Partner recombination species (nSpecies)','-1', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Recomb-ResultSpec'&
-  , 'TODO-DEFINE-PARAMETER  Resulting recombination species (nSpecies','-1', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Resulting recombination species (nSpecies)','-1', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationCoeff'&
-  , 'TODO-DEFINE-PARAMETER ','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationEnergy'&
-  , 'TODO-DEFINE-PARAMETER Energy transformed by reaction (nPartBound,nSpecies)','0.', numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Energy transformed by reaction (nPartBound,nSpecies)','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationAccomodation'&
-  , 'TODO-DEFINE-PARAMETER Energy Accomodation coefficient (nPartBound,nSpecies)','1.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+					  'Energy Accomodation coefficient (nPartBound,nSpecies)','1.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-Coordination'&
-  , 'TODO-DEFINE-PARAMETER Site bound coordination\n'//&
-    '1=hollow\n'//&
-    '2=bridge\n'//&
-    '3=on-top)(nSpecies)','0', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+  					  'Site bound coordination\n'//&
+  					  '1=hollow\n'//&
+   					  '2=bridge\n'//&
+  					  '3=on-top)(nSpecies)','0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-DiCoordination'&
-  , 'TODO-DEFINE-PARAMETER (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)','0', numberedmulti=.TRUE.)
+ 					 , 'TODO-DEFINE-PARAMETER\n'//&
+   					   '(1:nSpecies)\n'//&
+   					   '1: bound via bridge bonding\n'//&
+    					   '2: or chelating','0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K'&
-  , 'TODO-DEFINE-PARAMETER Heat of adsorption (K) on clear surfaces for surface n','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+    					  'Heat of adsorption (K) on clear surfaces for surface n','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-InitialCoverage'&
-  , 'TODO-DEFINE-PARAMETER Initial coverage (nPartBound,nSpecies)','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+    					  'Initial coverage (nPartBound,nSpecies)','0.', numberedmulti=.TRUE.)
 
 
 CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
-  , 'TODO-DEFINE-PARAMETER. Default: Species(1)%MPF Used macro particle factor of species[i].')
+  					, 'TODO-DEFINE-PARAMETER.\n'//&
+					  'Default: Species(1)%MPF Used macro particle factor of species[i].')
 CALL prms%CreateIntOption(      'Part-Species-MaxDissNum'&
-  , 'TODO-DEFINE-PARAMETER','0')
+ 					, 'TODO-DEFINE-PARAMETER','0')
 CALL prms%CreateIntOption(      'Part-SurfChem-Nbr-DissocReactions'&
-  , 'TODO-DEFINE-PARAMETER Resulting species for given dissoc (2,MaxDissNum,nSpecies)','0')
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+					  'Resulting species for given dissoc (2,MaxDissNum,nSpecies)','0')
 CALL prms%CreateIntOption(      'Part-SurfChem-Nbr-ExchangeReactions'&
-  , 'TODO-DEFINE-PARAMETER','0')
+  					, 'TODO-DEFINE-PARAMETER','0')
 
 
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-Powerfactor'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-Prefactor'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBond'&
-  , 'TODO-DEFINE-PARAMETER Bond dissociation energy (K) for diss into resulting species (ReactNum,nspecies)?','0.'&
-  , numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Bond dissociation energy (K) for diss into resulting'//&
+					  'species (ReactNum,nspecies)?','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBondPoly1'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBondPoly2'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntArrayOption( 'Part-Species[$]-SurfDiss[$]-Products'&
-  , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Powerfactor'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Prefactor'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-EDissBond'&
-  , 'TODO-DEFINE-PARAMETER Bond dissociation energy (K) for diss into resulting species (ReactNum,nspecies) ?','0.'
-  , numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Bond dissociation energy (K) for diss into resulting'//&
+					  'species (ReactNum,nspecies)?','0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-Species[$]-Surf-ER[$]-Powerfactor'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surf-ER[$]-Prefactor'&
-  , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 
 
 CALL prms%CreateIntArrayOption( 'Part-SurfChem-Disprop[$]-Reactants'&
-  , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'Part-SurfChem-Disprop[$]-Products'&
-  , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-SurfChem-Disprop[$]-DissBond_K-Reactants'&
-  , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
+  					, 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-SurfChem-Disprop[$]-DissBond_K-Products'&
-  , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
+ 					, 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Particles-DSMC-Adsorption-CalcTST'&
-  , 'TODO-DEFINE-PARAMETER','0')
+  					, 'TODO-DEFINE-PARAMETER','0')
 CALL prms%CreateRealOption(     'Particles-DSMC-AdsorptionTST-PartitionMaxTemp'&
-  , 'TODO-DEFINE-PARAMETER Temperature limit for pre-stored partition function (DEF: 20 000K)','10000.')
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Temperature limit for pre-stored partition function (DEF: 20 000K)','10000.')
 CALL prms%CreateRealOption(     'Particles-DSMC-AdsorptionTST-PartitionInterval'&
-  , 'TODO-DEFINE-PARAMETER Temperature interval for pre-stored partition function (DEF: 10K)','20.')
+  					, 'TODO-DEFINE-PARAMETER\n'//&
+   					  'Temperature interval for pre-stored partition function (DEF: 10K)','20.')
 
 END SUBROUTINE DefineParametersSurfModel
 

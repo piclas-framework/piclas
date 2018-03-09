@@ -54,14 +54,14 @@ IMPLICIT NONE
 CALL prms%SetSection("LoadBalance")
 
 CALL prms%CreateLogicalOption( 'DoLoadBalance'                 ,  "Flag for doing LoadBalance.", '.FALSE.')
-CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "TODO-DEFINE-PARAMETER Threshold for load-balancing" &     
-							      , value='0.10')
-CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "TODO-DEFINE-PARAMETER Necessary for particle load balancing."&
-							      , value='0.02')
-CALL prms%CreateIntOption(     'Particles-WeightMethod'        ,  "TODO-DEFINE-PARAMETER method to compute the particle weight"& 
-							      , value='1')
-CALL prms%CreateIntOption(     'Particles-WeightAverageMethod' ,  "TODO-DEFINE-PARAMETER method to average the particle weight" 
-							       , value='1')
+CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "TODO-DEFINE-PARAMETER\n"//&
+								  "Threshold for load-balancing" , value='0.10')
+CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "TODO-DEFINE-PARAMETER\n"//&
+								  "Necessary for particle load balancing.", value='0.02')
+CALL prms%CreateIntOption(     'Particles-WeightMethod'        ,  "TODO-DEFINE-PARAMETER\n"//&
+								  "method to compute the particle weight", value='1')
+CALL prms%CreateIntOption(     'Particles-WeightAverageMethod' ,  "TODO-DEFINE-PARAMETER\n"//&
+								  "method to average the particle weight", value='1')
 
 END SUBROUTINE DefineParametersLoadBalance
 
