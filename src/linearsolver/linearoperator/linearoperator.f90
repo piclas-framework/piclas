@@ -148,7 +148,9 @@ INTEGER          :: i,j,k,iElem,iVar
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
 #ifndef PP_HDG
+#if (PP_TimeDiscMethod!=131)
 CALL CalcSource(t,1.0,ImplicitSource)
+#endif
 #endif
 
 IF(DoParabolicDamping)THEN
@@ -165,10 +167,17 @@ DO iElem=1,PP_nElems
       DO i=0,PP_N
         locMass=mass(1,i,j,k,iElem)
         DO iVar=1,PP_nVar
+#if (PP_TimeDiscMethod==131)
+          Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
+                                         -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
+                                         +    coeff*Ut(iVar,i,j,k,iElem)         )
+                                         !+coeff*ImplicitSource(iVar,i,j,k,iElem) )
+#else
           Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
                                          -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
                                          +    coeff*Ut(iVar,i,j,k,iElem)         &
                                          +coeff*ImplicitSource(iVar,i,j,k,iElem) )
+#endif
         END DO ! iVar=1,PP_nVar
       END DO ! i=0,PP_N
     END DO ! j=0,PP_N

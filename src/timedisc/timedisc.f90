@@ -4299,38 +4299,38 @@ IF(t.GE.DelayTime)THEN
   END DO ! iPart
   ! track particle
   iStage=1
-#ifdef MPI
-  ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
-  ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
-  IF(DoRefMapping)THEN
-    ! tracking routines has to be extended for optional flag, like deposition
-    CALL ParticleRefTracking()
-  ELSE
-    CALL ParticleTracing()
-  END IF
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
-  ! send number of particles
-  CALL SendNbOfParticles()
-  ! finish communication of number of particles and send particles
-  CALL MPIParticleSend()
-#endif /*MPI*/
-#ifdef MPI
-  ! finish communication
-  CALL MPIParticleRecv()
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
-!  RKdtFracTotal=0.
-!  RKdtFrac     =0.
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+! #ifdef MPI
+!   ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
+!   ! open receive buffer for number of particles
+!   CALL IRecvNbofParticles()
+!   tLBStart = LOCALTIME() ! LB Time Start
+! #endif /*MPI*/
+!   IF(DoRefMapping)THEN
+!     ! tracking routines has to be extended for optional flag, like deposition
+!     CALL ParticleRefTracking()
+!   ELSE
+!     CALL ParticleTracing()
+!   END IF
+! #ifdef MPI
+!   tLBEnd = LOCALTIME() ! LB Time End
+!   tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
+!   ! send number of particles
+!   CALL SendNbOfParticles()
+!   ! finish communication of number of particles and send particles
+!   CALL MPIParticleSend()
+! #endif /*MPI*/
+! #ifdef MPI
+!   ! finish communication
+!   CALL MPIParticleRecv()
+!   tLBStart = LOCALTIME() ! LB Time Start
+! #endif /*MPI*/
+! !  RKdtFracTotal=0.
+! !  RKdtFrac     =0.
+! #ifdef MPI
+!   tLBEnd = LOCALTIME() ! LB Time End
+!   tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
+!   tLBStart = LOCALTIME() ! LB Time Start
+! #endif /*MPI*/
 END IF ! t.GE. DelayTime
 #endif /*PARTICLES*/
 
@@ -4341,7 +4341,7 @@ tLBStart = LOCALTIME() ! LB Time Start
 Un = U
 ! solve linear system for electromagnetic field
 ! RHS is f(u^n+0) = DG_u^n + source^n
-CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.)
+CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.) ! source terms are added in linearsolver
 LinSolverRHS = Ut
 CALL LinearSolver(tStage,coeff)
 FieldStage (:,:,:,:,:,1) = U
@@ -4383,8 +4383,10 @@ DO iStage=2,nRKStages
     U=U+RK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
   END DO ! iCounter=1,iStage-2
   U=Un+dt*U
+  CALL DivCleaningDamping()
   ! this U is required for the particles and the interpolation, hence, we have to continue with the particles
   ! which gives us the source terms, too...
+
 
   !--------------------------------------------------------------------------------------------------------------------------------
   ! particle  pusher: explicit contribution and T * sum  
@@ -4499,6 +4501,9 @@ DO iStage=2,nRKStages
       Pt_tmp(4) = Pt(iPart,1) 
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
+      ! update partXK test....
+      PartXK(1:6,iPart)   = PartState(iPart,1:6)
+      R_PartXK(1:6,iPart) = Pt_tmp(1:6)
       ! compute RHS =f(y+sum aij kj ) + dt T sum gamma_ij kj
       PartRHS = Pt_tmp + PartQ(1:6,iPart)
       ! guess for new particleposition is PartState
@@ -4522,10 +4527,10 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
 
   !--------------------------------------------------------------------------------------------------------------------------------
-  ! DGSolver: now, we can add teh contribution of the particles
+  ! DGSolver: now, we can add the contribution of the particles
   !--------------------------------------------------------------------------------------------------------------------------------
   ! next DG call is f(u^n + dt sum_j^i-1 a_ij k_j) + source terms
-  CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.)
+  CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.) ! source terms are adden in linear solver
   LinSolverRHS = LinSolverRHS + Ut
   CALL LinearSolver(tStage,coeff)
   ! and store U in fieldstage
@@ -4538,6 +4543,7 @@ DO iCounter=1,nRKStages-1
   U = U +  RK_b(iCounter)* FieldStage(:,:,:,:,:,iCounter)
 END DO ! counter
 U = Un + dt * U
+CALL DivCleaningDamping()
 
 #ifdef PARTICLES
 ! particle step || only explicit particles
