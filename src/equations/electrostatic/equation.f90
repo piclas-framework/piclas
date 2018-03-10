@@ -49,8 +49,8 @@ CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER\n'//
 CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Electric constant (vacuum permittivity)' , '1.')
 CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &,
-                                                     '1.')
+                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
+                                                   , '1.')
 CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Apply the damping factor also to PML source terms\n'//&
                                                      'but only to PML variables for Phi_E and Phi_B to prevent charge-related\n'//&
