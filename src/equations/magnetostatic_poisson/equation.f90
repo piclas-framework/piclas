@@ -49,8 +49,8 @@ CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER\n'//
 CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Electric constant (vacuum permittivity)' , '1.')
 CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &,
-                                                     '1.')
+                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
+                                                   , '1.')
 CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Define exact function necessary for '//&
                                                      'linear scalar advection')
