@@ -1568,17 +1568,17 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
                         *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
                   IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
                   ELSE
                     DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib &
                                                                 / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
                   END IF
                 END IF
               ELSE                                            ! TSHO-model
-                DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib &
                     , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
                     , SpecDSMC(iSpec)%MaxVibQuant)
-              END IF       
+              END IF
               DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                  /(DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
               IF (DSMC%ElectronicModel) THEN
@@ -1640,12 +1640,12 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                     END IF
                   END IF
                 ELSE                                            ! TSHO-model
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) & 
-                      + CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
+                      + CalcTVib(SpecDSMC(iSpec)%CharaTVib &
                       , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant) &
                       * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-                END IF       
+                END IF
                 DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) &
                     + DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) / (DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)*BoltzmannConst) &
                     * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
@@ -1704,7 +1704,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
     !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
       IF ((DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem).GT.0).AND.(DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem).GT.0)) THEN
         DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) &
-                              / CalcMeanFreePath(DSMC_HOSolution(7,kk,ll,mm, iElem,1:nSpecies), &
+                              / CalcMeanFreePath(REAL(DSMC_HOSolution(7,kk,ll,mm, iElem,1:nSpecies))/REAL(DSMC%SampNum), &
                               DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem), &
                               GEO%Volume(iElem), SpecDSMC(1)%omegaVHS, DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem))
       END IF
@@ -1728,7 +1728,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
   END IF
   ! fill remaining node values with calculated values
   DO mm = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO kk = 0, HODSMC%nOutputDSMC
-    DSMC_MacroVal(:,kk,ll,mm,:) = DSMC_MacroVal(:,1,1,1,:) 
+    DSMC_MacroVal(:,kk,ll,mm,:) = DSMC_MacroVal(:,1,1,1,:)
   END DO; END DO; END DO
 ELSE ! all other sampling types
   nVarCount=0
@@ -1766,16 +1766,16 @@ ELSE ! all other sampling types
                     ELSE
                       TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
                       IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                        DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                        DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
                       ELSE
                         DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib &
                                                                     / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
                       END IF
                     END IF
                 ELSE                                            ! TSHO-model
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
-                      , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant) 
-                END IF       
+                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib &
+                      , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant)
+                END IF
                 DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
                 IF (DSMC%ElectronicModel) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
@@ -1783,8 +1783,8 @@ ELSE ! all other sampling types
               END IF
             END IF
           END IF
-          DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) 
-        CASE('nearest_gausspoint') 
+          DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
+        CASE('nearest_gausspoint')
           IF (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec).GT.0.0) THEN
             ! compute flow velocity
             DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) = DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec) &
@@ -1820,7 +1820,7 @@ ELSE ! all other sampling types
                       TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
                             *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
                       IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                        DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0           
+                        DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
                       ELSE
                         DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib &
                                                                     / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
@@ -1830,7 +1830,7 @@ ELSE ! all other sampling types
                     DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
                         , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec) &
                         /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant)
-                  END IF       
+                  END IF
                   DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                      /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
                   IF (DSMC%ElectronicModel) THEN
@@ -1843,7 +1843,7 @@ ELSE ! all other sampling types
           ELSE
             DSMC_MacroVal(nVarCount+1:nVarCount+10,kk,ll,mm, iElem) = 0.0
           END IF
-          DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)    
+          DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
         END SELECT
       END DO; END DO; END DO
     END DO
@@ -1889,12 +1889,12 @@ ELSE ! all other sampling types
                     END IF
                   END IF
                 ELSE                                            ! TSHO-model
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) & 
-                      + CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
+                      + CalcTVib(SpecDSMC(iSpec)%CharaTVib &
                       , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant) &
                       * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
-                END IF       
+                END IF
                 DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) &
                     + DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) / (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst) &
                     * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
@@ -1914,7 +1914,7 @@ ELSE ! all other sampling types
         END IF
         ! compute total number of particles
         DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) &
-            + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)              
+            + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
       END DO
       IF (DSMC_Macroval(nVarCount+11,kk,ll,mm, iElem).GT.0) THEN
         ! compute flow velocity
@@ -1925,9 +1925,9 @@ ELSE ! all other sampling types
             / DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem)
         IF(useDSMC)THEN
           IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(MolecpartNum.GT.0))THEN
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) & 
+                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
                       / MolecPartNum
-                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) & 
+                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
                       / MolecPartNum
           END IF
           IF ( DSMC%ElectronicModel .AND.(HeavyPartNum.GT. 0)) THEN

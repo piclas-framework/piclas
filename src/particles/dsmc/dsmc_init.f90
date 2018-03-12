@@ -442,6 +442,11 @@ IMPLICIT NONE
 #if (PP_TimeDiscMethod==42)
   DSMC%CalcQualityFactors = .TRUE.
 #endif
+  IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
+    CALL abort(&
+__STAMP__&
+,'do not use DSMC%CalcQualityFactors for collismode<1')
+  END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
   DSMC%ReservoirSimuRate = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
   DSMC%ReservoirSurfaceRate = GETLOGICAL('Particles-DSMCReservoirSurfaceRate','.FALSE.')
   DSMC%ReservoirRateStatistic = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
