@@ -14,11 +14,17 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES) 
+#if defined(IMPA) 
 INTERFACE ParticleNewton
   MODULE PROCEDURE ParticleNewton
 END INTERFACE
 
+INTERFACE SelectImplicitParticles
+  MODULE PROCEDURE SelectImplicitParticles
+END INTERFACE
+#endif /*IMPA*/
+#if defined(IMPA) || defined(ROS)
 INTERFACE InitPartSolver
   MODULE PROCEDURE InitPartSolver
 END INTERFACE
@@ -30,25 +36,23 @@ END INTERFACE
 INTERFACE Particle_GMRES
   MODULE PROCEDURE Particle_GMRES
 END INTERFACE
+#endif /*IMPA or ROS*/
 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-INTERFACE SelectImplicitParticles
-  MODULE PROCEDURE SelectImplicitParticles
-END INTERFACE
-#endif
-
+#if defined(IMPA) || defined(ROS)
 PUBLIC:: InitPartSolver,FinalizePartSolver
-PUBLIC:: ParticleNewton
 PUBLIC:: Particle_GMRES
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#endif /*IMPA or ROS*/
+#ifdef IMPA
+PUBLIC:: ParticleNewton
 PUBLIC:: SelectImplicitParticles
-#endif
+#endif /*IMPA*/
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
 
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES)
+#if defined(IMPA) || defined(ROS)
 SUBROUTINE InitPartSolver() 
 !===================================================================================================================================
 ! read in and allocation of required global variables for implicit particle treatment
@@ -74,6 +78,7 @@ REAL                        :: scaleps
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
 
+#ifdef IMPA
 Eps2PartNewton     =GETREAL('EpsPartNewton','0.001')
 Eps2PartNewton     =Eps2PartNewton**2
 EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.0')
@@ -83,7 +88,9 @@ FreezePartInNewton =GETINT('FreezePartInNewton','1')
 EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
 PartgammaEW        =GETREAL('PartgammaEW','0.9')
 nPartNewton        =0
+#endif /*IMPA*/
 
+! read in by both
 scaleps=GETREAL('scaleps','1.')
 ! rEps0 = scaleps * 1.E-8
 rEps0=scaleps*SQRT(EPSILON(0.0))
@@ -99,6 +106,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Cannot allocate R_PartXK')
 
+#ifdef IMPA
 DoFullNewton = GETLOGICAL('DoFullNewton','.FALSE.')
 IF(DoFullNewton)THEN
   SWRITE(UNIT_stdOut,'(A)') ' Using a full Newton for Particle and Field instead of Piccardi-Iteration.'
@@ -106,14 +114,14 @@ IF(DoFullNewton)THEN
   SWRITE(UNIT_stdOut,'(A,I0)') ' Setting nPartNewtonIter to: ', nPartNewtonIter
 END IF
 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PartImplicitMethod =GETINT('Part-ImplicitMethod','0')
-#endif
+#endif /*IMPA*/
 
 END SUBROUTINE InitPartSolver
+#endif
 
 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if IMPA
 SUBROUTINE SelectImplicitParticles() 
 !===================================================================================================================================
 ! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted
@@ -212,7 +220,6 @@ IF(DoPrintConvInfo)THEN
 END IF
   
 END SUBROUTINE SelectImplicitParticles
-#endif
 
 
 SUBROUTINE ParticleNewton(t,coeff,doParticle_In,opt_In,AbortTol_In)
@@ -469,8 +476,9 @@ END IF
 nPartNewton=nPartNewton+nInnerPartNewton
 
 END SUBROUTINE ParticleNewton
+#endif /*IMPA*/
 
-
+#if defined(ROS) || defined(IMPA)
 SUBROUTINE Particle_GMRES(t,coeff,PartID,B,Norm_B,AbortCrit,DeltaX)
 !===================================================================================================================================
 ! Uses matrix free to solve the linear system
@@ -615,8 +623,9 @@ __STAMP__&
 ,'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nPartInnerIter))
 
 END SUBROUTINE Particle_GMRES
+#endif /*ROS or IMPA*/
 
-
+#ifdef IMPA
 SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton) 
 !===================================================================================================================================
 ! an intermediate Armijo step to ensure global convergence
@@ -1110,8 +1119,9 @@ IF(1.EQ.2)THEN
 END IF
 
 END SUBROUTINE Particle_Armijo
+#endif /*IMPA*/
 
-
+#if defined(IMPA) || defined(ROS)
 SUBROUTINE FinalizePartSolver() 
 !===================================================================================================================================
 ! deallocate global variables
@@ -1120,8 +1130,12 @@ SUBROUTINE FinalizePartSolver()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 USE MOD_LinearSolver_Vars
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
+#ifdef IMPA
+USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
                                      ,PartDeltaX,PartLambdaAccept
+#endif /*IMPA*/
+USE MOD_Particle_Vars,           ONLY:PartQ
+
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1136,6 +1150,7 @@ SDEALLOCATE(PartXK)
 SDEALLOCATE(R_PartXK)
 ! variables of particle_vars.f90
 SDEALLOCATE(PartQ)
+#ifdef IMPA
 SDEALLOCATE(F_PartX0)
 SDEALLOCATE(F_PartXk)
 SDEALLOCATE(PartLambdaAccept)
@@ -1144,7 +1159,9 @@ SDEALLOCATE(Norm2_F_PartX0)
 SDEALLOCATE(Norm2_F_PartXK)
 SDEALLOCATE(Norm2_F_PartXK_old)
 SDEALLOCATE(DoPartInNewton)
+#endif /*IMPA*/
 END SUBROUTINE FinalizePartSolver
+#endif /*IMPA or ROS*/
 #endif /*PARTICLES*/
 
 END MODULE MOD_ParticleSolver

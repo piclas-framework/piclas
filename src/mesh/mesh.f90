@@ -348,12 +348,12 @@ TangVec1=0.
 TangVec2=0.
 SurfElem=0.
 #ifdef maxwell
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
 ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
 ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
 nVecLoc=0.
 SurfLoc=0.
-#endif /*IMEX or IMPA*/
+#endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
 ! PoyntingVecIntegral
@@ -851,10 +851,10 @@ SDEALLOCATE(TangVec1)
 SDEALLOCATE(TangVec2)  
 SDEALLOCATE(SurfElem)  
 #ifdef maxwell
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
 SDEALLOCATE(nVecLoc)
 SDEALLOCATE(SurfLoc)
-#endif /*IMEX or IMPA*/
+#endif /*ROS or IMPA*/
 #endif /*maxwell*/
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)

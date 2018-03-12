@@ -323,7 +323,7 @@ USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
 #endif
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
@@ -612,7 +612,7 @@ __STAMP__&
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
       IF(NbrOfParticle.GT.0)THEN
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
         ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
         !   nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
         !   DO iPart=1,NbrOfparticle
@@ -3586,7 +3586,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 #endif
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems
@@ -4363,7 +4363,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   SWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
 END IF
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA) || defined(ROS)
 DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE')
 #endif
 
@@ -4407,7 +4407,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SideType, SurfMeshSubSideData
 USE MOD_Timedisc_Vars          ,ONLY: dt
-#ifdef IMPA
+#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #endif /*IMPA*/
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
@@ -4415,7 +4415,7 @@ USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+#if  defined(IMPA) || defined(ROS)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #endif
 !#ifdef CODE_ANALYZE
@@ -4907,7 +4907,7 @@ __STAMP__&
 !,'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
 !          END IF
 !#endif /*CODE_ANALYZE*/ 
-#ifdef IMPA
+#if defined(IMPA) || defined(ROS)
             IF(DoRefMapping)THEN
               CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
             END IF
@@ -4936,7 +4936,7 @@ __STAMP__&
                                                                             , GEO%zmaxglob
               CALL abort(&
                  __STAMP__ &
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+#if  defined(IMPA) || defined(ROS)
                  ,' LastPartPos outside of mesh. iPart=, iStage',ParticleIndexNbr,REAL(iStage))
 #else
                  ,' LastPartPos outside of mesh. iPart=',ParticleIndexNbr)
@@ -5052,7 +5052,7 @@ __STAMP__&
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
       END IF
-#elif (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+#elif  defined(IMPA) || defined(ROS)
       !IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle

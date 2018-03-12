@@ -27,12 +27,15 @@ INTERFACE VectorDotProduct
   MODULE PROCEDURE VectorDotProduct
 END INTERFACE
 
+#ifdef IMPA
 INTERFACE EvalResidual
   MODULE PROCEDURE EvalResidual
 END INTERFACE
+#endif
 #endif /*NOT HDG*/
 
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES) 
+#if defined(IMPA) || defined(ROS)
 INTERFACE PartVectorDotProduct
   MODULE PROCEDURE PartVectorDotProduct
 END INTERFACE
@@ -40,14 +43,20 @@ END INTERFACE
 INTERFACE PartMatrixVector
   MODULE PROCEDURE PartMatrixVector
 END INTERFACE
-#endif
+#endif /*ROS OR IMPA*/
+#endif /*PARTICLES*/
 
 #ifndef PP_HDG
-PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL,EvalResidual
+PUBLIC :: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
+#ifdef IMPA
+PUBLIC :: EvalResidual
+#endif /*IMPA*/
 #endif /*NOT HDG*/
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES)
+#if defined(IMPA) || defined(ROS)
 PUBLIC:: PartVectorDotProduct,PartMatrixVector
-#endif
+#endif /*ROS OR IMPA*/
+#endif 
 !===================================================================================================================================
 
 CONTAINS
@@ -87,18 +96,32 @@ CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 ! y = (I-Coeff*R)*x = x - Coeff*R*x 
 IF(DoParabolicDamping)THEN
   !rTmp=1.0-(fDamping-1.0)*dt*sdTCFLOne
+#ifdef IMPA
   rTmp=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+#else
+  rTmp=(1.0-(fDamping-1.0)*1./coeff*sdTCFLOne)*coeff
+#endif
   DO iElem=1,PP_nElems
     DO k=0,PP_N
       DO j=0,PP_N
         DO i=0,PP_N
           locMass=mass(1,i,j,k,iElem)
+#ifdef IMPA
           DO iVar=1,6
             Y(iVar,i,j,k,iElem) = locMass*(     U(iVar,i,j,k,iElem) - Coeff*Ut(iVar,i,j,k,iElem))
           END DO ! iVar=1,6
           DO iVar=7,PP_nVar
             Y(iVar,i,j,k,iElem) = locMass*(rTmp*U(iVar,i,j,k,iElem) - Coeff*Ut(iVar,i,j,k,iElem))
           END DO ! iVar=7,PP_nVar
+#else 
+          ! Rosenbrock, CAUTION: coeff = coeff_inv
+          DO iVar=1,6
+            Y(iVar,i,j,k,iElem) = locMass*(coeff*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
+          END DO ! iVar=1,6
+          DO iVar=7,PP_nVar
+            Y(iVar,i,j,k,iElem) = locMass*(rTmp*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
+          END DO ! iVar=7,PP_nVar
+#endif
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N
@@ -148,15 +171,21 @@ INTEGER          :: i,j,k,iElem,iVar
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
 #ifndef PP_HDG
-#if (PP_TimeDiscMethod!=131)
+#ifndef ROS
 CALL CalcSource(t,1.0,ImplicitSource)
-#endif
+#endif /*NO ROSENBROCK*/
 #endif
 
 IF(DoParabolicDamping)THEN
   rTmp(1:6)=1.0
+#ifdef IMPA
   rTmp( 7 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
   rTmp( 8 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+#else
+  rTmp(1:6)=1.0*coeff
+  rTmp( 7 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)*coeff
+  rTmp( 8 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)*coeff
+#endif
 ELSE
   rTmp(1:8)=1.0
 END IF
@@ -167,12 +196,13 @@ DO iElem=1,PP_nElems
       DO i=0,PP_N
         locMass=mass(1,i,j,k,iElem)
         DO iVar=1,PP_nVar
-#if (PP_TimeDiscMethod==131)
+#if ROS
+          ! matrix vector for rosenbrock-type RK. 
           Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
                                          -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
-                                         +    coeff*Ut(iVar,i,j,k,iElem)         )
-                                         !+coeff*ImplicitSource(iVar,i,j,k,iElem) )
+                                         +          Ut(iVar,i,j,k,iElem)         )
 #else
+          ! non-rosenbrock RK
           Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
                                          -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
                                          +    coeff*Ut(iVar,i,j,k,iElem)         &
@@ -186,7 +216,7 @@ END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE MatrixVectorSource
 
-
+#ifdef IMPA
 SUBROUTINE EvalResidual(t,Coeff,Norm_R0)
 !===================================================================================================================================
 ! Compute Initial norm for linear solver by calling MatrixVectorSource and VectorDotProduct
@@ -219,6 +249,7 @@ CALL VectorDotProduct(Y,Y,Norm_R0)
 Norm_R0=SQRT(Norm_R0)
 
 END SUBROUTINE EvalResidual
+#endif 
 
 
 SUBROUTINE VectorDotProduct(a,b,resu)
@@ -333,7 +364,8 @@ END SUBROUTINE DENSE_MATMUL
 #endif /*NOT HDG*/
 
 
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES) 
+#if defined(IMPA) || defined(ROS)
 SUBROUTINE PartVectorDotProduct(a,b,resu)
 !===================================================================================================================================
 ! Computes Dot Product for vectors a and b: resu=a.b
@@ -438,8 +470,8 @@ PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
 PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
 PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
-#if (PP_TimeDiscMethod==131)
-Y(1:6) = (X(1:6) - (coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+#if ROS
+Y(1:6) = (Coeff*X(1:6) - (1./EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
 #else
 Y(1:6) = (X(1:6) - (PartDtFrac(PartID)*coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
 #endif
@@ -450,7 +482,8 @@ IF(1.EQ.2)THEN
 END IF
 
 END SUBROUTINE PartMatrixVector
-#endif
+#endif /*IMPA or ROS*/
+#endif /*PARTICLES*/
 
 
 END MODULE MOD_LinearOperator

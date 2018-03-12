@@ -14,7 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 INTERFACE ImplicitNorm
   MODULE PROCEDURE ImplicitNorm
 END INTERFACE
@@ -29,7 +29,7 @@ PUBLIC::ImplicitNorm,FullNewton
 
 CONTAINS
 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 SUBROUTINE ImplicitNorm(t,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel,First) 
 !===================================================================================================================================
 ! The error-norm of the fully implicit scheme is computed

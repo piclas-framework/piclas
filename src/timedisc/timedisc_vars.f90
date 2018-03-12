@@ -170,8 +170,7 @@ REAL,PARAMETER    :: RK_c(2:nRKStages) = 1.0
 REAL,PARAMETER    :: ESDIRK_a(2:nRKStages,1:nRKStages)= RESHAPE( (/ 0.5, 0.5 /) , (/nRKStages-1,nRKStages/), ORDER=(/2,1/)) 
 ! embedded scheme is euler
 #endif
-
-#if (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==111) || (PP_TimeDiscMethod==121)
+#if (PP_TimeDiscMethod==121)
 ! for stage counter
 INTEGER,PARAMETER :: nRKStages = 4
 ! explicit scheme
@@ -236,7 +235,7 @@ REAL,PARAMETER :: RK3_bs42 =   2508943948391.0 /    7218656332882.0
 REAL,PARAMETER :: RK3_bs4(1:2) = (/ RK3_bs41, RK3_bs42 /)
 REAL,PARAMETER :: RK_bs(1:4,1:2)=RESHAPE((/RK3_bs1,RK3_bs2,RK3_bs3,RK3_bs4/),(/4,2/),ORDER =(/2,1/))
 #endif
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==112) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==122)
 ! for stage counter
 INTEGER,PARAMETER :: nRKStages = 6
 ! explicit scheme
@@ -363,45 +362,7 @@ REAL,PARAMETER :: RK4_bs62 =  22142945955077.0 / 11155272088250.0
 REAL,PARAMETER :: RK4_bs6(1:2) = (/ RK4_bs61, RK4_bs62 /)
 REAL,PARAMETER :: RK_bs(1:6,1:2)=RESHAPE((/RK4_bs1,RK4_bs2,RK4_bs3,RK4_bs4,RK4_bs5,RK4_bs6/),(/6,2/),ORDER =(/2,1/))
 #endif
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-! || (PP_TimeDiscMethod==131)
-REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
-#endif
-#if (PP_TimeDiscMethod==131) 
-! wikipedia
-INTEGER,PARAMETER :: nRKStages = 2
-REAL,PARAMETER  :: RK_a21=  2. / 3.
-REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
-REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
-REAL,PARAMETER  :: RK_gamma=0.5*(1.+1./SQRT(3.))
-REAL,PARAMETER  :: RK_g21=  -4./6.*(1.+1./SQRT(3.))
-REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
-REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
-REAL,PARAMETER  :: RK_c2 = 2./3.
-REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
-REAL,PARAMETER  :: RK_b1= 1./4.
-REAL,PARAMETER  :: RK_b2= 3./4.
-REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
-! explicit scheme
-! INTEGER,PARAMETER :: nRKStages = 4
-! aij
-! REAL,PARAMETER  :: ERK3_a21=  0.462
-! REAL,PARAMETER  :: ERK3_a31= -0.0815668168327
-! REAL,PARAMETER  :: ERK3_a32=  0.961775150166
-! REAL,PARAMETER  :: ERK3_a41=  0.    
-! REAL,PARAMETER  :: ERK3_a42=  0.   
-! REAL,PARAMETER  :: ERK3_a43=  0.   
-! REAL,PARAMETER  :: ERK3_a2(1:3) = (/ERK3_a21,      0.,      0./) 
-! REAL,PARAMETER  :: ERK3_a3(1:3) = (/ERK3_a31,ERK3_a32,      0./)
-! REAL,PARAMETER  :: ERK3_a4(1:3) = (/ERK3_a41,ERK3_a42,ERK3_a43/)
-! REAL,PARAMETER  :: ERK_a(2:4,1:3) = RESHAPE( (/ERK3_a2(:),ERK3_a3(:),ERK3_a4(:)/),(/3,3/),ORDER =(/2,1/))
-! ! c
-! REAL,PARAMETER  :: RK3_c2=   1767732205903.0  / 2027836641118.0
-! REAL,PARAMETER  :: RK3_c3=               3.0  / 5.0
-! REAL,PARAMETER  :: RK3_c4=               1.0
-! REAL,PARAMETER  :: RK_c(2:4) = (/RK3_c2,RK3_c3,RK3_c4/)
-#endif
-#if (PP_TimeDiscMethod==103)
+#if (PP_TimeDiscMethod==123)
 INTEGER,PARAMETER :: nRKStages = 2
 ! Ascher 1997 2 - 3 - 3
 REAL,PARAMETER  :: RK3_gamma = (3.0 + SQRT(3.0))/6.0
@@ -423,7 +384,73 @@ REAL,PARAMETER  :: RK3_b1=   0.5
 REAL,PARAMETER  :: RK3_b2=   0.5
 REAL,PARAMETER  :: RK3_b(1:2) = (/RK3_b1,RK3_b2/)
 #endif
-
+#if IMPA
+! || (PP_TimeDiscMethod==131)
+REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
+#endif
+#ifdef ROS
+REAL             :: dt_inv
+#endif /*ROSENBROCK RK*/
+#if (PP_TimeDiscMethod==131) 
+! wikipedia
+INTEGER,PARAMETER :: nRKStages = 2
+REAL,PARAMETER  :: RK_a21=  2. / 3.
+REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
+REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_gamma=0.5*(1.+1./SQRT(3.))
+REAL,PARAMETER  :: RK_g21=  -4./6.*(1.+1./SQRT(3.))
+REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
+REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_c2 = 2./3.
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
+REAL,PARAMETER  :: RK_b1= 1./4.
+REAL,PARAMETER  :: RK_b2= 3./4.
+REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
+! ! c
+! REAL,PARAMETER  :: RK3_c2=   1767732205903.0  / 2027836641118.0
+! REAL,PARAMETER  :: RK3_c3=               3.0  / 5.0
+! REAL,PARAMETER  :: RK3_c4=               1.0
+! REAL,PARAMETER  :: RK_c(2:4) = (/RK3_c2,RK3_c3,RK3_c4/)
+#endif
+#if (PP_TimeDiscMethod==132) 
+! wikipedia
+INTEGER,PARAMETER :: nRKStages = 4
+REAL,PARAMETER  :: RK_a21=    2.
+REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0./) 
+REAL,PARAMETER  :: RK_a31=  48./25.
+REAL,PARAMETER  :: RK_a32=   6./25.
+REAL,PARAMETER  :: RK_a3(1:nRKStages) = (/RK_a31,RK_a32, 0., 0./) 
+REAL,PARAMETER  :: RK_a41=  48./25.
+REAL,PARAMETER  :: RK_a42=   6./25.
+REAL,PARAMETER  :: RK_a43=   0.
+REAL,PARAMETER  :: RK_a4(1:nRKStages) = (/RK_a41,RK_a42, RK_a43, 0./) 
+REAL,PARAMETER  :: RK_a(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_a2(:), RK_a3(:), RK_a4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+!! second order 
+REAL,PARAMETER  :: RK_gamma=0.5
+REAL,PARAMETER  :: RK_g21             =  -8.
+REAL,PARAMETER  :: RK_g2(1:nRKStages) = (/RK_g21, 0.,0.,0./) 
+REAL,PARAMETER  :: RK_g31             =  372./25
+REAL,PARAMETER  :: RK_g32             =  12./5
+REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31, RK_g32,0.,0./) 
+REAL,PARAMETER  :: RK_g41             =  -112./125.
+REAL,PARAMETER  :: RK_g42             =   -54./125.
+REAL,PARAMETER  :: RK_g43             =    -2./5.
+REAL,PARAMETER  :: RK_g4(1:nRKStages) = (/RK_g41, RK_g42,RK_g43,0./) 
+REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:), RK_g4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+!REAL,PARAMETER  :: RK_c2 = 2./3.
+! not computed
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4)/)
+REAL,PARAMETER  :: RK_b1= 19./9.
+REAL,PARAMETER  :: RK_b2= 0.5
+REAL,PARAMETER  :: RK_b3= 25./108.
+REAL,PARAMETER  :: RK_b4= 125./108.
+REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4/)
+! ! c
+! REAL,PARAMETER  :: RK3_c2=   1767732205903.0  / 2027836641118.0
+! REAL,PARAMETER  :: RK3_c3=               3.0  / 5.0
+! REAL,PARAMETER  :: RK3_c4=               1.0
+! REAL,PARAMETER  :: RK_c(2:4) = (/RK3_c2,RK3_c3,RK3_c4/)
+#endif
 
 !===================================================================================================================================
 END MODULE MOD_TimeDisc_Vars

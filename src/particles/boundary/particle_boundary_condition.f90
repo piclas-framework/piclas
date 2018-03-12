@@ -63,10 +63,8 @@ USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
@@ -125,10 +123,8 @@ CASE(1) !PartBound%OpenBC)
   alpha=-1.
 #ifdef IMPA
   DoPartInNewton(iPart) = .FALSE.
-#endif /*IMPA*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
@@ -176,11 +172,9 @@ CASE(2) !PartBound%ReflectiveBC)
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-            PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #ifdef IMPA
-		    DoPartInNewton(iPart) = .FALSE.
+            PartIsImplicit(iPart) = .FALSE.
+		        DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
             alpha=-1.
           END IF
@@ -208,9 +202,9 @@ __STAMP__,&
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
             alpha=-1.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if IMPA
             PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
             CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
               IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
@@ -299,10 +293,8 @@ USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
 #endif /*IMPA*/
 
@@ -358,10 +350,8 @@ CASE(1) !PartBound%OpenBC)
   alpha=-1.
 #ifdef IMPA
   DoPartInNewton(iPart) = .FALSE.
-#endif /*IMPA*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -410,11 +400,9 @@ CASE(2) !PartBound%ReflectiveBC)
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-            PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #ifdef IMPA
-  			DoPartInNewton(iPart) = .FALSE.
+            PartIsImplicit(iPart) = .FALSE.
+  			    DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
             alpha=-1.
           END IF
@@ -440,9 +428,9 @@ __STAMP__,&
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#ifdef IMPA
             PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
             alpha=-1.
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
@@ -645,11 +633,11 @@ USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
 USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
 USE MOD_Particle_Vars,          ONLY:PEM,PartIsImplicit
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
-#endif
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -788,7 +776,7 @@ v_old = PartState(PartID,4:6)
 ! new velocity vector 
 !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
 v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
-#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 ! here, we turn the velocity 
 IF(RK_inflow(iStage).GT.0)THEN
 PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
@@ -896,7 +884,6 @@ END IF
 #endif  /*LSERK*/
 
 #ifdef IMPA
-#if (PP_TimeDiscMethod!=131)
 ! rotate the Runge-Kutta coefficients into the new system 
 ! this rotation is a housholder rotation
 RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
@@ -915,9 +902,7 @@ IF(iStage.GT.0)THEN
     PartStage(PartID,1:3,iCounter)=MATMUL(RotationMat,PartStage(PartID,1:3,iCounter))
     PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
   END DO ! iCoutner=1,iStage-1
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   IF(PartIsImplicit(PartID))THEN
-#endif
     ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
     ! new value, which is not yet computed, hence, convergence issues...
     ! we are using the value of the last iteration under the assumption, that this 
@@ -953,7 +938,6 @@ IF(iStage.GT.0)THEN
     IF(.NOT.DoRefMapping)THEN
       PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
     END IF
-#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ELSE
     ! explicit particle
     DeltaP=0.
@@ -962,9 +946,7 @@ IF(iStage.GT.0)THEN
     END DO
     PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
   END IF
-#endif
 END IF
-#endif
 #endif /*IMPA*/
 !END IF
 
@@ -1549,10 +1531,8 @@ USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1734,10 +1714,8 @@ __STAMP__&
     alpha=-1.
 #ifdef IMPA
     DoPartInNewton(PartID) = .FALSE.
-#endif /*IMPA*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     PartIsImplicit(PartID) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
   ELSEIF (targetSpecies.gt.0) THEN !swap species
     DO iCC=1,nCollectChargesBCs !-chargeCollect
       IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
@@ -1770,17 +1748,13 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXk
-#endif /*IMPA*/
-#if defined(IMPA) || defined(IMEX)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
-#endif
+#endif /*IMPA*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1871,26 +1845,23 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
   
-#ifdef IMEX 
-! recompute PartStateN to kill jump in integration through periodic BC
-IF(iStage.GT.0)THEN
-  PartStateN(PartID,1:6) = PartState(PartID,1:6)
-  DO iCounter=1,iStage-1
-    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-  END DO
-END IF
-#endif /*IMEX*/
+!#ifdef IMEX 
+!! recompute PartStateN to kill jump in integration through periodic BC
+!IF(iStage.GT.0)THEN
+!  PartStateN(PartID,1:6) = PartState(PartID,1:6)
+!  DO iCounter=1,iStage-1
+!    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+!                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+!  END DO
+!END IF
+!#endif /*IMEX*/
 
 
 !PartShiftVector = OldPartPos - NewPartPos = -SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 #ifdef IMPA 
-#if (PP_TimeDiscMethod!=131)
 ! recompute PartStateN to kill jump in integration through periodic BC
 IF(iStage.GT.0)THEN
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   IF(PartIsImplicit(PartID))THEN
-#endif
     ! implicit particle
     ! caution because of implicit particle
     ! PartState^(n+1) = PartState^n - sum_i=1^istage-1 a_istage,i F(u,partstate^i) - a_istage,istage dt F(U,PartState^(n+1))
@@ -1918,7 +1889,6 @@ IF(iStage.GT.0)THEN
     ! PartXK  is not YET updated, it is updated, if the Newton step will be accepted 
     ! F_PartX0 is not changing, because of difference should middle out?!?
     !PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
  ELSE
    ! explicit particle
    DeltaP=0.
@@ -1927,9 +1897,7 @@ IF(iStage.GT.0)THEN
    END DO
    PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
  END IF
-#endif
 END IF
-#endif
 #endif /*IMPA*/
 
 ! refmapping and tracing

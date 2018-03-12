@@ -179,12 +179,12 @@ nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
 
-#if (PP_TimeDiscMethod==131)
+#if ROS
 #ifndef PP_HDG
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages))
 #endif
 #endif
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+#if IMPA
 maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
 TotalFullNewtonIter  = 0
 Eps_FullNewton       = GETREAL('eps_FullNewton','1e-3')
@@ -198,7 +198,7 @@ ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #ifdef PARTICLES
 DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 ! allocate explicit particle source
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 ALLOCATE(ExplicitPartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ExplicitPartSource=0.
 PartNewtonRelaxation= GETREAL('PartNewtonRelaxation','1.')
@@ -1605,7 +1605,7 @@ SUBROUTINE FinalizeLinearSolver()
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 #ifdef PARTICLES
 USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
 USE MOD_LinearSolver_Vars,ONLY:ExplicitPartSource
@@ -1626,7 +1626,7 @@ LinearSolverInitIsDone = .FALSE.
 SDEALLOCATE(ImplicitSource)
 SDEALLOCATE(LinSolverRHS)
 CALL FinalizePredictor
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 #ifdef PARTICLES
 SDEALLOCATE(ExplicitPartSource)
 CALL FinalizePartSolver()
