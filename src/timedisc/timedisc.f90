@@ -3568,7 +3568,7 @@ IF(t.GE.DelayTime)THEN
     CALL PartMatrixVector(t,Coeff_inv,iPart,Pt_tmp,PartDeltaX) 
     PartRHS =Pt_tmp - PartDeltaX
     CALL PartVectorDotProduct(PartRHS,PartRHS,Norm_P2)
-    AbortCrit=1e-16
+    AbortCrit=1e-32
     PartDeltaX=0.
     CALL Particle_GMRES(t,coeff_inv,iPart,PartRHS,SQRT(Norm_P2),AbortCrit,PartDeltaX)
     ! update particle 
@@ -3800,8 +3800,8 @@ DO iStage=2,nRKStages
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
       ! update PartXK (because of change in field, and update R_PartXK)
-      PartXK(1:6,iPart)   = PartState(iPart,1:6)
-      R_PartXK(1:6,iPart) = Pt_tmp(1:6)
+      ! PartXK(1:6,iPart)   = PartState(iPart,1:6)
+      ! R_PartXK(1:6,iPart) = Pt_tmp(1:6)
       ! compute RHS =f(y+sum aij kj ) + dt T sum gamma_ij kj
       ! CAUTION: invert sign
       PartRHS =Pt_tmp + PartQ(1:6,iPart)
@@ -3810,7 +3810,7 @@ DO iStage=2,nRKStages
       PartRHS_tild = PartRHS - PartDeltaX 
       PartDeltaX=0.
       CALL PartVectorDotProduct(PartRHS_tild,PartRHS_tild,Norm_P2)
-      AbortCrit=1e-16
+      AbortCrit=1e-32
       CALL Particle_GMRES(t,coeff_inv,iPart,PartRHS_tild,SQRT(Norm_P2),AbortCrit,PartDeltaX)
       ! update particle to k_iStage
       PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
