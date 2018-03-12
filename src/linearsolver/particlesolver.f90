@@ -88,6 +88,8 @@ FreezePartInNewton =GETINT('FreezePartInNewton','1')
 EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
 PartgammaEW        =GETREAL('PartgammaEW','0.9')
 nPartNewton        =0
+#else
+EisenstatWalker = .TRUE.
 #endif /*IMPA*/
 
 ! read in by both
@@ -533,7 +535,9 @@ IF (.NOT.EisenstatWalker) THEN
   AbortCrit=epsPartlinSolver
 END IF
 !END IF
+print*,'reltol',AbortCrit
 AbortCrit=Norm_B*AbortCrit
+print*,'AbortCrit',AbortCrit
 R0=B
 Norm_R0=Norm_B
 DeltaX=0.

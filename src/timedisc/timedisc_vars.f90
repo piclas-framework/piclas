@@ -413,7 +413,21 @@ REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
 ! REAL,PARAMETER  :: RK_c(2:4) = (/RK3_c2,RK3_c3,RK3_c4/)
 #endif
 #if (PP_TimeDiscMethod==132) 
-! wikipedia
+! coefficients of Ianelli-Baker RO2-2
+! INTEGER,PARAMETER :: nRKStages = 2
+! REAL,PARAMETER  :: RK_gamma=0.5*(2.-sqrt(2.))
+! REAL,PARAMETER  :: RK_a21=  4.-8.*RK_gamma
+! REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
+! REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
+! REAL,PARAMETER  :: RK_g21=  0.
+! REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
+! REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
+! REAL,PARAMETER  :: RK_c2 = 2./3.
+! REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
+! REAL,PARAMETER  :: RK_b1= (1-1./(8.*RK_gamma))/RK_gamma
+! REAL,PARAMETER  :: RK_b2= 1./(8.*RK_gamma**2)
+! REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
+! ! Shampne ROS4 (RO4-4)
 INTEGER,PARAMETER :: nRKStages = 4
 REAL,PARAMETER  :: RK_a21=    2.
 REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0./) 
@@ -445,11 +459,6 @@ REAL,PARAMETER  :: RK_b2= 0.5
 REAL,PARAMETER  :: RK_b3= 25./108.
 REAL,PARAMETER  :: RK_b4= 125./108.
 REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4/)
-! ! c
-! REAL,PARAMETER  :: RK3_c2=   1767732205903.0  / 2027836641118.0
-! REAL,PARAMETER  :: RK3_c3=               3.0  / 5.0
-! REAL,PARAMETER  :: RK3_c4=               1.0
-! REAL,PARAMETER  :: RK_c(2:4) = (/RK3_c2,RK3_c3,RK3_c4/)
 #endif
 
 !===================================================================================================================================
