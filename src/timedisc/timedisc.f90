@@ -3559,6 +3559,7 @@ IF(t.GE.DelayTime)THEN
     ! set x0 = b
     ! A deltaX = b - A b
     ! xNeu = b  + deltaX
+    ! fix matrix during computation
     PartXK(1:6,iPart)   = PartState(iPart,1:6)
     R_PartXK(1:6,iPart) = Pt_tmp(1:6)
     ! CAUTION: invert sign
@@ -3800,6 +3801,7 @@ DO iStage=2,nRKStages
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
       ! update PartXK (because of change in field, and update R_PartXK)
+      ! NO update, because fixed Jacobian...
       ! PartXK(1:6,iPart)   = PartState(iPart,1:6)
       ! R_PartXK(1:6,iPart) = Pt_tmp(1:6)
       ! compute RHS =f(y+sum aij kj ) + dt T sum gamma_ij kj
