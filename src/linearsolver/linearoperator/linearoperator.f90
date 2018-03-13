@@ -99,7 +99,8 @@ IF(DoParabolicDamping)THEN
 #ifdef IMPA
   rTmp=1.0-(fDamping-1.0)*coeff*sdTCFLOne
 #else
-  rTmp=(1.0-(fDamping-1.0)*1./coeff*sdTCFLOne)*coeff
+  ! use the inverse of coefficient because of inverse definition
+  rTmp=(1.0-(fDamping-1.0)*1./coeff*sdTCFLOne)
 #endif
   DO iElem=1,PP_nElems
     DO k=0,PP_N
@@ -116,10 +117,10 @@ IF(DoParabolicDamping)THEN
 #else 
           ! Rosenbrock, CAUTION: coeff = coeff_inv
           DO iVar=1,6
-            Y(iVar,i,j,k,iElem) = locMass*(coeff*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
+            Y(iVar,i,j,k,iElem) = locMass*(     coeff*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
           END DO ! iVar=1,6
           DO iVar=7,PP_nVar
-            Y(iVar,i,j,k,iElem) = locMass*(rTmp*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
+            Y(iVar,i,j,k,iElem) = locMass*(rTmp*coeff*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
           END DO ! iVar=7,PP_nVar
 #endif
         END DO ! i=0,PP_N
@@ -127,7 +128,11 @@ IF(DoParabolicDamping)THEN
     END DO ! k=0,PP_N
   END DO ! iElem=1,PP_nElems
 ELSE
+#ifdef IMPA
   Y = mass*(U - Coeff*Ut)
+#else
+  Y = mass*(coeff* U - Ut)
+#endif
 END IF
 END SUBROUTINE MatrixVector
 
@@ -170,11 +175,9 @@ INTEGER          :: i,j,k,iElem,iVar
 
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
-#ifndef PP_HDG
-#ifndef ROS
+#if !defined(PP_HDG) && !defined(ROS)
 CALL CalcSource(t,1.0,ImplicitSource)
-#endif /*NO ROSENBROCK*/
-#endif
+#endif /*NO ROSENBROCK and no HDG*/
 
 IF(DoParabolicDamping)THEN
   rTmp(1:6)=1.0
@@ -182,9 +185,10 @@ IF(DoParabolicDamping)THEN
   rTmp( 7 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
   rTmp( 8 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
 #else
-  rTmp(1:6)=1.0*coeff
-  rTmp( 7 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)*coeff
-  rTmp( 8 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)*coeff
+  rTmp(1:6)=1.0
+  ! Here, we have to use the inverse because the coeff is the inverse
+  rTmp( 7 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne) 
+  rTmp( 8 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)
 #endif
 ELSE
   rTmp(1:8)=1.0
@@ -199,8 +203,8 @@ DO iElem=1,PP_nElems
 #if ROS
           ! matrix vector for rosenbrock-type RK. 
           Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
-                                         -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
-                                         +          Ut(iVar,i,j,k,iElem)         )
+                                         -rTmp(iVar)*coeff*U(iVar,i,j,k,iElem)   &
+                                         +                 Ut(iVar,i,j,k,iElem)  )
 #else
           ! non-rosenbrock RK
           Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &

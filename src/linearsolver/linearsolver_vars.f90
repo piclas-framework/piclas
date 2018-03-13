@@ -32,7 +32,6 @@ INTEGER              :: totalIterLinearSolver,nInnerIter                        
 INTEGER              :: ldim                                                        ! Number of BiCGStab(l) subspaces
 #if defined(PARTICLES)
 #if defined(IMPA) 
-LOGICAL              :: DoFieldUpdate
 INTEGER              :: nPartNewton                                                 ! some limits or counter
 INTEGER              :: nPartNewtonIter                                             ! some limits or counter
 INTEGER              :: FreezePartInNewton                                          ! particle is moved after each Newton step
@@ -42,15 +41,18 @@ REAL,PARAMETER       :: Part_alpha=0.0001
 REAL,PARAMETER       :: Part_sigma(1:2) = (/0.1, 0.5/)
 #endif
 #if defined(ROS) || defined(IMPA)
+LOGICAL              :: DoFieldUpdate
 LOGICAL              :: EisenstatWalker                                             ! EisenstatWalker for ParticleNewton
 INTEGER              :: totalPartIterLinearSolver,nPartInnerIter                    ! Counter for Particle newton
 REAL                 :: EpsPartLinSolver                                            ! Abort tolerance for linear solver of parts
 REAL                 :: rEps0,srEps0                                                ! FD-step-size for PartMV in PartNewton
 REAL,ALLOCATABLE     :: PartXK(:,:)                                                 ! ParticlePosition for linearization
 REAL,ALLOCATABLE     :: R_PartXK(:,:)                                               ! Part_dt of PartXK
-LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
 #endif /*IMPA or ROS*/
 #endif /*PARTICLES*/
+#if defined(ROS) || defined(IMPA)
+LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
+#endif /*IMPA or ROS*/
 #if IMPA
 REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
                                                                                     ! disables Armijo rule and uses a fixed value

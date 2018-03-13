@@ -179,11 +179,9 @@ nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
 
-#if ROS
-#ifndef PP_HDG
+#if defined(ROS) && !defined(PP_HDG) 
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages))
-#endif
-#endif
+#endif /*ROS and NOT HDG*/
 #if IMPA
 maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
 TotalFullNewtonIter  = 0
@@ -194,15 +192,12 @@ FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 #ifndef PP_HDG
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
-#endif
+#endif /*NOT HDG*/
 #ifdef PARTICLES
-DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 ! allocate explicit particle source
-#if IMPA
 ALLOCATE(ExplicitPartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ExplicitPartSource=0.
 PartNewtonRelaxation= GETREAL('PartNewtonRelaxation','1.')
-#endif
 ! flag to enforce updatenextfree position in all rk stages
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
 ! UpdateNextFreePosition in each interation
@@ -217,7 +212,13 @@ ELSE
 END IF
 IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
-#endif
+#endif /*IMPA*/
+#ifdef PARTICLES
+DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
+#if defined(ROS) || defined(IMPA)
+#endif /*ROS or IMPA*/
+#endif /*PARTICLES*/
+
 
 #ifndef PP_HDG
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
