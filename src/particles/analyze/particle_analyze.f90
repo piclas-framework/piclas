@@ -2278,17 +2278,11 @@ IF (CollisMode.GT.1) THEN
   END IF
 ELSE
   IF(PartMPI%MPIRoot)THEN
-    TempTotal = 0.0
+    TempTotal = Temp
     IntTemp   = 0.0
     IntEn     = 0.0
     Xi_Vib    = 0.0
     Xi_Elec   = 0.0
-    DO iSpec = 1, nSpecies
-      TempTotal(iSpec) = Temp(iSpec)
-      IF(nSpecAnalyze.GT.1)THEN
-        TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) + TempTotal(iSpec)*NumSpec(iSpec)
-      END IF
-    END DO
   END IF
 END IF
 

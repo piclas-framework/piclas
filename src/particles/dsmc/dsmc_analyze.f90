@@ -1704,7 +1704,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
     !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
       IF ((DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem).GT.0).AND.(DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem).GT.0)) THEN
         DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) &
-                              / CalcMeanFreePath(REAL(DSMC_HOSolution(7,kk,ll,mm, iElem,1:nSpecies))/REAL(DSMC%SampNum), &
+                              / CalcMeanFreePath((DSMC_HOSolution(7,kk,ll,mm, iElem,1:nSpecies)/REAL(DSMC%SampNum)), &
                               DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem), &
                               GEO%Volume(iElem), SpecDSMC(1)%omegaVHS, DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem))
       END IF
