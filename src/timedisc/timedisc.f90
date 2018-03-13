@@ -3784,8 +3784,8 @@ DO iStage=2,nRKStages
       ! update PartXK (because of change in field, and update R_PartXK)
       ! NO update, because fixed Jacobian || but field changes
       ! HERE no update
-      ! PartXK(1:6,iPart)   = PartState(iPart,1:6)
-      ! R_PartXK(1:6,iPart) = Pt_tmp(1:6)
+      PartXK(1:6,iPart)   = PartState(iPart,1:6)
+      R_PartXK(1:6,iPart) = Pt_tmp(1:6)
       ! compute RHS =f(y+sum aij kj ) + dt T sum gamma_ij kj
       ! CAUTION: invert sign
       ! Pt_tmp + PartQ
