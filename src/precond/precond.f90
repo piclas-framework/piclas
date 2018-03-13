@@ -236,6 +236,7 @@ DO iElem=1,PP_nElems
   
     !IF(PrecondType.NE.60)THEN
     ! add contibution I-alpha*dt*dRdU
+#ifdef IMPA
     coeff=-alpha*dt
     DO s=1,nDOFelem
       DO r=1,nDOFelem
@@ -243,6 +244,15 @@ DO iElem=1,PP_nElems
       END DO !r
       Ploc(s,s)=Ploc(s,s)+1.
     END DO !s
+#else
+    coeff=alpha*dt
+    DO s=1,nDOFelem
+      DO r=1,nDOFelem
+        Ploc(r,s)=-Ploc(r,s)
+      END DO !r
+      Ploc(s,s)=Ploc(s,s)+coeff
+    END DO !s
+#endif
     DO s=0,nDOFelem-1,PP_nVar
       r=0
       DO k=0,PP_N
@@ -264,6 +274,7 @@ DO iElem=1,PP_nElems
                  ,dRdEta (:,:,:,:,iElem) &
                  ,dRdZeta(:,:,:,:,iElem) ,iElem )
     ! apply coefficient
+#ifdef IMPA
     coeff=-alpha*dt
     DO q=0,PP_N
       DO p=0,PP_N
@@ -279,7 +290,24 @@ DO iElem=1,PP_nElems
         END DO ! s
       END DO ! p
     END DO !q
-
+#else
+    ! change sign and add 1/(gamma_ii*dt)
+    coeff=alpha*dt
+    DO q=0,PP_N
+      DO p=0,PP_N
+        DO s=1,nDOFLine
+          DO r=1,nDOFLine
+            dRdXi  (r,s,p,q,iElem)=-dRdXi  (r,s,p,q,iElem)
+            dRdEta (r,s,p,q,iElem)=-dRdEta (r,s,p,q,iElem)
+            dRdZeta(r,s,p,q,iElem)=-dRdZeta(r,s,p,q,iElem)
+          END DO ! r
+          dRdXi  (s,s,p,q,iElem)=dRdXi  (s,s,p,q,iElem) +coeff
+          dRdEta (s,s,p,q,iElem)=dRdEta (s,s,p,q,iElem) +coeff
+          dRdZeta(s,s,p,q,iElem)=dRdZeta(s,s,p,q,iElem) +coeff
+        END DO ! s
+      END DO ! p
+    END DO !q
+#endif
     DO oo=0,PP_N; DO nn=0,PP_N; DO mm=0,PP_N
       v1=0
       DO ll=0,PP_N
