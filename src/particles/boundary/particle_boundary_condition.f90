@@ -1745,13 +1745,20 @@ USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBili
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
-#ifdef IMPA
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt
+#endif /*IMPA || ROS*/
+#if defined(IMPA)
+USE MOD_TimeDisc_Vars,          ONLY:ESDIRK_a,ERK_a
 USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXk
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
-USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
-#endif /*IMPA*/
+#endif /*IMPA */
+#if defined(ROS)
+USE MOD_TimeDisc_Vars,          ONLY:RK_A
+USE MOD_LinearSolver_Vars,      ONLY:PartXk
+#endif /*ROS */
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -1771,7 +1778,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3)
-#if IMPA
+#if defined(IMPA) || defined(ROS)
 REAL                                 :: DeltaP(1:6)
 INTEGER                              :: iCounter
 #endif /*IMPA*/
@@ -1856,6 +1863,33 @@ PartTrajectory=PartTrajectory/lengthPartTrajectory
 !END IF
 !#endif /*IMEX*/
 
+#ifdef ROS
+print*,'here-periodic....movement',iStage
+
+IF(iStage.GT.0)THEN
+  ! compute explicit contribution which is
+  DeltaP = RK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
+  DO iCounter=1,iStage-2
+    DeltaP=DeltaP+RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+  END DO ! iCounter=1,iStage-2
+  ! recompute the old position at t^n
+  PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
+  IF(PartID.EQ.14)THEN
+    print*,'PartPosNew',PartState(PartID,1:3)
+    print*,'DeltaP',DeltaP
+  END IF
+  ! PartQ is non-shifted, I think
+  ! remains non-altered, because no change
+  !! compute contribution of 1/dt* sum_j=1^iStage-1 c(i,j) = diag(gamma)-gamma^inv
+  !PartQ(1:6,iPart) = RK_g(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
+  !DO iCounter=1,iStage-2
+  !  PartQ(1:6,iPart) = PartQ(1:6,iPart) +RK_g(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+  !END DO ! iCounter=1,iStage-2
+  !PartQ(1:6,iPart) = dt_inv*PartQ(1:6,iPart)
+  ! no-idea what happens with PartXK
+  !PartXK(1:6,PartID)   = PartStateN(PartID,1:6)
+END IF
+#endif /*ROS*/
 
 !PartShiftVector = OldPartPos - NewPartPos = -SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 #ifdef IMPA 
@@ -1900,11 +1934,17 @@ IF(iStage.GT.0)THEN
 END IF
 #endif /*IMPA*/
 
+IF(PartID.EQ.14)THEN
+  print*,'oldelem',ElemID
+END IF
 ! refmapping and tracing
 ! move particle from old element to new element
 locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
+IF(PartID.EQ.14)THEN
+  print*,'ewwelem',ElemID
+END IF
 #ifdef MPI
 IF(ElemID.EQ.-1)THEN
   CALL abort(&
