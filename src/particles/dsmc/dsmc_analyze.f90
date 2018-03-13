@@ -63,151 +63,151 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 ! Writes DSMC state values to HDF5
 !===================================================================================================================================
 ! MODULES
-   USE MOD_Globals
-   USE MOD_PreProc
-   USE MOD_io_HDF5
-   USE MOD_HDF5_output,   ONLY:WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
-   USE MOD_PARTICLE_Vars, ONLY:nSpecies
-   USE MOD_Mesh_Vars,     ONLY:offsetElem,nGlobalElems
-   USE MOD_DSMC_Vars,     ONLY:MacroDSMC, CollisMode, DSMC
-   USE MOD_Globals_Vars,  ONLY:ProjectName
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_io_HDF5
+USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems
+USE MOD_DSMC_Vars     ,ONLY: MacroDSMC, CollisMode, DSMC
+USE MOD_Globals_Vars  ,ONLY: ProjectName
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
-  REAL,INTENT(IN)                 :: OutputTime
+CHARACTER(LEN=*),INTENT(IN)   :: MeshFileName
+REAL,INTENT(IN)               :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CHARACTER(LEN=255)                 :: FileName,FileString,Statedummy
-  INTEGER                             :: nVal
+CHARACTER(LEN=255)            :: FileName,FileString,Statedummy
+INTEGER                       :: nVal
 !===================================================================================================================================
-  SWRITE(*,*) ' WRITE DSMCSTATE TO HDF5 FILE...'
-  FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime)
-  FileString=TRIM(FileName)//'.h5'
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-  Statedummy = 'DSMCState'
-  CALL WriteHDF5Header(Statedummy,File_ID)
+SWRITE(*,*) ' WRITE DSMCSTATE TO HDF5 FILE...'
+FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime)
+FileString=TRIM(FileName)//'.h5'
+CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+Statedummy = 'DSMCState'
+CALL WriteHDF5Header(Statedummy,File_ID)
 
-  nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
 
-  CALL WriteArrayToHDF5(DataSetName='DSMC_velx', rank=2,&
+CALL WriteArrayToHDF5(DataSetName='DSMC_velx', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(1))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_vely', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(2))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_velz', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(3))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_vel', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(4))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_velx2', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(1))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_vely2', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(2))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_velz2', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(3))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_tempx', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(1))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_tempy', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(2))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_tempz', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(3))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_temp', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(4))
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_dens', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%NumDens)
+
+CALL WriteArrayToHDF5(DataSetName='DSMC_partnum', rank=2,&
+                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
+                      nVal=      (/PP_nElems,    nSpecies+1/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartNum)
+
+IF (DSMC%CalcQualityFactors) THEN
+  CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
+                      nValGlobal=(/nGlobalElems, 3/),&
+                      nVal=      (/PP_nElems,    3/),&
+                      offset=    (/offsetElem, 0  /),&
+                      collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
+END IF
+
+IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+  CALL WriteArrayToHDF5(DataSetName='DSMC_tvib', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpecies+1/),&
                         nVal=      (/PP_nElems,    nSpecies+1/),&
                         offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(1))
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Tvib)
 
-  CALL WriteArrayToHDF5(DataSetName='DSMC_vely', rank=2,&
+  CALL WriteArrayToHDF5(DataSetName='DSMC_trot', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpecies+1/),&
                         nVal=      (/PP_nElems,    nSpecies+1/),&
                         offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(2))
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Trot)
+END IF
 
-  CALL WriteArrayToHDF5(DataSetName='DSMC_velz', rank=2,&
+IF (DSMC%ElectronicModel) THEN
+  CALL WriteArrayToHDF5(DataSetName='DSMC_telec', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpecies+1/),&
                         nVal=      (/PP_nElems,    nSpecies+1/),&
                         offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(3))
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Telec)
+END IF
 
-  CALL WriteArrayToHDF5(DataSetName='DSMC_vel', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(4))
+CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
+CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
+CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
+CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 
-  CALL WriteArrayToHDF5(DataSetName='DSMC_velx2', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(1))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_vely2', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(2))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_velz2', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(3))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_tempx', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(1))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_tempy', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(2))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_tempz', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(3))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_temp', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(4))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_dens', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%NumDens)
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_partnum', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartNum)
-
-  IF (DSMC%CalcQualityFactors) THEN
-    CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
-                        nValGlobal=(/nGlobalElems, 3/),&
-                        nVal=      (/PP_nElems,    3/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
-  END IF
-
-  IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-    CALL WriteArrayToHDF5(DataSetName='DSMC_tvib', rank=2,&
-                          nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                          nVal=      (/PP_nElems,    nSpecies+1/),&
-                          offset=    (/offsetElem, 0  /),&
-                          collective=.TRUE., RealArray=MacroDSMC(:,:)%Tvib)
-
-    CALL WriteArrayToHDF5(DataSetName='DSMC_trot', rank=2,&
-                          nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                          nVal=      (/PP_nElems,    nSpecies+1/),&
-                          offset=    (/offsetElem, 0  /),&
-                          collective=.TRUE., RealArray=MacroDSMC(:,:)%Trot)
-  END IF
-
-  IF (DSMC%ElectronicModel) THEN
-    CALL WriteArrayToHDF5(DataSetName='DSMC_telec', rank=2,&
-                          nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                          nVal=      (/PP_nElems,    nSpecies+1/),&
-                          offset=    (/offsetElem, 0  /),&
-                          collective=.TRUE., RealArray=MacroDSMC(:,:)%Telec)
-  END IF
-
-  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
-  CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
-  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
-  CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
-
-  CALL CloseDataFile()
+CALL CloseDataFile()
 
 END SUBROUTINE WriteDSMCToHDF5
 
@@ -215,108 +215,75 @@ END SUBROUTINE WriteDSMCToHDF5
 SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
                           ,locBCID,emission_opt)
 !===================================================================================================================================
-! Sample Wall values from Particle collisions
+!> Sample Wall values from Particle collisions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,                ONLY : abort
-  USE MOD_Particle_Vars
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, useDSMC
-  USE MOD_DSMC_Vars,              ONLY : CollisMode, DSMC
-  USE MOD_Particle_Boundary_Vars, ONLY : SampWall, CalcSurfCollis, AnalyzeSurfCollis
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, useDSMC
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, DSMC
+USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis, AnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES            
-  INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q,locBCID
-  REAL,INTENT(IN)                    :: PartTrajectory(1:3), alpha
-  REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
-  REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
-  LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
-  REAL,INTENT(IN)                    :: AdsorptionEnthalpie
-  LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
+INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q,locBCID
+REAL,INTENT(IN)                    :: PartTrajectory(1:3), alpha
+REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
+REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
+LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
+REAL,INTENT(IN)                    :: AdsorptionEnthalpie
+LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-  !----  Sampling for energy (translation) accommodation at walls
-  SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q) &
-                                  + TransArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q) &
-                                  + TransArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q) &
-                                  + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
-      
-  !----  Sampling force at walls
-  SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
-      + Species(PartSpecies(PartID))%MassIC * (TransArray(4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
-      + Species(PartSpecies(PartID))%MassIC * (TransArray(5)) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
-      + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor 
-      
-  IF (useDSMC) THEN
-  IF (CollisMode.GT.1) THEN
-  IF (DSMC%WallModel.GT.0) THEN
-    SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
-                                      + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
-  END IF
-  IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
-    !----  Sampling for internal (rotational) energy accommodation at walls
-    SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
-                                      + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-    SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
-                                      + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-    SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
-                                      + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
-  
-    !----  Sampling for internal (vibrational) energy accommodation at walls
-    SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
-                                      + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
-    SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
-                                      + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
-    SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
-                                      + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
-  END IF
-  END IF
-  END IF
-  
-  IF (PRESENT(emission_opt)) THEN
-    IF (.NOT.emission_opt) THEN
-      !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
-      IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-        SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-        IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
-          AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
-          AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
-          IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-            CALL abort(&
-            __STAMP__&
-            ,'maxSurfCollisNumber reached!')
-          END IF
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
-            = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-            = PartState(PartID,4)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-            = PartState(PartID,5)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-            = PartState(PartID,6)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
-            = LastPartPos(PartID,1)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
-            = LastPartPos(PartID,2)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
-            = LastPartPos(PartID,3)
-          AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
-            = PartSpecies(PartID)
-          AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
-            = locBCID
-        END IF
-      END IF   
-    END IF
-  ELSE
+!----  Sampling for energy (translation) accommodation at walls
+SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q) &
+                                + TransArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
+SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q) &
+                                + TransArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
+SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q) &
+                                + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+
+!----  Sampling force at walls
+SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
+    + Species(PartSpecies(PartID))%MassIC * (TransArray(4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
+    + Species(PartSpecies(PartID))%MassIC * (TransArray(5)) * Species(PartSpecies(PartID))%MacroParticleFactor
+SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
+    + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor 
+
+IF (useDSMC) THEN
+IF (CollisMode.GT.1) THEN
+IF (DSMC%WallModel.GT.0) THEN
+  SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
+                                    + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
+END IF
+IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+  !----  Sampling for internal (rotational) energy accommodation at walls
+  SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
+                                    + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
+                                    + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
+                                    + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+
+  !----  Sampling for internal (vibrational) energy accommodation at walls
+  SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
+                                    + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
+                                    + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
+                                    + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
+END IF
+END IF
+END IF
+
+IF (PRESENT(emission_opt)) THEN
+  IF (.NOT.emission_opt) THEN
     !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
       SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
@@ -349,229 +316,262 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
       END IF
     END IF
   END IF
+ELSE
+  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
+  IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+    SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+    IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
+      AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+      AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+      IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+        CALL abort(&
+        __STAMP__&
+        ,'maxSurfCollisNumber reached!')
+      END IF
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
+        = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+        = PartState(PartID,4)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+        = PartState(PartID,5)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+        = PartState(PartID,6)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+        = LastPartPos(PartID,1)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+        = LastPartPos(PartID,2)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+        = LastPartPos(PartID,3)
+      AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+        = PartSpecies(PartID)
+      AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
+        = locBCID
+    END IF
+  END IF
+END IF
 
 END SUBROUTINE CalcWallSample
 
 
 SUBROUTINE CalcSurfaceValues(during_dt_opt)
 !===================================================================================================================================
-! Calculates macroscopic surface values from samples
+!> Calculates macroscopic surface values from samples
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Timedisc_Vars,              ONLY:time,dt
-  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal,Adsorption,useDSMC
-  USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,CalcSurfCollis
-  USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
+USE MOD_Globals
+USE MOD_Timedisc_Vars              ,ONLY: time,dt
+USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal,Adsorption,useDSMC
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis
+USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #ifdef MPI
-  USE MOD_Particle_Boundary_Sampling, ONLY:ExchangeSurfData
-  USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
+USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
-  USE MOD_Particle_Vars,              ONLY:WriteMacroSurfaceValues, nSpecies, MacroValSampTime
-  USE MOD_TimeDisc_Vars,              ONLY:TEnd
-  USE MOD_Mesh_Vars,                  ONLY:MeshFile
-  USE MOD_Restart_Vars,               ONLY:RestartTime  
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime
+USE MOD_TimeDisc_Vars              ,ONLY: TEnd
+USE MOD_Mesh_Vars                  ,ONLY: MeshFile
+USE MOD_Restart_Vars               ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES            
-  LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during timestep (i.e. before iter=iter+1, time=time+dt...)
+LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during timestep (i.e. before iter=iter+1, time=time+dt...)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                            :: iSpec,iSurfSide,p,q, iReact
-  REAL                               :: TimeSample, ActualTime
-  INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
-  LOGICAL                            :: during_dt,calcWallModel
+INTEGER                            :: iSpec,iSurfSide,p,q, iReact
+REAL                               :: TimeSample, ActualTime
+INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
+LOGICAL                            :: during_dt,calcWallModel
 !===================================================================================================================================
 
-  IF (PRESENT(during_dt_opt)) THEN
-    during_dt=during_dt_opt
-  ELSE
-    during_dt=.FALSE.
-  END IF
-  IF (during_dt) THEN
-    ActualTime=time+dt
-  ELSE
-    ActualTime=time
-  END IF
+IF (PRESENT(during_dt_opt)) THEN
+  during_dt=during_dt_opt
+ELSE
+  during_dt=.FALSE.
+END IF
+IF (during_dt) THEN
+  ActualTime=time+dt
+ELSE
+  ActualTime=time
+END IF
 
-  IF (WriteMacroSurfaceValues) THEN
-    TimeSample = Time - MacroValSampTime !elapsed time since last sampling (variable dt's possible!)
-    MacroValSampTime = Time
-  ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-    TimeSample = Time - RestartTime
-  ELSE
-    TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
-  END IF
-  IF(ALMOSTZERO(TimeSample)) RETURN
+IF (WriteMacroSurfaceValues) THEN
+  TimeSample = Time - MacroValSampTime !elapsed time since last sampling (variable dt's possible!)
+  MacroValSampTime = Time
+ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+  TimeSample = Time - RestartTime
+ELSE
+  TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
+END IF
+IF(ALMOSTZERO(TimeSample)) RETURN
 
-  IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-    CALL WriteAnalyzeSurfCollisToHDF5(ActualTime,TimeSample)
-  END IF
+IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
+  CALL WriteAnalyzeSurfCollisToHDF5(ActualTime,TimeSample)
+END IF
 
-  IF(.NOT.SurfMesh%SurfOnProc) RETURN
+IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 #ifdef MPI
-  CALL ExchangeSurfData()  
+CALL ExchangeSurfData()
 #endif
 
-  calcWallModel=.FALSE.
-  IF(useDSMC)THEN
-    IF(DSMC%WallModel.GT.0) calcWallModel=.TRUE.
-  END IF
+calcWallModel=.FALSE.
+IF(useDSMC)THEN
+  IF(DSMC%WallModel.GT.0) calcWallModel=.TRUE.
+END IF
 
-  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  MacroSurfaceVal=0.
-  IF(calcWallModel) THEN
-    ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-    MacroSurfaceSpecVal=0.
-  ELSE
-    ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-    MacroSurfaceSpecVal=0.
-  END IF
-  IF (CalcSurfCollis%Output) THEN
-    ALLOCATE(CounterTotal(1:nSpecies))
-    ALLOCATE(SumCounterTotal(1:nSpecies+1))
-    CounterTotal(1:nSpecies)=0
-    SumCounterTotal(1:nSpecies+1)=0
-  END IF
- 
-  DO iSurfSide=1,SurfMesh%nSides
-    DO q=1,nSurfSample
-      DO p=1,nSurfSample 
-        MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        IF(calcWallModel) THEN
-          MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
-                                             +SampWall(iSurfSide)%State(4,p,q) &
-                                             +SampWall(iSurfSide)%State(7,p,q) &
-                                             -SampWall(iSurfSide)%State(3,p,q) & 
-                                             -SampWall(iSurfSide)%State(6,p,q) &
-                                             -SampWall(iSurfSide)%State(9,p,q) &
-                                             -SampWall(iSurfSide)%Adsorption(1,p,q))&
-                                             /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        ELSE
-          MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
-                                             +SampWall(iSurfSide)%State(4,p,q) &
-                                             +SampWall(iSurfSide)%State(7,p,q) &
-                                             -SampWall(iSurfSide)%State(3,p,q) & 
-                                             -SampWall(iSurfSide)%State(6,p,q) &
-                                             -SampWall(iSurfSide)%State(9,p,q)) &
-                                             /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        END IF
-        DO iSpec=1,nSpecies
-          IF (CalcSurfCollis%Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
-          IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
-            MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + SampWall(iSurfSide)%State(12+iSpec,p,q)/TimeSample
-          END IF
-          MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
-          IF(calcWallModel) THEN
-            IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
-              MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0.
-            ELSE
-              MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
-                                                        / SampWall(iSurfSide)%State(12+iSpec,p,q))
-            END IF
-            MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
-            DO iReact=1,Adsorption%RecombNum
-              IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
-                MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec)
-              ELSE
-                MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) &
-                    + SampWall(iSurfSide)%Reaction(iReact,iSpec,p,q) * 2. / SampWall(iSurfSide)%State(12+iSpec,p,q)
-              END IF
-            END DO
-          END IF
-        END DO ! iSpec=1,nSpecies
-      END DO ! q=1,nSurfSample
-    END DO ! p=1,nSurfSample 
-  END DO ! iSurfSide=1,SurfMesh%nSides
+ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+MacroSurfaceVal=0.
+IF(calcWallModel) THEN
+  ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+  MacroSurfaceSpecVal=0.
+ELSE
+  ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+  MacroSurfaceSpecVal=0.
+END IF
+IF (CalcSurfCollis%Output) THEN
+  ALLOCATE(CounterTotal(1:nSpecies))
+  ALLOCATE(SumCounterTotal(1:nSpecies+1))
+  CounterTotal(1:nSpecies)=0
+  SumCounterTotal(1:nSpecies+1)=0
+END IF
 
-  IF (CalcSurfCollis%Output) THEN
-#ifdef MPI
-    CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
-#else
-    SumCounterTotal(1:nSpecies)=CounterTotal
-#endif
-    DO iSpec=1,nSpecies
-      IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
-        SumCounterTotal(nSpecies+1) = SumCounterTotal(nSpecies+1) + SumCounterTotal(iSpec)
+DO iSurfSide=1,SurfMesh%nSides
+  DO q=1,nSurfSample
+    DO p=1,nSurfSample
+      MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      IF(calcWallModel) THEN
+        MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
+                                           +SampWall(iSurfSide)%State(4,p,q) &
+                                           +SampWall(iSurfSide)%State(7,p,q) &
+                                           -SampWall(iSurfSide)%State(3,p,q) &
+                                           -SampWall(iSurfSide)%State(6,p,q) &
+                                           -SampWall(iSurfSide)%State(9,p,q) &
+                                           -SampWall(iSurfSide)%Adsorption(1,p,q))&
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      ELSE
+        MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
+                                           +SampWall(iSurfSide)%State(4,p,q) &
+                                           +SampWall(iSurfSide)%State(7,p,q) &
+                                           -SampWall(iSurfSide)%State(3,p,q) &
+                                           -SampWall(iSurfSide)%State(6,p,q) &
+                                           -SampWall(iSurfSide)%State(9,p,q)) &
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       END IF
-    END DO
-    SWRITE(UNIT_stdOut,'(A)') ' The following species swaps at walls have been sampled:'
-    DO iSpec=1,nSpecies
-      SWRITE(*,'(A9,I2,A2,E16.9,A6)') ' Species ',iSpec,': ',REAL(SumCounterTotal(iSpec)) / TimeSample,' MP/s;'
-    END DO
-    SWRITE(*,'(A23,E16.9,A6)') ' All with SpeciesFlag: ',REAL(SumCounterTotal(nSpecies+1)) / TimeSample,' MP/s.'
-    DEALLOCATE(CounterTotal)
-    DEALLOCATE(SumCounterTotal)
-  END IF
+      DO iSpec=1,nSpecies
+        IF (CalcSurfCollis%Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
+        IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
+          MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + SampWall(iSurfSide)%State(12+iSpec,p,q)/TimeSample
+        END IF
+        MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
+        IF(calcWallModel) THEN
+          IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
+            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0.
+          ELSE
+            MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
+                                                      / SampWall(iSurfSide)%State(12+iSpec,p,q))
+          END IF
+          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
+          DO iReact=1,Adsorption%RecombNum
+            IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
+              MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec)
+            ELSE
+              MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) &
+                  + SampWall(iSurfSide)%Reaction(iReact,iSpec,p,q) * 2. / SampWall(iSurfSide)%State(12+iSpec,p,q)
+            END IF
+          END DO
+        END IF
+      END DO ! iSpec=1,nSpecies
+    END DO ! q=1,nSurfSample
+  END DO ! p=1,nSurfSample 
+END DO ! iSurfSide=1,SurfMesh%nSides
 
-  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
+IF (CalcSurfCollis%Output) THEN
+#ifdef MPI
+  CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
+#else
+  SumCounterTotal(1:nSpecies)=CounterTotal
+#endif
+  DO iSpec=1,nSpecies
+    IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
+      SumCounterTotal(nSpecies+1) = SumCounterTotal(nSpecies+1) + SumCounterTotal(iSpec)
+    END IF
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ' The following species swaps at walls have been sampled:'
+  DO iSpec=1,nSpecies
+    SWRITE(*,'(A9,I2,A2,E16.9,A6)') ' Species ',iSpec,': ',REAL(SumCounterTotal(iSpec)) / TimeSample,' MP/s;'
+  END DO
+  SWRITE(*,'(A23,E16.9,A6)') ' All with SpeciesFlag: ',REAL(SumCounterTotal(nSpecies+1)) / TimeSample,' MP/s.'
+  DEALLOCATE(CounterTotal)
+  DEALLOCATE(SumCounterTotal)
+END IF
 
-  DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)
+CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
+
+DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)
 
 END SUBROUTINE CalcSurfaceValues
 
 
 REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
 !===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,                ONLY : abort
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : DSMC
+USE MOD_Globals       ,ONLY: abort
+USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars     ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES            
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-  INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1 
-  REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search 
-  REAl(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
-  REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
+REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
+INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1 
+REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search 
+REAl(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
+REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
 !===================================================================================================================================
 
-  IF (MeanEVib.GT.0) THEN
-    !.... Initial limits for a: lower limit = very small value
-    !                           upper limit = max. value allowed by system
-    !     zero point = CharaTVib / TVib
-    LowerVal  = 1.0/(2.0*nMax)                                    ! Tvib is max for nMax => lower limit = 1.0/nMax
-    UpperVal  = LOG(HUGE(MiddleVal*nMax))/nMax-1.0/(2.0 * nMax)   ! upper limit = for max possible EXP(nMax*MiddleVal)-value
-    MaxPosiVal = LOG(HUGE(MaxPosiVal))  ! maximum value possible in system
-    DO WHILE (ABS(LowerVal-UpperVal).GT.eps_prec)                      !  Let's search the zero point by bisection
-      MiddleVal = 0.5*(LowerVal+UpperVal)
+IF (MeanEVib.GT.0) THEN
+  !.... Initial limits for a: lower limit = very small value
+  !                           upper limit = max. value allowed by system
+  !     zero point = CharaTVib / TVib
+  LowerVal  = 1.0/(2.0*nMax)                                    ! Tvib is max for nMax => lower limit = 1.0/nMax
+  UpperVal  = LOG(HUGE(MiddleVal*nMax))/nMax-1.0/(2.0 * nMax)   ! upper limit = for max possible EXP(nMax*MiddleVal)-value
+  MaxPosiVal = LOG(HUGE(MaxPosiVal))  ! maximum value possible in system
+  DO WHILE (ABS(LowerVal-UpperVal).GT.eps_prec)                      !  Let's search the zero point by bisection
+    MiddleVal = 0.5*(LowerVal+UpperVal)
 
-      IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
-         CALL Abort(&
+    IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
+       CALL Abort(&
 __STAMP__&
 ,'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
-      END IF
-      
-      ! Calc of actual function values
-      ZeroVal1 = DSMC%GammaQuant + 1/(EXP(LowerVal)-1) - nMax/(EXP(nMax*LowerVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-      ZeroVal2 = DSMC%GammaQuant + 1/(EXP(MiddleVal)-1) - nMax/(EXP(nMax*MiddleVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-      ! decision of direction of bisection
-      IF (ZeroVal1*ZeroVal2.LT.0) THEN
-        UpperVal = MiddleVal
-      ELSE
-        LowerVal = MiddleVal
-      END IF
-    END DO
-    CalcTVib = ChaTVib/LowerVal ! LowerVal = CharaTVib / TVib
-  ELSE
-    CalcTVib = 0
-  END IF  
+    END IF
 
-  RETURN
+    ! Calc of actual function values
+    ZeroVal1 = DSMC%GammaQuant + 1/(EXP(LowerVal)-1) - nMax/(EXP(nMax*LowerVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
+    ZeroVal2 = DSMC%GammaQuant + 1/(EXP(MiddleVal)-1) - nMax/(EXP(nMax*MiddleVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
+    ! decision of direction of bisection
+    IF (ZeroVal1*ZeroVal2.LT.0) THEN
+      UpperVal = MiddleVal
+    ELSE
+      LowerVal = MiddleVal
+    END IF
+  END DO
+  CalcTVib = ChaTVib/LowerVal ! LowerVal = CharaTVib / TVib
+ELSE
+  CalcTVib = 0
+END IF
+
+RETURN
 
 END FUNCTION CalcTVib
 
@@ -579,194 +579,194 @@ END FUNCTION CalcTVib
 
 REAL FUNCTION CalcTelec(MeanEelec, iSpec)
 !===================================================================================================================================
-! Calculation of the electronic temperature (zero-point search)
+!> Calculation of the electronic temperature (zero-point search)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: MeanEelec  ! Charak TVib, mean vibrational Energy of all molecules
-  INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+REAL, INTENT(IN)                :: MeanEelec  ! Charak TVib, mean vibrational Energy of all molecules
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                         :: ii
-  REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-  REAL(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
-  REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
+INTEGER                         :: ii
+REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
+REAL(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
+REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
 !===================================================================================================================================
 
-  ! lower limit: very small value or lowest temperature if ionized
-  ! upper limit: highest possible temperature
-  IF ( MeanEelec .GT. 0 ) THEN
-    IF ( SpecDSMC(iSpec)%ElectronicState(2,0) .EQ. 0 ) THEN
-      LowerTemp = 1.0
-    ELSE
-      LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
-    END IF
-    UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-    DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
-      MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-      SumOne = 0.0
-      SumTwo = 0.0
-      DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * &
-                  exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
-        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * &
-                  exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
-      END DO
-      IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
-        UpperTemp = MiddleTemp
-      ELSE
-        LowerTemp = MiddleTemp
-      END IF
-    END DO
-    CalcTelec = UpperTemp ! or 0.5*( Tmax + Tmin)
+! lower limit: very small value or lowest temperature if ionized
+! upper limit: highest possible temperature
+IF ( MeanEelec .GT. 0 ) THEN
+  IF ( SpecDSMC(iSpec)%ElectronicState(2,0) .EQ. 0 ) THEN
+    LowerTemp = 1.0
   ELSE
-    CalcTelec = 0. ! sup
+    LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
   END IF
+  UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
+  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
+    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
+    SumOne = 0.0
+    SumTwo = 0.0
+    DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+      SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * &
+                exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
+      SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * &
+                exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
+    END DO
+    IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
+      UpperTemp = MiddleTemp
+    ELSE
+      LowerTemp = MiddleTemp
+    END IF
+  END DO
+  CalcTelec = UpperTemp ! or 0.5*( Tmax + Tmin)
+ELSE
+  CalcTelec = 0. ! sup
+END IF
 
-  RETURN
+RETURN
 
 END FUNCTION CalcTelec
 
 
 REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
 !===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
+!> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC
+USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-  INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+REAL, INTENT(IN)                :: MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                         :: iDOF,iPolyatMole
-  REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-  REAl(KIND=8)                    :: eps_prec=1.0E-5,JToEv   ! precision of zero point search
-  REAL(KIND=8)                    :: SumOne    ! both summs
+INTEGER                         :: iDOF,iPolyatMole
+REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
+REAl(KIND=8)                    :: eps_prec=1.0E-5,JToEv   ! precision of zero point search
+REAL(KIND=8)                    :: SumOne    ! both summs
 !===================================================================================================================================
 
-  ! lower limit: very small value or lowest temperature if ionized
-  ! upper limit: highest possible temperature
-  JToEv = 1.602176565E-19  
-  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-    LowerTemp = 1.0
-    UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
-    DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
-      MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-      SumOne = 0.0
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        SumOne = SumOne + 0.5*BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-              + BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-              / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/MiddleTemp) -1.0)
-      END DO
-      IF ( SumOne .GT. MeanEVib) THEN
-        UpperTemp = MiddleTemp
-      ELSE
-        LowerTemp = MiddleTemp
-      END IF
+! lower limit: very small value or lowest temperature if ionized
+! upper limit: highest possible temperature
+JToEv = 1.602176565E-19
+iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+  LowerTemp = 1.0
+  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
+  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
+    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
+    SumOne = 0.0
+    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+      SumOne = SumOne + 0.5*BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
+            + BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
+            / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/MiddleTemp) -1.0)
     END DO
-    CalcTVibPoly = UpperTemp ! or 0.5*( Tmax + Tmin)
-  ELSE
-    CalcTVibPoly = 0. ! sup
-  END IF
-  RETURN
+    IF ( SumOne .GT. MeanEVib) THEN
+      UpperTemp = MiddleTemp
+    ELSE
+      LowerTemp = MiddleTemp
+    END IF
+  END DO
+  CalcTVibPoly = UpperTemp ! or 0.5*( Tmax + Tmin)
+ELSE
+  CalcTVibPoly = 0. ! sup
+END IF
+RETURN
 
 END FUNCTION CalcTVibPoly
 
 
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 !===================================================================================================================================
-! Calculation of the mean free path for the hard sphere and variable hard sphere (if omega and temperature are given)
+!> Calculation of the mean free path for the hard sphere and variable hard sphere (if omega and temperature are given)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY : Pi
-  USE MOD_Particle_Vars,          ONLY : Species, nSpecies
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: Pi
+USE MOD_Particle_Vars ,ONLY: Species, nSpecies
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
-  REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
+REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
+REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                         :: iSpec, jSpec
-  REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
+INTEGER                         :: iSpec, jSpec
+REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
 !===================================================================================================================================
-  DrefMixture = 0.0
-  CalcMeanFreePath = 0.0
+DrefMixture = 0.0
+CalcMeanFreePath = 0.0
 
-  ! Calculation of mixture reference diameter
+! Calculation of mixture reference diameter
 
-  DO iSpec = 1, nSpecies
-    DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
-  END DO
-  ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
-  ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
-  IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
-    omega = opt_omega
-    Temp = opt_temp
-      DO iSpec = 1, nSpecies
-        MFP_Tmp = 0.0
-        IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-          DO jSpec = 1, nSpecies
-            IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-              MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                    * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                    * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-            END IF
-          END DO
-          CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
-        END IF
-      END DO
-  ELSE
+DO iSpec = 1, nSpecies
+  DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
+END DO
+! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
+! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
+IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
+  omega = opt_omega
+  Temp = opt_temp
     DO iSpec = 1, nSpecies
       MFP_Tmp = 0.0
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
             MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
                                   * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO
         CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
       END IF
     END DO
-  END IF
-  RETURN
+ELSE
+  DO iSpec = 1, nSpecies
+    MFP_Tmp = 0.0
+    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+      DO jSpec = 1, nSpecies
+        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+        END IF
+      END DO
+      CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+    END IF
+  END DO
+END IF
+RETURN
 
 END FUNCTION CalcMeanFreePath
 
 
 SUBROUTINE CalcGammaVib()
 !===================================================================================================================================
-! calculate Gamma_vib factor necessary for correction of vibrational relaxation according to Gimelshein et al.
-! -> 'Vibrational Relaxation Rates in the DSMC Method', Physics of Fluids V14 No12, 2002
+!> calculate Gamma_vib factor necessary for correction of vibrational relaxation according to Gimelshein et al.
+!> -> 'Vibrational Relaxation Rates in the DSMC Method', Physics of Fluids V14 No12, 2002
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,      ONLY : nSpecies
-USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC, DSMC
+USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -778,134 +778,133 @@ IMPLICIT NONE
 INTEGER               :: iSpec, iDOF, iPolyatMole
 !===================================================================================================================================
 
-  ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
-  DO iSpec = 1, nSpecies
-    IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        IF (DSMC%PolySingleMode) THEN
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) =                                                        &
-                (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)              &
-                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-          END DO
-        ELSE
-          SpecDSMC(iSpec)%GammaVib = 0.0
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib &
-                + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)            &
-                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-          END DO
-        END IF
+! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
+DO iSpec = 1, nSpecies
+  IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      IF (DSMC%PolySingleMode) THEN
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) =                                                        &
+              (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)              &
+              *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+              * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
+        END DO
       ELSE
-        SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
-                                    *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                                    * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
+        SpecDSMC(iSpec)%GammaVib = 0.0
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib &
+              + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)            &
+              *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+              * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
+        END DO
       END IF
+    ELSE
+      SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
+                                  *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+                                  * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
     END IF
-  END DO
+  END IF
+END DO
 
 END SUBROUTINE CalcGammaVib
 
 
 SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
 !===================================================================================================================================
-! Calculation of the instantaneous translational temperature for the cell
+!> Calculation of the instantaneous translational temperature for the cell
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Preproc
-  USE MOD_DSMC_Vars,          ONLY : DSMC, CollInf
-  USE MOD_Particle_Vars,      ONLY : PartState, PartSpecies, Species, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf
+USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies, BoltzmannConst, PartMPF, usevMPF
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                  :: PartNum
-  INTEGER, INTENT(IN)                  :: iPartIndx(:)
+INTEGER, INTENT(IN)   :: PartNum
+INTEGER, INTENT(IN)   :: iPartIndx(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER               :: iSpec, iPart
-  REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3)
-  REAL                  :: MeanPartV_2(nSpecies,3), Mean_PartV2(nSpecies,3), TempDirec(nSpecies,3)
+INTEGER               :: iSpec, iPart
+REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3)
+REAL                  :: MeanPartV_2(nSpecies,3), Mean_PartV2(nSpecies,3), TempDirec(nSpecies,3)
 !===================================================================================================================================
 
-  ! Sum up velocity
-  PartV = 0
-  PartV2 = 0
-  DO iPart=1,PartNum
-    IF (usevMPF) THEN 
-      PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
-                                                      + PartState(iPartIndx(iPart),4:6) * PartMPF(iPartIndx(iPart))
-      PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
-                                                      + PartState(iPartIndx(iPart),4:6)**2 * PartMPF(iPartIndx(iPart)) 
-    ELSE
-      PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
-                                                      + PartState(iPartIndx(iPart),4:6)
-      PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
-                                                      + PartState(iPartIndx(iPart),4:6)**2
-    END IF
-  END DO
-  DO iSpec=1, nSpecies
-    IF(CollInf%Coll_SpecPartNum(iSpec).NE.0) THEN
-      ! Compute velocity averages
-      MeanPartV_2(iSpec,1:3)  = (PartV(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec))**2       ! < |v| >**2
-      Mean_PartV2(iSpec,1:3)  = PartV2(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec)           ! < |v|**2 >
-    ELSE
-      MeanPartV_2(iSpec,1:3) = 0.
-      Mean_PartV2(iSpec,1:3) = 0.
-    END IF
-    ! Compute temperatures
-    TempDirec(iSpec,1:3) = Species(iSpec)%MassIC * (Mean_PartV2(iSpec,1:3) - MeanPartV_2(iSpec,1:3)) &
-                          / BoltzmannConst ! Temp calculation is limitedt to one species
-    DSMC%InstantTransTemp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3)) / 3.
-    DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
-                                          + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
-  END DO
-  DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
+! Sum up velocity
+PartV = 0
+PartV2 = 0
+DO iPart=1,PartNum
+  IF (usevMPF) THEN
+    PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
+                                                    + PartState(iPartIndx(iPart),4:6) * PartMPF(iPartIndx(iPart))
+    PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
+                                                    + PartState(iPartIndx(iPart),4:6)**2 * PartMPF(iPartIndx(iPart))
+  ELSE
+    PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
+                                                    + PartState(iPartIndx(iPart),4:6)
+    PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
+                                                    + PartState(iPartIndx(iPart),4:6)**2
+  END IF
+END DO
+DO iSpec=1, nSpecies
+  IF(CollInf%Coll_SpecPartNum(iSpec).NE.0) THEN
+    ! Compute velocity averages
+    MeanPartV_2(iSpec,1:3)  = (PartV(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec))**2       ! < |v| >**2
+    Mean_PartV2(iSpec,1:3)  = PartV2(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec)           ! < |v|**2 >
+  ELSE
+    MeanPartV_2(iSpec,1:3) = 0.
+    Mean_PartV2(iSpec,1:3) = 0.
+  END IF
+  ! Compute temperatures
+  TempDirec(iSpec,1:3) = Species(iSpec)%MassIC * (Mean_PartV2(iSpec,1:3) - MeanPartV_2(iSpec,1:3)) &
+                        / BoltzmannConst ! Temp calculation is limitedt to one species
+  DSMC%InstantTransTemp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3)) / 3.
+  DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
+                                        + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
+END DO
+DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
 
 END SUBROUTINE CalcInstantTransTemp
 
 SUBROUTINE InitHODSMC()
 !===================================================================================================================================
-! Calculates macroscopic surface values from samples
-! Call position: after FIBGM
+!> Calculates macroscopic surface values from samples
+!> Call position: after FIBGM
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars,          ONLY:nElems, Elem_xGP, sJ, nBCSides, SideToElem
-USE MOD_DSMC_Vars,          ONLY:DSMCSampVolWe, HODSMC,DSMCSampNearInt, DSMCSampCellVolW
+USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP, sJ, nBCSides, SideToElem
+USE MOD_DSMC_Vars          ,ONLY: DSMCSampVolWe, HODSMC,DSMCSampNearInt, DSMCSampCellVolW
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Particle_Mesh_Vars, ONLY:GEO
-USE MOD_PreProc,            ONLY:PP_N
-USE MOD_ChangeBasis,        ONLY:ChangeBasis3D
-USE MOD_Basis,              ONLY:LegendreGaussNodesAndWeights, LegGaussLobNodesAndWeights
-USE MOD_Basis,              ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Interpolation_Vars, ONLY:xGP, wBary
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights, LegGaussLobNodesAndWeights
+USE MOD_Basis              ,ONLY: BarycentricWeights,InitializeVandermonde
+USE MOD_Interpolation_Vars ,ONLY: xGP, wBary
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES            
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL          :: xmin, ymin, zmin, xmax, ymax, zmax
-  INTEGER       :: iElem, i, ALLOCSTAT, j, k, m, l, iSide, jj,kk,mm
-  REAL,ALLOCATABLE                        :: Vdm_ElemxgpN_DSMCNOut(:,:)
-  REAL,ALLOCATABLE                        :: xGP_tmp(:)
-  REAL, ALLOCATABLE                       :: DetJacGauss_N(:,:,:,:), DetLocal(:,:,:,:)!, Volumes(:,:,:)
-  LOGICAL, ALLOCATABLE                    :: VolumeDone(:,:,:)
+REAL          :: xmin, ymin, zmin, xmax, ymax, zmax
+INTEGER       :: iElem, i, ALLOCSTAT, j, k, m, l, iSide, jj,kk,mm
+REAL,ALLOCATABLE                        :: Vdm_ElemxgpN_DSMCNOut(:,:)
+REAL,ALLOCATABLE                        :: xGP_tmp(:)
+REAL, ALLOCATABLE                       :: DetJacGauss_N(:,:,:,:), DetLocal(:,:,:,:)!, Volumes(:,:,:)
+LOGICAL, ALLOCATABLE                    :: VolumeDone(:,:,:)
 #ifndef MPI
-  INTEGER       :: k2,m2,l2
+INTEGER       :: k2,m2,l2
 #endif /*NOT MPI*/
 !===================================================================================================================================
- 
+
 SWRITE(UNIT_stdOut,'(A)') ' INIT High Order DSMC Sampling...'
 
 ALLOCATE( Vdm_ElemxgpN_DSMCNOut(0:HODSMC%nOutputDSMC,0:PP_N) &
@@ -916,7 +915,7 @@ HODSMC%NodeType = GETSTR('DSMC-HOSampling-NodeType','visu')
 SELECT CASE(TRIM(HODSMC%NodeType))
 CASE('visu')
   DO i=0,HODSMC%nOutputDSMC
-    xGP_tmp(i) = 2./REAL(HODSMC%nOutputDSMC) * REAL(i) - 1. 
+    xGP_tmp(i) = 2./REAL(HODSMC%nOutputDSMC) * REAL(i) - 1.
     HODSMC%DSMC_wGP(i) = 2./REAL(HODSMC%nOutputDSMC)
   END DO
   HODSMC%DSMC_wGP(0) = HODSMC%DSMC_wGP(0) * 0.5
@@ -952,16 +951,16 @@ __STAMP__&
 
   DSMCSampVolWe%OrderVolInt = GETINT('DSMCSampVolWe-VolIntOrd','50')
   ALLOCATE(DSMCSampVolWe%x_VolInt(0:DSMCSampVolWe%OrderVolInt),DSMCSampVolWe%w_VolInt(0:DSMCSampVolWe%OrderVolInt))
-  CALL LegendreGaussNodesAndWeights(DSMCSampVolWe%OrderVolInt,DSMCSampVolWe%x_VolInt,DSMCSampVolWe%w_VolInt)  
+  CALL LegendreGaussNodesAndWeights(DSMCSampVolWe%OrderVolInt,DSMCSampVolWe%x_VolInt,DSMCSampVolWe%w_VolInt)
 
   ! reuse local min max coordinates of local mesh
   ! has to be called after InitFIBGM
-  xmin = GEO%xmin 
-  ymin = GEO%ymin 
-  zmin = GEO%zmin 
-  xmax = GEO%xmax 
-  ymax = GEO%ymax 
-  zmax = GEO%zmax 
+  xmin = GEO%xmin
+  ymin = GEO%ymin
+  zmin = GEO%zmin
+  xmax = GEO%xmax
+  ymax = GEO%ymax
+  zmax = GEO%zmax
 
   ! define minimum and maximum backgroundmesh index, compute volume
   DSMCSampVolWe%BGMVolume = DSMCSampVolWe%BGMdeltas(1)*DSMCSampVolWe%BGMdeltas(2)*DSMCSampVolWe%BGMdeltas(3)
@@ -977,7 +976,7 @@ __STAMP__&
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
 __STAMP__&
-,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
+,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!')
   END IF
   ALLOCATE(DSMCSampVolWe%GaussBGMFactor(1:3,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
@@ -1026,7 +1025,7 @@ __STAMP__&
   END DO
 
   ALLOCATE(DSMCSampVolWe%BGMVolumes(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY:DSMCSampVolWe%BGMmaxY, &
-          DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ))  
+          DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ))
   ALLOCATE(VolumeDone(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY:DSMCSampVolWe%BGMmaxY, &
           DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ))
   ALLOCATE(DSMCSampVolWe%BGMVolumes2(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY:DSMCSampVolWe%BGMmaxY, &
@@ -1041,9 +1040,9 @@ __STAMP__&
         IF (DSMCSampVolWe%isBoundBGCell(j,k,m)) THEN
           CALL VolumeBoundBGMCInt(j, k, m, DSMCSampVolWe%BGMVolumes(j,k,m))
         END IF
-      END DO      
+      END DO
     END DO
-  END DO  
+  END DO
 
 #ifdef MPI
   CALL MPIBackgroundMeshInitDSMCHO()
@@ -1101,7 +1100,7 @@ __STAMP__&
 #endif
   DEALLOCATE(HODSMC%DSMC_xGP,HODSMC%DSMC_wGP)
 CASE('nearest_gausspoint')
-  
+
   ALLOCATE(HODSMC%sJ(0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems))
   ALLOCATE( DetJacGauss_N(1,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC) &
           , DetLocal(1,0:PP_N,0:PP_N,0:PP_N))
@@ -1124,9 +1123,9 @@ __STAMP__&
   DO i = 1,HODSMC%nOutputDSMC
     DSMCSampNearInt%GaussBorder(i) = (xGP_tmp(i) + xGP_tmp(i-1))/2
   END DO
-CASE('cell_mean')    
+CASE('cell_mean')
   DEALLOCATE(HODSMC%DSMC_wGP)
-CASE('cell_volweight')    
+CASE('cell_volweight')
   ALLOCATE(DSMCSampCellVolW%xGP(0:HODSMC%nOutputDSMC))
   DSMCSampCellVolW%xGP(0:HODSMC%nOutputDSMC) = xGP_tmp(0:HODSMC%nOutputDSMC)
   DSMCSampCellVolW%xGP(0:HODSMC%nOutputDSMC) = (DSMCSampCellVolW%xGP(0:HODSMC%nOutputDSMC)+1.0)/2.0
@@ -1141,30 +1140,30 @@ END SUBROUTINE InitHODSMC
 
 SUBROUTINE DSMCHO_data_sampling()
 !===================================================================================================================================
-! Sampling of variables velocity and energy for DSMC
+!> Sampling of variables velocity and energy for DSMC
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMCSampVolWe, DSMC, CollisMode, SpecDSMC, HODSMC, DSMC_HOSolution
-  USE MOD_DSMC_Vars,              ONLY:DSMCSampNearInt, DSMCSampCellVolW, useDSMC
-  USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef
-  USE MOD_Mesh_Vars,              ONLY:nElems
-  USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-  USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
-  USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-  !USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
-  USE MOD_Globals
+USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMCSampVolWe, DSMC, CollisMode, SpecDSMC, HODSMC, DSMC_HOSolution
+USE MOD_DSMC_Vars              ,ONLY: DSMCSampNearInt, DSMCSampCellVolW, useDSMC
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_Eval_xyz               ,ONLY: eval_xyz_elemcheck
+!USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart, iElem, iLoopx, iLoopy, iLoopz, k, l, m, i, kk, ll, mm, iSpec, a, b, ii
-  REAL, ALLOCATABLE             :: BGMSource(:,:,:,:,:), alphaSum(:,:,:,:),BGMSourceCellVol(:,:,:,:,:,:)
-  REAL, ALLOCATABLE             :: alphaSumCellVol(:,:,:,:,:), Source(:,:,:,:,:,:)
-  REAL                          :: alpha1, alpha2, alpha3, TSource(1:11)
+INTEGER                       :: iPart, iElem, iLoopx, iLoopy, iLoopz, k, l, m, i, kk, ll, mm, iSpec, a, b, ii
+REAL, ALLOCATABLE             :: BGMSource(:,:,:,:,:), alphaSum(:,:,:,:),BGMSourceCellVol(:,:,:,:,:,:)
+REAL, ALLOCATABLE             :: alphaSumCellVol(:,:,:,:,:), Source(:,:,:,:,:,:)
+REAL                          :: alpha1, alpha2, alpha3, TSource(1:11)
 !===================================================================================================================================
 DSMC%SampNum = DSMC%SampNum + 1
 SELECT CASE(TRIM(HODSMC%SampleType))
@@ -1172,7 +1171,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
   ! Step 1: Deposition of all particles onto background mesh -> densities
   ALLOCATE(BGMSource(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY:DSMCSampVolWe%BGMmaxY, &
           DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ,1:11, 1:nSpecies), &
-          alphaSum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY:DSMCSampVolWe%BGMmaxY, & 
+          alphaSum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY:DSMCSampVolWe%BGMmaxY, &
           DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ, 1:nSpecies))
 
   BGMSource(:,:,:,:,:) = 0.0
@@ -1208,7 +1207,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       ELSE
         TSource(8:10)=0.
       END IF
-      TSource(11) = 1.0 
+      TSource(11) = 1.0
 
       BGMSource(k,l,m,1:11,iSpec)       = BGMSource(k,l,m,1:11,iSpec) + (TSource(1:11) * (1-alpha1)*(1-alpha2)*(1-alpha3))
       BGMSource(k,l,m+1,1:11,iSpec)     = BGMSource(k,l,m+1,1:11,iSpec) + (TSource(1:11) * (1-alpha1)*(1-alpha2)*(alpha3))
@@ -1240,7 +1239,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
     DO iLoopx = DSMCSampVolWe%BGMminX, DSMCSampVolWe%BGMmaxX
       DO iLoopy = DSMCSampVolWe%BGMminY, DSMCSampVolWe%BGMmaxY
         DO iLoopz = DSMCSampVolWe%BGMminZ, DSMCSampVolWe%BGMmaxZ
-          IF (alphaSum(iLoopx, iLoopy, iLoopz,iSpec).GT.0.0) THEN        
+          IF (alphaSum(iLoopx, iLoopy, iLoopz,iSpec).GT.0.0) THEN
             BGMSource(iLoopx,iLoopy,iLoopz,1:6,iSpec) = BGMSource(iLoopx,iLoopy,iLoopz,1:6,iSpec) &
                     / alphaSum(iLoopx,iLoopy,iLoopz,iSpec)
             BGMSource(iLoopx,iLoopy,iLoopz,8:10,iSpec) = BGMSource(iLoopx,iLoopy,iLoopz,8:10,iSpec) &
@@ -1251,7 +1250,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
           END IF
           IF (DSMCSampVolWe%BGMVolumes(iLoopx,iLoopy,iLoopz).GT.0.0) THEN
               BGMSource(iLoopx,iLoopy,iLoopz,7,iSpec) = BGMSource(iLoopx,iLoopy,iLoopz,7,iSpec) &
-                / DSMCSampVolWe%BGMVolumes(iLoopx,iLoopy,iLoopz)* Species(iSpec)%MacroParticleFactor   
+                / DSMCSampVolWe%BGMVolumes(iLoopx,iLoopy,iLoopz)* Species(iSpec)%MacroParticleFactor
           ELSE
               BGMSource(iLoopx,iLoopy,iLoopz,7,iSpec) = 0.0
           END IF
@@ -1271,8 +1270,8 @@ SELECT CASE(TRIM(HODSMC%SampleType))
            m = DSMCSampVolWe%GaussBGMIndex(3,kk,ll,mm,iElem)
            alpha1 = DSMCSampVolWe%GaussBGMFactor(1,kk,ll,mm,iElem)
            alpha2 = DSMCSampVolWe%GaussBGMFactor(2,kk,ll,mm,iElem)
-           alpha3 = DSMCSampVolWe%GaussBGMFactor(3,kk,ll,mm,iElem)     
-           DSMC_HOSolution(:,kk,ll,mm,iElem,iSpec) = (DSMC_HOSolution(:,kk,ll,mm,iElem, iSpec) * (REAL(DSMC%SampNum) - 1.0) & 
+           alpha3 = DSMCSampVolWe%GaussBGMFactor(3,kk,ll,mm,iElem)
+           DSMC_HOSolution(:,kk,ll,mm,iElem,iSpec) = (DSMC_HOSolution(:,kk,ll,mm,iElem, iSpec) * (REAL(DSMC%SampNum) - 1.0) &
              +  (BGMSource(k,l,m,:,iSpec) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
                 BGMSource(k,l,m+1,:,iSpec) * (1-alpha1) * (1-alpha2) * (alpha3) + &
                 BGMSource(k,l+1,m,:,iSpec) * (1-alpha1) * (alpha2) * (1-alpha3) + &
@@ -1349,7 +1348,7 @@ CASE('nearest_gausspoint')
           Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
         END IF
       END IF
-      Source(11,k,l,m,iElem, iSpec) = Source(11,k,l,m,iElem, iSpec) + 1.0 
+      Source(11,k,l,m,iElem, iSpec) = Source(11,k,l,m,iElem, iSpec) + 1.0
     END IF
   END DO
   DSMC_HOSolution(:,:,:,:,:,:) = (DSMC_HOSolution(:,:,:,:,:,:) * (REAL(DSMC%SampNum) - 1.0) &
@@ -1376,14 +1375,14 @@ CASE('cell_mean')
       !DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) + 1.0 
     END IF
   END DO
-CASE('cell_volweight') 
+CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:11, 1:nSpecies), &
           alphaSumCellVol(0:1,0:1,0:1,1:nElems, 1:nSpecies))
   BGMSourceCellVol(:,:,:,:,:,:) = 0.0
   alphaSumCellVol(:,:,:,:,:) = 0.0
 
   DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN  
+  IF (PDM%ParticleInside(iPart)) THEN
     iElem = PEM%Element(iPart)
     iSpec = PartSpecies(iPart)
     IF(.NOT.DoRefMapping)THEN
@@ -1412,7 +1411,7 @@ CASE('cell_volweight')
     ELSE
       TSource(8:10)=0.
     END IF
-    TSource(11) = 1.0 
+    TSource(11) = 1.0
     alpha1=(PartPosRef(1,iPart)+1.0)/2.0
     alpha2=(PartPosRef(2,iPart)+1.0)/2.0
     alpha3=(PartPosRef(3,iPart)+1.0)/2.0
@@ -1440,16 +1439,16 @@ CASE('cell_volweight')
     alphaSumCellVol(1,0,0,iElem,iSpec) = alphaSumCellVol(1,0,0,iElem,iSpec) + (alpha1)*(1-alpha2)*(1-alpha3)
     alphaSumCellVol(1,0,1,iElem,iSpec) = alphaSumCellVol(1,0,1,iElem,iSpec) + (alpha1)*(1-alpha2)*(alpha3)
     alphaSumCellVol(1,1,0,iElem,iSpec) = alphaSumCellVol(1,1,0,iElem,iSpec) + (alpha1)*(alpha2)*(1-alpha3)
-    alphaSumCellVol(1,1,1,iElem,iSpec) = alphaSumCellVol(1,1,1,iElem,iSpec) + (alpha1)*(alpha2)*(alpha3)   
+    alphaSumCellVol(1,1,1,iElem,iSpec) = alphaSumCellVol(1,1,1,iElem,iSpec) + (alpha1)*(alpha2)*(alpha3)
   END IF
   END DO
-  
+
   DO iSpec = 1, nSpecies
     DO iElem=1, nElems
       DO iLoopx = 0,1
         DO iLoopy = 0,1
           DO iLoopz = 0,1
-            IF (alphaSumCellVol(iLoopx, iLoopy, iLoopz,iElem,iSpec).GT.0.0) THEN        
+            IF (alphaSumCellVol(iLoopx, iLoopy, iLoopz,iElem,iSpec).GT.0.0) THEN
               BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,1:6,iSpec) = BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,1:6,iSpec) &
                       / alphaSumCellVol(iLoopx,iLoopy,iLoopz,iElem,iSpec)
               BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,8:10,iSpec) = BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,8:10,iSpec) &
@@ -1459,7 +1458,7 @@ CASE('cell_volweight')
               BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,8:10,iSpec) = 0.0
             END IF
             BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,7,iSpec) = BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,7,iSpec) &
-                / GEO%Volume(iElem) * Species(iSpec)%MacroParticleFactor   
+                / GEO%Volume(iElem) * Species(iSpec)%MacroParticleFactor
           END DO
         END DO
       END DO
@@ -1474,7 +1473,7 @@ CASE('cell_volweight')
            alpha1 = DSMCSampCellVolW%xGP(kk)
            alpha2 = DSMCSampCellVolW%xGP(ll)
            alpha3 = DSMCSampCellVolW%xGP(mm)
-           DSMC_HOSolution(:,kk,ll,mm,iElem,iSpec) = (DSMC_HOSolution(:,kk,ll,mm,iElem, iSpec) * (REAL(DSMC%SampNum) - 1.0) & 
+           DSMC_HOSolution(:,kk,ll,mm,iElem,iSpec) = (DSMC_HOSolution(:,kk,ll,mm,iElem, iSpec) * (REAL(DSMC%SampNum) - 1.0) &
              +  (BGMSourceCellVol(0,0,0,iElem,:,iSpec) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
                 BGMSourceCellVol(0,0,1,iElem,:,iSpec) * (1-alpha1) * (1-alpha2) * (alpha3) + &
                 BGMSourceCellVol(0,1,0,iElem,:,iSpec) * (1-alpha1) * (alpha2) * (1-alpha3) + &
@@ -1499,17 +1498,17 @@ END SUBROUTINE DSMCHO_data_sampling
 
 SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !===================================================================================================================================
-! Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
+!> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,            ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC,useDSMC,iter_macvalout
+USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC,useDSMC,iter_macvalout
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,            ONLY: nElems
-USE MOD_Particle_Vars,        ONLY: Species, BoltzmannConst, nSpecies, WriteMacroVolumeValues
-USE MOD_Particle_Mesh_Vars,   ONLY: GEO
-USE MOD_TimeDisc_Vars,        ONLY: time,TEnd,iter,dt
-USE MOD_Restart_Vars,         ONLY: RestartTime
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Particle_Vars      ,ONLY: Species, BoltzmannConst, nSpecies, WriteMacroVolumeValues
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
+USE MOD_Restart_Vars       ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1676,9 +1675,9 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
             / DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem)
         IF(useDSMC)THEN
           IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(MolecpartNum.GT.0))THEN
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) & 
+                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
                       / MolecPartNum
-                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) & 
+                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
                       / MolecPartNum
           END IF
           IF ( DSMC%ElectronicModel .AND.(HeavyPartNum.GT. 0)) THEN
@@ -1951,18 +1950,18 @@ END SUBROUTINE DSMCHO_output_calc
 
 SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 !===================================================================================================================================
-! Subroutine to write the solution U to HDF5 format
-! Is used for postprocessing and for restart
+!> Subroutine to write the solution U to HDF5 format
+!> Is used for postprocessing and for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,            ONLY: HODSMC, SpecDSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: HODSMC, SpecDSMC, DSMC
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,         ONLY: ProjectName
-USE MOD_Mesh_Vars,            ONLY: offsetElem,nGlobalElems, nElems
+USE MOD_Globals_Vars  ,ONLY: ProjectName
+USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
-USE MOD_HDF5_output,          ONLY: WriteArrayToHDF5
-USE MOD_Particle_Vars,        ONLY: nSpecies
+USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
+USE MOD_Particle_Vars ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2006,7 +2005,7 @@ DO iSpec=1,nSpecies
   StrVarNames(nVarCount+4) ='Spec'//TRIM(SpecID)//'_TempX'
   StrVarNames(nVarCount+5) ='Spec'//TRIM(SpecID)//'_TempY'
   StrVarNames(nVarCount+6) ='Spec'//TRIM(SpecID)//'_TempZ'
-  StrVarNames(nVarCount+7) ='Spec'//TRIM(SpecID)//'_Density'       
+  StrVarNames(nVarCount+7) ='Spec'//TRIM(SpecID)//'_Density'
   StrVarNames(nVarCount+8) ='Spec'//TRIM(SpecID)//'_TVib'
   StrVarNames(nVarCount+9) ='Spec'//TRIM(SpecID)//'_TRot'
   StrVarNames(nVarCount+10)='Spec'//TRIM(SpecID)//'_TElec'
@@ -2021,7 +2020,7 @@ StrVarNames(nVarCount+3) ='Total_VeloZ'
 StrVarNames(nVarCount+4) ='Total_TempX'
 StrVarNames(nVarCount+5) ='Total_TempY'
 StrVarNames(nVarCount+6) ='Total_TempZ'
-StrVarNames(nVarCount+7) ='Total_Density'       
+StrVarNames(nVarCount+7) ='Total_Density'
 StrVarNames(nVarCount+8) ='Total_TVib'
 StrVarNames(nVarCount+9) ='Total_TRot'
 StrVarNames(nVarCount+10)='Total_TElec'
@@ -2092,17 +2091,17 @@ END SUBROUTINE WriteDSMCHOToHDF5
 
 SUBROUTINE GenerateDSMCHOFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
 !===================================================================================================================================
-! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
+!> Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,ONLY: ProjectName
+USE MOD_Globals_Vars  ,ONLY: ProjectName
 !USE MOD_PreProcFlags
 USE MOD_io_HDF5
-USE MOD_DSMC_Vars,            ONLY:HODSMC
-USE MOD_HDF5_Output,       ONLY: WriteAttributeToHDF5, WriteHDF5Header
-USE MOD_Particle_Vars,      ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: HODSMC
+USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header
+USE MOD_Particle_Vars ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2163,27 +2162,27 @@ END SUBROUTINE GenerateDSMCHOFileSkeleton
 
 
 #ifndef MPI
-SUBROUTINE PeriodicSourceExchangeDSMCHO(BGMSource, alphasum)    
-!============================================================================================================================
-! Exchange sources in periodic case
-!============================================================================================================================
+SUBROUTINE PeriodicSourceExchangeDSMCHO(BGMSource, alphasum)
+!===================================================================================================================================
+!> Exchange sources in periodic case
+!===================================================================================================================================
 ! use MODULES                                                    
-  USE MOD_Particle_Mesh_Vars, ONLY:Geo
-  USE MOD_Particle_Vars
-  USE MOD_DSMC_Vars
+USE MOD_Particle_Mesh_Vars, ONLY:Geo
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
-    IMPLICIT NONE                                                                                  
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-    REAL,INTENT(INOUT)         :: BGMSource(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
-                            :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ,1:11, 1:nSpecies)
-    REAL,INTENT(INOUT)         :: alphasum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
-                            :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ, 1:nSpecies)
+REAL,INTENT(INOUT)         :: BGMSource(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
+                        :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ,1:11, 1:nSpecies)
+REAL,INTENT(INOUT)         :: alphasum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
+                        :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ, 1:nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES                                                                           
-    INTEGER                     :: i,k,l,m,k2,l2,m2
+INTEGER                     :: i,k,l,m,k2,l2,m2
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 DO i = 1,GEO%nPeriodicVectors
@@ -2210,265 +2209,264 @@ END DO
 RETURN
 END SUBROUTINE PeriodicSourceExchangeDSMCHO
 #else /*MPI*/
-SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)            
-!============================================================================================================================
-! Exchange sources in periodic case for MPI
-!============================================================================================================================
+SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
+!===================================================================================================================================
+!> Exchange sources in periodic case for MPI
+!===================================================================================================================================
 ! use MODULES                                                         
-  USE MOD_Globals
-  USE MOD_Particle_Vars
-  USE MOD_Particle_Mesh_Vars, ONLY: GEO
-  USE MOD_Particle_MPI_Vars,  ONLY: PartMPI,tMPIMessage
-  USE MOD_DSMC_Vars,          ONLY: DSMCSampVolWe
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI,tMPIMessage
+USE MOD_DSMC_Vars          ,ONLY: DSMCSampVolWe
 !-----------------------------------------------------------------------------------------------------------------------------------
-    IMPLICIT NONE                                                                                  
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-    REAL,INTENT(INOUT)        :: BGMSource(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
-                          :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ,1:11, 1:nSpecies)
-    REAL,INTENT(INOUT)         :: alphasum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
-                            :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ, 1:nSpecies)
+REAL,INTENT(INOUT)         :: BGMSource(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
+                                       :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ,1:11, 1:nSpecies)
+REAL,INTENT(INOUT)         :: alphasum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMmaxX,DSMCSampVolWe%BGMminY &
+                                       :DSMCSampVolWe%BGMmaxY,DSMCSampVolWe%BGMminZ:DSMCSampVolWe%BGMmaxZ, 1:nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-    TYPE(tMPIMessage)           :: send_message(0:PartMPI%nProcs-1)                              
-    TYPE(tMPIMessage)           :: recv_message(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: send_request(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: recv_request(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)        
-    INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)        
-    INTEGER                     :: i,k,l,m,n, ppp, Counter        
-    INTEGER                     :: SourceLength(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: RecvLength(0:PartMPI%nProcs-1)                                
-    INTEGER                     :: allocStat, Counter2                                     
-    INTEGER                     :: messageCounterS, messageCounterR                                
-    INTEGER                     :: myRealKind, k2,l2,m2, iSpec
-    REAL                        :: myRealTestValue                                                
+TYPE(tMPIMessage)          :: send_message(0:PartMPI%nProcs-1)
+TYPE(tMPIMessage)          :: recv_message(0:PartMPI%nProcs-1)
+INTEGER                    :: send_request(0:PartMPI%nProcs-1)
+INTEGER                    :: recv_request(0:PartMPI%nProcs-1)
+INTEGER                    :: send_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)
+INTEGER                    :: recv_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)
+INTEGER                    :: i,k,l,m,n, ppp, Counter
+INTEGER                    :: SourceLength(0:PartMPI%nProcs-1)
+INTEGER                    :: RecvLength(0:PartMPI%nProcs-1)
+INTEGER                    :: allocStat, Counter2
+INTEGER                    :: messageCounterS, messageCounterR
+INTEGER                    :: myRealKind, k2,l2,m2, iSpec
+REAL                       :: myRealTestValue
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-     myRealKind = KIND(myRealTestValue)
-     IF (myRealKind.EQ.4) THEN
-       myRealKind = MPI_REAL
-     ELSE IF (myRealKind.EQ.8) THEN
-       myRealKind = MPI_DOUBLE_PRECISION
-     ELSE
-       myRealKind = MPI_REAL
+myRealKind = KIND(myRealTestValue)
+IF (myRealKind.EQ.4) THEN
+ myRealKind = MPI_REAL
+ELSE IF (myRealKind.EQ.8) THEN
+ myRealKind = MPI_DOUBLE_PRECISION
+ELSE
+ myRealKind = MPI_REAL
+END IF
+
+!--- Assemble actual sources to send
+DO i = 0,PartMPI%nProcs-1
+  ! sourcelength muss noch für periodisch angepasst werden
+  IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
+       (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+     SourceLength(i)=(DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1) + 1) &
+       * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2) + 1) &
+       * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3) + 1)
+     IF(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+       DO k = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
+         SourceLength(i) = SourceLength(i) + (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,1) -&
+              DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,1) + 1) * &
+             (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,2) -&
+              DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,2) + 1) * &
+             (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,3) -&
+              DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,3) + 1)
+       END DO
      END IF
-         
-   
-    !--- Assemble actual sources to send
-     DO i = 0,PartMPI%nProcs-1
-      ! sourcelength muss noch für periodisch angepasst werden
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
-            (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          SourceLength(i)=(DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1) + 1) &
-            * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2) + 1) &
-            * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3) + 1)
-          IF(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-            DO k = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
-              SourceLength(i) = SourceLength(i) + (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,1) -&
-                   DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,1) + 1) * &
-                  (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,2) -&
-                   DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,2) + 1) * &
-                  (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,3) -&
-                   DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,3) + 1)
-            END DO
-          END IF
-          ALLOCATE(send_message(i)%content(1:SourceLength(i)*12*nSpecies), STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(&
+     ALLOCATE(send_message(i)%content(1:SourceLength(i)*12*nSpecies), STAT=allocStat)
+     IF (allocStat .NE. 0) THEN
+        CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
-          END IF
-       END IF
-       Counter = 0
-       Counter2 = 0
-       IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
-          DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
-          DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
-          DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)             
-            Counter2 = Counter2 + 1
-            DO iSpec = 1, nSpecies
-              DO n = 1,11
-                 send_message(i)%content((Counter2-1)*11*nSpecies +n + (iSpec-1)*11) = BGMSource(k,l,m,n,iSpec)
-              END DO
-              send_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec) = alphasum(k,l,m,iSpec)
+     END IF
+  END IF
+  Counter = 0
+  Counter2 = 0
+  IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
+     DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
+     DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
+     DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)
+       Counter2 = Counter2 + 1
+       DO iSpec = 1, nSpecies
+         DO n = 1,11
+            send_message(i)%content((Counter2-1)*11*nSpecies +n + (iSpec-1)*11) = BGMSource(k,l,m,n,iSpec)
+         END DO
+         send_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec) = alphasum(k,l,m,iSpec)
+       END DO
+     END DO
+     END DO
+     END DO
+  END IF
+  IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+     DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
+        DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
+               DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
+        DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
+               DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
+        DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
+               DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
+          Counter2 = Counter2 + 1
+          DO iSpec = 1, nSpecies
+            DO ppp = 1,11
+               send_message(i)%content((Counter2-1)*11*nSpecies +ppp +(iSpec-1)*11) = BGMSource(k,l,m,ppp,iSpec)
             END DO
+            send_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec) = alphasum(k,l,m,iSpec)
           END DO
-          END DO
-          END DO
-       END IF  
-       IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-          DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
-             DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
-                    DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
-             DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
-                    DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
-             DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
-                    DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
-               Counter2 = Counter2 + 1
-               DO iSpec = 1, nSpecies
-                 DO ppp = 1,11
-                    send_message(i)%content((Counter2-1)*11*nSpecies +ppp +(iSpec-1)*11) = BGMSource(k,l,m,ppp,iSpec)
-                 END DO
-                 send_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec) = alphasum(k,l,m,iSpec)
-               END DO
-             END DO
-             END DO
-             END DO
-          END DO
-       END IF
-    END DO
+        END DO
+        END DO
+        END DO
+     END DO
+  END IF
+END DO
 
-    !--- allocate actual source receive buffer
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          Counter = SourceLength(i)
-          RecvLength(i) = Counter
-          ALLOCATE(recv_message(i)%content(1:Counter*12*nSpecies), STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(&
+!--- allocate actual source receive buffer
+DO i = 0,PartMPI%nProcs-1
+   IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+      Counter = SourceLength(i)
+      RecvLength(i) = Counter
+      ALLOCATE(recv_message(i)%content(1:Counter*12*nSpecies), STAT=allocStat)
+      IF (allocStat .NE. 0) THEN
+         CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
-          END IF
-       END IF
-    END DO
-    !--- communicate
-    messageCounterS = 0
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
-            (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          ! MPI_ISEND true/false list for all border BGM points
-          messageCounterS = messageCounterS + 1
-          CALL MPI_ISEND(send_message(i)%content,SourceLength(i)*12*nSpecies,myRealKind,i,1,PartMPI%COMM, &
-                         send_request(messageCounterS), IERROR)
-       END IF
-    END DO
-    messageCounterR = 0
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
-            (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          ! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
-          messageCounterR = messageCounterR + 1
-          CALL MPI_IRECV(recv_message(i)%content,RecvLength(i)*12*nSpecies,myRealKind,i,1,PartMPI%COMM, &
-                         recv_request(messageCounterR), IERROR)
-       END IF
-    END DO
-    ! MPI_WAITALL for the non-blocking MPI-communication to be finished
-    IF (messageCounterS .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
-    END IF
-    IF (messageCounterR .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
-    END IF
-    !--- Deallocate Send Message Buffers
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-           DEALLOCATE(send_message(i)%content, STAT=allocStat)
-           IF (allocStat .NE. 0) THEN
-              CALL abort(&
+      END IF
+   END IF
+END DO
+!--- communicate
+messageCounterS = 0
+DO i = 0,PartMPI%nProcs-1
+   IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
+        (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+      ! MPI_ISEND true/false list for all border BGM points
+      messageCounterS = messageCounterS + 1
+      CALL MPI_ISEND(send_message(i)%content,SourceLength(i)*12*nSpecies,myRealKind,i,1,PartMPI%COMM, &
+                     send_request(messageCounterS), IERROR)
+   END IF
+END DO
+messageCounterR = 0
+DO i = 0,PartMPI%nProcs-1
+   IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
+        (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+      ! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
+      messageCounterR = messageCounterR + 1
+      CALL MPI_IRECV(recv_message(i)%content,RecvLength(i)*12*nSpecies,myRealKind,i,1,PartMPI%COMM, &
+                     recv_request(messageCounterR), IERROR)
+   END IF
+END DO
+! MPI_WAITALL for the non-blocking MPI-communication to be finished
+IF (messageCounterS .GE. 1) THEN
+   CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
+END IF
+IF (messageCounterR .GE. 1) THEN
+   CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
+END IF
+!--- Deallocate Send Message Buffers
+DO i = 0,PartMPI%nProcs-1
+   IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+       DEALLOCATE(send_message(i)%content, STAT=allocStat)
+       IF (allocStat .NE. 0) THEN
+          CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
-           END IF
        END IF
-    END DO
+   END IF
+END DO
 
-    !--- add selfperiodic sources, if any (needs to be done after send message is compiled and before
-    !---           received sources have been added!
-    IF ((GEO%nPeriodicVectors.GT.0).AND.(DSMCSampVolWe%SelfPeriodic)) THEN
-       DO i = 1, GEO%nPeriodicVectors
-          DO k = DSMCSampVolWe%BGMminX, DSMCSampVolWe%BGMmaxX
-             k2 = k + DSMCSampVolWe%PeriodicBGMVectors(1,i)
-          DO l = DSMCSampVolWe%BGMminY, DSMCSampVolWe%BGMmaxY
-             l2 = l + DSMCSampVolWe%PeriodicBGMVectors(2,i)
-          DO m = DSMCSampVolWe%BGMminZ, DSMCSampVolWe%BGMmaxZ
-             m2 = m + DSMCSampVolWe%PeriodicBGMVectors(3,i)
-             IF ((k2.GE.DSMCSampVolWe%BGMminX).AND.(k2.LE.DSMCSampVolWe%BGMmaxX)) THEN
-             IF ((l2.GE.DSMCSampVolWe%BGMminY).AND.(l2.LE.DSMCSampVolWe%BGMmaxY)) THEN
-             IF ((m2.GE.DSMCSampVolWe%BGMminZ).AND.(m2.LE.DSMCSampVolWe%BGMmaxZ)) THEN
-                BGMSource(k,l,m,:,:) = BGMSource(k,l,m,:,:) + BGMSource(k2,l2,m2,:,:)
-                BGMSource(k2,l2,m2,:,:) = BGMSource(k,l,m,:,:)
-                alphasum(k,l,m,:) = alphasum(k,l,m,:) + alphasum(k2,l2,m2,:)
-                alphasum(k2,l2,m2,:) = alphasum(k,l,m,:)
-             END IF
-             END IF
-             END IF
-          END DO
-          END DO
-          END DO
-       END DO
-    END IF
+!--- add selfperiodic sources, if any (needs to be done after send message is compiled and before
+!---           received sources have been added!
+IF ((GEO%nPeriodicVectors.GT.0).AND.(DSMCSampVolWe%SelfPeriodic)) THEN
+   DO i = 1, GEO%nPeriodicVectors
+      DO k = DSMCSampVolWe%BGMminX, DSMCSampVolWe%BGMmaxX
+         k2 = k + DSMCSampVolWe%PeriodicBGMVectors(1,i)
+      DO l = DSMCSampVolWe%BGMminY, DSMCSampVolWe%BGMmaxY
+         l2 = l + DSMCSampVolWe%PeriodicBGMVectors(2,i)
+      DO m = DSMCSampVolWe%BGMminZ, DSMCSampVolWe%BGMmaxZ
+         m2 = m + DSMCSampVolWe%PeriodicBGMVectors(3,i)
+         IF ((k2.GE.DSMCSampVolWe%BGMminX).AND.(k2.LE.DSMCSampVolWe%BGMmaxX)) THEN
+         IF ((l2.GE.DSMCSampVolWe%BGMminY).AND.(l2.LE.DSMCSampVolWe%BGMmaxY)) THEN
+         IF ((m2.GE.DSMCSampVolWe%BGMminZ).AND.(m2.LE.DSMCSampVolWe%BGMmaxZ)) THEN
+            BGMSource(k,l,m,:,:) = BGMSource(k,l,m,:,:) + BGMSource(k2,l2,m2,:,:)
+            BGMSource(k2,l2,m2,:,:) = BGMSource(k,l,m,:,:)
+            alphasum(k,l,m,:) = alphasum(k,l,m,:) + alphasum(k2,l2,m2,:)
+            alphasum(k2,l2,m2,:) = alphasum(k,l,m,:)
+         END IF
+         END IF
+         END IF
+      END DO
+      END DO
+      END DO
+   END DO
+END IF
 
-    !--- Add Sources and Deallocate Receive Message Buffers
-    DO i = 0,PartMPI%nProcs-1
-       IF (RecvLength(i).GT.0) THEN
-          Counter = 0
-          Counter2 = 0
-          IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
-             DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
-             DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
-             DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)
-               Counter2 = Counter2 + 1
-               DO iSpec =1, nSpecies
-                 DO n = 1,11
-                   BGMSource(k,l,m,n, iSpec) = BGMSource(k,l,m,n,iSpec)  &
-                      + recv_message(i)%content((Counter2-1)*11*nSpecies+n +(iSpec-1)*11)
-                 END DO
-                 alphasum(k,l,m,iSpec) = alphasum(k,l,m,iSpec) & 
-                      + recv_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec)
-               END DO
+!--- Add Sources and Deallocate Receive Message Buffers
+DO i = 0,PartMPI%nProcs-1
+   IF (RecvLength(i).GT.0) THEN
+      Counter = 0
+      Counter2 = 0
+      IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
+         DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
+         DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
+         DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)
+           Counter2 = Counter2 + 1
+           DO iSpec =1, nSpecies
+             DO n = 1,11
+               BGMSource(k,l,m,n, iSpec) = BGMSource(k,l,m,n,iSpec)  &
+                  + recv_message(i)%content((Counter2-1)*11*nSpecies+n +(iSpec-1)*11)
              END DO
-             END DO
-             END DO
-          END IF
-          IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-             DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
-                DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
-                       DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
-                DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
-                       DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
-                DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
-                       DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
-                  Counter2 = Counter2 + 1
-                  DO iSpec = 1, nSpecies
-                    DO ppp = 1,11
-                       BGMSource(k,l,m,ppp,iSpec) = BGMSource(k,l,m,ppp, iSpec) &
-                          + recv_message(i)%content((Counter2-1)*11*nSpecies+ppp+(iSpec-1)*11)
-                    END DO
-                    alphasum(k,l,m,iSpec) = alphasum(k,l,m,iSpec) & 
-                      + recv_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec)
-                  END DO
+             alphasum(k,l,m,iSpec) = alphasum(k,l,m,iSpec) &
+                  + recv_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec)
+           END DO
+         END DO
+         END DO
+         END DO
+      END IF
+      IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+         DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
+            DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
+                   DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
+            DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
+                   DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
+            DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
+                   DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
+              Counter2 = Counter2 + 1
+              DO iSpec = 1, nSpecies
+                DO ppp = 1,11
+                   BGMSource(k,l,m,ppp,iSpec) = BGMSource(k,l,m,ppp, iSpec) &
+                      + recv_message(i)%content((Counter2-1)*11*nSpecies+ppp+(iSpec-1)*11)
                 END DO
-                END DO
-                END DO
-             END DO
-          END IF
-          IF ((DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor)) THEN
-             DEALLOCATE(recv_message(i)%content, STAT=allocStat)
-             IF (allocStat .NE. 0) THEN
-                CALL abort(&
+                alphasum(k,l,m,iSpec) = alphasum(k,l,m,iSpec) &
+                  + recv_message(i)%content(SourceLength(i)*11*nSpecies + (Counter2-1)*nSpecies+iSpec)
+              END DO
+            END DO
+            END DO
+            END DO
+         END DO
+      END IF
+      IF ((DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor)) THEN
+         DEALLOCATE(recv_message(i)%content, STAT=allocStat)
+         IF (allocStat .NE. 0) THEN
+            CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
-             END IF
-          END IF
-       END IF       
-    END DO
+         END IF
+      END IF
+   END IF
+END DO
 END SUBROUTINE MPISourceExchangeBGMDSMCHO
 
 
-SUBROUTINE MPIVolumeExchangeBGMDSMCHO()            
-!============================================================================================================================
-! Exchange sources in periodic case for MPI
-!============================================================================================================================
-! use MODULES                                                         
-  USE MOD_Particle_MPI_Vars, ONLY: PartMPI,tMPIMessage
-  USE MOD_Particle_Mesh_Vars,ONLY: GEO
-  USE MOD_Globals
-  USE MOD_Particle_Vars
-  USE MOD_DSMC_Vars,        ONLY: DSMCSampVolWe
+SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
+!===================================================================================================================================
+!> Exchange sources in periodic case for MPI
+!===================================================================================================================================
+! MODULES                                                         
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI,tMPIMessage
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_DSMC_Vars          ,ONLY: DSMCSampVolWe
 !-----------------------------------------------------------------------------------------------------------------------------------
-    IMPLICIT NONE                                                                                  
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 
@@ -2476,466 +2474,475 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-    TYPE(tMPIMessage)           :: send_message(0:PartMPI%nProcs-1)                              
-    TYPE(tMPIMessage)           :: recv_message(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: send_request(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: recv_request(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)        
-    INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)        
-    INTEGER                     :: i,k,l,m,n, Counter
-    INTEGER                     :: SourceLength(0:PartMPI%nProcs-1)                              
-    INTEGER                     :: RecvLength(0:PartMPI%nProcs-1)                                
-    INTEGER                     :: allocStat, Counter2                                     
-    INTEGER                     :: messageCounterS, messageCounterR                                
-    INTEGER                     :: myRealKind, k2,l2,m2
-    REAL                        :: myRealTestValue                                                
+TYPE(tMPIMessage)           :: send_message(0:PartMPI%nProcs-1)
+TYPE(tMPIMessage)           :: recv_message(0:PartMPI%nProcs-1)
+INTEGER                     :: send_request(0:PartMPI%nProcs-1)
+INTEGER                     :: recv_request(0:PartMPI%nProcs-1)
+INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)
+INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)
+INTEGER                     :: i,k,l,m,n, Counter
+INTEGER                     :: SourceLength(0:PartMPI%nProcs-1)
+INTEGER                     :: RecvLength(0:PartMPI%nProcs-1)
+INTEGER                     :: allocStat, Counter2
+INTEGER                     :: messageCounterS, messageCounterR
+INTEGER                     :: myRealKind, k2,l2,m2
+REAL                        :: myRealTestValue
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-     myRealKind = KIND(myRealTestValue)
-     IF (myRealKind.EQ.4) THEN
-       myRealKind = MPI_REAL
-     ELSE IF (myRealKind.EQ.8) THEN
-       myRealKind = MPI_DOUBLE_PRECISION
-     ELSE
-       myRealKind = MPI_REAL
-     END IF
-         
-        !--- Assemble actual sources to send
-     DO i = 0,PartMPI%nProcs-1
-       IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor.OR.DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-          DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
-          DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
-          DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3) 
-            IF (.NOT.(DSMCSampVolWe%isBoundBGCell(k,l,m))) THEN
-              CALL VolumeBoundBGMCInt(k, l, m, DSMCSampVolWe%BGMVolumes(k,l,m))      
-              DSMCSampVolWe%isBoundBGCell(k,l,m) = .true.    
-            END IF
-          END DO
-          END DO
-          END DO
-       END IF  
-    END DO
-   
+myRealKind = KIND(myRealTestValue)
+IF (myRealKind.EQ.4) THEN
+  myRealKind = MPI_REAL
+ELSE IF (myRealKind.EQ.8) THEN
+  myRealKind = MPI_DOUBLE_PRECISION
+ELSE
+  myRealKind = MPI_REAL
+END IF
+
     !--- Assemble actual sources to send
-     DO i = 0,PartMPI%nProcs-1
-      ! sourcelength muss noch für periodisch angepasst werden
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-          SourceLength(i)=(DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1) + 1) &
-            * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2) + 1) &
-            * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3) + 1)         
-          IF(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-            DO k = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
-              SourceLength(i) = SourceLength(i) + (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,1) -&
-                   DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,1) + 1) * &
-                  (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,2) -&
-                   DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,2) + 1) * &
-                  (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,3) -&
-                   DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,3) + 1)
-            END DO
-          END IF
-          ALLOCATE(send_message(i)%content(1:SourceLength(i)), STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(&
+DO i = 0,PartMPI%nProcs-1
+  IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor.OR.DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+    DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
+    DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
+    DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)
+      IF (.NOT.(DSMCSampVolWe%isBoundBGCell(k,l,m))) THEN
+        CALL VolumeBoundBGMCInt(k, l, m, DSMCSampVolWe%BGMVolumes(k,l,m))
+        DSMCSampVolWe%isBoundBGCell(k,l,m) = .true.
+      END IF
+    END DO
+    END DO
+    END DO
+  END IF
+END DO
+
+!--- Assemble actual sources to send
+DO i = 0,PartMPI%nProcs-1
+  ! sourcelength muss noch für periodisch angepasst werden
+  IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+    SourceLength(i)=(DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1) + 1) &
+      * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2) + 1) &
+      * (DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3) - DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3) + 1)
+    IF(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+      DO k = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
+        SourceLength(i) = SourceLength(i) + (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,1) -&
+             DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,1) + 1) * &
+            (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,2) -&
+             DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,2) + 1) * &
+            (DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,3) -&
+             DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,3) + 1)
+      END DO
+    END IF
+    ALLOCATE(send_message(i)%content(1:SourceLength(i)), STAT=allocStat)
+    IF (allocStat .NE. 0) THEN
+       CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
-          END IF
-       END IF
-       Counter = 0
-       Counter2 = 0
-       IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
-          DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
-          DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
-          DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)             
-            Counter2 = Counter2 + 1
-            send_message(i)%content(Counter2) = DSMCSampVolWe%BGMVolumes(k,l,m)
-          END DO
-          END DO
-          END DO
-       END IF  
-       IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-          DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
-             DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
-                    DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
-             DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
-                    DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
-             DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
-                    DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
-               Counter2 = Counter2 + 1
-               send_message(i)%content(Counter2) = DSMCSampVolWe%BGMVolumes(k,l,m)
-             END DO
-             END DO
-             END DO
-          END DO
-       END IF
+    END IF
+  END IF
+  Counter = 0
+  Counter2 = 0
+  IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
+     DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
+     DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
+     DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)
+       Counter2 = Counter2 + 1
+       send_message(i)%content(Counter2) = DSMCSampVolWe%BGMVolumes(k,l,m)
+     END DO
+     END DO
+     END DO
+  END IF
+  IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+    DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
+      DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
+             DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
+      DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
+             DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
+      DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
+             DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
+        Counter2 = Counter2 + 1
+        send_message(i)%content(Counter2) = DSMCSampVolWe%BGMVolumes(k,l,m)
+      END DO
+      END DO
+      END DO
     END DO
+  END IF
+END DO
 
-    !--- allocate actual source receive buffer
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          Counter = SourceLength(i)
-          RecvLength(i) = Counter
-          ALLOCATE(recv_message(i)%content(1:Counter), STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(&
+!--- allocate actual source receive buffer
+DO i = 0,PartMPI%nProcs-1
+  IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+    Counter = SourceLength(i)
+    RecvLength(i) = Counter
+    ALLOCATE(recv_message(i)%content(1:Counter), STAT=allocStat)
+    IF (allocStat .NE. 0) THEN
+      CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
-          END IF
-       END IF
-    END DO
-    !--- communicate
-    messageCounterS = 0
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
-            (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          ! MPI_ISEND true/false list for all border BGM points
-          messageCounterS = messageCounterS + 1
-          CALL MPI_ISEND(send_message(i)%content,SourceLength(i),myRealKind,i,1,PartMPI%COMM, &
-                         send_request(messageCounterS), IERROR)
-       END IF
-    END DO
-    messageCounterR = 0
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
-            (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          ! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
-          messageCounterR = messageCounterR + 1
-          CALL MPI_IRECV(recv_message(i)%content,RecvLength(i),myRealKind,i,1,PartMPI%COMM, &
-                         recv_request(messageCounterR), IERROR)
-       END IF
-    END DO
-    ! MPI_WAITALL for the non-blocking MPI-communication to be finished
-    IF (messageCounterS .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
     END IF
-    IF (messageCounterR .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
-    END IF
-    !--- Deallocate Send Message Buffers
-    DO i = 0,PartMPI%nProcs-1
-       IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-           DEALLOCATE(send_message(i)%content, STAT=allocStat)
-           IF (allocStat .NE. 0) THEN
-              CALL abort(&
+  END IF
+END DO
+!--- communicate
+messageCounterS = 0
+DO i = 0,PartMPI%nProcs-1
+  IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
+       (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+     ! MPI_ISEND true/false list for all border BGM points
+    messageCounterS = messageCounterS + 1
+    CALL MPI_ISEND(send_message(i)%content,SourceLength(i),myRealKind,i,1,PartMPI%COMM, &
+                   send_request(messageCounterS), IERROR)
+  END IF
+END DO
+messageCounterR = 0
+DO i = 0,PartMPI%nProcs-1
+  IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.&
+      (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+    ! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
+    messageCounterR = messageCounterR + 1
+    CALL MPI_IRECV(recv_message(i)%content,RecvLength(i),myRealKind,i,1,PartMPI%COMM, &
+                   recv_request(messageCounterR), IERROR)
+  END IF
+END DO
+! MPI_WAITALL for the non-blocking MPI-communication to be finished
+IF (messageCounterS .GE. 1) THEN
+  CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
+END IF
+IF (messageCounterR .GE. 1) THEN
+  CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
+END IF
+!--- Deallocate Send Message Buffers
+DO i = 0,PartMPI%nProcs-1
+  IF ((DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor).OR.(DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+    DEALLOCATE(send_message(i)%content, STAT=allocStat)
+    IF (allocStat .NE. 0) THEN
+      CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
-           END IF
-       END IF
-    END DO
-
-    !--- add selfperiodic sources, if any (needs to be done after send message is compiled and before
-    !---           received sources have been added!
-    IF ((GEO%nPeriodicVectors.GT.0).AND.(DSMCSampVolWe%SelfPeriodic)) THEN
-       DO i = 1, GEO%nPeriodicVectors
-          DO k = DSMCSampVolWe%BGMminX, DSMCSampVolWe%BGMmaxX
-             k2 = k + DSMCSampVolWe%PeriodicBGMVectors(1,i)
-          DO l = DSMCSampVolWe%BGMminY, DSMCSampVolWe%BGMmaxY
-             l2 = l + DSMCSampVolWe%PeriodicBGMVectors(2,i)
-          DO m = DSMCSampVolWe%BGMminZ, DSMCSampVolWe%BGMmaxZ
-             m2 = m + DSMCSampVolWe%PeriodicBGMVectors(3,i)
-             IF ((k2.GE.DSMCSampVolWe%BGMminX).AND.(k2.LE.DSMCSampVolWe%BGMmaxX)) THEN
-             IF ((l2.GE.DSMCSampVolWe%BGMminY).AND.(l2.LE.DSMCSampVolWe%BGMmaxY)) THEN
-             IF ((m2.GE.DSMCSampVolWe%BGMminZ).AND.(m2.LE.DSMCSampVolWe%BGMmaxZ)) THEN
-                DSMCSampVolWe%BGMVolumes(k,l,m) = DSMCSampVolWe%BGMVolumes(k,l,m) + DSMCSampVolWe%BGMVolumes(k2,l2,m2)
-                DSMCSampVolWe%BGMVolumes(k2,l2,m2) = DSMCSampVolWe%BGMVolumes(k,l,m)             
-             END IF
-             END IF
-             END IF
-          END DO
-          END DO
-          END DO
-       END DO
     END IF
+  END IF
+END DO
 
-    !--- Add Sources and Deallocate Receive Message Buffers
-    DO i = 0,PartMPI%nProcs-1
-       IF (RecvLength(i).GT.0) THEN
-          Counter = 0
-          Counter2 = 0
-          IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
-             DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
-             DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
-             DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)
-               Counter2 = Counter2 + 1
-               DSMCSampVolWe%BGMVolumes(k,l,m) = DSMCSampVolWe%BGMVolumes(k,l,m)  &
-                   + recv_message(i)%content(Counter2)
-             END DO
-             END DO
-             END DO
-          END IF       
-          IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-             DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
-                DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
-                       DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
-                DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
-                       DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
-                DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
-                       DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
-                  Counter2 = Counter2 + 1
-                  DSMCSampVolWe%BGMVolumes(k,l,m) = DSMCSampVolWe%BGMVolumes(k,l,m)  &
-                   + recv_message(i)%content(Counter2)
-                END DO
-                END DO
-                END DO
-             END DO
-          END IF   
-          IF ((DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-             DEALLOCATE(recv_message(i)%content, STAT=allocStat)
-             IF (allocStat .NE. 0) THEN
-                CALL abort(&
+!--- add selfperiodic sources, if any (needs to be done after send message is compiled and before
+!---           received sources have been added!
+IF ((GEO%nPeriodicVectors.GT.0).AND.(DSMCSampVolWe%SelfPeriodic)) THEN
+  DO i = 1, GEO%nPeriodicVectors
+    DO k = DSMCSampVolWe%BGMminX, DSMCSampVolWe%BGMmaxX
+      k2 = k + DSMCSampVolWe%PeriodicBGMVectors(1,i)
+    DO l = DSMCSampVolWe%BGMminY, DSMCSampVolWe%BGMmaxY
+      l2 = l + DSMCSampVolWe%PeriodicBGMVectors(2,i)
+    DO m = DSMCSampVolWe%BGMminZ, DSMCSampVolWe%BGMmaxZ
+      m2 = m + DSMCSampVolWe%PeriodicBGMVectors(3,i)
+      IF ((k2.GE.DSMCSampVolWe%BGMminX).AND.(k2.LE.DSMCSampVolWe%BGMmaxX)) THEN
+      IF ((l2.GE.DSMCSampVolWe%BGMminY).AND.(l2.LE.DSMCSampVolWe%BGMmaxY)) THEN
+      IF ((m2.GE.DSMCSampVolWe%BGMminZ).AND.(m2.LE.DSMCSampVolWe%BGMmaxZ)) THEN
+        DSMCSampVolWe%BGMVolumes(k,l,m) = DSMCSampVolWe%BGMVolumes(k,l,m) + DSMCSampVolWe%BGMVolumes(k2,l2,m2)
+        DSMCSampVolWe%BGMVolumes(k2,l2,m2) = DSMCSampVolWe%BGMVolumes(k,l,m)
+      END IF
+      END IF
+      END IF
+    END DO
+    END DO
+    END DO
+  END DO
+END IF
+
+!--- Add Sources and Deallocate Receive Message Buffers
+DO i = 0,PartMPI%nProcs-1
+  IF (RecvLength(i).GT.0) THEN
+    Counter = 0
+    Counter2 = 0
+    IF (DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor) THEN
+      DO k = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,1), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,1)
+      DO l = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,2), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,2)
+      DO m = DSMCSampVolWe%MPIConnect(i)%BGMBorder(1,3), DSMCSampVolWe%MPIConnect(i)%BGMBorder(2,3)
+        Counter2 = Counter2 + 1
+        DSMCSampVolWe%BGMVolumes(k,l,m) = DSMCSampVolWe%BGMVolumes(k,l,m)  &
+            + recv_message(i)%content(Counter2)
+      END DO
+      END DO
+      END DO
+    END IF
+    IF (DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+      DO n = 1, DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount
+        DO k = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
+               DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
+        DO l = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
+               DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
+        DO m = DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
+               DSMCSampVolWe%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
+          Counter2 = Counter2 + 1
+          DSMCSampVolWe%BGMVolumes(k,l,m) = DSMCSampVolWe%BGMVolumes(k,l,m)  &
+           + recv_message(i)%content(Counter2)
+        END DO
+        END DO
+        END DO
+      END DO
+    END IF
+    IF ((DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+       DEALLOCATE(recv_message(i)%content, STAT=allocStat)
+       IF (allocStat .NE. 0) THEN
+          CALL abort(&
 __STAMP__&
 ,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
-             END IF
-          END IF
-       END IF       
-    END DO
+         END IF
+      END IF
+   END IF
+END DO
 END SUBROUTINE MPIVolumeExchangeBGMDSMCHO
 
 
-SUBROUTINE MPIBackgroundMeshInitDSMCHO()  
-!============================================================================================================================
-! initialize MPI background mesh
-!============================================================================================================================
-! use MODULES          
-  USE MOD_Particle_Vars    
-  USE MOD_Globals
-  USE MOD_Particle_MPI_Vars,  ONLY: PartMPI
-  USE MOD_DSMC_Vars,          ONLY: DSMCSampVolWe
-  USE MOD_Particle_Mesh_Vars, ONLY: GEO
+SUBROUTINE MPIBackgroundMeshInitDSMCHO()
+!===================================================================================================================================
+!> initialize MPI background mesh
+!===================================================================================================================================
+! MODULES          
+USE MOD_Particle_Vars
+USE MOD_Globals
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI
+USE MOD_DSMC_Vars          ,ONLY: DSMCSampVolWe
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 !-----------------------------------------------------------------------------------------------------------------------------------
-    IMPLICIT NONE                                                                                  
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-    INTEGER                     :: i,k,m,n                                    
-    INTEGER                     :: localminmax(6), maxofmin, minofmax                              
-    INTEGER                     :: completeminmax(6*PartMPI%nProcs)                              
-    INTEGER                     :: allocStat, NeighCount                                                                 
-    INTEGER                     :: TempBorder(1:2,1:3)            
-    INTEGER                     :: Periodicminmax(6), coord, PeriodicVec(1:3)                   
-    INTEGER                     :: TempPeriBord(1:26,1:2,1:3)                                      
-    LOGICAL                     :: CHECKNEIGHBOR     
+INTEGER                     :: i,k,m,n
+INTEGER                     :: localminmax(6), maxofmin, minofmax
+INTEGER                     :: completeminmax(6*PartMPI%nProcs)
+INTEGER                     :: allocStat, NeighCount
+INTEGER                     :: TempBorder(1:2,1:3)
+INTEGER                     :: Periodicminmax(6), coord, PeriodicVec(1:3)
+INTEGER                     :: TempPeriBord(1:26,1:2,1:3)
+LOGICAL                     :: CHECKNEIGHBOR
 !-----------------------------------------------------------------------------------------------------------------------------------
- ! Periodic Init stuff
- IF(GEO%nPeriodicVectors.GT.0)THEN
-   ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-   ALLOCATE(DSMCSampVolWe%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-   IF (allocStat .NE. 0) THEN
-     CALL abort(&
+! Periodic Init stuff
+IF(GEO%nPeriodicVectors.GT.0)THEN
+  ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
+  ALLOCATE(DSMCSampVolWe%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
+  IF (allocStat .NE. 0) THEN
+    CALL abort(&
 __STAMP__&
 ,'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
-   END IF
-   DO i = 1, GEO%nPeriodicVectors
-     DSMCSampVolWe%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1))
-     IF(ABS(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1)-REAL(DSMCSampVolWe%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-       CALL abort(&
-__STAMP__&
-,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     END IF
-     DSMCSampVolWe%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2))
-     IF(ABS(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2)-REAL(DSMCSampVolWe%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-       CALL abort(&
-__STAMP__&
-,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     END IF
-     DSMCSampVolWe%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3))
-     IF(ABS(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3)-REAL(DSMCSampVolWe%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-       CALL abort(&
-__STAMP__&
-,'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     END IF
-   END DO
-   ! Check whether process is periodic with itself
-   DSMCSampVolWe%SelfPeriodic = .FALSE.
-   !--- virtually move myself according to periodic vectors in order to find overlapping areas
-   !--- 26 possibilities,
-   localminmax(1) = DSMCSampVolWe%BGMminX
-   localminmax(2) = DSMCSampVolWe%BGMminY
-   localminmax(3) = DSMCSampVolWe%BGMminZ
-   localminmax(4) = DSMCSampVolWe%BGMmaxX
-   localminmax(5) = DSMCSampVolWe%BGMmaxY
-   localminmax(6) = DSMCSampVolWe%BGMmaxZ
-   DO k = -1,1
-     DO m = -1,1
-       DO n = -1,1
-         PeriodicVec = k*DSMCSampVolWe%PeriodicBGMVectors(:,1) + m*DSMCSampVolWe%PeriodicBGMVectors(:,1) & 
-            + n*DSMCSampVolWe%PeriodicBGMVectors(:,1)
-         IF (ALL(PeriodicVec(:).EQ.0)) CYCLE
-         periodicminmax(1) = localminmax(1) + PeriodicVec(1)
-         periodicminmax(2) = localminmax(2) + PeriodicVec(2)
-         periodicminmax(3) = localminmax(3) + PeriodicVec(3)
-         periodicminmax(4) = localminmax(4) + PeriodicVec(1)
-         periodicminmax(5) = localminmax(5) + PeriodicVec(2)
-         periodicminmax(6) = localminmax(6) + PeriodicVec(3)
-         !--- find overlap
-         DO coord = 1,3           ! x y z direction
-           maxofmin = MAX(periodicminmax(coord),localminmax(coord))
-           minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
-           IF (maxofmin.LE.minofmax) DSMCSampVolWe%SelfPeriodic = .TRUE.      ! overlapping
-         END DO
-       END DO
-     END DO
-   END DO
- END IF
-
- !--- send and receive min max indices to and from all processes
-
-    !--- enter local min max vector (xmin, ymin, zmin, xmax, ymax, zmax)
-    localminmax(1) = DSMCSampVolWe%BGMminX
-    localminmax(2) = DSMCSampVolWe%BGMminY
-    localminmax(3) = DSMCSampVolWe%BGMminZ
-    localminmax(4) = DSMCSampVolWe%BGMmaxX
-    localminmax(5) = DSMCSampVolWe%BGMmaxY
-    localminmax(6) = DSMCSampVolWe%BGMmaxZ
-    !--- do allgather into complete min max vector
-    CALL MPI_ALLGATHER(localminmax,6,MPI_INTEGER,completeminmax,6,MPI_INTEGER,PartMPI%COMM,IERROR)
-    ! Allocate MPIConnect
-    SDEALLOCATE(DSMCSampVolWe%MPIConnect)
-    ALLOCATE(DSMCSampVolWe%MPIConnect(0:PartMPI%nProcs-1),STAT=allocStat)
-    IF (allocStat .NE. 0) THEN
+  END IF
+  DO i = 1, GEO%nPeriodicVectors
+    DSMCSampVolWe%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1))
+    IF(ABS(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1)-REAL(DSMCSampVolWe%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
       CALL abort(&
 __STAMP__&
-,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
     END IF
+    DSMCSampVolWe%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2))
+    IF(ABS(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2)-REAL(DSMCSampVolWe%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
+      CALL abort(&
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
+    END IF
+    DSMCSampVolWe%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3))
+    IF(ABS(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3)-REAL(DSMCSampVolWe%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
+      CALL abort(&
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
+    END IF
+  END DO
+  ! Check whether process is periodic with itself
+  DSMCSampVolWe%SelfPeriodic = .FALSE.
+  !--- virtually move myself according to periodic vectors in order to find overlapping areas
+  !--- 26 possibilities,
+  localminmax(1) = DSMCSampVolWe%BGMminX
+  localminmax(2) = DSMCSampVolWe%BGMminY
+  localminmax(3) = DSMCSampVolWe%BGMminZ
+  localminmax(4) = DSMCSampVolWe%BGMmaxX
+  localminmax(5) = DSMCSampVolWe%BGMmaxY
+  localminmax(6) = DSMCSampVolWe%BGMmaxZ
+  DO k = -1,1
+    DO m = -1,1
+      DO n = -1,1
+        PeriodicVec = k*DSMCSampVolWe%PeriodicBGMVectors(:,1) + m*DSMCSampVolWe%PeriodicBGMVectors(:,1) &
+           + n*DSMCSampVolWe%PeriodicBGMVectors(:,1)
+        IF (ALL(PeriodicVec(:).EQ.0)) CYCLE
+        periodicminmax(1) = localminmax(1) + PeriodicVec(1)
+        periodicminmax(2) = localminmax(2) + PeriodicVec(2)
+        periodicminmax(3) = localminmax(3) + PeriodicVec(3)
+        periodicminmax(4) = localminmax(4) + PeriodicVec(1)
+        periodicminmax(5) = localminmax(5) + PeriodicVec(2)
+        periodicminmax(6) = localminmax(6) + PeriodicVec(3)
+        !--- find overlap
+        DO coord = 1,3           ! x y z direction
+          maxofmin = MAX(periodicminmax(coord),localminmax(coord))
+          minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
+          IF (maxofmin.LE.minofmax) DSMCSampVolWe%SelfPeriodic = .TRUE.      ! overlapping
+        END DO
+      END DO
+    END DO
+  END DO
+END IF
 
-    !--- determine borders indices (=overlapping BGM mesh points) with each process
-    DO i = 0,PartMPI%nProcs-1
+!--- send and receive min max indices to and from all processes
+
+!--- enter local min max vector (xmin, ymin, zmin, xmax, ymax, zmax)
+localminmax(1) = DSMCSampVolWe%BGMminX
+localminmax(2) = DSMCSampVolWe%BGMminY
+localminmax(3) = DSMCSampVolWe%BGMminZ
+localminmax(4) = DSMCSampVolWe%BGMmaxX
+localminmax(5) = DSMCSampVolWe%BGMmaxY
+localminmax(6) = DSMCSampVolWe%BGMmaxZ
+!--- do allgather into complete min max vector
+CALL MPI_ALLGATHER(localminmax,6,MPI_INTEGER,completeminmax,6,MPI_INTEGER,PartMPI%COMM,IERROR)
+! Allocate MPIConnect
+SDEALLOCATE(DSMCSampVolWe%MPIConnect)
+ALLOCATE(DSMCSampVolWe%MPIConnect(0:PartMPI%nProcs-1),STAT=allocStat)
+IF (allocStat .NE. 0) THEN
+  CALL abort(&
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+END IF
+
+!--- determine borders indices (=overlapping BGM mesh points) with each process
+DO i = 0,PartMPI%nProcs-1
+  DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+  DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount = 0
+   IF (i.EQ.PartMPI%MyRank) THEN
+      DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor = .FALSE.
+   ELSE
+      DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor = .TRUE.
+      DO k = 1,3           ! x y z direction
+         maxofmin = MAX(localminmax(k),completeminmax((i*6)+k))
+         minofmax = MIN(localminmax(3+k),completeminmax((i*6)+3+k))
+         IF (maxofmin.LE.minofmax) THEN           ! overlapping
+            TempBorder(1,k) = maxofmin
+            TempBorder(2,k) = minofmax
+         ELSE
+            DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor = .FALSE.
+         END IF
+      END DO
+   END IF
+   IF(DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor)THEN
+      SDEALLOCATE(DSMCSampVolWe%MPIConnect(i)%BGMBorder)
+      ALLOCATE(DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
+      IF (allocStat .NE. 0) THEN
+         CALL abort(&
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+      END IF
+      DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
+   END IF
+END DO
+
+!--- determine border indices for periodic meshes  
+IF (GEO%nPeriodicVectors.GT.0) THEN
+  DO i = 0,PartMPI%nProcs-1
+    IF (i.EQ.PartMPI%MyRank) THEN
       DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
       DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount = 0
-       IF (i.EQ.PartMPI%MyRank) THEN
-          DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor = .FALSE.
-       ELSE
-          DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor = .TRUE.
-          DO k = 1,3           ! x y z direction
-             maxofmin = MAX(localminmax(k),completeminmax((i*6)+k))
-             minofmax = MIN(localminmax(3+k),completeminmax((i*6)+3+k))
-             IF (maxofmin.LE.minofmax) THEN           ! overlapping
-                TempBorder(1,k) = maxofmin
-                TempBorder(2,k) = minofmax
-             ELSE
-                DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor = .FALSE.
-             END IF
-          END DO          
-       END IF
-       IF(DSMCSampVolWe%MPIConnect(i)%isBGMNeighbor)THEN
-          SDEALLOCATE(DSMCSampVolWe%MPIConnect(i)%BGMBorder)
-          ALLOCATE(DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(&
-__STAMP__&
-,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
-          END IF
-          DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
-       END IF
-    END DO
-
-    
-    !--- determine border indices for periodic meshes  
-    IF (GEO%nPeriodicVectors.GT.0) THEN   
-      DO i = 0,PartMPI%nProcs-1
-        IF (i.EQ.PartMPI%MyRank) THEN
-          DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-          DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount = 0
-        ELSE
-          !--- virtually move myself according to periodic vectors in order to find overlapping areas
-          !--- 26 possibilities, processes need to work through them in opposite direction in order
-          !--- to get matching areas.
-          !--- Example for 2D:  I am process #3, I compare myself with #7
-          !--- Periodic Vectors are p1 and p2.
-          !--- I check p1, p2, p1+p2, p1-p2, -p1+p2, -p1-p2, -p2, -p1
-          !--- #7 has to check -p1, -p2, -p1-p2, -p1+p2, p1-p2, p1+p1, p2, p1
-          !--- This is done by doing 3 loops from -1 to 1 (for the higher process number)
-          !--- or 1 to -1 (for the lower process number) and multiplying
-          !--- these numbers to the periodic vectors
-          NeighCount = 0   !-- counter: how often is the process my periodic neighbor?
-          DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-          DO k = -SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i)
-            DO m = -SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i)
-              DO n = -SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i)
-                IF ((k.EQ.0).AND.(m.EQ.0).AND.(n.EQ.0)) CYCLE !this is not periodic and already done above
-                CHECKNEIGHBOR = .TRUE.
-                PeriodicVec = k*DSMCSampVolWe%PeriodicBGMVectors(:,1)
-                IF (GEO%nPeriodicVectors.GT.1) THEN
-                  PeriodicVec = PeriodicVec + m*DSMCSampVolWe%PeriodicBGMVectors(:,2)
-                END IF
-                IF (GEO%nPeriodicVectors.GT.2) THEN
-                  PeriodicVec = PeriodicVec + n*DSMCSampVolWe%PeriodicBGMVectors(:,3)
-                END IF
-                periodicminmax(1) = localminmax(1) + PeriodicVec(1)
-                periodicminmax(2) = localminmax(2) + PeriodicVec(2)
-                periodicminmax(3) = localminmax(3) + PeriodicVec(3)
-                periodicminmax(4) = localminmax(4) + PeriodicVec(1)
-                periodicminmax(5) = localminmax(5) + PeriodicVec(2)
-                periodicminmax(6) = localminmax(6) + PeriodicVec(3)
-                !--- find overlap
-                DO coord = 1,3           ! x y z direction
-                  maxofmin = MAX(periodicminmax(coord),completeminmax((i*6)+coord))
-                  minofmax = MIN(periodicminmax(3+coord),completeminmax((i*6)+3+coord))
-                  IF (maxofmin.LE.minofmax) THEN           ! overlapping
-                    TempBorder(1,coord) = maxofmin
-                    TempBorder(2,coord) = minofmax
-                  ELSE
-                    CHECKNEIGHBOR = .FALSE.
-                  END IF
-                END DO
-                IF(CHECKNEIGHBOR)THEN
-                  NeighCount = NeighCount + 1
-                  TempBorder(:,1) = TempBorder(:,1) - PeriodicVec(1)
-                  TempBorder(:,2) = TempBorder(:,2) - PeriodicVec(2)
-                  TempBorder(:,3) = TempBorder(:,3) - PeriodicVec(3)
-                  TempPeriBord(NeighCount,1:2,1:3) = TempBorder(1:2,1:3)
-                  DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .TRUE.
-                END IF
-              END DO
-            END DO
-          END DO
-          DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount = NeighCount
-          ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(1:DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-            CALL abort(&
-__STAMP__&
-,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
-          END IF
-          DO k = 1,NeighCount
-            ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
-            IF (allocStat .NE. 0) THEN
-              CALL abort(&
-__STAMP__&
-,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
-            END IF
-            DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
-          END DO
-        END IF
-      END DO
     ELSE
-      !--- initialize to FALSE for completely non-periodic cases
-      DO i = 0,PartMPI%nProcs-1
-        DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+      !--- virtually move myself according to periodic vectors in order to find overlapping areas
+      !--- 26 possibilities, processes need to work through them in opposite direction in order
+      !--- to get matching areas.
+      !--- Example for 2D:  I am process #3, I compare myself with #7
+      !--- Periodic Vectors are p1 and p2.
+      !--- I check p1, p2, p1+p2, p1-p2, -p1+p2, -p1-p2, -p2, -p1
+      !--- #7 has to check -p1, -p2, -p1-p2, -p1+p2, p1-p2, p1+p1, p2, p1
+      !--- This is done by doing 3 loops from -1 to 1 (for the higher process number)
+      !--- or 1 to -1 (for the lower process number) and multiplying
+      !--- these numbers to the periodic vectors
+      NeighCount = 0   !-- counter: how often is the process my periodic neighbor?
+      DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+      DO k = -SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i)
+        DO m = -SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i)
+          DO n = -SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i),SIGN(1,PartMPI%MyRank-i)
+            IF ((k.EQ.0).AND.(m.EQ.0).AND.(n.EQ.0)) CYCLE !this is not periodic and already done above
+            CHECKNEIGHBOR = .TRUE.
+            PeriodicVec = k*DSMCSampVolWe%PeriodicBGMVectors(:,1)
+            IF (GEO%nPeriodicVectors.GT.1) THEN
+              PeriodicVec = PeriodicVec + m*DSMCSampVolWe%PeriodicBGMVectors(:,2)
+            END IF
+            IF (GEO%nPeriodicVectors.GT.2) THEN
+              PeriodicVec = PeriodicVec + n*DSMCSampVolWe%PeriodicBGMVectors(:,3)
+            END IF
+            periodicminmax(1) = localminmax(1) + PeriodicVec(1)
+            periodicminmax(2) = localminmax(2) + PeriodicVec(2)
+            periodicminmax(3) = localminmax(3) + PeriodicVec(3)
+            periodicminmax(4) = localminmax(4) + PeriodicVec(1)
+            periodicminmax(5) = localminmax(5) + PeriodicVec(2)
+            periodicminmax(6) = localminmax(6) + PeriodicVec(3)
+            !--- find overlap
+            DO coord = 1,3           ! x y z direction
+              maxofmin = MAX(periodicminmax(coord),completeminmax((i*6)+coord))
+              minofmax = MIN(periodicminmax(3+coord),completeminmax((i*6)+3+coord))
+              IF (maxofmin.LE.minofmax) THEN           ! overlapping
+                TempBorder(1,coord) = maxofmin
+                TempBorder(2,coord) = minofmax
+              ELSE
+                CHECKNEIGHBOR = .FALSE.
+              END IF
+            END DO
+            IF(CHECKNEIGHBOR)THEN
+              NeighCount = NeighCount + 1
+              TempBorder(:,1) = TempBorder(:,1) - PeriodicVec(1)
+              TempBorder(:,2) = TempBorder(:,2) - PeriodicVec(2)
+              TempBorder(:,3) = TempBorder(:,3) - PeriodicVec(3)
+              TempPeriBord(NeighCount,1:2,1:3) = TempBorder(1:2,1:3)
+              DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .TRUE.
+            END IF
+          END DO
+        END DO
+      END DO
+      DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount = NeighCount
+      ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(1:DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
+      IF (allocStat .NE. 0) THEN
+        CALL abort(&
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+      END IF
+      DO k = 1,NeighCount
+        ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
+        IF (allocStat .NE. 0) THEN
+          CALL abort(&
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+        END IF
+        DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
       END DO
     END IF
-  RETURN
+  END DO
+ELSE
+  !--- initialize to FALSE for completely non-periodic cases
+  DO i = 0,PartMPI%nProcs-1
+    DSMCSampVolWe%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+  END DO
+END IF
+RETURN
 END SUBROUTINE MPIBackgroundMeshInitDSMCHO
 #endif /*MPI*/
 
-SUBROUTINE VolumeBoundBGMCInt(i, j, k, Volume)                                                         !
-  USE MOD_Particle_Vars
-  USE MOD_Particle_Mesh_Vars,     ONLY:GEO,epsOneCell
-  USE MOD_DSMC_Vars,              ONLY:DSMCSampVolWe
-  USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                       !
-   INTEGER                          :: i,j, k, Element, CellX,CellY,CellZ, iElem
-   INTEGER                          :: stepx, stepy, stepz
-   REAL                             :: xi(3)
-   REAL                             :: GuessPos(3), Volume, Found
-   REAL       :: alpha1, alpha2, alpha3
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
+SUBROUTINE VolumeBoundBGMCInt(i, j, k, Volume)
+!===================================================================================================================================
+!> VolumeBoundBGMInt description
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,epsOneCell
+USE MOD_DSMC_Vars,              ONLY:DSMCSampVolWe
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER                          :: i,j, k
+REAL                             :: Volume
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: Element, CellX,CellY,CellZ, iElem
+INTEGER                          :: stepx, stepy, stepz
+REAL                             :: xi(3)
+REAL                             :: GuessPos(3), Found
+REAL                             :: alpha1, alpha2, alpha3
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
 Found = 0
 
 DO stepx=0, DSMCSampVolWe%OrderVolInt
@@ -2949,26 +2956,26 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
       (GuessPos(3).LT.GEO%zmin).OR.(GuessPos(3).GT.GEO%zmax)) THEN
     CYCLE
   END IF
-   !--- get background mesh cell of particle
-   CellX = CEILING((GuessPos(1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-   CellX = MIN(GEO%FIBGMimax,CellX)                             
-   CellY = CEILING((GuessPos(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-   CellY = MIN(GEO%FIBGMjmax,CellY) 
-   CellZ = CEILING((GuessPos(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-   CellZ = MIN(GEO%FIBGMkmax,CellZ)
-   !--- check all cells associated with this beckground mesh cell
-   DO iElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
-      Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(iElem)
-      CALL Eval_xyz_ElemCheck(GuessPos,Xi,Element)
-      IF(MAXVAL(ABS(Xi)).GT.epsOneCell(Element))THEN ! particle outside
-        alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
-        alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j
-        alpha3 = (GuessPos(3) / DSMCSampVolWe%BGMdeltas(3)) - k
-        Found = Found + (1.-ABS(alpha1))*(1.-ABS(alpha2))*(1.-ABS(alpha3)) &
-             *DSMCSampVolWe%w_VolInt(stepx)*DSMCSampVolWe%w_VolInt(stepy)*DSMCSampVolWe%w_VolInt(stepz)
-        EXIT
-      END IF
-   END DO
+  !--- get background mesh cell of particle
+  CellX = CEILING((GuessPos(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  CellX = MIN(GEO%FIBGMimax,CellX)
+  CellY = CEILING((GuessPos(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  CellY = MIN(GEO%FIBGMjmax,CellY)
+  CellZ = CEILING((GuessPos(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  CellZ = MIN(GEO%FIBGMkmax,CellZ)
+  !--- check all cells associated with this beckground mesh cell
+  DO iElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
+    Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(iElem)
+    CALL Eval_xyz_ElemCheck(GuessPos,Xi,Element)
+    IF(MAXVAL(ABS(Xi)).GT.epsOneCell(Element))THEN ! particle outside
+      alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
+      alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j
+      alpha3 = (GuessPos(3) / DSMCSampVolWe%BGMdeltas(3)) - k
+      Found = Found + (1.-ABS(alpha1))*(1.-ABS(alpha2))*(1.-ABS(alpha3)) &
+           *DSMCSampVolWe%w_VolInt(stepx)*DSMCSampVolWe%w_VolInt(stepy)*DSMCSampVolWe%w_VolInt(stepz)
+      EXIT
+    END IF
+  END DO
 END DO; END DO; END DO;
 Volume = REAL(Found)*DSMCSampVolWe%BGMVolume
 
@@ -2977,21 +2984,21 @@ END SUBROUTINE VolumeBoundBGMCInt
 
 SUBROUTINE WriteAnalyzeSurfCollisToHDF5(OutputTime,TimeSample)
 !===================================================================================================================================
-! Wrinting AnalyzeSurfCollis-Data to hdf5 file (based on WriteParticleToHDF5 and WriteDSMCHOToHDF5)
+!> Wrinting AnalyzeSurfCollis-Data to hdf5 file (based on WriteParticleToHDF5 and WriteDSMCHOToHDF5)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,      ONLY: nSpecies
-USE MOD_Globals_Vars,       ONLY: ProjectName
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_io_HDF5
-USE MOD_HDF5_Output,        ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
-USE MOD_PICDepo_Vars,       ONLY: SFResampleAnalyzeSurfCollis, LastAnalyzeSurfCollis, r_SF
-USE MOD_Particle_Boundary_Vars,ONLY: nPartBound, AnalyzeSurfCollis
+USE MOD_HDF5_Output            ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
+USE MOD_PICDepo_Vars           ,ONLY: SFResampleAnalyzeSurfCollis, LastAnalyzeSurfCollis, r_SF
+USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound, AnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL,INTENT(IN)              :: OutputTime, TimeSample
+REAL,INTENT(IN)                :: OutputTime, TimeSample
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3012,259 +3019,259 @@ REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 REAL                           :: TotalFlowrateMPF, RandVal, BCTotalFlowrateMPF
 LOGICAL,ALLOCATABLE            :: PartDone(:)
-!=============================================
-  SWRITE(*,*) ' WRITE DSMCSurfCollis TO FILE...'
+!===================================================================================================================================
+SWRITE(*,*) ' WRITE DSMCSurfCollis TO FILE...'
 
-  TypeString='DSMCSurfCollis'
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-  PartDataSize=10
-  ALLOCATE(StrVarNames(PartDataSize))
-  StrVarNames(1)='ParticlePositionX'
-  StrVarNames(2)='ParticlePositionY'
-  StrVarNames(3)='ParticlePositionZ'
-  StrVarNames(4)='VelocityX'
-  StrVarNames(5)='VelocityY'
-  StrVarNames(6)='VelocityZ'
-  StrVarNames(7)='OldParticlePositionX'
-  StrVarNames(8)='OldParticlePositionY'
-  StrVarNames(9)='OldParticlePositionZ'
-  StrVarNames(10)='BCid'
-  ALLOCATE(locnPart(1:nSpecies) &
-          ,offsetnPart(1:nSpecies) &
-          ,nPart_glob(1:nSpecies) &
-          ,minnParts(1:nSpecies) &
-          ,iPartCount(1:nSpecies) )
+TypeString='DSMCSurfCollis'
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+PartDataSize=10
+ALLOCATE(StrVarNames(PartDataSize))
+StrVarNames(1)='ParticlePositionX'
+StrVarNames(2)='ParticlePositionY'
+StrVarNames(3)='ParticlePositionZ'
+StrVarNames(4)='VelocityX'
+StrVarNames(5)='VelocityY'
+StrVarNames(6)='VelocityZ'
+StrVarNames(7)='OldParticlePositionX'
+StrVarNames(8)='OldParticlePositionY'
+StrVarNames(9)='OldParticlePositionZ'
+StrVarNames(10)='BCid'
+ALLOCATE(locnPart(1:nSpecies) &
+        ,offsetnPart(1:nSpecies) &
+        ,nPart_glob(1:nSpecies) &
+        ,minnParts(1:nSpecies) &
+        ,iPartCount(1:nSpecies) )
 #ifdef MPI
-  ALLOCATE(sendbuf(1:nSpecies) &
-          ,recvbuf(1:nSpecies) )
+ALLOCATE(sendbuf(1:nSpecies) &
+        ,recvbuf(1:nSpecies) )
 #endif
-  ALLOCATE(SpeciesPositions( 1:nSpecies,1:MAXVAL(AnalyzeSurfCollis%Number(1:nSpecies)) ))
+ALLOCATE(SpeciesPositions( 1:nSpecies,1:MAXVAL(AnalyzeSurfCollis%Number(1:nSpecies)) ))
 
-  iPartCount(:)=0
+iPartCount(:)=0
+DO iPart=1,AnalyzeSurfCollis%Number(nSpecies+1)
+  IF (AnalyzeSurfCollis%Spec(iPart).LT.1 .OR. AnalyzeSurfCollis%Spec(iPart).GT.nSpecies) THEN
+    CALL Abort(&
+      __STAMP__,&
+      'Error 1 in AnalyzeSurfCollis!')
+  ELSE
+    iPartCount(AnalyzeSurfCollis%Spec(iPart))=iPartCount(AnalyzeSurfCollis%Spec(iPart))+1
+    SpeciesPositions(AnalyzeSurfCollis%Spec(iPart),iPartCount(AnalyzeSurfCollis%Spec(iPart)))=iPart
+  END IF
+END DO
+DO iSpec=1,nSpecies
+  locnPart(iSpec) = AnalyzeSurfCollis%Number(iSpec)
+  IF (iPartCount(iSpec).NE.locnPart(iSpec)) CALL Abort(&
+    __STAMP__,&
+    'Error 2 in AnalyzeSurfCollis!')
+END DO
+
+#ifdef MPI
+sendbuf(:)=locnPart(:)
+recvbuf(:)=0
+CALL MPI_EXSCAN(sendbuf,recvbuf,nSpecies,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+offsetnPart(:)=recvbuf(:)
+sendbuf(:)=recvbuf(:)+locnPart(:)
+CALL MPI_BCAST(sendbuf(:),nSpecies,MPI_INTEGER,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
+!global numbers
+nPart_glob(:)=sendbuf(:)
+DEALLOCATE(sendbuf &
+          ,recvbuf )
+!LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
+CALL MPI_ALLREDUCE(locnPart(:),minnParts(:),nSpecies,MPI_INTEGER,MPI_MIN,MPI_COMM_WORLD,IERROR)
+IF (SFResampleAnalyzeSurfCollis) THEN
+  CALL MPI_ALLGATHER(AnalyzeSurfCollis%Number(nSpecies+1), 1, MPI_INTEGER, globalNum, 1, MPI_INTEGER, MPI_COMM_WORLD, IERROR)
+  TotalNumberMPF = SUM(globalNum)
+ELSE
+  CALL MPI_ALLREDUCE(AnalyzeSurfCollis%Number(nSpecies+1),TotalNumberMPF,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
+END IF
+#else
+offsetnPart(:)=0
+nPart_glob(:)=locnPart(:)
+minnParts(:)=locnPart(:)
+TotalNumberMPF=AnalyzeSurfCollis%Number(nSpecies+1)
+#endif
+! determine number of parts at BC of interest
+BCTotalNumberMPF=0
+IF (SFResampleAnalyzeSurfCollis) THEN
   DO iPart=1,AnalyzeSurfCollis%Number(nSpecies+1)
-    IF (AnalyzeSurfCollis%Spec(iPart).LT.1 .OR. AnalyzeSurfCollis%Spec(iPart).GT.nSpecies) THEN
+    IF (AnalyzeSurfCollis%BCid(iPart).LT.1 .OR. AnalyzeSurfCollis%BCid(iPart).GT.nPartBound) THEN
       CALL Abort(&
         __STAMP__,&
-        'Error 1 in AnalyzeSurfCollis!')
-    ELSE
-      iPartCount(AnalyzeSurfCollis%Spec(iPart))=iPartCount(AnalyzeSurfCollis%Spec(iPart))+1
-      SpeciesPositions(AnalyzeSurfCollis%Spec(iPart),iPartCount(AnalyzeSurfCollis%Spec(iPart)))=iPart
+        'Error 3 in AnalyzeSurfCollis!')
+    ELSE IF ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.AnalyzeSurfCollis%BCid(iPart)) ) THEN
+      BCTotalNumberMPF = BCTotalNumberMPF + 1
     END IF
   END DO
-  DO iSpec=1,nSpecies
-    locnPart(iSpec) = AnalyzeSurfCollis%Number(iSpec)
-    IF (iPartCount(iSpec).NE.locnPart(iSpec)) CALL Abort(&
-      __STAMP__,&
-      'Error 2 in AnalyzeSurfCollis!')
-  END DO
+#ifdef MPI
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,BCTotalNumberMPF,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif
+  BCTotalFlowrateMPF=REAL(BCTotalNumberMPF)/TimeSample
+END IF
+TotalFlowrateMPF=REAL(TotalNumberMPF)/TimeSample
+
+IF(MPIRoot) THEN !create File-Skeleton
+  ! Create file
+  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
+
+  ! Write file header
+  CALL WriteHDF5Header(TRIM(TypeString),File_ID)
+
+  ! Write dataset properties "Time","VarNames","nSpecies","TotalFlowrateMPF"
+  CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',PartDataSize,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
+  CALL WriteAttributeToHDF5(File_ID,'TotalFlowrateMPF',1,RealScalar=TotalFlowrateMPF)
+
+  CALL CloseDataFile()
+END IF
 
 #ifdef MPI
-  sendbuf(:)=locnPart(:)
-  recvbuf(:)=0
-  CALL MPI_EXSCAN(sendbuf,recvbuf,nSpecies,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-  offsetnPart(:)=recvbuf(:)
-  sendbuf(:)=recvbuf(:)+locnPart(:)
-  CALL MPI_BCAST(sendbuf(:),nSpecies,MPI_INTEGER,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
-  !global numbers
-  nPart_glob(:)=sendbuf(:)
-  DEALLOCATE(sendbuf &
-            ,recvbuf )
-  !LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-  CALL MPI_ALLREDUCE(locnPart(:),minnParts(:),nSpecies,MPI_INTEGER,MPI_MIN,MPI_COMM_WORLD,IERROR)
-  IF (SFResampleAnalyzeSurfCollis) THEN
-    CALL MPI_ALLGATHER(AnalyzeSurfCollis%Number(nSpecies+1), 1, MPI_INTEGER, globalNum, 1, MPI_INTEGER, MPI_COMM_WORLD, IERROR)
-    TotalNumberMPF = SUM(globalNum)
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+
+IF (SFResampleAnalyzeSurfCollis) THEN
+  IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts to MaxPartNumber
+    LastAnalyzeSurfCollis%PartNumberSamp=MIN(BCTotalNumberMPF,LastAnalyzeSurfCollis%PartNumberReduced)
+    ALLOCATE(PartDone(1:TotalNumberMPF))
+    PartDone(:)=.FALSE.
   ELSE
-    CALL MPI_ALLREDUCE(AnalyzeSurfCollis%Number(nSpecies+1),TotalNumberMPF,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
+    LastAnalyzeSurfCollis%PartNumberSamp=BCTotalNumberMPF
   END IF
-#else
-  offsetnPart(:)=0
-  nPart_glob(:)=locnPart(:)
-  minnParts(:)=locnPart(:)
-  TotalNumberMPF=AnalyzeSurfCollis%Number(nSpecies+1)
-#endif
-  ! determine number of parts at BC of interest
-  BCTotalNumberMPF=0
-  IF (SFResampleAnalyzeSurfCollis) THEN
-    DO iPart=1,AnalyzeSurfCollis%Number(nSpecies+1)
-      IF (AnalyzeSurfCollis%BCid(iPart).LT.1 .OR. AnalyzeSurfCollis%BCid(iPart).GT.nPartBound) THEN
-        CALL Abort(&
-          __STAMP__,&
-          'Error 3 in AnalyzeSurfCollis!')
-      ELSE IF ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.AnalyzeSurfCollis%BCid(iPart)) ) THEN
-        BCTotalNumberMPF = BCTotalNumberMPF + 1
-      END IF
-    END DO
+  SWRITE(*,*) 'Number of saved particles for SFResampleAnalyzeSurfCollis: ',LastAnalyzeSurfCollis%PartNumberSamp
+  SDEALLOCATE(LastAnalyzeSurfCollis%WallState)
+  SDEALLOCATE(LastAnalyzeSurfCollis%Species)
+  ALLOCATE(LastAnalyzeSurfCollis%WallState(6,LastAnalyzeSurfCollis%PartNumberSamp))
+  ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
+  LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
 #ifdef MPI
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,BCTotalNumberMPF,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-#endif
-    BCTotalFlowrateMPF=REAL(BCTotalNumberMPF)/TimeSample
-  END IF
-  TotalFlowrateMPF=REAL(TotalNumberMPF)/TimeSample
-
-  IF(MPIRoot) THEN !create File-Skeleton
-    ! Create file
-    CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-    
-    ! Write file header
-    CALL WriteHDF5Header(TRIM(TypeString),File_ID)
-    
-    ! Write dataset properties "Time","VarNames","nSpecies","TotalFlowrateMPF"
-    CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
-    CALL WriteAttributeToHDF5(File_ID,'VarNames',PartDataSize,StrArray=StrVarNames)
-    CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-    CALL WriteAttributeToHDF5(File_ID,'TotalFlowrateMPF',1,RealScalar=TotalFlowrateMPF)
-
-    CALL CloseDataFile()
-  END IF
-  
-#ifdef MPI
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-
-  IF (SFResampleAnalyzeSurfCollis) THEN
-    IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts to MaxPartNumber
-      LastAnalyzeSurfCollis%PartNumberSamp=MIN(BCTotalNumberMPF,LastAnalyzeSurfCollis%PartNumberReduced)
-      ALLOCATE(PartDone(1:TotalNumberMPF))
-      PartDone(:)=.FALSE.
-    ELSE
-      LastAnalyzeSurfCollis%PartNumberSamp=BCTotalNumberMPF
-    END IF
-    SWRITE(*,*) 'Number of saved particles for SFResampleAnalyzeSurfCollis: ',LastAnalyzeSurfCollis%PartNumberSamp
-    SDEALLOCATE(LastAnalyzeSurfCollis%WallState)
-    SDEALLOCATE(LastAnalyzeSurfCollis%Species)
-    ALLOCATE(LastAnalyzeSurfCollis%WallState(6,LastAnalyzeSurfCollis%PartNumberSamp))
-    ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
-    LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
-#ifdef MPI
-    IF (BCTotalNumberMPF.GT.0) THEN
-      ALLOCATE(sendbuf2(1:AnalyzeSurfCollis%Number(nSpecies+1)*8))
-      ALLOCATE(recvbuf2(1:TotalNumberMPF*8))
-      ! Fill sendbufer
-      counter2 = 0
-      DO iPart=1,AnalyzeSurfCollis%Number(nSpecies+1)
-        sendbuf2(counter2+1:counter2+6) = AnalyzeSurfCollis%Data(iPart,1:6)
-        sendbuf2(counter2+7)           = REAL(AnalyzeSurfCollis%Spec(iPart))
-        sendbuf2(counter2+8)           = REAL(AnalyzeSurfCollis%BCid(iPart))
-        counter2 = counter2 + 8
-      END DO
-      ! Distribute particles to all procs
-      counter2 = 0
-      DO iProc = 0, nProcessors-1
-        RecCount(iProc) = globalNum(iProc) * 8
-        Displace(iProc) = counter2
-        counter2 = counter2 + globalNum(iProc)*8
-      END DO
-      CALL MPI_ALLGATHERV(sendbuf2, 8*globalNum(myRank), MPI_DOUBLE_PRECISION, &
-        recvbuf2, RecCount, Displace, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, IERROR)
-      ! Add them to particle list
-      counter2 = -8 !moved increment before usage, thus: -8 instead of 0
-      DO counter = 1, LastAnalyzeSurfCollis%PartNumberSamp
-        IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts (differently in each proc. Could be changed)
-          DO !get random (equal!) position between 8*[0,TotalNumberMPF-1] and accept if .NOT.PartDone and with right BC
-            CALL RANDOM_NUMBER(RandVal)
-            counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) !( MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) - 1) *8
-            IF (.NOT.PartDone(counter2) .AND. &
-              ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.INT(recvbuf2(8*counter2))) )) THEN
-              PartDone(counter2)=.TRUE.
-              counter2 = 8*(counter2-1)
-              EXIT
-            END IF
-          END DO
-        ELSE
-          counter2 = counter2 + 8
-        END IF
-        LastAnalyzeSurfCollis%WallState(:,counter) = recvbuf2(counter2+1:counter2+6)
-        LastAnalyzeSurfCollis%Species(counter) = INT(recvbuf2(counter2+7))
-        LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
-          , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
-      END DO
-      DEALLOCATE(sendbuf2 &
-                ,recvbuf2 )
-    END IF
-#else
-    ! Add particle to list
+  IF (BCTotalNumberMPF.GT.0) THEN
+    ALLOCATE(sendbuf2(1:AnalyzeSurfCollis%Number(nSpecies+1)*8))
+    ALLOCATE(recvbuf2(1:TotalNumberMPF*8))
+    ! Fill sendbufer
     counter2 = 0
+    DO iPart=1,AnalyzeSurfCollis%Number(nSpecies+1)
+      sendbuf2(counter2+1:counter2+6) = AnalyzeSurfCollis%Data(iPart,1:6)
+      sendbuf2(counter2+7)           = REAL(AnalyzeSurfCollis%Spec(iPart))
+      sendbuf2(counter2+8)           = REAL(AnalyzeSurfCollis%BCid(iPart))
+      counter2 = counter2 + 8
+    END DO
+    ! Distribute particles to all procs
+    counter2 = 0
+    DO iProc = 0, nProcessors-1
+      RecCount(iProc) = globalNum(iProc) * 8
+      Displace(iProc) = counter2
+      counter2 = counter2 + globalNum(iProc)*8
+    END DO
+    CALL MPI_ALLGATHERV(sendbuf2, 8*globalNum(myRank), MPI_DOUBLE_PRECISION, &
+      recvbuf2, RecCount, Displace, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, IERROR)
+    ! Add them to particle list
+    counter2 = -8 !moved increment before usage, thus: -8 instead of 0
     DO counter = 1, LastAnalyzeSurfCollis%PartNumberSamp
-      IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts (differently for each proc. Could be changed)
-        DO !get random (equal!) position between [1,TotalNumberMPF] and accept if .NOT.PartDone and with right BC
+      IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts (differently in each proc. Could be changed)
+        DO !get random (equal!) position between 8*[0,TotalNumberMPF-1] and accept if .NOT.PartDone and with right BC
           CALL RANDOM_NUMBER(RandVal)
-          counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF)
+          counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) !( MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF) - 1) *8
           IF (.NOT.PartDone(counter2) .AND. &
-            ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.AnalyzeSurfCollis%BCid(counter2)) )) THEN
+            ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.INT(recvbuf2(8*counter2))) )) THEN
             PartDone(counter2)=.TRUE.
+            counter2 = 8*(counter2-1)
             EXIT
           END IF
         END DO
       ELSE
-        counter2 = counter2 + 1
+        counter2 = counter2 + 8
       END IF
-      LastAnalyzeSurfCollis%WallState(:,counter) = AnalyzeSurfCollis%Data(counter2,1:6)
-      LastAnalyzeSurfCollis%Species(counter) = AnalyzeSurfCollis%Spec(counter2)
+      LastAnalyzeSurfCollis%WallState(:,counter) = recvbuf2(counter2+1:counter2+6)
+      LastAnalyzeSurfCollis%Species(counter) = INT(recvbuf2(counter2+7))
       LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
         , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
     END DO
+    DEALLOCATE(sendbuf2 &
+              ,recvbuf2 )
+  END IF
+#else
+  ! Add particle to list
+  counter2 = 0
+  DO counter = 1, LastAnalyzeSurfCollis%PartNumberSamp
+    IF (LastAnalyzeSurfCollis%ReducePartNumber) THEN !reduce saved number of parts (differently for each proc. Could be changed)
+      DO !get random (equal!) position between [1,TotalNumberMPF] and accept if .NOT.PartDone and with right BC
+        CALL RANDOM_NUMBER(RandVal)
+        counter2 = MIN(1+INT(RandVal*REAL(TotalNumberMPF)),TotalNumberMPF)
+        IF (.NOT.PartDone(counter2) .AND. &
+          ( ANY(LastAnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(LastAnalyzeSurfCollis%BCs.EQ.AnalyzeSurfCollis%BCid(counter2)) )) THEN
+          PartDone(counter2)=.TRUE.
+          EXIT
+        END IF
+      END DO
+    ELSE
+      counter2 = counter2 + 1
+    END IF
+    LastAnalyzeSurfCollis%WallState(:,counter) = AnalyzeSurfCollis%Data(counter2,1:6)
+    LastAnalyzeSurfCollis%Species(counter) = AnalyzeSurfCollis%Spec(counter2)
+    LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
+      , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
+  END DO
 #endif
-    IF (LastAnalyzeSurfCollis%pushTimeStep .LE. 0.) THEN
+  IF (LastAnalyzeSurfCollis%pushTimeStep .LE. 0.) THEN
+    CALL Abort(&
+      __STAMP__,&
+      'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!')
+  ELSE
+    LastAnalyzeSurfCollis%pushTimeStep = r_SF / LastAnalyzeSurfCollis%pushTimeStep !dt required for smallest projected velo to cross r_SF
+    LastAnalyzeSurfCollis%PartNumberDepo = NINT(BCTotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)
+    SWRITE(*,'(A,E12.5,x,I0)') 'Total Flowrate and to be inserted number of MP for SFResampleAnalyzeSurfCollis: ' &
+      ,BCTotalFlowrateMPF, LastAnalyzeSurfCollis%PartNumberDepo
+    IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumberSamp) THEN
+      SWRITE(*,*) 'WARNING: PartNumberDepo .GT. PartNumberSamp!'
+    END IF
+    IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumThreshold) THEN
       CALL Abort(&
         __STAMP__,&
-        'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!')
-    ELSE
-      LastAnalyzeSurfCollis%pushTimeStep = r_SF / LastAnalyzeSurfCollis%pushTimeStep !dt required for smallest projected velo to cross r_SF
-      LastAnalyzeSurfCollis%PartNumberDepo = NINT(BCTotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)
-      SWRITE(*,'(A,E12.5,x,I0)') 'Total Flowrate and to be inserted number of MP for SFResampleAnalyzeSurfCollis: ' &
-        ,BCTotalFlowrateMPF, LastAnalyzeSurfCollis%PartNumberDepo
-      IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumberSamp) THEN
-        SWRITE(*,*) 'WARNING: PartNumberDepo .GT. PartNumberSamp!'
-      END IF
-      IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumThreshold) THEN
-        CALL Abort(&
-          __STAMP__,&
-          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',LastAnalyzeSurfCollis%PartNumberDepo)
-      END IF
+        'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',LastAnalyzeSurfCollis%PartNumberDepo)
     END IF
-  END IF !SFResampleAnalyzeSurfCollis
+  END IF
+END IF !SFResampleAnalyzeSurfCollis
 
-  DO iSpec=1,nSpecies
-    ALLOCATE(PartData(offsetnPart(iSpec)+1:offsetnPart(iSpec)+locnPart(iSpec),PartDataSize))
-    DO iPart=1,locnPart(iSpec)
-      PartData(offsetnPart(iSpec)+iPart,1)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),1)
-      PartData(offsetnPart(iSpec)+iPart,2)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),2)
-      PartData(offsetnPart(iSpec)+iPart,3)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),3)
-      PartData(offsetnPart(iSpec)+iPart,4)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),4)
-      PartData(offsetnPart(iSpec)+iPart,5)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),5)
-      PartData(offsetnPart(iSpec)+iPart,6)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),6)
-      PartData(offsetnPart(iSpec)+iPart,7)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),7)
-      PartData(offsetnPart(iSpec)+iPart,8)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),8)
-      PartData(offsetnPart(iSpec)+iPart,9)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),9)
-      PartData(offsetnPart(iSpec)+iPart,10)=REAL(AnalyzeSurfCollis%BCid(SpeciesPositions(iSpec,iPart)))
-    END DO
-    WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
-    IF(minnParts(iSpec).EQ.0)THEN
-      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name), rank=2,&
-                            nValGlobal=(/nPart_glob(iSpec),PartDataSize/),&
-                            nVal=      (/locnPart(iSpec),PartDataSize  /),&
-                            offset=    (/offsetnPart(iSpec) , 0  /),&
-                            collective=.FALSE., RealArray=PartData)
-    ELSE
-      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name), rank=2,&
-                            nValGlobal=(/nPart_glob(iSpec),PartDataSize/),&
-                            nVal=      (/locnPart(iSpec),PartDataSize  /),&
-                            offset=    (/offsetnPart(iSpec) , 0  /),&
-                            collective=.TRUE., RealArray=PartData)
-    END IF
-    DEALLOCATE(PartData)
-  END DO !iSpec
+DO iSpec=1,nSpecies
+  ALLOCATE(PartData(offsetnPart(iSpec)+1:offsetnPart(iSpec)+locnPart(iSpec),PartDataSize))
+  DO iPart=1,locnPart(iSpec)
+    PartData(offsetnPart(iSpec)+iPart,1)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),1)
+    PartData(offsetnPart(iSpec)+iPart,2)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),2)
+    PartData(offsetnPart(iSpec)+iPart,3)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),3)
+    PartData(offsetnPart(iSpec)+iPart,4)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),4)
+    PartData(offsetnPart(iSpec)+iPart,5)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),5)
+    PartData(offsetnPart(iSpec)+iPart,6)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),6)
+    PartData(offsetnPart(iSpec)+iPart,7)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),7)
+    PartData(offsetnPart(iSpec)+iPart,8)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),8)
+    PartData(offsetnPart(iSpec)+iPart,9)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),9)
+    PartData(offsetnPart(iSpec)+iPart,10)=REAL(AnalyzeSurfCollis%BCid(SpeciesPositions(iSpec,iPart)))
+  END DO
+  WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
+  IF(minnParts(iSpec).EQ.0)THEN
+    CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name), rank=2,&
+                          nValGlobal=(/nPart_glob(iSpec),PartDataSize/),&
+                          nVal=      (/locnPart(iSpec),PartDataSize  /),&
+                          offset=    (/offsetnPart(iSpec) , 0  /),&
+                          collective=.FALSE., RealArray=PartData)
+  ELSE
+    CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name), rank=2,&
+                          nValGlobal=(/nPart_glob(iSpec),PartDataSize/),&
+                          nVal=      (/locnPart(iSpec),PartDataSize  /),&
+                          offset=    (/offsetnPart(iSpec) , 0  /),&
+                          collective=.TRUE., RealArray=PartData)
+  END IF
+  DEALLOCATE(PartData)
+END DO !iSpec
 
-  CALL CloseDataFile()
-  DEALLOCATE(locnPart &
-            ,offsetnPart &
-            ,nPart_glob &
-            ,minnParts &
-            ,iPartCount )
-  DEALLOCATE(SpeciesPositions)
-  DEALLOCATE(StrVarNames)
+CALL CloseDataFile()
+DEALLOCATE(locnPart &
+          ,offsetnPart &
+          ,nPart_glob &
+          ,minnParts &
+          ,iPartCount )
+DEALLOCATE(SpeciesPositions)
+DEALLOCATE(StrVarNames)
 
 END SUBROUTINE WriteAnalyzeSurfCollisToHDF5
 
