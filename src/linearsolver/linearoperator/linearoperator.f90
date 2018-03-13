@@ -443,9 +443,6 @@ IF(X_abs.NE.0.)THEN
 ELSE
   EpsFD= rEps0*0.1
 END IF
-IF(PartID.EQ.61)THEN
-print*,'X',X,X_abs
-END IF
 
 !CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
 !CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)

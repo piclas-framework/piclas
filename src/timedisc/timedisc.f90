@@ -3566,14 +3566,6 @@ IF(t.GE.DelayTime)THEN
     PartXK(1:6,iPart)   = PartState(iPart,1:6) ! which is partstateN
     R_PartXK(1:6,iPart) = Pt_tmp(1:6)          ! the delta is not changed
     PartDeltaX=0.
-    IF(iPart.EQ.61)THEN
-      print*,'rhs_1', Pt_tmp(1)
-      print*,'rhs_1', Pt_tmp(2)
-      print*,'rhs_1', Pt_tmp(3)
-      print*,'rhs_1', Pt_tmp(4)
-      print*,'rhs_1', Pt_tmp(5)
-      print*,'rhs_1', Pt_tmp(6)
-    END IF
     ! guess for new value is Pt_tmp: remap to reuse old GMRES
     ! OLD
     ! CALL PartMatrixVector(t,Coeff_inv,iPart,Pt_tmp,PartDeltaX) 
@@ -3598,14 +3590,6 @@ IF(t.GE.DelayTime)THEN
     PartStage(iPart,4,1) = PartState(iPart,4)
     PartStage(iPart,5,1) = PartState(iPart,5)
     PartStage(iPart,6,1) = PartState(iPart,6)
-    IF(iPart.EQ.61)THEN
-      print*,'u_1', PartState(iPart,1)
-      print*,'u_1', PartState(iPart,2)
-      print*,'u_1', PartState(iPart,3)
-      print*,'u_1', PartState(iPart,4)
-      print*,'u_1', PartState(iPart,5)
-      print*,'u_1', PartState(iPart,6)
-    END IF
     !PDM%IsNewPart(iPart)=.FALSE.
     !PDM%IsNewPart(iPart)=.FALSE.
   END DO ! iPart
@@ -3639,7 +3623,6 @@ ENDIF
 ! stage 2 to nRKStages
 ! ----------------------------------------------------------------------------------------------------------------------------------
 DO iStage=2,nRKStages
-  print*,'iStage',iStage
   ! time of current stage
   tStage = t + RK_c(iStage)*dt
   IF(DoPrintConvInfo)THEN
@@ -3726,10 +3709,6 @@ DO iStage=2,nRKStages
       DO iCounter=1,iStage-2
         PartState(iPart,1:6)=PartState(iPart,1:6)+RK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
       END DO ! iCounter=1,iStage-2
-      IF(iPart.EQ.61)THEN
-        print*,'deltap',PartState(iPart,1:6)
-        print*,'PartNewInStuff',PartState(iPart,1:6)+PartStateN(iPart,1:6)
-      END IF
       PartState(iPart,1:6)=PartStateN(iPart,1:6)+PartState(iPart,1:6)
     END DO ! iPart=1,PDM%ParticleVecLength
     CALL PartVeloToImp(VeloToImp=.FALSE.) 
@@ -3840,16 +3819,6 @@ DO iStage=2,nRKStages
       PartStage(iPart,4,iStage) = PartState(iPart,4)
       PartStage(iPart,5,iStage) = PartState(iPart,5)
       PartStage(iPart,6,iStage) = PartState(iPart,6)
-      IF(iPart.EQ.61)THEN
-        print*,'istate',istage
-        print*,'u_i',PartState(iPart,1)
-        print*,'u_i',PartState(iPart,2)
-        print*,'u_i',PartState(iPart,3)
-        print*,'u_i',PartState(iPart,4)
-        print*,'u_i',PartState(iPart,5)
-        print*,'u_i',PartState(iPart,6)
-        read*
-      END IF
     END DO ! iPart
   END IF
   IF(DoFieldUpdate) THEN

@@ -537,9 +537,6 @@ IF (.NOT.EisenstatWalker) THEN
   AbortCrit=epsPartlinSolver
 END IF
 
-IF(PartID.EQ.61)THEN
-  print*,'AbortCrit',AbortCrit,Norm_B*AbortCrit
-END IF
 AbortCrit=Norm_B*AbortCrit
 R0=B
 Norm_R0=Norm_B
@@ -581,9 +578,6 @@ DO WHILE (Restart<nRestarts)
     Gam(m)=C(m)*Gam(m)
     IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDimPart)) THEN !converge or max Krylov reached
     !IF (m.EQ.nKDimPart) THEN !converge or max Krylov reached
-IF(PartID.EQ.61)THEN
-  print*,'ndim',m
-END IF
       DO nn=m,1,-1
          Alp(nn)=Gam(nn) 
          DO o=nn+1,m
@@ -595,9 +589,6 @@ END IF
         DeltaX=DeltaX+Alp(nn)*V(:,nn)
       END DO !nn
       !IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
-IF(PartID.EQ.61)THEN
-  print*,'iterLS',m,Gam(m+1)
-END IF
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
         ! already back transformed,...more storage...but its ok
 #ifdef DLINANALYZE
