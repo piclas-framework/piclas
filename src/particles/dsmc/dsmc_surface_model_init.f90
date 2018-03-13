@@ -2,7 +2,7 @@
 
 MODULE MOD_DSMC_SurfModelInit
 !===================================================================================================================================
-! Initialization of DSMC
+!> Module for initialization of surface models
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -40,30 +40,27 @@ IMPLICIT NONE
 CALL prms%SetSection("DSMC Surfmodel")
 
 CALL prms%CreateLogicalOption(  'Particles-KeepWallParticles'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Flag to track adsorbed Particles','.FALSE.')
+  , 'Flag to track adsorbed Particles on surface if they are adsorbed. Currently only [FALSE] implemented','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles--DSMC-Adsorption-doTPD'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Flag for TPD spectrum calculation','.FALSE.')
+  , 'Flag for TPD spectrum calculation. Only for TD=42 (RESERVOIR)','.FALSE.')
 CALL prms%CreateRealOption(     'Particles-DSMC-Adsorption-TPD-Beta'&
-                                         , 'TODO-DEFINE-PARAMETER\n'//&
-                                              'Temperature slope for TPD [K/s]','0.')
+  , 'Temperature slope used for TPD calculation [K/s]. Surface temperature used for desorption probability is increased'//&
+    'each iteration','0.')
 
 CALL prms%CreateRealOption(     'Part-Species[$]-MaximumCoverage'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Maximum coverage of surface i with species n','0.', numberedmulti=.TRUE.)
+  , 'Maximum coverage of surfaces with species [$] (used for wallmodel=1)','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-InitialStick'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                            'Initial sticking coefficient (S_0) for surface n','0.', numberedmulti=.TRUE.)
+  , 'Initial sticking coefficient (S_0) of species [$] for surfaces (used for Kisliuk model, wallmodel=1)' &
+  , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PrefactorStick'&
-                                         , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Prefactor of sticking coefficient for surface n ','0.', numberedmulti=.TRUE.)
+  , 'Prefactor of sticking coefficient of species [$] for surfaces (used for Kisliuk model, wallmodel=1)' &
+  , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Adsorbexp'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                            'Adsorption exponent for surface n','1', numberedmulti=.TRUE.)
+  , 'Adsorption exponent of species [$] for surfaces (used for Kisliuk model, wallmodel=1)' &
+  , '1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Nu-a'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                            'Nu exponent a for surface n','0.', numberedmulti=.TRUE.)
+                                         , 'TODO-DEFINE-PARAMETER\n'//&
+                                              'Nu exponent a for surface n','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Nu-b'&
                                          , 'TODO-DEFINE-PARAMETER\n'//&
                                               'Nu exponent b for surface n','0.', numberedmulti=.TRUE.)
@@ -87,30 +84,38 @@ CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationEnerg
                                          , 'TODO-DEFINE-PARAMETER\n'//&
                                             'Energy transformed by reaction (nPartBound,nSpecies)','0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationAccomodation'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                          'Energy Accomodation coefficient (nPartBound,nSpecies)','1.', numberedmulti=.TRUE.)
+  , 'Define energy accomodation coefficient.\n'//&
+    'Describes the percentage of reaction enthalpy of surface reaction transmitted to surface.','1.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-Coordination'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                            'Site bound coordination\n'//&
-                                            '1=hollow\n'//&
-                                             '2=bridge\n'//&
-                                            '3=on-top)(nSpecies)','0', numberedmulti=.TRUE.)
+  , 'Coordination at which particle of species [$] is bound on surface of boundary [$].\n'//&
+    '1=hollow\n'//&
+    '2=bridge\n'//&
+    '3=on-top'//&
+    '[wallmodel=3]','0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-DiCoordination'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                              '(1:nSpecies)\n'//&
-                                              '1: bound via bridge bonding\n'//&
-                                               '2: or chelating','0', numberedmulti=.TRUE.)
+  , 'If particles of species [$] are di-, polyatomic and bind with additional coordination at Boundary [$].\n'//&
+    '0: no DiCoordination\n'//&
+    '1: bound via bridge bonding\n'//&
+    '2: chelating binding\n'//&
+    '[wallmodel=3','0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                              'Heat of adsorption (K) on clear surfaces for surface n','0.', numberedmulti=.TRUE.)
+  , 'Define heat of adsorption [K] on clear surface for binding atom of species [$] on boundary [$].\n'// &
+    '[Assumption of on-top side bind, wallmodel=3]','0.', numberedmulti=.TRUE.)
+
+CALL prms%CreateStringOption(  'Particles-SurfCoverageFile'&
+  , 'Surface-state-file used for coverage init. File must contain same amount of species as calculation.\n'//&
+    'If no file specified:\n'// &
+    'Define Part-Species[$]-PartBound[$]-InitialCoverage for initial coverage different than 0.' &
+  , 'none')
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-InitialCoverage'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                              'Initial coverage (nPartBound,nSpecies)','0.', numberedmulti=.TRUE.)
+  , 'Initial coverage used for species [$] and surfaces of boundary [$] in case of no surface-state-file init' &
+  , '0.', numberedmulti=.TRUE.)
 
 
 CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
-                                          , 'TODO-DEFINE-PARAMETER.\n'//&
-                                          'Default: Species(1)%MPF Used macro particle factor of species[i].')
+  , 'Weighting factor used for particles adsorbed on surface in case of reconstruction [wallmodel=3].\n'//&
+    'If one surface contains less then 10 surface atoms program abort is called.\n'//&
+    'Default: Species(1)%MPF: Uses macro particle factor of species1.')
 CALL prms%CreateIntOption(      'Part-Species-MaxDissNum'&
                                          , 'TODO-DEFINE-PARAMETER','0')
 CALL prms%CreateIntOption(      'Part-SurfChem-Nbr-DissocReactions'&
@@ -173,43 +178,44 @@ END SUBROUTINE DefineParametersSurfModel
 
 SUBROUTINE InitDSMCSurfModel()
 !===================================================================================================================================
-! Init of DSMC Vars
+!> Init of surface model variables
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY : abort
-USE MOD_Mesh_Vars,              ONLY : nElems, BC
-USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC!, CollisMode
-USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
-USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
-USE MOD_Particle_Mesh_Vars,     ONLY : nTotalSides
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Mesh_Vars              ,ONLY: nElems, BC
+USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC!, CollisMode
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM
+USE MOD_PARTICLE_Vars          ,ONLY: KeepWallParticles, PEM
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides
 USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, nPartBound, PartBound
-USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcAdsorbProb, CalcDesorbProb
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
+USE MOD_DSMC_SurfModel_Tools   ,ONLY: CalcAdsorbProb, CalcDesorbProb
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcDiffusion
+USE MOD_DSMC_SurfModel_Tools   ,ONLY: CalcDiffusion
 #endif
 #ifdef MPI
-USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeCoverageInfo
-USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-USE MOD_Particle_MPI_Vars     , ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfExchange,SurfCoverageSendBuf,SurfCoverageRecvBuf
+USE MOD_DSMC_SurfModel_Tools   ,ONLY: ExchangeCoverageInfo
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars      ,ONLY: AdsorbSendBuf,AdsorbRecvBuf,SurfExchange,SurfCoverageSendBuf,SurfCoverageRecvBuf
 #endif
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  CHARACTER(32)                    :: hilf, hilf2
-  INTEGER                          :: iSpec, iSide, iPartBound
-  INTEGER                          :: SideID, PartBoundID
-  REAL , ALLOCATABLE               :: Coverage_tmp(:,:)
+CHARACTER(LEN=255)               :: SurfaceFileName
+CHARACTER(32)                    :: hilf, hilf2
+INTEGER                          :: iSpec, iSide, iPartBound
+INTEGER                          :: SideID, PartBoundID
+REAL , ALLOCATABLE               :: Coverage_tmp(:,:)
 #if (PP_TimeDiscMethod==42)
-  INTEGER                          :: idiff
+INTEGER                          :: idiff
 #endif
 #ifdef MPI
-  INTEGER                          :: iProc
+INTEGER                          :: iProc
 #endif
 !===================================================================================================================================
 ! do not initialize variables if processor does not have any surfaces on in domain
@@ -226,26 +232,26 @@ END IF
 #if (PP_TimeDiscMethod==42)
 ALLOCATE( Adsorption%AdsorpInfo(1:nSpecies))
 #endif
-IF (DSMC%WallModel.EQ.1) THEN 
-  ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),& 
-            Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),& 
-            Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),& 
-            Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),& 
-            Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),& 
-            Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),& 
-            Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),& 
+IF (DSMC%WallModel.EQ.1) THEN
+  ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),&
+            Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),&
+            Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),&
+            Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),&
+            Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),&
+            Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),&
+            Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),&
             Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
 ELSE IF (DSMC%WallModel.EQ.2) THEN
   ALLOCATE( Adsorption%RecombCoeff(1:nPartBound,1:nSpecies),&
             Adsorption%RecombEnergy(1:nPartBound,1:nSpecies),&
             Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies),&
             Adsorption%RecombData(1:2,1:nSpecies))
-ELSE IF (DSMC%WallModel.EQ.3) THEN 
+ELSE IF (DSMC%WallModel.EQ.3) THEN
   ALLOCATE( Adsorption%HeatOfAdsZero(1:nPartBound,1:nSpecies),&
             Adsorption%Coordination(1:nPartBound,1:nSpecies),&
             Adsorption%DiCoord(1:nPartBound,1:nSpecies))
-  ! initialize info and constants
 END IF
+! initialize info and constants
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%MeanProbAds  = 0.
@@ -272,7 +278,7 @@ DO iSpec = 1,nSpecies
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
         IF(PartBound%SolidCatalytic(iPartBound))THEN
-          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound 
+          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
           Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
@@ -282,20 +288,20 @@ DO iSpec = 1,nSpecies
 __STAMP__,&
 'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
           END IF
-        END IF  
+        END IF
       END IF
     END DO
-  ELSE IF (DSMC%WallModel.EQ.3) THEN 
+  ELSE IF (DSMC%WallModel.EQ.3) THEN
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
         IF(PartBound%SolidCatalytic(iPartBound))THEN
-          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound 
+          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
           Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
           Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
           IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
-          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound 
+          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
             CALL abort(&
 __STAMP__,&
 'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
@@ -429,69 +435,70 @@ END IF
 
 ! define number of possible recombination reactions per species needed for sampling
 IF (DSMC%WallModel.EQ.1) Adsorption%RecombNum = 0
-IF (DSMC%WallModel.EQ.2) Adsorption%RecombNum = 1 
+IF (DSMC%WallModel.EQ.2) Adsorption%RecombNum = 1
 CALL Init_ChemistrySampling()
 
 END SUBROUTINE InitDSMCSurfModel
 
+
 SUBROUTINE Init_SurfDist()
 !===================================================================================================================================
-! Initializing surface distibution Model for calculating of coverage effects on heat of adsorption
+!> Initializing surface distibution reconstruction model for calculating of coverage effects on heat of adsorption
+!> Positions of binding sites in the surface lattice (always rectangular surface lattice assumed)
+!> ------------[        surfsquare       ]--------------
+!>              |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!> For now:
+!> Neighbours are all sites, that have the same binding surface atom. 
+!> Except for top sites(3) they also interact with the next top site.
 !===================================================================================================================================
-  USE MOD_Globals
-  USE MOD_ReadInTools
-  USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_Particle_Vars,          ONLY : nSpecies, Species!, KeepWallParticles
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
-  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species!, KeepWallParticles
+USE MOD_DSMC_Vars              ,ONLY: Adsorption, SurfDistInfo
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #ifdef MPI
-  USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-  USE MOD_Particle_MPI_Vars,      ONLY : SurfDistSendBuf,SurfDistRecvBuf,SurfExchange
-  USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo, ExchangeSurfDistSize
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars      ,ONLY: SurfDistSendBuf,SurfDistRecvBuf,SurfExchange
+USE MOD_DSMC_SurfModel_Tools   ,ONLY: ExchangeSurfDistInfo, ExchangeSurfDistSize
 #endif /*MPI*/
 !===================================================================================================================================
-  IMPLICIT NONE
+IMPLICIT NONE
 !=================================================================================================================================== 
 ! Local variable declaration
-  CHARACTER(64)                    :: particle_mpf
-  REAL                             :: surface_mpf
-  INTEGER                          :: Max_Surfsites_num
-  INTEGER                          :: Max_Surfsites_own
-  INTEGER                          :: Max_Surfsites_halo
-  INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom
-  INTEGER                          :: SideID, PartBoundID
-  INTEGER                          :: surfsquare, dist, Adsorbates
-  INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
-  REAL                             :: RanNum
-  INTEGER                          :: xpos, ypos
-  INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
+CHARACTER(64)                    :: particle_mpf
+REAL                             :: surface_mpf
+INTEGER                          :: Max_Surfsites_num
+INTEGER                          :: Max_Surfsites_own
+INTEGER                          :: Max_Surfsites_halo
+INTEGER                          :: iSurfSide, subsurfxi, subsurfeta, iSpec, iInterAtom
+INTEGER                          :: SideID, PartBoundID
+INTEGER                          :: surfsquare, dist, Adsorbates
+INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
+REAL                             :: RanNum
+INTEGER                          :: xpos, ypos
+INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
 #ifdef MPI
-  INTEGER                          :: iProc
+INTEGER                          :: iProc
 #endif
 !===================================================================================================================================
-! position of binding sites in the surface lattice (rectangular lattice)
-!------------[        surfsquare       ]--------------
-!             |       |       |       |
-!         3---2---3---2---3---2---3---2---3
-!         |       |       |       |       |
-!         2   1   2   1   2   1   2   1   2
-!         |       |       |       |       |
-!         3---2---3---2---3---2---3---2---3
-!         |       |       |       |       |
-!         2   1   2   1   2   1   2   1   2
-!         |       |       |       |       |
-!         3---2---3---2---3---2---3---2---3
-!         |       |       |       |       |
-!         2   1   2   1   2   1   2   1   2
-!         |       |       |       |       |
-!         3---2---3---2---3---2---3---2---3
-!         |       |       |       |       |
-!         2   1   2   1   2   1   2   1   2
-!         |       |       |       |       |
-!         3---2---3---2---3---2---3---2---3
-! For now:
-! Neighbours are all sites, that have the same binding surface atom. 
-! Except for top sites(3) they also interact with the next top site.
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
 DO iSurfSide = 1,SurfMesh%nTotalSides
@@ -540,7 +547,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
         __STAMP__&
         ,'not enough surface spaces for distribution. Surface MacroParticleFactor to to high',surfsquare)
     END IF
-    
+
     Max_Surfsites_num = Max_Surfsites_num + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
     IF (iSurfSide.LE.SurfMesh%nSides) THEN
       Max_Surfsites_own = Max_Surfsites_own + SUM(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(:))
@@ -551,12 +558,12 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%adsorbnum_tmp(1:nSpecies) = 0.
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%desorbnum_tmp(1:nSpecies) = 0.
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%reactnum_tmp(1:nSpecies) = 0.
-    
+
     ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(1:nSpecies,1:surfsquare+1,1:surfsquare+1))
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SurfAtomBondOrder(:,:,:) = 0
-    
+
     ALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(1:3))
-    DO Coord = 1,3    
+    DO Coord = 1,3
       SELECT CASE (Coord)
       CASE(1)
         nSites = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%nSites(Coord)
@@ -571,7 +578,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
         SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nInterAtom = 1
         SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nNeighbours = 12
       END SELECT
-        
+
       nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nInterAtom
       nNeighbours = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%nNeighbours
       ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%BondAtomIndx(1:nSites,nInterAtom),&
@@ -809,7 +816,7 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,1) = Surfpos - (surfsquare) - 1 -(Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,2) = Surfpos - (surfsquare) - (Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,3) = Surfpos - 1 - (Indy-1)
-    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,4) = Surfpos - (Indy-1)    
+    SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,4) = Surfpos - (Indy-1)
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:4) = 1
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,1:4) = .TRUE.
     ! bridge
@@ -853,7 +860,7 @@ DO subsurfxi = 1,nSurfSample
     SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(3)%BondAtomIndy(Surfpos,1) = Indy
     Indx = Indx + 1
   END DO
-  
+
 END DO
 END DO
 END DO
@@ -863,7 +870,7 @@ SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
 IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
 DO subsurfeta = 1,nSurfSample
-DO subsurfxi = 1,nSurfSample    
+DO subsurfxi = 1,nSurfSample
   DO iSpec = 1,nSpecies
     ! adjust coverage to actual discret value
     Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,iSurfSide,iSpec) &
@@ -880,7 +887,7 @@ Adsorption%Coordination(PartboundID,iSpec))
     dist = 1
     Coord = Adsorption%Coordination(PartboundID,iSpec)
     Surfnum = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%SitesRemain(Coord)
-    DO WHILE (dist.LE.Adsorbates) 
+    DO WHILE (dist.LE.Adsorbates)
       CALL RANDOM_NUMBER(RanNum)
       Surfpos = 1 + INT(Surfnum * RanNum)
       UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos)
@@ -905,14 +912,12 @@ END DO
 END DO
 END DO
 
-
 #ifdef MPI
 #ifdef CODE_ANALYZE
 ! write out the number of sites on all surface of the proc, that are considered for adsorption
 WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
   ' | own: ',Max_Surfsites_own,' | halo: ',Max_Surfsites_halo
 #endif /*CODE_ANALYZE*/
-  
 
 ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
         ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &
@@ -946,33 +951,33 @@ CALL ExchangeSurfDistInfo()
 #endif /*MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
-    
+
 END SUBROUTINE Init_SurfDist
 
 SUBROUTINE Init_SurfChem()
 !===================================================================================================================================
-! Initializing surface reaction variables
+!> Initializing surface reaction variables
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
-USE MOD_DSMC_Vars,              ONLY : Adsorption, SpecDSMC
-USE MOD_PARTICLE_Vars,          ONLY : nSpecies
+USE MOD_Globals       ,ONLY: abort, MPIRoot, UNIT_StdOut
+USE MOD_DSMC_Vars     ,ONLY: Adsorption, SpecDSMC
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  CHARACTER(32)                    :: hilf, hilf2
-  INTEGER                          :: iSpec, iSpec2, iReactNum, iReactNum2, iReactant
-  INTEGER                          :: ReactNum
-  INTEGER                          :: MaxDissNum, MaxReactNum, MaxAssocNum
-  INTEGER , ALLOCATABLE            :: nAssocReact(:)
-  INTEGER                          :: nDissoc, nDisProp
-  INTEGER                          :: CalcTST_Case
+CHARACTER(32)                    :: hilf, hilf2
+INTEGER                          :: iSpec, iSpec2, iReactNum, iReactNum2, iReactant
+INTEGER                          :: ReactNum
+INTEGER                          :: MaxDissNum, MaxReactNum, MaxAssocNum
+INTEGER , ALLOCATABLE            :: nAssocReact(:)
+INTEGER                          :: nDissoc, nDisProp
+INTEGER                          :: CalcTST_Case
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
 
@@ -983,7 +988,7 @@ Adsorption%NumOfExchReact = 0
 ! Adsorption constants
 ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
           Adsorption%Ads_Prefactor(1:nSpecies))
-DO iSpec = 1,nSpecies            
+DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Adsorption%Ads_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor','0.')
   Adsorption%Ads_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor','0.')
@@ -1002,7 +1007,7 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
             Adsorption%Diss_Powerfactor(1:MaxDissNum,1:nSpecies),&
             Adsorption%Diss_Prefactor(1:MaxDissNum,1:nSpecies))
   ! Read in dissociative reactions and respective dissociation bond energies
-  DO iSpec = 1,nSpecies            
+  DO iSpec = 1,nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     DO iReactNum = 1,MaxDissNum
       WRITE(UNIT=hilf2,FMT='(I0)') iReactNum
@@ -1019,7 +1024,7 @@ __STAMP__&
                                        GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Prefactor','0.')
     END DO
   END DO
-  
+
   ! find max number of associative reactions for each species from dissociations
   ALLOCATE(nAssocReact(1:nSpecies))
   nAssocReact(:) = 0
@@ -1035,9 +1040,9 @@ __STAMP__&
   MaxAssocNum = MAXVAL(nAssocReact)
   Adsorption%NumOfAssocReact = SUM(nAssocReact(:))
   Adsorption%nAssocReactions = SUM(nAssocReact(:))
-  Adsorption%RecombNum = MaxAssocNum 
+  Adsorption%RecombNum = MaxAssocNum
   DEALLOCATE(nAssocReact)
-  
+
   ! fill associative reactions species map from defined dissociative reactions
   MaxReactNum = MaxDissNum + MaxAssocNum
   ALLOCATE( Adsorption%AssocReact(1:2,1:MaxAssocNum,1:nSpecies),&
@@ -1047,7 +1052,7 @@ __STAMP__&
             Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
   Adsorption%EDissBond(0:MaxReactNum,1:nSpecies) = 0.
   Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies) = 0.
-  DO iSpec = 1,nSpecies            
+  DO iSpec = 1,nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     DO iReactNum = 1,MaxDissNum
       WRITE(UNIT=hilf2,FMT='(I0)') iReactNum
@@ -1111,7 +1116,7 @@ __STAMP__&
       Adsorption%ER_Prefactor(ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0.
     END IF
   END DO
-  
+
   nDissoc = GETINT('Part-SurfChem-Nbr-DissocReactions','0')
   IF ((nDissoc.GT.0) .AND. (nDissoc.NE.nSpecies)) THEN
     CALL abort(&
@@ -1340,17 +1345,17 @@ END SUBROUTINE Init_SurfChem
 
 SUBROUTINE Init_ChemistrySampling()
 !===================================================================================================================================
-! Initializing of additional surface sampling if catalysis is enabled
+!> Initializion of additional surface sampling if catalysis is enabled
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Particle_Vars,          ONLY : nSpecies
-USE MOD_DSMC_Vars,              ONLY : Adsorption
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_DSMC_Vars              ,ONLY: Adsorption
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall
 #ifdef MPI
-USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-USE MOD_Particle_MPI_Vars,      ONLY : SurfSendBuf,SurfRecvBuf,SurfExchange
-USE MOD_DSMC_SurfModel_Tools,   ONLY : ExchangeSurfDistInfo, ExchangeSurfDistSize
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf,SurfExchange
+USE MOD_DSMC_SurfModel_Tools   ,ONLY: ExchangeSurfDistInfo, ExchangeSurfDistSize
 #endif /*MPI*/
 !===================================================================================================================================
 IMPLICIT NONE
@@ -1392,16 +1397,16 @@ END SUBROUTINE Init_ChemistrySampling
 
 SUBROUTINE Init_TST_Coeff(TST_Case)
 !===================================================================================================================================
-! Initializing surface reaction variables
+!> Initializion of the Transition state theory (TST) factors for surface chemistry
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
-USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_DSMC_Vars,              ONLY : Adsorption
-USE MOD_PARTICLE_Vars,          ONLY : nSpecies
+USE MOD_Globals       ,ONLY: abort, MPIRoot, UNIT_StdOut
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_DSMC_Vars     ,ONLY: Adsorption
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER , INTENT(IN)            :: TST_Case
@@ -1435,7 +1440,7 @@ IF (TST_Case.EQ.1) THEN
     END DO
   END DO
 ELSE
-  Adsorption%TST_Calc(:,:) = .TRUE. 
+  Adsorption%TST_Calc(:,:) = .TRUE.
 END IF
 
 !IF(MOD(Adsorption%PartitionMaxTemp,Adsorption%PartitionInterval).EQ.0.0) THEN
@@ -1462,20 +1467,20 @@ END SUBROUTINE Init_TST_Coeff
 
 SUBROUTINE FinalizeDSMCSurfModel()
 !===================================================================================================================================
-! Deallocate Surface model vars
+!> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
-USE MOD_PARTICLE_Vars,          ONLY : PDM, PEM
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+USE MOD_DSMC_Vars              ,ONLY: Adsorption, SurfDistInfo
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PEM
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
-USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-USE MOD_Particle_MPI_Vars,      ONLY : SurfExchange
-USE MOD_Particle_MPI_Vars,      ONLY : AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
-USE MOD_Particle_MPI_Vars,      ONLY : SurfCoverageSendBuf,SurfCoverageRecvBuf
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars      ,ONLY: SurfExchange
+USE MOD_Particle_MPI_Vars      ,ONLY: AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
+USE MOD_Particle_MPI_Vars      ,ONLY: SurfCoverageSendBuf,SurfCoverageRecvBuf
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
