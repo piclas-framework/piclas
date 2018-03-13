@@ -414,8 +414,10 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,PartDtFrac
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
+USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck
+USE MOD_Particle_Vars,           ONLY:PartPosRef,PartState,PEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -432,7 +434,7 @@ REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
 REAL               :: LorentzFacInv
 !REAL               :: FieldAtParticle(1:6)
-!REAL               :: typ_v_abs, XK_V, sign_XK_V
+REAL               :: typ_v_abs, XK_V, sign_XK_V
 !===================================================================================================================================
 
 CALL PartVectorDotProduct(X,X,X_abs)
@@ -440,6 +442,9 @@ IF(X_abs.NE.0.)THEN
   EpsFD= rEps0/SQRT(X_abs)
 ELSE
   EpsFD= rEps0*0.1
+END IF
+IF(PartID.EQ.61)THEN
+print*,'X',X,X_abs
 END IF
 
 !CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
@@ -449,7 +454,8 @@ END IF
 
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-!CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
+! CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(PartID,1:6))
 !PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)
 CASE(0)
@@ -475,7 +481,8 @@ PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
 PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
 #if ROS
-Y(1:6) = (Coeff*X(1:6) - (1./EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+!Y(1:6) = (Coeff*X(1:6) - (1./EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+Y(1:6) = (X(1:6) - (coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
 #else
 Y(1:6) = (X(1:6) - (PartDtFrac(PartID)*coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
 #endif

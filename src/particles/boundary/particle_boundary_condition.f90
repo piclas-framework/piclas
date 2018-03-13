@@ -1832,8 +1832,16 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
+IF(PartID.EQ.61)THEN
+  print*,''
+  print*,'periodic movement'
+    print*,'PartPos-OLD',PartState(PartID,1:3)
+END IF
 PartState(PartID,1:3)   = PartState(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+IF(PartID.EQ.61)THEN
+    print*,'PartPos-New',PartState(PartID,1:3)
+END IF
 
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -1873,10 +1881,12 @@ IF(iStage.GT.0)THEN
     DeltaP=DeltaP+RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
   END DO ! iCounter=1,iStage-2
   ! recompute the old position at t^n
+  IF(PartID.EQ.61)THEN
+    print*,'PartPosN-OLD',PartStateN(PartID,1:3)
+  END IF
   PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
-  IF(PartID.EQ.14)THEN
-    print*,'PartPosNew',PartState(PartID,1:3)
-    print*,'DeltaP',DeltaP
+  IF(PartID.EQ.61)THEN
+    print*,'PartPosN-NEW',PartStateN(PartID,1:3)
   END IF
   ! PartQ is non-shifted, I think
   ! remains non-altered, because no change
@@ -1934,7 +1944,7 @@ IF(iStage.GT.0)THEN
 END IF
 #endif /*IMPA*/
 
-IF(PartID.EQ.14)THEN
+IF(PartID.EQ.61)THEN
   print*,'oldelem',ElemID
 END IF
 ! refmapping and tracing
@@ -1942,7 +1952,7 @@ END IF
 locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
-IF(PartID.EQ.14)THEN
+IF(PartID.EQ.61)THEN
   print*,'ewwelem',ElemID
 END IF
 #ifdef MPI

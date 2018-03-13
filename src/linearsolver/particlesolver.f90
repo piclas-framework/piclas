@@ -78,7 +78,7 @@ REAL                        :: scaleps
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
 
-#ifdef IMPA
+#if defined(IMPA)
 Eps2PartNewton     =GETREAL('EpsPartNewton','0.001')
 Eps2PartNewton     =Eps2PartNewton**2
 EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.0')
@@ -88,8 +88,10 @@ FreezePartInNewton =GETINT('FreezePartInNewton','1')
 EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
 PartgammaEW        =GETREAL('PartgammaEW','0.9')
 nPartNewton        =0
-#else
-EisenstatWalker = .TRUE.
+#elif defined(ROS)
+EisenstatWalker = .FALSE.
+EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.0')
+IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 #endif /*IMPA*/
 
 ! read in by both
@@ -491,7 +493,7 @@ SUBROUTINE Particle_GMRES(t,coeff,PartID,B,Norm_B,AbortCrit,DeltaX)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_LinearSolver_Vars,    ONLY: epsPartlinSolver,TotalPartIterLinearSolver
-USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nPartInnerIter,EisenstatWalker
+USE MOD_LinearSolver_Vars,    ONLY: nKDimPart,nRestarts,nPartInnerIter,EisenstatWalker
 USE MOD_LinearOperator,       ONLY: PartMatrixVector, PartVectorDotProduct
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -504,10 +506,10 @@ REAL,INTENT(OUT)  :: DeltaX(1:6)
 INTEGER,INTENT(IN):: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: V(1:6,1:nKDim)
+REAL              :: V(1:6,1:nKDimPart)
 REAL              :: W(1:6)
 REAL              :: R0(1:6)
-REAL              :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
+REAL              :: Gam(1:nKDimPart+1),C(1:nKDimPart),S(1:nKDimPart),H(1:nKDimPart+1,1:nKDimPart+1),Alp(1:nKDimPart+1)
 REAL              :: Norm_R0,Resu,Temp,Bet
 INTEGER           :: Restart
 INTEGER           :: m,nn,o
@@ -534,7 +536,10 @@ nPartInnerIter=0
 IF (.NOT.EisenstatWalker) THEN
   AbortCrit=epsPartlinSolver
 END IF
-!END IF
+
+IF(PartID.EQ.61)THEN
+  print*,'AbortCrit',AbortCrit,Norm_B*AbortCrit
+END IF
 AbortCrit=Norm_B*AbortCrit
 R0=B
 Norm_R0=Norm_B
@@ -544,7 +549,7 @@ V(:,1)=R0/Norm_R0
 Gam(1)=Norm_R0
 
 DO WHILE (Restart<nRestarts)
-  DO m=1,nKDim
+  DO m=1,nKDimPart
     nPartInnerIter=nPartInnerIter+1
 #ifdef DLINANALYZE
     CALL CPU_TIME(tStart)
@@ -574,7 +579,11 @@ DO WHILE (Restart<nRestarts)
     H(m,m)=Bet
     Gam(m+1)=-S(m)*Gam(m)
     Gam(m)=C(m)*Gam(m)
-    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) THEN !converge or max Krylov reached
+    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDimPart)) THEN !converge or max Krylov reached
+    !IF (m.EQ.nKDimPart) THEN !converge or max Krylov reached
+IF(PartID.EQ.61)THEN
+  print*,'ndim',m
+END IF
       DO nn=m,1,-1
          Alp(nn)=Gam(nn) 
          DO o=nn+1,m
@@ -585,7 +594,10 @@ DO WHILE (Restart<nRestarts)
       DO nn=1,m
         DeltaX=DeltaX+Alp(nn)*V(:,nn)
       END DO !nn
-      IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
+      !IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
+IF(PartID.EQ.61)THEN
+  print*,'iterLS',m,Gam(m+1)
+END IF
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
         ! already back transformed,...more storage...but its ok
 #ifdef DLINANALYZE
@@ -600,12 +612,17 @@ DO WHILE (Restart<nRestarts)
         SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Gam(m+1)
 #endif /* DLINANALYZE */
         RETURN
-      END IF  ! converged
+      !END IF  ! converged
     ELSE ! no convergence, next iteration   ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) 
       V(:,m+1)=W/H(m+1,m)
     END IF ! ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim))
   END DO ! m 
   ! Restart needed
+#ifdef ROS
+CALL abort(&
+__STAMP__&
+,'No Restart should be required! Computation of wrong RHS! nkDim',nKDimPart)
+#endif
   Restart=Restart+1
   ! new settings for source
   !U=DeltaX

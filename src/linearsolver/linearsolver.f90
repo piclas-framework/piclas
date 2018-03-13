@@ -86,6 +86,7 @@ CALL prms%CreateRealOption(     'PartgammaEW'   , 'Drop of tolerance in particle
 CALL prms%CreateRealOption(     'scaleps'   , 'Scaling factor for finite difference which approximates matrix-vector prod.', '1.')
 CALL prms%CreateLogicalOption(  'DoFullNewton' , 'Switch between normal Newton or optimized Newton with subiteration.', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-ImplicitMethod' , 'Selection criterion for implicit particles. Only per species.', '1')
+CALL prms%CreateIntOption(      'nKDimPart' , 'Size up Krylov-subspace in GMRES(6) for particles. .', '6')
 
 END SUBROUTINE DefineParametersLinearSolver
 
@@ -214,8 +215,9 @@ IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
 #endif /*IMPA*/
 #ifdef PARTICLES
-DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 #if defined(ROS) || defined(IMPA)
+DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
+nKDIMPart            = GETINT('nKDIMPart','6')
 #endif /*ROS or IMPA*/
 #endif /*PARTICLES*/
 

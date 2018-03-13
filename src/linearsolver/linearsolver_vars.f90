@@ -41,6 +41,7 @@ REAL,PARAMETER       :: Part_alpha=0.0001
 REAL,PARAMETER       :: Part_sigma(1:2) = (/0.1, 0.5/)
 #endif
 #if defined(ROS) || defined(IMPA)
+INTEGER              :: nKDIMPart
 LOGICAL              :: DoFieldUpdate
 LOGICAL              :: EisenstatWalker                                             ! EisenstatWalker for ParticleNewton
 INTEGER              :: totalPartIterLinearSolver,nPartInnerIter                    ! Counter for Particle newton
