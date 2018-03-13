@@ -213,17 +213,35 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
+USE MOD_Analyze                ,ONLY: PerformAnalyze
+USE MOD_Analyze_Vars           ,ONLY: Analyze_dt
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime,RestartWallTime
+USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
+USE MOD_Mesh                   ,ONLY: SwapMesh
+USE MOD_Filter                 ,ONLY: Filter
+USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
+USE MOD_RecordPoints           ,ONLY: RecordPoints,WriteRPToHDF5
+USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 #if (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum 
 #endif
-USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime,RestartWallTime
 #ifndef PP_HDG
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #endif /*PP_HDG*/
-USE MOD_Analyze                ,ONLY: PerformAnalyze
-USE MOD_Analyze_Vars           ,ONLY: Analyze_dt
+#ifdef PP_POIS
+USE MOD_Equation               ,ONLY: EvalGradient
+#endif /*PP_POIS*/
+#ifdef MPI
+!USE MOD_LoadBalance            ,ONLY: LoadMeasure
+USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,tTotal
+#endif /*MPI*/
+#if defined(IMPA) || defined(ROS)
+USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
+#endif /*IMPA || ROS*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles
@@ -235,18 +253,17 @@ USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 USE MOD_HDF5_output            ,ONLY: WriteQDSToHDF5
 USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
 #endif /*USE_QDS_DG*/
-USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
-USE MOD_Mesh                   ,ONLY: SwapMesh
-USE MOD_Filter                 ,ONLY: Filter
-USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-USE MOD_RecordPoints           ,ONLY: RecordPoints,WriteRPToHDF5
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_Particle_Output        ,ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
+USE MOD_PARTICLE_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
+USE MOD_ReadInTools
+USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
+USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars          ,ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
@@ -255,33 +272,17 @@ USE MOD_Equation_Vars          ,ONLY: c
 #if (PP_TimeDiscMethod==201)
 USE MOD_PARTICLE_Vars          ,ONLY: PDM,Pt,PartState
 #endif /*(PP_TimeDiscMethod==201)*/
-USE MOD_PARTICLE_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
-USE MOD_ReadInTools
-USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
 #ifdef IMPA
 USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
-#endif /*IMPA*/
-USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
-#endif /*PARTICLES*/
-#ifdef PP_POIS
-USE MOD_Equation               ,ONLY: EvalGradient
-#endif /*PP_POIS*/
-USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
-#ifdef MPI
-!USE MOD_LoadBalance            ,ONLY: LoadMeasure
-USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,tTotal
-#endif /*MPI*/
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver,TotalPartIterLinearSolver
-#endif /*IMPA || ROS*/
-#if (PP_TimeDiscMethod==120)||(PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
-#endif
+#endif /*IMPA*/
+#if defined(IMPA) || defined(ROS)
+USE MOD_LinearSolver_Vars      ,ONLY: TotalPartIterLinearSolver
+#endif /*IMPA || ROS*/
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -593,7 +594,7 @@ DO !iter_t=0,MaxIter
       PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
     END IF
 #ifdef MPI
-#if !defined(LSERK) && !defined(IMPA)
+#if !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
     CALL ComputeElemLoad(PerformLoadBalance,time)
@@ -3214,7 +3215,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv
 USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma !,RKdtFrac, RK_inc,RK_inflow,RK_fillSF
-USE MOD_LinearSolver_Vars,       ONLY:DoPrintConvInfo,FieldStage
+USE MOD_LinearSolver_Vars,       ONLY:FieldStage,DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
@@ -3234,7 +3235,7 @@ USE MOD_LinearOperator,          ONLY:MatrixVector
 #ifdef PARTICLES
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver,          ONLY:Particle_GMRES
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
+USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoFieldUpdate
 USE MOD_Particle_Mesh,           ONLY:CountPartsPerElem
 USE MOD_PICDepo_Vars,            ONLY:PartSource,DoDeposition
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
@@ -3314,30 +3315,31 @@ REAL               :: tLBStart,tLBEnd
 
 coeff=dt*RK_gamma
 coeff_inv=1./coeff
-dt_inv=1./dt
+dt_inv=1.
 #ifndef PP_HDG
 #ifdef maxwell
 ! caution hard coded
-IF (iter==0) CALL BuildPrecond(t,t,0,RK_gamma,dt)
+IF (iter==0) CALL BuildPrecond(t,t,0,coeff_inv,dt=dt_inv)
 #endif /*maxwell*/
 #endif /*DG*/
+dt_inv=dt_inv/dt
 tRatio = 1.
 
 ! ! sanity check
-! print*,'RK_gamma',RK_gamma
-! DO istage=2,nRKStages
-!   DO iCounter=1,nRKStages
-!     print*,'a',iStage,iCounter,RK_a(iStage,iCounter)
-!   END DO
-! END DO
-! DO istage=2,nRKStages
-!   DO iCounter=1,nRKStages
-!     print*,'c',iStage,iCounter,RK_g(iStage,iCounter)
-!   END DO
-! END DO
-! DO iCounter=1,nRKStages
-!   print*,'b',iStage,iCounter,RK_b(iCounter)
-! END DO
+print*,'RK_gamma',RK_gamma
+DO istage=2,nRKStages
+  DO iCounter=1,nRKStages
+    print*,'a',iStage,iCounter,RK_a(iStage,iCounter)
+  END DO
+END DO
+DO istage=2,nRKStages
+  DO iCounter=1,nRKStages
+    print*,'c',iStage,iCounter,RK_g(iStage,iCounter)
+  END DO
+END DO
+DO iCounter=1,nRKStages
+  print*,'b',iStage,iCounter,RK_b(iCounter)
+END DO
 ! STOP
 
 #ifdef PARTICLES
@@ -3517,6 +3519,7 @@ IF(t.GE.DelayTime)THEN
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   ! map velocity space to relativistic momentum
+  iStage=1
   CALL PartVeloToImp(VeloToImp=.TRUE.) 
   PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
   ! should be already be done
@@ -3560,8 +3563,8 @@ IF(t.GE.DelayTime)THEN
     ! A deltaX = b - A b
     ! xNeu = b  + deltaX
     ! fix matrix during computation
-    PartXK(1:6,iPart)   = PartState(iPart,1:6)
-    R_PartXK(1:6,iPart) = Pt_tmp(1:6)
+    PartXK(1:6,iPart)   = PartState(iPart,1:6) ! which is partstateN
+    R_PartXK(1:6,iPart) = Pt_tmp(1:6)          ! the delta is not changed
     ! CAUTION: invert sign
     !Pt_tmp=-Pt_tmp
     PartDeltaX=0.
@@ -3569,7 +3572,7 @@ IF(t.GE.DelayTime)THEN
     CALL PartMatrixVector(t,Coeff_inv,iPart,Pt_tmp,PartDeltaX) 
     PartRHS =Pt_tmp - PartDeltaX
     CALL PartVectorDotProduct(PartRHS,PartRHS,Norm_P2)
-    AbortCrit=1e-32
+    AbortCrit=1e-16
     PartDeltaX=0.
     CALL Particle_GMRES(t,coeff_inv,iPart,PartRHS,SQRT(Norm_P2),AbortCrit,PartDeltaX)
     ! update particle 
@@ -3580,70 +3583,49 @@ IF(t.GE.DelayTime)THEN
     PartStage(iPart,4,1) = PartState(iPart,4)
     PartStage(iPart,5,1) = PartState(iPart,5)
     PartStage(iPart,6,1) = PartState(iPart,6)
+    IF(iPart.EQ.14)THEN
+      print*,'u_1', PartState(iPart,1)
+      print*,'u_1', PartState(iPart,2)
+      print*,'u_1', PartState(iPart,3)
+      print*,'u_1', PartState(iPart,4)
+      print*,'u_1', PartState(iPart,5)
+      print*,'u_1', PartState(iPart,6)
+    END IF
     !PDM%IsNewPart(iPart)=.FALSE.
     !PDM%IsNewPart(iPart)=.FALSE.
   END DO ! iPart
   ! track particle
   iStage=1
-! #ifdef MPI
-!   ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
-!   ! open receive buffer for number of particles
-!   CALL IRecvNbofParticles()
-!   tLBStart = LOCALTIME() ! LB Time Start
-! #endif /*MPI*/
-!   IF(DoRefMapping)THEN
-!     ! tracking routines has to be extended for optional flag, like deposition
-!     CALL ParticleRefTracking()
-!   ELSE
-!     CALL ParticleTracing()
-!   END IF
-! #ifdef MPI
-!   tLBEnd = LOCALTIME() ! LB Time End
-!   tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
-!   ! send number of particles
-!   CALL SendNbOfParticles()
-!   ! finish communication of number of particles and send particles
-!   CALL MPIParticleSend()
-! #endif /*MPI*/
-! #ifdef MPI
-!   ! finish communication
-!   CALL MPIParticleRecv()
-!   tLBStart = LOCALTIME() ! LB Time Start
-! #endif /*MPI*/
-! !  RKdtFracTotal=0.
-! !  RKdtFrac     =0.
-! #ifdef MPI
-!   tLBEnd = LOCALTIME() ! LB Time End
-!   tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-!   tLBStart = LOCALTIME() ! LB Time Start
-! #endif /*MPI*/
 END IF ! t.GE. DelayTime
+IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
 
 #ifndef PP_HDG
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-! comment out
-! Un = U
-! ! solve linear system for electromagnetic field
-! ! RHS is f(u^n+0) = DG_u^n + source^n
-! CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.) ! source terms are added in linearsolver
-! ! CAUTION: invert sign
-! LinSolverRHS =Ut
-! !CALL LinearSolver(tStage,coeff_inv)
-! FieldStage (:,:,:,:,:,1) = U
+print*,'update1'
+Un = U
+! solve linear system for electromagnetic field
+! RHS is f(u^n+0) = DG_u^n + source^n
+CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.) ! source terms are added in linearsolver
+LinSolverRHS =Ut
+CALL LinearSolver(tStage,coeff_inv)
+FieldStage (:,:,:,:,:,1) = U
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 #endif /*MPI*/
 #endif /*DG*/
-
+#ifdef PARTICLES
+ENDIF
+#endif /*PARTICLES*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 2 to nRKStages
 ! ----------------------------------------------------------------------------------------------------------------------------------
 DO iStage=2,nRKStages
+  print*,'iStage',iStage
   ! time of current stage
   tStage = t + RK_c(iStage)*dt
   IF(DoPrintConvInfo)THEN
@@ -3655,29 +3637,35 @@ DO iStage=2,nRKStages
   ! DGSolver: explicit contribution and T * sum  
   ! is the state before the linear system is solved
   !--------------------------------------------------------------------------------------------------------------------------------
-  ! ! compute contribution of h T * sum_j=1^iStage-1
-  ! LinSolverRHS = RK_g(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
-  ! DO iCounter=1,iStage-2
-  !   LinSolverRHS = RK_g(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
-  ! END DO ! iCounter=1,iStage-2
-  ! ! not required in the optimized implementation, instead
-  ! ! !! matrix vector WITH dt and contribution of T * sum
-  ! ! !! Jacobian times sum_j^iStage-1 gamma_ij k_j
-  ! ! !U=LinSolverRHS
-  ! ! !CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
-  ! ! !LinSolverRHS=Ut*dt
-  ! ! OPTIMIZED IMPLEMENTATION
-  ! LinSolverRHS=dt_inv*LinSolverRHS
-  ! ! compute explicit contribution 
-  ! U = RK_a(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
-  ! DO iCounter=1,iStage-2
-  !   U=U+RK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
-  ! END DO ! iCounter=1,iStage-2
-  ! U=Un+U
-  ! CALL DivCleaningDamping()
-  ! ! this U is required for the particles and the interpolation, hence, we have to continue with the particles
-  ! ! which gives us the source terms, too...
-
+#ifdef PARTICLES
+  IF(DoFieldUpdate) THEN
+#endif /*PARTICLES*/
+    print*,'update in stage'
+    ! compute contribution of h T * sum_j=1^iStage-1
+    LinSolverRHS = RK_g(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
+    DO iCounter=1,iStage-2
+      LinSolverRHS = LinSolverRHS+RK_g(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
+    END DO ! iCounter=1,iStage-2
+    ! not required in the optimized implementation, instead
+    ! !! matrix vector WITH dt and contribution of T * sum
+    ! !! Jacobian times sum_j^iStage-1 gamma_ij k_j
+    ! !U=LinSolverRHS
+    ! !CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+    ! !LinSolverRHS=Ut*dt
+    ! OPTIMIZED IMPLEMENTATION
+    LinSolverRHS=dt_inv*LinSolverRHS
+    ! compute explicit contribution 
+    U = RK_a(iStage,iStage-1)*FieldStage(:,:,:,:,:,iStage-1)
+    DO iCounter=1,iStage-2
+      U=U+RK_a(iStage,iCounter)*FieldStage(:,:,:,:,:,iCounter)
+    END DO ! iCounter=1,iStage-2
+    U=Un+U
+    CALL DivCleaningDamping()
+    ! this U is required for the particles and the interpolation, hence, we have to continue with the particles
+    ! which gives us the source terms, too...
+#ifdef PARTICLES
+  END IF
+#endif /*PARTICLES*/
 
   !--------------------------------------------------------------------------------------------------------------------------------
   ! particle  pusher: explicit contribution and T * sum  
@@ -3721,6 +3709,7 @@ DO iStage=2,nRKStages
       ! compute contribution of 1/dt* sum_j=1^iStage-1 c(i,j) = diag(gamma)-gamma^inv
       PartQ(1:6,iPart) = RK_g(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
       DO iCounter=1,iStage-2
+        print*,'iCounter',iCounter
         PartQ(1:6,iPart) = PartQ(1:6,iPart) +RK_g(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
       END DO ! iCounter=1,iStage-2
       PartQ(1:6,iPart) = dt_inv*PartQ(1:6,iPart)
@@ -3729,6 +3718,10 @@ DO iStage=2,nRKStages
       DO iCounter=1,iStage-2
         PartState(iPart,1:6)=PartState(iPart,1:6)+RK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
       END DO ! iCounter=1,iStage-2
+      IF(iPart.EQ.14)THEN
+        print*,'deltap',PartState(iPart,1:6)
+        print*,'partnew',PartState(iPart,1:6)+PartStateN(iPart,1:6)
+      END IF
       PartState(iPart,1:6)=PartStateN(iPart,1:6)+PartState(iPart,1:6)
     END DO ! iPart=1,PDM%ParticleVecLength
     CALL PartVeloToImp(VeloToImp=.FALSE.) 
@@ -3770,6 +3763,7 @@ DO iStage=2,nRKStages
     ! should be already be done
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      ! position currently updated, hence store the data for tracking
       LastPartPos(iPart,1)=PartState(iPart,1)
       LastPartPos(iPart,2)=PartState(iPart,2)
       LastPartPos(iPart,3)=PartState(iPart,3)
@@ -3801,18 +3795,19 @@ DO iStage=2,nRKStages
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
       ! update PartXK (because of change in field, and update R_PartXK)
-      ! NO update, because fixed Jacobian...
+      ! NO update, because fixed Jacobian || but field changes
       ! PartXK(1:6,iPart)   = PartState(iPart,1:6)
       ! R_PartXK(1:6,iPart) = Pt_tmp(1:6)
       ! compute RHS =f(y+sum aij kj ) + dt T sum gamma_ij kj
       ! CAUTION: invert sign
+      ! Pt_tmp + PartQ
       PartRHS =Pt_tmp + PartQ(1:6,iPart)
       ! guess for new particleposition is PartState || reuse of OLD GMRES
       CALL PartMatrixVector(t,Coeff_inv,iPart,PartRHS,PartDeltaX) 
       PartRHS_tild = PartRHS - PartDeltaX 
       PartDeltaX=0.
       CALL PartVectorDotProduct(PartRHS_tild,PartRHS_tild,Norm_P2)
-      AbortCrit=1e-32
+      AbortCrit=1e-16
       CALL Particle_GMRES(t,coeff_inv,iPart,PartRHS_tild,SQRT(Norm_P2),AbortCrit,PartDeltaX)
       ! update particle to k_iStage
       PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
@@ -3824,31 +3819,51 @@ DO iStage=2,nRKStages
       PartStage(iPart,4,iStage) = PartState(iPart,4)
       PartStage(iPart,5,iStage) = PartState(iPart,5)
       PartStage(iPart,6,iStage) = PartState(iPart,6)
+      IF(iPart.EQ.14)THEN
+        print*,'istate',istage
+        print*,'u_i',PartState(iPart,1)
+        print*,'u_i',PartState(iPart,2)
+        print*,'u_i',PartState(iPart,3)
+        print*,'u_i',PartState(iPart,4)
+        print*,'u_i',PartState(iPart,5)
+        print*,'u_i',PartState(iPart,6)
+        read*
+      END IF
     END DO ! iPart
   END IF
+  IF(DoFieldUpdate) THEN
 #endif /*PARTICLES*/
 
   !--------------------------------------------------------------------------------------------------------------------------------
   ! DGSolver: now, we can add the contribution of the particles
   !--------------------------------------------------------------------------------------------------------------------------------
-  ! ! next DG call is f(u^n + dt sum_j^i-1 a_ij k_j) + source terms
-  ! CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.) ! source terms are not-added in linear solver
-  ! ! CAUTION: invert sign of Ut
-  ! LinSolverRHS = LinSolverRHS + Ut
-  ! !CALL LinearSolver(tStage,coeff_inv)
-  ! ! and store U in fieldstage
-  ! FieldStage (:,:,:,:,:,iStage) = U
+    print*,'solution in in stage'
+    ! next DG call is f(u^n + dt sum_j^i-1 a_ij k_j) + source terms
+    CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.) ! source terms are not-added in linear solver
+    ! CAUTION: invert sign of Ut
+    LinSolverRHS = LinSolverRHS + Ut
+    CALL LinearSolver(tStage,coeff_inv)
+    ! and store U in fieldstage
+    FieldStage (:,:,:,:,:,iStage) = U
+#ifdef PARTICLES
+  END IF 
+#endif /*PARTICLES*/
 END DO
 
-! ! update field step
-! U = RK_b(nRKStages)* FieldStage(:,:,:,:,:,nRKStages)
-! DO iCounter=1,nRKStages-1
-!   U = U +  RK_b(iCounter)* FieldStage(:,:,:,:,:,iCounter)
-! END DO ! counter
-! U = Un +  U
-! CALL DivCleaningDamping()
+#ifdef PARTICLES
+IF(DoFieldUpdate)THEN
+#endif /*PARTICLES*/
+    print*,'final update'
+  ! update field step
+  U = RK_b(nRKStages)* FieldStage(:,:,:,:,:,nRKStages)
+  DO iCounter=1,nRKStages-1
+    U = U +  RK_b(iCounter)* FieldStage(:,:,:,:,:,iCounter)
+  END DO ! counter
+  U = Un +  U
+  CALL DivCleaningDamping()
 
 #ifdef PARTICLES
+END IF
 ! particle step || only explicit particles
 IF (t.GE.DelayTime) THEN
 #ifdef MPI

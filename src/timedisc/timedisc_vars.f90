@@ -393,19 +393,19 @@ REAL             :: dt_inv
 #endif /*ROSENBROCK RK*/
 #if (PP_TimeDiscMethod==131) 
 ! wikipedia
-INTEGER,PARAMETER :: nRKStages = 2
-REAL,PARAMETER  :: RK_a21=  2. / 3.
-REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
-REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
-REAL,PARAMETER  :: RK_gamma=0.5*(1.+1./SQRT(3.))
-REAL,PARAMETER  :: RK_g21=  -4./6.*(1.+1./SQRT(3.))
-REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
-REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
-REAL,PARAMETER  :: RK_c2 = 2./3.
-REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
-REAL,PARAMETER  :: RK_b1= 1./4.
-REAL,PARAMETER  :: RK_b2= 3./4.
-REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
+!INTEGER,PARAMETER :: nRKStages = 2
+!REAL,PARAMETER  :: RK_a21=  2. / 3.
+!REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
+!REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
+!REAL,PARAMETER  :: RK_gamma=0.5*(1.+1./SQRT(3.))
+!REAL,PARAMETER  :: RK_g21=  -4./6.*(1.+1./SQRT(3.))
+!REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
+!REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
+!REAL,PARAMETER  :: RK_c2 = 2./3.
+!REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
+!REAL,PARAMETER  :: RK_b1= 1./4.
+!REAL,PARAMETER  :: RK_b2= 3./4.
+!REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
 ! ! c
 ! REAL,PARAMETER  :: RK3_c2=   1767732205903.0  / 2027836641118.0
 ! REAL,PARAMETER  :: RK3_c3=               3.0  / 5.0
@@ -427,7 +427,7 @@ REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
 ! REAL,PARAMETER  :: RK_b1= (1-1./(8.*RK_gamma))/RK_gamma
 ! REAL,PARAMETER  :: RK_b2= 1./(8.*RK_gamma**2)
 ! REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
-! ! Shampne ROS4 (RO4-4)
+! Shampne ROS4 (RO4-4)
 INTEGER,PARAMETER :: nRKStages = 4
 REAL,PARAMETER  :: RK_a21=    2.
 REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0./) 
