@@ -148,17 +148,20 @@ CALL prms%CreateLogicalOption( 'FastPeriodic'&
   , ' Further simplification by directly moving particle into grid. Instead of moving the particle several times the periodic'//&
     ' displacements, the particle is mapped directly back into the domain. ','.FALSE.')
 CALL prms%CreateIntOption(     'RefMappingGuess'&
-  , ' Initial guess of the Newton for mapping the particle into reference coordinates. (1) -'//&
-    ' linear, pseudo-Cartesian coordinates (2) - Xi of closest Gauss point (3) - Xi of '//&
-    ' closest XCL_ngeo point (4) -trival guess (0,0,0)^t')
+  , ' Initial guess of the Newton for mapping the particle into reference coordinates.\n'//&
+    '1 -linear pseudo-Cartesian coordinates\n'//&
+    '2 - Xi of closest Gauss point\n'//&
+    '3 - Xi of closest XCL_ngeo point\n'//&
+    '4 -trival guess (0,0,0)^t')
 CALL prms%CreateRealOption(    'RefMappingEps'&
   , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
 CALL prms%CreateRealOption(    'BezierEpsilonBilinear'&
-    , ' Desicion if face is bilinear or linear.' , '1e-6')
+    , ' Bi-linear tolerance for the bi-linear - planar decision.' , '1e-6')
 CALL prms%CreateIntOption(     'BezierElevation'&
-  , ' Use BezierElevation>0 to tighten the bounding box. Typicall values>10','0')
+  , ' Use BezierElevation>0 to tighten the bounding box. Typical values>10','0')
 CALL prms%CreateIntOption(     'BezierSampleN'&
-  , 'TODO-DEFINE-PARAMETER. Defualt value: NGeo','0')
+  , 'TODO-DEFINE-PARAMETER\n'//&
+    'Default value: NGeo equidistant sampling of bezier surface for emission','0')
 
 
 ! Background mesh init variables
@@ -173,12 +176,14 @@ CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
     ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
     ,'.FALSE.')
 
-CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between Bezierclipping '//& 
-'BezierNewton.' , '1.570796326')
+CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between '//& 
+'Bezierclipping and BezierNewton.' , '1.570796326')
 CALL prms%CreateRealOption(    'BezierClipTolerance'    , ' Tolerance for BezierClipping' , '1e-8')
 CALL prms%CreateRealOption(    'BezierNewtonTolerance'  , ' Tolerance for BezierNewton' , '1e-4')
-CALL prms%CreateIntOption(     'BezierNewtonGuess'      , ' Initial guess for BezierNewton '// &
-    '(1) - linear projected face (2) - cloesest projected BeziercontrolPoint (4) - (0,0)^t' , '1')
+CALL prms%CreateIntOption(     'BezierNewtonGuess'      , ' Initial guess for BezierNewton\n'// &
+    '1 - linear projected face\n'//&
+    '2 - closest projected BeziercontrolPoint\n'//&
+    '4 - (0,0)^t' , '1')
 CALL prms%CreateRealOption(    'BezierSplitLimit'       , ' Limit for splitting in BezierClipping.'// &
    ' Value allows to detect multiple intersections and speed up computation. Parameter is multiplied by 2' , '0.6')
 CALL prms%CreateIntOption(     'BezierClipMaxIter'      , ' Max iteration of BezierClipping' , '100')
