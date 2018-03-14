@@ -392,73 +392,112 @@ REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 REAL             :: dt_inv
 #endif /*ROSENBROCK RK*/
 #if (PP_TimeDiscMethod==131) 
-! wikipedia
-!INTEGER,PARAMETER :: nRKStages = 2
-!REAL,PARAMETER  :: RK_a21=  2. / 3.
-!REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
-!REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
-!REAL,PARAMETER  :: RK_gamma=0.5*(1.+1./SQRT(3.))
-!REAL,PARAMETER  :: RK_g21=  -4./6.*(1.+1./SQRT(3.))
-!REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
-!REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
-!REAL,PARAMETER  :: RK_c2 = 2./3.
-!REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
-!REAL,PARAMETER  :: RK_b1= 1./4.
-!REAL,PARAMETER  :: RK_b2= 3./4.
-!REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
-! ! c
-! REAL,PARAMETER  :: RK3_c2=   1767732205903.0  / 2027836641118.0
-! REAL,PARAMETER  :: RK3_c3=               3.0  / 5.0
-! REAL,PARAMETER  :: RK3_c4=               1.0
-! REAL,PARAMETER  :: RK_c(2:4) = (/RK3_c2,RK3_c3,RK3_c4/)
+! coefficients of Ianelli-Baker RO2-2
+! Bassi-Paper
+INTEGER,PARAMETER :: nRKStages = 2
+REAL,PARAMETER  :: RK_gamma=0.5*(2.-sqrt(2.))
+REAL,PARAMETER  :: RK_a21=  4.-8.*RK_gamma
+REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
+REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_g21=  0.
+REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
+REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_c2 = 2./3.
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
+REAL,PARAMETER  :: RK_b1= (1-1./(8.*RK_gamma))/RK_gamma
+REAL,PARAMETER  :: RK_b2= 1./(8.*RK_gamma**2)
+REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
 #endif
 #if (PP_TimeDiscMethod==132) 
-! coefficients of Ianelli-Baker RO2-2
-! INTEGER,PARAMETER :: nRKStages = 2
-! REAL,PARAMETER  :: RK_gamma=0.5*(2.-sqrt(2.))
-! REAL,PARAMETER  :: RK_a21=  4.-8.*RK_gamma
-! REAL,PARAMETER  :: RK_a2(1:2) = (/RK_a21,      0./) 
-! REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
-! REAL,PARAMETER  :: RK_g21=  0.
-! REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
-! REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
-! REAL,PARAMETER  :: RK_c2 = 2./3.
-! REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
-! REAL,PARAMETER  :: RK_b1= (1-1./(8.*RK_gamma))/RK_gamma
-! REAL,PARAMETER  :: RK_b2= 1./(8.*RK_gamma**2)
-! REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
 ! Shampne ROS4 (RO4-4)
-INTEGER,PARAMETER :: nRKStages = 4
-REAL,PARAMETER  :: RK_a21=    2.
-REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0./) 
-REAL,PARAMETER  :: RK_a31=  48./25.
-REAL,PARAMETER  :: RK_a32=   6./25.
-REAL,PARAMETER  :: RK_a3(1:nRKStages) = (/RK_a31,RK_a32, 0., 0./) 
-REAL,PARAMETER  :: RK_a41=  48./25.
-REAL,PARAMETER  :: RK_a42=   6./25.
-REAL,PARAMETER  :: RK_a43=   0.
-REAL,PARAMETER  :: RK_a4(1:nRKStages) = (/RK_a41,RK_a42, RK_a43, 0./) 
-REAL,PARAMETER  :: RK_a(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_a2(:), RK_a3(:), RK_a4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
-!! second order 
-REAL,PARAMETER  :: RK_gamma=0.5
-REAL,PARAMETER  :: RK_g21             =  -8.
-REAL,PARAMETER  :: RK_g2(1:nRKStages) = (/RK_g21, 0.,0.,0./) 
-REAL,PARAMETER  :: RK_g31             =  372./25
-REAL,PARAMETER  :: RK_g32             =  12./5
-REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31, RK_g32,0.,0./) 
-REAL,PARAMETER  :: RK_g41             =  -112./125.
-REAL,PARAMETER  :: RK_g42             =   -54./125.
-REAL,PARAMETER  :: RK_g43             =    -2./5.
-REAL,PARAMETER  :: RK_g4(1:nRKStages) = (/RK_g41, RK_g42,RK_g43,0./) 
-REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:), RK_g4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
-!REAL,PARAMETER  :: RK_c2 = 2./3.
-! not computed
-REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4)/)
-REAL,PARAMETER  :: RK_b1= 19./9.
-REAL,PARAMETER  :: RK_b2= 0.5
-REAL,PARAMETER  :: RK_b3= 25./108.
-REAL,PARAMETER  :: RK_b4= 125./108.
-REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4/)
+! INTEGER,PARAMETER :: nRKStages = 4
+! ! RK_a(i,j)
+! REAL,PARAMETER  :: RK_a21=    2.
+! REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0./) 
+! REAL,PARAMETER  :: RK_a31=  48./25.
+! REAL,PARAMETER  :: RK_a32=   6./25.
+! REAL,PARAMETER  :: RK_a3(1:nRKStages) = (/RK_a31,RK_a32, 0., 0./) 
+! REAL,PARAMETER  :: RK_a41=  48./25.
+! REAL,PARAMETER  :: RK_a42=   6./25.
+! REAL,PARAMETER  :: RK_a43=   0.
+! REAL,PARAMETER  :: RK_a4(1:nRKStages) = (/RK_a41,RK_a42, RK_a43, 0./) 
+! REAL,PARAMETER  :: RK_a(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_a2(:), RK_a3(:), RK_a4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+! ! RK_c(i,j)
+! REAL,PARAMETER  :: RK_gamma=0.5
+! REAL,PARAMETER  :: RK_g21             =  -8.
+! REAL,PARAMETER  :: RK_g2(1:nRKStages) = (/RK_g21, 0.,0.,0./) 
+! REAL,PARAMETER  :: RK_g31             =  372./25
+! REAL,PARAMETER  :: RK_g32             =  12./5
+! REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31, RK_g32,0.,0./) 
+! REAL,PARAMETER  :: RK_g41             =  -112./125.
+! REAL,PARAMETER  :: RK_g42             =   -54./125.
+! REAL,PARAMETER  :: RK_g43             =    -2./5.
+! REAL,PARAMETER  :: RK_g4(1:nRKStages) = (/RK_g41, RK_g42,RK_g43,0./) 
+! REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:), RK_g4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+! !REAL,PARAMETER  :: RK_c2 = 2./3.
+! ! RK_b(i)
+! REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4)/)
+! REAL,PARAMETER  :: RK_b1= 19./9.
+! REAL,PARAMETER  :: RK_b2= 0.5
+! REAL,PARAMETER  :: RK_b3= 25./108.
+! REAL,PARAMETER  :: RK_b4= 125./108.
+! REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4/)
+! Kaps and Wanner ROW64 ROS6 (RO6-6)
+INTEGER,PARAMETER :: nRKStages = 6
+! RK_a(i,j)
+REAL,PARAMETER  :: RK_a21= 2.   
+REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0.,0.,0./) 
+REAL,PARAMETER  :: RK_a31=  1.751493065942685e0
+REAL,PARAMETER  :: RK_a32= -1.454290536332865e-1
+REAL,PARAMETER  :: RK_a3(1:nRKStages) = (/RK_a31,RK_a32, 0., 0.,0.,0./) 
+REAL,PARAMETER  :: RK_a41= -1.847093912231436e0
+REAL,PARAMETER  :: RK_a42= -2.513756792158473e0
+REAL,PARAMETER  :: RK_a43=  1.874707432337999e0
+REAL,PARAMETER  :: RK_a4(1:nRKStages) = (/RK_a41,RK_a42, RK_a43, 0.,0.,0./) 
+REAL,PARAMETER  :: RK_a51=  1.059634783677141e1 
+REAL,PARAMETER  :: RK_a52=  1.974951525952609e0
+REAL,PARAMETER  :: RK_a53= -1.905211286263863e0
+REAL,PARAMETER  :: RK_a54= -3.575118228830491e0
+REAL,PARAMETER  :: RK_a5(1:nRKStages) = (/RK_a51,RK_a52, RK_a53, RK_a54,0.,0./) 
+REAL,PARAMETER  :: RK_a61=  2.417642067883312e0
+REAL,PARAMETER  :: RK_a62=  3.050984437044573e-1
+REAL,PARAMETER  :: RK_a63= -2.346208879122501e-1 
+REAL,PARAMETER  :: RK_a64= -1.327038464607418e-1 
+REAL,PARAMETER  :: RK_a65=  3.912922779645768e-2
+REAL,PARAMETER  :: RK_a6(1:nRKStages) = (/RK_a61,RK_a62, RK_a63, RK_a64,RK_a65,0./) 
+REAL,PARAMETER::RK_a(2:nRKStages,1:nRKStages)=RESHAPE((/RK_a2,RK_a3,RK_a4,RK_a5,RK_a6/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+! RK_c(i,j)
+REAL,PARAMETER  :: RK_gamma=3.3414236706805040e-1
+REAL,PARAMETER  :: RK_g21             = -1.7450294925129950e1
+REAL,PARAMETER  :: RK_g2(1:nRKStages) = (/RK_g21, 0.,0.,0.,0.,0./) 
+REAL,PARAMETER  :: RK_g31             = -1.2023599362278440e1
+REAL,PARAMETER  :: RK_g32             =  1.3159101107427450e0
+REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31, RK_g32,0.,0.,0.,0./) 
+REAL,PARAMETER  :: RK_g41             =  2.3112305971592720e1
+REAL,PARAMETER  :: RK_g42             =  1.2978931295654450e1
+REAL,PARAMETER  :: RK_g43             = -8.4453745945620380e0
+REAL,PARAMETER  :: RK_g4(1:nRKStages) = (/RK_g41, RK_g42,RK_g43,0.,0.,0./) 
+REAL,PARAMETER  :: RK_g51             = -3.1472288913307130e0
+REAL,PARAMETER  :: RK_g52             = -1.7613326229099650e0
+REAL,PARAMETER  :: RK_g53             =  6.1152959340385850e0
+REAL,PARAMETER  :: RK_g54             =  1.4993199504571120e1
+REAL,PARAMETER  :: RK_g5(1:nRKStages) = (/RK_g51, RK_g52,RK_g53,RK_g54,0.,0./) 
+REAL,PARAMETER  :: RK_g61             = -2.0158409112628800e1
+REAL,PARAMETER  :: RK_g62             = -1.6039237998001330e0
+REAL,PARAMETER  :: RK_g63             =  1.1558700969202520e0
+REAL,PARAMETER  :: RK_g64             =  6.3046398152920440e-1
+REAL,PARAMETER  :: RK_g65             = -1.6025102156371740e-1
+REAL,PARAMETER  :: RK_g6(1:nRKStages) = (/RK_g61, RK_g62,RK_g63,RK_g64,RK_g65,0./) 
+REAL,PARAMETER::RK_g(2:nRKStages,1:nRKStages)=RESHAPE((/RK_g2,RK_g3,RK_g4,RK_g5,RK_g6/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+! RK_b(i)
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4),SUM(RK_a5),SUM(RK_a6)/)
+REAL,PARAMETER  :: RK_b1= 3.3993474526741650e1
+REAL,PARAMETER  :: RK_b2=-2.0918298828473330e1
+REAL,PARAMETER  :: RK_b3=-1.3756884774710810e1
+REAL,PARAMETER  :: RK_b4=-1.1139259299300770e1
+REAL,PARAMETER  :: RK_b5= 2.8734065276094680e0
+REAL,PARAMETER  :: RK_b6= 3.8766099456208400e1
+REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4,RK_b5,RK_b6/)
 #endif
 
 !===================================================================================================================================
