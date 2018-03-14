@@ -708,13 +708,18 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientThermalCond'  &
                                   'Ambient thermal conductivity', '2.42948500556027E-2'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
-                                , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+  , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
-                                , 'TODO-DEFINE-PARAMETER', '2', numberedmulti=.TRUE.)
+  , 'Define type of adaptive boundary [$]\n'//&
+    '[1] (STREAM INLET) with define temperature and pressure and pressurefraction\n'//&
+    '[2] (STREAM OUTLET) with defined pressure and pressurefraction', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptiveTemp'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+  , 'Define temperature for adaptive particle boundary [$] (in [K])', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptivePressure'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+  , 'Define pressure for adaptive particle boundary [$] (in [Pa])', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Adaptiveflux[$]-Pressurefraction'  &
+  , 'If particle boundary [$] adaptive, define pressurefractions for each species, so sum of all species for this adaptive'//&
+    'is 1.0' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Voltage on boundary [$]', '0.', numberedmulti=.TRUE.)
