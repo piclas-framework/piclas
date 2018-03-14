@@ -201,8 +201,6 @@ PartCommSize   = PartCommSize + 1
 
 ! additional stuff for full RK schemes, e.g. implicit and imex RK
 #if defined(IMPA) || defined(ROS)
-! communication of partstate at t^n
-PartCommSize   = PartCommSize + 6
 ! PartXK
 PartCommSize   = PartCommSize + 6
 ! R_PartXK
@@ -213,7 +211,7 @@ PartCommSize   = PartCommSize + 6
 PartCommSize   = PartCommSize + 1
 ! IsNewPart
 PartCommSize   = PartCommSize + 1
-! GlobalElemID
+! PartDtFrac
 PartCommSize   = PartCommSize + 1
 ! GlobalElemID
 PartCommSize   = PartCommSize + 1
@@ -222,6 +220,8 @@ PartCommSize   = PartCommSize + 6
 #endif /*IMPA or ROS*/
 #if defined(IMPA)
 ! PartDeltaX
+PartCommSize   = PartCommSize + 6
+! PartLambdaAccept
 PartCommSize   = PartCommSize + 6
 ! F_PartX0
 PartCommSize   = PartCommSize + 6
@@ -617,10 +617,10 @@ INTEGER                       :: MsgLengthPoly(1:PartMPI%nMPINeighbors), pos_pol
 !===================================================================================================================================
 
 #if defined(ROS)
-PartCommSize=PartCommSize0+(iStage-1)*6
+PartCommSize=PartCommSize0+(iStage)*6
 #endif /*ROS*/
 #if defined (IMPA)
-PartCommSize=PartCommSize0+(iStage-1)*6
+PartCommSize=PartCommSize0+(iStage)*6
 #endif /*IMPA*/
 
 ! ! 1) get number of send particles
@@ -760,7 +760,7 @@ DO iProc=1, PartMPI%nMPINeighbors
 #endif
 #if defined(ROS) || defined(IMPA)
       ! send iStage - 1 messages
-      IF(iStage.GT.0)THEN
+      IF(iStage.GT.1)THEN ! should GT.1
         PartSendBuf(iProc)%content(8+jpos:13+jpos)        = PartStateN(iPart,1:6)
         DO iCounter=1,iStage-1
           PartSendBuf(iProc)%content(jpos+14+(iCounter-1)*6:jpos+13+iCounter*6) = PartStage(iPart,1:6,iCounter)
@@ -773,14 +773,15 @@ DO iProc=1, PartMPI%nMPINeighbors
       jPos=jPos+6
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartQ(1:6,iPart)
       jPos=jPos+6
-      PartSendBuf(iProc)%content(jPos+12) = PartDtFrac(iPart)
+      PartSendBuf(iProc)%content(jPos+8) = PartDtFrac(iPart)
       jPos=jPos+1
       IF (PDM%IsNewPart(iPart)) THEN
-        PartSendBuf(iProc)%content(jPos+9) = 1.
+        PartSendBuf(iProc)%content(jPos+8) = 1.
       ELSE
-        PartSendBuf(iProc)%content(jPos+9) = 0.
+        PartSendBuf(iProc)%content(jPos+8) = 0.
       END IF
-      PartSendBuf(iProc)%content(jPos+10) =-REAL(ElemToGlobalElemID(PEM%LastElement(iPart)))
+      jPos=jPos+1
+      PartSendBuf(iProc)%content(jPos+8) =-REAL(ElemToGlobalElemID(PEM%LastElement(iPart)))
       jPos=jPos+1
       ! fieldatparticle 
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
@@ -1290,7 +1291,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+7
 #endif
 #if defined(ROS) || defined(IMPA)
-    IF(iStage.GT.0)THEN
+    IF(iStage.GT.1)THEN
       PartStateN(PartID,1:6)     = PartRecvBuf(iProc)%content(jpos+8:jpos+13)
       DO iCounter=1,iStage-1
         PartStage(PartID,1:6,iCounter) = PartRecvBuf(iProc)%content(jpos+14+(iCounter-1)*6:jpos+13+iCounter*6)
@@ -1303,19 +1304,21 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+6
     PartQ(1:6,PartID)          = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6
-    PartDtFrac(PartID) = PartRecvBuf(iProc)%content(jPos+12)
+    PartDtFrac(PartID) = PartRecvBuf(iProc)%content(jPos+8)
     jPos=jPos+1
-    IF ( INT(PartRecvBuf(iProc)%content( 9+jPos)) .EQ. 1) THEN
+    IF ( INT(PartRecvBuf(iProc)%content( 8+jPos)) .EQ. 1) THEN
       PDM%IsNewPart(PartID)=.TRUE.
-    ELSE IF ( INT(PartRecvBuf(iProc)%content( 9+jPos)) .EQ. 0) THEN
+    ELSE IF ( INT(PartRecvBuf(iProc)%content( 8+jPos)) .EQ. 0) THEN
       PDM%IsNewPart(PartID)=.FALSE.
     ELSE
+      print*,'recbuf',INT(PartRecvBuf(iProc)%content( 9+jPos)),(PartRecvBuf(iProc)%content( 9+jPos))
       CALL Abort(&
         __STAMP__&
         ,'Error with IsNewPart in MPIParticleRecv!')
     END IF
-    PEM%LastElement(PartID)=INT(PartRecvBuf(iProc)%content(jPos+10),KIND=4)
-    jPos=jPos+2
+    jPos=jPos+1
+    PEM%LastElement(PartID)=INT(PartRecvBuf(iProc)%content(jPos+8),KIND=4)
+    jPos=jPos+1
     ! fieldatparticle 
     FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6
