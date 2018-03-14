@@ -107,7 +107,7 @@ IF (DSMC%WallModel.GT.0) THEN
                   * Species(iSpec)%MacroParticleFactor / maxPart
 ! 2.1  adjust number of mapped adsorbates on reconstructed surface if SumAdsorbPart > 0
               IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
-                ! calculate number of adsorbed particles on background for each species
+                ! calculate number of adsorbed particles on reconstructed surface for each species
                 numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
                 SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                       + (REAL(Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
@@ -118,7 +118,7 @@ IF (DSMC%WallModel.GT.0) THEN
                   ! Adjust tracking of adsorbing background particles
                   SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                                                                     - new_adsorbates
-                  CALL AdjustBackgndAdsNum(p,q,iSurfSide,new_adsorbates,iSpec)
+                  CALL AdjustReconstructMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
                 END IF
               END IF
             END SELECT
@@ -2244,7 +2244,7 @@ DEALLOCATE(Coord_ReactP,Pos_ReactP)
 END SUBROUTINE CalcBackgndPartDesorb
 
 
-SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec)
+SUBROUTINE AdjustReconstructMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec)
 !===================================================================================================================================
 !> Routine for adjusting the number of Adsorbates of adsorbates background distribution (wallmodel 3)
 !> if adsorption took place in CalcBackgndPartAdsorb and Coverage changed sufficiently (depending on particle weighting)
@@ -2331,7 +2331,7 @@ ELSE IF (adsorbates_num.LT.0) THEN
   SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nSitesRemain
 END IF
 
-END SUBROUTINE AdjustBackgndAdsNum
+END SUBROUTINE AdjustReconstructMapNum
 
 #ifdef MPI
 SUBROUTINE ExchangeAdsorbNum()

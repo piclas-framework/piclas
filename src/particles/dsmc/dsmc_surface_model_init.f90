@@ -198,6 +198,7 @@ USE MOD_DSMC_SurfModel_Tools   ,ONLY: ExchangeCoverageInfo
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 USE MOD_Particle_MPI_Vars      ,ONLY: AdsorbSendBuf,AdsorbRecvBuf,SurfExchange,SurfCoverageSendBuf,SurfCoverageRecvBuf
 #endif
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -218,7 +219,7 @@ INTEGER                          :: idiff
 INTEGER                          :: iProc
 #endif
 !===================================================================================================================================
-! do not initialize variables if processor does not have any surfaces on in domain
+! initialize variables only for processors that have any surfaces in own domain else they are skipped or not allocated
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 ! initialize surface chemistry
 KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
