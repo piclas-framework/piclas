@@ -795,6 +795,13 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,'Cannot allocate PartQ arrays!')
 END IF
+ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartDtFrac arrays!')
+END IF
+PartDtFrac=1.
 #endif /* ROSENBROCK */
 
 #if IMPA
