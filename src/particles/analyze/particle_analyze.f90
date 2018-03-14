@@ -60,33 +60,77 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Analyze")
 
-CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER','1') 
-CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'   , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCharge'         , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcKineticEnergy'  , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcInternalEnergy' , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcTemp'           , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPartBalance'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcVelos'          , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateIntArrayOption( 'VelocityDirections' , 'x,y,z,abs -> 0/1 = T/F. TODO-DEFINE-PARAMETER','1 , 1 , 1 , 1')
-CALL prms%CreateLogicalOption(  'Part-TrackPosition' , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Analyze is performed each Nth time step','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Flag to calculate Potential Energy.','.FALSE.')
+CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'   , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Validate the charge after each deposition'//&
+                                                       'and produces an output in std.out','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCharge'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Flag to compute the whole deposited charge,'//&
+                                                       ' absolute and relative charge error','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcKineticEnergy'  , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate Kinetic Energy. ','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcInternalEnergy' , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate Internal Energy. ','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTemp'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate Translational temperature.'&
+                                                     ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPartBalance'    , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate the Particle Power Balance'//&
+                                                       '- input and outflow energy of all particles','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcVelos'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate thermal and flow velocities.'//&
+                                                       'if CalcVelos = T VelocityDirections = (/[int],[int],[int],[int]/)  '//&
+                                                       'Switching dimensions for CalcVelos on (1) or off (0)\n'//&
+                                                       '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
+CALL prms%CreateIntArrayOption( 'VelocityDirections' , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'x,y,z,abs -> 0/1 = T/F. (please note: CalcVelos)'&
+                                                     ,'1 , 1 , 1 , 1')
+CALL prms%CreateLogicalOption(  'Part-TrackPosition' , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Track particle position','.FALSE.')
 CALL prms%CreateLogicalOption(  'printDiff'          , 'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateRealOption(     'printDiffTime'      , 'TODO-DEFINE-PARAMETER','12.')
 CALL prms%CreateRealArrayOption('printDiffVec'       , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
-CALL prms%CreateLogicalOption(  'CalcNumSpec'        , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCollRates'      , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcReacRates'      , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcSurfNumSpec'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcSurfCoverage'   , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcAccomodation'   , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcEvaporation'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcAdsorbRates'    , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcSurfRates'      , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcShapeEfficiency', 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , 'TODO-DEFINE-PARAMETER','AllParts')
-CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'   , 'TODO-DEFINE-PARAMETER','100') 
-CALL prms%CreateLogicalOption(  'IsRestart'          , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcNumSpec'        , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate species count.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCollRates'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate the collision rates per '//&
+                                                       'collision pair','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcReacRates'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate the reaction rate per reaction'&
+                                                     ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfNumSpec'    , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate the number of simulated'//&
+                                                       'particles per species on surfaces','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfCoverage'   , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate the surface coverages for'//&
+                                                       'each species','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcAccomodation'   , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate the surface accomodation coefficient'&
+                                                     ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcEvaporation'    , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate rate of evaporation [kg/s]','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcAdsorbRates'    , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calcualte the adsorption probabilities of species'&
+                                                     ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfRates'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Calculate the surface reaction rate per reaction'//&
+                                                       ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcShapeEfficiency', 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Use efficiency methods for shape functions.'&
+                                                     , '.FALSE.')
+CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , "TODO-DEFINE-PARAMETER\n'//&
+                                                       'Choose between 'AllParts'and "//&
+                                                       "'SomeParts', to either use all particles or a certain percentage"//&
+                                                       " (ShapeEfficiencyNumber) of the currently used particles",'AllParts')
+CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Percentage of currently used particles is used.'&
+                                                     ,'100') 
+CALL prms%CreateLogicalOption(  'IsRestart'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Flag, if the current calculation is a restart. '&
+                                                     ,'.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 

@@ -618,7 +618,7 @@ END SUBROUTINE ComputePlanarNonRectIntersection
 
 
 SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
-                                                   ,iPart,flip,SideID,ElemCheck_Opt)
+                                                   ,iPart,flip,SideID,ElemCheck_Opt,alpha2)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! robust version
@@ -630,6 +630,7 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
+USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBilinear
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -647,6 +648,7 @@ REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
 INTEGER,INTENT(IN)                :: iPart,SideID,flip
 LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
+REAL,INTENT(IN),OPTIONAL          :: alpha2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xitild,etatild
@@ -656,7 +658,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
-REAL                              :: xi(2),eta(2),t(2), scaleFac
+REAL                              :: xi(2),eta(2),t(2), scaleFac, n_loc(1:3)
 INTEGER                           :: InterType,nRoot
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
@@ -837,12 +839,26 @@ IF (nRoot.EQ.1) THEN
   END IF
 #endif /*CODE_ANALYZE*/
 
-  IF(ABS(eta(1)).LT.BezierClipHit)THEN
+  IF(ABS(eta(1)).LE.1.0) THEN!.LT.BezierClipHit)THEN
     ! check for Xi only, if eta is possible
     xi(1)=ComputeXi(a1,a2,eta(1))
-    IF(ABS(xi(1)).LT.BezierClipHit)THEN
+    IF(ABS(xi(1)).LE.1.0) THEN!.LT.BezierClipHit)THEN
       ! compute alpha only with valid xi and eta
       t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+      IF (PRESENT(alpha2)) THEN
+        IF (alpha2.GT.-1.0) THEN
+          IF (ALMOSTEQUAL(t(1),alpha2)) THEN
+            t(1)=-1.0
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(iPart.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A)') 'changed t1'
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
+          END IF
+        END IF
+      END IF
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
@@ -852,7 +868,7 @@ IF (nRoot.EQ.1) THEN
 #endif /*CODE_ANALYZE*/
       alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
-      IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
         alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
         etatild=eta(1)
@@ -889,12 +905,26 @@ ELSE
   ! check if intersection is possible
   ! t(1) has to be nullified if intersection is NOT possible
   ! else, the selection scheme is WRONG
-  IF(ABS(eta(1)).LT.BezierClipHit)THEN
+  IF(ABS(eta(1)).LE.1.0) THEN!.LT.BezierClipHit)THEN
     ! check for Xi only, if eta is possible
     xi(1)=ComputeXi(a1,a2,eta(1))
-    IF(ABS(xi(1)).LT.BezierCliphit)THEN
+    IF(ABS(xi(1)).LE.1.0) THEN!.LT.BezierCliphit)THEN
       ! compute alpha only with valid xi and eta
       t(1)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+      IF (PRESENT(alpha2)) THEN
+        IF (alpha2.GT.-1.0) THEN
+          IF (ALMOSTEQUAL(t(1),alpha2)) THEN
+            t(1)=-1.0
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(iPart.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A)') 'changed t1'
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
+          END IF
+        END IF
+      END IF
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
@@ -905,7 +935,7 @@ ELSE
       alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
-      IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
         InterType=InterType+1
         isHit=.TRUE.
 #ifdef CODE_ANALYZE
@@ -923,12 +953,26 @@ ELSE
   ! check if intersection is possible
   ! t(2) has to be nullified if intersection is NOT possible
   ! else, the selection scheme is WRONG
-  IF(ABS(eta(2)).LT.BezierClipHit)THEN
+  IF(ABS(eta(2)).LE.1.0) THEN!.LT.BezierClipHit)THEN
     ! check for Xi only, if eta is possible
     xi(2)=ComputeXi(a1,a2,eta(2))
-    IF(ABS(xi(2)).LT.BezierClipHit)THEN
+    IF(ABS(xi(2)).LE.1.0) THEN!.LT.BezierClipHit)THEN
       ! compute alpha only with valid xi and eta
       t(2)=ComputeSurfaceDistance2(SideNormVec(1:3,SideID),BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
+      IF (PRESENT(alpha2)) THEN
+        IF (alpha2.GT.-1.0) THEN
+          IF (ALMOSTEQUAL(t(2),alpha2)) THEN
+            t(2)=-1.0
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(iPart.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A)') 'changed t2'
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
+          END IF
+        END IF
+      END IF
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
@@ -937,7 +981,7 @@ ELSE
       END IF
 #endif /*CODE_ANALYZE*/
       alphaNorm=t(2)/lengthPartTrajectory
-      IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
         ! Two solutions can be correspond to one unique intersection (?!)
         IF(InterType.EQ.1)THEN
           IF(.NOT.ALMOSTEQUALRELATIVE(t(2),t(1),1e-8))THEN
@@ -1032,9 +1076,31 @@ ELSE
         xitild=xi(2)
         etatild=eta(2)
       CASE(3) ! double intersection leaves and entries element
-        alpha=-1.0
-        xitild=0.
-        etatild=0.
+        IF(ABS(t(1)).LT.ABS(t(2)))THEN
+          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
+          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+            alpha=t(2)
+            xitild=xi(2)
+            etatild=eta(2)
+          ELSE
+            alpha=-1.0
+            xitild=0.
+            etatild=0.
+            isHit=.FALSE.
+          END IF
+        ELSE
+          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
+          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+            alpha=t(1)
+            xitild=xi(1)
+            etatild=eta(1)
+          ELSE
+            alpha=-1.0
+            xitild=0.
+            etatild=0.
+            isHit=.FALSE.
+          END IF
+        END IF
       END SELECT
     END IF
 #ifdef MPI
@@ -1086,6 +1152,7 @@ ELSE
         alpha=-1.0
         xitild=0.
         etatild=0.
+        isHit=.FALSE.
       END SELECT
     END IF
 #endif /*MPI*/
@@ -3075,7 +3142,11 @@ REAL                    :: radicant
 ! Use P-Q-formula and calculate first solution R1
 ! Use Theorem of Vieta (R1*R2=C/A) to calculate R2
 ! cf: wikipedia 2017.06.13 https://de.wikipedia.org/wiki/Quadratische_Gleichung
-IF(ABS(A).GT.0.)THEN
+IF (A.NE.0. .AND. B.EQ.0. .AND. C.EQ.0.) THEN
+  nRoot=1
+  R1=0.
+  R2=0.
+ELSE IF(A.NE.0.)THEN
   radicant = (0.5*B/A)**2 - (C/A)
   IF (radicant.LT.0.) THEN
     nRoot=0
@@ -3087,7 +3158,7 @@ IF(ABS(A).GT.0.)THEN
     R2=(C/A)/R1
   END IF
 ELSE
-  IF(ABS(B).GT.0.)THEN
+  IF(B.NE.0.)THEN
     nRoot=1
     R1=-C/B
     R2=0.
@@ -3147,21 +3218,33 @@ REAL                                 :: t
 
 #ifdef CODE_ANALYZE
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
-  t = t/ PartTrajectory(1)-epsilontol 
+  IF (PartTrajectory(1).EQ.0.) THEN
+    t=SIGN(HUGE(t),t)
+  ELSE
+    t = t/ PartTrajectory(1)-epsilontol
+  END IF
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t1: ',t
    END IF
   END IF
   t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
-  t = t/ PartTrajectory(2)-epsilontol 
+  IF (PartTrajectory(2).EQ.0.) THEN
+    t=SIGN(HUGE(t),t)
+  ELSE
+    t = t/ PartTrajectory(2)-epsilontol
+  END IF
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t2: ',t
     END IF
   END IF
   t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
-  t = t/ PartTrajectory(3)-epsilontol 
+  IF (PartTrajectory(3).EQ.0.) THEN
+    t=SIGN(HUGE(t),t)
+  ELSE
+    t = t/ PartTrajectory(3)-epsilontol
+  END IF
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t3: ',t
