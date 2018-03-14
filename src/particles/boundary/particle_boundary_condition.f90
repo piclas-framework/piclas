@@ -621,6 +621,9 @@ USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_LD_Vars,                ONLY: useLD
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
+USE MOD_TImeDisc_Vars,          ONLY:tend,time
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #endif
@@ -629,15 +632,17 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage
 USE MOD_Particle_Vars,          ONLY:PartQ,PartDeltaX
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
-#endif /*IMPA*/
-USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
-USE MOD_TImeDisc_Vars,          ONLY:tend,time
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
-#if IMPA
 USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
 USE MOD_Particle_Vars,          ONLY:PEM,PartIsImplicit
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
+#ifdef ROS
+USE MOD_Particle_Vars,          ONLY:PartQ
+USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
+USE MOD_Particle_Vars,          ONLY:PEM
+USE MOD_TimeDisc_Vars,          ONLY:iStage,RK_a
+#endif /*ROS*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -666,10 +671,10 @@ REAL                                  :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
 LOGICAL                              :: Symmetry, IsAuxBC
-#ifdef IMPA
+#if defined(IMPA) || defined(ROS)
 INTEGER                              :: iCounter
 REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
-#endif /*IMPA*/
+#endif /*IMPA and ROS*/
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -948,7 +953,57 @@ IF(iStage.GT.0)THEN
   END IF
 END IF
 #endif /*IMPA*/
-!END IF
+
+#if defined(ROS)
+! rotate the Runge-Kutta coefficients into the new system 
+! this rotation is a housholder rotation
+RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
+RotationMat(1,2) = -2*n_loc(1)*n_loc(2)
+RotationMat(1,3) = -2*n_loc(1)*n_loc(3)
+RotationMat(2,1) = RotationMat(1,2)
+RotationMat(3,1) = RotationMat(1,3)
+RotationMat(2,2) = 1.-2*n_loc(2)*n_loc(2)
+RotationMat(2,3) = -2*n_loc(2)*n_loc(3)
+RotationMat(3,2) = RotationMat(2,3)
+RotationMat(3,3) = 1.-2*n_loc(3)*n_loc(3)
+
+IF(iStage.GT.0)THEN
+  ! rotate the velocity vectors and acceleration change
+  DO iCounter=1,iStage-1
+    PartStage(PartID,1:3,iCounter)=MATMUL(RotationMat,PartStage(PartID,1:3,iCounter))
+    PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
+  END DO ! iCoutner=1,iStage-1
+  ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
+  ! new value, which is not yet computed, hence, convergence issues...
+  ! we are using the value of the last iteration under the assumption, that this 
+  ! value may be close enough
+  DeltaP=0.
+  DO iCounter=1,iStage-1
+    DeltaP=DeltaP + RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+  END DO
+  DeltaP=DeltaP + RK_a(iStage,iStage)*R_PartXK(1:6,PartID)
+  ! recompute the old position at t^n
+  PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
+  ! next, rotate PartQ instead of shifting...
+  PartQ(1:3,PartID)=MATMUL(RotationMat,PartQ(1:3,PartID))
+  PartQ(4:6,PartID)=MATMUL(RotationMat,PartQ(4:6,PartID))
+  ! if still trouble in convergence, the exact position should be used :(
+  R_PartXK(1:3,PartID)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
+  R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
+  ! rotate PartXK do not roate...
+  ! move particle on face, which is wrong, but Armijo method now does not required 
+  ! to back-rotate all RK stages AFTER reflection is rejected
+  PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
+  ! rotate velocity vector
+  PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
+  !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
+  ! new change in part-position is length of rest of tracing
+  ! set lastElement for tracing
+  IF(.NOT.DoRefMapping)THEN
+    PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+  END IF
+END IF
+#endif /*ROS*/
 
 END SUBROUTINE PerfectReflection
 
