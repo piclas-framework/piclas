@@ -3302,7 +3302,7 @@ REAL               :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 ! RK counter
 INTEGER            :: iCounter, iStage2
 #ifdef PARTICLES
-REAL               :: PartDeltaX(1:6), PartRHS(1:6), Norm_P2, Pt_tmp(1:6), PartRHS_tild(1:6)
+REAL               :: PartDeltaX(1:6), PartRHS(1:6), Norm_P2, Pt_tmp(1:6), PartRHS_tild(1:6),FieldAtParticle_loc(1:6)
 REAL               :: dtFrac,RandVal, LorentzFac,PartState_tmp(1:6), Pt_loc(1:6), v_tild(1:3),rtmp
 REAL               :: AbortCrit
 INTEGER            :: iPart,nParts
@@ -3363,7 +3363,7 @@ tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
 #endif
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! stage 1 - initialization
+! stage 1 - initialization && first linear solver 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 
 tStage=t
@@ -3574,7 +3574,7 @@ IF(t.GE.DelayTime)THEN
     ! AbortCrit=1e-16
     ! PartDeltaX=0.
     ! CALL Particle_GMRES(t,coeff_inv,iPart,PartRHS,SQRT(Norm_P2),AbortCrit,PartDeltaX)
-    ! NEW
+    ! NEW version is more stable, hence we use it!
     Pt_tmp=coeff*Pt_Tmp
     CALL PartMatrixVector(t,Coeff,iPart,Pt_tmp,PartDeltaX) 
     PartRHS =Pt_tmp - PartDeltaX
@@ -3672,7 +3672,7 @@ DO iStage=2,nRKStages
   IF (t.GE.DelayTime) THEN
     IF(DoPrintConvInfo)THEN
       SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
-      SWRITE(UNIT_StdOut,'(A)') ' compute last stage value.   '
+      SWRITE(UNIT_StdOut,'(A)') ' Implicit step.   '
     END IF
 #ifdef MPI
     IF(iStage.EQ.2)THEN
@@ -3756,22 +3756,24 @@ DO iStage=2,nRKStages
       LastPartPos(iPart,3)=PartState(iPart,3)
       PEM%lastElement(iPart)=PEM%Element(iPart)
       ! build RHS of particle with current DG solution and particle position
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      ! CAUTION: we have to use a local variable here. The Jacobian matrix is FIXED for one time step,
+      ! hence the fields for the matrix-vector-multiplication shall NOT be updated
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle_loc(1:6))
       ! compute particle RHS at t^n
       SELECT CASE(PartLorentzType)
       CASE(0)
-        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6))
         LorentzFacInv = 1.0
       CASE(1)
-        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6))
         LorentzFacInv = 1.0
       CASE(3)
-        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6))
         LorentzFacInv = 1.0
       CASE(5)
         LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
         LorentzFacInv=1.0/SQRT(LorentzFacInv)
-        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
+        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6),LorentzFacInvIn=LorentzFacInv)
       CASE DEFAULT
       END SELECT
       ! compute current Pt_tmp for the particle
@@ -3781,13 +3783,8 @@ DO iStage=2,nRKStages
       Pt_tmp(4) = Pt(iPart,1) 
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
-      ! update PartXK (because of change in field, and update R_PartXK)
       ! NO update, because fixed Jacobian || but field changes
-      ! HERE no update
-      PartXK(1:6,iPart)   = PartState(iPart,1:6)
-      R_PartXK(1:6,iPart) = Pt_tmp(1:6)
       ! compute RHS =f(y+sum aij kj ) + dt T sum gamma_ij kj
-      ! CAUTION: invert sign
       ! Pt_tmp + PartQ
       ! OLD
       ! PartRHS =Pt_tmp + PartQ(1:6,iPart)
@@ -3807,8 +3804,6 @@ DO iStage=2,nRKStages
       CALL PartVectorDotProduct(PartRHS_tild,PartRHS_tild,Norm_P2)
       AbortCrit=1e-16
       CALL Particle_GMRES(t,coeff,iPart,PartRHS_tild,SQRT(Norm_P2),AbortCrit,PartDeltaX)
-
-
       ! update particle to k_iStage
       PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
       !PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
@@ -3859,10 +3854,6 @@ IF (t.GE.DelayTime) THEN
   ! add here new method
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-!    LastPartPos(iPart,1)=PartState(iPart,1)
-!    LastPartPos(iPart,2)=PartState(iPart,2)
-!    LastPartPos(iPart,3)=PartState(iPart,3)
-!    PEM%lastElement(iPart)=PEM%Element(iPart)
     !  stage 1 ,nRKStages-1
     PartState(iPart,1:6) = RK_b(nRKStages)*PartStage(iPart,1:6,nRKStages)
     DO iCounter=1,nRKStages-1
