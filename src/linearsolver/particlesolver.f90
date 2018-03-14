@@ -537,10 +537,13 @@ IF (.NOT.EisenstatWalker) THEN
   AbortCrit=epsPartlinSolver
 END IF
 
+DeltaX=0.
+! ignore particles with zero change
+! maybe a large tolerance is feasible, e.g. eps_Mach?
+IF(ABS(Norm_B).EQ.0.) RETURN
 AbortCrit=Norm_B*AbortCrit
 R0=B
 Norm_R0=Norm_B
-DeltaX=0.
 
 V(:,1)=R0/Norm_R0
 Gam(1)=Norm_R0
