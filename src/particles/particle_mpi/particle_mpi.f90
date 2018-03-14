@@ -203,19 +203,35 @@ PartCommSize   = PartCommSize + 1
 #if defined(IMPA) || defined(ROS)
 ! communication of partstate at t^n
 PartCommSize   = PartCommSize + 6
-! IsNewPart for Surface-Flux: particle are always killed after suface-flux-emission
-PartCommSize   = PartCommSize + 1
+! PartXK
+PartCommSize   = PartCommSize + 6
+! R_PartXK
+PartCommSize   = PartCommSize + 6
+! PartQ
+PartCommSize   = PartCommSize + 6
 ! PartDtFrac
 PartCommSize   = PartCommSize + 1
-! last element
+! IsNewPart
 PartCommSize   = PartCommSize + 1
+! GlobalElemID
+PartCommSize   = PartCommSize + 1
+! GlobalElemID
+PartCommSize   = PartCommSize + 1
+! FieldAtParticle
+PartCommSize   = PartCommSize + 6
 #endif /*IMPA or ROS*/
 #if defined(IMPA)
-! communication if particle is implicit or explicit
-PartCommSize   = PartCommSize+1
-! communicate deltaX
+! PartDeltaX
 PartCommSize   = PartCommSize + 6
-! and PartAcceptLambda
+! F_PartX0
+PartCommSize   = PartCommSize + 6
+! F_PartXk
+PartCommSize   = PartCommSize + 6
+! Norm2_F_PartX0, Norm2_F_PartXK, Norm2_F_PartXK_old
+PartCommSize   = PartCommSize + 3
+! DoPartInNewton
+PartCommSize   = PartCommSize + 1
+! and PartisImplicit
 PartCommSize   = PartCommSize + 1
 #endif
 ! if iStage=0, then the PartStateN is not communicated
@@ -568,9 +584,9 @@ USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 USE MOD_LinearSolver_Vars,        ONLY:PartXK,R_PartXK
 USE MOD_Particle_Mesh_Vars,       ONLY:ElemToGlobalElemID
+USE MOD_PICInterpolation_Vars,    ONLY:FieldAtParticle
 #endif /*ROS or IMPLICIT*/
 #if defined(IMPA)
-USE MOD_PICInterpolation_Vars,    ONLY:FieldAtParticle
 USE MOD_Particle_Vars,            ONLY:F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
                                      ,PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
@@ -601,10 +617,10 @@ INTEGER                       :: MsgLengthPoly(1:PartMPI%nMPINeighbors), pos_pol
 !===================================================================================================================================
 
 #if defined(ROS)
-PartCommSize=PartCommSize0+(iStage-1)*6 + 18
+PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*ROS*/
 #if defined (IMPA)
-PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK ! and communicate fieldatparticle
+PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMPA*/
 
 ! ! 1) get number of send particles
@@ -765,7 +781,10 @@ DO iProc=1, PartMPI%nMPINeighbors
         PartSendBuf(iProc)%content(jPos+9) = 0.
       END IF
       PartSendBuf(iProc)%content(jPos+10) =-REAL(ElemToGlobalElemID(PEM%LastElement(iPart)))
-      jPos=jPos+2
+      jPos=jPos+1
+      ! fieldatparticle 
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
+      jPos=jPos+6
 #endif /*ROS or IMEX */
 #if defined(IMPA)
       ! required for particle newton && closed particle description
@@ -789,9 +808,6 @@ DO iProc=1, PartMPI%nMPINeighbors
         PartSendBuf(iProc)%content(jPos+11) = 0.0
       END IF
       jPos=jPos+4
-      ! fieldatparticle 
-      PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
-      jPos=jPos+6
       IF(PartIsImplicit(iPart))THEN
         PartSendBuf(iProc)%content(jPos+8) = 1.0
       ELSE
@@ -1163,11 +1179,11 @@ USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac,PartQ
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
 USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
                                      ,PartDeltaX,PartLambdaAccept,LastPartPos
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1300,6 +1316,9 @@ DO iProc=1,PartMPI%nMPINeighbors
     END IF
     PEM%LastElement(PartID)=INT(PartRecvBuf(iProc)%content(jPos+10),KIND=4)
     jPos=jPos+2
+    ! fieldatparticle 
+    FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
 #endif /*ROS or IMPA*/ 
 #if defined(IMPA)
     PartDeltaX(1:6,PartID)     = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
@@ -1322,9 +1341,6 @@ DO iProc=1,PartMPI%nMPINeighbors
       DoPartInNewton(PartID) = .FALSE.
     END IF
     jPos=jPos+4
-    ! fieldatparticle 
-    FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
-    jPos=jPos+6
     IF(PartRecvBuf(iProc)%content(jPos+8).EQ.1.0)THEN
         PartIsImplicit(PartID) = .TRUE.
     ELSE
