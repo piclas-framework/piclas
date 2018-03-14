@@ -174,6 +174,8 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-3-2 / germWiki'
 #elif (PP_TimeDiscMethod==132)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-4-4 by Shampine'
+#elif (PP_TimeDiscMethod==133)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-6-6 by Kaps'
 #elif (PP_TimeDiscMethod==200)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Euler Static Explicit'
 #elif (PP_TimeDiscMethod==201)
@@ -534,6 +536,8 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==131)
   CALL TimeStepByRosenbrock(time) ! linear Rosenbrock implicit
 #elif (PP_TimeDiscMethod==132)
+  CALL TimeStepByRosenbrock(time) ! linear Rosenbrock implicit
+#elif (PP_TimeDiscMethod==133)
   CALL TimeStepByRosenbrock(time) ! linear Rosenbrock implicit
 #elif (PP_TimeDiscMethod==200)
   CALL TimeStepByEulerStaticExp(time) ! O1 Euler Static Explicit

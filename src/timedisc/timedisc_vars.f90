@@ -410,38 +410,39 @@ REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
 #endif
 #if (PP_TimeDiscMethod==132) 
 ! Shampne ROS4 (RO4-4)
-! INTEGER,PARAMETER :: nRKStages = 4
-! ! RK_a(i,j)
-! REAL,PARAMETER  :: RK_a21=    2.
-! REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0./) 
-! REAL,PARAMETER  :: RK_a31=  48./25.
-! REAL,PARAMETER  :: RK_a32=   6./25.
-! REAL,PARAMETER  :: RK_a3(1:nRKStages) = (/RK_a31,RK_a32, 0., 0./) 
-! REAL,PARAMETER  :: RK_a41=  48./25.
-! REAL,PARAMETER  :: RK_a42=   6./25.
-! REAL,PARAMETER  :: RK_a43=   0.
-! REAL,PARAMETER  :: RK_a4(1:nRKStages) = (/RK_a41,RK_a42, RK_a43, 0./) 
-! REAL,PARAMETER  :: RK_a(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_a2(:), RK_a3(:), RK_a4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
-! ! RK_c(i,j)
-! REAL,PARAMETER  :: RK_gamma=0.5
-! REAL,PARAMETER  :: RK_g21             =  -8.
-! REAL,PARAMETER  :: RK_g2(1:nRKStages) = (/RK_g21, 0.,0.,0./) 
-! REAL,PARAMETER  :: RK_g31             =  372./25
-! REAL,PARAMETER  :: RK_g32             =  12./5
-! REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31, RK_g32,0.,0./) 
-! REAL,PARAMETER  :: RK_g41             =  -112./125.
-! REAL,PARAMETER  :: RK_g42             =   -54./125.
-! REAL,PARAMETER  :: RK_g43             =    -2./5.
-! REAL,PARAMETER  :: RK_g4(1:nRKStages) = (/RK_g41, RK_g42,RK_g43,0./) 
-! REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:), RK_g4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
-! !REAL,PARAMETER  :: RK_c2 = 2./3.
-! ! RK_b(i)
-! REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4)/)
-! REAL,PARAMETER  :: RK_b1= 19./9.
-! REAL,PARAMETER  :: RK_b2= 0.5
-! REAL,PARAMETER  :: RK_b3= 25./108.
-! REAL,PARAMETER  :: RK_b4= 125./108.
-! REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4/)
+INTEGER,PARAMETER :: nRKStages = 4
+! RK_a(i,j)
+REAL,PARAMETER  :: RK_a21=    2.
+REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0., 0./) 
+REAL,PARAMETER  :: RK_a31=  48./25.
+REAL,PARAMETER  :: RK_a32=   6./25.
+REAL,PARAMETER  :: RK_a3(1:nRKStages) = (/RK_a31,RK_a32, 0., 0./) 
+REAL,PARAMETER  :: RK_a41=  48./25.
+REAL,PARAMETER  :: RK_a42=   6./25.
+REAL,PARAMETER  :: RK_a43=   0.
+REAL,PARAMETER  :: RK_a4(1:nRKStages) = (/RK_a41,RK_a42, RK_a43, 0./) 
+REAL,PARAMETER  :: RK_a(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_a2(:), RK_a3(:), RK_a4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+! RK_c(i,j)
+REAL,PARAMETER  :: RK_gamma=0.5
+REAL,PARAMETER  :: RK_g21             =  -8.
+REAL,PARAMETER  :: RK_g2(1:nRKStages) = (/RK_g21, 0.,0.,0./) 
+REAL,PARAMETER  :: RK_g31             =  372./25
+REAL,PARAMETER  :: RK_g32             =  12./5
+REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31, RK_g32,0.,0./) 
+REAL,PARAMETER  :: RK_g41             =  -112./125.
+REAL,PARAMETER  :: RK_g42             =   -54./125.
+REAL,PARAMETER  :: RK_g43             =    -2./5.
+REAL,PARAMETER  :: RK_g4(1:nRKStages) = (/RK_g41, RK_g42,RK_g43,0./) 
+REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:), RK_g4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+! RK_b(i)
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4)/)
+REAL,PARAMETER  :: RK_b1= 19./9.
+REAL,PARAMETER  :: RK_b2= 0.5
+REAL,PARAMETER  :: RK_b3= 25./108.
+REAL,PARAMETER  :: RK_b4= 125./108.
+REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4/)
+#endif
+#if (PP_TimeDiscMethod==133) 
 ! Kaps and Wanner ROW64 ROS6 (RO6-6)
 INTEGER,PARAMETER :: nRKStages = 6
 ! RK_a(i,j)
