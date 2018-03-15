@@ -391,7 +391,7 @@ REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 #ifdef ROS
 REAL             :: dt_inv
 #endif /*ROSENBROCK RK*/
-#if (PP_TimeDiscMethod==131) 
+#if (PP_TimeDiscMethod==130) 
 ! coefficients of Ianelli-Baker RO2-2
 ! Bassi-Paper
 INTEGER,PARAMETER :: nRKStages = 2
@@ -407,6 +407,31 @@ REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
 REAL,PARAMETER  :: RK_b1= (1-1./(8.*RK_gamma))/RK_gamma
 REAL,PARAMETER  :: RK_b2= 1./(8.*RK_gamma**2)
 REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2/)
+#endif
+#if (PP_TimeDiscMethod==131) 
+! coefficients of Lang-Verwer ROS3P (RO3-3)
+! Bassi-Paper
+INTEGER,PARAMETER :: nRKStages = 3
+REAL,PARAMETER  :: RK_gamma=0.5  + sqrt(3.)/6.
+REAL,PARAMETER  :: RK_a21=  1./RK_gamma ! gamma^-1
+REAL,PARAMETER  :: RK_a2(1:nRKStages) = (/RK_a21,0., 0./) 
+REAL,PARAMETER  :: RK_a31=  RK_a21
+REAL,PARAMETER  :: RK_a32=  0.
+REAL,PARAMETER  :: RK_a3(1:nRKStages) = (/RK_a31,RK_a32, 0./) 
+REAL,PARAMETER  :: RK_a(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_a2(:), RK_a3(:) /),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_g21=  -RK_a21*RK_a21 ! -gamma^-2
+REAL,PARAMETER  :: RK_g2(1:nRKStages) = (/RK_g21,0.,0./) 
+REAL,PARAMETER  :: RK_g31= -RK_a21 *(1.+ RK_a21*(2.-1./(2.*RK_gamma))) ! -gamma^-1(1+gamma^-1*(2-1/(2gamma)))
+REAL,PARAMETER  :: RK_g32=  -RK_a21*(2.-1./(2.*RK_gamma)) ! -gamma^-1 * 2-1/(2*gamma)
+REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31,RK_g32,0./) 
+REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:) /),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
+REAL,PARAMETER  :: RK_c2 = 0.  ! wrong value
+REAL,PARAMETER  :: RK_c3 = 0.  ! wrong value
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2,RK_c3/)
+REAL,PARAMETER  :: RK_b1= RK_a21 *(1. + RK_a21*(2./3. - 1./(6.*RK_gamma)))
+REAL,PARAMETER  :: RK_b2= RK_a21 * (2./3. - 1./(6.*RK_gamma))
+REAL,PARAMETER  :: RK_b3= 1./(3.*RK_gamma)
+REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3/)
 #endif
 #if (PP_TimeDiscMethod==132) 
 ! Shampne ROS4 (RO4-4)

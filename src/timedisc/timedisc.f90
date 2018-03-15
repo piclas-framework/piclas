@@ -172,8 +172,10 @@ dt=HUGE(1.)
 #elif (PP_TimeDiscMethod==123)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK3/ESDIRK3-Particles and ESDIRK3-Field'
   SWRITE(UNIT_stdOut,'(A)') '                             Ascher - 2 - 3 -3               '
+#elif (PP_TimeDiscMethod==130)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-2-2 by Iannelli'
 #elif (PP_TimeDiscMethod==131)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-3-2 / germWiki'
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-3-3 by Langer-Verwer'
 #elif (PP_TimeDiscMethod==132)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ROS-4-4 by Shampine'
 #elif (PP_TimeDiscMethod==133)
@@ -537,6 +539,8 @@ DO !iter_t=0,MaxIter
   CALL TimeStepByImplicitRK(time) ! O4 ERK/ESDIRK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==123)
   CALL TimeStepByImplicitRK(time) ! O3 ERK/ESDIRK Particles + ESDIRK Field 
+#elif (PP_TimeDiscMethod==130)
+  CALL TimeStepByRosenbrock(time) ! linear Rosenbrock implicit
 #elif (PP_TimeDiscMethod==131)
   CALL TimeStepByRosenbrock(time) ! linear Rosenbrock implicit
 #elif (PP_TimeDiscMethod==132)
