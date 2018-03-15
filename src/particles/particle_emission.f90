@@ -127,8 +127,6 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AcceptReject' &
 CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-ARM_DmaxSampleN' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of sample intervals in xi/eta for Dmax-calc.', '1', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Pressurefraction' &
-                                , 'TODO-DEFINE-PARAMETER' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag if the stage reconstruction uses a force' , '.FALSE.')
@@ -3908,14 +3906,14 @@ __STAMP__&
     ELSE !Adaptive
       !Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = Species(iSpec)%Init(0)%MWTemperatureIC
       Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
-      WRITE(UNIT=hilf2,FMT='(I0)') iSF-Species(iSpec)%nSurfacefluxBCs
-      hilf2=TRIM(hilf)//'-Adaptiveflux'//TRIM(hilf2)
-      Species(iSpec)%Surfaceflux(iSF)%PressureFraction      = GETREAL('Part-Species'//TRIM(hilf2)//'-Pressurefraction','0.')
+      WRITE(UNIT=hilf2,FMT='(I0)') Adaptive_BC_Map(iSF-Species(iSpec)%nSurfacefluxBCs)
+      Species(iSpec)%Surfaceflux(iSF)%PressureFraction      = &
+        GETREAL('Part-Boundary'//TRIM(hilf2)//'-Species'//TRIM(hilf)//'-Pressurefraction','0.')
       sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
         + Species(iSpec)%Surfaceflux(iSF)%PressureFraction
       Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Surfaceflux(iSF)%PressureFraction &
         * PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC) &
-        / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)    
+        / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
       !Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Init(0)%PartDensity
       Species(iSpec)%Surfaceflux(iSF)%ReduceNoise           = .FALSE.
       !Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = .FALSE. !!!change to read-in?!?

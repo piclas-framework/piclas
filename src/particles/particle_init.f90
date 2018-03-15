@@ -252,7 +252,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
                                   'Particle Charge (without MPF) of species[$] dim' &
                                 , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
-                                , 'Particle Mass (without MPF) of species [$] [1E-3 kg]', '0.', numberedmulti=.TRUE.)
+                                , 'Particle Mass (without MPF) of species [$] [kg]', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
                                 , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
@@ -260,36 +260,34 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
                                   'Flag if specific particle is implicit', '.FALSE.', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForInit'&
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Flag to use species[$] for initialization', '.FALSE.', numberedmulti=.TRUE.)
+                                , 'Flag to use species[$] for initialization.', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Use species[$] for emission?', '.FALSE.', numberedmulti=.TRUE.)
+  , 'Use species[$] for volume emission. (set EmissionType)', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
-                                , ' TODO-DEFINE-PARAMETER\n'//&
-                                'Specifying Keyword for particle space condition of species [$] in case of one init.\n'//&
-                                '1:  point \n'//&
-                                '2:  line_with_equidistant_distribution \n'//&
-                                '3:  line_with_equidistant_distribution \n'//&
-                                '4:  line \n'//&
-                                '5:  disc \n'//&
-                                '6:  gyrotron_circle \n'//&
-                                '7:  circle_equidistant \n'//&
-                                '8:  cuboid \n'//&
-                                '9:  cylinder \n'//&
-                                '10: cuboid_vpi \n'//&
-                                '11: cylinder_vpi \n'//&
-                                '12: LD_insert \n'//&
-                                '13: cell_local \n'//&
-                                '14: cuboid_equal \n'//&
-                                '15: cuboid_with_equidistant_distribution \n'//&
-                                '16: sin_deviation \n'//&
-                                '17: IMD'&
+                                , 'Specifying Keyword for particle space condition of species [$] in case of one init.\n'//&
+                                ' - point \n'//&
+                                ' - line_with_equidistant_distribution \n'//&
+                                ' - line \n'//&
+                                ' - disc \n'//&
+                                ' - gyrotron_circle \n'//&
+                                ' - circle_equidistant \n'//&
+                                ' - cuboid \n'//&
+                                ' - cylinder \n'//&
+                                ' - cuboid_vpi \n'//&
+                                ' - cylinder_vpi \n'//&
+                                ' - LD_insert \n'//&
+                                ' - cell_local \n'//&
+                                ' - cuboid_equal \n'//&
+                                ' - cuboid_with_equidistant_distribution \n'//&
+                                ' - sin_deviation \n'//&
+                                ' - IMD'&
                               , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Used velocity distribution (e.g. maxwell) Default = OVDR.'//&
-                                  ' Velocity distribution for variable MPF.', 'constant', numberedmulti=.TRUE.)
+                                , 'Used velocity distribution.\n'//&
+                                  '   constant: all particles have the same defined velocity.(VeloIC, VeloVec)\n'//&
+                                  '   maxwell: sampled from maxwell distribution.(for MWTemperatureIC)\n'//&
+                                  '   maxwell_lpn: maxwell with low particle number (better maxwell dist. approx. for lpn).' &
+                                  , 'constant', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-rotation'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Direction of rotation, similar to TE-mode', '1', numberedmulti=.TRUE.)
@@ -339,11 +337,9 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-CalcHeightFromDt'  &
                                   'Calculated cuboid/cylinder height from v and dt?'&
                                 , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-VeloIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Absolute value of initial velocity. ', '0.', numberedmulti=.TRUE.)
+                                , 'Absolute value of initial velocity. (ensemble velocity) ', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-VeloVecIC '  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Normalized velocity vector', '0. , 0. , 0.', numberedmulti=.TRUE.)
+                                , 'Normalized velocity vector for given VeloIC', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Amplitude'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Amplitude for sin-deviation', '0.01', numberedmulti=.TRUE.)
@@ -364,8 +360,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Alpha' &
                                   'Factor for normal speed in gyrotron simulations.', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MWTemperatureIC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Initial temperature for Maxwell distribution initialization.', '0.'&
+                                , 'Initial translational temperature for Maxwell distribution initialization.', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ConstantPressure' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -375,21 +370,20 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ConstPressureRelaxFac' &
                                   'Relaxation Factor for constant pressure sampling.', '1.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartDensity' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Used particle density for an area. PartDensity (real particles per '//&
-                                  'm^3) for LD_insert or (vpi_)cub./cyl. as alternative to Part.Emis. in Type1', '0.'&
+                                , 'Define particle density for species [$]. PartDensity (real particles per m^3).\n'//&
+                                  'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.\n'// &
+                                  'Also for LD_insert or (vpi_)cub./cyl. / cell_local as alternative to Part.Emis. in Type1', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-ParticleEmissionType'  &
-                                , 'TODO-DEFINE-PARAMETER\nEmission Type \n'//&
-                                  '1 = emission rate in 1/s,\n'//&
-                                  '2 = emission rate 1/iteration\n'//&
+                                , 'Define Emission Type for particles (volume emission)\n'//&
+                                  '1 = emission rate in part/s,\n'//&
+                                  '2 = emission rate part/iteration\n'//&
                                   '3 = user def. emission rate\n'//&
                                   '4 = const. cell pressure\n'//&
                                   '5 = cell pres. w. complete part removal\n'//&
                                   '6 = outflow BC (characteristics method)', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ParticleEmission' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Emission in 1/s or 1/iteration.', '0.', numberedmulti=.TRUE.)
+                                , 'Emission rate in part/s or part/iteration.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-NSigma' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Sigma multiple of maxwell for virtual insert length.', '10.'&
@@ -717,66 +711,57 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptiveTemp'  &
   , 'Define temperature for adaptive particle boundary [$] (in [K])', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptivePressure'  &
   , 'Define pressure for adaptive particle boundary [$] (in [Pa])', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Adaptiveflux[$]-Pressurefraction'  &
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Pressurefraction'  &
   , 'If particle boundary [$] adaptive, define pressurefractions for each species, so sum of all species for this adaptive'//&
-    'is 1.0' , '0.', numberedmulti=.TRUE.)
+    'is 1.0. Results in abort if not set right.' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Voltage on boundary [$]', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-MomentumACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Momentum accommodation', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Wall temperature of boundary[$]', '0.', numberedmulti=.TRUE.)
+                                , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-MomentumACC'  &
+                                , 'Momentum accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-TransACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Translation accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Translation accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-VibACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Vibrational accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Vibrational accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Rotational accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Rotational accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Electronic accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Resample Equilibrum Distribution with reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
-
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Emitted velocity on boundary [$]', '0. , 0. , 0.', numberedmulti=.TRUE.)
-
+                                , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Flag defining if reflective BC is solid (otherwise it is declared liquid)'&
+                                , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidCatalytic'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Flag if solid surface is to be treated catalytically', '.FALSE.'&
+                                , 'Flag for defining solid surface to be treated catalytically (for wallmodel>0).', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidSpec'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species of Solid Boundary?', '0', numberedmulti=.TRUE.)
+                                , 'Set Species of Solid Boundary. (currently not used)', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidPartDens'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Solid boundary particle density? ', '1.0E+19', numberedmulti=.TRUE.)
+  , 'If particle boundary defined as solid set surface atom density (in [part/m^2]).', '1.0E+19', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Solid boundary particle mass?', '3.2395E-25', numberedmulti=.TRUE.)
+                                , 'Set mass of solid surface particles (in [kg]).', '3.2395E-25', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidAreaIncrease'  &
                                 , 'TODO-DEFINE-PARAMETER ', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidCrystalIndx'  &
-                                , 'TODO-DEFINE-PARAMETER', '4', numberedmulti=.TRUE.)
+                                , 'Set number of interaction for hollow sites.', '4', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-LiquidSpec'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species of Liquid Boundary', '0', numberedmulti=.TRUE.)
+                                , 'Set used species of Liquid Boundary', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-ParamAntoine'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Parameters for Antoine Eq (vapor pressure) [3,nPartBound]', '0. , 0. , 0.'&
+                                , 'Parameters for Antoine Eq (vapor pressure)', '0. , 0. , 0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
