@@ -444,10 +444,20 @@ ELSE
   EpsFD= rEps0*0.1
 END IF
 
-!CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
-!CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
-!sign_XK_V=SIGN(1.,Xk_V)
-!EpsFD= rEps0/X_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
+! CALL PartVectorDotProduct(X,X,X_abs)
+! IF(X_abs.NE.0.)THEN
+!   CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
+!   CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
+!   sign_XK_V=SIGN(1.,Xk_V)
+!   EpsFD= rEps0/X_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
+! ELSE
+!   EpsFD= rEps0*0.1
+! END IF
+
+! ! Bassi gang 
+! CALL PartVectorDotProduct(PartXK(1:6,PartID),PartXK(1:6,PartID),Xk_v)
+! CALL PartVectorDotProduct(X,X,X_abs)
+! EpsFD=rEps0  * SQRT(1.+XK_V)/X_abs
 
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
