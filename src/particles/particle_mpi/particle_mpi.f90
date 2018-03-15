@@ -894,9 +894,13 @@ DO iProc=1, PartMPI%nMPINeighbors
         END IF
       END IF
       IF(MOD(jPos,PartCommSize).NE.0) THEN
+#if defined(ROS) || defined(IMPA)
         IPWRITE(UNIT_stdOut,*)  'iStage',iStage
         IPWRITE(UNIT_stdOut,*)  'PartCommSize0',PartCommSize0,PartCommSize
-        IPWRITE(UNIT_stdOut,*)  'jPos',jPos,PartCommSize
+#else
+        IPWRITE(UNIT_stdOut,*)  'PartCommSize',PartCommSize
+#endif
+        IPWRITE(UNIT_stdOut,*)  'jPos',jPos
         CALL Abort(&
             __STAMP__&
             ,' Particle-wrong sending message size!')
@@ -1440,9 +1444,12 @@ DO iProc=1,PartMPI%nMPINeighbors
       END IF
     END IF
     IF(MOD(jPos,PartCommSize).NE.0)THEN
+#if defined(ROS) || defined(IMPA)
       IPWRITE(UNIT_stdOut,*)  'iStage',iStage
       IPWRITE(UNIT_stdOut,*)  'PartCommSize0',PartCommSize0,PartCommSize
-      IPWRITE(UNIT_stdOut,*)  'jPos',jPos,PartCommSize
+#else
+      IPWRITE(UNIT_stdOut,*)  'jPos',jPos
+#endif
       CALL Abort(&
           __STAMP__&
           ,' Particle-wrong receiving message size!')
