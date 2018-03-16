@@ -42,43 +42,81 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
 
-CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER' , '0.999')
+CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Multiplied with c0 results in the velocity of '//&
+                                                     'introduced artificial correcting waves (HDC)' , '1.')
+CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Velocity of light (in vacuum)' , '1.')
+CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Electric constant (vacuum permittivity)' , '1.')
+CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
+                                                   , '1.')
+CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Apply the damping factor also to PML source terms\n'//&
+                                                     'but only to PML variables for Phi_E and Phi_B to prevent charge-related\n'//&
+                                                     'instabilities (accumulation of divergence compensation over \n'//&
+                                                     'timeU2 = U2 * fDamping' , '0.999')
 CALL prms%CreateLogicalOption(  'ParabolicDamping' , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'CentralFlux'      , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateLogicalOption(  'CentralFlux'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Flag for central or upwind flux' , '.FALSE.')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Define exact function necessary for '//&
+                                                     'linear scalar advection')
 
-CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateRealArrayOption('xDipole'          , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.')
-CALL prms%CreateRealOption(     'omega'            , 'TODO-DEFINE-PARAMETER' , '6.28318e8')
-CALL prms%CreateRealOption(     'tPulse'           , 'TODO-DEFINE-PARAMETER' , '30e-9')
+CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Switch emission to flux superposition at'//&
+                                                     ' certain positions' , '.FALSE.')
+CALL prms%CreateRealArrayOption('xDipole'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Base point of electromagnetic dipole', '0. , 0. , 0.')
+CALL prms%CreateRealOption(     'omega'            , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     '2*pi*f (f=100 MHz default)' , '6.28318e8')
+CALL prms%CreateRealOption(     'tPulse'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Half length of pulse' , '30e-9')
 
-CALL prms%CreateRealOption(     'TEFrequency'      , 'TODO-DEFINE-PARAMETER' , '35e9')
-CALL prms%CreateRealOption(     'TEScale'          , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateLogicalOption(  'TEPolarization'   , 'TODO-DEFINE-PARAMETER' , '.TRUE.')
-CALL prms%CreateIntOption(      'TERotation'       , 'TODO-DEFINE-PARAMETER', '1')
-CALL prms%CreateLogicalOption(  'TEPulse'          , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
-CALL prms%CreateIntArrayOption( 'TEMode'           , 'TODO-DEFINE-PARAMETER', '1 , 1')
-CALL prms%CreateRealOption(     'TERadius'         , 'TODO-DEFINE-PARAMETER' , '0.0')
+CALL prms%CreateRealOption(     'TEFrequency'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Frequency of TE wave' , '35e9')
+CALL prms%CreateRealOption(     'TEScale'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Scaling of input TE-wave strength' , '1.')
+CALL prms%CreateLogicalOption(  'TEPolarization'   , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Linear or circular polarized' , '.TRUE.')
+CALL prms%CreateIntOption(      'TERotation'       , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Left or right rotating TE wave', '1')
+CALL prms%CreateLogicalOption(  'TEPulse'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Flag for pulsed or continuous wave' , '.FALSE.')
+CALL prms%CreateIntArrayOption( 'TEMode'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Input of TE_n,m mode', '1 , 1')
+CALL prms%CreateRealOption(     'TERadius'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Radius of Input TE wave, if wave is '//&
+                                                     ' inserted over a plane' , '0.0')
 
 CALL prms%CreateRealOption(     'WaveLength'       , 'TODO-DEFINE-PARAMETER' , '1.')
 CALL prms%CreateRealArrayOption('WaveVector'       , 'TODO-DEFINE-PARAMETER', '0. , 0. , 1.')
 CALL prms%CreateRealArrayOption('WaveBasePoint'    , 'TODO-DEFINE-PARAMETER', '0.5 , 0.5 , 0.')
-CALL prms%CreateRealOption(     'I_0'              , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateRealOption(     'sigma_t'          , 'TODO-DEFINE-PARAMETER' , '0.')
-CALL prms%CreateRealOption(     'tFWHM'            , 'TODO-DEFINE-PARAMETER' , '0.')
-CALL prms%CreateRealOption(     'Beam_a0'          , 'TODO-DEFINE-PARAMETER' , '-1.0')
-CALL prms%CreateRealOption(     'omega_0'          , 'TODO-DEFINE-PARAMETER' , '1.0')
-CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER', 'no file found')
+CALL prms%CreateRealOption(     'I_0'              , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Max. intensity' , '1.')
+CALL prms%CreateRealOption(     'sigma_t'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Can be used instead of tFWHM (time For Full '//&
+                                                     'Wave Half Maximum)' , '0.')
+CALL prms%CreateRealOption(     'tFWHM'            , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Time For Full Wave Half Maximum' , '0.')
+CALL prms%CreateRealOption(     'Beam_a0'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Value to scale max. electric field' , '-1.0')
+CALL prms%CreateRealOption(     'omega_0'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Spot size and inv of spot size' , '1.0')
+CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Boundary Condition State File', 'no file found')
 CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
-CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER' , '1.0')
+CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Modified for curved and shape-function influence'//&
+                                                     ' (c*dt*SafetyFactor+r_cutoff)' , '1.0')
 
-CALL prms%CreateIntOption(      'FluxDir'          , 'TODO-DEFINE-PARAMETER', '-1')
-CALL prms%CreateIntOption(      'ExactFluxDir'     , 'TODO-DEFINE-PARAMETER', '3')
-CALL prms%CreateRealOption(     'ExactFluxPosition', 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateIntOption(      'FluxDir'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Flux direction', '-1')
+CALL prms%CreateIntOption(      'ExactFluxDir'     , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Flux direction for ExactFlux', '3')
+CALL prms%CreateRealOption(     'ExactFluxPosition', 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'x,y, or z-position of interface')
 
 END SUBROUTINE DefineParametersEquation
 
