@@ -4860,8 +4860,8 @@ IF(MapPeriodicSides)THEN
              __STAMP__&
              , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
           END IF
-        ELSE
-          IPWRITE(UNIT_stdOut,*) ' WARNING: Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
+        !ELSE
+        !  IPWRITE(UNIT_stdOut,*) ' WARNING: Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
         END IF
         IF(.NOT.ALMOSTEQUALRELATIVE(MinMax(2),MinMaxGlob(iDir+3),1e-10))THEN
           IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
@@ -4870,8 +4870,8 @@ IF(MapPeriodicSides)THEN
              __STAMP__&
              , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
           END IF
-        ELSE
-            IPWRITE(UNIT_stdOut,*) ' WARNING: Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
+        !ELSE
+        !    IPWRITE(UNIT_stdOut,*) ' WARNING: Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
 
         END IF
       END DO
