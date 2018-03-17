@@ -4625,9 +4625,17 @@ __STAMP__&
             (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0)) ) THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
               IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) THEN
-                ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                IF (TriaSurfaceFlux) THEN
+                  ExtraParts = Adsorption%SumDesorbPart(1,1,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                ELSE
+                  ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                END IF
               ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0))THEN
-                ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                IF (TriaSurfaceFlux) THEN
+                  ExtraParts = Liquid%SumEvapPart(1,1,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                ELSE
+                  ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                END IF
               ELSE
                 CALL abort(&
 __STAMP__&

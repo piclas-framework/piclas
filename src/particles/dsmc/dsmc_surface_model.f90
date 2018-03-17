@@ -2278,7 +2278,7 @@ IF (adsorbates_num.GT.0) THEN
   IF ((SurfNum - adsorbates_num).LT.0) THEN
     CALL abort(&
 __STAMP__&
-,'Error in AdjustBackgndAdsNum: Too many new Adsorbates! not enough Sites for Coordination:' &
+,'Error in AdjustReconstructMapNum: Too many new Adsorbates! not enough Sites for Coordination:' &
 ,Adsorption%Coordination(PartBoundID,iSpec))
   END IF
   DO WHILE (dist.LE.adsorbates_num)

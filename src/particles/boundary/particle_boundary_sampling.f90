@@ -145,10 +145,9 @@ SurfMesh%SideIDToSurfID(1:nTotalSides)=-1
 SurfMesh%nSides=0
 DO iSide=1,nBCSides
   IF(BC(iSide).EQ.0) CYCLE
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nSides = SurfMesh%nSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
-    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
 
@@ -156,10 +155,9 @@ END DO
 SurfMesh%nTotalSides=SurfMesh%nSides
 DO iSide=nSides+1,nTotalSides
   IF(BC(iSide).EQ.0) CYCLE
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nTotalSides = SurfMesh%nTotalSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nTotalSides
-    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nTotalSides
   END IF
 END DO
 
