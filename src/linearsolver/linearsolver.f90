@@ -99,7 +99,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
-USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone
+USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone,nGlobalElems
 USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 #ifndef PP_HDG
 USE MOD_Interpolation_Vars,   ONLY:wGP
@@ -136,6 +136,8 @@ nDOFLine=PP_nVar*(PP_N+1)
 nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
+nTotalDOF_inv=REAL(nDOFElem)*nGlobalElems
+nTotalDOF_inv=1./nTotalDOF_inv
 #endif /*NOT HDG*/
 
 
@@ -1429,7 +1431,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,ldim
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,ldim,nTotalDOF_inv
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
@@ -1452,7 +1454,7 @@ INTEGER                  :: iterLinSolver,Restart
 INTEGER                  :: m,nn
 REAL                     :: alpha,omega,beta
 REAL                     :: Norm_R, Norm_R0, Norm_Abort
-REAL                     :: AbortCrit
+REAL                     :: AbortCritRel,AbortCrit
 ! preconditioner
 REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -1489,9 +1491,11 @@ END IF
 IF(Norm_R0.LT.1e-14) RETURN
 
 IF(PRESENT(relTolerance))THEN
-  AbortCrit = Norm_R0*relTolerance
+  AbortCrit    = relTolerance
+  AbortCritRel = Norm_R0*relTolerance
 ELSE
-  AbortCrit = Norm_R0*eps_LinearSolver
+  AbortCrit    = eps_LinearSolver
+  AbortCritRel = Norm_R0*eps_LinearSolver
 END IF
 ! starting direction accoring to old paper
 P(:,:,:,:,:,0) = 0.
@@ -1563,7 +1567,7 @@ DO WHILE(Restart.LT.nRestarts)
     END DO ! nn
     CALL VectorDotProduct(R(:,:,:,:,:,0),R(:,:,:,:,:,0),Norm_Abort)
     Norm_Abort=SQRT(Norm_Abort)
-    IF((Norm_Abort.LE.AbortCrit).OR.(Norm_Abort.LT.1.E-12)) THEN
+    IF((Norm_Abort.LE.AbortCritRel).OR.(Norm_Abort*nTotalDOF_inv.LT.AbortCrit)) THEN
       ! invert preconditioner
       CALL Preconditioner(deltaX,U)
       U=U+Un

@@ -41,7 +41,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U
 #ifndef PP_HDG
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS,mass
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS,mass,nTotalDOF_inv
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Equation,                ONLY:CalcSource
@@ -152,9 +152,13 @@ NormArray(1)=Norm_R
 NormArray(2)=Delta_Norm_R
 NormArray(3)=Delta_Norm_Rel
 CALL MPI_ALLREDUCE(NormArray,GlobalNormArray,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-Norm_R         = GlobalNormArray(1)
-Delta_Norm_R   = GlobalNormArray(2)
-Delta_Norm_Rel = GlobalNormArray(3)
+Norm_R         = GlobalNormArray(1)*nTotalDOF_inv
+Delta_Norm_R   = GlobalNormArray(2)*nTotalDOF_inv
+Delta_Norm_Rel = GlobalNormArray(3)*nTotalDOF_inv
+#else
+Norm_R         = Norm_R*nTotalDOF_inv
+Delta_Norm_R   = Delta_Norm_R*nTotalDOF_inv
+Delta_Norm_Rel = Delta_Norm_Rel*nTotalDOF_inv
 #endif
 
 END SUBROUTINE ImplicitNorm
@@ -654,23 +658,32 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 
   ! detect convergence, fancy, extended list of convergence detection with wide range of 
   ! parameters
-  Norm_Diff_old=Norm_Diff
-  Norm_Diff=Norm_Rold-Norm_R
-  IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
-  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
-  IF(Norm_R.LT.1e-14) IsConverged=.TRUE.
-  IF(Delta_Norm_Rel.LT.eps2_FullNewton) IsConverged=.TRUE.
-  IF(Delta_Norm_Rel.LT.5.*Norm_R0*SQRT(Eps2_FullNewton)) IsConverged=.TRUE.
-  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+  ! change between to norms
+  !Norm_Diff_old=Norm_Diff
+  !Norm_Diff=Norm_Rold-Norm_R
+  !IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+  !IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+
+  ! relative norm
+  IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(ABS(Norm_Diff).LT.Norm_R0*eps2_FullNewton))IsConverged=.TRUE.
+  ! absolute convergence
+  IF(Norm_R.LT.eps2_FullNewton) IsConverged=.TRUE.
+  ! ! change  of the state vector: absolute
+  ! IF(Delta_Norm_R.LT.eps2_FullNewton) IsConverged=.TRUE.
+  ! ! change of the state vector: relative
+  ! IF(Delta_Norm_Rel.LT.eps2_FullNewton) IsConverged=.TRUE.
+  ! ! relative below a threshold
+  ! IF(Delta_Norm_Rel.LT.5.*Norm_R0*SQRT(Eps2_FullNewton)) IsConverged=.TRUE.
 
   IF(DoPrintConvInfo.AND.MPIRoot)THEN
     WRITE(UNIT_StdOut,'(A20,I0)')               ' Piccardi-iter    ',nFullNewtonIter
+    WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Tolerance        ',Eps2_FullNewton
     WRITE(UNIT_StdOut,'(A20,E24.15,2x,E24.15)') ' Norm , Norm_0    ',Norm_R, Norm_R0
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm / Norm_0    ',Norm_R/ Norm_R0
     WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_R     ',Delta_Norm_R
     WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_Rel   ',Delta_Norm_Rel
-    WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff        ',Norm_Diff
-    WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff/Norm_0 ',Norm_Diff/Norm_R0
+    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff(no)    ',Norm_Diff
+    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff/Norm_0 ',Norm_Diff/Norm_R0
   END IF 
 
   IF(nFullNewtonIter.GT.5)THEN
