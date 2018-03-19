@@ -77,7 +77,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   SWRITE(UNIT_StdOut,'(A,A,A)')' | Restarting from file "',TRIM(RestartFile),'":'
   DoRestart = .TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL GetDataProps(nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   CALL CloseDataFile() 

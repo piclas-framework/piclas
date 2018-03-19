@@ -186,33 +186,54 @@ END FUNCTION ISVALIDMESHFILE
 !==================================================================================================================================
 !> Subroutine to determine HDF5 datasize
 !==================================================================================================================================
-SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,IntSize)
+SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,Size,attrib)
+!===================================================================================================================================
+! Subroutine to determine HDF5 datasize
+!===================================================================================================================================
 ! MODULES
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*)                     :: DSetName !< name if dataset to be checked
-INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
-INTEGER,INTENT(OUT)                  :: nDims    !< found data size dimensions
-INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: IntSize(:)!< found data size
-!----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*)                     :: DSetName  !< name if dataset to be checked
+INTEGER(HID_T),INTENT(IN)            :: Loc_ID    !< ID of datase
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib    !< logical wether atrtibute or dataset
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)                  :: nDims     !< found data size dimensions
+INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: Size(:)   !< found data size
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: DSet_ID,FileSpace
 INTEGER(HSIZE_T), POINTER            :: SizeMax(:)
-!==================================================================================================================================
-! Open the dataset with default properties.
-CALL H5DOPEN_F(Loc_ID, TRIM(DSetName) , DSet_ID, iError)
-! Get the data space of the dataset.
-CALL H5DGET_SPACE_F(DSet_ID, FileSpace, iError)
-! Get number of dimensions of data space
-CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, nDims, iError)
-! Get size and max size of data space
-ALLOCATE(IntSize(nDims),SizeMax(nDims))
-CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, IntSize, SizeMax, iError)
-CALL H5SCLOSE_F(FileSpace, iError)
-CALL H5DCLOSE_F(DSet_ID, iError)
-DEALLOCATE(SizeMax)
+!===================================================================================================================================
+IF(PRESENT(attrib).AND.attrib)THEN
+  ! Open the dataset with default properties.
+  CALL H5AOPEN_F(Loc_ID, TRIM(DSetName) , DSet_ID, iError)
+  ! Get the data space of the dataset.
+  CALL H5AGET_SPACE_F(DSet_ID, FileSpace, iError)
+  ! Get number of dimensions of data space
+  CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, nDims, iError)
+  ! Get size and max size of data space
+  ALLOCATE(Size(nDims),SizeMax(nDims))
+  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Size, SizeMax, iError)
+  CALL H5SCLOSE_F(FileSpace, iError)
+  CALL H5ACLOSE_F(DSet_ID, iError)
+ELSE
+  ! Open the dataset with default properties.
+  CALL H5DOPEN_F(Loc_ID, TRIM(DSetName) , DSet_ID, iError)
+  ! Get the data space of the dataset.
+  CALL H5DGET_SPACE_F(DSet_ID, FileSpace, iError)
+  ! Get number of dimensions of data space
+  CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, nDims, iError)
+  ! Get size and max size of data space
+  ALLOCATE(Size(nDims),SizeMax(nDims))
+  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Size, SizeMax, iError)
+  CALL H5SCLOSE_F(FileSpace, iError)
+  CALL H5DCLOSE_F(DSet_ID, iError)
+END IF
 END SUBROUTINE GetDataSize
+
 
 !==================================================================================================================================
 !> @brief Subroutine to check wheter a dataset in the hdf5 file exists
@@ -255,12 +276,13 @@ END SUBROUTINE DatasetExists
 !==================================================================================================================================
 !> Subroutine to determine HDF5 dataset properties
 !==================================================================================================================================
-SUBROUTINE GetDataProps(nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
+SUBROUTINE GetDataProps(DatasetName,nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
 ! MODULES
 USE MOD_Globals
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)             :: DatasetName   !< Name of Dataset that should be read
 INTEGER,INTENT(OUT)                     :: nVar_HDF5     !< number of variables
 INTEGER,INTENT(OUT)                     :: N_HDF5        !< polynomial degree
 INTEGER,INTENT(OUT)                     :: nElems_HDF5   !< inumber of elements
@@ -275,8 +297,9 @@ SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A,A)')' GET SIZE OF DATA IN HDF5 FILE... '
 
 ! Read in attributes
-! Open the dataset with default properties.
-CALL H5DOPEN_F(File_ID, 'DG_Solution', Dset_ID, iError)
+! Open given dataset with default properties.
+CALL H5DOPEN_F(File_ID, TRIM(DatasetName), Dset_ID, iError)
+
 ! Get the data space of the dataset.
 CALL H5DGET_SPACE_F(Dset_ID, FileSpace, iError)
 ! Get number of dimensions of data space
@@ -298,14 +321,18 @@ END IF
 nVar_HDF5 = INT(Dims(1),4)
 SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Number of variables nVar',' | ',nVar_HDF5,' | HDF5    | '
 ! N = index 2-4 of array, is expected to have the same value for each direction
-N_HDF5 = INT(Dims(2)-1,4)
+IF (Rank.EQ.2) THEN
+  N_HDF5 = 1
+ELSE
+  N_HDF5 = INT(Dims(Rank-1)-1)
+END IF
 SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Polynomial degree N',' | ',N_HDF5,' | HDF5    | '
 IF(PRESENT(NodeType_HDF5)) THEN
   SWRITE(UNIT_stdOut,'(A3,A30,A3,A33,A13)')' | ','          Node type',' | ',TRIM(NodeType_HDF5),' | HDF5    | '
 END IF
-! nElems = index 5 of array
-nElems_HDF5 = INT(Dims(5),4)
-SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','GeometricnElems',' | ',nElems_HDF5,' | HDF5    | '
+! nElems = index Rank of array
+nElems_HDF5 = INT(Dims(Rank),4)
+SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Number of Elements',' | ',nElems_HDF5,' | HDF5    | '
 
 SWRITE(UNIT_stdOut,'(A)')' DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')

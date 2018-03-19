@@ -103,7 +103,8 @@ CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K
     '[Assumption of on-top side bind, wallmodel=3]','0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateStringOption(  'Particles-SurfCoverageFile'&
-  , 'Surface-state-file used for coverage init. File must contain same amount of species as calculation.\n'//&
+  , 'Give relative path to Surface-state-file ([Projectname]_DSMCSurfState***.h5) used for coverage init. '//&
+    'File must be of same format as calculation (same mesh, same amount of species, cells and wallmodel).\n'//&
     'If no file specified:\n'// &
     'Define Part-Species[$]-PartBound[$]-InitialCoverage for initial coverage different than 0.' &
   , 'none')
@@ -427,27 +428,37 @@ END SUBROUTINE InitDSMCSurfModel
 
 SUBROUTINE InitSurfCoverage()
 !===================================================================================================================================
-!> Surface coverage is initialized either from given surface init file or from constant values for each given particle boundary
+!> Surface coverage is initialized either from given surface init file or from constant values for each given particle boundary.
+!> Therefore, the ini file is checked if state file is specified. If not coverage is initialized from parameter else
+!> .h5 file is read and used for init. If file has wrong entries programm aborts.
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC!, CollisMode
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM
 USE MOD_ReadInTools            ,ONLY: GETSTR,GETREAL
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: offSetSurfSide, nSurfBC
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)               :: SurfaceFileName
+CHARACTER(LEN=255)               :: SurfaceFileName, Type_HDF5, NodeType_HDF5
 CHARACTER(32)                    :: hilf, hilf2
-INTEGER                          :: iSpec, iSurfSide, iPartBound
+INTEGER                          :: iSpec, iSurfSide, iPartBound, iSubSurf, jSubSurf, iName, iVar
 INTEGER                          :: SideID, PartBoundID
 REAL , ALLOCATABLE               :: Coverage_tmp(:,:)
+REAL , ALLOCATABLE               :: SurfState_HDF5(:,:,:,:)
+LOGICAL                          :: exists
+INTEGER                          :: nSpecies_HDF5, nVarSurf_HDF5, nSurfSides_HDF5, N_HDF5, nSurfBC_HDF5
+INTEGER                          :: nVar2D, nVar2D_Spec, nVar2D_Total
+CHARACTER(LEN=255),ALLOCATABLE   :: SurfBCName_HDF5(:)
 !===================================================================================================================================
 
 SurfaceFileName=GETSTR('Particles-SurfCoverageFile')
@@ -483,7 +494,92 @@ IF (TRIM(SurfaceFileName).EQ.'none') THEN
   SDEALLOCATE(Coverage_tmp)
   SWRITE(UNIT_StdOut, '(A)')' INIT SURFACE COVERAGE FROM INI FILE VALUES DONE!'
 ELSE ! SurfaceFileName.EQ.'none'
+  SWRITE(UNIT_StdOut, '(A)')' INIT SURFACE COVERAGE FROM '//TRIM(SurfaceFileName)//' ...'
+  CALL OpenDataFile(TRIM(SurfaceFileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)!MPI_COMM_WORLD)
+  exists=.FALSE.
+  ! check if given file is of type 'DSMCSurfState'
+  CALL DatasetExists(File_ID,'File_Type',exists,attrib=.TRUE.)
+  IF (exists) THEN
+    CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=Type_HDF5)
+    IF (TRIM(Type_HDF5).NE.'DSMCSurfState') CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: filetype of given surfcoverage-initfile does not match!')
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: attribute "filetype" does not exist!')
+  END IF
+  ! check if number of species is equal
+  CALL DatasetExists(File_ID,'DSMC_nSpecies',exists,attrib=.TRUE.)
+  IF (exists) THEN
+    CALL ReadAttribute(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies_HDF5)
+    IF (nSpecies_HDF5.NE.nSpecies) CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: number of Species does not match!')
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: attribute "nSpecies" does not exist!')
+  END IF
 
+  ! check if Dataset SurfaceData exists and read from container
+  CALL DatasetExists(File_ID,'SurfaceData',exists)
+  IF (exists) THEN
+    CALL GetDataProps('SurfaceData',nVarSurf_HDF5,N_HDF5,nSurfSides_HDF5,NodeType_HDF5)
+    SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER AND NAMES OF SURFACE-BC-SIDES IN COVERAGE-INIT FILE... '
+    CALL GetDataSize(File_ID,'BC_Surf',nDims,HSize,attrib=.TRUE.)
+    nSurfBC_HDF5 = INT(HSize(1),4)
+    SWRITE(UNIT_stdOut,'(A3,A45,A3,I33,A13)')' | ','Number of Surface BCs',' | ',nSurfBC_HDF5,' | HDF5    | '
+    IF (MPIROOT) THEN
+      ALLOCATE(SurfBCName_HDF5(nSurfBC_HDF5))
+      CALL ReadAttribute(File_ID,'BC_Surf',nSurfBC_HDF5,StrArray=SurfBCName_HDF5)
+      DO iName = 1,nSurfBC_HDF5
+        SWRITE(UNIT_stdOut,'(A3,A38,I2.1,A5,A3,A33,A13)')' | ','BC',iName,'Name',' | ',TRIM(SurfBCName_HDF5(iName)),' | HDF5    | '
+      END DO
+    END IF
+    SWRITE(UNIT_stdOut,'(A)')' DONE!'
+    IF (nSurfBC_HDF5.NE.nSurfBC) CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: number of surface boundaries in HDF5-file does not match!')
+    IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: number of surface sides in HDF5-file does not match!')
+    ! number comes from boundary sampling, if wallmodel is used then nVar2d_Spec=4
+    nVar2D = 5
+    nVar2D_Spec = 4
+    nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
+    IF (nVarSurf_HDF5.NE.nVar2D_Total) CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: number of variables in HDF5-file does not match (5+4*nSpecies)!')
+    SDEALLOCATE(SurfState_HDF5)
+    ALLOCATE(SurfState_HDF5(1:nVarSurf_HDF5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+    CALL ReadArray('SurfaceData',4,(/nVarSurf_HDF5,nSurfSample,nSurfSample,SurfMesh%nSides/)&
+                   ,offsetSurfSide,4,RealArray=SurfState_HDF5)
+    iVar = 3
+    DO iSpec = 1, nSpecies
+      DO iSurfSide = 1, SurfMesh%nSides
+        SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+        PartboundID = PartBound%MapToPartBC(BC(SideID))
+        IF (PartBound%SolidCatalytic(PartboundID)) THEN
+          DO jSubSurf = 1, nSurfSample
+            DO iSubSurf = 1, nSurfSample
+              Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = SurfState_HDF5(iVar,iSubSurf,jSubSurf,iSurfSide)
+            END DO ! iSubSurf = 1, nSurfSample
+          END DO ! jSubSurf = 1, nSurfSample
+        ELSE
+          Adsorption%Coverage(:,:,iSurfSide,iSpec) = 0.
+        END IF
+      END DO ! iSurfSide = 1, SurfMesh%nSides
+      iVar = iVar + nVar2D_Spec
+    END DO ! iSpec = 1, nSpecies
+    SDEALLOCATE(SurfState_HDF5)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: dataset "SurfaceData" does not exist!')
+  END IF
+  CALL CloseDataFile()
+  SWRITE(UNIT_StdOut, '(A)')' INIT SURFACE COVERAGE FROM '//TRIM(SurfaceFileName)//' DONE!'
 END IF ! SurfaceFileName.EQ.'none'
 
 END SUBROUTINE InitSurfCoverage
