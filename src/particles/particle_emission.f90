@@ -111,6 +111,8 @@ CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' &
                                 ,  numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' &
                                 , 'TODO-DEFINE-PARAMETER Max radius of to-be inserted particles', '1e21', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmin' &
+                                , 'TODO-DEFINE-PARAMETER Min radius of to-be inserted particles', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)
@@ -3868,6 +3870,7 @@ __STAMP__&
           Species(iSpec)%Surfaceflux(iSF)%origin       = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-origin',2,'0. , 0.')
           WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(Species(iSpec)%Surfaceflux(iSF)%rmax)
           Species(iSpec)%Surfaceflux(iSF)%rmax     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmax',TRIM(hilf3))
+          Species(iSpec)%Surfaceflux(iSF)%rmin     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmin','0.')
         END IF !Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit
       END IF !.NOT.VeloIsNormal
     ELSE !Adaptive
@@ -4157,13 +4160,13 @@ DO iSpec=1,nSpecies
                 point(2) = BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),iPoint)-Species(iSpec)%Surfaceflux(iSF)%origin(2)
                 radius = SQRT( (point(1))**2+(point(2))**2 )
                 IF (iPoint.EQ.1) THEN
-                  IF (radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+                  IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
                     insideBound=.TRUE.
                   ELSE !outside
                     insideBound=.FALSE.
                   END IF !in-/outside?
                 ELSE !iPoint.GT.1: type must be 2 if state of point if different from last point
-                  IF (radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+                  IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
                     IF (.NOT.insideBound) THEN !different from last point
                       Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
                       nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
@@ -4184,8 +4187,21 @@ DO iSpec=1,nSpecies
           END DO !iDir1
           IF (.NOT.done) THEN
             IF (insideBound) THEN
-              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=0
-              nType0(iSF,iSpec)=nType0(iSF,iSpec)+1
+              ! all points are inside of rmin and rmax, but when rmin is greater than box, it can intersect it:
+              IF ( Species(iSpec)%Surfaceflux(iSF)%origin(1) + Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(1) - Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) ) THEN !circle completely or partly inside box
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
+                nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
+              ELSE !points are really outside
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=0
+                nType0(iSF,iSpec)=nType0(iSF,iSpec)+1
+              END IF
             ELSE
               ! all points are outside of rmax, but when rmax is smaller than box, it can intersect it:
               IF ( Species(iSpec)%Surfaceflux(iSF)%origin(1) + Species(iSpec)%Surfaceflux(iSF)%rmax &
@@ -4833,7 +4849,7 @@ __STAMP__&
               point(1)=Particle_pos(dir(2))-origin(1)
               point(2)=Particle_pos(dir(3))-origin(2)
               radius=SQRT( (point(1))**2+(point(2))**2 )
-              IF (radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax) THEN
+              IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
                 AcceptPos=.TRUE.
               ELSE
                 AcceptPos=.FALSE.
