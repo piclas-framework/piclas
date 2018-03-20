@@ -46,7 +46,7 @@ USE MOD_LinearSolver_Vars, ONLY:nDOFelem
 USE MOD_Jac_ex,            ONLY:InitJac_ex
 USE MOD_Jac_fd,            ONLY:InitJac_Fd
 USE MOD_JacDG,             ONLY:InitJacDG
-USE MOD_ReadInTools,       ONLY:GETINT
+USE MOD_ReadInTools,       ONLY:GETINT,GETLOGICAL
 USE MOD_SparseILU,         ONLY:InitSparseILU
 USE MOD_ILU,               ONLY:InitILU
 #endif
@@ -71,6 +71,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PRECONDITIONER...'
 PrecondType   = GETINT('PrecondType','0')
 PrecondMethod = GETINT('PrecondMethod','0')
 DebugMatrix   = GETINT('DebugMatrix','0')
+UpdatePrecond = GETLOGICAL('UpdatePrecond','.FALSE.')
+
 IF(PrecondType.EQ.0) PrecondMethod=-1
 !IF(PrecondType.EQ.9) PrecondMethod=3
 
@@ -523,6 +525,7 @@ SDEALLOCATE(invP)
 !END IF
 PrecondInitIsDone = .FALSE.
 IF(PrecondType.EQ.22) CALL FinalizeSparseILU
+IF(PrecondType.EQ.3) CALL FinalizeSparseILU
 
 END SUBROUTINE FinalizePrecond
 

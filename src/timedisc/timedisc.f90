@@ -2034,7 +2034,7 @@ SUBROUTINE TimeStepByImplicitRK(t)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
+USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_old
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RKdtFrac, RK_inc,RK_inflow,RK_fillSF
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
 USE MOD_DG_Vars,                 ONLY:U,Un
@@ -2049,6 +2049,7 @@ USE MOD_Equation,                ONLY:DivCleaningDamping
 USE MOD_Equation,                ONLY:CalcSource
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
+USE MOD_Precond_Vars,            ONLY:UpdatePrecond
 #endif /*maxwell*/
 #endif /*PP_HDG*/
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
@@ -2139,7 +2140,15 @@ REAL               :: tLBStart,tLBEnd
 #ifndef PP_HDG
 #ifdef maxwell
 ! caution hard coded
-IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
+IF (iter==0)THEN
+  CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
+  dt_old=dt
+ELSE
+  IF(UpdatePrecond)THEN
+    IF(dt.NE.dt_old) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
+    dt_old=dt
+  END IF
+END IF
 #endif /*maxwell*/
 #endif /*DG*/
 tRatio = 1.

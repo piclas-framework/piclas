@@ -75,9 +75,9 @@ CALL prms%CreateIntOption(      'PrecondType' , 'Preconditioner: 1-FD-BJ,2-BJ,3-
 #endif /*maxwell*/
 CALL prms%CreateIntOption(      'PrecondMethod' , 'Switch if blas or loop for BJ preconditioner', '0')
 CALL prms%CreateIntOption(      'DebugMatrix' , 'Write: 1-BJ-Jacobian and 2-BJ-Jacobian+Inv to dat-file per element.', '0')
+CALL prms%CreateLogicalOption(  'UpdatePrecond' , 'Update preconditioner by changed time-step', '.FALSE.')
 
 CALL prms%SetSection("Linear Solver Particle")
-
 CALL prms%CreateRealOption(     'EpsPartNewton'   , 'Tolerance of the inner ParticleNewton.', '0.001')
 CALL prms%CreateRealOption(     'EpsPartLinSolver'   , 'Tolerance for GMRES(6x6) in ParticleNewton', '0.0')
 CALL prms%CreateIntOption(      'nPartNewtonIter' , 'Max. number of iteration in ParticleNewton.', '20')

@@ -387,6 +387,7 @@ REAL,PARAMETER  :: RK3_b(1:2) = (/RK3_b1,RK3_b2/)
 #if IMPA
 ! || (PP_TimeDiscMethod==131)
 REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
+REAL               :: dt_old
 #endif
 #ifdef ROS
 REAL             :: dt_inv

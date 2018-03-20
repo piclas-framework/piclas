@@ -309,6 +309,12 @@ Sparsity=Sparsity/REAL(nDOFElem)/REAL(nDOFElem)
 !nMTriangle(iElem)=2*(nDOFelem-1)
 ! simple version
 nMTriangle=nDOFelem-1
+SDEALLOCATE(IU(iElem)%Entry)
+SDEALLOCATE(IU(iELEM)%JEntry)
+SDEALLOCATE(IU(iELEM)%IEntry)
+SDEALLOCATE(IL(iELEM)%Entry)
+SDEALLOCATE(IL(iELEM)%JEntry)
+SDEALLOCATE(IL(iELEM)%IEntry)
 ALLOCATE( IU(iElem)%Entry(nUNonZeros(iElem))  &
         , IU(iELEM)%JEntry(nUNonZeros(iElem)) &
         , IU(iELEM)%IEntry(nDOFElem) &
