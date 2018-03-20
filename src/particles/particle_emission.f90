@@ -133,6 +133,10 @@ CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag if the stage reconstruction uses a force' , '.FALSE.')
 
+CALL prms%CreateLogicalOption(  'OutputSurfaceFluxLinked' &
+                                , 'Flag to print the SurfaceFlux-linked Info' , '.FALSE.')
+
+
 END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
 SUBROUTINE InitializeParticleEmission()
@@ -3652,7 +3656,14 @@ INTEGER,ALLOCATABLE   :: Adaptive_BC_Map(:), tmp_Surfaceflux_BCs(:)
 LOGICAL,ALLOCATABLE   :: Adaptive_Found_Flag(:)
 INTEGER               :: nAdaptive_Found, iSS, nSurffluxBCs_old, nSurffluxBCs_new, iSFx
 REAL,ALLOCATABLE      :: sum_pressurefraction(:)
+LOGICAL               :: OutputSurfaceFluxLinked
 !===================================================================================================================================
+
+#ifdef MPI
+CALL MPI_BARRIER(PartMPI%COMM,iError)
+#endif /*MPI*/
+OutputSurfaceFluxLinked=GETLOGICAL('OutputSurfaceFluxLinked','.FALSE.')
+
 ! global calculations for sampling the faces for area and vector calculations (checks the integration with CODE_ANALYZE)
 ALLOCATE (tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2)), &
   tmp_Vec_nOut(3,SurfFluxSideSize(1),SurfFluxSideSize(2)), &
@@ -4060,7 +4071,9 @@ __STAMP__&
 __STAMP__&
 ,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
-        IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
+        IF(OutputSurfaceFluxLinked)THEN
+          IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
+        END IF
         DoSurfaceFlux=.TRUE.
         EXIT
       END IF
@@ -4390,6 +4403,11 @@ END IF
 #if defined(IMPA) || defined(ROS)
 DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE')
 #endif
+
+#ifdef MPI
+CALL MPI_BARRIER(PartMPI%COMM,iError)
+#endif /*MPI*/
+
 
 END SUBROUTINE InitializeParticleSurfaceflux
 
