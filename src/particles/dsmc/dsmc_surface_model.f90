@@ -39,7 +39,7 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 !> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
 !>    adsorption and reactions for all wallmodels
 !> 2.1  For Wallmodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum 
-!>      to adjust number of adsorbates on reconstructed Mone Carlo surface
+!>      to adjust number of adsorbates on reconstructed Monte Carlo surface
 !> 3. Sample macroscopic surface coverage values
 !> 4. Reinitialized surface reaction counters
 !> 5. Calculated global adsorption probabilities for wallmodel=1,2
@@ -59,6 +59,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites, SideID, PartboundID
 REAL                             :: maxPart
+REAL                             :: coverage_tmp, coverage_corrected
 !----------------------------------------------------------------------------------------------------------------------------------!
 
 IF (DSMC%WallModel.GT.0) THEN
@@ -101,10 +102,17 @@ IF (DSMC%WallModel.GT.0) THEN
                   + Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)
             CASE(3)
               maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-              Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  + ( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
+              coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                  + REAL(( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
                   - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                  * Species(iSpec)%MacroParticleFactor / maxPart
+                  * Species(iSpec)%MacroParticleFactor) / maxPart
+              IF (coverage_tmp.LT.0.) THEN ! can only happen for (ER + desorption) or (ER + MPF_surf<MPF_gas) --> SumAdsorbPart<0
+                coverage_corrected = 0. !Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                    !+ REAL(( - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+                    !* Species(iSpec)%MacroParticleFactor) / maxPart
+              ELSE
+                coverage_corrected = coverage_tmp
+              END IF
 ! 2.1  adjust number of mapped adsorbates on reconstructed surface if SumAdsorbPart > 0
               IF (Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
                 ! calculate number of adsorbed particles on reconstructed surface for each species
@@ -115,12 +123,36 @@ IF (DSMC%WallModel.GT.0) THEN
                 ! convert to integer adsorbates
                 new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
                 IF (new_adsorbates.NE.0) THEN
+                  ! check if new_adsorbates lower than number of adsorbates tracked on surface and correct to be removed number
+                  ! the remaining number of to be removed particles is still kept
+                  IF ((new_adsorbates.LT.0).AND.(ABS(new_adsorbates).GT.&
+                    INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3)))) THEN
+                    new_adsorbates = -INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3))
+                  END IF
                   ! Adjust tracking of adsorbing background particles
                   SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                                                                     - new_adsorbates
                   CALL AdjustReconstructMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
                 END IF
-              END IF
+              ELSE ! additional check if coverage increased but adsorbnum_tmp is lower than zero
+                IF ((ABS(INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))).GT.0).AND.(coverage_corrected.GT.0.)) THEN
+                  ! convert to integer adsorbates
+                  new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
+                  IF (new_adsorbates.NE.0) THEN
+                    ! check if new_adsorbates lower than number of adsorbates tracked on surface and correct to be removed number
+                    ! the remaining number of to be removed particles is still kept
+                    IF ((new_adsorbates.LT.0).AND.(ABS(new_adsorbates).GT.&
+                      INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3)))) THEN
+                      new_adsorbates = -INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3))
+                    END IF
+                    ! Adjust tracking of adsorbing background particles
+                    SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                                                                      - new_adsorbates
+                    CALL AdjustReconstructMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
+                  END IF
+                END IF
+              END IF ! SumAdsorbPart!=0
+              Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
             END SELECT
 ! 3. sample adsorption coverage
             IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
@@ -2150,7 +2182,7 @@ DO subsurfxi = 1,nSurfSample
     ! Adjust tracking desorbing simulation particles
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%desorbnum_tmp(iSpec) &
-                        - Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+                        - REAL(Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec))
     ! calculate number of reacted particles for each species
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
@@ -2163,7 +2195,7 @@ DO subsurfxi = 1,nSurfSample
     ! Adjust tracking reacting simulation particles
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%reactnum_tmp(iSpec) &
-                        - Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
+                        - REAL(Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec))
     ! Sample vibrational energies 
     ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled 
     ! the energies of the emitted particles are sampled in surfflux routine (particle_emission.f90) because calculated there

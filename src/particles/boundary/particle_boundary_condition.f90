@@ -2222,11 +2222,11 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
       CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-    END SELECT 
+    END SELECT
   ELSE
     IF (TriaTracking) THEN
       CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=GlobSideID)
-    ELSE 
+    ELSE
       SELECT CASE(SideType(GlobSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
         n_loc=SideNormVec(1:3,GlobSideID)
@@ -2234,7 +2234,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
         CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
       CASE(CURVED)
         CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      END SELECT 
+      END SELECT
     END IF
   END IF
   ! check if BC was already crossed
@@ -2283,7 +2283,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
   CASE (1)
     Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
     CALL RANDOM_NUMBER(RanNum)
-    IF ( (Adsorption_prob.GE.RanNum) .AND. & 
+    IF ( (Adsorption_prob.GE.RanNum) .AND. &
        (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
       outSpec(1) = SpecID
       adsorption_case = 1
@@ -2299,7 +2299,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
     END IF
     ! Decide what happens to colliding particle
     CALL RANDOM_NUMBER(RanNum)
-    IF ((Adsorption_prob+Recombination_prob).GE.RanNum) THEN 
+    IF ((Adsorption_prob+Recombination_prob).GE.RanNum) THEN
       CALL RANDOM_NUMBER(RanNum)
       IF ((Adsorption_prob/(Adsorption_prob+Recombination_prob)).GE.RanNum) THEN
         adsorption_case = 1
@@ -2436,7 +2436,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
       END IF
       END IF
       !End internal energy accomodation
-      
+     
       !----  Sampling of energies
       IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
         CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&

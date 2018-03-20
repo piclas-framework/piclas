@@ -1019,7 +1019,7 @@ IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
 DO iSubSurf = 1,nSurfSample
 DO jSubSurf = 1,nSurfSample
   DO iSpec = 1,nSpecies
-    ! adjust coverage to actual discret value
+    ! adjust coverage to actual discrete value
     Adsorbates = INT(Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) &
                 * SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Adsorption%Coordination(PartboundID,iSpec)))
     Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = REAL(Adsorbates) &
