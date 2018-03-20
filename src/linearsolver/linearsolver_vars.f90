@@ -72,6 +72,7 @@ REAL                 :: PartRelaxationFac0                                      
 INTEGER              :: AdaptIterRelaxation0                                        ! iter to adapt relaxation
 LOGICAL              :: DoPartRelaxation                                            ! flag for particle relaxation
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
+REAL                 :: FulletaMax                                                  ! Eisenstat-Walker eta-Max
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
 #ifdef PARTICLES
 LOGICAL              :: DoUpdateInStage                                             ! perform updatenextfree position 

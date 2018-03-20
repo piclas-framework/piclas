@@ -56,6 +56,7 @@ CALL prms%CreateIntOption(      'maxFullNewtonIter' , 'Number of outer Newton it
 CALL prms%CreateRealOption(     'eps_FullNewton'   , 'Tolerance for outer Newton in implicit PIC.', '1e-3')
 CALL prms%CreateIntOption(      'FullEisenstatWalker' , 'EisenstatWalker: for Field>1, Field+Particle>2', '0')
 CALL prms%CreateRealOption(     'FullgammaEW'   , 'Drop of tolerance in EW during outer Newton.', '0.9')
+CALL prms%CreateRealOption(     'Fulletamax'   , 'Fulletamax', '0.9999')
 
 CALL prms%CreateLogicalOption(  'DoPrintConvInfo' , 'Print Convergence information for implicit PIC.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'DoFieldUpdate' , 'Disable call of field solver for implicit PIC.', '.TRUE.')
@@ -190,6 +191,7 @@ Eps_FullNewton       = GETREAL('eps_FullNewton','1e-3')
 Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
+Fulletamax           = GETREAL('Fulletamax','0.9999')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 #ifndef PP_HDG
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))

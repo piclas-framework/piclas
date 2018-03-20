@@ -193,7 +193,7 @@ USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton
+USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate
 USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
@@ -352,7 +352,7 @@ IF(DoPrintConvInfo.AND.MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A18,E24.12)') ' Delta_Norm_Rel0: ',Delta_Norm_Rel0
 END IF
 IF(FullEisenstatWalker.GT.0)THEN
-  etaMax=0.9999
+  etaMax=fulletamax !0.9999
   taut  =epsMach+eps_FullNewton*Norm_R0
 END IF
 
