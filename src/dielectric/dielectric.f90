@@ -39,6 +39,8 @@ IMPLICIT NONE
 CALL prms%SetSection("Dielectric Region")
 
 CALL prms%CreateLogicalOption(  'DoDielectric'                 , 'Use dielectric regions with EpsR and MuR' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conservative fluxes at dielectric interfaces between a'&
+    //'dielectric region and vacuum' , '.FALSE.')
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
 CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens" or "FH_lens"' , 'default')
@@ -92,6 +94,7 @@ IF(.NOT.DoDielectric) THEN
   nDielectricElems=0
   RETURN
 END IF
+DielectricFluxNonConserving      = GETLOGICAL('DielectricFluxNonConserving','.FALSE.')
 DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
 DielectricMuR                    = GETREAL('DielectricMuR','1.')
 DielectricTestCase               = GETSTR('DielectricTestCase','default')

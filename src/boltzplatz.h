@@ -112,11 +112,13 @@
 #define LOCAL_SEND_ID   4
 
 ! Entry position for interface type for selecting the corresponding Riemann solver
-#define RIEMANN_VACUUM         0
-#define RIEMANN_PML            1
-#define RIEMANN_DIELECTRIC     2
-#define RIEMANN_DIELECTRIC2VAC 3
-#define RIEMANN_VAC2DIELECTRIC 4
+#define RIEMANN_VACUUM            0
+#define RIEMANN_PML               1
+#define RIEMANN_DIELECTRIC        2
+#define RIEMANN_DIELECTRIC2VAC    3
+#define RIEMANN_VAC2DIELECTRIC    4
+#define RIEMANN_DIELECTRIC2VAC_NC 5
+#define RIEMANN_VAC2DIELECTRIC_NC 6
 
 ! format
 #define WRITEFORMAT '(E25.14E3)'

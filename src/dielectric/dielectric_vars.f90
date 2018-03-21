@@ -12,9 +12,11 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Dielectric region damping factor
 LOGICAL             :: DoDielectric                   ! true/false switch for Dielectric calculation procedures
+LOGICAL             :: DielectricFluxNonConserving    ! true/false switch for using conserving or non-conserving fluxes at
+!                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! initialisation flag
 LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! true if iElem is an element located within the Dielectric region
-LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! true if iFace is a Face located wihtin or on the boarder (interface) of the
+LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! true if iFace is a Face located within or on the boarder (interface) of the
 !                                                     ! Dielectric region
 LOGICAL,ALLOCATABLE :: isDielectricInterFace(:)       ! true if iFace is a Face located on the boarder (interface) of the Dielectric
 !                                                     ! region

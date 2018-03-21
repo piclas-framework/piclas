@@ -52,19 +52,21 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 !> Check every face and set the correct identifier for selecting the corresponding Riemann solver
 !> possible connections are (Master <-> Slave direction is important):
-!>   - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
-!>   - PML        <-> vacuum       : RIEMANN_PML            = 1
-!>   - PML        <-> PML          : RIEMANN_PML            = 1
-!>   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
-!>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3
-!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4
+!>   - vaccuum    <-> vacuum       : RIEMANN_VACUUM            = 0
+!>   - PML        <-> vacuum       : RIEMANN_PML               = 1
+!>   - PML        <-> PML          : RIEMANN_PML               = 1
+!>   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC        = 2
+!>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC    = 3 ! for conservative fluxes (one flux)
+!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
+!>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC_NC = 5 ! for non-conservative fluxes (two fluxes)
+!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,       ONLY:nSides
 #ifndef PP_HDG
 USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
 #endif /*NOT HDG*/
-USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
+USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
 USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
 USE MOD_Mesh_Vars,       ONLY:SideToElem
@@ -108,8 +110,8 @@ DO SideID=1,nSides
   ! 2.) Check Dielectric Medium
   ! c), d) - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
   ! b)     - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
-  ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3
-  ! a2)    - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4
+  ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
+  ! a2)    - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN
@@ -117,10 +119,18 @@ DO SideID=1,nSides
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
         IF(isDielectricElem(ElemID))THEN
           ! a1) master is DIELECTRIC and slave PHYSICAL
-          InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+          IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
+            InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC_NC ! use two different Riemann solvers
+          ELSE
+            InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+          END IF
         ELSE 
           ! a2) master is PHYSICAL and slave DIELECTRIC
-          InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+          IF(DielectricFluxNonConserving)THEN
+            InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
+          ELSE
+            InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+          END IF
         END IF
       ELSE 
         ! b) dielectric region <-> dielectric region
@@ -336,9 +346,9 @@ isFace_Master=-3.
 isFace_combined=-3.
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
-CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! includes Mortar sides 
+CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides 
 #ifdef MPI
-CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! includes Mortar sides
+CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! Includes Mortar sides
 
 ! 3.  MPI: communicate slave sides to master
 !         send Slave special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Master proc
@@ -349,7 +359,7 @@ CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -re
 
 
 
-! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the 
+! 4.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the 
 !     information is later used when fluxes are determined
 !         add isFace_Master to isFace_Slave and send
 ! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.

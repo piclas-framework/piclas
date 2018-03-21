@@ -80,6 +80,16 @@ END IF
 ! Compute fluxes on PP_N, no additional interpolation required
 DO SideID=firstSideID,lastSideID
   SELECT CASE(InterfaceRiemann(SideID))
+  ! Check every face and set the correct identifier for selecting the corresponding Riemann solver
+  ! possible connections are (Master <-> Slave direction is important):
+  !   - vaccuum    <-> vacuum       : RIEMANN_VACUUM            = 0
+  !   - PML        <-> vacuum       : RIEMANN_PML               = 1
+  !   - PML        <-> PML          : RIEMANN_PML               = 1
+  !   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC        = 2
+  !   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC    = 3 ! for conservative fluxes (one flux)
+  !   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
+  !   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC_NC = 5 ! for non-conservative fluxes (two fluxes)
+  !   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
   CASE(RIEMANN_VACUUM) 
     ! standard flux
     CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
@@ -90,18 +100,30 @@ DO SideID=firstSideID,lastSideID
     ! dielectric region <-> dielectric region
     CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                            NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-  CASE(RIEMANN_DIELECTRIC2VAC) 
+  CASE(RIEMANN_DIELECTRIC2VAC)
     ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
     CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
                                      NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
   CASE(RIEMANN_VAC2DIELECTRIC) 
     ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
     CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
-                                                NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+                                    NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CASE(RIEMANN_DIELECTRIC2VAC_NC)  ! use non-conserving fluxes (two different fluxes for master and slave side)
+    ! 1.) dielectric master side
+    CALL RiemannDielectric(Flux_Master(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+                           NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+    ! 2.) vacuum slave side
+    CALL Riemann(Flux_Slave(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
+  CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxes for master and slave side) 
+    ! 1.) dielectric slave side
+    CALL RiemannDielectric(Flux_Slave(1:8,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),&
+                           NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+    ! 2.) vacuum master side
+    CALL Riemann(Flux_Master(1:8,:,:,SideID),U_Master( :,:,:,SideID),U_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
   CASE DEFAULT
     CALL abort(&
-    __STAMP__&
-    ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+        __STAMP__&
+        ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
   END SELECT
 END DO ! SideID
   
@@ -119,10 +141,19 @@ DO SideID=firstSideID,lastSideID
   DO q=0,PP_N; DO p=0,PP_N
     Flux_Master(:,p,q,SideID)=Flux_Master(:,p,q,SideID)*SurfElem(p,q,SideID)
   END DO; END DO
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC2VAC_NC,RIEMANN_VAC2DIELECTRIC_NC)
+    ! use non-conserving fluxes (two different fluxes for master and slave side)
+    ! slaves sides have already been calculated
+    DO q=0,PP_N; DO p=0,PP_N
+      Flux_Slave(:,p,q,SideID)=Flux_Slave(:,p,q,SideID)*SurfElem(p,q,SideID)
+    END DO; END DO
+  CASE DEFAULT
+    ! copy flux from Master side to slave side, DO not change sign
+    Flux_slave(:,:,:,SideID) = Flux_master(:,:,:,SideID)
+  END SELECT
 END DO
 
-! copy flux from Master side to slave side, DO not change sign
-Flux_slave(:,:,:,firstSideID:lastSideID) = Flux_master(:,:,:,firstSideID:lastSideID)
 
 #ifdef maxwell
 IF(DoExactFlux) THEN
