@@ -3609,7 +3609,7 @@ USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
-                                   , DoTimeDepInflow, Adaptive_MacroVal
+                                   , DoTimeDepInflow, Adaptive_MacroVal,surffluxtype
 #if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 #endif
@@ -3619,6 +3619,7 @@ USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTri
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide !,GEO
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_IO_HDF5,                            ONLY:AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3633,7 +3634,7 @@ INTEGER               :: iCopy1, iCopy2, iCopy3, iPoint, nSides
 CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF, projFak, v_thermal
 REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2), radius
-LOGICAL               :: insideBound, done, AnySimpleRadialVeloFit, noAdaptive
+LOGICAL               :: insideBound, done, AnySimpleRadialVeloFit, noAdaptive, insideBound_max, insideBound_min
 INTEGER               :: iDir1, iDir2, iDir3, MaxSurfacefluxBCs
 INTEGER               :: nDataBC                             ! number of different PartBounds used for SFs
 INTEGER,ALLOCATABLE   :: TmpMapToBC(:)                       ! PartBC
@@ -4104,6 +4105,8 @@ IF(nAdaptiveBC.GT.0)THEN
   ALLOCATE(Adaptive_MacroVal(1:10,1:nElems,1:nSpecies))
   Adaptive_MacroVal(:,:,:)=0
 END IF
+Allocate(surffluxtype(1:nElems))
+surffluxtype(:)=1
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
@@ -4149,6 +4152,9 @@ DO iSpec=1,nSpecies
         IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
           CALL GetSideBoundingBox(BCSideID,BoundingBox)
           done=.FALSE.
+          insideBound_max = .FALSE.
+          insideBound_min = .FALSE.
+          insideBound     = .FALSE.
           DO iDir1=0,1
             IF(done) EXIT
             DO iDir2=0,1
@@ -4160,12 +4166,12 @@ DO iSpec=1,nSpecies
                 point(2) = BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),iPoint)-Species(iSpec)%Surfaceflux(iSF)%origin(2)
                 radius = SQRT( (point(1))**2+(point(2))**2 )
                 IF (iPoint.EQ.1) THEN
+                  IF (radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmax) insideBound_max = .TRUE.
+                  IF (radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmin) insideBound_min = .TRUE.
                   IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-                    insideBound=.TRUE.
-                  ELSE !outside
-                    insideBound=.FALSE.
-                  END IF !in-/outside?
-                ELSE !iPoint.GT.1: type must be 2 if state of point if different from last point
+                    insideBound = .TRUE.
+                  END IF
+                ELSE !iPoint.GT.1: type must be 2 if state of point is different from last point
                   IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
                     IF (.NOT.insideBound) THEN !different from last point
                       Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
@@ -4180,7 +4186,10 @@ DO iSpec=1,nSpecies
                       done=.TRUE.
                       EXIT
                     END IF
-                  END IF !in-/outside?                 
+                    ! check if at least one point is outside of rmax and one point is inside of rmin
+                    IF (.NOT.insideBound_max.AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmax)) insideBound_max=.TRUE.
+                    IF (.NOT.insideBound_min.AND.(radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmin)) insideBound_min=.TRUE.
+                  END IF !in-/outside?
                 END IF !iPoint.EQ.1
               END DO !iDir3
             END DO !iDir2
@@ -4195,7 +4204,15 @@ DO iSpec=1,nSpecies
                    Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmin &
                 .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
                    Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmin &
-                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) ) THEN !circle completely or partly inside box
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(1) + Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .LE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(1) - Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .GE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .LE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmax &
+                .GE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) ) THEN !circle completely or partly inside box
                 Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
                 nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
               ELSE !points are really outside
@@ -4211,7 +4228,16 @@ DO iSpec=1,nSpecies
                    Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmax &
                 .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
                    Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmax &
-                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) ) THEN !circle completely or partly inside box
+                .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(1) + Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .LE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(1) - Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .GE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) + Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .LE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .AND. &
+                   Species(iSpec)%Surfaceflux(iSF)%origin(2) - Species(iSpec)%Surfaceflux(iSF)%rmin &
+                .GE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:)) .OR. &
+                   (InsideBound_max.AND.insideBound_min)) THEN !circle completely or partly inside box
                 Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
                 nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
               ELSE !points are really outside
@@ -4221,6 +4247,7 @@ DO iSpec=1,nSpecies
             END IF
           END IF
         END IF !SimpleRadialVeloFit: check r-bounds
+        surffluxtype(ElemID)=Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)
         DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
           vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
           vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
@@ -4292,6 +4319,7 @@ __STAMP__&
           Adaptive_MacroVal(7,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
         END IF
       END DO ! iSide
+
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
       CALL abort(&
 __STAMP__&
@@ -4326,6 +4354,9 @@ __STAMP__&
     END IF !ReduceNoise
   END DO !iSF
 END DO !iSpec
+print*,'surfflux1 output'
+CALL AddToElemData(ElementOut,'SurfFlux1-RadialType',IntArray=surffluxtype(:))
+
 !-- write debug-mesh for tria-surfflux
 IF (WriteTriaSurfaceFluxDebugMesh) THEN
   !count sides
