@@ -1961,7 +1961,7 @@ USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_Particle_Vars ,ONLY: nSpecies, nVarDSMCState
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1988,7 +1988,7 @@ REAL                           :: StartT,EndT
 #endif
 
 ! Create dataset attribute "VarNames"
-nVarloc=12
+nVarloc=nVarDSMCState
 nVar=nVarloc*(nSpecies+1)
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3

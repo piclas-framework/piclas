@@ -57,6 +57,9 @@ CALL prms%SetSection("Particle")
 
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
+CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
+CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
+                                                          ,numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
                                                                  , '1')
 CALL prms%CreateRealOption(     'Particles-dt_part_ratio'     , 'TODO-DEFINE-PARAMETER\n'//&
@@ -997,6 +1000,7 @@ REAL, DIMENSION(3,1)  :: n,n1,n2
 REAL, DIMENSION(3,3)  :: rot1, rot2
 REAL                  :: alpha1, alpha2
 INTEGER               :: dummy_int
+REAL,ALLOCATABLE      :: MacroRestartData_tmp(:,:,:,:)
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -1280,6 +1284,14 @@ IF (nSpecies.LE.0) THEN
 __STAMP__&
   ,'ERROR: nSpecies .LE. 0:', nSpecies)
 END IF
+
+! initialize macroscopic restart
+nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
+IF (nMacroRestartFiles.GT.0) THEN
+  ALLOCATE(MacroRestartData_tmp(1:nVarDSMCState,1:nElems,1:nSpecies,1:nMacroRestartFiles))
+  CALL ReadMacroRestartFiles(MacroRestartData_tmp)
+END IF ! nMacroRestartFiles.GT.0
+
 PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 
@@ -2406,6 +2418,112 @@ END IF !nCollectChargesBCs .GT. 0
 
 
 END SUBROUTINE InitializeVariables
+
+
+SUBROUTINE ReadMacroRestartFiles(MacroRestartData)
+!===================================================================================================================================
+!> read DSMCHOState file and set MacroRestartData values for FileID
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, nElems, offsetElem
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, nMacroRestartFiles, nVarDSMCState
+USE MOD_ReadInTools            ,ONLY: GETSTR
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(INOUT)          :: MacroRestartData(1:nVarDSMCState,1:nElems,1:nSpecies,1:nMacroRestartFiles)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+CHARACTER(LEN=255)               :: FileName, Type_HDF5, NodeType_HDF5
+CHARACTER(32)                    :: hilf
+REAL , ALLOCATABLE               :: State_HDF5(:,:)
+LOGICAL                          :: exists
+INTEGER                          :: nSpecies_HDF5, nVar_HDF5, nElems_HDF5, N_HDF5
+INTEGER                          :: nVarAdditional
+INTEGER                          :: iFile, iSpec, iElem, iVar
+!===================================================================================================================================
+DO iFile = 1, nMacroRestartFiles
+  WRITE(UNIT=hilf,FMT='(I0)') iFile
+  FileName = GETSTR('Part-MacroRestartFile'//TRIM(hilf))
+  IF (TRIM(FileName).EQ.'none') THEN
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: filename no defined!',iFile)
+  END IF
+
+  SWRITE(UNIT_StdOut, '(A)')' INIT MACRO RESTART DATA FROM '//TRIM(FileName)//' ...'
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)!MPI_COMM_WORLD)
+  exists=.FALSE.
+  ! check if given file is of type 'DSMCHO_State'
+  CALL DatasetExists(File_ID,'File_Type',exists,attrib=.TRUE.)
+  IF (exists) THEN
+    CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=Type_HDF5)
+    IF (TRIM(Type_HDF5).NE.'DSMCHOState') CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: is not of type DSMCHO_State!',iFile)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: attribute "filetype" does not exist!',iFile)
+  END IF
+  ! check if number of species is equal
+  CALL DatasetExists(File_ID,'NSpecies',exists,attrib=.TRUE.)
+  IF (exists) THEN
+    CALL ReadAttribute(File_ID,'NSpecies',1,IntegerScalar=nSpecies_HDF5)
+    IF (nSpecies_HDF5.NE.nSpecies) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: number of Species does not match!',iFile)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: attribute "nSpecies" does not exist!',iFile)
+  END IF
+
+  ! check if Dataset SurfaceData exists and read from container
+  CALL DatasetExists(File_ID,'ElemData',exists)
+  IF (exists) THEN
+    CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
+    IF (nElems_HDF5.NE.nGlobalElems) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: number of global elements in HDF5-file does not match!')
+    IF (N_HDF5.NE.1) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: N!=1 !')
+    ! check if (nVar_HDF5-nVarDSMCState-nVarAdditional) equal to nVarDSMCState*nSpecies
+    nVarAdditional = MOD(nVar_HDF5,nVarDSMCState)
+    IF ((nVar_HDF5-nVarDSMCState-nVarAdditional).NE.(nVarDSMCState*nSpecies)) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: wrong Nodetype !')
+    IF (NodeType_HDF5.NE.'VISU') CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: wrong nVar_HDF5 !')
+    SDEALLOCATE(State_HDF5)
+    ALLOCATE(State_HDF5(1:nVar_HDF5,nElems))
+    CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=State_HDF5(:,:))
+    DO iElem = 1, nElems
+      iVar = 1
+      DO iSpec = 1, nSpecies
+        MacroRestartData(:,iElem,iSpec,iFile) = State_HDF5(iVar:iVar-1+nVarDSMCState,iElem)
+      END DO
+      iVar = iVar + nVarDSMCState + nVarAdditional
+    END DO
+    SDEALLOCATE(State_HDF5)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: dataset "ElemData" does not exist!')
+  END IF
+  CALL CloseDataFile()
+  SWRITE(UNIT_StdOut, '(A)')' INIT MACRO RESTART DATA FROM '//TRIM(FileName)//' DONE!'
+
+END DO ! iFile = 1, nMacroRestartFiles
+
+END SUBROUTINE ReadMacroRestartFiles
 
 
 SUBROUTINE FinalizeParticles() 

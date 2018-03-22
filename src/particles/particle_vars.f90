@@ -11,6 +11,7 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL, PARAMETER       :: BoltzmannConst=1.380648813E-23                      ! Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
+INTEGER,PARAMETER     :: nVarDSMCState = 12
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
@@ -259,6 +260,7 @@ END TYPE
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 TYPE tParticleElementMapping
