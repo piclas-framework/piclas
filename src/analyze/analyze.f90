@@ -53,14 +53,10 @@ CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and L
 CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N.')
-CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   '(Skip Analyze-Dt)')
-CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   'Flag if time averaging should be performed')
-CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   'Count of time average variables',multiple=.TRUE.)
-CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   'Count of fluctuation variables',multiple=.TRUE.)
+CALL prms%CreateIntOption(    'nSkipAnalyze'     , '(Skip Analyze-Dt)')
+CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'Flag if time averaging should be performed')
+CALL prms%CreateStringOption( 'VarNameAvg'       , 'Count of time average variables',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'      , 'Count of fluctuation variables',multiple=.TRUE.)
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
@@ -74,10 +70,8 @@ CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                  !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
 #ifndef PARTICLES
-CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Analyze is performed each Nth time step','1') 
-CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate Potential Energy.','.FALSE.')
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 #endif
 
 CALL prms%SetSection("Analyzefield")
