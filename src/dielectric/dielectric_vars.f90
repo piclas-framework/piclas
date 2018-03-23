@@ -52,6 +52,11 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricConstant_inv         ! 1./(Ep
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricGlobal               ! Contains DielectricEps and DielectricMu for HDF5 output
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Master              ! face array containing 1./SQRT(EpsR*MuR) for each DOF
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Slave
-! gradients
+
+! For Poynting vector calculation
+LOGICAL                               :: poyntingusemur_inv             ! True/false depending on dielectric permittivity and
+!                                                                       ! Poynting vector planes on the same face
+REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Master_inv      ! face array containing 1./MuR for each DOF
+REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Slave_inv
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars

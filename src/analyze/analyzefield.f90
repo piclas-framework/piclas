@@ -154,12 +154,13 @@ SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars             ,ONLY:isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
-USE MOD_Mesh_Vars             ,ONLY:ElemToSide
-USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes, S!, STEM
-USE MOD_Interpolation_Vars    ,ONLY:L_Minus,L_Plus,wGPSurf
-USE MOD_DG_Vars               ,ONLY:U,U_master
-USE MOD_Equation_Vars         ,ONLY:smu0
+USE MOD_Mesh_Vars          ,ONLY: isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S
+USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
+USE MOD_DG_Vars            ,ONLY: U,U_master
+USE MOD_Equation_Vars      ,ONLY: smu0
+USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv
 #ifdef MPI
   USE MOD_Globals
 #endif
@@ -302,7 +303,14 @@ DO iELEM = 1, nElems
         END IF ! Prolong
         ! calculate Poynting vector
         iPoyntingSide = iPoyntingSide + 1
-        CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
+
+        ! check if dielectric regions are involved
+        IF(PoyntingUseMuR_Inv.AND.isDielectricFace(SideID))THEN
+          CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,SideID))
+        ELSE
+          CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
+        END IF
+        
         IF ( NormVec(3,0,0,SideID) .GT. 0 ) THEN
           SIP(:,:) = S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
                    + S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
@@ -314,6 +322,7 @@ DO iELEM = 1, nElems
         END IF ! NormVec(3,:,:,iPoyntingSide)
         ! multiplied by surface element and  Gaus Points
         SIP(:,:) = SIP(:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:)
+
         ! total flux through each plane
         Sabs(whichPoyntingPlane(SideID)) = Sabs(whichPoyntingPlane(SideID)) + smu0* SUM(SIP(:,:))
     END IF ! flip =0
@@ -335,11 +344,11 @@ END SUBROUTINE CalcPoyntingIntegral
 #if (PP_nVar>=6)
 PURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
 !===================================================================================================================================
-!> Calculate the Poynting Vector on a certain face
+!> Calculate the Poynting Vector on a certain face for vacuum properties
 !> 
 !> ATTENTION: permeability is not applied here due to performance gain
-!> Definition: S = E x H = 1/mu * ( E x H )
-!> Here      : S = E x B (mu is applied later)
+!> Definition: S = E x H = 1/mu0 * ( E x H )
+!> Here      : S = E x B (i.e. mu0 is applied later)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -365,6 +374,42 @@ DO p = 0,PP_N
 END DO  ! p - PP_N
 
 END SUBROUTINE PoyntingVector
+
+
+PURE SUBROUTINE PoyntingVectorDielectric(Uface_in,Sloc,mu_r_inv)
+!===================================================================================================================================
+!> Calculate the Poynting Vector on a certain face for dielectric properties (consider mu_r here, but not mu0)
+!> 
+!> ATTENTION: permeability is not applied here due to performance gain
+!> Definition: S = E x H = 1/(mu_r*mu_0) * ( E x H )
+!> Here      : S = 1/mu_r * E x B (i.e. mu0 is applied later)
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)       :: Uface_in(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(IN)       :: mu_r_inv(0:PP_N,0:PP_N)         ! 1/mu_r for every face DOF (may vary on face depending on position)
+!                                                        ! (isotropic property for permittivity)
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)      :: Sloc(1:3,0:PP_N,0:PP_N)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: p,q
+!===================================================================================================================================
+
+! calculate the Poynting vector at each node, additionally the abs of the Poynting vector only based on E
+DO p = 0,PP_N
+  DO q = 0,PP_N
+    Sloc(1,p,q)  = (  Uface_in(2,p,q)*Uface_in(6,p,q) - Uface_in(3,p,q)*Uface_in(5,p,q) ) * mu_r_inv(p,q)
+    Sloc(2,p,q)  = ( -Uface_in(1,p,q)*Uface_in(6,p,q) + Uface_in(3,p,q)*Uface_in(4,p,q) ) * mu_r_inv(p,q) 
+    Sloc(3,p,q)  = (  Uface_in(1,p,q)*Uface_in(5,p,q) - Uface_in(2,p,q)*Uface_in(4,p,q) ) * mu_r_inv(p,q) 
+  END DO ! q - PP_N
+END DO  ! p - PP_N
+
+END SUBROUTINE PoyntingVectorDielectric
 #endif
 
 
@@ -446,6 +491,7 @@ USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec
 USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,PoyntingIntPlaneFactor,S,STEM
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,DielectricMuR,ElemToDielectric,isDielectricInterFace
+USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
 #ifdef MPI
 USE MOD_Globals
 #endif
@@ -491,17 +537,19 @@ DO iPlane=1,nPoyntingIntPlanes
 END DO
 PoyntingIntCoordErr=GETREAL('Plane-Tolerance','1E-5')
 
-! Dielectric Sides: check if a dielectric region (only permeability, NOT permittivity is important) coincides with a Poynting vector 
-! integral plane. Dielectric interfaces with mu_r .NE. 1.0 cannot compute a Poynting vector because of the jump in material
-! parameter of mu_r
+! Dielectric Sides: 
+! 1.) check if a dielectric region (only permeability, NOT permittivity is important) coincides with a Poynting vector 
+!     integral plane. Dielectric interfaces with mu_r .NE. 1.0 cannot compute a Poynting vector because of the jump in material
+!     parameter of mu_r
 CheckDielectricSides=.FALSE.
 IF(DoDielectric)THEN
-  IF(ABS(DielectricMuR-1.0).GT.0.0)THEN
-    CheckDielectricSides=.TRUE.
-  ELSEIF(ANY(ABS(DielectricMu(:,:,:,1:nDielectricElems)-1.0).GT.0.0))THEN
+  IF(ANY(ABS(DielectricMu(:,:,:,1:nDielectricElems)-1.0).GT.0.0))THEN
     CheckDielectricSides=.TRUE.
   END IF
 END IF
+
+! 2.) for dielectric sides (NOT interface sides between dielectric and some other region), determine mu_r on face for Poynting vector
+PoyntingUseMuR_Inv=.FALSE.
 
 ! loop over all planes
 DO iPlane = 1, nPoyntingIntPlanes
@@ -526,21 +574,35 @@ DO iPlane = 1, nPoyntingIntPlanes
                   whichPoyntingPlane(SideID) = iPlane
                   isPoyntingIntSide(SideID) = .TRUE.
                   nFaces(iPlane) = nFaces(iPlane) + 1
+
+                  ! Dielectric sides
                   IF(CheckDielectricSides)THEN
-                    IF( (isDielectricInterFace(SideID)).AND.&
-                        (ANY(ABS(DielectricMu(:,:,:,ElemToDielectric(iElem))-1.0).GT.0.0)) )THEN
-                      ! if the Poynting vector integral SideID additionally is a dielectric interface between a dielectric region
-                      ! with a permittivity and vacuum, then mu_r might be unequal to 1.0 on the interface and the calculation of
-                      ! the Poynting vector is not implemented for this case
-                      CALL abort(&
-                          __STAMP__&
-                          ,'GetPoyntingIntPlane: Found SideID for Poynting vector integral which is attached to an element'//&
-                          ' within which the dielectric permittivity mu_r is not euqal to 1.0 everywhere. The value could be'//& 
-                          ' unequal to 1.0 on the interface and this is not implemented. TODO: determine mu_r on interface,'//&
-                          ' communicate it via MPI (do not forget Mortar sides) and calculate the Poynting vector on that'//&
-                          ' interface via some method.')
+                    ! 1.) Check for illegal sides in dielectrics: mu_r != 1.0 on dielectric interface
+                    IF(isDielectricInterFace(SideID))THEN
+                      IF(ANY(ABS(DielectricMu(:,:,:,ElemToDielectric(iElem))-1.0).GT.0.0))THEN
+                        ! if the Poynting vector integral SideID additionally is a dielectric interface between a dielectric region
+                        ! with a permittivity and vacuum, then mu_r might be unequal to 1.0 on the interface and the calculation of
+                        ! the Poynting vector is not implemented for this case
+                        IPWRITE(UNIT_stdOut,*) " "
+                        IPWRITE(UNIT_stdOut,*) "Found illegal Poyting plane side. SideID= ",SideID,&
+                            " z-coordinate= ",PosPoyntingInt(iPlane)
+                        CALL abort(&
+                            __STAMP__&
+                            ,'GetPoyntingIntPlane: Found SideID for Poynting vector integral which is attached to an element'//&
+                            ' within which the dielectric permittivity mu_r is not euqal to 1.0 everywhere. The value could be'//& 
+                            ' unequal to 1.0 on the interface and this is not implemented. TODO: determine mu_r on interface,'//&
+                            ' communicate it via MPI (do not forget Mortar sides) and calculate the Poynting vector on that'//&
+                            ' interface via some method.')
+                      END IF
+                    END IF
+
+                    ! 2.) Check for legal sides in dielectrics: mu_r != 1.0 within dielectric region
+                    IF(isDielectricFace(SideID))THEN
+                      !IPWRITE(UNIT_stdOut,*) "found dielectric face: ",SideID,"z= ",PosPoyntingInt(iPlane)
+                      PoyntingUseMuR_Inv=.TRUE.
                     END IF
                   END IF
+                  
                 END IF
               !EXIT
               END IF ! diff < eps
@@ -554,6 +616,19 @@ DO iPlane = 1, nPoyntingIntPlanes
     END DO ! iSides
   END DO !iElem=1,nElems
 END DO ! iPlanes
+
+! Dielectric sides:
+#ifdef MPI
+! Send info to all procs:
+! TODO: If 1/mu_r is never needed on master AND slave procs, this routine can be adjusted so that only master procs determine the
+! prolonged values of mu_r and no MPI information has to be sent. The master side cannot currently be outside of the dielectric
+! region (e.g. in vacuum) because that is not allowed. If this would be allowed that MPI rank would need the information of the
+! prolonged dielectric material properties from the slave side
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,PoyntingUseMuR_Inv,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,iError)
+#endif
+! Determine mu_r on faces within a dielectric region for calculating the Poynting vector and communicate the
+! prolonged values via MPI
+IF(PoyntingUseMuR_Inv) CALL SetDielectricFaceProfileForPoynting()
 
 ALLOCATE(sumFaces(nPoyntingIntPlanes))
 #ifdef MPI
@@ -876,5 +951,139 @@ END IF
 
 END SUBROUTINE CalcPotentialEnergy_Dielectric
 
+
+SUBROUTINE SetDielectricFaceProfileForPoynting()
+!===================================================================================================================================
+!> THIS ROUTINE IS ONLY CALLED FOR THE POYNTING VECTOR INTEGRAL CALCULATION ON INITIALIZATION
+!>
+!> Set the dielectric factor 1./MuR for each face DOF in the array "Dielectric_MuR_Master_inv" (needed for S = E X H calculation).
+!> Only the array "Dielectric_MuR_Master_inv" is used in the Riemann solver, as only the master calculates the flux array
+!> (maybe slave information is used in the future)
+!>
+!> Note:
+!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
+!> threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+!> is not allowed)
+!> re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+!> information)
+!> This could be overcome by using template subroutines .t90 (see FlexiOS)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Dielectric_Vars ,ONLY: DielectricConstant_inv,Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_inv
+USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricMu
+USE MOD_Mesh_Vars       ,ONLY: nSides
+USE MOD_ProlongToFace   ,ONLY: ProlongToFace
+#ifdef MPI
+USE MOD_MPI_Vars
+USE MOD_MPI             ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#endif
+USE MOD_FillMortar      ,ONLY: U_Mortar
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE,Dielectric_dummy_Master2S
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master 
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave  
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem   
+#ifdef MPI
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2 
+#endif /*MPI*/
+INTEGER                                                  :: iElem,I,J,iSide
+!===================================================================================================================================
+! General workflow:
+! 1.  Initialize dummy arrays for Elem/Face
+! 2.  Fill dummy element values for non-Dielectric sides
+! 3.  Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
+! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
+!     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+!     is not allowed)
+!     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+!     information)
+! 5.  Send/Receive MPI data
+! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
+! 7.  With MPI, use dummy array which was used for sending the MPI data
+!     or with single execution, directly use prolonged data on face
+! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
+
+! 1.  Initialize dummy arrays for Elem/Face
+Dielectric_dummy_elem    = -1.
+Dielectric_dummy_Master  = -1.
+Dielectric_dummy_Slave   = -1.
+
+! 2.  Fill dummy element values for non-Dielectric sides
+DO iElem=1,PP_nElems
+  IF(isDielectricElem(iElem))THEN
+    ! set only the first dimension to 1./MuR (the rest are dummies)
+    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0 / DielectricMu(0:PP_N,0:PP_N,0:PP_N,ElemToDielectric(iElem))
+  ELSE
+    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0
+  END IF
+END DO
+
+!3.   Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
+CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
+CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
+#ifdef MPI
+  CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+  CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+  
+  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
+  !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+  !     is not allowed)
+  !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+  !     information)
+  Dielectric_dummy_Master2 = 0.
+  Dielectric_dummy_Slave2  = 0.
+  DO I=0,PP_N
+    DO J=0,PP_N
+      DO iSide=1,nSides
+        Dielectric_dummy_Master2(1,I,J,iSide)=Dielectric_dummy_Master(1,I,J,iSide)
+        Dielectric_dummy_Slave2 (1,I,J,iSide)=Dielectric_dummy_Slave( 1,I,J,iSide)
+      END DO
+    END DO
+  END DO
+  
+  ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
+  CALL StartReceiveMPIData(1,Dielectric_dummy_Slave2 ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+  CALL StartSendMPIData(   1,Dielectric_dummy_Slave2 ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+  
+  ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
+  CALL StartReceiveMPIData(1,Dielectric_dummy_Master2,1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(   1,Dielectric_dummy_Master2,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
+  
+  CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
+  CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE 
+#endif /*MPI*/
+
+! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
+ALLOCATE(Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Dielectric_MuR_Slave_inv( 0:PP_N,0:PP_N,1:nSides))
+
+
+! 7.  With MPI, use dummy array which was used for sending the MPI data
+!     or with single execution, directly use prolonged data on face
+#ifdef MPI
+  Dielectric_MuR_Master_inv=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
+  Dielectric_MuR_Slave_inv =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
+#else
+  Dielectric_MuR_Master_inv=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
+  Dielectric_MuR_Slave_inv =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
+#endif /*MPI*/
+
+! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
+IF(MINVAL(Dielectric_MuR_Master_inv).LE.0.0)THEN
+  CALL abort(&
+  __STAMP__&
+  ,'Dielectric material values for Riemann solver not correctly determined. MINVAL(Dielectric_MuR_Master_inv)=',&
+  RealInfoOpt=MINVAL(Dielectric_MuR_Master_inv))
+END IF
+END SUBROUTINE SetDielectricFaceProfileForPoynting
 
 END MODULE MOD_AnalyzeField

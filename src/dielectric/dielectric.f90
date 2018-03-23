@@ -255,11 +255,11 @@ SUBROUTINE SetDielectricFaceProfile()
 !> (maybe slave information is used in the future)
 !>
 !> Note:
-!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
 !> threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
 !> is not allowed)
 !> re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
-!> infomation)
+!> information)
 !> This could be overcome by using template subroutines .t90 (see FlexiOS)
 !===================================================================================================================================
 ! MODULES
