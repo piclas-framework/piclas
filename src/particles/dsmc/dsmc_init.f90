@@ -716,48 +716,72 @@ __STAMP__&
             hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
           END IF ! iInit
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
-            SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
-            IF (SpecDSMC(iSpec)%Init(iInit)%TRot*SpecDSMC(iSpec)%Init(iInit)%TVib.EQ.0.) THEN
-              IF (iInit.EQ.0)THEN
-                IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+            IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
+              SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
+              IF (SpecDSMC(iSpec)%Init(iInit)%TVib.EQ.0.) THEN
+                IF (iInit.EQ.0)THEN
+                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+                    CALL Abort(&
+__STAMP__&
+,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for iSpec',iSpec)
+                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                    CALL Abort(&
+__STAMP__&
+,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for BGGas')
+                  END IF
+                ELSE ! iInit >0
                   CALL Abort(&
 __STAMP__&
-,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for iSpec',iSpec)
-                ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                  CALL Abort(&
-__STAMP__&
-,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for BGGas')
-                END IF
-              ELSE ! iInit >0
-                CALL Abort(&
-__STAMP__&
-,'Error! TVib and TRot need to be defined in Part-SpeciesXX-InitXX-TempVib/TempRot for iSpec, iInit'&
+,'Error! TVib needs to be defined in Part-SpeciesXX-InitXX-TempVib for iSpec, iInit'&
 ,iSpec,REAL(iInit))
+                END IF
+              END IF
+            END IF !ElemMacroRestart TVib
+            IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
+              SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
+              IF (SpecDSMC(iSpec)%Init(iInit)%TRot.EQ.0.) THEN
+                IF (iInit.EQ.0)THEN
+                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+                    CALL Abort(&
+__STAMP__&
+,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for iSpec',iSpec)
+                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                    CALL Abort(&
+__STAMP__&
+,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for BGGas')
+                  END IF
+                ELSE ! iInit >0
+                  CALL Abort(&
+__STAMP__&
+,'Error! TRot needs to be defined in Part-SpeciesXX-InitXX-TempRot for iSpec, iInit'&
+,iSpec,REAL(iInit))
+                END IF
               END IF
             END IF
-          END IF
+          END IF ! ElemMacroRestart TRot
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
-            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
-            IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
-              IF (iInit.EQ.0)THEN
-                IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
-                  CALL Abort(&
-                  __STAMP__&
-                  ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                  CALL Abort(&
+            IF (Species(iSpec)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
+              SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
+              IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
+                IF (iInit.EQ.0)THEN
+                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+                    CALL Abort(&
+                    __STAMP__&
+                    ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
+                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                    CALL Abort(&
 __STAMP__&
 ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
-                END IF
-              ELSE ! iInit >0
-                CALL Abort(&
+                  END IF
+                ELSE ! iInit >0
+                  CALL Abort(&
 __STAMP__&
 ,' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+                END IF
               END IF
-            END IF
-          END IF
+            END IF !ElemMacroRestart TElec
+          END IF ! electronic model
         END DO !Inits
         ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs

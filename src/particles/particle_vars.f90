@@ -11,7 +11,6 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL, PARAMETER       :: BoltzmannConst=1.380648813E-23                      ! Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
-INTEGER,PARAMETER     :: nVarDSMCState = 12
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
@@ -174,6 +173,19 @@ TYPE tInit                                                                   ! P
   REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) for LD_insert or
                                                                              ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
+  LOGICAL                                :: HasElemMacroFile
+  INTEGER                                :: ElemTemperatureFileID
+  REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)
+  INTEGER                                :: ElemPartDensityFileID
+  REAL , ALLOCATABLE                     :: ElemPartDensity(:)
+  INTEGER                                :: ElemVelocityICFileID
+  REAL , ALLOCATABLE                     :: ElemVelocityIC(:,:)
+  INTEGER                                :: ElemTVibFileID
+  REAL , ALLOCATABLE                     :: ElemTVib(:)                      ! vibrational temperature [nElems]
+  INTEGER                                :: ElemTRotFileID
+  REAL , ALLOCATABLE                     :: ElemTRot(:)                      ! rotational temperature [nElems]
+  INTEGER                                :: ElemTelecFileID
+  REAL , ALLOCATABLE                     :: ElemTelec(:)                     ! electronic temperature [nElems]
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
                                                                              !               3 = user def. emission rate
