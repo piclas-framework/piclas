@@ -81,8 +81,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
 #if defined(IMPA)
 Eps2PartNewton     =GETREAL('EpsPartNewton','0.001')
 Eps2PartNewton     =Eps2PartNewton**2
-EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.0')
-IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 nPartNewtonIter    =GETINT('nPartNewtonIter','20')
 FreezePartInNewton =GETINT('FreezePartInNewton','1')
 EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
@@ -90,9 +88,15 @@ PartgammaEW        =GETREAL('PartgammaEW','0.9')
 nPartNewton        =0
 #elif defined(ROS)
 EisenstatWalker = .FALSE.
-EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.0')
-IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 #endif /*IMPA*/
+
+#ifndef PP_HDG
+EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.')
+IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
+#else
+EpsPartLinSolver   =GETREAL('EpsPartLinSolver','1e-3')
+#endif /*DG*/
+nKDIMPart            = GETINT('nKDIMPart','6')
 
 ! read in by both
 scaleps=GETREAL('scaleps','1.')

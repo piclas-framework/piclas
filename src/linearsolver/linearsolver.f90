@@ -145,13 +145,6 @@ ImplicitSource=0.
 ALLOCATE(LinSolverRHS  (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 LinSolverRHS=0.
 
-!#if (PP_TimeDiscMethod==100)
-!  ALLOCATE(FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1))
-!#endif
-!#if (PP_TimeDiscMethod==102)
-!  ALLOCATE(FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:6))
-!#endif 
-
 #if (PP_TimeDiscMethod==104)
 !ALLOCATE(Q(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)) LinSolverRHS
 ! the time derivative computed at the actual Newton iteration value "xk"
@@ -164,23 +157,24 @@ EisenstatWalker=GETLOGICAL('EisenstatWalker','.FALSE.')
 gammaEW=GETREAL('gammaEW','0.9')
 #endif
 
+nRestarts             = GETINT('nRestarts','1')
 #ifndef PP_HDG
 nDofGlobalMPI=nDofGlobal
 #ifdef MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
-#endif /*NOT HDG*/
 
-nRestarts             = GETINT('nRestarts','1')
 eps_LinearSolver      = GETREAL('eps_LinearSolver','1e-3')
 epsTilde_LinearSolver = eps_LinearSolver!GETREAL('epsTilde_LinearSolver')
 eps2_LinearSolver     = eps_LinearSolver *eps_LinearSolver 
 maxIter_LinearSolver  = GETINT('maxIter_LinearSolver','60')
+#endif /*NOT HDG*/
 
 nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
 
+DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 #if defined(ROS) && !defined(PP_HDG) 
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #endif /*ROS and NOT HDG*/
@@ -192,7 +186,6 @@ Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 Fulletamax           = GETREAL('Fulletamax','0.9999')
-DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 #ifndef PP_HDG
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #endif /*NOT HDG*/
@@ -219,7 +212,6 @@ IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #ifdef PARTICLES
 #if defined(ROS) || defined(IMPA)
 DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
-nKDIMPart            = GETINT('nKDIMPart','6')
 #endif /*ROS or IMPA*/
 #endif /*PARTICLES*/
 

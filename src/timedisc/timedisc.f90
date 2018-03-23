@@ -3243,6 +3243,7 @@ USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
+USE MOD_LinearOperator,          ONLY:MatrixVector
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
@@ -3254,7 +3255,6 @@ USE MOD_Precond,                 ONLY:BuildPrecond
 #endif /*maxwell*/
 #endif /*PP_HDG*/
 USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_LinearOperator,          ONLY:MatrixVector
 #ifdef PARTICLES
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver,          ONLY:Particle_GMRES
@@ -3529,8 +3529,8 @@ tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 
 #ifdef PP_HDG
-! set required for fluid model and HDG, because field may have changed due to different particle distribution
-CALL HDG(t,U,iter)
+! update the fields due to changed particle number: emission or velocity change in DSMC
+IF(DoFieldUpdate) CALL HDG(t,U,iter)
 #endif
 IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 #ifdef MPI
@@ -3661,6 +3661,7 @@ DO iStage=2,nRKStages
   ! DGSolver: explicit contribution and 1/dt_inv sum_ij RK_g FieldStage  
   ! is the state before the linear system is solved
   !--------------------------------------------------------------------------------------------------------------------------------
+#ifndef PP_HDG
 #ifdef PARTICLES
   IF(DoFieldUpdate) THEN
 #endif /*PARTICLES*/
@@ -3690,7 +3691,8 @@ DO iStage=2,nRKStages
 #ifdef PARTICLES
   END IF
 #endif /*PARTICLES*/
-
+#endif /*NOT HDG->DG*/
+ 
   !--------------------------------------------------------------------------------------------------------------------------------
   ! particle  pusher: explicit contribution and T * sum  
   ! is the state before the linear system is solved
@@ -3778,6 +3780,10 @@ DO iStage=2,nRKStages
     tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+#ifdef PP_HDG
+    ! update the fields due to changed particle position and velocity/momentum
+    IF(DoFieldUpdate) CALL HDG(t,U,iter)
+#endif
     CALL PartVeloToImp(VeloToImp=.TRUE.)
     ! should be already be done
     DO iPart=1,PDM%ParticleVecLength
@@ -3861,6 +3867,7 @@ DO iStage=2,nRKStages
   !--------------------------------------------------------------------------------------------------------------------------------
   ! DGSolver: now, we can add the contribution of the particles
   !--------------------------------------------------------------------------------------------------------------------------------
+#ifndef PP_HDG
     ! next DG call is f(u^n + dt sum_j^i-1 a_ij k_j) + source terms
     CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.TRUE.) ! source terms are not-added in linear solver
     ! CAUTION: invert sign of Ut
@@ -3868,11 +3875,13 @@ DO iStage=2,nRKStages
     CALL LinearSolver(tStage,coeff_inv)
     ! and store U in fieldstage
     IF(iStage.LT.nRKStages) FieldStage (:,:,:,:,:,iStage) = U
+#endif /*NOT HDG->DG*/
 #ifdef PARTICLES
   END IF 
 #endif /*PARTICLES*/
 END DO
 
+#ifndef PP_HDG
 #ifdef PARTICLES
 IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
@@ -3885,6 +3894,10 @@ IF(DoFieldUpdate)THEN
   CALL DivCleaningDamping()
 #ifdef PARTICLES
 END IF
+#endif /*PARTICLES*/
+#endif /*NOT HDG->DG*/
+
+#ifdef PARTICLES
 ! particle step || only explicit particles
 IF (t.GE.DelayTime) THEN
 #ifdef MPI
