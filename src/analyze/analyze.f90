@@ -76,7 +76,8 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Ener
 
 CALL prms%SetSection("Analyzefield")
 CALL prms%CreateIntOption(    'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
-                                                       'directed power flow', '0')
+                                                       'directed power flow (energy flux density: Density and direction of an '//&
+                                                       'electromagnetic field.', '0')
 CALL prms%CreateRealOption(   'Plane-[$]-z-coord'    , 'Z-coordinate of each Poyting vector integral plane', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Plane-[$]-factor'     , 'Factor of each Poyting vector integral plane (CURRENTLY DEPRECATED)','1.'&
                                                      , numberedmulti=.TRUE.)

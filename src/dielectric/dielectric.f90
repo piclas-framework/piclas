@@ -294,11 +294,11 @@ INTEGER                                                  :: iElem,I,J,iSide
 ! 1.  Initialize dummy arrays for Elem/Face
 ! 2.  Fill dummy element values for non-Dielectric sides
 ! 3.  Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
-! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
 !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
 !     is not allowed)
 !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
-!     infomation)
+!     information)
 ! 5.  Send/Receive MPI data
 ! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
 ! 7.  With MPI, use dummy array which was used for sending the MPI data
@@ -327,11 +327,11 @@ CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
   CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
   CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
   
-  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
   !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
   !     is not allowed)
   !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
-  !     infomation)
+  !     information)
   Dielectric_dummy_Master2 = 0.
   Dielectric_dummy_Slave2  = 0.
   DO I=0,PP_N

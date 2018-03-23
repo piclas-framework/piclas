@@ -198,7 +198,7 @@ S    = 0.
 Sabs = 0.
 STEMabs = 0.
 
-iPoyntingSide = 0 ! only if all poynting vectors are desirred
+iPoyntingSide = 0 ! only if all Poynting vectors are desired
 DO iELEM = 1, nElems
   Do ilocSide = 1, 6
     IF(ElemToSide(E2S_FLIP,ilocSide,iElem)==0)THEN ! only master sides
@@ -235,7 +235,7 @@ DO iELEM = 1, nElems
                 Uface(:,q,p)=Uface(:,q,p)+U(:,p,q,l,iElem)*L_Minus(l)
               END DO ! l
             END DO ! p
-          END DO ! q
+          END DO ! qfirst stuff
         CASE(XI_PLUS)
           DO q=0,PP_N
             DO p=0,PP_N
@@ -300,7 +300,7 @@ DO iELEM = 1, nElems
         ELSE ! no prolonge to face
           Uface=U_master(:,:,:,SideID)
         END IF ! Prolong
-        ! calculate poynting vector
+        ! calculate Poynting vector
         iPoyntingSide = iPoyntingSide + 1
         CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
         IF ( NormVec(3,0,0,SideID) .GT. 0 ) THEN
@@ -333,9 +333,13 @@ END SUBROUTINE CalcPoyntingIntegral
 
 
 #if (PP_nVar>=6)
-SUBROUTINE PoyntingVector(Uface_in,Sloc)
+PURE SUBROUTINE PoyntingVector(Uface_in,Sloc)
 !===================================================================================================================================
-! Calculate the Poynting Vector on a certain face
+!> Calculate the Poynting Vector on a certain face
+!> 
+!> ATTENTION: permeability is not applied here due to performance gain
+!> Definition: S = E x H = 1/mu * ( E x H )
+!> Here      : S = E x B (mu is applied later)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -351,7 +355,7 @@ REAL,INTENT(OUT)      :: Sloc(1:3,0:PP_N,0:PP_N)
 INTEGER               :: p,q
 !===================================================================================================================================
 
-! calculate the poynting vector at each node, additionally the abs of the poynting vector only based on E
+! calculate the Poynting vector at each node, additionally the abs of the Poynting vector only based on E
 DO p = 0,PP_N
   DO q = 0,PP_N
     Sloc(1,p,q)  =  Uface_in(2,p,q)*Uface_in(6,p,q) - Uface_in(3,p,q)*Uface_in(5,p,q) 
@@ -433,16 +437,17 @@ END SUBROUTINE OutputPoyntingInt
 
 SUBROUTINE GetPoyntingIntPlane()
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+!> Initializes Poynting vector integral variables and check every side: set "isPoyntingIntSide(SideID) = .TRUE." if a side coincides
+!> with a defined Poynting vector integral plane. 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars         ,ONLY:nPoyntingIntSides, isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane
-USE MOD_Mesh_Vars         ,ONLY:ElemToSide,normvec
-USE MOD_Analyze_Vars      ,ONLY:PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,PoyntingIntPlaneFactor , S, STEM
-USE MOD_ReadInTools       ,ONLY:GETINT,GETREAL
+USE MOD_Mesh_Vars       ,ONLY: nPoyntingIntSides,isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane
+USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec
+USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,PoyntingIntPlaneFactor,S,STEM
+USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
+USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,DielectricMuR,ElemToDielectric,isDielectricInterFace
 #ifdef MPI
-  USE MOD_Globals
-  !USE MOD_part_MPI_Vars   ,ONLY:PMPIVAR
+USE MOD_Globals
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -459,16 +464,17 @@ INTEGER             :: p,q
 CHARACTER(LEN=32)   :: index_plane
 INTEGER,ALLOCATABLE :: sumFaces(:)
 INTEGER             :: sumAllfaces
+LOGICAL             :: CheckDielectricSides
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
 
-! first stuff
+! Initialize number of Poynting plane sides zero and set all sides to false
 nPoyntingIntSides=0 
 ALLOCATE(isPoyntingIntSide(1:nSides))
 isPoyntingIntSide = .FALSE.
 
-! know get number of planes and coordinates
+! Get the number of Poynting planes and coordinates
 nPoyntingIntPlanes = GETINT('PoyntingVecInt-Planes','0')
 ALLOCATE(PosPoyntingInt(nPoyntingIntPlanes))
 ALLOCATE(PoyntingIntPlaneFactor(nPoyntingIntPlanes))
@@ -477,12 +483,25 @@ ALLOCATE(nFaces(nPoyntingIntPlanes))
 whichPoyntingPlane = -1
 nFaces(:) = 0
 
+! Get z-coordinates and factors for every Poynting plane
 DO iPlane=1,nPoyntingIntPlanes
  WRITE(UNIT=index_plane,FMT='(I2.2)') iPlane 
  PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord','0.')
  PoyntingIntPlaneFactor= GETREAL('Plane-'//TRIM(index_plane)//'-factor','1.')
 END DO
 PoyntingIntCoordErr=GETREAL('Plane-Tolerance','1E-5')
+
+! Dielectric Sides: check if a dielectric region (only permeability, NOT permittivity is important) coincides with a Poynting vector 
+! integral plane. Dielectric interfaces with mu_r .NE. 1.0 cannot compute a Poynting vector because of the jump in material
+! parameter of mu_r
+CheckDielectricSides=.FALSE.
+IF(DoDielectric)THEN
+  IF(ABS(DielectricMuR-1.0).GT.0.0)THEN
+    CheckDielectricSides=.TRUE.
+  ELSEIF(ANY(ABS(DielectricMu(:,:,:,1:nDielectricElems)-1.0).GT.0.0))THEN
+    CheckDielectricSides=.TRUE.
+  END IF
+END IF
 
 ! loop over all planes
 DO iPlane = 1, nPoyntingIntPlanes
@@ -507,6 +526,21 @@ DO iPlane = 1, nPoyntingIntPlanes
                   whichPoyntingPlane(SideID) = iPlane
                   isPoyntingIntSide(SideID) = .TRUE.
                   nFaces(iPlane) = nFaces(iPlane) + 1
+                  IF(CheckDielectricSides)THEN
+                    IF( (isDielectricInterFace(SideID)).AND.&
+                        (ANY(ABS(DielectricMu(:,:,:,ElemToDielectric(iElem))-1.0).GT.0.0)) )THEN
+                      ! if the Poynting vector integral SideID additionally is a dielectric interface between a dielectric region
+                      ! with a permittivity and vacuum, then mu_r might be unequal to 1.0 on the interface and the calculation of
+                      ! the Poynting vector is not implemented for this case
+                      CALL abort(&
+                          __STAMP__&
+                          ,'GetPoyntingIntPlane: Found SideID for Poynting vector integral which is attached to an element'//&
+                          ' within which the dielectric permittivity mu_r is not euqal to 1.0 everywhere. The value could be'//& 
+                          ' unequal to 1.0 on the interface and this is not implemented. TODO: determine mu_r on interface,'//&
+                          ' communicate it via MPI (do not forget Mortar sides) and calculate the Poynting vector on that'//&
+                          ' interface via some method.')
+                    END IF
+                  END IF
                 END IF
               !EXIT
               END IF ! diff < eps

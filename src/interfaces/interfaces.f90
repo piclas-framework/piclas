@@ -429,7 +429,7 @@ REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2)!,firstSideID,lastSideID
+INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2)
 INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
 INTEGER                         :: firstMortarSideID,lastMortarSideID
