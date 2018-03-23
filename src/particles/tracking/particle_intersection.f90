@@ -475,6 +475,9 @@ END DO
 
 XiNewton=0.
 CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,PartID,SideID,failed)
+! write Xinewton to locXi and locEta
+locXi (1)=XiNewton(1)
+locEta(1)=XiNewton(2)
 IF(failed)THEN
   PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
   IPWRITE(UNIT_stdout,*) ' Intersection-angle-of-BezierNetwon: ',PartFaceAngle*180./PI
@@ -493,8 +496,6 @@ END IF
 
 nInterSections=0
 IF(locAlpha(1).GT.-1) nInterSections=1
-locXi (1)=XiNewton(1)
-locEta(1)=XiNewton(2)
 
 IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
 IF(CriticalParallelInSide)THEN
