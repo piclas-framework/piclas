@@ -1933,19 +1933,19 @@ END IF
 #endif /*CODE_ANALYZE*/
 
 IF(nIter.GT.BezierNewtonMaxIter) THEN
-  IPWRITE(UNIT_stdout,*) ' Bezier-Newton not converged!'
-  IPWRITE(UNIT_stdout,*) ' SideId      : ', SideID
-  IPWRITE(UNIT_stdout,*) ' PartID      : ', PartID
-  IPWRITE(UNIT_stdout,*) ' ElemID      : ', PartSideToElem(S2E_ELEM_ID,SideID)
-  IPWRITE(UNIT_stdout,*) ' Norm_P      : ', Norm_P
-  IPWRITE(UNIT_stdout,*) ' minmax-1    : ', MinMax(:,1)
-  IPWRITE(UNIT_stdout,*) ' minmax-2    : ', MinMax(:,2)
-  IPWRITE(UNIT_stdout,*) ' xi, eta     : ', xi
-  IPWRITE(UNIT_stdout,*) ' dxi, dxi2   : ', dXi, dXi2
-  IPWRITE(UNIT_stdout,*) ' PartState   : ', PartState(PartID,1:3)
-  IPWRITE(UNIT_stdout,*) ' lastPos     : ', LastPartPos(PartID,1:3)
-  IPWRITE(UNIT_stdout,*) ' Trajectory  : ', PartTrajectory
-  IPWRITE(UNIT_stdout,*) ' Calling-Bezier-Clipping  '
+  IPWRITE(UNIT_stdout,*) ' WARNING: Bezier-Newton not converged!'
+!  IPWRITE(UNIT_stdout,*) ' SideId      : ', SideID
+!  IPWRITE(UNIT_stdout,*) ' PartID      : ', PartID
+!  IPWRITE(UNIT_stdout,*) ' ElemID      : ', PartSideToElem(S2E_ELEM_ID,SideID)
+!  IPWRITE(UNIT_stdout,*) ' Norm_P      : ', Norm_P
+!  IPWRITE(UNIT_stdout,*) ' minmax-1    : ', MinMax(:,1)
+!  IPWRITE(UNIT_stdout,*) ' minmax-2    : ', MinMax(:,2)
+!  IPWRITE(UNIT_stdout,*) ' xi, eta     : ', xi
+!  IPWRITE(UNIT_stdout,*) ' dxi, dxi2   : ', dXi, dXi2
+!  IPWRITE(UNIT_stdout,*) ' PartState   : ', PartState(PartID,1:3)
+!  IPWRITE(UNIT_stdout,*) ' lastPos     : ', LastPartPos(PartID,1:3)
+!  IPWRITE(UNIT_stdout,*) ' Trajectory  : ', PartTrajectory
+!  IPWRITE(UNIT_stdout,*) ' Calling-Bezier-Clipping  '
   failed=.TRUE.
   RETURN
 !  CALL abort(&
