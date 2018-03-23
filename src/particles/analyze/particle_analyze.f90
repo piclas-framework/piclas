@@ -206,7 +206,7 @@ IF (CalcPartBalance) THEN
   nPartOut=0
   PartEkinOut=0.
   PartEkinIn=0.
-#if defined(LSERK) || defined(IMEX) || defined(IMPA) 
+#if defined(LSERK) || defined(ROS) || defined(IMPA) 
   SDEALLOCATE( nPartInTmp)
   SDEALLOCATE( PartEkinInTmp)
   ALLOCATE( nPartInTmp(nSpecies)     &
@@ -1957,8 +1957,8 @@ SUBROUTINE CalcParticleBalance()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: nPartIn,nPartOut,PartEkinIn,PartEkinOut
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars ,ONLY: nPartInTmp,PartEkinInTmp
 #endif
@@ -1972,7 +1972,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 nPartIn=nPartInTmp
 nPartOut=0

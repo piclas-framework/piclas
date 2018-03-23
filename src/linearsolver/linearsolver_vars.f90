@@ -31,37 +31,33 @@ INTEGER              :: maxIter_LinearSolver                                    
 INTEGER              :: totalIterLinearSolver,nInnerIter                            ! global counter of iterations
 INTEGER              :: ldim                                                        ! Number of BiCGStab(l) subspaces
 #if defined(PARTICLES)
-#if defined(IMPA) || (PP_TimeDiscMethod==110)
-LOGICAL              :: DoFieldUpdate
-INTEGER              :: totalPartIterLinearSolver,nPartInnerIter                    ! Counter for Particle newton
+#if defined(IMPA) 
 INTEGER              :: nPartNewton                                                 ! some limits or counter
 INTEGER              :: nPartNewtonIter                                             ! some limits or counter
 INTEGER              :: FreezePartInNewton                                          ! particle is moved after each Newton step
 REAL                 :: Eps2PartNewton                                              ! PartNewton abort criterion
-LOGICAL              :: EisenstatWalker                                             ! EisenstatWalker for ParticleNewton
-REAL                 :: EpsPartLinSolver                                            ! Abort tolerance for linear solver of parts
 REAL                 :: PartgammaEW                                                 ! gamma value of PartEisenstatWalker
-REAL                 :: rEps0,srEps0                                                ! FD-step-size for PartMV in PartNewton
-REAL,ALLOCATABLE     :: PartXK(:,:)                                                 ! ParticlePosition for linearization
-REAL,ALLOCATABLE     :: R_PartXK(:,:)                                               ! Part_dt of PartXK
 REAL,PARAMETER       :: Part_alpha=0.0001
 REAL,PARAMETER       :: Part_sigma(1:2) = (/0.1, 0.5/)
 #endif
+#if defined(ROS) || defined(IMPA)
+INTEGER              :: nKDIMPart
+LOGICAL              :: DoFieldUpdate
+LOGICAL              :: EisenstatWalker                                             ! EisenstatWalker for ParticleNewton
+INTEGER              :: totalPartIterLinearSolver,nPartInnerIter                    ! Counter for Particle newton
+REAL                 :: EpsPartLinSolver                                            ! Abort tolerance for linear solver of parts
+REAL                 :: rEps0,srEps0                                                ! FD-step-size for PartMV in PartNewton
+REAL,ALLOCATABLE     :: PartXK(:,:)                                                 ! ParticlePosition for linearization
+REAL,ALLOCATABLE     :: R_PartXK(:,:)                                               ! Part_dt of PartXK
+#endif /*IMPA or ROS*/
 #endif /*PARTICLES*/
-#if (PP_TimeDiscMethod==104)
-INTEGER              :: nNewton
-INTEGER              :: nNewtonIter
-REAL,ALLOCATABLE     :: R_xk(:,:,:,:,:)
-REAL,ALLOCATABLE     :: xk(:,:,:,:,:)
-REAL                 :: Eps2Newton
-LOGICAL              :: EisenstatWalker
-REAL                 :: gammaEW
-#endif
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+#if defined(ROS) || defined(IMPA)
+LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
+#endif /*IMPA or ROS*/
+#if IMPA
 REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
                                                                                     ! disables Armijo rule and uses a fixed value
 REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122
-LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
                                                                                     ! and number of parts in Newton
 INTEGER              :: maxFullNewtonIter                                           ! limit of fullnewton iterations
 INTEGER              :: TotalFullNewtonIter                                         ! counter for all total full newton iters
@@ -76,14 +72,15 @@ REAL                 :: PartRelaxationFac0                                      
 INTEGER              :: AdaptIterRelaxation0                                        ! iter to adapt relaxation
 LOGICAL              :: DoPartRelaxation                                            ! flag for particle relaxation
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
+REAL                 :: FulletaMax                                                  ! Eisenstat-Walker eta-Max
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
 #ifdef PARTICLES
 LOGICAL              :: DoUpdateInStage                                             ! perform updatenextfree position 
                                                                                     ! in each rk stage
+LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration 
 INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
                                                                                     ! due to overflow of free positions...
                                                                                     ! UNFP each nth iteration
-LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration 
                                                                                     ! scheme
 #endif /*PARTICLES*/
 #endif

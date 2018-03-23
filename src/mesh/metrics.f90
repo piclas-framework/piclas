@@ -376,9 +376,9 @@ DO iElem=1,nElems
     CALL CalcSurfMetrics(PP_N,JaCL_N_quad,XCL_N_quad,Vdm_CLN_N,iElem,&
                          NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 #ifdef maxwell
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
     CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N_quad,XCL_N_quad,Vdm_CLN_N,iElem)
-#endif /*IMEX or IMPA*/
+#endif /*ROS or IMPA*/
 #endif /*maxwell*/
   ELSE
     ! interpolate Metrics from Cheb-Lobatto N onto GaussPoints N
@@ -389,9 +389,9 @@ DO iElem=1,nElems
     CALL CalcSurfMetrics(PP_N,JaCL_N,XCL_N,Vdm_CLN_N,iElem,&
                          NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 #ifdef maxwell
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
     CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N,XCL_N,Vdm_CLN_N,iElem)
-#endif /*IMEX or IMPA*/
+#endif /*ROS or IMPA*/
 #endif /*maxwell*/
   END IF
 

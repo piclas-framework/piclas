@@ -904,12 +904,12 @@ USE MOD_Equation_Vars,     ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xD
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,      ONLY: PartSource,DoDeposition
 USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric!DielectricEpsR_inv
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 USE MOD_LinearSolver_Vars, ONLY:ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,         ONLY: Elem_xGP                  ! for shape function: xyz position of the Gauss points
-#if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Equation_Vars,     ONLY: DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,     ONLY: sdtCFLOne!, RK_B, iStage  
 USE MOD_DG_Vars,           ONLY: U
@@ -939,7 +939,7 @@ IF(DoDeposition)THEN
     DO iElem=1,PP_nElems
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
           PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
           PartSourceLoc=PartSource(:,i,j,k,iElem)
@@ -954,7 +954,7 @@ IF(DoDeposition)THEN
         END DO; END DO; END DO
       ELSE
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
           PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
           PartSourceLoc=PartSource(:,i,j,k,iElem)
@@ -968,7 +968,7 @@ IF(DoDeposition)THEN
   ELSE
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
         PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
         PartSourceLoc=PartSource(:,i,j,k,iElem)
@@ -1055,7 +1055,7 @@ CASE DEFAULT
       ,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
 END SELECT ! ExactFunction
 
-#if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
+#if defined(LSERK) ||  defined(ROS) || defined(IMPA)
 IF(DoParabolicDamping)THEN
   !Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne/RK_b(iStage)*U(7:8,:,:,:,:)
   Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne*U(7:8,:,:,:,:)
