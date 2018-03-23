@@ -160,59 +160,59 @@ INTEGER   :: dir, VeloDirs_hilf(4)
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
 'InitParticleAnalyse already called.',999,999.)
-    RETURN
-  END IF
-  SWRITE(UNIT_StdOut,'(132("-"))')
-  SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
+  RETURN
+END IF
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 
-  PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
-  IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
+PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 
-  DoAnalyze = .FALSE.
-  CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
-  IF(CalcEpot) DoAnalyze = .TRUE.
-  ! only verifycharge and CalcCharge if particles are deposited onto the grid
-  DoVerifyCharge= .FALSE.
-  CalcCharge = .FALSE.
-  IF(DoDeposition) THEN
-    DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
-    CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
-    IF(CalcCharge) DoAnalyze = .TRUE. 
-  ELSE
-    SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
-  END IF
-  CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
-  CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
-  CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
-  IF(CalcTemp.OR.CalcEint) DoAnalyze = .TRUE.
-  IF(CalcEkin) DoAnalyze = .TRUE.
-  IF(nSpecies.GT.1) THEN
-    nSpecAnalyze = nSpecies + 1
-  ELSE
-    nSpecAnalyze = 1
-  END IF
-  CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
-  IF (CalcPartBalance) THEN
-    DoAnalyze = .TRUE.
-    SDEALLOCATE(nPartIn)
-    SDEALLOCATE(nPartOut)
-    SDEALLOCATE(PartEkinIn)
-    SDEALLOCATE(PartEkinOut)
-    ALLOCATE( nPartIn(nSpecies)     &
-            , nPartOut(nSpecies)    &
-            , PartEkinOut(nSpecies) &
-            , PartEkinIn(nSpecies)  )
-    nPartIn=0
-    nPartOut=0
-    PartEkinOut=0.
-    PartEkinIn=0.
+DoAnalyze = .FALSE.
+CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
+IF(CalcEpot) DoAnalyze = .TRUE.
+! only verifycharge and CalcCharge if particles are deposited onto the grid
+DoVerifyCharge= .FALSE.
+CalcCharge = .FALSE.
+IF(DoDeposition) THEN
+  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
+  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+  IF(CalcCharge) DoAnalyze = .TRUE. 
+ELSE
+  SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+END IF
+CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
+CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
+CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
+IF(CalcTemp.OR.CalcEint) DoAnalyze = .TRUE.
+IF(CalcEkin) DoAnalyze = .TRUE.
+IF(nSpecies.GT.1) THEN
+  nSpecAnalyze = nSpecies + 1
+ELSE
+  nSpecAnalyze = 1
+END IF
+CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
+IF (CalcPartBalance) THEN
+  DoAnalyze = .TRUE.
+  SDEALLOCATE(nPartIn)
+  SDEALLOCATE(nPartOut)
+  SDEALLOCATE(PartEkinIn)
+  SDEALLOCATE(PartEkinOut)
+  ALLOCATE( nPartIn(nSpecies)     &
+          , nPartOut(nSpecies)    &
+          , PartEkinOut(nSpecies) &
+          , PartEkinIn(nSpecies)  )
+  nPartIn=0
+  nPartOut=0
+  PartEkinOut=0.
+  PartEkinIn=0.
 #if defined(LSERK) || defined(ROS) || defined(IMPA) 
-    SDEALLOCATE( nPartInTmp)
-    SDEALLOCATE( PartEkinInTmp)
-    ALLOCATE( nPartInTmp(nSpecies)     &
-            , PartEkinInTmp(nSpecies)  )
-    PartEkinInTmp=0.
-    nPartInTmp=0
+  SDEALLOCATE( nPartInTmp)
+  SDEALLOCATE( PartEkinInTmp)
+  ALLOCATE( nPartInTmp(nSpecies)     &
+          , PartEkinInTmp(nSpecies)  )
+  PartEkinInTmp=0.
+  nPartInTmp=0
 #endif
 END IF
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
