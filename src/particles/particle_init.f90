@@ -2430,13 +2430,13 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, nElems, offsetElem
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, nMacroRestartFiles, nVarDSMCState
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, nMacroRestartFiles
 USE MOD_ReadInTools            ,ONLY: GETSTR
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-REAL,INTENT(INOUT)          :: MacroRestartData(1:nVarDSMCState,1:nElems,1:nSpecies,1:nMacroRestartFiles)
+REAL,INTENT(INOUT)          :: MacroRestartData(1:DSMC_NVARS,1:nElems,1:nSpecies,1:nMacroRestartFiles)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)               :: FileName, Type_HDF5, NodeType_HDF5
@@ -2494,9 +2494,9 @@ __STAMP__&
     IF (N_HDF5.NE.1) CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: N!=1 !')
-    ! check if (nVar_HDF5-nVarDSMCState-nVarAdditional) equal to nVarDSMCState*nSpecies
-    nVarAdditional = MOD(nVar_HDF5,nVarDSMCState)
-    IF ((nVar_HDF5-nVarDSMCState-nVarAdditional).NE.(nVarDSMCState*nSpecies)) CALL abort(&
+    ! check if (nVar_HDF5-DSMC_NVARS-nVarAdditional) equal to DSMC_NVARS*nSpecies
+    nVarAdditional = MOD(nVar_HDF5,DSMC_NVARS)
+    IF ((nVar_HDF5-DSMC_NVARS-nVarAdditional).NE.(DSMC_NVARS*nSpecies)) CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: wrong Nodetype !')
     IF (NodeType_HDF5.NE.'VISU') CALL abort(&
@@ -2508,9 +2508,9 @@ __STAMP__&
     DO iElem = 1, nElems
       iVar = 1
       DO iSpec = 1, nSpecies
-        MacroRestartData(:,iElem,iSpec,iFile) = State_HDF5(iVar:iVar-1+nVarDSMCState,iElem)
+        MacroRestartData(:,iElem,iSpec,iFile) = State_HDF5(iVar:iVar-1+DSMC_NVARS,iElem)
       END DO
-      iVar = iVar + nVarDSMCState + nVarAdditional
+      iVar = iVar + DSMC_NVARS + nVarAdditional
     END DO
     SDEALLOCATE(State_HDF5)
   ELSE
