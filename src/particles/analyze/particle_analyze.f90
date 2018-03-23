@@ -2274,7 +2274,11 @@ IF (CollisMode.GT.1) THEN
       END IF
     END DO
     IF(nSpecAnalyze.GT.1)THEN
-      TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+      IF(NumSpec(iSpec).NE.0) THEN
+        TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+      ELSE
+        TempTotal(nSpecAnalyze)= 0.
+      END IF
     END IF
   END IF
 ELSE
@@ -2372,7 +2376,11 @@ IF(PartMPI%MPIRoot)THEN
     END IF
   END DO
   IF(nSpecAnalyze.GT.1)THEN
-    Temp(nSpecAnalyze)= Temp(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+    IF(NumSpec(iSpec).NE.0) THEN
+      Temp(nSpecAnalyze)= Temp(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+    ELSE
+      Temp(nSpecAnalyze)= 0.
+    END IF
   END IF
 END IF
 #endif
