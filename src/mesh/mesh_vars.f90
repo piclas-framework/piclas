@@ -178,9 +178,9 @@ LOGICAL          :: CrossProductMetrics=.FALSE.
 !-----------------------------------------------------------------------------------------------------------------------------------
 !< PoyntingVectorIntegral variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER             :: nPoyntingIntSides=0   !< Sides for the calculation of the poynting vector
+INTEGER             :: nPoyntingIntSides=0   !< Sides for the calculation of the poynting vector integral
 LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  !< number of all PoyntingInt sides
-INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) !< number of plane used for calculation of poynting vector
+INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) !< plane number used for calculation of poynting vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! USER DEFINED TYPES 

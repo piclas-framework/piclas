@@ -81,12 +81,14 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER\n'
 #endif
 
 CALL prms%SetSection("Analyzefield")
-CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                         'Count of planes ', '0')
-CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER\n'//&
-                                                         'Tolerance in plane searching', '1E-5')
+CALL prms%CreateIntOption(    'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
+                                                       'directed power flow', '0')
+CALL prms%CreateRealOption(   'Plane-[$]-z-coord'    , 'Z-coordinate of each Poyting vector integral plane', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-[$]-factor'     , 'Factor of each Poyting vector integral plane (CURRENTLY DEPRECATED)','1.'&
+                                                     , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-Tolerance'      , 'Absolute tolerance for checking the Poynting vector integral plane '//&
+                                                       'coordinates and normal vectors of the corresponding sides for selecting '//&
+                                                       'relevant sides', '1E-5')
 
 END SUBROUTINE DefineParametersAnalyze
 
