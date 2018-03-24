@@ -89,6 +89,10 @@ clean:
   script:
     - rm -rf build_gnu
     - rm -rf build_intel
+    - rm -rf build_gnu_maxwell
+    - rm -rf build_intel_maxwell
+    - rm -rf build_gnu_poisson
+    - rm -rf build_intel_poisson
     - rm -rf share
     - rm -rf reggie
   when: on_failure
