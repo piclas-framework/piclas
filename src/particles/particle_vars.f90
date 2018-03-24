@@ -67,9 +67,9 @@ LOGICAL , ALLOCATABLE :: PartLambdaAccept(:)                                 ! A
 ! Newton iteration
 REAL    , ALLOCATABLE :: F_PartX0(:,:)                                       ! Particle function evaluated at t^0
 REAL    , ALLOCATABLE :: F_PartXK(:,:)                                       ! Particle function evaluated at iteration step k
-REAL    , ALLOCATABLE :: Norm2_F_PartX0    (:)                               ! and the corresponding L2 norm
-REAL    , ALLOCATABLE :: Norm2_F_PartXK    (:)                               ! and the corresponding L2 norm
-REAL    , ALLOCATABLE :: Norm2_F_PartXK_Old(:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm_F_PartX0    (:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm_F_PartXK    (:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm_F_PartXK_Old(:)                               ! and the corresponding L2 norm
 LOGICAL , ALLOCATABLE :: DoPartInNewton(:)                                   ! particle is treated implicitly && Newtons method
                                                                              ! is performed on it
 #endif
