@@ -628,7 +628,9 @@ END DO ! iPlanes
 #endif
 ! Determine mu_r on faces within a dielectric region for calculating the Poynting vector and communicate the
 ! prolonged values via MPI
+#if (PP_nVar>=6)
 IF(PoyntingUseMuR_Inv) CALL SetDielectricFaceProfileForPoynting()
+#endif /*(PP_nVar>=6)*/
 
 ALLOCATE(sumFaces(nPoyntingIntPlanes))
 #ifdef MPI
@@ -952,6 +954,7 @@ END IF
 END SUBROUTINE CalcPotentialEnergy_Dielectric
 
 
+#if (PP_nVar>=6)
 SUBROUTINE SetDielectricFaceProfileForPoynting()
 !===================================================================================================================================
 !> THIS ROUTINE IS ONLY CALLED FOR THE POYNTING VECTOR INTEGRAL CALCULATION ON INITIALIZATION
@@ -1085,5 +1088,6 @@ IF(MINVAL(Dielectric_MuR_Master_inv).LE.0.0)THEN
   RealInfoOpt=MINVAL(Dielectric_MuR_Master_inv))
 END IF
 END SUBROUTINE SetDielectricFaceProfileForPoynting
+#endif /*(PP_nVar>=6)*/
 
 END MODULE MOD_AnalyzeField
