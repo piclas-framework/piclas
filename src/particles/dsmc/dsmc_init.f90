@@ -1282,8 +1282,16 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
     SELECT CASE (init_or_sf)
     CASE(1) !iInit
-      TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-      TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+      IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
+        TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
+      ELSE
+        TVib=Species(iSpecies)%Init(iInit)%ElemTVib(PEM%Element(iPart))
+      END IF
+      IF (Species(iSpecies)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
+        TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+      ELSE
+        TRot=Species(iSpecies)%Init(iInit)%ElemTRot(PEM%Element(iPart))
+      END IF
     CASE(2) !SurfaceFlux
       IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
         !-- compute number of to be inserted particles

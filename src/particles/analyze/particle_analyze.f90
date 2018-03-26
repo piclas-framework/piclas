@@ -121,10 +121,10 @@ CALL prms%CreateLogicalOption(  'CalcSurfRates'      , 'TODO-DEFINE-PARAMETER\n'
 CALL prms%CreateLogicalOption(  'CalcShapeEfficiency', 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Use efficiency methods for shape functions.'&
                                                      , '.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , "TODO-DEFINE-PARAMETER\n'//&
-                                                       'Choose between 'AllParts'and "//&
-                                                       "'SomeParts', to either use all particles or a certain percentage"//&
-                                                       " (ShapeEfficiencyNumber) of the currently used particles",'AllParts')
+CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Choose between "AllParts" and '//&
+                                                       '"SomeParts", to either use all particles or a certain percentage'//&
+                                                       ' (ShapeEfficiencyNumber) of the currently used particles','AllParts')
 CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Percentage of currently used particles is used.'&
                                                      ,'100')

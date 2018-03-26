@@ -1071,6 +1071,7 @@ REAL,ALLOCATABLE      :: MacroRestartData_tmp(:,:,:,:)
 INTEGER               :: MacroRestartFileID
 LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 INTEGER               :: FileID, iElem
+REAL                  :: particlenumber_tmp
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -1392,8 +1393,11 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cell_local'))
     ! initilize macrorestart files and arrays
     !-------------------------------------------------------------------------------------------------------------------------------
-    Species(iSpec)%Init(iInit)%HasElemMacroFile = .FALSE.
     IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+      ! get emission and init data
+      Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
+      !Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.FALSE.')
+      Species(iSpec)%Init(iInit)%UseForEmission        = .FALSE.
       MacroRestartFileID = GETINT('Part-Species'//TRIM(hilf2)//'-MacroRestartFileID','0')
       WRITE(UNIT=hilf3,FMT='(I0)') MacroRestartFileID
       Species(iSpec)%Init(iInit)%ElemTemperatureFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTemperatureFileID',TRIM(hilf3))
@@ -1414,16 +1418,15 @@ DO iSpec = 1, nSpecies
           Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
-        Species(iSpec)%Init(iInit)%HasElemMacroFile = .TRUE.
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
           MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC(1:3,1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(1,1:nElems) = MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(2,1:nElems) = MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(3,1:nElems) = MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(1,iElem) = MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(2,iElem) = MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(3,iElem) = MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemPartDensityFileID
@@ -1432,7 +1435,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems) = MacroRestartData_tmp(DSMC_DENSITY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_DENSITY,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemVelocityICFileID
@@ -1441,9 +1444,9 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemVelocityIC)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemVelocityIC(1:3,1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemVelocityIC(1,1:nElems) = MacroRestartData_tmp(DSMC_VELOX,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemVelocityIC(2,1:nElems) = MacroRestartData_tmp(DSMC_VELOY,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemVelocityIC(3,1:nElems) = MacroRestartData_tmp(DSMC_VELOZ,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemVelocityIC(1,iElem) = MacroRestartData_tmp(DSMC_VELOX,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemVelocityIC(2,iElem) = MacroRestartData_tmp(DSMC_VELOY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemVelocityIC(3,iElem) = MacroRestartData_tmp(DSMC_VELOZ,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTVibFileID
@@ -1452,7 +1455,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTVib(1:nElems) = MacroRestartData_tmp(DSMC_TVIB,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTVib(iElem) = MacroRestartData_tmp(DSMC_TVIB,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTRotFileID
@@ -1461,7 +1464,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTRot(1:nElems) = MacroRestartData_tmp(DSMC_TROT,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTRot(iElem) = MacroRestartData_tmp(DSMC_TROT,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTElecFileID
@@ -1470,25 +1473,19 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTElec(1:nElems) = MacroRestartData_tmp(DSMC_TELEC,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTElec(iElem) = MacroRestartData_tmp(DSMC_TELEC,iElem,iSpec,FileID)
           END DO
         END IF
       END IF
-    ELSE
+    ELSE ! SpaceIC not cell_local
+      Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit')
+      Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission')
       Species(iSpec)%Init(iInit)%ElemTemperatureFileID= 0
       Species(iSpec)%Init(iInit)%ElemPartDensityFileID= 0
       Species(iSpec)%Init(iInit)%ElemVelocityICFileID = 0
       Species(iSpec)%Init(iInit)%ElemTVibFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTRotFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
-    END IF
-    ! get emission and init data
-    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.GT.0) THEN
-      Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
-      Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.FALSE.')
-    ELSE
-      Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit')
-      Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission')
     END IF
     !-------------------------------------------------------------------------------------------------------------------------------
     IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.EQ.0) THEN
@@ -1533,10 +1530,18 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC','0.')
     Species(iSpec)%Init(iInit)%ConstantPressure      = GETREAL('Part-Species'//TRIM(hilf2)//'-ConstantPressure','0.')
     Species(iSpec)%Init(iInit)%ConstPressureRelaxFac = GETREAL('Part-Species'//TRIM(hilf2)//'-ConstPressureRelaxFac','1.')
-    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) &
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','0.')
-    Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
-    Species(iSpec)%Init(iInit)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf2)//'-ParticleEmission','0.')
+    ELSE
+      Species(iSpec)%Init(iInit)%PartDensity           = 0.
+    END IF
+    IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
+      Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
+      Species(iSpec)%Init(iInit)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf2)//'-ParticleEmission','0.')
+    ELSE
+      Species(iSpec)%Init(iInit)%ParticleEmissionType  = 0 !dummy
+      Species(iSpec)%Init(iInit)%ParticleEmission      = 0. !dummy
+    END IF
     Species(iSpec)%Init(iInit)%NSigma                = GETREAL('Part-Species'//TRIM(hilf2)//'-NSigma','10.')
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions','0')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
@@ -1558,7 +1563,7 @@ __STAMP__&
     !----------- various checks/calculations after read-in of Species(i)%Init(iInit)%-data ----------------------------------!
     !--- Check if Initial ParticleInserting is really used
     IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
-      .AND. Species(iSpec)%Init(iInit)%UseForInit .AND. Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
+      .AND. Species(iSpec)%Init(iInit)%UseForInit) THEN
       IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
       .AND. (ABS(Species(iSpec)%Init(iInit)%PartDensity).LE.0.) ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
@@ -1658,12 +1663,14 @@ __STAMP__&
     !--- flag for cell-based constant-pressure-EmiTypes
     IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 4).OR. &
         (Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 6)) PartPressureCell = .TRUE.
-    !--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder) for Inits
-    IF (.NOT. ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
-      Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC            / &
-        SQRT(Species(iSpec)%Init(iInit)%VeloVecIC(1)*Species(iSpec)%Init(iInit)%VeloVecIC(1) + &
-        Species(iSpec)%Init(iInit)%VeloVecIC(2)*Species(iSpec)%Init(iInit)%VeloVecIC(2)      + &
-        Species(iSpec)%Init(iInit)%VeloVecIC(3)*Species(iSpec)%Init(iInit)%VeloVecIC(3))
+    IF (Species(iSpec)%Init(iInit)%ElemVelocityICFileID.EQ.0) THEN
+      !--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder) for Inits
+      IF (.NOT. ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
+        Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC            / &
+          SQRT(Species(iSpec)%Init(iInit)%VeloVecIC(1)*Species(iSpec)%Init(iInit)%VeloVecIC(1) + &
+          Species(iSpec)%Init(iInit)%VeloVecIC(2)*Species(iSpec)%Init(iInit)%VeloVecIC(2)      + &
+          Species(iSpec)%Init(iInit)%VeloVecIC(3)*Species(iSpec)%Init(iInit)%VeloVecIC(3))
+      END IF
     END IF
     Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC /                 &
       SQRT(Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1) + &
@@ -1777,7 +1784,8 @@ __STAMP__&
     PartDens_OnlyInit=.FALSE.
     IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.).AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'LD_insert')) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) THEN
-        IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2) .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
+        IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2 .OR. Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) &
+            .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
           PartDens_OnlyInit=.TRUE.
         ELSE
           CALL abort(&
@@ -1879,7 +1887,7 @@ __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
               Species(iSpec)%Init(iInit)%initialParticleNumber &
-                  = INT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor * GEO%LocalVolume)
+                  = NINT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor * GEO%LocalVolume)
             END IF
           ELSE
             CALL abort(&
@@ -1896,6 +1904,31 @@ __STAMP__&
         CALL abort(&
 __STAMP__&
         ,'PartDensity without LD is only supported for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
+      END IF
+    END IF
+    !--- determine if cell_local macro restart with density distribution
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.GT.0) THEN
+      IF  ((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+        .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) THEN
+        IF (GEO%LocalVolume.GT.0.) THEN
+          IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
+            particlenumber_tmp = 0.
+            DO iElem = 1,nElems
+              particlenumber_tmp = particlenumber_tmp + Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) &
+                  / Species(iSpec)%MacroParticleFactor * GEO%Volume(iElem)
+            END DO
+            Species(iSpec)%Init(iInit)%initialParticleNumber = NINT(particlenumber_tmp)
+          END IF
+        ELSE
+          CALL abort(&
+__STAMP__&
+,'Error in particle_init: Local mesh volume is zero!')
+        END IF
+      ELSE
+        ! maxwell might also work for cell_local but not with cell dependant temperatures as with MacroRestart
+        CALL abort(&
+__STAMP__&
+,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with Macro-ElemPartDensity Insert!')
       END IF
     END IF
     !--- determine StartnumberOfInits (start loop index, e.g., for emission loops)
@@ -2644,7 +2677,7 @@ DO iFile = 1, nMacroRestartFiles
   IF (TRIM(FileName).EQ.'none') THEN
     CALL abort(&
 __STAMP__&
-,'Error in Macrofile read in: filename no defined!',iFile)
+,'Error in Macrofile read in: filename not defined!',iFile)
   END IF
 
   SWRITE(UNIT_StdOut, '(A)')' INIT MACRO RESTART DATA FROM '//TRIM(FileName)//' ...'

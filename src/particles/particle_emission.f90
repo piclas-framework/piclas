@@ -772,13 +772,13 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   ! ParticleEmission and Partdensity not working together
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) DoExactPartNumInsert = .TRUE.
-  IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
-__STAMP__&
-,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
+  !IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
+!__STAMP__&
+!,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
   chunksize = 0
 #ifdef MPI
   IF (mode.EQ.2) RETURN
-  IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
+  IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1 .AND. Species(FractNbr)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
     IF (DoExactPartNumInsert) THEN
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
         ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
@@ -2251,7 +2251,7 @@ REAL                             :: II(3,3),JJ(3,3),NN(3,3)
 INTEGER                          :: distnum,Rotation
 REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01,y_02, RandVal1
 REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
-LOGICAL                          :: Is_BGGas
+LOGICAL                          :: Is_BGGas, Is_ElemMacro
 REAL                             :: sigma(3), ftl, PartVelo 
 REAL                             :: RandN_save
 LOGICAL                          :: RandN_in_Mem
@@ -2289,8 +2289,12 @@ __STAMP__&
 ,'NbrOfParticle > PIC%maxParticleNumber!')
    END IF
 RandN_in_Mem=.FALSE.
+Is_ElemMacro = .FALSE.
 SELECT CASE (init_or_sf)
 CASE(1) !iInit
+  IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0 .OR. Species(FractNbr)%Init(iInit)%ElemTemperatureFileID.GT.0) THEN
+    Is_ElemMacro = .TRUE.
+  END IF
   IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) RETURN !velocities already set in SetParticlePosition!
 
   velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
@@ -2393,7 +2397,11 @@ CASE('constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
+        IF (Is_ElemMacro) THEN
+          PartState(PositionNbr,4:6) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%Element(PositionNbr))
+        ELSE
+          PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
+        END IF
      END IF
      i = i + 1
   END DO
@@ -2596,10 +2604,14 @@ CASE('maxwell_lpn')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-       IF (useVTKFileBGG .AND. Is_BGGas) THEN
+       IF (Is_ElemMacro) THEN
          CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
        ELSE
-         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
+         IF (useVTKFileBGG .AND. Is_BGGas) THEN
+           CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
+         ELSE
+           CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
+         END IF
        END IF
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
@@ -3355,10 +3367,10 @@ IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
   Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
 ELSEIF (PRESENT(Element)) THEN
-  Tx=BGGdataAtElem(1,Element)
-  Ty=BGGdataAtElem(2,Element)
-  Tz=BGGdataAtElem(3,Element)
-  v_drift=BGGdataAtElem(4:6,Element)
+  Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)! BGGdataAtElem(1,Element)
+  Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element) !BGGdataAtElem(2,Element)
+  Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element) !BGGdataAtElem(3,Element)
+  v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element) !BGGdataAtElem(4:6,Element)
 ELSEIF(PRESENT(Temperature))THEN
   Tx=Temperature
   Ty=Temperature
@@ -5730,7 +5742,11 @@ __STAMP__,&
 'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
     END IF
     CellChunkSize(:)=0
-    CALL IntegerDivide(chunkSize,nElems,GEO%Volume(:),CellChunkSize(:))
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
+      CALL IntegerDivide(chunkSize,nElems,GEO%Volume(:),CellChunkSize(:))
+    ELSE
+      CALL IntegerDivide(chunkSize,nElems,Species(iSpec)%Init(iInit)%ElemPartDensity(:)*GEO%Volume(:),CellChunkSize(:))
+    END IF
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
     chunkSize_tmp = PartDens * GEO%LocalVolume
