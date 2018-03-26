@@ -55,6 +55,8 @@ REAL,ALLOCATABLE     :: R_PartXK(:,:)                                           
 LOGICAL              :: DoPrintConvInfo =.FALSE.                                    ! flag to print current norm in outer iteration
 #endif /*IMPA or ROS*/
 #if IMPA
+LOGICAL              :: PartNewtonLinTolerance                                      ! use normal (linear) or square decrease for forcing
+                                                                                    ! term of particles 
 REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
                                                                                     ! disables Armijo rule and uses a fixed value
 REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122

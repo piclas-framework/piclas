@@ -86,6 +86,7 @@ FreezePartInNewton =GETINT('FreezePartInNewton','1')
 EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
 PartgammaEW        =GETREAL('PartgammaEW','0.9')
 nPartNewton        =0
+PartNewtonLinTolerance  = GETLOGICAL('PartNewtonLinTolerance','.FALSE.')
 #elif defined(ROS)
 EisenstatWalker = .FALSE.
 #endif /*IMPA*/

@@ -195,7 +195,7 @@ USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
-USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate
+USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
 USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
@@ -398,7 +398,28 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   IF (t.GE.DelayTime) THEN
     ! now, we have an initial guess for the field  can compute the first particle movement
     IF(FullEisenstatWalker.GT.1)THEN
-      relTolerancePart=relTolerance
+      ! to enforce quadratic convergence, the tolerance of the linearsolver has to be reduced in a 
+      ! quadratic approach. this quadratic degrease can be to strong for the newton for the particles,
+      ! hence, this decrease should be still linear (cause the particle newton is a outer iteration)
+      IF(PartNewtonLinTolerance)THEN
+        etaA=FullgammaEW*Norm_R/(Norm_Rold) ! here the square
+        !SWRITE(*,*) 'etaA ', etaA
+        etaB=MIN(etaMax,etaA)
+        !SWRITE(*,*) 'etaB ', etaB
+        Criterion  =FullGammaEW*relTolerance    ! here the square
+        !SWRITE(*,*) 'criterion ', Criterion
+        IF(DoPrintConvInfo)THEN
+          SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' EW-Criterion     :', Criterion
+        END IF
+        IF(Criterion.LT.0.1)THEN
+          etaC=MIN(etaMax,etaA)
+        ELSE
+          etaC=MIN(etaMax,MAX(etaA,Criterion))
+        END IF
+        relTolerancePart=MIN(etaMax,MAX(etaC,0.5*taut/Norm_R))
+      ELSE
+        relTolerancePart=relTolerance
+      END IF
     ELSE
       relTolerancePart=SQRT(eps2PartNewton)
     END IF
