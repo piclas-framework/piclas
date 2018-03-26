@@ -269,6 +269,7 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
+REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles

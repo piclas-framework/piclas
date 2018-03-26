@@ -777,6 +777,9 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
   , 'Define type of adaptive boundary [$]\n'//&
     '[1] (STREAM INLET) with define temperature and pressure and pressurefraction\n'//&
     '[2] (STREAM OUTLET) with defined pressure and pressurefraction', '2', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveMacroRestartFileID'  &
+  , 'Define FileID of adaptive boundary [$] macro restart if macro restart is used' &
+    , '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptiveTemp'  &
   , 'Define temperature for adaptive particle boundary [$] (in [K])', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptivePressure'  &
@@ -930,6 +933,7 @@ USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
@@ -970,6 +974,8 @@ IF(useBGField) CALL InitializeBackgroundField()
 
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
+
+SDEALLOCATE(MacroRestartData_tmp) !might be used for adaptive BC initialization allocated in InitializeVariables()
 
 ! Initialize volume sampling
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
@@ -1067,7 +1073,6 @@ REAL, DIMENSION(3,1)  :: n,n1,n2
 REAL, DIMENSION(3,3)  :: rot1, rot2
 REAL                  :: alpha1, alpha2
 INTEGER               :: dummy_int
-REAL,ALLOCATABLE      :: MacroRestartData_tmp(:,:,:,:)
 INTEGER               :: MacroRestartFileID
 LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 INTEGER               :: FileID, iElem
@@ -1948,16 +1953,6 @@ __STAMP__&
 
   END DO ! iInit
 END DO ! iSpec 
-IF (nMacroRestartFiles.GT.0) THEN
-  IF (ALL(.NOT.MacroRestartFileUsed(:))) CALL abort(&
-  __STAMP__&
-  ,'None of defined Macro-Restart-Files used for any init!')
-  DO FileID = 1,nMacroRestartFiles
-    IF (.NOT.MacroRestartFileUsed(FileID)) THEN
-      SWRITE(*,*) "WARNING: MacroRestartFile: ",FileID," not used for any Init"
-    END IF
-  END DO
-END IF
 
 ! get information for IMD atom/ion charge determination and distribution
 IMDnSpecies         = GETINT('IMDnSpecies','1')
@@ -2022,11 +2017,13 @@ LiquidSimFlag = .FALSE.
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveMacroRestartFileID(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
 ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
 nAdaptiveBC = 0
 PartBound%Adaptive(:) = .FALSE.
 PartBound%AdaptiveType(:) = -1
+PartBound%AdaptiveMacroRestartFileID(:) = 0
 PartBound%AdaptiveTemp(:) = -1.
 PartBound%AdaptivePressure(:) = -1.
 
@@ -2071,7 +2068,12 @@ DO iPartBound=1,nPartBound
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
        PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+       PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
+       IF (PartBound%AdaptiveMacroRestartFileID(iPartBound).EQ.0) THEN
+         PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+       ELSE
+         MacroRestartFileUsed(PartBound%AdaptiveMacroRestartFileID(iPartBound)) = .TRUE.
+       END IF
        PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
        IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
          CALL abort(&
@@ -2153,6 +2155,17 @@ __STAMP__&
   PartBound%UseForQCrit(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
   SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
 END DO
+
+IF (nMacroRestartFiles.GT.0) THEN
+  IF (ALL(.NOT.MacroRestartFileUsed(:))) CALL abort(&
+  __STAMP__&
+  ,'None of defined Macro-Restart-Files used for any init!')
+  DO FileID = 1,nMacroRestartFiles
+    IF (.NOT.MacroRestartFileUsed(FileID)) THEN
+      SWRITE(*,*) "WARNING: MacroRestartFile: ",FileID," not used for any Init"
+    END IF
+  END DO
+END IF
 
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
