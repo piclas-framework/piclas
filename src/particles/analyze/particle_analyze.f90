@@ -215,23 +215,6 @@ IF (CalcPartBalance) THEN
   nPartInTmp=0
 #endif
 END IF
-CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
-IF (CalcVelos) THEN
-  DoAnalyze=.TRUE.
-  VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
-  VeloDirs(:) = .FALSE.
-  DO dir = 1,4
-    IF (VeloDirs_hilf(dir) .EQ. 1) THEN
-      VeloDirs(dir) = .TRUE.
-    END IF
-  END DO
-  IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
-      (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'No VelocityDirections set in CalcVelos!')
-  END IF
-END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
   printDiff=GETLOGICAL('printDiff','.FALSE.')
@@ -244,6 +227,27 @@ CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoAnalyze = .TRUE.
+CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
+IF (CalcVelos) THEN
+  DoAnalyze=.TRUE.
+  VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
+  VeloDirs(:) = .FALSE.
+  IF(.NOT.CalcNumSpec)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcNumSpec=.TRUE.'
+    CalcNumSpec = .TRUE.
+  END IF
+  DO dir = 1,4
+    IF (VeloDirs_hilf(dir) .EQ. 1) THEN
+      VeloDirs(dir) = .TRUE.
+    END IF
+  END DO
+  IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
+      (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'No VelocityDirections set in CalcVelos!')
+  END IF
+END IF
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 CalcSurfNumSpec = GETLOGICAL('CalcSurfNumSpec','.FALSE.')
 CalcSurfCoverage = GETLOGICAL('CalcSurfCoverage','.FALSE.')
