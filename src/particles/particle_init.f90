@@ -2071,15 +2071,22 @@ DO iPartBound=1,nPartBound
        PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
        IF (PartBound%AdaptiveMacroRestartFileID(iPartBound).EQ.0) THEN
          PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+         IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
        ELSE
+         IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
+           PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+           IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
+         END IF
          MacroRestartFileUsed(PartBound%AdaptiveMacroRestartFileID(iPartBound)) = .TRUE.
        END IF
        PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
-       IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
-         CALL abort(&
+       IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
 __STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp or -AdaptivePressure not defined')
-       END IF
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')

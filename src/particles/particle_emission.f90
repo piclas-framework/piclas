@@ -3935,7 +3935,8 @@ __STAMP__&
         GETREAL('Part-Boundary'//TRIM(hilf3)//'-Species'//TRIM(hilf)//'-Pressurefraction','0.')
       sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
         + Species(iSpec)%Surfaceflux(iSF)%PressureFraction
-      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0) THEN
+      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0 &
+          .OR. PartBound%AdaptiveType(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.1) THEN
         Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
         Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Surfaceflux(iSF)%PressureFraction &
           * PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC) &
@@ -4252,70 +4253,72 @@ DO iSpec=1,nSpecies
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin) 
         END IF !SimpleRadialVeloFit: check r-bounds
-        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-          vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
-          vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
-          vec_t2 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2
-          IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-            projFak = DOT_PRODUCT(vec_nIn,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !VeloVecIC projected to inwards normal
-          ELSE
-            projFak = 1.
-          END IF
-          v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
-          a = 0 !dummy for projected speed ratio in constant v-distri
-          !-- compute total volume flow rate through surface
-          SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
-          CASE('constant')
-            vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak !Velo proj. to inwards normal
-            nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
-          CASE('maxwell','maxwell_lpn')
-            IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
-              CALL abort(&
+        IF (noAdaptive) THEN
+          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+            vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
+            vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
+            vec_t2 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2
+            IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+              projFak = DOT_PRODUCT(vec_nIn,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !VeloVecIC projected to inwards normal
+            ELSE
+              projFak = 1.
+            END IF
+            v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
+            a = 0 !dummy for projected speed ratio in constant v-distri
+            !-- compute total volume flow rate through surface
+            SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
+            CASE('constant')
+              vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak !Velo proj. to inwards normal
+              nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+            CASE('maxwell','maxwell_lpn')
+              IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
+                CALL abort(&
 __STAMP__&
 ,'Something is wrong with the Surfaceflux parameters!')
-            END IF
-            a = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
-            vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
-            nVFR = tmp_SubSideAreas(iSample,jSample) * vSF !VFR projected to inwards normal of sub-side
-          CASE DEFAULT
-            CALL abort(&
+              END IF
+              a = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
+              vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
+              nVFR = tmp_SubSideAreas(iSample,jSample) * vSF !VFR projected to inwards normal of sub-side
+            CASE DEFAULT
+              CALL abort(&
 __STAMP__&
 ,'wrong velo-distri for Surfaceflux!')
-          END SELECT
-          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
-            IF (Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) THEN ! complete side is outside of valid bounds
-              nVFR = 0.
+            END SELECT
+            IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
+              IF (Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) THEN ! complete side is outside of valid bounds
+                nVFR = 0.
+              END IF
             END IF
-          END IF
-          Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
-          !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
-          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
-          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak = projFak
-          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn = a
-          IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
-              = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-              * DOT_PRODUCT(vec_t1,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t1-dir
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
-              = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-              * DOT_PRODUCT(vec_t2,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
-          ELSE
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 = 0. !v in t1-dir
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 = 0. !v in t2-dir
-          END IF! .NOT.VeloIsNormal
-          IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+            Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
+            !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
+            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
+            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak = projFak
+            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn = a
             IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-              ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                          ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
-              DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
-                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                   ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
-                  = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
-              END DO; END DO; END DO
-            END IF !.NOT.VeloIsNormal
-          END IF
-        END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
+                = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                * DOT_PRODUCT(vec_t1,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t1-dir
+              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
+                = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                * DOT_PRODUCT(vec_t2,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
+            ELSE
+              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 = 0. !v in t1-dir
+              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 = 0. !v in t2-dir
+            END IF! .NOT.VeloIsNormal
+            IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+              IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+                ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                                                                            ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
+                DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
+                  Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                                                                     ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
+                    = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
+                END DO; END DO; END DO
+              END IF !.NOT.VeloIsNormal
+            END IF
+          END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+        END IF
         IF (.NOT.noAdaptive) THEN
           ! initialize velocity, trans_temperature and density of macrovalues
           FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
