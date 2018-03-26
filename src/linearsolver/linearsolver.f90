@@ -86,6 +86,7 @@ CALL prms%CreateIntOption(      'FreezePartInNewton' , 'Fix matrix for n-iterati
 CALL prms%CreateRealOption(     'PartgammaEW'   , 'Drop of tolerance in particle-ew', '0.9')
 CALL prms%CreateRealOption(     'scaleps'   , 'Scaling factor for finite difference which approximates matrix-vector prod.', '1.')
 CALL prms%CreateLogicalOption(  'DoFullNewton' , 'Switch between normal Newton or optimized Newton with subiteration.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'PartNewtonLinTolerance' , 'Use linear or square decrease of tolerance for particle Newton', '.TRUE.')
 CALL prms%CreateIntOption(      'Part-ImplicitMethod' , 'Selection criterion for implicit particles. Only per species.', '1')
 CALL prms%CreateIntOption(      'nKDimPart' , 'Size up Krylov-subspace in GMRES(6) for particles. .', '6')
 

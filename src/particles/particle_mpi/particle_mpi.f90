@@ -225,7 +225,7 @@ PartCommSize   = PartCommSize + 1
 PartCommSize   = PartCommSize + 6
 ! F_PartXk
 PartCommSize   = PartCommSize + 6
-! Norm2_F_PartX0, Norm2_F_PartXK, Norm2_F_PartXK_old
+! Norm_F_PartX0, Norm2_F_PartXK, Norm_F_PartXK_old
 PartCommSize   = PartCommSize + 3
 ! DoPartInNewton
 PartCommSize   = PartCommSize + 1
@@ -585,7 +585,7 @@ USE MOD_Particle_Mesh_Vars,       ONLY:ElemToGlobalElemID
 USE MOD_PICInterpolation_Vars,    ONLY:FieldAtParticle
 #endif /*ROS or IMPLICIT*/
 #if defined(IMPA)
-USE MOD_Particle_Vars,            ONLY:F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
+USE MOD_Particle_Vars,            ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
                                      ,PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
@@ -798,9 +798,9 @@ DO iProc=1, PartMPI%nMPINeighbors
       jPos=jPos+6
       PartSendBuf(iProc)%content(jPos+1:jPos+6) = F_PartXk(1:6,iPart)
       jPos=jPos+6
-      PartSendBuf(iProc)%content(jPos+1)  = Norm2_F_PartX0    (iPart)
-      PartSendBuf(iProc)%content(jPos+2)  = Norm2_F_PartXK    (iPart)
-      PartSendBuf(iProc)%content(jPos+3) = Norm2_F_PartXK_old(iPart)
+      PartSendBuf(iProc)%content(jPos+1)  = Norm_F_PartX0    (iPart)
+      PartSendBuf(iProc)%content(jPos+2)  = Norm_F_PartXK    (iPart)
+      PartSendBuf(iProc)%content(jPos+3)  = Norm_F_PartXK_old(iPart)
       IF(DoPartInNewton(iPart))THEN
         PartSendBuf(iProc)%content(jPos+4) = 1.0
       ELSE
@@ -1205,7 +1205,7 @@ USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton &
+USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
                                      ,PartDeltaX,PartLambdaAccept,LastPartPos
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
@@ -1358,9 +1358,9 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+6
     F_PartXk(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
     jPos=jPos+6
-    Norm2_F_PartX0    (PartID) = PartRecvBuf(iProc)%content(jPos+1)
-    Norm2_F_PartXk    (PartID) = PartRecvBuf(iProc)%content(jPos+2)
-    Norm2_F_PartXk_Old(PartID) = PartRecvBuf(iProc)%content(jPos+3)
+    Norm_F_PartX0    (PartID) = PartRecvBuf(iProc)%content(jPos+1)
+    Norm_F_PartXk    (PartID) = PartRecvBuf(iProc)%content(jPos+2)
+    Norm_F_PartXk_Old(PartID) = PartRecvBuf(iProc)%content(jPos+3)
     IF(PartRecvBuf(iProc)%content(jPos+4).EQ.1.0)THEN
       DoPartInNewton(PartID) = .TRUE.
     ELSE

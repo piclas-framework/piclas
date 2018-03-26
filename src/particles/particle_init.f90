@@ -1058,23 +1058,23 @@ __STAMP__&
   ,'Cannot allocate F_PartXk arrays!')
 END IF
 ! and the required norms
-ALLOCATE(Norm2_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(Norm_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'Cannot allocate Norm2_F_PartX0 arrays!')
+  ,'Cannot allocate Norm_F_PartX0 arrays!')
 END IF
-ALLOCATE(Norm2_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(Norm_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'Cannot allocate Norm2_F_PartXk arrays!')
+  ,'Cannot allocate Norm_F_PartXk arrays!')
 END IF
-ALLOCATE(Norm2_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(Norm_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'Cannot allocate Norm2_F_PartXk_old arrays!')
+  ,'Cannot allocate Norm_F_PartXk_old arrays!')
 END IF
 ALLOCATE(PartDeltaX(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
