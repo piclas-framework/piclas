@@ -1403,16 +1403,25 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
       !Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.FALSE.')
       Species(iSpec)%Init(iInit)%UseForEmission        = .FALSE.
-      MacroRestartFileID = GETINT('Part-Species'//TRIM(hilf2)//'-MacroRestartFileID','0')
-      WRITE(UNIT=hilf3,FMT='(I0)') MacroRestartFileID
-      Species(iSpec)%Init(iInit)%ElemTemperatureFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTemperatureFileID',TRIM(hilf3))
-      Species(iSpec)%Init(iInit)%ElemPartDensityFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemPartDensityFileID',TRIM(hilf3))
-      Species(iSpec)%Init(iInit)%ElemVelocityICFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemVelocityICFileID',TRIM(hilf3))
-      IF (useDSMC) THEN
-        Species(iSpec)%Init(iInit)%ElemTVibFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTVibFileID',TRIM(hilf3))
-        Species(iSpec)%Init(iInit)%ElemTRotFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTRotFileID',TRIM(hilf3))
-        Species(iSpec)%Init(iInit)%ElemTElecFileID = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTElecFileID',TRIM(hilf3))
+      IF (nMacroRestartFiles.GT.0) THEN
+        MacroRestartFileID = GETINT('Part-Species'//TRIM(hilf2)//'-MacroRestartFileID','0')
+        WRITE(UNIT=hilf3,FMT='(I0)') MacroRestartFileID
+        Species(iSpec)%Init(iInit)%ElemTemperatureFileID = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTemperatureFileID',TRIM(hilf3))
+        Species(iSpec)%Init(iInit)%ElemPartDensityFileID = GETINT('Part-Species'//TRIM(hilf2)//'-ElemPartDensityFileID',TRIM(hilf3))
+        Species(iSpec)%Init(iInit)%ElemVelocityICFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemVelocityICFileID',TRIM(hilf3))
+        IF (useDSMC) THEN
+          Species(iSpec)%Init(iInit)%ElemTVibFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTVibFileID',TRIM(hilf3))
+          Species(iSpec)%Init(iInit)%ElemTRotFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTRotFileID',TRIM(hilf3))
+          Species(iSpec)%Init(iInit)%ElemTElecFileID = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTElecFileID',TRIM(hilf3))
+        ELSE
+          Species(iSpec)%Init(iInit)%ElemTVibFileID  = 0
+          Species(iSpec)%Init(iInit)%ElemTRotFileID  = 0
+          Species(iSpec)%Init(iInit)%ElemTElecFileID = 0
+        END IF
       ELSE
+        Species(iSpec)%Init(iInit)%ElemTemperatureFileID = 0
+        Species(iSpec)%Init(iInit)%ElemPartDensityFileID = 0
+        Species(iSpec)%Init(iInit)%ElemVelocityICFileID  = 0
         Species(iSpec)%Init(iInit)%ElemTVibFileID  = 0
         Species(iSpec)%Init(iInit)%ElemTRotFileID  = 0
         Species(iSpec)%Init(iInit)%ElemTElecFileID = 0
