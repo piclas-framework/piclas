@@ -1677,7 +1677,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
           IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(MolecpartNum.GT.0))THEN
                   DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
                       / MolecPartNum
-                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
+                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) &
                       / MolecPartNum
           END IF
           IF ( DSMC%ElectronicModel .AND.(HeavyPartNum.GT. 0)) THEN
@@ -2010,7 +2010,7 @@ DO iSpec=1,nSpecies
   StrVarNames(nVarCount+DSMC_TROT       )='Spec'//TRIM(SpecID)//'_TRot'
   StrVarNames(nVarCount+DSMC_TELEC      )='Spec'//TRIM(SpecID)//'_TElec'
   StrVarNames(nVarCount+DSMC_POINTWEIGHT)='Spec'//TRIM(SpecID)//'_PointWeight'
-  StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Spec'//TRIM(SpecID)//'_TempMean'
+  StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Spec'//TRIM(SpecID)//'_TTransMean'
   nVarCount=nVarCount+nVarloc
 END DO ! iSpec=1,nSpecies
 ! fill varnames for total values
@@ -2025,7 +2025,7 @@ StrVarNames(nVarCount+DSMC_TVIB       )='Total_TVib'
 StrVarNames(nVarCount+DSMC_TROT       )='Total_TRot'
 StrVarNames(nVarCount+DSMC_TELEC      )='Total_TElec'
 StrVarNames(nVarCount+DSMC_POINTWEIGHT)='Total_PointWeight'
-StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_Temp_Mean'
+StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_TTransMean'
 nVarCount=nVarCount+nVarloc
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
