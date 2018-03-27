@@ -2707,8 +2707,13 @@ INTEGER                          :: nVarAdditional
 INTEGER                          :: iFile, iSpec, iElem, iVar
 !===================================================================================================================================
 DO iFile = 1, nMacroRestartFiles
+  IF (nMacroRestartFiles.EQ.1) THEN
+    FileName = GETSTR('Part-MacroRestartFile')
+  ELSE
+    FileName = 'none'
+  END IF
   WRITE(UNIT=hilf,FMT='(I0)') iFile
-  FileName = GETSTR('Part-MacroRestartFile'//TRIM(hilf))
+  FileName = GETSTR('Part-MacroRestartFile'//TRIM(hilf),TRIM(FileName))
   IF (TRIM(FileName).EQ.'none') THEN
     CALL abort(&
 __STAMP__&
@@ -2764,12 +2769,12 @@ __STAMP__&
     SDEALLOCATE(State_HDF5)
     ALLOCATE(State_HDF5(1:nVar_HDF5,nElems))
     CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=State_HDF5(:,:))
-    DO iElem = 1, nElems
-      iVar = 1
-      DO iSpec = 1, nSpecies
+    iVar = 1
+    DO iSpec = 1, nSpecies
+      DO iElem = 1, nElems
         MacroRestartData(:,iElem,iSpec,iFile) = State_HDF5(iVar:iVar-1+DSMC_NVARS,iElem)
       END DO
-      iVar = iVar + DSMC_NVARS + nVarAdditional
+      iVar = iVar + DSMC_NVARS
     END DO
     SDEALLOCATE(State_HDF5)
   ELSE
