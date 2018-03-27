@@ -206,7 +206,7 @@ IF (CalcPartBalance) THEN
   nPartOut=0
   PartEkinOut=0.
   PartEkinIn=0.
-#if defined(LSERK) || defined(IMEX) || defined(IMPA) 
+#if defined(LSERK) || defined(ROS) || defined(IMPA) 
   SDEALLOCATE( nPartInTmp)
   SDEALLOCATE( PartEkinInTmp)
   ALLOCATE( nPartInTmp(nSpecies)     &
@@ -214,23 +214,6 @@ IF (CalcPartBalance) THEN
   PartEkinInTmp=0.
   nPartInTmp=0
 #endif
-END IF
-CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
-IF (CalcVelos) THEN
-  DoAnalyze=.TRUE.
-  VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
-  VeloDirs(:) = .FALSE.
-  DO dir = 1,4
-    IF (VeloDirs_hilf(dir) .EQ. 1) THEN
-      VeloDirs(dir) = .TRUE.
-    END IF
-  END DO
-  IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
-      (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'No VelocityDirections set in CalcVelos!')
-  END IF
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
@@ -244,6 +227,27 @@ CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoAnalyze = .TRUE.
+CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
+IF (CalcVelos) THEN
+  DoAnalyze=.TRUE.
+  VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
+  VeloDirs(:) = .FALSE.
+  IF(.NOT.CalcNumSpec)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcNumSpec=.TRUE.'
+    CalcNumSpec = .TRUE.
+  END IF
+  DO dir = 1,4
+    IF (VeloDirs_hilf(dir) .EQ. 1) THEN
+      VeloDirs(dir) = .TRUE.
+    END IF
+  END DO
+  IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
+      (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'No VelocityDirections set in CalcVelos!')
+  END IF
+END IF
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 CalcSurfNumSpec = GETLOGICAL('CalcSurfNumSpec','.FALSE.')
 CalcSurfCoverage = GETLOGICAL('CalcSurfCoverage','.FALSE.')
@@ -1957,8 +1961,8 @@ SUBROUTINE CalcParticleBalance()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: nPartIn,nPartOut,PartEkinIn,PartEkinOut
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars ,ONLY: nPartInTmp,PartEkinInTmp
 #endif
@@ -1972,7 +1976,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 nPartIn=nPartInTmp
 nPartOut=0

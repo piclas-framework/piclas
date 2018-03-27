@@ -395,7 +395,7 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif
 USE MOD_RecordPoints           ,ONLY: RecordPoints
-#if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
+#if defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #endif
 #ifdef LSERK
@@ -555,7 +555,7 @@ IF (CalcPoyntingInt) THEN
 END IF
 
 ! fill recordpoints buffer
-#if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
+#if defined(LSERK) || defined(IMPA) || (PP_TimeDiscMethod==110)
 IF(RP_onProc) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
@@ -588,7 +588,7 @@ IF (DoAnalyze)  THEN
   ELSE
     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+#if defined(IMPA) || defined(ROS)
       IF(iter.GE.1)THEN
 #else
       IF(iter.GT.1)THEN
