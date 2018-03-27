@@ -186,7 +186,7 @@ END FUNCTION ISVALIDMESHFILE
 !==================================================================================================================================
 !> Subroutine to determine HDF5 datasize
 !==================================================================================================================================
-SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,Size,attrib_opt)
+SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,IntSize,attrib)
 !===================================================================================================================================
 ! Subroutine to determine HDF5 datasize
 !===================================================================================================================================
@@ -197,7 +197,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*)                     :: DSetName  !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID    !< ID of datase
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib_opt    !< logical wether atrtibute or dataset
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib    !< logical wether atrtibute or dataset
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(OUT)                  :: nDims     !< found data size dimensions
@@ -206,14 +206,14 @@ INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: IntSize(:)   !< found data size
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: DSet_ID,FileSpace
 INTEGER(HSIZE_T), POINTER            :: SizeMax(:)
-LOGICAL                              :: attrib
+LOGICAL                              :: attrib_loc
 !===================================================================================================================================
-IF (PRESENT(attrib_opt)) THEN
-  attrib=attrib_opt
+IF (PRESENT(attrib)) THEN
+  attrib_loc=attrib
 ELSE
-  attrib=.FALSE.
+  attrib_loc=.FALSE.
 END IF
-IF(attrib)THEN
+IF(attrib_loc)THEN
   ! Open the dataset with default properties.
   CALL H5AOPEN_F(Loc_ID, TRIM(DSetName) , DSet_ID, iError)
   ! Get the data space of the dataset.
@@ -256,22 +256,22 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*)                     :: DSetName !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib_opt   !< check dataset or attribute 
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute 
 LOGICAL,INTENT(OUT)                  :: Exists   !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: DSet_ID
 INTEGER                              :: hdferr
-LOGICAL                              :: attrib
+LOGICAL                              :: attrib_loc
 !==================================================================================================================================
 CALL h5eset_auto_f(0, hdferr)
 ! Open the dataset with default properties.
-IF (PRESENT(attrib_opt)) THEN
-  attrib=attrib_opt
+IF (PRESENT(attrib)) THEN
+  attrib_loc=attrib
 ELSE
-  attrib=.FALSE.
+  attrib_loc=.FALSE.
 END IF
-IF(attrib)THEN
+IF(attrib_loc)THEN
   CALL H5AOPEN_F(Loc_ID, TRIM(DSetName), DSet_ID, iError)
   CALL H5ACLOSE_F(DSet_ID, iError)
 ELSE
