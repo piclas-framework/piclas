@@ -4688,19 +4688,12 @@ __STAMP__&
           IF ( (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) .OR. &
             (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0)) ) THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-              IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) THEN
-                IF (TriaSurfaceFlux) THEN
-                  ExtraParts = Adsorption%SumDesorbPart(1,1,SurfMesh%SideIDToSurfID(SideID),iSpec)
-                ELSE
-                  ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-                END IF
-              ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0))THEN
-                IF (TriaSurfaceFlux) THEN
-                  ExtraParts = Liquid%SumEvapPart(1,1,SurfMesh%SideIDToSurfID(SideID),iSpec)
-                ELSE
-                  ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-                END IF
-              ELSE
+              IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0) .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) ) THEN
+                ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+              ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0) &
+                  .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) )THEN
+                ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+              ELSE IF (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) THEN
                 CALL abort(&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: The code should not go here...')
