@@ -739,6 +739,7 @@ DO iPart=1,PDM%ParticleVecLength
       CALL PartMatrixVector(t,Coeff,iPart,DeltaX(:),Xtilde) ! coeff*Ut+Source^n+1 ! only output
       XTilde=XTilde+F_PartXK(1:6,iPart)
       CALL PartVectorDotProduct(Xtilde,Xtilde,Norm_PartX)
+      Norm_PartX=SQRT(Norm_PartX)
 !      IF(Norm2_PartX.GT.AbortTol*Norm2_F_PartXK(iPart))THEN
 !        Norm2_PartX = Norm2_PartX/Norm2_F_PartXk(iPart)
 !        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', deltaX
@@ -848,6 +849,7 @@ __STAMP__&
     F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
     ! if check, then here!
     DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
+    DeltaX_Norm=SQRT(DeltaX_Norm)
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(iPart.EQ.PARTOUT)THEN
@@ -873,6 +875,7 @@ __STAMP__&
       !ELSE
         ! check if residual is reduced
         CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm_PartX)
+        Norm_PartX=SQRT(Norm_PartX)
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
           IF(iPart.EQ.PARTOUT)THEN
@@ -1069,6 +1072,7 @@ tLBStart = LOCALTIME() ! LB Time Start
       F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm_PartX)
+      Norm_PartX=SQRT(Norm_PartX)
       !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
       IF(DoFullNewton)THEN
         ! accept lambda
