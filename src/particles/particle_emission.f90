@@ -2611,7 +2611,7 @@ CASE('maxwell_lpn')
        IF (Is_ElemMacro) THEN
          CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
        ELSE
-         IF (useVTKFileBGG .AND. Is_BGGas) THEN
+         IF (Species(FractNbr)%Init(0)%ElemPartDensityFileID.GT.0 .AND. Is_BGGas) THEN
            CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
          ELSE
            CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
@@ -3343,7 +3343,7 @@ SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species, BGGdataAtElem!, DoZigguratSampling
+USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species!, DoZigguratSampling
 !USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3370,12 +3370,12 @@ IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
   Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-ELSEIF (PRESENT(Element)) THEN
-  Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)! BGGdataAtElem(1,Element)
-  Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element) !BGGdataAtElem(2,Element)
-  Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element) !BGGdataAtElem(3,Element)
-  v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element) !BGGdataAtElem(4:6,Element)
-ELSEIF(PRESENT(Temperature))THEN
+ELSE IF (PRESENT(Element)) THEN
+  Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)
+  Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element)
+  Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element)
+  v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element)
+ELSE IF(PRESENT(Temperature))THEN
   Tx=Temperature
   Ty=Temperature
   Tz=Temperature

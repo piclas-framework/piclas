@@ -363,8 +363,6 @@ LOGICAL                                  :: PartPressRemParts                 ! 
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
 REAL, ALLOCATABLE                        :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
-LOGICAL                                  :: useVTKFileBGG                     ! Flag for BGG via VTK-File
-REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding

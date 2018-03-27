@@ -36,7 +36,7 @@ SUBROUTINE DSMC_vmpf_prob(iElem, iPair, NodeVolume)
 ! IMPLICIT VARIABLE HANDLING
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartMPF, useVTKFileBGG, BGGdataAtElem
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartMPF, Species
   USE MOD_Particle_Mesh_Vars,     ONLY : Geo
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_SpecXSec
@@ -73,8 +73,8 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
       IF (BGGas%BGGasSpecies.NE.0) THEN
-        IF (useVTKFileBGG) THEN
-          BGGasDensity_new=BGGdataAtElem(7,iElem)
+        IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0) THEN
+          BGGasDensity_new=Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity(iElem)
         ELSE
           BGGasDensity_new=BGGas%BGGasDensity
         END IF
@@ -115,8 +115,8 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
       ! generally this is only a HS calculation of the prob
       IF (BGGas%BGGasSpecies.NE.0) THEN
-        IF (useVTKFileBGG) THEN
-          BGGasDensity_new=BGGdataAtElem(7,iElem)
+        IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0) THEN
+          BGGasDensity_new=Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity(iElem)
         ELSE
           BGGasDensity_new=BGGas%BGGasDensity
         END IF

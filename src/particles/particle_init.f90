@@ -90,7 +90,6 @@ CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'TODO-DEFINE-PAR
 CALL prms%CreateRealOption(     'Part-DelayTime'              , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "During delay time the particles,"//&
                                                                     " won't be moved so the EM field can be evolved", '0.0')
-CALL prms%CreateLogicalOption(  'Particles-useVTKFileBGG'     , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-OutputVpiWarnings' , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Flag for warnings for rejected'//&
                                                                 ' v if VPI+PartDensity', '.FALSE.')
@@ -2335,8 +2334,6 @@ END DO ! iSpec = 1, nSpecies
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
-!-- Read Flag for BGG via VTK-File (needed for particles in general as asked for in set velocity!)
-useVTKFileBGG = GETLOGICAL('Particles-useVTKFileBGG','.FALSE.')
 !-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 

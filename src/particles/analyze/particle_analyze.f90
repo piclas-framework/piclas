@@ -2166,8 +2166,10 @@ IF(usevMPF)THEN ! for MPF differentiate between real particle number and simulat
     END IF
   END DO
   IF(BGGas%BGGasSpecies.NE.0) THEN
-    NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-    SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
+    !NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
+    !SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
+    NumSpec(BGGas%BGGasSpecies) = 0.
+    SimNumSpec(BGGas%BGGasSpecies) = 0
   END IF
   IF(nSpecAnalyze.GT.1)THEN
     NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
