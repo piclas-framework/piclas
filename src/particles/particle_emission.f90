@@ -2401,7 +2401,7 @@ CASE('constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        IF (Is_ElemMacro) THEN
+        IF (Is_ElemMacro .AND. Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
           PartState(PositionNbr,4:6) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%Element(PositionNbr))
         ELSE
           PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
@@ -2611,8 +2611,10 @@ CASE('maxwell_lpn')
        IF (Is_ElemMacro) THEN
          CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
        ELSE
-         IF (Species(FractNbr)%Init(0)%ElemPartDensityFileID.GT.0 .AND. Is_BGGas) THEN
-           CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
+         IF (Is_BGGas) THEN
+           CALL abort(&
+__STAMP__&
+,'ERROR in set velo for BGG: why is .NOT.Is_ElemMacro at this line?!?')
          ELSE
            CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
          END IF
@@ -3371,10 +3373,20 @@ IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
   Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
 ELSE IF (PRESENT(Element)) THEN
-  Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)
-  Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element)
-  Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element)
-  v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element)
+  IF (Species(FractNbr)%Init(iInit)%ElemTemperatureFileID.GT.0) THEN
+    Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)
+    Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element)
+    Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element)
+  ELSE
+    Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+    Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+    Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  END IF
+  IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
+    v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element)
+  ELSE
+    v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+  END IF
 ELSE IF(PRESENT(Temperature))THEN
   Tx=Temperature
   Ty=Temperature
