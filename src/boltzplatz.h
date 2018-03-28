@@ -136,3 +136,19 @@
 #define LB_UNFP          12
 #define LB_DGANALYZE     13
 #define LB_PARTANALYZE   14
+
+! DSMC_analyze indeces used in arrays
+#define DSMC_VELOX       1
+#define DSMC_VELOY       2
+#define DSMC_VELOZ       3
+#define DSMC_TEMPX       4
+#define DSMC_TEMPY       5
+#define DSMC_TEMPZ       6
+#define DSMC_DENSITY     7
+#define DSMC_TVIB        8
+#define DSMC_TROT        9
+#define DSMC_TELEC       10
+#define DSMC_POINTWEIGHT 11
+#define DSMC_TEMPMEAN    12
+
+#define DSMC_NVARS       12

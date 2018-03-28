@@ -21,7 +21,7 @@ END INTERFACE
 INTERFACE FinalizeParticleBoundarySampling
   MODULE PROCEDURE FinalizeParticleBoundarySampling
 END INTERFACE
- 
+
 INTERFACE WriteSurfSampleToHDF5
   MODULE PROCEDURE WriteSurfSampleToHDF5
 END INTERFACE
@@ -42,7 +42,7 @@ PUBLIC::ExchangeSurfData
 
 CONTAINS
 
-SUBROUTINE InitParticleBoundarySampling() 
+SUBROUTINE InitParticleBoundarySampling()
 !===================================================================================================================================
 ! init of particle boundary sampling
 ! default: use for sampling same polynomial degree as NGeo
@@ -145,10 +145,9 @@ SurfMesh%SideIDToSurfID(1:nTotalSides)=-1
 SurfMesh%nSides=0
 DO iSide=1,nBCSides
   IF(BC(iSide).EQ.0) CYCLE
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nSides = SurfMesh%nSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
-    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
 
@@ -156,10 +155,9 @@ END DO
 SurfMesh%nTotalSides=SurfMesh%nSides
 DO iSide=nSides+1,nTotalSides
   IF(BC(iSide).EQ.0) CYCLE
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nTotalSides = SurfMesh%nTotalSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nTotalSides
-    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nTotalSides
   END IF
 END DO
 
@@ -1079,10 +1077,10 @@ END DO ! iProc
 END SUBROUTINE ExchangeSurfData
 #endif /*MPI*/
 
-SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime) 
+SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
-! write the final values of the surface sampling to a HDF5 state file
-! additional performs all the final required computations
+!> write the final values of the surface sampling to a HDF5 state file
+!> additional performs all the final required computations
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1145,8 +1143,8 @@ nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 IF(SurfCOMM%MPIOutputRoot)THEN
 #endif
   CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-  Statedummy = 'DSMCSurfState'  
-  
+  Statedummy = 'DSMCSurfState'
+
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
@@ -1178,9 +1176,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+3) ='ForceZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
-  
+
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
-  
+
   CALL CloseDataFile()
   DEALLOCATE(Str2DVarNames)
 #ifdef MPI
@@ -1210,7 +1208,7 @@ CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
                     nVal=      (/nVar2D      ,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/nVarCount   ,          0,          0,offsetSurfSide/),&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
-                  
+
 CALL CloseDataFile()
 
 IF(SurfCOMM%MPIOutputROOT)THEN

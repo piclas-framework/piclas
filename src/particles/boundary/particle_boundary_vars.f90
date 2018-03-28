@@ -155,6 +155,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
   LOGICAL , ALLOCATABLE                  :: Adaptive(:)
   INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
+  INTEGER , ALLOCATABLE                  :: AdaptiveMacroRestartFileID(:)
   REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
   REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?

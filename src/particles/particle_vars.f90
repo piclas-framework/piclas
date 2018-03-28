@@ -171,6 +171,18 @@ TYPE tInit                                                                   ! P
   REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) for LD_insert or
                                                                              ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
+  INTEGER                                :: ElemTemperatureFileID
+  REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)
+  INTEGER                                :: ElemPartDensityFileID
+  REAL , ALLOCATABLE                     :: ElemPartDensity(:)
+  INTEGER                                :: ElemVelocityICFileID
+  REAL , ALLOCATABLE                     :: ElemVelocityIC(:,:)
+  INTEGER                                :: ElemTVibFileID
+  REAL , ALLOCATABLE                     :: ElemTVib(:)                      ! vibrational temperature [nElems]
+  INTEGER                                :: ElemTRotFileID
+  REAL , ALLOCATABLE                     :: ElemTRot(:)                      ! rotational temperature [nElems]
+  INTEGER                                :: ElemTelecFileID
+  REAL , ALLOCATABLE                     :: ElemTelec(:)                     ! electronic temperature [nElems]
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
                                                                              !               3 = user def. emission rate
@@ -235,6 +247,7 @@ TYPE typeSurfaceflux
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
+  REAL                                   :: rmin                             ! min radius of to-be inserted particles
   REAL                                   :: PressureFraction
 END TYPE
 
@@ -254,8 +267,10 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
+REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 TYPE tParticleElementMapping
@@ -348,8 +363,6 @@ LOGICAL                                  :: PartPressRemParts                 ! 
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
 REAL, ALLOCATABLE                        :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
-LOGICAL                                  :: useVTKFileBGG                     ! Flag for BGG via VTK-File
-REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding

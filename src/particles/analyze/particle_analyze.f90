@@ -121,10 +121,10 @@ CALL prms%CreateLogicalOption(  'CalcSurfRates'      , 'TODO-DEFINE-PARAMETER\n'
 CALL prms%CreateLogicalOption(  'CalcShapeEfficiency', 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Use efficiency methods for shape functions.'&
                                                      , '.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , "TODO-DEFINE-PARAMETER\n'//&
-                                                       'Choose between 'AllParts'and "//&
-                                                       "'SomeParts', to either use all particles or a certain percentage"//&
-                                                       " (ShapeEfficiencyNumber) of the currently used particles",'AllParts')
+CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Choose between "AllParts" and '//&
+                                                       '"SomeParts", to either use all particles or a certain percentage'//&
+                                                       ' (ShapeEfficiencyNumber) of the currently used particles','AllParts')
 CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Percentage of currently used particles is used.'&
                                                      ,'100')
@@ -2166,8 +2166,10 @@ IF(usevMPF)THEN ! for MPF differentiate between real particle number and simulat
     END IF
   END DO
   IF(BGGas%BGGasSpecies.NE.0) THEN
-    NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-    SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
+    !NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
+    !SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
+    NumSpec(BGGas%BGGasSpecies) = 0.
+    SimNumSpec(BGGas%BGGasSpecies) = 0
   END IF
   IF(nSpecAnalyze.GT.1)THEN
     NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
@@ -2278,7 +2280,11 @@ IF (CollisMode.GT.1) THEN
       END IF
     END DO
     IF(nSpecAnalyze.GT.1)THEN
-      TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+      IF(NumSpec(iSpec).NE.0) THEN
+        TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+      ELSE
+        TempTotal(nSpecAnalyze)= 0.
+      END IF
     END IF
   END IF
 ELSE
@@ -2376,7 +2382,11 @@ IF(PartMPI%MPIRoot)THEN
     END IF
   END DO
   IF(nSpecAnalyze.GT.1)THEN
-    Temp(nSpecAnalyze)= Temp(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+    IF(NumSpec(iSpec).NE.0) THEN
+      Temp(nSpecAnalyze)= Temp(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+    ELSE
+      Temp(nSpecAnalyze)= 0.
+    END IF
   END IF
 END IF
 #endif
