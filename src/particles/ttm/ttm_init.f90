@@ -29,8 +29,34 @@ END INTERFACE
 
 PUBLIC::InitTTM,FinalizeTTM,InitIMD_TTM_Coupling
 !===================================================================================================================================
+PUBLIC::DefineParametersTTM
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for Two temperature Model
+!==================================================================================================================================
+SUBROUTINE DefineParametersTTM()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("TTM")
+
+CALL prms%CreateLogicalOption(  'DoImportTTMFile'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                         'Read IMD Two-Temperature Model (TTM) data (FD grid)','.FALSE.')
+                                                         
+CALL prms%CreateStringOption(   'TTMLogFile'           , 'TODO-DEFINE-PARAMETER'//&
+                                                         'TTW Data file','no file specified')
+CALL prms%CreateStringOption(   'TTMFile'              , 'TODO-DEFINE-PARAMETER'//&
+                                                         'TTW Data file','no file found')
+CALL prms%CreateIntArrayOption( 'TTMGridFDdim'         , 'TODO-DEFINE-PARAMETER'//&
+                                                         'Number of FD grid cells in each direction','0 , 0 , 0')
+                                                     
+CALL prms%CreateRealOption(     'TTMElemBaryTolerance' , 'TODO-DEFINE-PARAMETER'//&
+                                                         'TTM FD bary center tolerance to DG bary center','1e-6')
+
+END SUBROUTINE DefineParametersTTM
 
 SUBROUTINE InitTTM()
 !===================================================================================================================================
@@ -103,12 +129,12 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT TTM (IMD Two-Temperature Model) ...'
 
 DoImportTTMFile = GETLOGICAL('DoImportTTMFile','.FALSE.')
-TTMLogFile      = TRIM(GETSTR('TTMLogFile',''))
+TTMLogFile      = TRIM(GETSTR('TTMLogFile','no file specified'))
 
 IF(DoImportTTMFile.EQV..TRUE.)THEN
   IF(DoRestart.EQV..FALSE.)THEN ! if no restart is performed: read the TTM field data from *.ttm file
-    TTMFile   =TRIM(GETSTR('TTMFile',''))
-    IF((TRIM(TTMFile).NE.'').AND.(TRIM(TTMLogFile).NE.''))THEN
+    TTMFile   =TRIM(GETSTR('TTMFile','no file found'))
+    IF((TRIM(TTMFile).NE.'no file found').AND.(TRIM(TTMLogFile).NE.'no file specified'))THEN
       ! get FD grid array dimension in x, y and z direction
       TTMGridFDdim=GETINTARRAY('TTMGridFDdim',3,'0 , 0 , 0')
       ! get FD grid element bary center tolerance for checking distance to elem bary center distance of DG cells

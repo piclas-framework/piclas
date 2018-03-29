@@ -1,4 +1,16 @@
 !=================================================================================================================================
+! Copyright (c) 2010-2016  Prof. Claus-Dieter Munz 
+! This file is part of FLEXI, a high-order accurate framework for numerically solving PDEs with discontinuous Galerkin methods.
+! For more information see https://www.flexi-project.org and https://nrg.iag.uni-stuttgart.de/
+!
+! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
+! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+!
+! FLEXI is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
+!=================================================================================================================================
 !
 ! ATTENTION:
 ! The routines 'clear_formatting', 'set_formatting', 'get_escape_sequence' and 'split_string' are copied from the fortran output 
@@ -82,6 +94,18 @@ INTERFACE clear_formatting
   MODULE PROCEDURE clear_formatting
 END INTERFACE
 
+INTERFACE GetFileExtension
+  MODULE PROCEDURE GetFileExtension
+END INTERFACE
+
+INTERFACE KEYVALUE
+  MODULE PROCEDURE KEYVALUE
+END INTERFACE
+
+INTERFACE split_string
+  MODULE PROCEDURE split_string
+END INTERFACE
+
 PUBLIC :: LowCase
 PUBLIC :: STRICMP
 PUBLIC :: StripSpaces
@@ -89,16 +113,21 @@ PUBLIC :: INTTOSTR
 PUBLIC :: ISINT
 PUBLIC :: set_formatting
 PUBLIC :: clear_formatting
+PUBLIC :: GetFileExtension
+PUBLIC :: KEYVALUE
+PUBLIC::  split_string
 
 LOGICAL :: use_escape_codes = .TRUE.  !< If set to .FALSE., output will consist only of standard text, allowing the 
                                       !< escape characters to be switched off in environments which don't support them.
-PUBLIC :: use_escape_codes                                      
+LOGICAL :: use_escape_codes_read = .FALSE.  !< Flag set .TRUE. if use_escape_codes was read so 
+                                            !< if further read no more read in is done
+PUBLIC :: use_escape_codes,use_escape_codes_read
 !==================================================================================================================================
 
 CONTAINS
 
 !==================================================================================================================================
-!> Transform upper case letters in "Str1" into lower case letters, result is "Str2" (in place version)
+!> Transform upper case letters in "Str1" into lower case letters, result is "Str1" (in place version)
 !==================================================================================================================================
 SUBROUTINE LowCase_overwrite(Str1)
 ! MODULES
@@ -380,5 +409,46 @@ IF (use_escape_codes) THEN
   SWRITE(UNIT_stdOut, '(3A1)', ADVANCE="NO") (/ CHAR(27), '[', 'm' /)
 END IF
 END SUBROUTINE clear_formatting
+
+!==================================================================================================================================
+!> Returns the file extension (everything behind last .)
+!==================================================================================================================================
+FUNCTION GetFileExtension(filename) 
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+CHARACTER(LEN=*),INTENT(IN)  :: filename
+CHARACTER(LEN=:),ALLOCATABLE :: GetFileExtension
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iExt,fileExtensionLenght
+!===================================================================================================================================
+iExt=INDEX(filename,'.',BACK = .TRUE.) ! Position of file extension
+fileExtensionLenght = LEN_TRIM(filename) - iExt
+ALLOCATE(CHARACTER(fileExtensionLenght) :: GetFileExtension)
+GetFileExtension = filename(iExt+1:LEN_TRIM(filename))
+END FUNCTION GetFileExtension
+
+!==================================================================================================================================
+!> Retrieves value from key-value pairs stored as arrays
+!==================================================================================================================================
+FUNCTION KEYVALUE(keys,values,key)
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN) :: keys(:)
+CHARACTER(LEN=*),INTENT(IN)   :: key
+INTEGER,INTENT(IN)            :: values(:)
+INTEGER                       :: KEYVALUE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i
+!===================================================================================================================================
+IF (SIZE(keys,1).NE.SIZE(values,1)) STOP 'Key and value arrays have different size.'
+DO i=1,SIZE(keys,1)
+  IF (STRICMP(keys(i),key)) THEN
+    KEYVALUE = values(i)
+    RETURN
+  END IF
+END DO
+STOP 'Key not found'
+END FUNCTION KEYVALUE
 
 END MODULE MOD_StringTools

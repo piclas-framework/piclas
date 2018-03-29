@@ -48,8 +48,47 @@ PUBLIC::StartExchangeMPIData_Pois
 PUBLIC::VolInt_Pois,FillFlux_Pois, ProlongToFace_Pois, SurfInt_Pois
 PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping,EvalGradient,CalcSource_Pois,DivCleaningDamping_Pois
 !===================================================================================================================================
-
+PUBLIC::DefineParametersEquation
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for equation
+!==================================================================================================================================
+SUBROUTINE DefineParametersEquation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Equation")
+
+CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Multiplied with c0 results in the velocity of '//&
+                                                     'introduced artificial correcting waves (HDC)' , '1.')
+CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Velocity of light (in vacuum)' , '1.')
+CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Electric constant (vacuum permittivity)' , '1.')
+CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
+                                                   , '1.')
+CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Apply the damping factor also to PML source terms but only'//&
+                                                     'to PML variables for Phi_E and Phi_B to prevent charge-related'//&
+                                                     'instabilities (accumulation of divergence compensation over '//&
+                                                     'timeU2 = U2 * fDamping' , '0.999')
+CALL prms%CreateRealOption(     'fDamping_pois'    , 'TODO-DEFINE-PARAMETER' , '0.99')
+CALL prms%CreateLogicalOption(  'ParabolicDamping' , 'TODO-DEFINE-PARAMETER' , '.FALSE.')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n\n'//&
+                                                     'Define exact function necessary for '//&
+                                                     'linear scalar advection')
+
+CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER\n\n'//&
+                                                     'Modified for curved and shape-function influence'//&
+                                                     ' (c*dt*SafetyFactor+r_cutoff)' , '1.0')
+
+END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================

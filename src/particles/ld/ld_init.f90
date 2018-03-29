@@ -18,8 +18,39 @@ END INTERFACE
 
 PUBLIC :: InitLD, CalcDegreeOfFreedom
 !===================================================================================================================================
+PUBLIC::DefineParametersLD
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for LD (Low diffusion)
+!==================================================================================================================================
+SUBROUTINE DefineParametersLD()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms
+!USE MOD_AnalyzeEquation ,ONLY: DefineParametersAnalyzeEquation
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("LD")
+
+CALL prms%CreateIntOption(      'LD-ModelForMultiTemp' ,'TODO-DEFINE-PARAMETER\n'//&
+                                                        'Modell choice for MultiTemperature (see Paper)\n'//&
+                                                        '0 = no MultiTemperature Modeling\n'//&
+                                                        '1 = LD1 \n'//&
+                                                        '2 = LD2\n'//&
+                                                        '3 = LD3', '0')
+CALL prms%CreateRealOption(     'LD-InitialGuess'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            '2nd guess, plus user defined value[m/s], (default 10 m/s)','10')
+CALL prms%CreateIntOption(      'LD-MaxIterNumForLagVelo' , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Max. number of iterations for LAGRANGIAN vell calculation' , '100')
+CALL prms%CreateRealOption(     'LD-AccuracyForLagVelo'   , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Accuracy for LAGRANGIAN velocity calculation', '0.001')
+CALL prms%CreateRealOption(     'LD-RepositionsFaktor'    , 'TODO-DEFINE-PARAMETER','0.0')
+CALL prms%CreateRealOption(     'LD-RelaxationsFaktor'    , 'TODO-DEFINE-PARAMETER','0.0')
+CALL prms%CreateRealOption(     'LD-DSMC-RelaxationsFaktorForBufferA'         , 'TODO-DEFINE-PARAMETER','0.0')
+CALL prms%CreateLogicalOption(  'LD_CalcResidual'         , 'TODO-DEFINE-PARAMETER','.FALSE.')
+
+END SUBROUTINE DefineParametersLD
 
 SUBROUTINE InitLD()
 !===================================================================================================================================
@@ -169,7 +200,7 @@ __STAMP__&
   DO iSpec = 1, nSpecies
     IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
       IF (.NOT.((CollisMode.EQ.2).OR.(CollisMode.EQ.3))) THEN
-        WRITE(UNIT=hilf,FMT='(I2)') iSpec
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
         SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib','0.')  
         SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
       END IF

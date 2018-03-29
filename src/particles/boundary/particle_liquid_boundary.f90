@@ -105,6 +105,7 @@ IF (.NOT.SurfMesh%SurfOnProc) RETURN
       LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfSideToGlobSideMap(iSurfSide))))
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
+          ! Antoine parameters defined in ini file are chosen so pressure given is in bar
           A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
           B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
           C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
@@ -195,6 +196,7 @@ END DO ! iProc
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   iPos=0
+  CondensSendBuf(iProc)%content_int = 0
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
     DO q=1,nSurfSample
@@ -253,7 +255,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
   CondensRecvBuf(iProc)%content_int = 0
-  CondensSendBuf(iProc)%content_int = 0
 END DO ! iProc
 
 END SUBROUTINE ExchangeCondensNum

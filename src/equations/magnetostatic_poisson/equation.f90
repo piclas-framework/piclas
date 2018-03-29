@@ -28,8 +28,43 @@ END INTERFACE
 
 PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG
 !===================================================================================================================================
-
+PUBLIC::DefineParametersEquation
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for equation
+!==================================================================================================================================
+SUBROUTINE DefineParametersEquation()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Equation")
+
+!CALL prms%CreateRealOption(     'c_corr'          , 'TODO-DEFINE-PARAMETER multiplied with c0 results in the velocity of '//&
+!                                                     'introduced artificial correcting waves (HDC)' , '1.')
+CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Velocity of light (in vacuum)' , '1.')
+CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Electric constant (vacuum permittivity)' , '1.')
+CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
+                                                   , '1.')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Define exact function necessary for '//&
+                                                     'linear scalar advection')
+CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
+CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
+CALL prms%CreateRealOption(     'IniAmplitude'     , 'TODO-DEFINE-PARAMETER' , '0.1')
+CALL prms%CreateRealOption(     'IniHalfwidth'     , 'TODO-DEFINE-PARAMETER' , '0.1')
+
+CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
+CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                     'Modified for curved and shape-function influence'//&
+                                                     ' (c*dt*SafetyFactor+r_cutoff)' , '1.0')
+
+END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================

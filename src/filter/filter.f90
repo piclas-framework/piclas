@@ -25,8 +25,24 @@ PUBLIC :: InitFilter
 PUBLIC :: Filter
 PUBLIC :: FinalizeFilter
 !===================================================================================================================================
-
+PUBLIC :: DefineParametersFilter
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for surfaces (particle-sides)
+!==================================================================================================================================
+SUBROUTINE DefineParametersFilter()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Filter")
+
+CALL prms%CreateIntOption(      'FilterType'      , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealArrayOption('HestFilterParam' , 'TODO-DEFINE-PARAMETER', '36. , 12. , 1.')
+
+END SUBROUTINE DefineParametersFilter
 
 SUBROUTINE InitFilter()
 !===================================================================================================================================
