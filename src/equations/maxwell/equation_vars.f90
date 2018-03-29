@@ -40,7 +40,7 @@ REAL              :: E_0(1:3)                               !> electric field ve
 REAL              :: BeamEta                                !> impedance factor (2*impedance): BeamEta=2.*SQRT(mu0/eps0)
 REAL              :: BeamWaveNumber                         !> wave number: BeamWaveNumber= 2*pi/WaveLength
 REAL              :: BeamOmegaW                             !> angular frequency: BeamOmegaW = WaveNumber*c
-INTEGER           :: BeamIdir1,BeamIdir2,BeamIdir3          !> wave beam direction aux variables
+INTEGER           :: BeamIdir1,BeamIdir2,BeamMainDir          !> wave beam direction aux variables
 REAL              :: WaveVector(1:3)                        !> wave vector
 REAL              :: WaveLength                             !> wave length
 REAL,DIMENSION(3) :: WaveBasePoint                          !> wave base point || origin
