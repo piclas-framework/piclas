@@ -787,10 +787,10 @@ CASE(16) ! 3 of 3: Gauß-shape with perfect focus (w(z)=w_0): initial & boundary
       timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
       resu(1:3)=BeamAmpFac*spatialWindow*E_0*timeFac
     ELSE ! boundary condiction: BC
-      tShiftBC=t+(WaveBasePoint(BeamIdir3)-x(3))/c ! shift to wave base point position
+      tShiftBC=t+(WaveBasePoint(BeamIdir3)-x(BeamIdir3))/c ! shift to wave base point position
       ! intensity * Gaussian filter in transversal and longitudinal direction
-    spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&                                   ! <------ NEW formulation
-                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*somega_0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
+      spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&                                   ! <------ NEW formulation
+                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*somega_0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
      !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&               ! <------- OLD formulation
                            !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)  ! <------- OLD formulation
      !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
