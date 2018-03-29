@@ -49,7 +49,7 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Analyze")
-CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.TRUE.')
+CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N.')
