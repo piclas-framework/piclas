@@ -87,6 +87,8 @@ CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER'
 CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER\n'//&
                                                          'Tolerance in plane searching', '1E-5')
+CALL prms%CreateIntOption(    'PoyntingMainDir'        , 'Direction in which the Poynting vector integral is to be measured. '//& 
+                                                         '\n1: x \n2: y \n3: z (default)')
 
 END SUBROUTINE DefineParametersAnalyze
 
