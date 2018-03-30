@@ -155,7 +155,7 @@ SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars          ,ONLY: isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,PoyntingMainDir
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S
 USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
 USE MOD_DG_Vars            ,ONLY: U,U_master
@@ -311,15 +311,15 @@ DO iELEM = 1, nElems
           CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
         END IF
         
-        IF ( NormVec(3,0,0,SideID) .GT. 0 ) THEN
+        IF ( NormVec(PoyntingMainDir,0,0,SideID) .GT. 0 ) THEN
           SIP(:,:) = S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
                    + S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
                    + S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
-        ELSE ! NormVec(3,:,:,iPoyningSide) < 0
+        ELSE ! NormVec(PoyntingMainDir,:,:,iPoyningSide) < 0
           SIP(:,:) =-S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
                    - S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
                    - S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
-        END IF ! NormVec(3,:,:,iPoyntingSide)
+        END IF ! NormVec(PoyntingMainDir,:,:,iPoyntingSide)
         ! multiplied by surface element and  Gaus Points
         SIP(:,:) = SIP(:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:)
 
@@ -487,7 +487,7 @@ SUBROUTINE GetPoyntingIntPlane()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars       ,ONLY: nPoyntingIntSides,isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane
-USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec
+USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec,PoyntingMainDir
 USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,PoyntingIntPlaneFactor,S,STEM
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,DielectricMuR,ElemToDielectric,isDielectricInterFace
@@ -511,6 +511,7 @@ CHARACTER(LEN=32)   :: index_plane
 INTEGER,ALLOCATABLE :: sumFaces(:)
 INTEGER             :: sumAllfaces
 LOGICAL             :: CheckDielectricSides
+INTEGER             :: PoyntingNormalDir1,PoyntingNormalDir2
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
@@ -522,6 +523,22 @@ isPoyntingIntSide = .FALSE.
 
 ! Get the number of Poynting planes and coordinates
 nPoyntingIntPlanes = GETINT('PoyntingVecInt-Planes','0')
+PoyntingMainDir = GETINT('PoyntingMainDir','3') ! default "3" is z-direction 
+SELECT CASE (PoyntingMainDir)
+  CASE (1) ! poynting vector integral in x-direction
+    PoyntingNormalDir1=2
+    PoyntingNormalDir2=3
+  CASE (2) ! poynting vector integral in y-direction
+    PoyntingNormalDir1=1
+    PoyntingNormalDir2=3
+  CASE (3) ! poynting vector integral in z-direction
+    PoyntingNormalDir1=1
+    PoyntingNormalDir2=2
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,'Poynting vector itnegral currently only in x,y,z!')
+END SELECT
 ALLOCATE(PosPoyntingInt(nPoyntingIntPlanes))
 ALLOCATE(PoyntingIntPlaneFactor(nPoyntingIntPlanes))
 ALLOCATE(whichPoyntingPlane(nSides))
@@ -532,7 +549,14 @@ nFaces(:) = 0
 ! Get z-coordinates and factors for every Poynting plane
 DO iPlane=1,nPoyntingIntPlanes
  WRITE(UNIT=index_plane,FMT='(I2.2)') iPlane 
- PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord','0.')
+  SELECT CASE (PoyntingMainDir)
+    CASE (1)
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-x-coord','0.')
+    CASE (2)
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-y-coord','0.')
+    CASE (3)
+      PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord','0.')
+END SELECT
  PoyntingIntPlaneFactor= GETREAL('Plane-'//TRIM(index_plane)//'-factor','1.')
 END DO
 PoyntingIntCoordErr=GETREAL('Plane-Tolerance','1E-5')
@@ -551,25 +575,24 @@ END IF
 ! 2.) for dielectric sides (NOT interface sides between dielectric and some other region), determine mu_r on face for Poynting vector
 PoyntingUseMuR_Inv=.FALSE.
 
-! loop over all planes
+! Loop over all planes
 DO iPlane = 1, nPoyntingIntPlanes
-  ! loop over all elements
+  ! Loop over all elements
   DO iElem=1,nElems
-    ! loop over all local sides
+    ! Loop over all local sides
     DO iSide=1,6
       IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
         SideID=ElemToSide(E2S_SIDE_ID,iSide,iElem)
-        ! first search only planes with normal vector parallel to gyrotron axis
-        IF(( NormVec(1,0,0,SideID) < PoyntingIntCoordErr) .AND. &
-           ( NormVec(2,0,0,SideID) < PoyntingIntCoordErr) .AND. &
-           ( ABS(NormVec(3,0,0,SideID)) > PoyntingIntCoordErr))THEN
-        ! loop over all Points on Face
+        ! First search only planes with normal vector parallel to direction of "MainDir"
+        IF((     NormVec(PoyntingNormalDir1,0,0,SideID)  < PoyntingIntCoordErr) .AND. &
+           (     NormVec(PoyntingNormalDir2,0,0,SideID)  < PoyntingIntCoordErr) .AND. &
+           ( ABS(NormVec(PoyntingMainDir   ,0,0,SideID)) > PoyntingIntCoordErr))THEN
+        ! Loop over all Points on Face
           DO q=0,PP_N
             DO p=0,PP_N
-              diff = ABS(Face_xGP(3,p,q,SideID) - PosPoyntingInt(iPlane))
+              diff = ABS(Face_xGP(PoyntingMainDir,p,q,SideID) - PosPoyntingInt(iPlane))
               IF (diff < PoyntingIntCoordErr) THEN
                 IF (.NOT.isPoyntingIntSide(SideID)) THEN
-                  !print*,Face_xGP(:,p,q,SideID),SideID
                   nPoyntingIntSides = nPoyntingIntSides +1
                   whichPoyntingPlane(SideID) = iPlane
                   isPoyntingIntSide(SideID) = .TRUE.
@@ -580,7 +603,7 @@ DO iPlane = 1, nPoyntingIntPlanes
                     ! 1.) Check for illegal sides in dielectrics: mu_r != 1.0 on dielectric interface
                     IF(isDielectricInterFace(SideID))THEN
                       IF(ANY(ABS(DielectricMu(:,:,:,ElemToDielectric(iElem))-1.0).GT.0.0))THEN
-                        ! if the Poynting vector integral SideID additionally is a dielectric interface between a dielectric region
+                        ! If the Poynting vector integral SideID additionally is a dielectric interface between a dielectric region
                         ! with a permittivity and vacuum, then mu_r might be unequal to 1.0 on the interface and the calculation of
                         ! the Poynting vector is not implemented for this case
                         IPWRITE(UNIT_stdOut,*) " "
@@ -604,12 +627,8 @@ DO iPlane = 1, nPoyntingIntPlanes
                   END IF
                   
                 END IF
-              !EXIT
               END IF ! diff < eps
             END DO !p
-            IF (diff < PoyntingIntCoordErr) THEN
-            ! EXIT
-            END IF
           END DO !q
         END IF ! n parallel gyrotron axis
       END IF ! flip = 0 master side
@@ -619,7 +638,7 @@ END DO ! iPlanes
 
 ! Dielectric sides:
 #ifdef MPI
-! Send info to all procs:
+! Send info to ALL MPI ranks:
 ! TODO: If 1/mu_r is never needed on master AND slave procs, this routine can be adjusted so that only master procs determine the
 ! prolonged values of mu_r and no MPI information has to be sent. The master side cannot currently be outside of the dielectric
 ! region (e.g. in vacuum) because that is not allowed. If this would be allowed that MPI rank would need the information of the
