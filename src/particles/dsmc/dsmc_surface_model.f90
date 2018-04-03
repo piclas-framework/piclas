@@ -123,33 +123,19 @@ IF (DSMC%WallModel.GT.0) THEN
                 ! convert to integer adsorbates
                 new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
                 IF (new_adsorbates.NE.0) THEN
-                  ! check if new_adsorbates lower than number of adsorbates tracked on surface and correct to be removed number
-                  ! the remaining number of to be removed particles is still kept
-                  IF ((new_adsorbates.LT.0).AND.(ABS(new_adsorbates).GT.&
-                    INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3)))) THEN
-                    new_adsorbates = -INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3))
-                  END IF
                   ! Adjust tracking of adsorbing background particles
+                  CALL AdjustReconstructMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
                   SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                                                                     - new_adsorbates
-                  CALL AdjustReconstructMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
                 END IF
-              ELSE ! additional check if coverage increased but adsorbnum_tmp is lower than zero
-                IF ((ABS(INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))).GT.0).AND.(coverage_corrected.GT.0.)) THEN
-                  ! convert to integer adsorbates
-                  new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-                  IF (new_adsorbates.NE.0) THEN
-                    ! check if new_adsorbates lower than number of adsorbates tracked on surface and correct to be removed number
-                    ! the remaining number of to be removed particles is still kept
-                    IF ((new_adsorbates.LT.0).AND.(ABS(new_adsorbates).GT.&
-                      INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3)))) THEN
-                      new_adsorbates = -INT(Adsorption%Coverage(p,q,iSurfSide,iSpec)*SurfDistInfo(p,q,iSurfSide)%nSites(3))
-                    END IF
-                    ! Adjust tracking of adsorbing background particles
-                    SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                                                                      - new_adsorbates
-                    CALL AdjustReconstructMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
-                  END IF
+              ELSE ! additional check if coverage changed but adsorbnum_tmp is not zero while sumadsorbpart is
+                ! convert to integer adsorbates
+                new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
+                IF (new_adsorbates.NE.0) THEN
+                  ! Adjust tracking of adsorbing background particles
+                  CALL AdjustReconstructMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
+                  SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                                                                    - new_adsorbates
                 END IF
               END IF ! SumAdsorbPart!=0
               Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
@@ -2280,6 +2266,8 @@ SUBROUTINE AdjustReconstructMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_nu
 !===================================================================================================================================
 !> Routine for adjusting the number of Adsorbates of adsorbates background distribution (wallmodel 3)
 !> if adsorption took place in CalcBackgndPartAdsorb and Coverage changed sufficiently (depending on particle weighting)
+!> if more particles are adsorbed than space left on surface then adsoprtion number is adjusted
+!> same for case if too many particles are removed from surface
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2293,7 +2281,8 @@ USE MOD_DSMC_Vars              ,ONLY: Adsorption, SurfDistInfo
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec
+INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,iSpec
+INTEGER,INTENT(INOUT)            :: adsorbates_num
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: dist, PartBoundID
@@ -2307,11 +2296,14 @@ IF (adsorbates_num.GT.0) THEN
   dist = 1
   Coord = Adsorption%Coordination(PartBoundID,iSpec)
   Surfnum = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+  ! check if new_adsorbates greater than number of empty adsorbate-sites on surface and correct to be added number
+  ! the remaining number of to be added particles is still kept in tmp array
   IF ((SurfNum - adsorbates_num).LT.0) THEN
-    CALL abort(&
-__STAMP__&
-,'Error in AdjustReconstructMapNum: Too many new Adsorbates! not enough Sites for Coordination:' &
-,Adsorption%Coordination(PartBoundID,iSpec))
+!    CALL abort(&
+!__STAMP__&
+!,'Error in AdjustReconstructMapNum: Too many new Adsorbates! not enough Sites for Coordination:' &
+!,Adsorption%Coordination(PartBoundID,iSpec))
+    adsorbates_num = SurfNum
   END IF
   DO WHILE (dist.LE.adsorbates_num)
     CALL RANDOM_NUMBER(RanNum)
@@ -2340,6 +2332,15 @@ ELSE IF (adsorbates_num.LT.0) THEN
   nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
   nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
   Surfnum = nSites - nSitesRemain
+  ! check if new_adsorbates lower than number of adsorbates tracked on surface and correct to be removed number
+  ! the remaining number of to be removed particles is still kept in tmp array
+  IF ((SurfNum - ABS(adsorbates_num)).LT.0) THEN
+!    CALL abort(&
+!__STAMP__&
+!,'Error in AdjustReconstructMapNum: Too few Adsorbates on surface to remove:' &
+!,Adsorption%Coordination(PartBoundID,iSpec))
+    adsorbates_num = -SurfNum
+  END IF
   DO WHILE (dist.GE.adsorbates_num)
     CALL RANDOM_NUMBER(RanNum)
     Surfpos = 1 + INT(Surfnum * RanNum)
