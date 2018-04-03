@@ -2225,7 +2225,7 @@ END IF ! mode 1/2
 
 END SUBROUTINE SetParticlePosition
 
-SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf,Is_BGGas_opt)
+SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf)
 !===================================================================================================================================
 ! Determine the particle velocity of each inserted particle
 !===================================================================================================================================
@@ -2242,7 +2242,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: FractNbr,iInit,init_or_sf                                                  
-LOGICAL, OPTIONAL                :: Is_BGGas_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)            :: NbrOfParticle            
@@ -2255,7 +2254,7 @@ REAL                             :: II(3,3),JJ(3,3),NN(3,3)
 INTEGER                          :: distnum,Rotation
 REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01,y_02, RandVal1
 REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
-LOGICAL                          :: Is_BGGas, Is_ElemMacro
+LOGICAL                          :: Is_ElemMacro
 REAL                             :: sigma(3), ftl, PartVelo 
 REAL                             :: RandN_save
 LOGICAL                          :: RandN_in_Mem
@@ -2279,12 +2278,6 @@ REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u
 REAL                             :: VelocitySpread                         ! widening of init velocity
 REAL                             :: vMag2                                  ! magnitude of velocity
 !===================================================================================================================================
-
-IF (PRESENT(Is_BGGas_opt)) THEN
-  Is_BGGas=Is_BGGas_opt
-ELSE
-  Is_BGGas=.FALSE.
-END IF
 
 IF(NbrOfParticle.lt.1) RETURN
    IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
@@ -2611,13 +2604,7 @@ CASE('maxwell_lpn')
        IF (Is_ElemMacro) THEN
          CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
        ELSE
-         IF (Is_BGGas) THEN
-           CALL abort(&
-__STAMP__&
-,'ERROR in set velo for BGG: why is .NOT.Is_ElemMacro at this line?!?')
-         ELSE
-           CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
-         END IF
+         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
        END IF
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
