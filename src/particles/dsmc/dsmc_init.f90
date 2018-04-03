@@ -617,10 +617,6 @@ __STAMP__&
       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ParticleEmission.NE.0 ) CALL abort(&
 __STAMP__&
 ,'BGG species can be used ONLY for BGG!')
-    IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') & !(use always Init 0 for BGG !!!)
-      CALL abort(&
-__STAMP__&
-,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
     IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
@@ -637,9 +633,15 @@ __STAMP__&
 __STAMP__&
 ,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) CALL abort(&
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
+        CALL abort(&
 __STAMP__&
 ,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
+      ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
+        CALL abort(&
+__STAMP__&
+,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
+      END IF
 !      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVibFileID.LE.0 .OR. &
 !        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVib)) CALL abort(&
 !__STAMP__&
