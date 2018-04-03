@@ -547,7 +547,8 @@ c_f = BoltzmannConst/PlanckConst &
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! calculate probability for molecular adsorption (from trapped state)
 !-----------------------------------------------------------------------------------------------------------------------------------
-IF ((SiteSpec.EQ.0) .AND. (.NOT.Cell_Occupied)) THEN
+IF ( (SiteSpec.EQ.0) .AND. (.NOT.Cell_Occupied) &
+    .AND. (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%adsorbnum_tmp(iSpec)).LE.0) ) THEN
   ! calculation of molecular adsorption probability with TCE
   E_a = 0.
   E_d = 0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.TRUE.) * Boltzmannconst
@@ -599,12 +600,17 @@ DO ReactNum = 1,(Adsorption%DissNum)
   jSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
   kSpec = Adsorption%DissocReact(2,ReactNum,iSpec)
   IF ((jSpec.NE.0) .AND. (kSpec.NE.0)) THEN !if 2 resulting species, dissociation possible
+    ! in one of the last iterations the surface-coverage of one resulting species was saturated
+    IF (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%adsorbnum_tmp(jSpec)).GT.0 .OR. &
+        INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%adsorbnum_tmp(kSpec)).GT.0 ) THEN
+      CYCLE
+    END IF
     jCoord = Adsorption%Coordination(PartBoundID,jSpec)
     kCoord = Adsorption%Coordination(PartBoundID,kSpec)
     Neighpos_j = 0
     Neighpos_k = 0
     !At least one of resulting species has same coordination as surfaceposition of impact
-    IF ( (jCoord.EQ.Coord) .OR. (kCoord.EQ.Coord) ) THEN 
+    IF ( (jCoord.EQ.Coord) .OR. (kCoord.EQ.Coord) ) THEN
       IF (jCoord.EQ.Coord) THEN
         Neighpos_j = Surfpos
         IF (n_empty_Neigh(kCoord).GT.0) THEN
@@ -757,11 +763,12 @@ DO ReactNum = 1,(Adsorption%RecombNum)
   jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
   Neighpos_j = 0
   IF (jSpec.EQ.0) CYCLE
+  IF (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%adsorbnum_tmp(jSpec)).LT.0 ) CYCLE
   coverage_check = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,jSpec) &
                  + Adsorption%SumAdsorbPart(subsurfxi,subsurfeta,SurfSideID,jSpec) &
                  * Species(jSpec)%MacroParticleFactor &
                  / REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8))
-  IF (coverage_check.LT.0.) CYCLE
+  IF (coverage_check.LE.0.) CYCLE
   ! reaction results
   kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
   jCoord = Adsorption%Coordination(PartBoundID,jSpec)
