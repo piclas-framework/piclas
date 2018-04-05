@@ -246,7 +246,7 @@ SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q) &
 SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q) &
                                 + TransArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
 SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q) &
-                                + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+                                + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
 
 !----  Sampling force at walls
 SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
@@ -254,32 +254,32 @@ SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
 SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
     + Species(PartSpecies(PartID))%MassIC * (TransArray(5)) * Species(PartSpecies(PartID))%MacroParticleFactor
 SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor 
+    + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor
 
 IF (useDSMC) THEN
-IF (CollisMode.GT.1) THEN
-IF (DSMC%WallModel.GT.0) THEN
-  SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
-                                    + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
-END IF
-IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
-  !----  Sampling for internal (rotational) energy accommodation at walls
-  SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
-                                    + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
-                                    + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
-                                    + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+  IF (CollisMode.GT.1) THEN
+    IF (DSMC%WallModel.GT.0) THEN
+      SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
+                                        + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
+    IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+      !----  Sampling for internal (rotational) energy accommodation at walls
+      SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
+                                        + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
+                                        + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
+                                        + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
 
-  !----  Sampling for internal (vibrational) energy accommodation at walls
-  SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
-                                    + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
-                                    + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
-                                    + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
-END IF
-END IF
+      !----  Sampling for internal (vibrational) energy accommodation at walls
+      SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
+                                        + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
+                                        + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
+                                        + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
+  END IF
 END IF
 
 IF (PRESENT(emission_opt)) THEN

@@ -197,9 +197,6 @@ CALL prms%CreateIntOption(      'Particles-NumberForDSMCOutputs'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSampleSurfaceflux'&
-  , 'Set [F] to activate CalcSurfaceVal-Sampling also at Surfacefluxsides when Wallmodels are used.\n'//&
-  'High memory demand for large MaxPartNum!', '.FALSE.')
 
 CALL prms%CreateStringOption(   'DSMC-HOSampling-Type'  , 'TODO-DEFINE-PARAMETER', 'cell_mean')
 CALL prms%CreateIntOption(      'Particles-DSMC-OutputOrder'  , 'TODO-DEFINE-PARAMETER', '1')
@@ -1328,12 +1325,7 @@ ELSE IF((WriteMacroVolumeValues.AND.WriteMacroSurfaceValues).AND.(.NOT.WriteMacr
 END IF
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
 DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
-DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.') 
-IF (DSMC%CalcSurfaceVal) THEN
-  DSMC%CalcSampleSurfaceflux = GETLOGICAL('Particles-DSMC-CalcSampleSurfaceflux','.FALSE.')
-ELSE
-  DSMC%CalcSampleSurfaceflux = .FALSE.
-END IF
+DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
 IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
   IF(DSMC%TimeFracSamp.GT.0.0) CALL abort(&
 __STAMP__&

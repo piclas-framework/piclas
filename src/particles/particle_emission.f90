@@ -4473,7 +4473,7 @@ CALL MPI_BARRIER(PartMPI%COMM,iError)
 END SUBROUTINE InitializeParticleSurfaceflux
 
 
-SUBROUTINE ParticleSurfaceflux()                                                                     
+SUBROUTINE ParticleSurfaceflux()
 !===================================================================================================================================
 ! Particle Inserting via Surface Flux and (if present) adaptiveBC (Surface Flux adapting part density, velocity or temperature)
 !===================================================================================================================================
@@ -4488,12 +4488,12 @@ USE MOD_Timedisc_Vars         , ONLY : iter
 #endif
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
+USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC, PartStateIntEn, Liquid
 USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC
+USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
@@ -4510,6 +4510,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SideType, SurfMeshSubSideData
 USE MOD_Timedisc_Vars          ,ONLY: dt
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #endif /*IMPA*/
@@ -4571,7 +4572,28 @@ REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nV
 REAL                        :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
-IF (DSMC%CalcSampleSurfaceflux) ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber)) !is this size really necessary?!?
+! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
+IF ( useDSMC .OR. LiquidSimFlag) THEN
+  IF ( (DSMC%WallModel.GT.0 .AND. SolidSimFlag) .OR. LiquidSimFlag) THEN
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      DO iSpec=1,nSpecies
+        DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+          currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+          IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+            IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
+              ALLOCATE(PartInsIndexes(1:2,1:PDM%maxParticleNumber))
+            ELSE
+              ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber))
+            END IF
+            EXIT
+          END IF
+        END DO
+        IF (ALLOCATED(PartInsIndexes)) EXIT
+      END DO
+    END IF
+  END IF
+END IF
+
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
@@ -4953,9 +4975,11 @@ __STAMP__&
             IF (noAdaptive) THEN
               IF (ALLOCATED(PartInsIndexes)) THEN
                 PartInsIndexes(1,PartsEmitted+iPart) = ParticleIndexNbr
-                PartInsIndexes(2,PartsEmitted+iPart) = iSample
-                PartInsIndexes(3,PartsEmitted+iPart) = jSample
-                PartInsIndexes(4,PartsEmitted+iPart) = iSide
+                PartInsIndexes(2,PartsEmitted+iPart) = iSide
+                IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
+                  PartInsIndexes(3,PartsEmitted+iPart) = iSample
+                  PartInsIndexes(4,PartsEmitted+iPart) = jSample
+                END IF
               END IF
               IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
                 PartState(ParticleIndexNbr,4:5) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
@@ -5187,52 +5211,60 @@ __STAMP__&
 ,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
       END IF
       IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
-        ! if desorption
-        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-          IF (DSMC%WallModel.GT.0 .AND. ALLOCATED(PartInsIndexes)) THEN
-          IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
-              .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-            DO iPart = 1,PartsEmitted
-              PartID = PartInsIndexes(1,iPart)
-              p = PartInsIndexes(2,iPart)
-              q = PartInsIndexes(3,iPart)
-              SurfSideID = PartInsIndexes(4,iPart)
-              
-              VelXold  = PartBound%WallVelo(1,CurrentBC)
-              VelYold  = PartBound%WallVelo(2,CurrentBC)
-              VelZold  = PartBound%WallVelo(3,CurrentBC)
-              VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-              EtraOld = 0.
-              EtraWall = EtraOld
-              VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + PartState(PartID,5) * PartState(PartID,5) &
-                              + PartState(PartID,6) * PartState(PartID,6))
-              EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
-              
-              TransArray(1) = EtraOld
-              TransArray(2) = EtraWall
-              TransArray(3) = EtraNew
-              TransArray(4) = PartState(PartID,4)-VelXold
-              TransArray(5) = PartState(PartID,5)-VelYold
-              TransArray(6) = PartState(PartID,6)-VelZold
-            
+        ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
+        ! only allocated if sampling and surface model enabled
+        IF (ALLOCATED(PartInsIndexes)) THEN
+          DO iPart = 1,PartsEmitted
+            PartID = PartInsIndexes(1,iPart)
+            SurfSideID = PartInsIndexes(2,iPart)
+            IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
+              p = 1
+              q = 1
+            ELSE
+              p = PartInsIndexes(3,iPart)
+              q = PartInsIndexes(4,iPart)
+            END IF
+            ! set velocities and translational energies
+            VelXold  = PartBound%WallVelo(1,CurrentBC)
+            VelYold  = PartBound%WallVelo(2,CurrentBC)
+            VelZold  = PartBound%WallVelo(3,CurrentBC)
+            VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
+            EtraOld = 0.
+            EtraWall = EtraOld
+            VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + PartState(PartID,5) * PartState(PartID,5) &
+                            + PartState(PartID,6) * PartState(PartID,6))
+            EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
+            ! fill Transarray
+            TransArray(1) = EtraOld
+            TransArray(2) = EtraWall
+            TransArray(3) = EtraNew
+            TransArray(4) = PartState(PartID,4)-VelXold
+            TransArray(5) = PartState(PartID,5)-VelYold
+            TransArray(6) = PartState(PartID,6)-VelZold
+            IF (CollisMode.GT.1) THEN
+              ! set rotational energies
               ErotWall = 0
               ErotOld  = ErotWall
               ErotNew  = PartStateIntEn(PartID,2)
+              ! fill rotational internal array
               IntArray(1) = ErotOld
               IntArray(2) = ErotWall
               IntArray(3) = ErotNew
-              
+              ! set vibrational energies
               EvibWall = 0 ! calculated and added in particle desorption calculation
               EvibOld  = EvibWall ! calculated and added in particle desorption calculation
               EvibNew  = PartStateIntEn(PartID,1)
+              ! fill vibrational internal array
               IntArray(4) = EvibOld
               IntArray(5) = EvibWall
               IntArray(6) = EvibNew
-          
-              CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,(/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
-            END DO
-          END IF
-        END IF
+            ELSE
+              IntArray(:) = 0.
+            END IF
+            ! sample values
+            CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
+                (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
+          END DO
         END IF
       END IF
     END IF
