@@ -185,7 +185,7 @@ SUBROUTINE InitDSMCSurfModel()
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Mesh_Vars              ,ONLY: nElems, BC
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC!, CollisMode
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues
 USE MOD_PARTICLE_Vars          ,ONLY: KeepWallParticles, PEM
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides
 USE MOD_ReadInTools
