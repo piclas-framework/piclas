@@ -4976,7 +4976,7 @@ __STAMP__&
               IF (ALLOCATED(PartInsIndexes)) THEN
                 PartInsIndexes(1,PartsEmitted+iPart) = ParticleIndexNbr
                 PartInsIndexes(2,PartsEmitted+iPart) = iSide
-                IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
+                IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
                   PartInsIndexes(3,PartsEmitted+iPart) = iSample
                   PartInsIndexes(4,PartsEmitted+iPart) = jSample
                 END IF
