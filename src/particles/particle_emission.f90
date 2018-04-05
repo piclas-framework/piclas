@@ -5228,8 +5228,7 @@ __STAMP__&
             VelXold  = PartBound%WallVelo(1,CurrentBC)
             VelYold  = PartBound%WallVelo(2,CurrentBC)
             VelZold  = PartBound%WallVelo(3,CurrentBC)
-            VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-            EtraOld = 0.
+            EtraOld = 0.0
             EtraWall = EtraOld
             VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + PartState(PartID,5) * PartState(PartID,5) &
                             + PartState(PartID,6) * PartState(PartID,6))
