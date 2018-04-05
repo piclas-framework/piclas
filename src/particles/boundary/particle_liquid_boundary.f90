@@ -32,8 +32,8 @@ SUBROUTINE Init_Liquid_Boundary()
 !> 1) mark sides for liquid boundary consideration
 !> 2) init MPI communication
 !===================================================================================================================================
-USE MOD_Particle_Vars,          ONLY : nSpecies
-USE MOD_DSMC_Vars,              ONLY : Liquid
+USE MOD_Particle_Vars,          ONLY : nSpecies, WriteMacroSurfaceValues
+USE MOD_DSMC_Vars,              ONLY : Liquid, DSMC
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
@@ -77,30 +77,32 @@ Liquid%ProbEvap(:,:,:,:) = 0.
 Liquid%SumCondensPart(:,:,:,:) = 0
 Liquid%SumEvapPart(:,:,:,:) = 0
 
-DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
-  ALLOCATE(SampWall(iSide)%Evaporation(1:nSpecies+1,1:nSurfSample,1:nSurfSample))
-  SampWall(iSide)%Evaporation=0.
-END DO
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
+  DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
+    ALLOCATE(SampWall(iSide)%Evaporation(1:nSpecies+1,1:nSurfSample,1:nSurfSample))
+    SampWall(iSide)%Evaporation=0.
+  END DO
 
 #ifdef MPI
-! Reallocate buffer for mpi communication of sampling
-DO iProc=1,SurfCOMM%nMPINeighbors
-  SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
-  RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
-  SDEALLOCATE(SurfSendBuf(iProc)%content)
-  SDEALLOCATE(SurfRecvBuf(iProc)%content)
-  IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(nSpecies+1)&
-                                        *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
-    SurfSendBuf(iProc)%content=0.
-  END IF
-  IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(nSpecies+1)&
-                                        *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
-    SurfRecvBuf(iProc)%content=0.
-  END IF
-END DO ! iProc
+  ! Reallocate buffer for mpi communication of sampling
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
+    RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
+    SDEALLOCATE(SurfSendBuf(iProc)%content)
+    SDEALLOCATE(SurfRecvBuf(iProc)%content)
+    IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
+      ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(nSpecies+1)&
+                                          *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+      SurfSendBuf(iProc)%content=0.
+    END IF
+    IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
+      ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(nSpecies+1)&
+                                          *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+      SurfRecvBuf(iProc)%content=0.
+    END IF
+  END DO ! iProc
 #endif
+END IF
 
 END SUBROUTINE Init_Liquid_Boundary
 
