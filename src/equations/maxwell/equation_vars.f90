@@ -40,8 +40,10 @@ REAL              :: E_0(1:3)                               !> electric field ve
 REAL              :: BeamEta                                !> impedance factor (2*impedance): BeamEta=2.*SQRT(mu0/eps0)
 REAL              :: BeamWaveNumber                         !> wave number: BeamWaveNumber= 2*pi/WaveLength
 REAL              :: BeamOmegaW                             !> angular frequency: BeamOmegaW = WaveNumber*c
-INTEGER           :: BeamIdir1,BeamIdir2,BeamMainDir          !> wave beam direction aux variables
+INTEGER           :: BeamIdir1,BeamIdir2,BeamMainDir        !> wave beam direction aux variables
 REAL              :: WaveVector(1:3)                        !> wave vector
+REAL              :: WaveVectorE0dir(1:3)                   !> vector in which E_0 points (must be perpendicular to WaveVector)
+LOGICAL           :: UseWaveVectorE0dir                     !> Use WaveVectorE0dir True/False (Default=.FALSE.)
 REAL              :: WaveLength                             !> wave length
 REAL,DIMENSION(3) :: WaveBasePoint                          !> wave base point || origin
 REAL              :: tFWHM                                  !> time for full wave half maximum
@@ -55,7 +57,7 @@ REAL              :: tActive                                !> active time for l
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
-REAL              :: TERadius=-1.                              !> Radius of Input TE wave, if wave is inserted over a plane
+REAL              :: TERadius=-1.                           !> Radius of Input TE wave, if wave is inserted over a plane
 INTEGER           :: TEMode(1:2)                            !> input of TE_n,m mode
 REAL              :: TEModeRoot                             !> root for the TEMode_n,m (root of derivative of Bessel function)
 LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave

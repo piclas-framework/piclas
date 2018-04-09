@@ -92,6 +92,9 @@ CALL prms%CreateRealOption(     'TERadius'         , 'TODO-DEFINE-PARAMETER\n'//
 
 CALL prms%CreateRealOption(     'WaveLength'       , 'TODO-DEFINE-PARAMETER' , '1.')
 CALL prms%CreateRealArrayOption('WaveVector'       , 'TODO-DEFINE-PARAMETER', '0. , 0. , 1.')
+CALL prms%CreateLogicalOption(  'UseWaveVectorE0dir','TODO-DEFINE-PARAMETER\n'//&
+                                                     'User defined E_0 unit vector in combination with WaveVector' , '.FALSE.')
+CALL prms%CreateRealArrayOption('WaveVectorE0dir'  , 'TODO-DEFINE-PARAMETER\nIs not used on default', '0. , 0. , 1.')
 CALL prms%CreateRealArrayOption('WaveBasePoint'    , 'TODO-DEFINE-PARAMETER', '0.5 , 0.5 , 0.')
 CALL prms%CreateRealOption(     'I_0'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Max. intensity' , '1.')
@@ -279,25 +282,44 @@ DO iRefState=1,nTmp
            '  Cut-off frequency in circular waveguide for TE_[',TEMode(1),',',TEMode(2),'] is ',(TEModeRoot/TERadius)*c/(2*PI),&
            ' Hz (chosen mode)'
   CASE(12,14,15,16)
-    ! planar wave input
+    ! planar wave input: get wavelength and set wave number angular frequency
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
-    WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
-    WaveVector=UNITVECTOR(WaveVector)
     BeamWaveNumber=2.*PI/WaveLength
     BeamOmegaW=BeamWaveNumber*c
+
+    ! set wave vector: direction of traveling wave
+    WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
+    WaveVector=UNITVECTOR(WaveVector)
 
     ! construct perpendicular electric field
     IF(ABS(WaveVector(3)).LT.EpsMach)THEN
       E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
     ELSE
       IF(ALMOSTEQUAL(ABS(WaveVector(3)),1.))THEN ! wave vector in z-dir -> E_0 in x-dir!
-        E_0=(/1.0, 0.0, 0.0 /) ! test fixed direction
+        E_0= (/1., 0., 0./)
       ELSE
         E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
       END IF
     END IF
     ! normalize E-field
     E_0=UNITVECTOR(E_0)
+
+    ! Use pre-defined E_0 vector
+    UseWaveVectorE0dir = GETLOGICAL('UseWaveVectorE0dir','.FALSE.')
+    IF(UseWaveVectorE0dir)THEN
+      WaveVectorE0dir(1:3) = GETREALARRAY('WaveVectorE0dir',3,'1.0,0.0,0.0')
+      WaveVectorE0dir      = UNITVECTOR(WaveVectorE0dir)
+      IF(.NOT.ALMOSTZERO(DOT_PRODUCT(WaveVector,WaveVectorE0dir))) CALL abort(&
+          __STAMP__&
+          ,' WaveVector and WaveVectorE0dir must be perpendicular ALMOSTZERO(DOT_PRODUCT(WaveVector,WaveVectorE0dir))=.FALSE. .')
+      ! set the user vector
+      E_0=WaveVectorE0dir
+    END IF
+
+    ! sanity check: perpendicularity
+    IF(.NOT.ALMOSTZERO(DOT_PRODUCT(WaveVector,E_0))) CALL abort(&
+        __STAMP__&
+        ,' WaveVector and E_0 must be perpendicular ALMOSTZERO(DOT_PRODUCT(WaveVector,E_0)).')
 
     IF(RefStates(iRefState).EQ.12)EXIT
     ! ONLY FOR CASE(14,15,16)
