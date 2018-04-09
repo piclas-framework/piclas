@@ -30,9 +30,9 @@ INTERFACE roty
   MODULE PROCEDURE roty
 END INTERFACE
 
-INTERFACE rotz
-  MODULE PROCEDURE rotz
-END INTERFACE
+!INTERFACE rotz
+!  MODULE PROCEDURE rotz
+!END INTERFACE
 
 INTERFACE Ident
   MODULE PROCEDURE Ident
@@ -57,6 +57,9 @@ CALL prms%SetSection("Particle")
 
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
+CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
+CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
+                                                          ,numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
                                                                  , '1')
 CALL prms%CreateRealOption(     'Particles-dt_part_ratio'     , 'TODO-DEFINE-PARAMETER\n'//&
@@ -87,7 +90,6 @@ CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'TODO-DEFINE-PAR
 CALL prms%CreateRealOption(     'Part-DelayTime'              , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "During delay time the particles,"//&
                                                                     " won't be moved so the EM field can be evolved", '0.0')
-CALL prms%CreateLogicalOption(  'Particles-useVTKFileBGG'     , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-OutputVpiWarnings' , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Flag for warnings for rejected'//&
                                                                 ' v if VPI+PartDensity', '.FALSE.')
@@ -252,7 +254,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
                                   'Particle Charge (without MPF) of species[$] dim' &
                                 , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
-                                , 'Particle Mass (without MPF) of species [$] [1E-3 kg]', '0.', numberedmulti=.TRUE.)
+                                , 'Particle Mass (without MPF) of species [$] [kg]', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
                                 , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
@@ -260,36 +262,34 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
                                   'Flag if specific particle is implicit', '.FALSE.', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForInit'&
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Flag to use species[$] for initialization', '.FALSE.', numberedmulti=.TRUE.)
+                                , 'Flag to use species[$] for initialization.', '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Use species[$] for emission?', '.FALSE.', numberedmulti=.TRUE.)
+  , 'Use species[$] for volume emission. (set EmissionType)', '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
-                                , ' TODO-DEFINE-PARAMETER\n'//&
-                                'Specifying Keyword for particle space condition of species [$] in case of one init.\n'//&
-                                '1:  point \n'//&
-                                '2:  line_with_equidistant_distribution \n'//&
-                                '3:  line_with_equidistant_distribution \n'//&
-                                '4:  line \n'//&
-                                '5:  disc \n'//&
-                                '6:  gyrotron_circle \n'//&
-                                '7:  circle_equidistant \n'//&
-                                '8:  cuboid \n'//&
-                                '9:  cylinder \n'//&
-                                '10: cuboid_vpi \n'//&
-                                '11: cylinder_vpi \n'//&
-                                '12: LD_insert \n'//&
-                                '13: cell_local \n'//&
-                                '14: cuboid_equal \n'//&
-                                '15: cuboid_with_equidistant_distribution \n'//&
-                                '16: sin_deviation \n'//&
-                                '17: IMD'&
+                                , 'Specifying Keyword for particle space condition of species [$] in case of one init.\n'//&
+                                ' - point \n'//&
+                                ' - line_with_equidistant_distribution \n'//&
+                                ' - line \n'//&
+                                ' - disc \n'//&
+                                ' - gyrotron_circle \n'//&
+                                ' - circle_equidistant \n'//&
+                                ' - cuboid \n'//&
+                                ' - cylinder \n'//&
+                                ' - cuboid_vpi \n'//&
+                                ' - cylinder_vpi \n'//&
+                                ' - LD_insert \n'//&
+                                ' - cell_local \n'//&
+                                ' - cuboid_equal \n'//&
+                                ' - cuboid_with_equidistant_distribution \n'//&
+                                ' - sin_deviation \n'//&
+                                ' - IMD'&
                               , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Used velocity distribution (e.g. maxwell) Default = OVDR.'//&
-                                  ' Velocity distribution for variable MPF.', 'constant', numberedmulti=.TRUE.)
+                                , 'Used velocity distribution.\n'//&
+                                  '   constant: all particles have the same defined velocity.(VeloIC, VeloVec)\n'//&
+                                  '   maxwell: sampled from maxwell distribution.(for MWTemperatureIC)\n'//&
+                                  '   maxwell_lpn: maxwell with low particle number (better maxwell dist. approx. for lpn).' &
+                                  , 'constant', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-rotation'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Direction of rotation, similar to TE-mode', '1', numberedmulti=.TRUE.)
@@ -339,11 +339,9 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-CalcHeightFromDt'  &
                                   'Calculated cuboid/cylinder height from v and dt?'&
                                 , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-VeloIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Absolute value of initial velocity. ', '0.', numberedmulti=.TRUE.)
+                                , 'Absolute value of initial velocity. (ensemble velocity) ', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-VeloVecIC '  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Normalized velocity vector', '0. , 0. , 0.', numberedmulti=.TRUE.)
+                                , 'Normalized velocity vector for given VeloIC', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Amplitude'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Amplitude for sin-deviation', '0.01', numberedmulti=.TRUE.)
@@ -364,8 +362,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Alpha' &
                                   'Factor for normal speed in gyrotron simulations.', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MWTemperatureIC' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Initial temperature for Maxwell distribution initialization.', '0.'&
+                                , 'Initial translational temperature for Maxwell distribution initialization.', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ConstantPressure' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -375,21 +372,20 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ConstPressureRelaxFac' &
                                   'Relaxation Factor for constant pressure sampling.', '1.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartDensity' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Used particle density for an area. PartDensity (real particles per '//&
-                                  'm^3) for LD_insert or (vpi_)cub./cyl. as alternative to Part.Emis. in Type1', '0.'&
+                                , 'Define particle density for species [$]. PartDensity (real particles per m^3).\n'//&
+                                  'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.\n'// &
+                                  'Also for LD_insert or (vpi_)cub./cyl. / cell_local as alternative to Part.Emis. in Type1', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-ParticleEmissionType'  &
-                                , 'TODO-DEFINE-PARAMETER\nEmission Type \n'//&
-                                  '1 = emission rate in 1/s,\n'//&
-                                  '2 = emission rate 1/iteration\n'//&
+                                , 'Define Emission Type for particles (volume emission)\n'//&
+                                  '1 = emission rate in part/s,\n'//&
+                                  '2 = emission rate part/iteration\n'//&
                                   '3 = user def. emission rate\n'//&
                                   '4 = const. cell pressure\n'//&
                                   '5 = cell pres. w. complete part removal\n'//&
                                   '6 = outflow BC (characteristics method)', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ParticleEmission' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Emission in 1/s or 1/iteration.', '0.', numberedmulti=.TRUE.)
+                                , 'Emission rate in part/s or part/iteration.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-NSigma' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Sigma multiple of maxwell for virtual insert length.', '10.'&
@@ -447,13 +443,46 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-vpiBV2BufferPos' &
                                   'incl. buffer region in +BV2 direction?', '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies' &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-MacroRestartFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local init of all macroscopic values' &
+                                , '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-ElemTemperatureFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of translational temperature. (x,y,z are used from State)\n'// &
+                                  'DEFAULT: MacroRestartFileID' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-ElemPartDensityFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of number density.\n'// &
+                                  'DEFAULT: MacroRestartFileID' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-ElemVelocityICFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of drift velocity. (x,y,z are used from State)\n'// &
+                                  'DEFAULT: MacroRestartFileID' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-ElemTVibFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of vibrational temperature.\n'// &
+                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-ElemTRotFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of rotational temperature.\n'// &
+                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-ElemTElecFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of electronic temperature.\n'// &
+                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1 + electronicmodel' &
+                                , numberedmulti=.TRUE.)
 
 
 CALL prms%SetSection("Particle Species Ninits")
 ! if Ninit>0 some variables have to be defined twice
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForInit' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Flag to use Init/Emission for init', '.FALSE.', numberedmulti=.TRUE.)
+                                  'Flag to use Init/Emission for init', '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForEmission' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag to use Init/Emission for emission', '.FALSE.', numberedmulti=.TRUE.)
@@ -622,6 +651,40 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-vpiBV2BufferPos' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'incl. buffer region in +BV2 direction?', '.TRUE.', numberedmulti=.TRUE.)
 
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-MacroRestartFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local init of all macroscopic values' &
+                                , '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ElemTemperatureFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of translational temperature. (x,y,z are used from State)\n'// &
+                                  'DEFAULT: MacroRestartFileID' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ElemPartDensityFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of number density.\n'// &
+                                  'DEFAULT: MacroRestartFileID' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ElemVelocityICFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of drift velocity. (x,y,z are used from State)\n'// &
+                                  'DEFAULT: MacroRestartFileID' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ElemTVibFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of vibrational temperature.\n'// &
+                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ElemTRotFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of rotational temperature.\n'// &
+                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ElemTElecFileID'  &
+                                , 'Define File ID of file used for Elem specific cell_local'// &
+                                  ' init of electronic temperature.\n'// &
+                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1 + electronicmodel' &
+                                , numberedmulti=.TRUE.)
+
 CALL prms%SetSection("Particle Species Init RegionExculdes")
 ! some inits or exluded in some regions
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC' &
@@ -683,8 +746,8 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                   'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
                                   'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientCondition'  &
-                                , "TODO-DEFINE-PARAMETER'//&
-                                  'Use ambient condition (condition 'behind' boundary).", '.FALSE.'&
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Use ambient condition (condition "behind" boundary).', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientConditionFix'  &
                                 , 'TODO-DEFINE-PARAMETER', '.TRUE.', numberedmulti=.TRUE.)
@@ -708,70 +771,69 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientThermalCond'  &
                                   'Ambient thermal conductivity', '2.42948500556027E-2'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
-                                , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+  , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
-                                , 'TODO-DEFINE-PARAMETER', '2', numberedmulti=.TRUE.)
+  , 'Define type of adaptive boundary [$]\n'//&
+    '[1] (STREAM INLET) with define temperature and pressure and pressurefraction\n'//&
+    '[2] (STREAM OUTLET) with defined pressure and pressurefraction', '2', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveMacroRestartFileID'  &
+  , 'Define FileID of adaptive boundary [$] macro restart if macro restart is used' &
+    , '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptiveTemp'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+  , 'Define temperature for adaptive particle boundary [$] (in [K])', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptivePressure'  &
-                                , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+  , 'Define pressure for adaptive particle boundary [$] (in [Pa])', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Pressurefraction'  &
+  , 'If particle boundary [$] adaptive, define pressurefractions for each species, so sum of all species for this adaptive'//&
+    'is 1.0. Results in abort if not set right.' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Voltage on boundary [$]', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-MomentumACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Momentum accommodation', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Wall temperature of boundary[$]', '0.', numberedmulti=.TRUE.)
+                                , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-MomentumACC'  &
+                                , 'Momentum accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-TransACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Translation accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Translation accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-VibACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Vibrational accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Vibrational accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Rotational accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Rotational accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Electronic accommodation on boundary [$]', '0.', numberedmulti=.TRUE.)
+                                , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Resample Equilibrum Distribution with reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
-
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Emitted velocity on boundary [$]', '0. , 0. , 0.', numberedmulti=.TRUE.)
-
+                                , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Flag defining if reflective BC is solid (otherwise it is declared liquid)'&
+                                , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidCatalytic'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Flag if solid surface is to be treated catalytically', '.FALSE.'&
+                                , 'Flag for defining solid surface to be treated catalytically (for wallmodel>0).', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidSpec'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species of Solid Boundary?', '0', numberedmulti=.TRUE.)
+                                , 'Set Species of Solid Boundary. (currently not used)', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidPartDens'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Solid boundary particle density? ', '1.0E+19', numberedmulti=.TRUE.)
+  , 'If particle boundary defined as solid set surface atom density (in [part/m^2]).', '1.0E+19', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Solid boundary particle mass?', '3.2395E-25', numberedmulti=.TRUE.)
+                                , 'Set mass of solid surface particles (in [kg]).', '3.2395E-25', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidAreaIncrease'  &
                                 , 'TODO-DEFINE-PARAMETER ', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidCrystalIndx'  &
-                                , 'TODO-DEFINE-PARAMETER', '4', numberedmulti=.TRUE.)
+                                , 'Set number of interaction for hollow sites.', '4', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-LiquidSpec'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species of Liquid Boundary', '0', numberedmulti=.TRUE.)
+                                , 'Set used species of Liquid Boundary', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-ParamAntoine'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Parameters for Antoine Eq (vapor pressure) [3,nPartBound]', '0. , 0. , 0.'&
+                                , 'Parameters for Antoine Eq (vapor pressure)', '0. , 0. , 0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
@@ -870,6 +932,7 @@ USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
@@ -910,6 +973,8 @@ IF(useBGField) CALL InitializeBackgroundField()
 
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
+
+SDEALLOCATE(MacroRestartData_tmp) !might be used for adaptive BC initialization allocated in InitializeVariables()
 
 ! Initialize volume sampling
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
@@ -977,9 +1042,9 @@ USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
 USE MOD_TimeDisc_Vars,         ONLY:TEnd
-#if defined(IMEX) || defined (IMPA)
+#if defined(ROS) || defined (IMPA)
 USE MOD_TimeDisc_Vars,         ONLY: nRKStages
-#endif /*IMEX*/
+#endif /*ROS*/
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 #endif /*MPI*/
@@ -1007,6 +1072,10 @@ REAL, DIMENSION(3,1)  :: n,n1,n2
 REAL, DIMENSION(3,3)  :: rot1, rot2
 REAL                  :: alpha1, alpha2
 INTEGER               :: dummy_int
+INTEGER               :: MacroRestartFileID
+LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
+INTEGER               :: FileID, iElem
+REAL                  :: particlenumber_tmp
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -1024,24 +1093,7 @@ END IF
 Pt_temp=0.
 #endif 
 
-#if defined(IMEX) 
-ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
-!ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate ParStage arrays!')
-END IF
-ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate PartStateN arrays!')
-END IF
-#endif /* IMEX */
-
 #ifdef IMPA
-#if (PP_TimeDiscMethod!=110)
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -1054,7 +1106,6 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PartStateN arrays!')
 END IF
-#endif
 ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -1076,23 +1127,23 @@ __STAMP__&
   ,'Cannot allocate F_PartXk arrays!')
 END IF
 ! and the required norms
-ALLOCATE(Norm2_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(Norm_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'Cannot allocate Norm2_F_PartX0 arrays!')
+  ,'Cannot allocate Norm_F_PartX0 arrays!')
 END IF
-ALLOCATE(Norm2_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(Norm_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'Cannot allocate Norm2_F_PartXk arrays!')
+  ,'Cannot allocate Norm_F_PartXk arrays!')
 END IF
-ALLOCATE(Norm2_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(Norm_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'Cannot allocate Norm2_F_PartXk_old arrays!')
+  ,'Cannot allocate Norm_F_PartXk_old arrays!')
 END IF
 ALLOCATE(PartDeltaX(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
@@ -1113,8 +1164,35 @@ __STAMP__&
       ,'Cannot allocate DoPartInNewton arrays!')
 END IF
 #endif /* IMPA */
+#ifdef ROS
+ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate ParStage arrays!')
+END IF
+ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartStateN arrays!')
+END IF
+ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartQ arrays!')
+END IF
+ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartDtFrac arrays!')
+END IF
+PartDtFrac=1.
+#endif /* ROSENBROCK */
 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if IMPA
 ALLOCATE(PartIsImplicit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -1290,13 +1368,23 @@ IF (nSpecies.LE.0) THEN
 __STAMP__&
   ,'ERROR: nSpecies .LE. 0:', nSpecies)
 END IF
+
+! initialize macroscopic restart
+nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
+IF (nMacroRestartFiles.GT.0) THEN
+  ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
+  MacroRestartFileUsed(:)=.FALSE.
+  ALLOCATE(MacroRestartData_tmp(1:DSMC_NVARS,1:nElems,1:nSpecies,1:nMacroRestartFiles))
+  CALL ReadMacroRestartFiles(MacroRestartData_tmp)
+END IF ! nMacroRestartFiles.GT.0
+
 PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
-  ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits)) 
+  ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
   DO iInit = 0, Species(iSpec)%NumberOfInits
     ! set help characters
     IF(iInit.EQ.0)THEN
@@ -1311,15 +1399,124 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC','0.')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
 #endif
     END IF ! iInit
-    ! get emission and init data
-    Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
-    Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
-    Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid'))
-    Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
+    Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cell_local'))
+    ! initilize macrorestart files and arrays
+    !-------------------------------------------------------------------------------------------------------------------------------
+    IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+      ! get emission and init data
+      Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
+      !Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.FALSE.')
+      Species(iSpec)%Init(iInit)%UseForEmission        = .FALSE.
+      IF (nMacroRestartFiles.GT.0) THEN
+        MacroRestartFileID = GETINT('Part-Species'//TRIM(hilf2)//'-MacroRestartFileID','0')
+        WRITE(UNIT=hilf3,FMT='(I0)') MacroRestartFileID
+        Species(iSpec)%Init(iInit)%ElemTemperatureFileID = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTemperatureFileID',TRIM(hilf3))
+        Species(iSpec)%Init(iInit)%ElemPartDensityFileID = GETINT('Part-Species'//TRIM(hilf2)//'-ElemPartDensityFileID',TRIM(hilf3))
+        Species(iSpec)%Init(iInit)%ElemVelocityICFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemVelocityICFileID',TRIM(hilf3))
+        IF (useDSMC) THEN
+          Species(iSpec)%Init(iInit)%ElemTVibFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTVibFileID',TRIM(hilf3))
+          Species(iSpec)%Init(iInit)%ElemTRotFileID  = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTRotFileID',TRIM(hilf3))
+          Species(iSpec)%Init(iInit)%ElemTElecFileID = GETINT('Part-Species'//TRIM(hilf2)//'-ElemTElecFileID',TRIM(hilf3))
+        ELSE
+          Species(iSpec)%Init(iInit)%ElemTVibFileID  = 0
+          Species(iSpec)%Init(iInit)%ElemTRotFileID  = 0
+          Species(iSpec)%Init(iInit)%ElemTElecFileID = 0
+        END IF
+      ELSE
+        Species(iSpec)%Init(iInit)%ElemTemperatureFileID = 0
+        Species(iSpec)%Init(iInit)%ElemPartDensityFileID = 0
+        Species(iSpec)%Init(iInit)%ElemVelocityICFileID  = 0
+        Species(iSpec)%Init(iInit)%ElemTVibFileID  = 0
+        Species(iSpec)%Init(iInit)%ElemTRotFileID  = 0
+        Species(iSpec)%Init(iInit)%ElemTElecFileID = 0
+      END IF
+      IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.GT.0 .OR. &
+          Species(iSpec)%Init(iInit)%ElemPartDensityFileID.GT.0 .OR. &
+          Species(iSpec)%Init(iInit)%ElemVelocityICFileID.GT.0 .OR. &
+          Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
+          Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
+          Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
+        FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
+        IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+          MacroRestartFileUsed(FileID) = .TRUE.
+          SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC)
+          ALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC(1:3,1:nElems))
+          DO iElem = 1,nElems
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(1,iElem) = MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(2,iElem) = MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(3,iElem) = MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID)
+          END DO
+        END IF
+        FileID = Species(iSpec)%Init(iInit)%ElemPartDensityFileID
+        IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+          MacroRestartFileUsed(FileID) = .TRUE.
+          SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity)
+          ALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems))
+          DO iElem = 1,nElems
+            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_DENSITY,iElem,iSpec,FileID)
+          END DO
+        END IF
+        FileID = Species(iSpec)%Init(iInit)%ElemVelocityICFileID
+        IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+          MacroRestartFileUsed(FileID) = .TRUE.
+          SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemVelocityIC)
+          ALLOCATE(Species(iSpec)%Init(iInit)%ElemVelocityIC(1:3,1:nElems))
+          DO iElem = 1,nElems
+            Species(iSpec)%Init(iInit)%ElemVelocityIC(1,iElem) = MacroRestartData_tmp(DSMC_VELOX,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemVelocityIC(2,iElem) = MacroRestartData_tmp(DSMC_VELOY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemVelocityIC(3,iElem) = MacroRestartData_tmp(DSMC_VELOZ,iElem,iSpec,FileID)
+          END DO
+        END IF
+        FileID = Species(iSpec)%Init(iInit)%ElemTVibFileID
+        IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+          MacroRestartFileUsed(FileID) = .TRUE.
+          SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib)
+          ALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib(1:nElems))
+          DO iElem = 1,nElems
+            Species(iSpec)%Init(iInit)%ElemTVib(iElem) = MacroRestartData_tmp(DSMC_TVIB,iElem,iSpec,FileID)
+          END DO
+        END IF
+        FileID = Species(iSpec)%Init(iInit)%ElemTRotFileID
+        IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+          MacroRestartFileUsed(FileID) = .TRUE.
+          SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot)
+          ALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot(1:nElems))
+          DO iElem = 1,nElems
+            Species(iSpec)%Init(iInit)%ElemTRot(iElem) = MacroRestartData_tmp(DSMC_TROT,iElem,iSpec,FileID)
+          END DO
+        END IF
+        FileID = Species(iSpec)%Init(iInit)%ElemTElecFileID
+        IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+          MacroRestartFileUsed(FileID) = .TRUE.
+          SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec)
+          ALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec(1:nElems))
+          DO iElem = 1,nElems
+            Species(iSpec)%Init(iInit)%ElemTElec(iElem) = MacroRestartData_tmp(DSMC_TELEC,iElem,iSpec,FileID)
+          END DO
+        END IF
+      END IF
+    ELSE ! SpaceIC not cell_local
+      Species(iSpec)%Init(iInit)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit')
+      Species(iSpec)%Init(iInit)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission')
+      Species(iSpec)%Init(iInit)%ElemTemperatureFileID= 0
+      Species(iSpec)%Init(iInit)%ElemPartDensityFileID= 0
+      Species(iSpec)%Init(iInit)%ElemVelocityICFileID = 0
+      Species(iSpec)%Init(iInit)%ElemTVibFileID       = 0
+      Species(iSpec)%Init(iInit)%ElemTRotFileID       = 0
+      Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
+    END IF
+    !-------------------------------------------------------------------------------------------------------------------------------
+    IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.EQ.0) THEN
+      Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution'&
+        ,'constant'))
+    ELSE
+      Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution'&
+        ,'maxwell_lpn'))
+    END IF
     IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'tangential_constant')THEN
       Species(iSpec)%Init(iInit)%Rotation        = GETINT('Part-Species'//TRIM(hilf2)//'-rotation','1')
       Species(iSpec)%Init(iInit)%VelocitySpread  = GETREAL('Part-Species'//TRIM(hilf2)//'-velocityspread','0.')
@@ -1329,7 +1526,8 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
     END IF
     Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
-    Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) &
+      Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
     Species(iSpec)%Init(iInit)%RadiusICGyro          = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
@@ -1340,20 +1538,32 @@ __STAMP__&
     Species(iSpec)%Init(iInit)%CuboidHeightIC        = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC','1.')
     Species(iSpec)%Init(iInit)%CylinderHeightIC      = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC','1.')
     Species(iSpec)%Init(iInit)%CalcHeightFromDt      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-CalcHeightFromDt','.FALSE.')
-    Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
-    Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
+    IF (Species(iSpec)%Init(iInit)%ElemVelocityICFileID.EQ.0) THEN
+      Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
+      Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
+    END IF
     Species(iSpec)%Init(iInit)%Amplitude             = GETREAL('Part-Species'//TRIM(hilf2)//'-Amplitude','0.01')
     Species(iSpec)%Init(iInit)%WaveNumber            = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveNumber','2.')
     Species(iSpec)%Init(iInit)%maxParticleNumberX    = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-x','0')
     Species(iSpec)%Init(iInit)%maxParticleNumberY    = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-y','0')
     Species(iSpec)%Init(iInit)%maxParticleNumberZ    = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-z','0')
     Species(iSpec)%Init(iInit)%Alpha                 = GETREAL('Part-Species'//TRIM(hilf2)//'-Alpha','0.')
-    Species(iSpec)%Init(iInit)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC','0.')
+    IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.EQ.0) &
+      Species(iSpec)%Init(iInit)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC','0.')
     Species(iSpec)%Init(iInit)%ConstantPressure      = GETREAL('Part-Species'//TRIM(hilf2)//'-ConstantPressure','0.')
     Species(iSpec)%Init(iInit)%ConstPressureRelaxFac = GETREAL('Part-Species'//TRIM(hilf2)//'-ConstPressureRelaxFac','1.')
-    Species(iSpec)%Init(iInit)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','0.')
-    Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
-    Species(iSpec)%Init(iInit)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf2)//'-ParticleEmission','0.')
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
+      Species(iSpec)%Init(iInit)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','0.')
+    ELSE
+      Species(iSpec)%Init(iInit)%PartDensity           = 0.
+    END IF
+    IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
+      Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
+      Species(iSpec)%Init(iInit)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf2)//'-ParticleEmission','0.')
+    ELSE
+      Species(iSpec)%Init(iInit)%ParticleEmissionType  = 0 !dummy
+      Species(iSpec)%Init(iInit)%ParticleEmission      = 0. !dummy
+    END IF
     Species(iSpec)%Init(iInit)%NSigma                = GETREAL('Part-Species'//TRIM(hilf2)//'-NSigma','10.')
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions','0')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
@@ -1375,7 +1585,7 @@ __STAMP__&
     !----------- various checks/calculations after read-in of Species(i)%Init(iInit)%-data ----------------------------------!
     !--- Check if Initial ParticleInserting is really used
     IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
-      .AND.(Species(iSpec)%Init(iInit)%UseForInit) ) THEN
+      .AND. Species(iSpec)%Init(iInit)%UseForInit) THEN
       IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
       .AND. (ABS(Species(iSpec)%Init(iInit)%PartDensity).LE.0.) ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
@@ -1475,12 +1685,14 @@ __STAMP__&
     !--- flag for cell-based constant-pressure-EmiTypes
     IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 4).OR. &
         (Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 6)) PartPressureCell = .TRUE.
-    !--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder) for Inits
-    IF (.NOT. ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
-      Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC            / &
-        SQRT(Species(iSpec)%Init(iInit)%VeloVecIC(1)*Species(iSpec)%Init(iInit)%VeloVecIC(1) + &
-        Species(iSpec)%Init(iInit)%VeloVecIC(2)*Species(iSpec)%Init(iInit)%VeloVecIC(2)      + &
-        Species(iSpec)%Init(iInit)%VeloVecIC(3)*Species(iSpec)%Init(iInit)%VeloVecIC(3))
+    IF (Species(iSpec)%Init(iInit)%ElemVelocityICFileID.EQ.0) THEN
+      !--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder) for Inits
+      IF (.NOT. ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
+        Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC            / &
+          SQRT(Species(iSpec)%Init(iInit)%VeloVecIC(1)*Species(iSpec)%Init(iInit)%VeloVecIC(1) + &
+          Species(iSpec)%Init(iInit)%VeloVecIC(2)*Species(iSpec)%Init(iInit)%VeloVecIC(2)      + &
+          Species(iSpec)%Init(iInit)%VeloVecIC(3)*Species(iSpec)%Init(iInit)%VeloVecIC(3))
+      END IF
     END IF
     Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC /                 &
       SQRT(Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1) + &
@@ -1594,7 +1806,8 @@ __STAMP__&
     PartDens_OnlyInit=.FALSE.
     IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.).AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'LD_insert')) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) THEN
-        IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2) .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
+        IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2 .OR. Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) &
+            .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
           PartDens_OnlyInit=.TRUE.
         ELSE
           CALL abort(&
@@ -1681,9 +1894,8 @@ __STAMP__&
           SWRITE(*,*) "PartDensity is used for VPI of Species, Init ", iSpec, iInit !Value is calculated inside SetParticlePostion!
         END IF
       ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
-        IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') )) THEN
+        IF  ((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
             CALL abort(&
 __STAMP__&
@@ -1697,7 +1909,7 @@ __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
               Species(iSpec)%Init(iInit)%initialParticleNumber &
-                  = INT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor * GEO%LocalVolume)
+                  = NINT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor * GEO%LocalVolume)
             END IF
           ELSE
             CALL abort(&
@@ -1705,14 +1917,40 @@ __STAMP__&
               ,'Local mesh volume is zero!')
           END IF
         ELSE
+          ! maxwell might also work for cell_local but not with cell dependant temperatures as with MacroRestart
           CALL abort(&
 __STAMP__&
-          ,'Only const. or maxwell(_lpn) is supported as velocityDistr. using cell_local inserting with PartDensity!')
+          ,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with PartDensity!')
         END IF
       ELSE
         CALL abort(&
 __STAMP__&
         ,'PartDensity without LD is only supported for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
+      END IF
+    END IF
+    !--- determine if cell_local macro restart with density distribution
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.GT.0) THEN
+      IF  ((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+        .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) THEN
+        IF (GEO%LocalVolume.GT.0.) THEN
+          IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
+            particlenumber_tmp = 0.
+            DO iElem = 1,nElems
+              particlenumber_tmp = particlenumber_tmp + Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) &
+                  / Species(iSpec)%MacroParticleFactor * GEO%Volume(iElem)
+            END DO
+            Species(iSpec)%Init(iInit)%initialParticleNumber = NINT(particlenumber_tmp)
+          END IF
+        ELSE
+          CALL abort(&
+__STAMP__&
+,'Error in particle_init: Local mesh volume is zero!')
+        END IF
+      ELSE
+        ! maxwell might also work for cell_local but not with cell dependant temperatures as with MacroRestart
+        CALL abort(&
+__STAMP__&
+,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with Macro-ElemPartDensity Insert!')
       END IF
     END IF
     !--- determine StartnumberOfInits (start loop index, e.g., for emission loops)
@@ -1796,11 +2034,13 @@ LiquidSimFlag = .FALSE.
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveMacroRestartFileID(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
 ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
 nAdaptiveBC = 0
 PartBound%Adaptive(:) = .FALSE.
 PartBound%AdaptiveType(:) = -1
+PartBound%AdaptiveMacroRestartFileID(:) = 0
 PartBound%AdaptiveTemp(:) = -1.
 PartBound%AdaptivePressure(:) = -1.
 
@@ -1845,13 +2085,25 @@ DO iPartBound=1,nPartBound
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
        PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-       PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
-       IF (PartBound%AdaptiveTemp(iPartBound)*PartBound%AdaptivePressure(iPartBound).EQ.0.) THEN
-         CALL abort(&
+       PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
+       IF (PartBound%AdaptiveMacroRestartFileID(iPartBound).EQ.0) THEN
+         PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+         IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
 __STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp or -AdaptivePressure not defined')
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
+       ELSE
+         IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
+           PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+           IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
+         END IF
+         MacroRestartFileUsed(PartBound%AdaptiveMacroRestartFileID(iPartBound)) = .TRUE.
        END IF
+       PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
+       IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
@@ -1927,6 +2179,17 @@ __STAMP__&
   PartBound%UseForQCrit(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
   SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
 END DO
+
+IF (nMacroRestartFiles.GT.0) THEN
+  IF (ALL(.NOT.MacroRestartFileUsed(:))) CALL abort(&
+  __STAMP__&
+  ,'None of defined Macro-Restart-Files used for any init!')
+  DO FileID = 1,nMacroRestartFiles
+    IF (.NOT.MacroRestartFileUsed(FileID)) THEN
+      SWRITE(*,*) "WARNING: MacroRestartFile: ",FileID," not used for any Init"
+    END IF
+  END DO
+END IF
 
 DEALLOCATE(PartBound%AmbientMeanPartMass)
 DEALLOCATE(PartBound%AmbientTemp)
@@ -2071,8 +2334,6 @@ END DO ! iSpec = 1, nSpecies
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
-!-- Read Flag for BGG via VTK-File (needed for particles in general as asked for in set velocity!)
-useVTKFileBGG = GETLOGICAL('Particles-useVTKFileBGG','.FALSE.')
 !-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 
@@ -2418,6 +2679,117 @@ END IF !nCollectChargesBCs .GT. 0
 END SUBROUTINE InitializeVariables
 
 
+SUBROUTINE ReadMacroRestartFiles(MacroRestartData)
+!===================================================================================================================================
+!> read DSMCHOState file and set MacroRestartData values for FileID
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, nElems, offsetElem
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, nMacroRestartFiles
+USE MOD_ReadInTools            ,ONLY: GETSTR
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(INOUT)          :: MacroRestartData(1:DSMC_NVARS,1:nElems,1:nSpecies,1:nMacroRestartFiles)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+CHARACTER(LEN=255)               :: FileName, Type_HDF5, NodeType_HDF5
+CHARACTER(32)                    :: hilf
+REAL , ALLOCATABLE               :: State_HDF5(:,:)
+LOGICAL                          :: exists
+INTEGER                          :: nSpecies_HDF5, nVar_HDF5, nElems_HDF5, N_HDF5
+INTEGER                          :: nVarAdditional
+INTEGER                          :: iFile, iSpec, iElem, iVar
+!===================================================================================================================================
+DO iFile = 1, nMacroRestartFiles
+  IF (nMacroRestartFiles.EQ.1) THEN
+    FileName = GETSTR('Part-MacroRestartFile')
+  ELSE
+    FileName = 'none'
+  END IF
+  WRITE(UNIT=hilf,FMT='(I0)') iFile
+  FileName = GETSTR('Part-MacroRestartFile'//TRIM(hilf),TRIM(FileName))
+  IF (TRIM(FileName).EQ.'none') THEN
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: filename not defined!',iFile)
+  END IF
+
+  SWRITE(UNIT_StdOut, '(A)')' INIT MACRO RESTART DATA FROM '//TRIM(FileName)//' ...'
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)!MPI_COMM_WORLD)
+  exists=.FALSE.
+  ! check if given file is of type 'DSMCHO_State'
+  CALL DatasetExists(File_ID,'File_Type',exists,attrib=.TRUE.)
+  IF (exists) THEN
+    CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=Type_HDF5)
+    IF (TRIM(Type_HDF5).NE.'DSMCHOState') CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: is not of type DSMCHO_State!',iFile)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: attribute "filetype" does not exist!',iFile)
+  END IF
+  ! check if number of species is equal
+  CALL DatasetExists(File_ID,'NSpecies',exists,attrib=.TRUE.)
+  IF (exists) THEN
+    CALL ReadAttribute(File_ID,'NSpecies',1,IntegerScalar=nSpecies_HDF5)
+    IF (nSpecies_HDF5.NE.nSpecies) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: number of Species does not match!',iFile)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: attribute "nSpecies" does not exist!',iFile)
+  END IF
+
+  ! check if Dataset SurfaceData exists and read from container
+  CALL DatasetExists(File_ID,'ElemData',exists)
+  IF (exists) THEN
+    CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
+    IF (nElems_HDF5.NE.nGlobalElems) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: number of global elements in HDF5-file does not match!')
+    IF (N_HDF5.NE.1) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: N!=1 !')
+    ! check if (nVar_HDF5-DSMC_NVARS-nVarAdditional) equal to DSMC_NVARS*nSpecies
+    nVarAdditional = MOD(nVar_HDF5,DSMC_NVARS)
+    IF ((nVar_HDF5-DSMC_NVARS-nVarAdditional).NE.(DSMC_NVARS*nSpecies)) CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: wrong Nodetype !')
+    IF (NodeType_HDF5.NE.'VISU') CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: wrong nVar_HDF5 !')
+    SDEALLOCATE(State_HDF5)
+    ALLOCATE(State_HDF5(1:nVar_HDF5,nElems))
+    CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=State_HDF5(:,:))
+    iVar = 1
+    DO iSpec = 1, nSpecies
+      DO iElem = 1, nElems
+        MacroRestartData(:,iElem,iSpec,iFile) = State_HDF5(iVar:iVar-1+DSMC_NVARS,iElem)
+      END DO
+      iVar = iVar + DSMC_NVARS
+    END DO
+    SDEALLOCATE(State_HDF5)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: dataset "ElemData" does not exist!')
+  END IF
+  CALL CloseDataFile()
+  SWRITE(UNIT_StdOut, '(A)')' INIT MACRO RESTART DATA FROM '//TRIM(FileName)//' DONE!'
+
+END DO ! iFile = 1, nMacroRestartFiles
+
+END SUBROUTINE ReadMacroRestartFiles
+
+
 SUBROUTINE FinalizeParticles() 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize particle variables
@@ -2480,6 +2852,7 @@ SDEALLOCATE(PartBound%AmbientDynamicVisc)
 SDEALLOCATE(PartBound%AmbientThermalCond)
 SDEALLOCATE(PartBound%Adaptive)
 SDEALLOCATE(PartBound%AdaptiveType)
+SDEALLOCATE(PartBound%AdaptiveMacroRestartFileID)
 SDEALLOCATE(PartBound%AdaptiveTemp)
 SDEALLOCATE(PartBound%AdaptivePressure)
 SDEALLOCATE(PartBound%Voltage)
@@ -2510,14 +2883,14 @@ SDEALLOCATE(RegionElectronRef)
 END SUBROUTINE FinalizeParticles
 
 !-- matrices for coordtrafo:
-SUBROUTINE rotz(mat,a)
-IMPLICIT NONE
-REAL, INTENT(OUT), DIMENSION(3,3) :: mat
-REAL, INTENT(IN) :: a
-mat(:,1)=(/COS(a) ,-SIN(a) , 0./)
-mat(:,2)=(/SIN(a) , COS(a) , 0./)
-mat(:,3)=(/0.     , 0.     , 1./)
-END SUBROUTINE
+!SUBROUTINE rotz(mat,a)
+!IMPLICIT NONE
+!REAL, INTENT(OUT), DIMENSION(3,3) :: mat
+!REAL, INTENT(IN) :: a
+!mat(:,1)=(/COS(a) ,-SIN(a) , 0./)
+!mat(:,2)=(/SIN(a) , COS(a) , 0./)
+!mat(:,3)=(/0.     , 0.     , 1./)
+!END SUBROUTINE
 SUBROUTINE rotx(mat,a)
 IMPLICIT NONE
 REAL, INTENT(OUT), DIMENSION(3,3) :: mat

@@ -121,7 +121,7 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species
+  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species, PEM
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -137,7 +137,10 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
   INTEGER                       :: iDOF, iWalk, iPolyatMole, iInit
   REAL                          :: TVib                       ! vibrational temperature
 !===================================================================================================================================
-  
+IF (Species(iSpec)%Init(iInitTmp)%ElemTVibFileID.GT.0) CALL abort(&
+__STAMP__&
+,'ERROR in DSMC_FindFirstVibPick: can not use Macro tvib restart!')
+
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       TVib=SpecDSMC(iSpec)%Init(iInitTmp)%TVib
@@ -208,8 +211,16 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
-      TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-      TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+      IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
+        TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
+      ELSE
+        TVib=Species(iSpecies)%Init(iInit)%ElemTVib(PEM%Element(iPart))
+      END IF
+      IF (Species(iSpecies)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
+        TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+      ELSE
+        TRot=Species(iSpecies)%Init(iInit)%ElemTRot(PEM%Element(iPart))
+      END IF
     CASE(2) !SurfaceFlux
       IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
         !-- compute number of to be inserted particles
@@ -286,7 +297,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst
+  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PEM, Species
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -307,8 +318,16 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
 
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
-      TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
-      TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
+      IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
+        TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
+      ELSE
+        TVib=Species(iSpec)%Init(iInit)%ElemTVib(PEM%Element(iPart))
+      END IF
+      IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
+        TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
+      ELSE
+        TRot=Species(iSpec)%Init(iInit)%ElemTRot(PEM%Element(iPart))
+      END IF
     CASE(2) !SurfaceFlux
       TVib=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TVib
       TRot=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TRot
@@ -388,7 +407,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst
+  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PEM, Species
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -409,8 +428,16 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf
 
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
-      TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
-      TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
+      IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
+        TVib=SpecDSMC(iSpec)%Init(iInit)%TVib
+      ELSE
+        TVib=Species(iSpec)%Init(iInit)%ElemTVib(PEM%Element(iPart))
+      END IF
+      IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
+        TRot=SpecDSMC(iSpec)%Init(iInit)%TRot
+      ELSE
+        TRot=Species(iSpec)%Init(iInit)%ElemTRot(PEM%Element(iPart))
+      END IF
     CASE(2) !SurfaceFlux
       TVib=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TVib
       TRot=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TRot
@@ -490,7 +517,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species
+  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species, PEM
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -511,8 +538,16 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
 
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
-      TVib=SpecDSMC(iSpec)%Init(iInitTmp)%TVib
-      TRot=SpecDSMC(iSpec)%Init(iInitTmp)%TRot
+      IF (Species(iSpec)%Init(iInitTmp)%ElemTVibFileID.EQ.0) THEN
+        TVib=SpecDSMC(iSpec)%Init(iInitTmp)%TVib
+      ELSE
+        TVib=Species(iSpec)%Init(iInitTmp)%ElemTVib(PEM%Element(iPart))
+      END IF
+      IF (Species(iSpec)%Init(iInitTmp)%ElemTRotFileID.EQ.0) THEN
+        TRot=SpecDSMC(iSpec)%Init(iInitTmp)%TRot
+      ELSE
+        TRot=Species(iSpec)%Init(iInitTmp)%ElemTRot(PEM%Element(iPart))
+      END IF
     CASE(2) !SurfaceFlux
       TVib=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TVib
       TRot=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TRot

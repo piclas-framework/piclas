@@ -612,7 +612,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
 #endif
 USE MOD_Equation_Vars,     ONLY:eps0
@@ -752,7 +752,7 @@ END DO
 ! SOLVE 
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
 IF (converged) THEN
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if defined(IMPA) || defined(ROS)
   IF(DoPrintConvInfo)THEN
     SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
   END IF
@@ -886,7 +886,7 @@ ELSE
     ! SOLVE 
     CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
     IF (converged) THEN
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if defined(IMPA) || defined(ROS)
       IF(DoPrintConvInfo)THEN
         SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
       END IF

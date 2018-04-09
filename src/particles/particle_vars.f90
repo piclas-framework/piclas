@@ -50,28 +50,26 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! is the velocity. Thus we can take 
                                                                              ! PartState(:,4:6) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n
+LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable: 
+REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
                                                                              ! 1) time fraction of domain entering (surface flux)
                                                                              ! 2) fraction of time step for push (surface flux)
-#endif /*IMEX*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#endif /*IMPA || ROS*/
+#if defined(IMPA)
 !REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (1:NParts,1:3) with 2nd index: x,y,z
-LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
-#endif
-#ifdef IMPA
 REAL    , ALLOCATABLE :: PartDeltaX(:,:)                                     ! Change of particle during Newton step
 LOGICAL , ALLOCATABLE :: PartLambdaAccept(:)                                 ! Accept particle search direction
-REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
 ! Newton iteration
 REAL    , ALLOCATABLE :: F_PartX0(:,:)                                       ! Particle function evaluated at t^0
 REAL    , ALLOCATABLE :: F_PartXK(:,:)                                       ! Particle function evaluated at iteration step k
-REAL    , ALLOCATABLE :: Norm2_F_PartX0    (:)                               ! and the corresponding L2 norm
-REAL    , ALLOCATABLE :: Norm2_F_PartXK    (:)                               ! and the corresponding L2 norm
-REAL    , ALLOCATABLE :: Norm2_F_PartXK_Old(:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm_F_PartX0    (:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm_F_PartXK    (:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm_F_PartXK_Old(:)                               ! and the corresponding L2 norm
 LOGICAL , ALLOCATABLE :: DoPartInNewton(:)                                   ! particle is treated implicitly && Newtons method
                                                                              ! is performed on it
 #endif
@@ -173,6 +171,18 @@ TYPE tInit                                                                   ! P
   REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) for LD_insert or
                                                                              ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
+  INTEGER                                :: ElemTemperatureFileID
+  REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)
+  INTEGER                                :: ElemPartDensityFileID
+  REAL , ALLOCATABLE                     :: ElemPartDensity(:)
+  INTEGER                                :: ElemVelocityICFileID
+  REAL , ALLOCATABLE                     :: ElemVelocityIC(:,:)
+  INTEGER                                :: ElemTVibFileID
+  REAL , ALLOCATABLE                     :: ElemTVib(:)                      ! vibrational temperature [nElems]
+  INTEGER                                :: ElemTRotFileID
+  REAL , ALLOCATABLE                     :: ElemTRot(:)                      ! rotational temperature [nElems]
+  INTEGER                                :: ElemTelecFileID
+  REAL , ALLOCATABLE                     :: ElemTelec(:)                     ! electronic temperature [nElems]
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
                                                                              !               3 = user def. emission rate
@@ -237,6 +247,7 @@ TYPE typeSurfaceflux
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
+  REAL                                   :: rmin                             ! min radius of to-be inserted particles
   REAL                                   :: PressureFraction
 END TYPE
 
@@ -250,20 +261,22 @@ TYPE tSpecies                                                                ! P
   INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
   TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if IMPA
   LOGICAL                                :: IsImplicit
 #endif
 END TYPE
 
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
+REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle
   INTEGER                , ALLOCATABLE   :: lastElement(:)  !      =>NULL()  ! Element number allocated
-!#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+!#if defined(IMPA)
 !  INTEGER                , ALLOCATABLE   :: StageElement(:)  !      =>NULL()  ! Element number allocated
 !#endif
                                                                              ! to each Particle at previous timestep
@@ -350,8 +363,6 @@ LOGICAL                                  :: PartPressRemParts                 ! 
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
 REAL, ALLOCATABLE                        :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
-LOGICAL                                  :: useVTKFileBGG                     ! Flag for BGG via VTK-File
-REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding

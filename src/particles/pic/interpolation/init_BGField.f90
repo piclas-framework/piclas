@@ -35,7 +35,7 @@ USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
 USE MOD_Mesh_Vars,              ONLY:OffsetElem,nGlobalElems,MeshFile
 USE MOD_Preproc,                ONLY:PP_nElems
 USE MOD_ReadInTools,            ONLY:GETSTR,GETINT,GETREAL
-USE MOD_HDF5_Input,             ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID,ReadArray
+USE MOD_HDF5_Input,             ONLY:OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType,NBG,BGType,BGField
 USE MOD_PICInterpolation_Vars,  ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGDataSize
 USE MOD_Interpolation_Vars,     ONLY:NodeType

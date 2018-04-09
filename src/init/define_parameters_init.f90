@@ -22,7 +22,7 @@ USE MOD_IO_HDF5          ,ONLY: DefineParametersIO
 USE MOD_Interpolation    ,ONLY: DefineParametersInterpolation
 USE MOD_Output           ,ONLY: DefineParametersOutput
 USE MOD_Restart          ,ONLY: DefineParametersRestart
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver     ,ONLY: DefineParametersLinearSolver
 #endif
 USE MOD_LoadBalance      ,ONLY: DefineParametersLoadBalance
@@ -72,7 +72,7 @@ CALL DefineParametersIO()
 CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
 CALL DefineParametersRestart()
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
 CALL DefineParametersLinearSolver()
 #endif
 CALL DefineParametersOutput()
