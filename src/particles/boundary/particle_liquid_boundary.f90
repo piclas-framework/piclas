@@ -52,7 +52,6 @@ INTEGER                          :: iSpec, iSide
 INTEGER                          :: iProc, SendArraySize, RecvArraySize
 #endif
 !===================================================================================================================================
-IF (.NOT.SurfMesh%SurfOnProc) RETURN
 ! allocate info and constants
 #if (PP_TimeDiscMethod==42)
 ALLOCATE( Liquid%Info(1:nSpecies))
@@ -67,6 +66,7 @@ DO iSpec = 1,nSpecies
   Liquid%Info(iSpec)%NumOfDes = 0
 #endif
 END DO
+IF (.NOT.SurfMesh%SurfOnProc) RETURN
 ! allocate and initialize liquid variables
 ALLOCATE( Liquid%ProbCondens(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Liquid%ProbEvap(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&

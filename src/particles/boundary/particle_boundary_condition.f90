@@ -2915,7 +2915,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,BoltzmannConst,PartSpecies
-!USE MOD_Particle_Vars,          ONLY : PDM, LastPartPos
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, Liquid, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
@@ -2949,7 +2948,6 @@ REAL, PARAMETER                  :: PI=3.14159265358979323846
 REAL                             :: Norm_velo, Norm_Ec
 INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
-!   REAL                             :: IntersectionPos(1:3)
 REAL                             :: TransArray(1:6),IntArray(1:6), EvaporationEnthalpie
 REAL                             :: VelXold, VelYold, VelZold
 INTEGER                          :: locBCID, VibQuant, VibQuantWall
@@ -3021,7 +3019,7 @@ END IF
 !Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
 !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
 
-EvaporationEnthalpie = 0.
+EvaporationEnthalpie = 0. ! negative at evaporation and positive at condensation
 
 Condensation_prob = Liquid%ProbCondens(p,q,SurfSideID,SpecID)
 CALL RANDOM_NUMBER(RanNum)
