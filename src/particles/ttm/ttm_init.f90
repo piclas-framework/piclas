@@ -43,18 +43,16 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("TTM")
 
-CALL prms%CreateLogicalOption(  'DoImportTTMFile'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                         'Read IMD Two-Temperature Model (TTM) data (FD grid)','.FALSE.')
+CALL prms%CreateLogicalOption(  'DoImportTTMFile'      , 'Read IMD Two-Temperature Model (TTM) data (FD grid data with\n electron'&
+                                                          //'temperature and other field data)','.FALSE.')
                                                          
-CALL prms%CreateStringOption(   'TTMLogFile'           , 'TODO-DEFINE-PARAMETER'//&
-                                                         'TTW Data file','no file specified')
-CALL prms%CreateStringOption(   'TTMFile'              , 'TODO-DEFINE-PARAMETER'//&
-                                                         'TTW Data file','no file found')
-CALL prms%CreateIntArrayOption( 'TTMGridFDdim'         , 'TODO-DEFINE-PARAMETER'//&
-                                                         'Number of FD grid cells in each direction','0 , 0 , 0')
+CALL prms%CreateStringOption(   'TTMLogFile'           , 'TTM Log file path','no file specified')
+CALL prms%CreateStringOption(   'TTMFile'              , 'TTM Data file path','no file found')
+CALL prms%CreateIntArrayOption( 'TTMGridFDdim'         , 'Number of FD grid cells in each direction (/x,y,z/)','0 , 0 , 0')
                                                      
-CALL prms%CreateRealOption(     'TTMElemBaryTolerance' , 'TODO-DEFINE-PARAMETER'//&
-                                                         'TTM FD bary center tolerance to DG bary center','1e-6')
+CALL prms%CreateRealOption(     'TTMElemBaryTolerance' , 'TTM FD bary center tolerance to DG bary center. The tolerance is used '//&
+                                                         'for finding the corresponding DG element to which the FD data is saved.'&
+                                                       , '1e-6')
 
 END SUBROUTINE DefineParametersTTM
 
