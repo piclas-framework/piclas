@@ -84,6 +84,16 @@ SUBROUTINE InitTTM()
 ! 13.) fd_g:      electron-phonon coupling coefficient                       [?]                stored in TTM_FD(10,. -> TTM_DG(10,.
 ! 14.) Z:         averged charge of the atoms within the FD cell             [e]                stored in TTM_FD(11,. -> TTM_DG(11,.
 ! 15.) proc:      rank number of MPI process                                 [-]                not stored
+
+! Derived quantities are Debye length, warm/cold plasma frequency, HDG time steps estimation
+! n_e(ElectronDensity)           = N[natoms]*charge[Z]/TTMCellVolume              -> TTM_DG(12,.
+! omega_pe_cold(PlasmaFrequency) = w_peTTM=sqrt(neTTM*e^2/(me0*eps0 ))            -> TTM_DG(13,.
+! omega_pe_warm(PlasmaFrequency) = w_peTTMwarm = w_peTTM + 3 * kB * TeTTM / me0   -> TTM_DG(14,.
+! dt_HDG_cold(TimeStep)          = dtHDGTTM=0.2./w_peTTM                          -> TTM_DG(15,.
+! dt_HDG_warm(TimeStep)'         = dtHDGTTMwarm=0.2./w_peTTMwarm                  -> TTM_DG(16,.
+! T_e(ElectronTempInKelvin)      = T[eV]/8.621738E-5 (eV -> K)                    -> TTM_DG(17,.
+! lambda_D(DebyeLength)          = sqrt(eps0*kB*TeTTM      ./(K_to_eV*neTTM*e^2)) 
+!                                = sqrt(eps0*kB*TeTTM_in_K./(         neTTM*e^2)) -> TTM_DG(18,.
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -265,7 +275,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
                 DO j=0,PP_N ! set all DG DOF values equal to FD cell value
                   DO k=0,PP_N ! set all DG DOF values equal to FD cell value
                     TTM_DG(1:11,i,j,k,iElem)=TTM_FD(1:11,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
-                    ! set calculated quantities
+                    ! set derived quantities
                     ! 'n_e(ElectronDensity)'
                     ! N[natoms]*charge[Z]/TTMCellVolume
                     TTM_DG(12,i,j,k,iElem) = TTM_DG(11,i,j,k,iElem)*TTM_DG(1,i,j,k,iElem)/TTMCellVolume
