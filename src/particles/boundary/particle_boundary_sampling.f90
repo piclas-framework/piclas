@@ -938,7 +938,7 @@ SUBROUTINE ExchangeSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY:nSpecies
+USE MOD_Particle_Vars               ,ONLY:nSpecies,LiquidSimFlag
 USE MOD_DSMC_Vars                   ,ONLY:Adsorption,DSMC,useDSMC
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
@@ -961,12 +961,11 @@ IF(useDSMC) THEN
   IF (DSMC%WallModel.GT.0) calcWallModel=.TRUE.
 END IF
 
-IF(calcWallModel)THEN
-  ! additional array entries for Coverage, Accomodation and recombination coefficient
-  nValues = (SurfMesh%SampSize+(nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
-ELSE
-  nValues = SurfMesh%SampSize*nSurfSample**2
-END IF
+nValues = SurfMesh%SampSize*nSurfSample**2
+! additional array entries for Coverage, Accomodation and recombination coefficient
+IF(calcWallModel) nValues = nValues + ((nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
+! additional array entries for liquid surfaces
+IF(LiquidSimFlag) nValues = nValues + (nSpecies+1)*nSurfSample**2
 !
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -978,7 +977,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
                 , 1009                                         &
                 , SurfCOMM%COMM                                &
-                , SurfExchange%RecvRequest(iProc)              & 
+                , SurfExchange%RecvRequest(iProc)              &
                 , IERROR )
 END DO ! iProc
 
@@ -1003,6 +1002,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
             iPos=iPos+nSpecies
           END DO
         END IF
+        IF (LiquidSimFlag) THEN
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies+1)= SampWall(SurfSideID)%Evaporation(:,p,q)
+          iPos=iPos+nSpecies+1
+        END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
@@ -1010,6 +1013,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       SampWall(SurfSideID)%Adsorption(:,:,:)=0.
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
       SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
+    END IF
+    IF (LiquidSimFlag) THEN
+      SampWall(SurfSideID)%Evaporation(:,:,:)=0.
     END IF
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
@@ -1019,13 +1025,13 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   MessageSize=SurfExchange%nSidesSend(iProc)*nValues
   CALL MPI_ISEND( SurfSendBuf(iProc)%content               &
-                , MessageSize                              & 
+                , MessageSize                              &
                 , MPI_DOUBLE_PRECISION                     &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
                 , 1009                                     &
-                , SurfCOMM%COMM                            &   
+                , SurfCOMM%COMM                            &
                 , SurfExchange%SendRequest(iProc)          &
-                , IERROR )                                     
+                , IERROR )
 END DO ! iProc                                                
 
 ! 4) Finish Received number of particles
@@ -1067,6 +1073,11 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                                                        +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos=iPos+nSpecies
           END DO
+        END IF
+        IF (LiquidSimFlag) THEN
+          SampWall(SurfSideID)%Evaporation(:,p,q)=SampWall(SurfSideID)%Evaporation(:,p,q) &
+                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies+1)
+          iPos=iPos+nSpecies+1
         END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample

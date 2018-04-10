@@ -184,8 +184,8 @@ SUBROUTINE InitDSMCSurfModel()
 ! MODULES
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Mesh_Vars              ,ONLY: nElems, BC
-USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC!, CollisMode
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM
+USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues
 USE MOD_PARTICLE_Vars          ,ONLY: KeepWallParticles, PEM
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides
 USE MOD_ReadInTools
@@ -421,7 +421,9 @@ END IF
 ! define number of possible recombination reactions per species needed for sampling
 IF (DSMC%WallModel.EQ.1) Adsorption%RecombNum = 0
 IF (DSMC%WallModel.EQ.2) Adsorption%RecombNum = 1
-CALL Init_ChemistrySampling()
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
+  CALL Init_ChemistrySampling()
+END IF
 
 END SUBROUTINE InitDSMCSurfModel
 
@@ -438,7 +440,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC!, CollisMode
+USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM
 USE MOD_ReadInTools            ,ONLY: GETSTR,GETREAL
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
@@ -1508,7 +1510,6 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf,SurfExchange
-USE MOD_DSMC_SurfModel_Tools   ,ONLY: ExchangeSurfDistInfo, ExchangeSurfDistSize
 #endif /*MPI*/
 !===================================================================================================================================
 IMPLICIT NONE
@@ -1516,7 +1517,7 @@ IMPLICIT NONE
 ! Local variable declaration
 INTEGER                          :: iSide
 #ifdef MPI
-INTEGER                          :: iProc
+INTEGER                          :: iProc, SendArraySize, RecvArraySize
 #endif
 !===================================================================================================================================
 
@@ -1531,16 +1532,22 @@ END DO
 #ifdef MPI
 ! Reallocate buffer for mpi communication of sampling
 DO iProc=1,SurfCOMM%nMPINeighbors
+  SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
+  RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
+    ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+    !ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
+    !                                    *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
+    ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+    !ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
+    !                                    *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
