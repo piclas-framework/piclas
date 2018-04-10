@@ -22,6 +22,8 @@ REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   ! plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     ! vector, abs for TEM waves
 LOGICAL           :: DoAnalyze                   ! perform analyze
 LOGICAL           :: DoCalcErrorNorms            ! perform L2, LInf error calculation
+LOGICAL           :: CalcEpot                    ! Computation of the energy stored in the electric and
+                                                 ! magnetic field
 !===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars
