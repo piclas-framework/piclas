@@ -35,6 +35,7 @@ USE MOD_Particle_Vars          ,ONLY: PEM, PartState, PartPosRef
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_ESBGK_CollOperator     ,ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_ESBGK_Vars             ,ONLY: BGKMinPartPerCell, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
+USE MOD_Eval_xyz               ,ONLY: Eval_XYZ_ElemCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -4461,6 +4461,7 @@ USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Liquid_Boundary        ,ONLY: Evaporation
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
