@@ -4667,7 +4667,7 @@ IF (CollisMode.NE.0) THEN
   CALL UpdateNextFreePosition()
 ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-          WriteMacroValues ) THEN
+          WriteMacroVolumeValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
@@ -4795,7 +4795,7 @@ IF (CollisMode.NE.0) THEN
   CALL UpdateNextFreePosition()
 ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-          WriteMacroValues ) THEN
+          WriteMacroVolumeValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
@@ -4826,7 +4826,7 @@ USE MOD_Filter                 ,ONLY: Filter
 #ifdef PARTICLES
 USE MOD_Globals                ,ONLY: abort
 USE MOD_PICDepo                ,ONLY: Deposition
-USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, LiquidSimFlag
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, Pt
 USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
@@ -4834,6 +4834,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,Tr
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif /*MPI*/
 USE MOD_ESBGK                  ,ONLY: ESBGK_main
 USE MOD_ESBGK_Phase            ,ONLY: ComputePhasePotential, EvalPhaseForce, InterpolatePhaseForceToParticle
@@ -4851,7 +4852,15 @@ REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
 Time = t
 
-CALL Deposition()
+! perform normal deposition
+CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+! here: finish deposition with delta kernal
+!       maps source terms in physical space
+! ALWAYS require
+PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+CALL Deposition(doInnerParts=.FALSE.)
 CALL ComputePhasePotential()
 CALL EvalPhaseForce()
 CALL InterpolatePhaseForceToParticle()
@@ -4932,12 +4941,13 @@ IF (CollisMode.NE.0) THEN
   CALL UpdateNextFreePosition()
 ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-          WriteMacroValues ) THEN
+          WriteMacroVolumeValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  CALL abort(__STAMP__,&
-    'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+  CALL abort(&
+__STAMP__,&
+'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
 END IF
 CALL ESBGK_main()
 
@@ -4959,27 +4969,24 @@ SUBROUTINE TimeStep_ESBGK_PhaseLSERK(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Analyze          ,ONLY: PerformAnalyze
-USE MOD_TimeDisc_Vars    ,ONLY: dt,iStage
-USE MOD_TimeDisc_Vars    ,ONLY: RK_a,RK_b,RK_c,nRKStages,iter,IterDisplayStep,TEnd
-USE MOD_ESBGK_Phase      ,ONLY: ComputePhasePotential, EvalPhaseForce, InterpolatePhaseForceToParticle
-USE MOD_PICDepo          ,ONLY: Deposition
-USE MOD_PICInterpolation ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars    ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
-USE MOD_Particle_Vars    ,ONLY: doParticleMerge,PartPressureCell, DoSurfaceFlux, WriteMacroValues
-USE MOD_ESBGK            ,ONLY: ESBGK_main
-USE MOD_part_RHS         ,ONLY: CalcPartRHS
-USE MOD_part_boundary    ,ONLY: ParticleBoundary
-USE MOD_part_emission    ,ONLY: ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC             ,ONLY: DSMC_main
-USE MOD_DSMC_Vars        ,ONLY: useDSMC, DSMC_RHS, DSMC, CollisMode
-USE MOD_part_MPFtools    ,ONLY: StartParticleMerge
+USE MOD_TimeDisc_Vars          ,ONLY: dt, iStage, Time
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a, RK_b, RK_c, nRKStages, iter, IterDisplayStep, TEnd
+#ifdef PARTICLES
+USE MOD_Globals                ,ONLY: abort
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, Pt, Pt_temp
+USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #ifdef MPI
-USE MOD_part_boundary    ,ONLY: ParticleBoundary, Communicate_PIC
-#else /*No MPI*/
-USE MOD_part_boundary    ,ONLY: ParticleBoundary
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif /*MPI*/
-USE MOD_part_tools       ,ONLY: UpdateNextFreePosition
+USE MOD_ESBGK                  ,ONLY: ESBGK_main
+USE MOD_ESBGK_Phase            ,ONLY: ComputePhasePotential, EvalPhaseForce, InterpolatePhaseForceToParticle
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4987,6 +4994,7 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)            :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                          :: timeEnd, timeStart
 REAL                          :: tStage,b_dt(1:nRKStages), dtFrac, RandVal
 INTEGER                       :: iPart
 !===================================================================================================================================
@@ -4997,7 +5005,15 @@ END DO
 iStage=1
 Time=t
 CALL ParticleInserting()
-CALL Deposition()
+! perform normal deposition
+CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+! here: finish deposition with delta kernal
+!       maps source terms in physical space
+! ALWAYS require
+PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+CALL Deposition(doInnerParts=.FALSE.)
 CALL ComputePhasePotential()
 CALL EvalPhaseForce()
 CALL InterpolatePhaseForceToParticle()
@@ -5050,59 +5066,112 @@ ELSE
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + b_dt(1) * Pt(1:PDM%ParticleVecLength,3)
 END IF
 
-CALL ParticleBoundary()
 #ifdef MPI
-CALL Communicate_PIC()
-#endif
+! open receive buffer for number of particles
+CALL IRecvNbOfParticles()
+#endif /*MPI*/
+IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+! actual tracking
+IF(DoRefMapping)THEN
+  CALL ParticleRefTracking()
+ELSE
+  IF (TriaTracking) THEN
+    CALL ParticleTriaTracking()
+  ELSE
+    CALL ParticleTracing()
+  END IF
+END IF
+IF(MeasureTrackTime) THEN
+  CALL CPU_TIME(TimeEnd)
+  tTracking=tTracking+TimeEnd-TimeStart
+END IF
+#ifdef MPI
+! send number of particles
+CALL SendNbOfParticles()
+! finish communication of number of particles and send particles
+CALL MPIParticleSend()
+! finish communication
+CALL MPIParticleRecv()
+#endif /*MPI*/
 
 DO iStage=2,nRKStages
-CALL ParticleInserting()
-CALL Deposition()
-CALL ComputePhasePotential()
-CALL EvalPhaseForce()
-CALL InterpolatePhaseForceToParticle()
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-Pt_temp(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,4) &
-                         - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,1)
-Pt_temp(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,5) &
-                         - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,2)
-Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) &
-                         - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,3)
-Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) &
-                         - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,4)
-Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) &
-                         - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,5)
-Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3) &
-                         - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,6)
-PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
-                                   + Pt_temp(1:PDM%ParticleVecLength,1)*b_dt(iStage)
-PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
-                                   + Pt_temp(1:PDM%ParticleVecLength,2)*b_dt(iStage)
-PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
-                                   + Pt_temp(1:PDM%ParticleVecLength,3)*b_dt(iStage)
-PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                   + Pt_temp(1:PDM%ParticleVecLength,4)*b_dt(iStage)
-PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                   + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(iStage)
-PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                   + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
-! particle tracking
-CALL ParticleBoundary()
+  CALL ParticleInserting()
+  ! perform normal deposition
+  CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
-CALL Communicate_PIC()
-!    CALL UpdateNextFreePosition() ! only required for parallel communication
-#endif
-
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
+  CALL ComputePhasePotential()
+  CALL EvalPhaseForce()
+  CALL InterpolatePhaseForceToParticle()
+  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+  Pt_temp(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,4) &
+                           - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,1)
+  Pt_temp(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,5) &
+                           - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,2)
+  Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) &
+                           - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,3)
+  Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) &
+                           - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,4)
+  Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) &
+                           - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,5)
+  Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3) &
+                           - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,6)
+  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
+                                     + Pt_temp(1:PDM%ParticleVecLength,1)*b_dt(iStage)
+  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
+                                     + Pt_temp(1:PDM%ParticleVecLength,2)*b_dt(iStage)
+  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
+                                     + Pt_temp(1:PDM%ParticleVecLength,3)*b_dt(iStage)
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                     + Pt_temp(1:PDM%ParticleVecLength,4)*b_dt(iStage)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                     + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(iStage)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                     + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
+  !------------------------------------------------------------------
+  ! particle tracking
+#ifdef MPI
+  ! open receive buffer for number of particles
+  CALL IRecvNbOfParticles()
+#endif /*MPI*/
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+  ! actual tracking
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking()
+  ELSE
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
+  END IF
+  IF(MeasureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
+#ifdef MPI
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+#endif /*MPI*/
 END DO
 
 IF (CollisMode.NE.0) THEN
   CALL UpdateNextFreePosition()
 ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-          WriteMacroValues ) THEN
+          WriteMacroVolumeValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
@@ -5132,26 +5201,26 @@ SUBROUTINE TimeStep_ESBGK_Phase_LeapFrog(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars ,ONLY: dt, IterDisplayStep, iter, TEnd
-USE MOD_Filter        ,ONLY: Filter
+USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
+USE MOD_Filter                 ,ONLY: Filter
 #ifdef PARTICLES
-USE MOD_PICDepo       ,ONLY: Deposition
-USE MOD_Globals       ,ONLY: abort
-USE MOD_Particle_Vars ,ONLY: KeepWallParticles,tTracking,MeasureTrackTime
-USE MOD_Particle_Vars ,ONLY: PartState, LastPartPos, Time, PDM, PEM, DoSurfaceFlux, WriteMacroValues, Pt
-USE MOD_DSMC_Vars     ,ONLY: DSMC_RHS, DSMC, CollisMode, Adsorption
-USE MOD_DSMC          ,ONLY: DSMC_main
-USE MOD_ESBGK         ,ONLY: ESBGK_main
-USE MOD_part_boundary ,ONLY: ParticleBoundary
-USE MOD_BoundaryTools ,ONLY: CalcDesorbprob, WallDesorption
-USE MOD_part_tools    ,ONLY: UpdateNextFreePosition
-USE MOD_part_emission ,ONLY: ParticleInserting, ParticleSurfaceflux
-USE MOD_ESBGK_Vars    ,ONLY: BGKAdaptTimeStep, BGKMinCFL
-USE MOD_ESBGK_Phase   ,ONLY: ComputePhasePotential, EvalPhaseForce, InterpolatePhaseForceToParticle
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, Pt
+USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode, Adsorption
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
 #endif
 #ifdef MPI
-USE MOD_part_boundary ,ONLY: Communicate_PIC
-#endif
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+#endif /*MPI*/
+USE MOD_ESBGK                  ,ONLY: ESBGK_main
+USE MOD_ESBGK_Vars             ,ONLY: BGKAdaptTimeStep, BGKMinCFL
+USE MOD_ESBGK_Phase            ,ONLY: ComputePhasePotential, EvalPhaseForce, InterpolatePhaseForceToParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -5165,7 +5234,15 @@ REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
 Time = t
 IF (iter.EQ.0) THEN
-  CALL Deposition()
+  ! perform normal deposition
+  CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
   CALL ComputePhasePotential()
   CALL EvalPhaseForce()
   CALL InterpolatePhaseForceToParticle()
@@ -5215,12 +5292,7 @@ END IF
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
 !  END IF
 
-IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-CALL ParticleBoundary()
-IF(MeasureTrackTime) THEN
-  CALL CPU_TIME(TimeEnd)
-  tTracking=tTracking+TimeEnd-TimeStart
-END IF
+! particle tracking
 #ifdef MPI
 ! open receive buffer for number of particles
 CALL IRecvNbOfParticles()
@@ -5250,7 +5322,15 @@ CALL MPIParticleRecv()
 #endif /*MPI*/
 CALL ParticleInserting()
 
-CALL Deposition()
+! perform normal deposition
+CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+! here: finish deposition with delta kernal
+!       maps source terms in physical space
+! ALWAYS require
+PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+CALL Deposition(doInnerParts=.FALSE.)
 CALL ComputePhasePotential()
 CALL EvalPhaseForce()
 CALL InterpolatePhaseForceToParticle()
@@ -5262,7 +5342,7 @@ IF (CollisMode.NE.0) THEN
   CALL UpdateNextFreePosition()
 ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-          WriteMacroValues ) THEN
+          WriteMacroVolumeValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN

@@ -33,13 +33,13 @@ REAL             :: dt_Min
 REAL             :: dt_temp
 INTEGER          :: MaximumIterNum
 #endif
-#if (PP_TimeDiscMethod==100)||(PP_TimeDiscMethod==501)||(PP_TimeDiscMethod==441)
+#if (PP_TimeDiscMethod==100)||(PP_TimeDiscMethod==501)
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! TIME INTEGRATION: RUNGE_KUTTA COEFFICIENTS AND STABILITY NUMBERS
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==501)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==501)|| (PP_TimeDiscMethod==441)
 ! Low-storage Runge-Kutta 3, 3 stages, Kopriva,Algorithm 42 
 CHARACTER(LEN=255),PARAMETER :: TimeDiscName = 'STANDARD RK3-3'
 INTEGER,PARAMETER  :: nRKStages=3

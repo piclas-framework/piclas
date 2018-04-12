@@ -195,11 +195,11 @@ CASE('particle_position')
       iElem = PEM%Element(iPart)
       Pos = PartState(iPart,1:3)
         !--- evaluate at Particle position
-!        CALL eval_xyz_fast(Pos,3,PP_N,BGKForcePhase(1:3,:,:,:,iElem),field,iElem)
+!        CALL eval_xyz_curved(Pos,3,PP_N,BGKForcePhase(1:3,:,:,:,iElem),field,iElem)
 !        IF (PartSpecies(iPart).EQ.1) THEN
-!          CALL eval_xyz_fast(Pos,3,PP_N,BGKForcePhase2(1:3,:,:,:,iElem),field,iElem)
+!          CALL eval_xyz_curved(Pos,3,PP_N,BGKForcePhase2(1:3,:,:,:,iElem),field,iElem)
 !        ELSE
-        CALL eval_xyz_fast(Pos,3,PP_N,BGKForcePhase(1:3,:,:,:,iElem),field,iElem)
+        CALL eval_xyz_curved(Pos,3,PP_N,BGKForcePhase(1:3,:,:,:,iElem),field,iElem)
 !        END IF
       Pt(iPart,1:3) = field(1:3)
     END IF
