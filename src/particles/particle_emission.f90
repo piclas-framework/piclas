@@ -351,8 +351,6 @@ USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-#endif
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
@@ -2394,8 +2392,12 @@ CASE('constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        IF (Is_ElemMacro .AND. Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
-          PartState(PositionNbr,4:6) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%Element(PositionNbr))
+        IF (Is_ElemMacro) THEN
+          IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
+            PartState(PositionNbr,4:6) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%Element(PositionNbr))
+          ELSE
+            PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
+          END IF
         ELSE
           PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
         END IF
