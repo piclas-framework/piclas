@@ -43,7 +43,7 @@ CALL prms%CreateIntOption(      'Particles-BGKCollModel'  ,         'TODO-DEFINE
                                 '4: ...\n', '1')
 CALL prms%CreateIntOption(      'Particles-ESBGKModel'  ,         'TODO-DEFINE-PARAMETER.\n'//&
                                 '1: Approximative\n'//&
-                                '2: Exact'//&
+                                '2: Exact\n'//&
                                 '3: MetropolisHastings', '1')
 CALL prms%CreateRealOption(     'Particles-UnifiedBGK-Ces'  ,     'TODO-DEFINE-PARAMETER', '1000.0')
 CALL prms%CreateIntOption(      'Particles-BGKAveragingLength'  , 'TODO-DEFINE-PARAMETER', '5')
