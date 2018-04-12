@@ -33,7 +33,7 @@ REAL             :: dt_Min
 REAL             :: dt_temp
 INTEGER          :: MaximumIterNum
 #endif
-#if (PP_TimeDiscMethod==100)
+#if (PP_TimeDiscMethod==100)||(PP_TimeDiscMethod==501)||(PP_TimeDiscMethod==441)
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,7 +69,7 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 
-#if ((PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==5)||(PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==201)||(PP_TimeDiscMethod==502))
+#if ((PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==5)||(PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==201)||(PP_TimeDiscMethod==502)||(PP_TimeDiscMethod==442))
 ! Runge-Kutta 4 - Carpenter 1994 NASA Report
 INTEGER,PARAMETER  :: nRKStages=5
 REAL,PARAMETER  :: RK4_a2=  567301805773.0/  1357537059087.0
@@ -100,7 +100,7 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif
 
-#if (PP_TimeDiscMethod==6)||(PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod==6)||(PP_TimeDiscMethod==506)||(PP_TimeDiscMethod==443)
 ! Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
 ! Fastest RK4 scheme implemented, but less accurate then Carpenter RK4
 ! Very good performance for high N

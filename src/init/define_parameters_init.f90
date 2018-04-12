@@ -10,7 +10,7 @@ PUBLIC:: InitDefineParameters
 
 CONTAINS
 
-SUBROUTINE InitDefineParameters() 
+SUBROUTINE InitDefineParameters()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Calls all parameter definition routines
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -52,6 +52,7 @@ USE MOD_PICInit          ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 USE MOD_LD_Init          ,ONLY: DefineParametersLD
+USE MOD_ESBGK_Init       ,ONLY: DefineParametersBGK
 USE MOD_DSMC_SurfModelInit,ONLY: DefineParametersSurfModel
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -102,6 +103,7 @@ CALL DefineParametersPIC()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 CALL DefineParametersLD()
+CALL DefineParametersBGK()
 CALL DefineParametersSurfModel()
 #endif
 

@@ -87,7 +87,32 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 
 OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
-SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR CN ImplicitO3 ImplicitO4 Ascher3 ROS2 ROS3 ROS4 ROS46 ROS6 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
+SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
+                                                              RK3
+                                                              RK4
+                                                              RK14
+                                                              ParticleEuler-FieldRK4
+                                                              DSMC RESERVOIR
+                                                              CN ImplicitO3
+                                                              ImplicitO4
+                                                              Ascher3
+                                                              ROS2
+                                                              ROS3
+                                                              ROS4
+                                                              ROS46
+                                                              ROS6
+                                                              ESBGK
+                                                              BGK-Euler
+                                                              BGK-Euler-Gravitation
+                                                              BGK-Phase
+                                                              BGK-Phase-RK3
+                                                              BGK-Phase-RK4
+                                                              BGK-Phase-RK14
+                                                              BGK-Phase-LeapFrog
+                                                              FieldRelaxation
+                                                              FieldRelaxation-AdaptiveTimeStep
+                                                              LD
+                                                              LD-DSMC)
 
 OPTION(BOLTZPLATZ_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(BOLTZPLATZ_BUILDPOSTI "Build POSTI toolset" OFF)
@@ -254,6 +279,22 @@ ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS6")
    IF(BOLTZPLATZ_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ESBGK")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "BGK-Euler")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=410)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "BGK-Euler-Gravitation")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=411)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "BGK-Phase")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=440)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "BGK-Phase-RK3")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=441)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "BGK-Phase-RK4")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=442)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "BGK-Phase-RK14")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=443)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "BGK-Phase-LeapFrog")
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=445)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
@@ -539,10 +580,10 @@ ENDIF()
 # ========================================================================= 
 IF(BOLTZPLATZ_PAPI)
   FIND_PACKAGE(PAPI REQUIRED)
-  ADD_DEFINITIONS(-DPAPI) 
+  ADD_DEFINITIONS(-DPAPI)
   LIST(APPEND linkedlibs ${PAPI_LIBRARIES})
   INCLUDE_DIRECTORIES(${PAPI_INCLUDE_DIRS})
-  MESSAGE(STATUS "Building Boltzplatz with PAPI benchmark support.") 
+  MESSAGE(STATUS "Building Boltzplatz with PAPI benchmark support.")
 ENDIF()
 
 # ========================================================================= 
@@ -562,7 +603,7 @@ ENDIF()
 function(add_exec target)
   ADD_EXECUTABLE(${target} ${ARGN})
   TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o boltzplatzlib ${linkedlibs})
-  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
+  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS})
   SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
   STRING(TOUPPER ${target} TARGETUP)
@@ -570,7 +611,7 @@ function(add_exec target)
 endfunction()
 
 # include boltzplatz.h 
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src) 
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # collect all F90 files needed for boltzplatzlib
 FILE(GLOB_RECURSE boltzplatzF90 ./src/init/*.f90
@@ -642,7 +683,7 @@ ENDIF()
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
-FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
+FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
 
 FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90)
@@ -667,12 +708,12 @@ IF (BOLTZPLATZ_PARTICLES)
    LIST(APPEND boltzplatzF90 ${noparticlesF90})
 ENDIF(BOLTZPLATZ_PARTICLES)
 IF(BOLTZPLATZ_QDS_DG)
-  LIST(APPEND boltzplatzF90 ${QDSF90}) 
+  LIST(APPEND boltzplatzF90 ${QDSF90})
 ENDIF()
 
 # define libs
 ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )
-SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
+SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS})
 ADD_LIBRARY(userblocklib OBJECT ./src/output/read_userblock.c)
 SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
 ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90> $<TARGET_OBJECTS:userblocklib>)
@@ -729,7 +770,7 @@ ENDIF()
 # =========================================================================
 # Userblock
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET boltzplatzlib PRE_BUILD COMMAND 
+ADD_CUSTOM_COMMAND(TARGET boltzplatzlib PRE_BUILD COMMAND
   sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # =========================================================================
