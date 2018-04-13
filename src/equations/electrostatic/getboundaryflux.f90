@@ -304,7 +304,7 @@ REAL,ALLOCATABLE   :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(A,A)')'  Read BC state from file "',FileName
 CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.,single=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-CALL GetDataProps(nVar_HDF5,N_HDF5,nELems_HDF5,NodeType_HDF5)
+CALL GetDataProps('DG_Solution',nVar_HDF5,N_HDF5,nELems_HDF5,NodeType_HDF5)
 IF(((N_HDF5.NE.PP_N) .OR. (TRIM(NodeType_HDF5).NE.TRIM(NodeType))))THEN
   InterpolateSolution=.TRUE.
 ELSE

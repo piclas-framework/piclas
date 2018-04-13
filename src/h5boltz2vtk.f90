@@ -217,7 +217,7 @@ DO iArgs = 2,nArgs
   ! Open .h5 file
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
   ! Read in parameters from the State file
-  CALL GetDataProps(nVar_State,N_State,nElems_State,NodeType_State)
+  CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
   CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
   CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
   NVisu_FV = (N_State+1)*2-1

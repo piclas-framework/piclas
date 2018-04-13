@@ -382,7 +382,7 @@ USE MOD_Globals_Vars,               ONLY : Pi
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG, Adaptive_MacroVal
+USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, Adaptive_MacroVal
 USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, SolidSimFlag
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
@@ -612,14 +612,64 @@ __STAMP__&
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
-  BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
-  IF (useVTKFileBGG) THEN
-    IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') & !(use always Init 0 for BGG !!!)
-    CALL abort(&
-    __STAMP__&
-    ,'only maxwell_lpn is implemened as velocity-distribution for BGG from VTK-File!')
-    CALL ReadinVTKFileBGG()
-  END IF
+  IF (BGGas%BGGasSpecies.NE.0) THEN
+    IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%nSurfacefluxBCs.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%initialParticleNumber.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ConstantPressure.NE.0. &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%PartDensity.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ParticleEmission.NE.0 ) CALL abort(&
+__STAMP__&
+,'BGG species can be used ONLY for BGG!')
+    IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
+      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTVibFileID.GT.0 &
+      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTRotFileID .GT.0 &
+      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTElecFileID.GT.0 ) THEN
+      !-- from MacroRestartFile (inner DOF not yet implemented!):
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
+__STAMP__&
+,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
+__STAMP__&
+,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
+        CALL abort(&
+__STAMP__&
+,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
+      ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
+        CALL abort(&
+__STAMP__&
+,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
+      END IF
+!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVibFileID.LE.0 .OR. &
+!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVib)) CALL abort(&
+!__STAMP__&
+!,'ElemTVib not defined in Init0 for BGG from MacroRestartFile!')
+!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTRotFileID.LE.0 .OR. &
+!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTRot)) CALL abort(&
+!__STAMP__&
+!,'ElemTRot not defined in Init0 for BGG from MacroRestartFile!')
+!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTElecFileID.LE.0 .OR. &
+!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTElec)) CALL abort(&
+!__STAMP__&
+!,'ElemTElec not defined in Init0 for BGG from MacroRestartFile!')
+    ELSE
+      !-- constant values (some from init0)
+      BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
+      IF (BGGas%BGGasDensity.EQ.0.) CALL abort(&
+__STAMP__&
+,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
+      IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
+__STAMP__&
+,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+    END IF
+  END IF !BGGas%BGGasSpecies.NE.0
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing molecular stuff
@@ -721,48 +771,72 @@ __STAMP__&
             hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
           END IF ! iInit
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
-            SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
-            IF (SpecDSMC(iSpec)%Init(iInit)%TRot*SpecDSMC(iSpec)%Init(iInit)%TVib.EQ.0.) THEN
-              IF (iInit.EQ.0)THEN
-                IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+            IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
+              SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
+              IF (SpecDSMC(iSpec)%Init(iInit)%TVib.EQ.0.) THEN
+                IF (iInit.EQ.0)THEN
+                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+                    CALL Abort(&
+__STAMP__&
+,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for iSpec',iSpec)
+                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                    CALL Abort(&
+__STAMP__&
+,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for BGGas')
+                  END IF
+                ELSE ! iInit >0
                   CALL Abort(&
 __STAMP__&
-,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for iSpec',iSpec)
-                ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                  CALL Abort(&
-__STAMP__&
-,'Error! TVib and TRot need to be defined in Part-SpeciesXX-TempVib/TempRot for BGGas')
-                END IF
-              ELSE ! iInit >0
-                CALL Abort(&
-__STAMP__&
-,'Error! TVib and TRot need to be defined in Part-SpeciesXX-InitXX-TempVib/TempRot for iSpec, iInit'&
+,'Error! TVib needs to be defined in Part-SpeciesXX-InitXX-TempVib for iSpec, iInit'&
 ,iSpec,REAL(iInit))
+                END IF
+              END IF
+            END IF !ElemMacroRestart TVib
+            IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
+              SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
+              IF (SpecDSMC(iSpec)%Init(iInit)%TRot.EQ.0.) THEN
+                IF (iInit.EQ.0)THEN
+                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+                    CALL Abort(&
+__STAMP__&
+,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for iSpec',iSpec)
+                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                    CALL Abort(&
+__STAMP__&
+,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for BGGas')
+                  END IF
+                ELSE ! iInit >0
+                  CALL Abort(&
+__STAMP__&
+,'Error! TRot needs to be defined in Part-SpeciesXX-InitXX-TempRot for iSpec, iInit'&
+,iSpec,REAL(iInit))
+                END IF
               END IF
             END IF
-          END IF
+          END IF ! ElemMacroRestart TRot
           ! read electronic temperature
           IF ( DSMC%ElectronicModel ) THEN
-            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
-            IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
-              IF (iInit.EQ.0)THEN
-                IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
-                  CALL Abort(&
-                  __STAMP__&
-                  ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                  CALL Abort(&
+            IF (Species(iSpec)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
+              SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
+              IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
+                IF (iInit.EQ.0)THEN
+                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+                    CALL Abort(&
+                    __STAMP__&
+                    ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
+                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                    CALL Abort(&
 __STAMP__&
 ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
-                END IF
-              ELSE ! iInit >0
-                CALL Abort(&
+                  END IF
+                ELSE ! iInit >0
+                  CALL Abort(&
 __STAMP__&
 ,' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+                END IF
               END IF
-            END IF
-          END IF
+            END IF !ElemMacroRestart TElec
+          END IF ! electronic model
         END DO !Inits
         ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
@@ -1263,8 +1337,16 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
     SELECT CASE (init_or_sf)
     CASE(1) !iInit
-      TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
-      TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+      IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
+        TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
+      ELSE
+        TVib=Species(iSpecies)%Init(iInit)%ElemTVib(PEM%Element(iPart))
+      END IF
+      IF (Species(iSpecies)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
+        TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
+      ELSE
+        TRot=Species(iSpecies)%Init(iInit)%ElemTRot(PEM%Element(iPart))
+      END IF
     CASE(2) !SurfaceFlux
       IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
         !-- compute number of to be inserted particles
@@ -1338,290 +1420,6 @@ __STAMP__&
 #endif
 
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
-
-
-SUBROUTINE ReadinVTKFileBGG
-!===================================================================================================================================
-! Readin of custom VTK file for non-constant background gas distribution
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals
-!  USE MOD_ReadInTools
-#ifndef MPI
-!  USE MOD_Mesh_Vars,              ONLY : nNodes
-#endif
-!  USE MOD_Mesh_Vars,              ONLY : nElems
-!  USE MOD_Particle_Vars,          ONLY : BGGdataAtElem
-!  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!  INTEGER                :: unit_in
-!  INTEGER                :: os !openStatus
-!  CHARACTER(255)         :: VTKfile
-!  CHARACTER(LEN=255)     :: cdummy, varname
-!  INTEGER                :: npoints, iNode, ncells, icell, VI, icoord, iElem
-!  REAL, ALLOCATABLE      :: VTKNodes(:,:), VTK_BGGdata_Cells(:,:),VTKCellsSP(:,:)
-!  LOGICAL, ALLOCATABLE   :: IsAssociated1(:),IsAssociated2(:)
-!  REAL                   :: x(3), Elem_SP(3)
-!  INTEGER                :: iVTKcell, CellX, CellY, CellZ
-!  INTEGER, ALLOCATABLE  :: VTKCells(:,:)
-!  LOGICAL                :: InElementCheck
-!===================================================================================================================================
-
-    CALL abort(&
-    __STAMP__&
-    ,' Subroutine not implemented!')
-
-
-!  SWRITE(UNIT_stdOut,'(132("~"))')
-!  SWRITE(UNIT_stdOut,'(A)')'Reading VTK file for BGG...'
-!
-!  VTKfile = GETSTR('BGG-VTK-File','blubb')
-!  IF(TRIM(VTKfile).EQ.'blubb')THEN 
-!    CALL abort(__STAMP__&
-!    'ERROR: No VTK-Filename for Background-Gas defined!')
-!  END IF 
-!
-!  unit_in = 1123
-!  OPEN(UNIT   = unit_in,              &
-!       FILE   = VTKfile,              &
-!       IOSTAT = os,                   &
-!       STATUS = 'OLD',                &
-!       ACTION = 'READ',               &
-!       ACCESS = 'SEQUENTIAL'          )
-!
-!  IF(os.NE.0) THEN  ! File Error
-!    CALL abort(__STAMP__&
-!    'ERROR: cannot open VTK file: '//trim(VTKfile))
-!  END IF
-!    
-!  DO iNode=1,7
-!    READ(unit_in, '(A)') cdummy
-!  END DO
-!  READ(unit_in,*) cdummy,npoints,cdummy  ! POINTS ???? float
-!  ALLOCATE(VTKNodes(1:3,npoints))
-!  DO iNode = 0,INT(npoints/3)-1
-!    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2),VTKNodes(:,3*iNode+3)
-!  END DO
-!  IF (MOD(npoints,3).EQ.1) THEN
-!    READ(unit_in,*) VTKNodes(:,3*iNode+1)
-!  ELSE IF (MOD(npoints,3).EQ.2) THEN
-!    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2)
-!  END IF
-!  READ(unit_in,*) cdummy,ncells,cdummy  ! CELLS ???? ????
-!  ALLOCATE (VTKCells(1:8, ncells))
-!  DO icell = 1,ncells
-!    READ(unit_in,*), cdummy, VTKCells(:,icell)
-!  END DO
-!  VTKCells(:,:) = VTKCells(:,:) + 1
-!  READ(unit_in, '(A)') cdummy  ! blank line
-!  READ(unit_in, '(A)') cdummy  ! blank line
-!  DO icell = 1,ncells
-!    READ(unit_in,*) cdummy !skip cells
-!  END DO
-!  !var1
-!  DO icell=1,2
-!    READ(unit_in, '(A)') cdummy
-!  END DO
-!  READ(unit_in,*) cdummy, varname, cdummy
-!  VI = 0
-!  IF (TRIM(varname).EQ.'T') THEN
-!    VI=0
-!  ELSE IF (TRIM(varname).EQ.'v') THEN
-!    VI=3
-!  ELSE
-!    CALL abort(__STAMP__&
-!    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
-!  END IF
-!  ALLOCATE(VTK_BGGdata_Cells(1:7,ncells))
-!  DO icell = 0,INT(ncells/3)-1
-!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
-!      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
-!  END DO
-!  IF (MOD(ncells,3).EQ.1) THEN
-!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
-!  ELSE IF (MOD(ncells,3).EQ.2) THEN
-!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
-!  END IF
-!  !var2
-!  DO icell=1,2
-!    READ(unit_in, '(A)') cdummy
-!  END DO
-!  READ(unit_in,*) varname, cdummy, cdummy, cdummy
-!  IF (TRIM(varname).EQ.'T') THEN
-!    VI=0
-!  ELSE IF (TRIM(varname).EQ.'v') THEN
-!    VI=3
-!  ELSE
-!    CALL abort(__STAMP__&
-!    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
-!  END IF
-!  DO icell = 0,INT(ncells/3)-1
-!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
-!      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
-!  END DO
-!  IF (MOD(ncells,3).EQ.1) THEN
-!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
-!  ELSE IF (MOD(ncells,3).EQ.2) THEN
-!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
-!  END IF
-!  !n
-!  DO icell=1,2
-!    READ(unit_in, '(A)') cdummy
-!  END DO
-!  DO icell = 0,INT(ncells/9)-1
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
-!      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8),VTK_BGGdata_Cells(7,9*icell+9)
-!  END DO
-!  SELECT CASE (MOD(ncells,9))
-!  CASE(1)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1)
-!  CASE(2)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2)
-!  CASE(3)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3)
-!  CASE(4)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-!      ,VTK_BGGdata_Cells(7,9*icell+4)
-!  CASE(5)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5)
-!  CASE(6)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6)
-!  CASE(7)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
-!      ,VTK_BGGdata_Cells(7,9*icell+7)
-!  CASE(8)
-!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
-!      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8)
-!  END SELECT
-!  CLOSE(1123)
-!
-!#ifndef MPI
-!  IF (npoints.NE.nNodes) THEN
-!    CALL abort(__STAMP__&
-!    'ERROR: wrong number of points in VTK-File')
-!  END IF
-!  IF (ncells.NE.nElems) THEN
-!    CALL abort(__STAMP__&
-!    'ERROR: wrong number of cells in VTK-File')
-!  END IF
-!#endif /*MPI*/
-!
-!  ALLOCATE(VTKCellsSP(1:3,ncells))
-!  DO icell = 1, ncells
-!    Elem_SP(:)=0.
-!    DO iNode = 1,8 !SP Nodes_new
-!      DO icoord = 1,3
-!        Elem_SP(icoord)=Elem_SP(icoord)+VTKNodes(icoord,VTKCells(iNode,icell))
-!      END DO
-!    END DO
-!    VTKCellsSP(:,icell)=Elem_SP(:)/8.
-!  END DO
-!
-!  ALLOCATE(BGGdataAtElem(1:7,nElems))
-!  ALLOCATE(IsAssociated1(ncells))
-!  ALLOCATE(IsAssociated2(nElems))
-!  BGGdataAtElem=0.
-!  IsAssociated1=.FALSE.
-!  IsAssociated2=.FALSE.
-!
-!  DO iVTKcell = 1,ncells
-!    x = VTKCellsSP(1:3,iVTKcell)
-!    CellX = INT((x(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-!    CellY = INT((x(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-!    CellZ = INT((x(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-!#ifdef MPI
-!    IF ((GEO%FIBGMimax.GE.CellX).AND.(GEO%FIBGMimin.LE.CellX)) THEN  
-!    IF ((GEO%FIBGMjmax.GE.CellY).AND.(GEO%FIBGMjmin.LE.CellY)) THEN  
-!    IF ((GEO%FIBGMkmax.GE.CellZ).AND.(GEO%FIBGMkmin.LE.CellZ)) THEN  
-!#endif /* MPI */
-!      DO iElem=1, nElems
-!        ! OMG
-!        CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
-!              GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
-!              GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
-!              GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
-!              VTKCellsSP(:,iVTKcell), &
-!              InElementCheck)
-!        IF(InElementCheck) THEN
-!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
-!                VTKCellsSP(:,iVTKcell), &
-!                InElementCheck)
-!        END IF
-!        IF(InElementCheck) THEN
-!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
-!                VTKCellsSP(:,iVTKcell), &
-!                InElementCheck)
-!        END IF
-!        IF(InElementCheck) THEN
-!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
-!                VTKCellsSP(:,iVTKcell), &
-!                InElementCheck)
-!        END IF
-!        IF(InElementCheck) THEN
-!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
-!                VTKCellsSP(:,iVTKcell), &
-!                InElementCheck)
-!        END IF
-!        IF(InElementCheck) THEN
-!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
-!                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
-!                VTKCellsSP(:,iVTKcell), &
-!                InElementCheck)
-!        END IF
-!        IF(InElementCheck) THEN
-!          IF (IsAssociated1(iVTKcell).OR.IsAssociated2(iElem)) THEN
-!            CALL abort(__STAMP__&
-!              'ERROR: Cell is already mapped!')
-!          END IF
-!          BGGdataAtElem(:,iElem)=VTK_BGGdata_Cells(:,iVTKcell)
-!          IsAssociated1(iVTKcell)=.TRUE.
-!          IsAssociated2(iElem)=.TRUE.
-!          EXIT
-!        END IF
-!      END DO
-!#ifdef MPI
-!    END IF
-!    END IF 
-!    END IF  
-!#endif /* MPI */
-!  END DO ! iVTKcell
-!  !IF (.NOT. ALL(IsAssociated1)) THEN         !only for 1 proc!!!!!!!!
-!  !  CALL abort(__STAMP__&
-!  !        'ERROR: Not all VTKcells mapped for BGG!',999,999.)
-!  !END IF
-!  IF (.NOT. ALL(IsAssociated2)) THEN
-!    CALL abort(__STAMP__&
-!              'ERROR: Not all Elems mapped for BGG!')
-!  END IF
-!  SWRITE(UNIT_stdOut,'(A)')'DONE!'
-!  SWRITE(UNIT_stdOut,'(132("~"))')
-END SUBROUTINE ReadinVTKFileBGG
 
 
 SUBROUTINE FinalizeDSMC() 

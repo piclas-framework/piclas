@@ -94,7 +94,7 @@ USE MOD_PreProc
 USE MOD_DG_Vars,          ONLY: U,Un
 USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict,tpast
 USE MOD_TimeDisc_Vars,    ONLY: time,iter
-#if (PP_TimeDiscMethod==120) 
+#if (PP_TimeDiscMethod==120)  || defined(ROS) || (PP_TimeDiscMethod==123)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c
 #endif
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
@@ -137,7 +137,7 @@ SELECT CASE(PredictorType)
     U=LinSolverRHS
   CASE(2)
     ! second order dense output
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if  (PP_TimeDiscMethod==121) 
     !tphi = 1.+RK_c(iStage) | because dt^n+1/dt = 1 (Maxwell timestep)
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
@@ -152,7 +152,7 @@ __STAMP__&
 ,'No Predictor for this timedisc!',999,999.)
 #endif
   CASE(3)
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
+#if  (PP_TimeDiscMethod==122)
     ! third order dense output
    ! tphi = 1.+RK_c(iStage)
     tphi = RK_c(iStage)
@@ -190,7 +190,7 @@ __STAMP__&
     !U=2.*Upast(:,:,:,:,:,0)-Upast(:,:,:,:,:,-1)
     ! in store predictor
   CASE(6)
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     ! second order dense output
     IF(iter.EQ.0) RETURN
     IF(iStage.LE.1) RETURN
@@ -201,7 +201,7 @@ __STAMP__&
 ,'No Predictor for this timedisc!',999,999.)
 #endif
   CASE(7)
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==122)
     IF(iter.EQ.0) RETURN
     IF(iStage.LE.1) RETURN 
     U=Upredict(:,:,:,:,:,iStage)
@@ -331,7 +331,7 @@ USE MOD_DG_Vars,          ONLY:U,Ut,Un
 USE MOD_LinearSolver_Vars,ONLY:Upast,Upredict,tpast
 USE MOD_TimeDisc_Vars,    ONLY:dt,iStage,nRKStages,time
 USE MOD_LinearSolver_Vars,ONLY:FieldStage,ImplicitSource
-#if (PP_TimeDiscMethod==120) 
+#if (PP_TimeDiscMethod==120) || defined(ROS) || (PP_TimeDiscMethod==123)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c
 #endif
 #if (PP_TimeDiscMethod==122)
@@ -376,7 +376,7 @@ CASE(5)
   Upast(:,:,:,:,:, 0)=U
 CASE(6)
   IF(iStage.NE.0) RETURN
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   DO iStage2=2,nRKStages
      tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
      tphi2= tphi*tphi
@@ -394,7 +394,7 @@ __STAMP__&
 #endif
 CASE(7)
   IF(iStage.NE.0) RETURN
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
+#if (PP_TimeDiscMethod==122)
   DO iStage2=2,nRKStages
     tphi = 1.+(dt/dtold)*RK_c(iStage2) !  | because dt^n+1/dt = 1 (Maxwell timestep)
     tphi2= tphi*tphi

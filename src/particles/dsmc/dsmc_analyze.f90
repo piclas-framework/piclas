@@ -246,7 +246,7 @@ SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q) &
 SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q) &
                                 + TransArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
 SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q) &
-                                + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+                                + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
 
 !----  Sampling force at walls
 SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
@@ -254,32 +254,32 @@ SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
 SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
     + Species(PartSpecies(PartID))%MassIC * (TransArray(5)) * Species(PartSpecies(PartID))%MacroParticleFactor
 SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor 
+    + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor
 
 IF (useDSMC) THEN
-IF (CollisMode.GT.1) THEN
-IF (DSMC%WallModel.GT.0) THEN
-  SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
-                                    + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
-END IF
-IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
-  !----  Sampling for internal (rotational) energy accommodation at walls
-  SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
-                                    + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
-                                    + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
-                                    + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+  IF (CollisMode.GT.1) THEN
+    IF (DSMC%WallModel.GT.0) THEN
+      SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
+                                        + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
+    IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+      !----  Sampling for internal (rotational) energy accommodation at walls
+      SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
+                                        + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
+                                        + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
+                                        + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
 
-  !----  Sampling for internal (vibrational) energy accommodation at walls
-  SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
-                                    + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
-                                    + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
-                                    + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
-END IF
-END IF
+      !----  Sampling for internal (vibrational) energy accommodation at walls
+      SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
+                                        + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
+                                        + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
+                                        + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
+  END IF
 END IF
 
 IF (PRESENT(emission_opt)) THEN
@@ -1677,7 +1677,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
           IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(MolecpartNum.GT.0))THEN
                   DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
                       / MolecPartNum
-                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
+                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) &
                       / MolecPartNum
           END IF
           IF ( DSMC%ElectronicModel .AND.(HeavyPartNum.GT. 0)) THEN
@@ -1988,7 +1988,7 @@ REAL                           :: StartT,EndT
 #endif
 
 ! Create dataset attribute "VarNames"
-nVarloc=12
+nVarloc=DSMC_NVARS
 nVar=nVarloc*(nSpecies+1)
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
@@ -1999,33 +1999,33 @@ ALLOCATE(StrVarNames(1:nVar+nVar_quality))
 nVarCount=0
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
-  StrVarNames(nVarCount+1) ='Spec'//TRIM(SpecID)//'_VeloX'
-  StrVarNames(nVarCount+2) ='Spec'//TRIM(SpecID)//'_VeloY'
-  StrVarNames(nVarCount+3) ='Spec'//TRIM(SpecID)//'_VeloZ'
-  StrVarNames(nVarCount+4) ='Spec'//TRIM(SpecID)//'_TempX'
-  StrVarNames(nVarCount+5) ='Spec'//TRIM(SpecID)//'_TempY'
-  StrVarNames(nVarCount+6) ='Spec'//TRIM(SpecID)//'_TempZ'
-  StrVarNames(nVarCount+7) ='Spec'//TRIM(SpecID)//'_Density'
-  StrVarNames(nVarCount+8) ='Spec'//TRIM(SpecID)//'_TVib'
-  StrVarNames(nVarCount+9) ='Spec'//TRIM(SpecID)//'_TRot'
-  StrVarNames(nVarCount+10)='Spec'//TRIM(SpecID)//'_TElec'
-  StrVarNames(nVarCount+11)='Spec'//TRIM(SpecID)//'_PointWeight'
-  StrVarNames(nVarCount+12)='Spec'//TRIM(SpecID)//'_TempMean'
+  StrVarNames(nVarCount+DSMC_VELOX      )='Spec'//TRIM(SpecID)//'_VeloX'
+  StrVarNames(nVarCount+DSMC_VELOY      )='Spec'//TRIM(SpecID)//'_VeloY'
+  StrVarNames(nVarCount+DSMC_VELOZ      )='Spec'//TRIM(SpecID)//'_VeloZ'
+  StrVarNames(nVarCount+DSMC_TEMPX      )='Spec'//TRIM(SpecID)//'_TempX'
+  StrVarNames(nVarCount+DSMC_TEMPY      )='Spec'//TRIM(SpecID)//'_TempY'
+  StrVarNames(nVarCount+DSMC_TEMPZ      )='Spec'//TRIM(SpecID)//'_TempZ'
+  StrVarNames(nVarCount+DSMC_DENSITY    )='Spec'//TRIM(SpecID)//'_Density'
+  StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_TVib'
+  StrVarNames(nVarCount+DSMC_TROT       )='Spec'//TRIM(SpecID)//'_TRot'
+  StrVarNames(nVarCount+DSMC_TELEC      )='Spec'//TRIM(SpecID)//'_TElec'
+  StrVarNames(nVarCount+DSMC_POINTWEIGHT)='Spec'//TRIM(SpecID)//'_PointWeight'
+  StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Spec'//TRIM(SpecID)//'_TTransMean'
   nVarCount=nVarCount+nVarloc
 END DO ! iSpec=1,nSpecies
 ! fill varnames for total values
-StrVarNames(nVarCount+1) ='Total_VeloX'
-StrVarNames(nVarCount+2) ='Total_VeloY'
-StrVarNames(nVarCount+3) ='Total_VeloZ'
-StrVarNames(nVarCount+4) ='Total_TempX'
-StrVarNames(nVarCount+5) ='Total_TempY'
-StrVarNames(nVarCount+6) ='Total_TempZ'
-StrVarNames(nVarCount+7) ='Total_Density'
-StrVarNames(nVarCount+8) ='Total_TVib'
-StrVarNames(nVarCount+9) ='Total_TRot'
-StrVarNames(nVarCount+10)='Total_TElec'
-StrVarNames(nVarCount+11)='Total_PointWeight'
-StrVarNames(nVarCount+12)='Total_Temp_Mean'
+StrVarNames(nVarCount+DSMC_VELOX      )='Total_VeloX'
+StrVarNames(nVarCount+DSMC_VELOY      )='Total_VeloY'
+StrVarNames(nVarCount+DSMC_VELOZ      )='Total_VeloZ'
+StrVarNames(nVarCount+DSMC_TEMPX      )='Total_TempX'
+StrVarNames(nVarCount+DSMC_TEMPY      )='Total_TempY'
+StrVarNames(nVarCount+DSMC_TEMPZ      )='Total_TempZ'
+StrVarNames(nVarCount+DSMC_DENSITY    )='Total_Density'
+StrVarNames(nVarCount+DSMC_TVIB       )='Total_TVib'
+StrVarNames(nVarCount+DSMC_TROT       )='Total_TRot'
+StrVarNames(nVarCount+DSMC_TELEC      )='Total_TElec'
+StrVarNames(nVarCount+DSMC_POINTWEIGHT)='Total_PointWeight'
+StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_TTransMean'
 nVarCount=nVarCount+nVarloc
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'

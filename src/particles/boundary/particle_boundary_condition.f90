@@ -63,10 +63,8 @@ USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
@@ -125,10 +123,8 @@ CASE(1) !PartBound%OpenBC)
   alpha=-1.
 #ifdef IMPA
   DoPartInNewton(iPart) = .FALSE.
-#endif /*IMPA*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
@@ -176,11 +172,9 @@ CASE(2) !PartBound%ReflectiveBC)
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-            PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #ifdef IMPA
-		    DoPartInNewton(iPart) = .FALSE.
+            PartIsImplicit(iPart) = .FALSE.
+		        DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
             alpha=-1.
           END IF
@@ -208,9 +202,9 @@ __STAMP__,&
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
             alpha=-1.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if IMPA
             PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
             CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
               IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
@@ -299,10 +293,8 @@ USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
 #endif /*IMPA*/
 
@@ -358,10 +350,8 @@ CASE(1) !PartBound%OpenBC)
   alpha=-1.
 #ifdef IMPA
   DoPartInNewton(iPart) = .FALSE.
-#endif /*IMPA*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -410,11 +400,9 @@ CASE(2) !PartBound%ReflectiveBC)
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-            PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #ifdef IMPA
-  			DoPartInNewton(iPart) = .FALSE.
+            PartIsImplicit(iPart) = .FALSE.
+  			    DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
             alpha=-1.
           END IF
@@ -440,9 +428,9 @@ __STAMP__,&
               PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#ifdef IMPA
             PartIsImplicit(iPart) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
             alpha=-1.
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
@@ -633,6 +621,9 @@ USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_LD_Vars,                ONLY: useLD
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
+USE MOD_TImeDisc_Vars,          ONLY:tend,time
+USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #endif
@@ -640,16 +631,18 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ,PartDeltaX
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
-USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
+USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
+USE MOD_Particle_Vars,          ONLY:PEM,PartIsImplicit
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
 #endif /*IMPA*/
-USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
-USE MOD_TImeDisc_Vars,          ONLY:tend,time
-USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
+#ifdef ROS
+USE MOD_Particle_Vars,          ONLY:PartQ
+USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
 USE MOD_Particle_Vars,          ONLY:PEM
-#endif
+USE MOD_TimeDisc_Vars,          ONLY:iStage,RK_a
+#endif /*ROS*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -678,10 +671,10 @@ REAL                                  :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
 LOGICAL                              :: Symmetry, IsAuxBC
-#ifdef IMPA
+#if defined(IMPA) || defined(ROS)
 INTEGER                              :: iCounter
 REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
-#endif /*IMPA*/
+#endif /*IMPA and ROS*/
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -788,7 +781,7 @@ v_old = PartState(PartID,4:6)
 ! new velocity vector 
 !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
 v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
-#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 ! here, we turn the velocity 
 IF(RK_inflow(iStage).GT.0)THEN
 PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
@@ -914,9 +907,7 @@ IF(iStage.GT.0)THEN
     PartStage(PartID,1:3,iCounter)=MATMUL(RotationMat,PartStage(PartID,1:3,iCounter))
     PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
   END DO ! iCoutner=1,iStage-1
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   IF(PartIsImplicit(PartID))THEN
-#endif
     ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
     ! new value, which is not yet computed, hence, convergence issues...
     ! we are using the value of the last iteration under the assumption, that this 
@@ -952,7 +943,6 @@ IF(iStage.GT.0)THEN
     IF(.NOT.DoRefMapping)THEN
       PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
     END IF
-#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   ELSE
     ! explicit particle
     DeltaP=0.
@@ -961,10 +951,59 @@ IF(iStage.GT.0)THEN
     END DO
     PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
   END IF
-#endif
 END IF
 #endif /*IMPA*/
-!END IF
+
+#if defined(ROS)
+! rotate the Runge-Kutta coefficients into the new system 
+! this rotation is a housholder rotation
+RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
+RotationMat(1,2) = -2*n_loc(1)*n_loc(2)
+RotationMat(1,3) = -2*n_loc(1)*n_loc(3)
+RotationMat(2,1) = RotationMat(1,2)
+RotationMat(3,1) = RotationMat(1,3)
+RotationMat(2,2) = 1.-2*n_loc(2)*n_loc(2)
+RotationMat(2,3) = -2*n_loc(2)*n_loc(3)
+RotationMat(3,2) = RotationMat(2,3)
+RotationMat(3,3) = 1.-2*n_loc(3)*n_loc(3)
+
+IF(iStage.GT.0)THEN
+  ! rotate the velocity vectors and acceleration change
+  DO iCounter=1,iStage-1
+    PartStage(PartID,1:3,iCounter)=MATMUL(RotationMat,PartStage(PartID,1:3,iCounter))
+    PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
+  END DO ! iCoutner=1,iStage-1
+  ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
+  ! new value, which is not yet computed, hence, convergence issues...
+  ! we are using the value of the last iteration under the assumption, that this 
+  ! value may be close enough
+  DeltaP=0.
+  DO iCounter=1,iStage-1
+    DeltaP=DeltaP + RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+  END DO
+  DeltaP=DeltaP + RK_a(iStage,iStage)*R_PartXK(1:6,PartID)
+  ! recompute the old position at t^n
+  PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
+  ! next, rotate PartQ instead of shifting...
+  PartQ(1:3,PartID)=MATMUL(RotationMat,PartQ(1:3,PartID))
+  PartQ(4:6,PartID)=MATMUL(RotationMat,PartQ(4:6,PartID))
+  ! if still trouble in convergence, the exact position should be used :(
+  R_PartXK(1:3,PartID)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
+  R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
+  ! rotate PartXK do not roate...
+  ! move particle on face, which is wrong, but Armijo method now does not required 
+  ! to back-rotate all RK stages AFTER reflection is rejected
+  PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
+  ! rotate velocity vector
+  PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
+  !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
+  ! new change in part-position is length of rest of tracing
+  ! set lastElement for tracing
+  IF(.NOT.DoRefMapping)THEN
+    PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+  END IF
+END IF
+#endif /*ROS*/
 
 END SUBROUTINE PerfectReflection
 
@@ -1547,10 +1586,8 @@ USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 #if defined(IMPA)
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1732,10 +1769,8 @@ __STAMP__&
     alpha=-1.
 #ifdef IMPA
     DoPartInNewton(PartID) = .FALSE.
-#endif /*IMPA*/
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     PartIsImplicit(PartID) = .FALSE.
-#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+#endif /*IMPA*/
   ELSEIF (targetSpecies.gt.0) THEN !swap species
     DO iCC=1,nCollectChargesBCs !-chargeCollect
       IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
@@ -1765,14 +1800,20 @@ USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBili
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
-#ifdef IMPA
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
+USE MOD_TimeDisc_Vars,          ONLY:iStage,dt
+#endif /*IMPA || ROS*/
+#if defined(IMPA)
+USE MOD_TimeDisc_Vars,          ONLY:ESDIRK_a,ERK_a
 USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXk
-#endif /*IMPA*/
-#if defined(IMPA) || defined(IMEX)
-USE MOD_Particle_Vars,          ONLY:PartStateN,PartIsImplicit,PartStage
-USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
-#endif
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit
+#endif /*IMPA */
+#if defined(ROS)
+USE MOD_TimeDisc_Vars,          ONLY:RK_A
+USE MOD_LinearSolver_Vars,      ONLY:PartXk
+#endif /*ROS */
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -1792,7 +1833,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3)
-#if IMPA
+#if defined(IMPA) || defined(ROS)
 REAL                                 :: DeltaP(1:6)
 INTEGER                              :: iCounter
 #endif /*IMPA*/
@@ -1866,25 +1907,44 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
   
-#ifdef IMEX 
-! recompute PartStateN to kill jump in integration through periodic BC
-IF(iStage.GT.0)THEN
-  PartStateN(PartID,1:6) = PartState(PartID,1:6)
-  DO iCounter=1,iStage-1
-    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-  END DO
-END IF
-#endif /*IMEX*/
+!#ifdef IMEX 
+!! recompute PartStateN to kill jump in integration through periodic BC
+!IF(iStage.GT.0)THEN
+!  PartStateN(PartID,1:6) = PartState(PartID,1:6)
+!  DO iCounter=1,iStage-1
+!    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+!                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+!  END DO
+!END IF
+!#endif /*IMEX*/
 
+#ifdef ROS
+IF(iStage.GT.0)THEN
+  ! compute explicit contribution which is
+  DeltaP = RK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
+  DO iCounter=1,iStage-2
+    DeltaP=DeltaP+RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+  END DO ! iCounter=1,iStage-2
+  ! recompute the old position at t^n
+  PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
+  ! PartQ is non-shifted, I think
+  ! remains non-altered, because no change
+  !! compute contribution of 1/dt* sum_j=1^iStage-1 c(i,j) = diag(gamma)-gamma^inv
+  !PartQ(1:6,iPart) = RK_g(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
+  !DO iCounter=1,iStage-2
+  !  PartQ(1:6,iPart) = PartQ(1:6,iPart) +RK_g(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+  !END DO ! iCounter=1,iStage-2
+  !PartQ(1:6,iPart) = dt_inv*PartQ(1:6,iPart)
+  ! no-idea what happens with PartXK
+  !PartXK(1:6,PartID)   = PartStateN(PartID,1:6)
+END IF
+#endif /*ROS*/
 
 !PartShiftVector = OldPartPos - NewPartPos = -SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 #ifdef IMPA 
 ! recompute PartStateN to kill jump in integration through periodic BC
 IF(iStage.GT.0)THEN
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
   IF(PartIsImplicit(PartID))THEN
-#endif
     ! implicit particle
     ! caution because of implicit particle
     ! PartState^(n+1) = PartState^n - sum_i=1^istage-1 a_istage,i F(u,partstate^i) - a_istage,istage dt F(U,PartState^(n+1))
@@ -1912,7 +1972,6 @@ IF(iStage.GT.0)THEN
     ! PartXK  is not YET updated, it is updated, if the Newton step will be accepted 
     ! F_PartX0 is not changing, because of difference should middle out?!?
     !PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-#if (PP_TimeDiscMethod==120) ||  (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
  ELSE
    ! explicit particle
    DeltaP=0.
@@ -1921,7 +1980,6 @@ IF(iStage.GT.0)THEN
    END DO
    PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
  END IF
-#endif
 END IF
 #endif /*IMPA*/
 
@@ -2150,190 +2208,190 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected,TriNum) 
+SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected,TriNum)
 !===================================================================================================================================
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
-  USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-  USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
-  USE MOD_Particle_Vars,          ONLY : WriteMacroSurfaceValues, KeepWallParticles
-  USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
-!   USE MOD_Particle_Vars,          ONLY : PDM, LastPartPos
-  USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : CollisMode, Adsorption, PolyatomMolDSMC
-  USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
-  USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
-  USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
-  USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
-  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-  USE MOD_DSMC_SurfModel_Tools,   ONLY : CalcBackgndPartAdsorb
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
+USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles
+USE MOD_Particle_Vars          ,ONLY: PartState,Species,BoltzmannConst,PartSpecies
+!USE MOD_Particle_Vars          ,ONLY : PDM, LastPartPos
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, Adsorption, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
+USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_DSMC_SurfModel_Tools   ,ONLY: CalcBackgndPartAdsorb
 ! IMPLICIT VARIABLE HANDLING
-   IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER,INTENT(INOUT)            :: adsindex
-  REAL,INTENT(INOUT)               :: PartTrajectory(1:3), alpha
-  REAL,INTENT(IN)                  :: xi, eta
-  INTEGER,INTENT(IN)               :: PartID, GlobSideID
-  LOGICAL,INTENT(IN)               :: IsSpeciesSwap
-  INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
-  INTEGER,INTENT(IN),OPTIONAL      :: TriNum
+INTEGER,INTENT(INOUT)            :: adsindex
+REAL,INTENT(INOUT)               :: PartTrajectory(1:3), alpha
+REAL,INTENT(IN)                  :: xi, eta
+INTEGER,INTENT(IN)               :: PartID, GlobSideID
+LOGICAL,INTENT(IN)               :: IsSpeciesSwap
+INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
+INTEGER,INTENT(IN),OPTIONAL      :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  LOGICAL,INTENT(OUT),OPTIONAL     :: Opt_Reflected
+LOGICAL,INTENT(OUT),OPTIONAL     :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                             :: RanNum
-  REAL                             :: Xitild,EtaTild
-  INTEGER                          :: p,q
-  REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
-  REAL                             :: Adsorption_prob, Recombination_prob
-  INTEGER                          :: adsorption_case
-  INTEGER                          :: SurfSideID, SpecID
-  REAL, PARAMETER                  :: PI=3.14159265358979323846
-  REAL                             :: Norm_velo, Norm_Ec
-  INTEGER                          :: outSpec(2)
+REAL                             :: RanNum
+REAL                             :: Xitild,EtaTild
+INTEGER                          :: p,q
+REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
+REAL                             :: Adsorption_prob, Recombination_prob
+INTEGER                          :: adsorption_case
+INTEGER                          :: SurfSideID, SpecID
+REAL, PARAMETER                  :: PI=3.14159265358979323846
+REAL                             :: Norm_velo, Norm_Ec
+INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
 !   REAL                             :: IntersectionPos(1:3)
-  REAL                             :: TransArray(1:6),IntArray(1:6), AdsorptionEnthalpie
-  REAL                             :: VelXold, VelYold, VelZold
-  INTEGER                          :: locBCID, VibQuant, VibQuantWall
+REAL                             :: TransArray(1:6),IntArray(1:6), AdsorptionEnthalpie
+REAL                             :: VelXold, VelYold, VelZold
+INTEGER                          :: locBCID, VibQuant, VibQuantWall
 !   INTEGER                          :: VibQuantNew
 !   REAL                             :: VibQuantNewR
-  REAL                             :: VeloReal, EtraOld
-  REAL                             :: EtraWall, EtraNew
-  REAL                             :: WallVelo(1:3), WallTemp
+REAL                             :: VeloReal, EtraOld
+REAL                             :: EtraWall, EtraNew
+REAL                             :: WallVelo(1:3), WallTemp
 !   REAL                             :: TransACC, VibACC, RotACC
-  REAL                             :: ErotNew, ErotWall, EVibNew
+REAL                             :: ErotNew, ErotWall, EVibNew
 ! Polyatomic Molecules
-  REAL, ALLOCATABLE                :: RanNumPoly(:)
-  INTEGER                          :: iPolyatMole, iDOF
-  INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
+REAL, ALLOCATABLE                :: RanNumPoly(:)
+INTEGER                          :: iPolyatMole, iDOF
+INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
 !   REAL, ALLOCATABLE                :: VibQuantNewRPoly(:)
 !   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
-  INTEGER                          :: iReact
+INTEGER                          :: iReact
 !===================================================================================================================================
 
-  IF(PRESENT(BCSideID))THEN
-    SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,BCSideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-    END SELECT 
-  ELSE
-    IF (TriaTracking) THEN
-      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=GlobSideID)
-    ELSE 
-      SELECT CASE(SideType(GlobSideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        n_loc=SideNormVec(1:3,GlobSideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      END SELECT 
-    END IF
-  END IF
-  ! check if BC was already crossed
-  IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
-    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-    RETURN
-  ELSE
-    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-  END IF
-
-  ! additional states
-  locBCID=PartBound%MapToPartBC(BC(GlobSideID))
-  ! get BC values
-  WallVelo     = PartBound%WallVelo(1:3,locBCID)
-  WallTemp     = PartBound%WallTemp(locBCID)
-  
-  ! initialize sampling arrays
-  TransArray(:) = 0.0
-  IntArray(:) = 0.0
-
-  ! compute p and q
-  ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  IF (TriaTracking) THEN
-    p=1 ; q=1
-  ELSE
-    Xitild =MIN(MAX(-1.,xi ),0.99)
-    Etatild=MIN(MAX(-1.,eta),0.99)
-    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-  END IF
-
-  SurfSideID = SurfMesh%SideIDToSurfID(GlobSideID)
-  SpecID = PartSpecies(PartID)
-#if (PP_TimeDiscMethod==42)  
-  ! Update wallcollision counter
-  Adsorption%AdsorpInfo(SpecID)%WallCollCount = Adsorption%AdsorpInfo(SpecID)%WallCollCount + 1
-  IF (DSMC%WallModel.EQ.1) THEN
-    Adsorption%AdsorpInfo(SpecID)%Accomodation = Adsorption%AdsorpInfo(SpecID)%Accomodation &
-        + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
-  END IF
-#endif
-  
-  adsorption_case = 0
-  AdsorptionEnthalpie = 0.
-  SELECT CASE(DSMC%WallModel)
-  CASE (1)
-    Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
-    CALL RANDOM_NUMBER(RanNum)
-    IF ( (Adsorption_prob.GE.RanNum) .AND. & 
-       (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
-      outSpec(1) = SpecID
-      adsorption_case = 1
-    END IF
-  CASE (2)
-    ! Set probabilities
-    Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
-    Recombination_prob = Adsorption%ProbDes(p,q,SurfSideID,SpecID)
-    ! check if still enough saved particles on surface
-    IF (Adsorption%Coverage(p,q,SurfSideID,SpecID).LE.(-Adsorption%SumAdsorbPart(p,q,SurfSideID,SpecID))) THEN
-      Adsorption_prob = Adsorption_prob + Recombination_prob
-      Recombination_prob = 0.
-    END IF
-    ! Decide what happens to colliding particle
-    CALL RANDOM_NUMBER(RanNum)
-    IF ((Adsorption_prob+Recombination_prob).GE.RanNum) THEN 
-      CALL RANDOM_NUMBER(RanNum)
-      IF ((Adsorption_prob/(Adsorption_prob+Recombination_prob)).GE.RanNum) THEN
-        adsorption_case = 1
-        outSpec(1) = SpecID
-        outSpec(2) = 0
-      ELSE
-        adsorption_case = 3
-        outSpec(1) = Adsorption%RecombData(1,SpecID)
-        outSpec(2) = Adsorption%RecombData(2,SpecID)
-        AdsorptionEnthalpie = - Adsorption%RecombEnergy(locBCID,SpecID) * Adsorption%RecombAccomodation(locBCID,SpecID) &
-                            * BoltzmannConst
-      END IF
-    END IF
-  CASE (3)
-    Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-    Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-    CALL CalcBackgndPartAdsorb(p,q,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+IF(PRESENT(BCSideID))THEN
+  SELECT CASE(SideType(BCSideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,BCSideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
   END SELECT
-  
-  SELECT CASE(adsorption_case)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE(-1) ! perfect elastic scattering
-  !---------------------------------------------------------------------------------------------------------------------------------
-    adsindex = -1
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE(1) ! molecular adsorption
-  !---------------------------------------------------------------------------------------------------------------------------------
-    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
-    adsindex = 1
-#if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
+ELSE
+  IF (TriaTracking) THEN
+    CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=GlobSideID)
+  ELSE
+    SELECT CASE(SideType(GlobSideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc=SideNormVec(1:3,GlobSideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
+    END SELECT
+  END IF
+END IF
+! check if BC was already crossed
+IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+  RETURN
+ELSE
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+END IF
+
+! additional states
+locBCID=PartBound%MapToPartBC(BC(GlobSideID))
+! get BC values
+WallVelo     = PartBound%WallVelo(1:3,locBCID)
+WallTemp     = PartBound%WallTemp(locBCID)
+
+! initialize sampling arrays
+TransArray(:) = 0.0
+IntArray(:) = 0.0
+
+! compute p and q
+! correction of xi and eta, can only be applied if xi & eta are not used later!
+IF (TriaTracking) THEN
+  p=1 ; q=1
+ELSE
+  Xitild =MIN(MAX(-1.,xi ),0.99)
+  Etatild=MIN(MAX(-1.,eta),0.99)
+  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+END IF
+
+SurfSideID = SurfMesh%SideIDToSurfID(GlobSideID)
+SpecID = PartSpecies(PartID)
+#if (PP_TimeDiscMethod==42)  
+! Update wallcollision counter
+Adsorption%AdsorpInfo(SpecID)%WallCollCount = Adsorption%AdsorpInfo(SpecID)%WallCollCount + 1
+IF (DSMC%WallModel.EQ.1) THEN
+  Adsorption%AdsorpInfo(SpecID)%Accomodation = Adsorption%AdsorpInfo(SpecID)%Accomodation &
+      + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
+END IF
 #endif
-    IF ((KeepWallparticles).OR.&
-        (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+
+adsorption_case = 0
+AdsorptionEnthalpie = 0.
+SELECT CASE(DSMC%WallModel)
+CASE (1)
+  Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
+  CALL RANDOM_NUMBER(RanNum)
+  IF ( (Adsorption_prob.GE.RanNum) .AND. &
+     (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
+    outSpec(1) = SpecID
+    adsorption_case = 1
+  END IF
+CASE (2)
+  ! Set probabilities
+  Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
+  Recombination_prob = Adsorption%ProbDes(p,q,SurfSideID,SpecID)
+  ! check if still enough saved particles on surface
+  IF (Adsorption%Coverage(p,q,SurfSideID,SpecID).LE.(-Adsorption%SumAdsorbPart(p,q,SurfSideID,SpecID))) THEN
+    Adsorption_prob = Adsorption_prob + Recombination_prob
+    Recombination_prob = 0.
+  END IF
+  ! Decide what happens to colliding particle
+  CALL RANDOM_NUMBER(RanNum)
+  IF ((Adsorption_prob+Recombination_prob).GE.RanNum) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF ((Adsorption_prob/(Adsorption_prob+Recombination_prob)).GE.RanNum) THEN
+      adsorption_case = 1
+      outSpec(1) = SpecID
+      outSpec(2) = 0
+    ELSE
+      adsorption_case = 3
+      outSpec(1) = Adsorption%RecombData(1,SpecID)
+      outSpec(2) = Adsorption%RecombData(2,SpecID)
+      AdsorptionEnthalpie = - Adsorption%RecombEnergy(locBCID,SpecID) * Adsorption%RecombAccomodation(locBCID,SpecID) &
+                          * BoltzmannConst
+    END IF
+  END IF
+CASE (3)
+  Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
+  Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
+  CALL CalcBackgndPartAdsorb(p,q,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+END SELECT
+
+SELECT CASE(adsorption_case)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(-1) ! perfect elastic scattering
+!-----------------------------------------------------------------------------------------------------------------------------------
+  adsindex = -1
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(1) ! molecular adsorption
+!-----------------------------------------------------------------------------------------------------------------------------------
+  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
+  adsindex = 1
+#if (PP_TimeDiscMethod==42)
+  Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
+#endif
+  IF ((KeepWallparticles).OR.&
+      (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
 !     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
 !     IF (KeepWallParticles) THEN
 !       PDM%PartAdsorbSideIndx(1,PartID) = GlobSideID
@@ -2343,40 +2401,217 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 !         LastPartPos(PartID,2) = PartState(PartID,2)
 !         LastPartPos(PartID,3) = PartState(PartID,3)
 !     END IF
-      VelXold = PartState(PartID,4)
-      VelYold = PartState(PartID,5)
-      VelZold = PartState(PartID,6)
-      PartState(PartID,4)  = WallVelo(1)
-      PartState(PartID,5)  = WallVelo(2)
-      PartState(PartID,6)  = WallVelo(3)
+    VelXold = PartState(PartID,4)
+    VelYold = PartState(PartID,5)
+    VelZold = PartState(PartID,6)
+    PartState(PartID,4)  = WallVelo(1)
+    PartState(PartID,5)  = WallVelo(2)
+    PartState(PartID,6)  = WallVelo(3)
+  
+    VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
+    EtraOld = 0.5 * Species(outSpec(1))%MassIC * VeloReal**2
+    EtraWall = 0.0
+    EtraNew = EtraWall
     
-      VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-      EtraOld = 0.5 * Species(outSpec(1))%MassIC * VeloReal**2
-      EtraWall = 0.0
-      EtraNew = EtraWall
-      
-      TransArray(1) = EtraOld
-      TransArray(2) = EtraWall
-      TransArray(3) = EtraNew
-      TransArray(4) = PartState(PartID,4)-VelXold
-      TransArray(5) = PartState(PartID,5)-VelYold
-      TransArray(6) = PartState(PartID,6)-VelZold
-    
-      !---- Internal energy accommodation
-      IF (CollisMode.GT.1) THEN
-      IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
-        !---- Rotational energy accommodation
+    TransArray(1) = EtraOld
+    TransArray(2) = EtraWall
+    TransArray(3) = EtraNew
+    TransArray(4) = PartState(PartID,4)-VelXold
+    TransArray(5) = PartState(PartID,5)-VelYold
+    TransArray(6) = PartState(PartID,6)-VelZold
+  
+    !---- Internal energy accommodation
+    IF (CollisMode.GT.1) THEN
+    IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
+      !---- Rotational energy accommodation
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = 0
+      ErotNew  = 0
+      IntArray(1) = PartStateIntEn(PartID,2)
+      IntArray(2) = ErotWall
+      IntArray(3) = ErotNew
+      PartStateIntEn(PartID,2) = ErotNew
+      !---- Vibrational energy accommodation
+      IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
+        EvibNew = 0.0
+        iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
+        ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))!, &
+!                   VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                   VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+        CALL RANDOM_NUMBER(RanNumPoly)
+        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+          CALL RANDOM_NUMBER(RanNumPoly)
+          VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        END DO
+!           VibQuantNewRPoly(:) = VibQuantWallPoly(:)
+!           VibQuantNewPoly = INT(VibQuantNewRPoly)
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+!             CALL RANDOM_NUMBER(RanNum)
+!             IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
+!             ELSE
+!               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
+!                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
+!             END IF
+          IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(outSpec(1))%MacroParticleFactor
+          IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                      * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+          IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                      * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+        END DO
+      ELSE
+        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib) &
+                    - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)
-        ErotWall = 0
-        ErotNew  = 0
-        IntArray(1) = PartStateIntEn(PartID,2)
-        IntArray(2) = ErotWall
-        IntArray(3) = ErotNew
-        PartStateIntEn(PartID,2) = ErotNew
-        !---- Vibrational energy accommodation
+        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+        DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+        END DO
+!           VibQuantNewR = VibQuantWall
+!           VibQuantNew = INT(VibQuantNewR)
+!           CALL RANDOM_NUMBER(RanNum)
+!           IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+!             EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!           ELSE
+!             EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!           END IF
+        IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+      END IF
+      SDEALLOCATE(RanNumPoly)
+      SDEALLOCATE(VibQuantWallPoly)
+!         SDEALLOCATE(VibQuantNewRPoly)
+!         SDEALLOCATE(VibQuantNewPoly)
+!         SDEALLOCATE(VibQuantTemp)
+!         IntArray(6) = EvibNew
+    END IF
+    END IF
+    !End internal energy accomodation
+   
+    !----  Sampling of energies
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
+        ,locBCID)
+    END IF
+  END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
+!-----------------------------------------------------------------------------------------------------------------------------------
+  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
+  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
+  adsindex = 1
+#if (PP_TimeDiscMethod==42)
+  Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
+#endif
+  IF ((KeepWallparticles).OR.&
+      (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    VelXold = PartState(PartID,4)
+    VelYold = PartState(PartID,5)
+    VelZold = PartState(PartID,6)
+    PartState(PartID,4)  = WallVelo(1)
+    PartState(PartID,5)  = WallVelo(2)
+    PartState(PartID,6)  = WallVelo(3)
+  
+    VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
+    EtraOld = 0.5 * Species(SpecID)%MassIC * VeloReal**2
+    EtraWall = 0.0
+    EtraNew = EtraWall
+    
+    TransArray(1) = EtraOld
+    TransArray(2) = EtraWall
+    TransArray(3) = EtraNew
+    TransArray(4) = PartState(PartID,4)-VelXold
+    TransArray(5) = PartState(PartID,5)-VelYold
+    TransArray(6) = PartState(PartID,6)-VelZold
+  
+    !---- Internal energy accommodation
+    IF (CollisMode.GT.1) THEN
+    IF (SpecDSMC(SpecID)%InterID.EQ.2) THEN
+      !---- Rotational energy accommodation
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = 0 !- BoltzmannConst * WallTemp * LOG(RanNum)
+      ErotNew  = 0 !PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
+      IntArray(1) = PartStateIntEn(PartID,2)
+      IntArray(2) = ErotWall
+      IntArray(3) = ErotNew
+      PartStateIntEn(PartID,2) = ErotNew
+      !---- Vibrational energy accommodation
+      ! first add zero point energy of reactant to intarrray
+      IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                        * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(SpecID)%MacroParticleFactor
+        END DO
+      ELSE
+        VibQuant = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
+                    - DSMC%GammaQuant)
+        IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
+      END IF
+      ! then do first product
+      EvibNew = 0.0
+      IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
         IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
-          EvibNew = 0.0
           iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
+!             ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))!, &
+!                     VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!                     VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          CALL RANDOM_NUMBER(RanNumPoly)
+          VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+          DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+            CALL RANDOM_NUMBER(RanNumPoly)
+            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+          END DO
+!             VibQuantNewRPoly(:) = VibQuantWallPoly(:)
+!             VibQuantNewPoly = INT(VibQuantNewRPoly)
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+!               CALL RANDOM_NUMBER(RanNum)
+!               IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
+!                 EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
+!                           * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!                 VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
+!               ELSE
+!                 EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
+!                           * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+!                 VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
+!               END IF
+            IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+            IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+          END DO
+        ELSE
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+          DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
+            CALL RANDOM_NUMBER(RanNum)
+            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+          END DO
+!             VibQuantNewR = VibQuantWall
+!             VibQuantNew = INT(VibQuantNewR)
+!             CALL RANDOM_NUMBER(RanNum)
+!             IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+!               EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!             ELSE
+!               EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!             END IF
+          IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        END IF
+      END IF
+      ! then do second product
+      IF (SpecDSMC(outSpec(2))%InterID.EQ.2) THEN
+        IF(SpecDSMC(outSpec(2))%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(outSpec(2))%SpecToPolyArray
+!           ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
           ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))!, &
 !                   VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
 !                   VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
@@ -2399,326 +2634,149 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 !                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
 !               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
 !             END IF
-            IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                        * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(outSpec(1))%MacroParticleFactor
             IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
-                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+                        * SpecDSMC(outSpec(2))%CharaTVib * Species(outSpec(2))%MacroParticleFactor
             IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+                        * SpecDSMC(outSpec(2))%CharaTVib * Species(outSpec(2))%MacroParticleFactor
           END DO
         ELSE
-          VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib) &
-                      - DSMC%GammaQuant)
           CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-          DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
+          DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(2))%MaxVibQuant)
             CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
           END DO
 !           VibQuantNewR = VibQuantWall
 !           VibQuantNew = INT(VibQuantNewR)
 !           CALL RANDOM_NUMBER(RanNum)
 !           IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-!             EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
 !           ELSE
-!             EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
+!             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
 !           END IF
-          IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-          IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+          IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(2))%CharaTVib
+          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(2))%CharaTVib
         END IF
-        SDEALLOCATE(RanNumPoly)
-        SDEALLOCATE(VibQuantWallPoly)
+      END IF
+      SDEALLOCATE(RanNumPoly)
+      SDEALLOCATE(VibQuantWallPoly)
 !         SDEALLOCATE(VibQuantNewRPoly)
 !         SDEALLOCATE(VibQuantNewPoly)
 !         SDEALLOCATE(VibQuantTemp)
+      ! assign new vibrational energy
 !         IntArray(6) = EvibNew
-      END IF
-      END IF
-      !End internal energy accomodation
-      
-      !----  Sampling of energies
-      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
-          ,locBCID)
-      END IF
     END IF
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
-  !---------------------------------------------------------------------------------------------------------------------------------
-    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
-    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
-    adsindex = 1
-#if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
-#endif
-    IF ((KeepWallparticles).OR.&
-        (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      VelXold = PartState(PartID,4)
-      VelYold = PartState(PartID,5)
-      VelZold = PartState(PartID,6)
-      PartState(PartID,4)  = WallVelo(1)
-      PartState(PartID,5)  = WallVelo(2)
-      PartState(PartID,6)  = WallVelo(3)
-    
-      VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-      EtraOld = 0.5 * Species(SpecID)%MassIC * VeloReal**2
-      EtraWall = 0.0
-      EtraNew = EtraWall
-      
-      TransArray(1) = EtraOld
-      TransArray(2) = EtraWall
-      TransArray(3) = EtraNew
-      TransArray(4) = PartState(PartID,4)-VelXold
-      TransArray(5) = PartState(PartID,5)-VelYold
-      TransArray(6) = PartState(PartID,6)-VelZold
-    
-      !---- Internal energy accommodation
-      IF (CollisMode.GT.1) THEN
-      IF (SpecDSMC(SpecID)%InterID.EQ.2) THEN
-        !---- Rotational energy accommodation
-        CALL RANDOM_NUMBER(RanNum)
-        ErotWall = 0 !- BoltzmannConst * WallTemp * LOG(RanNum)
-        ErotNew  = 0 !PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
-        IntArray(1) = PartStateIntEn(PartID,2)
-        IntArray(2) = ErotWall
-        IntArray(3) = ErotNew
-        PartStateIntEn(PartID,2) = ErotNew
-        !---- Vibrational energy accommodation
-        ! first do reactant
-        IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
-          iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                          * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(SpecID)%MacroParticleFactor
-          END DO
-        ELSE
-          VibQuant = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
-                      - DSMC%GammaQuant)
-          IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
-        END IF
-        ! then do first product
-        EvibNew = 0.0
-        IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
-          IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
-            iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
-!             ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-            ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))!, &
-!                     VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-!                     VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-            CALL RANDOM_NUMBER(RanNumPoly)
-            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-            DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-              CALL RANDOM_NUMBER(RanNumPoly)
-              VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-            END DO
-!             VibQuantNewRPoly(:) = VibQuantWallPoly(:)
-!             VibQuantNewPoly = INT(VibQuantNewRPoly)
-            DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-!               CALL RANDOM_NUMBER(RanNum)
-!               IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-!                 EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
-!                           * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-!                 VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-!               ELSE
-!                 EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
-!                           * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-!                 VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-!               END IF
-              IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
-                          * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
-              IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                          * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
-            END DO
-          ELSE
-            CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-            DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
-              CALL RANDOM_NUMBER(RanNum)
-              VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-            END DO
-!             VibQuantNewR = VibQuantWall
-!             VibQuantNew = INT(VibQuantNewR)
-!             CALL RANDOM_NUMBER(RanNum)
-!             IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-!               EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
-!             ELSE
-!               EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
-!             END IF
-            IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-            IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-          END IF
-        END IF
-        ! then do second product
-        IF (SpecDSMC(outSpec(2))%InterID.EQ.2) THEN
-          IF(SpecDSMC(outSpec(2))%PolyatomicMol) THEN
-            iPolyatMole = SpecDSMC(outSpec(2))%SpecToPolyArray
-  !           ALLOCATE(VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-            ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))!, &
-  !                   VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-  !                   VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-            CALL RANDOM_NUMBER(RanNumPoly)
-            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-            DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-              CALL RANDOM_NUMBER(RanNumPoly)
-              VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-            END DO
-  !           VibQuantNewRPoly(:) = VibQuantWallPoly(:)
-  !           VibQuantNewPoly = INT(VibQuantNewRPoly)
-            DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-  !             CALL RANDOM_NUMBER(RanNum)
-  !             IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-  !               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
-  !                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-  !               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-  !             ELSE
-  !               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
-  !                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-  !               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-  !             END IF
-              IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
-                          * SpecDSMC(outSpec(2))%CharaTVib * Species(outSpec(2))%MacroParticleFactor
-              IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                          * SpecDSMC(outSpec(2))%CharaTVib * Species(outSpec(2))%MacroParticleFactor
-            END DO
-          ELSE
-            CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
-            DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(2))%MaxVibQuant)
-              CALL RANDOM_NUMBER(RanNum)
-              VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(2))%CharaTVib)
-            END DO
-  !           VibQuantNewR = VibQuantWall
-  !           VibQuantNew = INT(VibQuantNewR)
-  !           CALL RANDOM_NUMBER(RanNum)
-  !           IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-  !             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
-  !           ELSE
-  !             EvibNew = EvibNew + (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(2))%CharaTVib
-  !           END IF
-            IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(2))%CharaTVib
-            IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(2))%CharaTVib
-          END IF
-        END IF
-        SDEALLOCATE(RanNumPoly)
-        SDEALLOCATE(VibQuantWallPoly)
-!         SDEALLOCATE(VibQuantNewRPoly)
-!         SDEALLOCATE(VibQuantNewPoly)
-!         SDEALLOCATE(VibQuantTemp)
-        ! assign new vibrational energy
-!         IntArray(6) = EvibNew
-      END IF
-      END IF
-      !End internal energy accomodation
-      
-      !----  Sampling of energies
-      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
-          ,locBCID)
-      END IF
     END IF
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE(3) ! Eley-Rideal reaction (reflecting particle species change at contact and reaction partner removed from surface)
-  !---------------------------------------------------------------------------------------------------------------------------------
-    Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
-    Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) - 1
-    adsindex = 2
-#if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
-    Adsorption%AdsorpInfo(outSpec(2))%NumOfDes = Adsorption%AdsorpInfo(outSpec(2))%NumOfDes + 1
-#endif
-    ! Sample recombination coefficient
+    !End internal energy accomodation
+    
+    !----  Sampling of energies
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      IF (DSMC%WallModel.EQ.2) THEN
-        DO iReact = 1,Adsorption%RecombNum
-          IF (Adsorption%RecombData(2,SpecID).EQ.outSpec(2))THEN
-            SampWall(SurfSideID)%Reaction(1,SpecID,p,q) = SampWall(SurfSideID)%Reaction(1,SpecID,p,q) + 1
-          END IF
-        END DO
-      ELSE IF ( DSMC%WallModel.EQ.3) THEN
-        DO iReact = 1,Adsorption%RecombNum
-          IF (Adsorption%AssocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
-            SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
-          END IF
-        END DO
-      END IF
+      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
+        ,locBCID)
     END IF
+  END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(3) ! Eley-Rideal reaction (reflecting particle species change at contact and reaction partner removed from surface)
+!-----------------------------------------------------------------------------------------------------------------------------------
+  Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) - 1
+  adsindex = 2
+#if (PP_TimeDiscMethod==42)
+  Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
+  Adsorption%AdsorpInfo(outSpec(2))%NumOfDes = Adsorption%AdsorpInfo(outSpec(2))%NumOfDes + 1
+#endif
+  ! Sample recombination coefficient
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    IF (DSMC%WallModel.EQ.2) THEN
+      DO iReact = 1,Adsorption%RecombNum
+        IF (Adsorption%RecombData(2,SpecID).EQ.outSpec(2))THEN
+          SampWall(SurfSideID)%Reaction(1,SpecID,p,q) = SampWall(SurfSideID)%Reaction(1,SpecID,p,q) + 1
+        END IF
+      END DO
+    ELSE IF ( DSMC%WallModel.EQ.3) THEN
+      DO iReact = 1,Adsorption%RecombNum
+        IF (Adsorption%AssocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
+          SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
+        END IF
+      END DO
+    END IF
+  END IF
 
-    IF ((KeepWallparticles).OR.&
-        (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      VelXold = PartState(PartID,4)
-      VelYold = PartState(PartID,5)
-      VelZold = PartState(PartID,6)
-      PartState(PartID,4)  = WallVelo(1)
-      PartState(PartID,5)  = WallVelo(2)
-      PartState(PartID,6)  = WallVelo(3)
+  IF ((KeepWallparticles).OR.&
+      (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    VelXold = PartState(PartID,4)
+    VelYold = PartState(PartID,5)
+    VelZold = PartState(PartID,6)
+    PartState(PartID,4)  = WallVelo(1)
+    PartState(PartID,5)  = WallVelo(2)
+    PartState(PartID,6)  = WallVelo(3)
+  
+    VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
+    EtraOld = 0.5 * Species(outSpec(1))%MassIC * VeloReal**2
+    EtraWall = 0.0
+    EtraNew = EtraWall
     
-      VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-      EtraOld = 0.5 * Species(outSpec(1))%MassIC * VeloReal**2
-      EtraWall = 0.0
-      EtraNew = EtraWall
-      
-      TransArray(1) = EtraOld
-      TransArray(2) = EtraWall
-      TransArray(3) = EtraNew
-      TransArray(4) = PartState(PartID,4)-VelXold
-      TransArray(5) = PartState(PartID,5)-VelYold
-      TransArray(6) = PartState(PartID,6)-VelZold
-    
-      !---- Internal energy accommodation
-      IF (CollisMode.GT.1) THEN
-      IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
-        !---- Rotational energy accommodation
-        CALL RANDOM_NUMBER(RanNum)
-        ErotWall = 0
-        ErotNew  = 0
-        IntArray(1) = PartStateIntEn(PartID,2)
-        IntArray(2) = ErotWall
-        IntArray(3) = ErotNew
-        PartStateIntEn(PartID,2) = ErotNew
-        !---- Vibrational energy accommodation
-        IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
-          EvibNew = 0.0
-          iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
-          ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+    TransArray(1) = EtraOld
+    TransArray(2) = EtraWall
+    TransArray(3) = EtraNew
+    TransArray(4) = PartState(PartID,4)-VelXold
+    TransArray(5) = PartState(PartID,5)-VelYold
+    TransArray(6) = PartState(PartID,6)-VelZold
+  
+    !---- Internal energy accommodation
+    IF (CollisMode.GT.1) THEN
+    IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
+      !---- Rotational energy accommodation
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = 0
+      ErotNew  = 0
+      IntArray(1) = PartStateIntEn(PartID,2)
+      IntArray(2) = ErotWall
+      IntArray(3) = ErotNew
+      PartStateIntEn(PartID,2) = ErotNew
+      !---- Vibrational energy accommodation
+      IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
+        EvibNew = 0.0
+        iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
+        ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+        CALL RANDOM_NUMBER(RanNumPoly)
+        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
           CALL RANDOM_NUMBER(RanNumPoly)
           VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-            CALL RANDOM_NUMBER(RanNumPoly)
-            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          END DO
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                        * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(outSpec(1))%MacroParticleFactor
-            IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
-                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
-            IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
-          END DO
-        ELSE
-          VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib) &
-                      - DSMC%GammaQuant)
+        END DO
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(outSpec(1))%MacroParticleFactor
+          IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                      * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+          IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                      * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+        END DO
+      ELSE
+        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib) &
+                    - DSMC%GammaQuant)
+        CALL RANDOM_NUMBER(RanNum)
+        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+        DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
           CALL RANDOM_NUMBER(RanNum)
           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-          DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
-            CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-          END DO
-          IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-          IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-        END IF
-        SDEALLOCATE(RanNumPoly)
-        SDEALLOCATE(VibQuantWallPoly)
+        END DO
+        IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
       END IF
-      END IF
-      !End internal energy accomodation
-      !----  Sampling of energies
-      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
-          ,locBCID)
-      END IF
+      SDEALLOCATE(RanNumPoly)
+      SDEALLOCATE(VibQuantWallPoly)
     END IF
+    END IF
+    !End internal energy accomodation
+    !----  Sampling of energies
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
+        ,locBCID)
+    END IF
+  END IF
 
 
 
@@ -2841,206 +2899,195 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 !      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
 !        ,locBCID)
 !    END IF
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE DEFAULT ! diffuse reflection
-  !---------------------------------------------------------------------------------------------------------------------------------
-    adsindex = 0
-  END SELECT
-  
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE DEFAULT ! diffuse reflection
+!-----------------------------------------------------------------------------------------------------------------------------------
+  adsindex = 0
+END SELECT
+
 END SUBROUTINE CatalyticTreatment
 
 SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID,TriNum)
 !===================================================================================================================================
 ! Routine for Selection of Liquid interaction (Condensation or Reflection)
 !===================================================================================================================================
-  USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-  USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
-  USE MOD_Particle_Vars,          ONLY : WriteMacroSurfaceValues!, KeepWallParticles
-  USE MOD_Particle_Vars,          ONLY : PartState,Species,BoltzmannConst,PartSpecies
-!   USE MOD_Particle_Vars,          ONLY : PDM, LastPartPos
-  USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : CollisMode, Liquid, PolyatomMolDSMC
-  USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
-  USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound
-  USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
-  USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
-  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
+USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
+USE MOD_Particle_Vars          ,ONLY: PartState,Species,BoltzmannConst,PartSpecies
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, Liquid, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
+USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 ! IMPLICIT VARIABLE HANDLING
-   IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER,INTENT(INOUT)            :: condensindex
-  REAL,INTENT(INOUT)               :: PartTrajectory(1:3), alpha
-  REAL,INTENT(IN)                  :: xi, eta
-  INTEGER,INTENT(IN)               :: PartID, GlobSideID
-  LOGICAL,INTENT(IN)               :: IsSpeciesSwap
-  INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
-  INTEGER,INTENT(IN),OPTIONAL      :: TriNum
+INTEGER,INTENT(INOUT)            :: condensindex
+REAL,INTENT(INOUT)               :: PartTrajectory(1:3), alpha
+REAL,INTENT(IN)                  :: xi, eta
+INTEGER,INTENT(IN)               :: PartID, GlobSideID
+LOGICAL,INTENT(IN)               :: IsSpeciesSwap
+INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
+INTEGER,INTENT(IN),OPTIONAL      :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                             :: RanNum
-  REAL                             :: Xitild,EtaTild
-  INTEGER                          :: p,q
-  REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
-  REAL                             :: Condensation_prob
-  INTEGER                          :: adsorption_case
-  INTEGER                          :: SurfSideID, SpecID
-  REAL, PARAMETER                  :: PI=3.14159265358979323846
-  REAL                             :: Norm_velo, Norm_Ec
-  INTEGER                          :: outSpec(2)
+REAL                             :: RanNum
+REAL                             :: Xitild,EtaTild
+INTEGER                          :: p,q
+REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
+REAL                             :: Condensation_prob
+INTEGER                          :: adsorption_case
+INTEGER                          :: SurfSideID, SpecID
+REAL, PARAMETER                  :: PI=3.14159265358979323846
+REAL                             :: Norm_velo, Norm_Ec
+INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
-!   REAL                             :: IntersectionPos(1:3)
-  REAL                             :: TransArray(1:6),IntArray(1:6), EvaporationEnthalpie
-  REAL                             :: VelXold, VelYold, VelZold
-  INTEGER                          :: locBCID, VibQuant, VibQuantWall
+REAL                             :: TransArray(1:6),IntArray(1:6), EvaporationEnthalpie
+REAL                             :: VelXold, VelYold, VelZold
+INTEGER                          :: locBCID, VibQuant, VibQuantWall
 !   INTEGER                          :: VibQuantNew
 !   REAL                             :: VibQuantNewR
-  REAL                             :: VeloReal, EtraOld
-  REAL                             :: EtraWall, EtraNew
-  REAL                             :: WallVelo(1:3), WallTemp
+REAL                             :: VeloReal, EtraOld
+REAL                             :: EtraWall, EtraNew
+REAL                             :: WallVelo(1:3), WallTemp
 !   REAL                             :: TransACC, VibACC, RotACC
-  REAL                             :: ErotNew, ErotWall, EVibNew
+REAL                             :: ErotNew, ErotWall, EVibNew
 ! Polyatomic Molecules
-  REAL, ALLOCATABLE                :: RanNumPoly(:)
-  INTEGER                          :: iPolyatMole, iDOF
-  INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
+REAL, ALLOCATABLE                :: RanNumPoly(:)
+INTEGER                          :: iPolyatMole, iDOF
+INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
 !   REAL, ALLOCATABLE                :: VibQuantNewRPoly(:)
 !   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
 !===================================================================================================================================
 
-  ! additional states
-  locBCID=PartBound%MapToPartBC(BC(GlobSideID))
-  ! get BC values
-  WallVelo     = PartBound%WallVelo(1:3,locBCID)
-  WallTemp     = PartBound%WallTemp(locBCID)
+! additional states
+locBCID=PartBound%MapToPartBC(BC(GlobSideID))
+! get BC values
+WallVelo     = PartBound%WallVelo(1:3,locBCID)
+WallTemp     = PartBound%WallTemp(locBCID)
 
-  TransArray(:) = 0.0
-  IntArray(:) = 0.0
-  
-  SurfSideID = SurfMesh%SideIDToSurfID(GlobSideID)
-  SpecID = PartSpecies(PartID)
+TransArray(:) = 0.0
+IntArray(:) = 0.0
+
+SurfSideID = SurfMesh%SideIDToSurfID(GlobSideID)
+SpecID = PartSpecies(PartID)
 #if (PP_TimeDiscMethod==42)  
-  ! Update wallcollision counter
-  Liquid%Info(SpecID)%WallCollCount = Liquid%Info(SpecID)%WallCollCount + 1
+! Update wallcollision counter
+Liquid%Info(SpecID)%WallCollCount = Liquid%Info(SpecID)%WallCollCount + 1
 #endif
-  ! compute p and q
-  ! correction of xi and eta, can only be applied if xi & eta are not used later!
+! compute p and q
+! correction of xi and eta, can only be applied if xi & eta are not used later!
+IF (TriaTracking) THEN
+  p=1 ; q=1
+ELSE
+  Xitild =MIN(MAX(-1.,xi ),0.99)
+  Etatild=MIN(MAX(-1.,eta),0.99)
+  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+END IF
+
+IF(PRESENT(BCSideID))THEN
+  SELECT CASE(SideType(BCSideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,BCSideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
+  END SELECT
+ELSE
   IF (TriaTracking) THEN
-    p=1 ; q=1
+    CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=GlobSideID)
   ELSE
-    Xitild =MIN(MAX(-1.,xi ),0.99)
-    Etatild=MIN(MAX(-1.,eta),0.99)
-    p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-    q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-  END IF
-  
-  IF(PRESENT(BCSideID))THEN
-    SELECT CASE(SideType(BCSideID))
+    SELECT CASE(SideType(GlobSideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,BCSideID)
+      n_loc=SideNormVec(1:3,GlobSideID)
     CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
+      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
     CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-    END SELECT 
-  ELSE
-    IF (TriaTracking) THEN
-      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=GlobSideID)
-    ELSE 
-      SELECT CASE(SideType(GlobSideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        n_loc=SideNormVec(1:3,GlobSideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
-      END SELECT 
-    END IF
+      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
+    END SELECT
   END IF
-  
-  !Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-  !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  
-  EvaporationEnthalpie = 0.
-  
-  Condensation_prob = Liquid%ProbCondens(p,q,SurfSideID,SpecID)
-  CALL RANDOM_NUMBER(RanNum)
-  IF ( (Condensation_prob.GE.RanNum) ) THEN
-    outSpec(1) = SpecID
-    adsorption_case = 1
-  END IF
-  
-  SELECT CASE(adsorption_case)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE(-1) ! perfect elastic scattering
-  !---------------------------------------------------------------------------------------------------------------------------------
-    condensindex = -1
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE(1) ! molecular condensation
-  !---------------------------------------------------------------------------------------------------------------------------------
-    Liquid%SumCondensPart(p,q,SurfSideID,outSpec(1)) = Liquid%SumCondensPart(p,q,SurfSideID,outSpec(1)) + 1
-    condensindex = 1
+END IF
+
+!Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
+!Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
+
+EvaporationEnthalpie = 0. ! negative at evaporation and positive at condensation
+
+Condensation_prob = Liquid%ProbCondens(p,q,SurfSideID,SpecID)
+CALL RANDOM_NUMBER(RanNum)
+IF ( (Condensation_prob.GE.RanNum) ) THEN
+  outSpec(1) = SpecID
+  adsorption_case = 1
+END IF
+
+SELECT CASE(adsorption_case)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(-1) ! perfect elastic scattering
+!-----------------------------------------------------------------------------------------------------------------------------------
+  condensindex = -1
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(1) ! molecular condensation
+!-----------------------------------------------------------------------------------------------------------------------------------
+  Liquid%SumCondensPart(p,q,SurfSideID,outSpec(1)) = Liquid%SumCondensPart(p,q,SurfSideID,outSpec(1)) + 1
+  condensindex = 1
 #if (PP_TimeDiscMethod==42)
-    Liquid%Info(SpecID)%NumOfAds = Liquid%Info(SpecID)%NumOfAds + 1
+  Liquid%Info(SpecID)%NumOfAds = Liquid%Info(SpecID)%NumOfAds + 1
 #endif
-    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-!     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
-!     IF (KeepWallParticles) THEN
-!       PDM%PartAdsorbSideIndx(1,PartID) = GlobSideID
-!       PDM%PartAdsorbSideIndx(2,PartID) = p
-!       PDM%PartAdsorbSideIndx(3,PartID) = q
-!         LastPartPos(PartID,1) = PartState(PartID,1)
-!         LastPartPos(PartID,2) = PartState(PartID,2)
-!         LastPartPos(PartID,3) = PartState(PartID,3)
-!     END IF
-      VelXold = PartState(PartID,4)
-      VelYold = PartState(PartID,5)
-      VelZold = PartState(PartID,6)
-      PartState(PartID,4)  = WallVelo(1)
-      PartState(PartID,5)  = WallVelo(2)
-      PartState(PartID,6)  = WallVelo(3)
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    VelXold = PartState(PartID,4)
+    VelYold = PartState(PartID,5)
+    VelZold = PartState(PartID,6)
+    PartState(PartID,4)  = WallVelo(1)
+    PartState(PartID,5)  = WallVelo(2)
+    PartState(PartID,6)  = WallVelo(3)
+  
+    VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
+    EtraOld = 0.5 * Species(outSpec(1))%MassIC * VeloReal**2
+    EtraWall = 0.0
+    EtraNew = EtraWall
     
-      VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-      EtraOld = 0.5 * Species(outSpec(1))%MassIC * VeloReal**2
-      EtraWall = 0.0
-      EtraNew = EtraWall
-      
-      TransArray(1) = EtraOld
-      TransArray(2) = EtraWall
-      TransArray(3) = EtraNew
-      TransArray(4) = PartState(PartID,4)-VelXold
-      TransArray(5) = PartState(PartID,5)-VelYold
-      TransArray(6) = PartState(PartID,6)-VelZold
-    
-      !---- Internal energy accommodation
-      IF (CollisMode.GT.1) THEN
-      IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
-        !---- Rotational energy accommodation
-        CALL RANDOM_NUMBER(RanNum)
-        ErotWall = 0
-        ErotNew  = 0
-        IntArray(1) = PartStateIntEn(PartID,2)
-        IntArray(2) = ErotWall
-        IntArray(3) = ErotNew
-        PartStateIntEn(PartID,2) = ErotNew
-        !---- Vibrational energy accommodation
-        IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
-          EvibNew = 0.0
-          iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
-          ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))!, &
+    TransArray(1) = EtraOld
+    TransArray(2) = EtraWall
+    TransArray(3) = EtraNew
+    TransArray(4) = PartState(PartID,4)-VelXold
+    TransArray(5) = PartState(PartID,5)-VelYold
+    TransArray(6) = PartState(PartID,6)-VelZold
+  
+    !---- Internal energy accommodation
+    IF (CollisMode.GT.1) THEN
+    IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
+      !---- Rotational energy accommodation
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = 0
+      ErotNew  = 0
+      IntArray(1) = PartStateIntEn(PartID,2)
+      IntArray(2) = ErotWall
+      IntArray(3) = ErotNew
+      PartStateIntEn(PartID,2) = ErotNew
+      !---- Vibrational energy accommodation
+      IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
+        EvibNew = 0.0
+        iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
+        ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))!, &
 !                   VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
 !                   VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+        CALL RANDOM_NUMBER(RanNumPoly)
+        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
           CALL RANDOM_NUMBER(RanNumPoly)
           VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-            CALL RANDOM_NUMBER(RanNumPoly)
-            VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-          END DO
+        END DO
 !           VibQuantNewRPoly(:) = VibQuantWallPoly(:)
 !           VibQuantNewPoly = INT(VibQuantNewRPoly)
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
 !             CALL RANDOM_NUMBER(RanNum)
 !             IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
 !               EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
@@ -3051,22 +3098,22 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
 !                         * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
 !               VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
 !             END IF
-            IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                        * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(outSpec(1))%MacroParticleFactor
-            IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
-                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
-            IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
-          END DO
-        ELSE
-          VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib) &
-                      - DSMC%GammaQuant)
+          IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(outSpec(1))%MacroParticleFactor
+          IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                      * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+          IntArray(6) = IntArray(6) + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                      * SpecDSMC(outSpec(1))%CharaTVib * Species(outSpec(1))%MacroParticleFactor
+        END DO
+      ELSE
+        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib) &
+                    - DSMC%GammaQuant)
+        CALL RANDOM_NUMBER(RanNum)
+        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
+        DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
           CALL RANDOM_NUMBER(RanNum)
           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-          DO WHILE (VibQuantWall.GE.SpecDSMC(outSpec(1))%MaxVibQuant)
-            CALL RANDOM_NUMBER(RanNum)
-            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(outSpec(1))%CharaTVib)
-          END DO
+        END DO
 !           VibQuantNewR = VibQuantWall
 !           VibQuantNew = INT(VibQuantNewR)
 !           CALL RANDOM_NUMBER(RanNum)
@@ -3075,32 +3122,32 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
 !           ELSE
 !             EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib
 !           END IF
-          IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-          IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-          IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
-        END IF
-        SDEALLOCATE(RanNumPoly)
-        SDEALLOCATE(VibQuantWallPoly)
+        IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        IntArray(6) = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+      END IF
+      SDEALLOCATE(RanNumPoly)
+      SDEALLOCATE(VibQuantWallPoly)
 !         SDEALLOCATE(VibQuantNewRPoly)
 !         SDEALLOCATE(VibQuantNewPoly)
 !         SDEALLOCATE(VibQuantTemp)
 !         IntArray(6) = EvibNew
-      END IF
-      END IF
-      !End internal energy accomodation
-      
-      !----  Sampling of energies
-      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,EvaporationEnthalpie&
-          ,locBCID)
-      END IF
     END IF
-  !---------------------------------------------------------------------------------------------------------------------------------
-  CASE DEFAULT ! diffuse reflection
-  !---------------------------------------------------------------------------------------------------------------------------------
-    condensindex = 0
-  END SELECT
-  
+    END IF
+    !End internal energy accomodation
+    
+    !----  Sampling of energies
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,EvaporationEnthalpie&
+        ,locBCID)
+    END IF
+  END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE DEFAULT ! diffuse reflection
+!-----------------------------------------------------------------------------------------------------------------------------------
+  condensindex = 0
+END SELECT
+
 END SUBROUTINE ParticleCondensationCase
 
 END MODULE MOD_Particle_Boundary_Condition

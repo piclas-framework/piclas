@@ -121,10 +121,10 @@ CALL prms%CreateLogicalOption(  'CalcSurfRates'      , 'TODO-DEFINE-PARAMETER\n'
 CALL prms%CreateLogicalOption(  'CalcShapeEfficiency', 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Use efficiency methods for shape functions.'&
                                                      , '.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , "TODO-DEFINE-PARAMETER\n'//&
-                                                       'Choose between 'AllParts'and "//&
-                                                       "'SomeParts', to either use all particles or a certain percentage"//&
-                                                       " (ShapeEfficiencyNumber) of the currently used particles",'AllParts')
+CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , 'TODO-DEFINE-PARAMETER\n'//&
+                                                       'Choose between "AllParts" and '//&
+                                                       '"SomeParts", to either use all particles or a certain percentage'//&
+                                                       ' (ShapeEfficiencyNumber) of the currently used particles','AllParts')
 CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Percentage of currently used particles is used.'&
                                                      ,'100')
@@ -141,11 +141,11 @@ SUBROUTINE InitParticleAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars          ,ONLY: DoAnalyze
-USE MOD_Particle_Analyze_Vars
-USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
+USE MOD_Analyze_Vars            ,ONLY: DoAnalyze,CalcEpot
+USE MOD_Particle_Analyze_Vars 
+USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
+USE MOD_Particle_Vars           ,ONLY: nSpecies
+USE MOD_PICDepo_Vars            ,ONLY: DoDeposition
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars             ,ONLY: Adsorption
 #endif
@@ -206,7 +206,7 @@ IF (CalcPartBalance) THEN
   nPartOut=0
   PartEkinOut=0.
   PartEkinIn=0.
-#if defined(LSERK) || defined(IMEX) || defined(IMPA) 
+#if defined(LSERK) || defined(ROS) || defined(IMPA) 
   SDEALLOCATE( nPartInTmp)
   SDEALLOCATE( PartEkinInTmp)
   ALLOCATE( nPartInTmp(nSpecies)     &
@@ -214,23 +214,6 @@ IF (CalcPartBalance) THEN
   PartEkinInTmp=0.
   nPartInTmp=0
 #endif
-END IF
-CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
-IF (CalcVelos) THEN
-  DoAnalyze=.TRUE.
-  VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
-  VeloDirs(:) = .FALSE.
-  DO dir = 1,4
-    IF (VeloDirs_hilf(dir) .EQ. 1) THEN
-      VeloDirs(dir) = .TRUE.
-    END IF
-  END DO
-  IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
-      (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'No VelocityDirections set in CalcVelos!')
-  END IF
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
@@ -244,6 +227,27 @@ CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoAnalyze = .TRUE.
+CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
+IF (CalcVelos) THEN
+  DoAnalyze=.TRUE.
+  VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
+  VeloDirs(:) = .FALSE.
+  IF(.NOT.CalcNumSpec)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcNumSpec=.TRUE.'
+    CalcNumSpec = .TRUE.
+  END IF
+  DO dir = 1,4
+    IF (VeloDirs_hilf(dir) .EQ. 1) THEN
+      VeloDirs(dir) = .TRUE.
+    END IF
+  END DO
+  IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
+      (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'No VelocityDirections set in CalcVelos!')
+  END IF
+END IF
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 CalcSurfNumSpec = GETLOGICAL('CalcSurfNumSpec','.FALSE.')
 CalcSurfCoverage = GETLOGICAL('CalcSurfCoverage','.FALSE.')
@@ -297,13 +301,14 @@ SUBROUTINE AnalyzeParticles(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoAnalyze
-USE MOD_Particle_Analyze_Vars  !,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, BoltzmannConst
-USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
-USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_AnalyzeField           ,ONLY: CalcPotentialEnergy
-USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_Analyze_Vars,          ONLY: DoAnalyze,CalcEpot
+USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
+USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst
+USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
+USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+USE MOD_DSMC_Vars,             ONLY: DSMC
+USE MOD_Dielectric_Vars,       ONLY: DoDielectric
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
@@ -866,7 +871,13 @@ REAL                :: tLBStart,tLBEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
   IF(CalcCharge) CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
-  IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
+  IF(CalcEpot)THEN
+    IF(DoDielectric)THEN
+      CALL CalcPotentialEnergy_Dielectric(WEl,WMag)
+    ELSE
+      CALL CalcPotentialEnergy(WEl,WMag)
+    END IF
+  END IF
   IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
@@ -1957,8 +1968,8 @@ SUBROUTINE CalcParticleBalance()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: nPartIn,nPartOut,PartEkinIn,PartEkinOut
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars ,ONLY: nPartInTmp,PartEkinInTmp
 #endif
@@ -1972,7 +1983,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+#if defined(LSERK) || defined(ROS) || defined(IMPA)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 nPartIn=nPartInTmp
 nPartOut=0
@@ -2162,8 +2173,10 @@ IF(usevMPF)THEN ! for MPF differentiate between real particle number and simulat
     END IF
   END DO
   IF(BGGas%BGGasSpecies.NE.0) THEN
-    NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-    SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
+    !NumSpec(BGGas%BGGasSpecies) = BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor
+    !SimNumSpec(BGGas%BGGasSpecies) = INT(NumSpec(BGGas%BGGasSpecies))
+    NumSpec(BGGas%BGGasSpecies) = 0.
+    SimNumSpec(BGGas%BGGasSpecies) = 0
   END IF
   IF(nSpecAnalyze.GT.1)THEN
     NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
@@ -2274,7 +2287,11 @@ IF (CollisMode.GT.1) THEN
       END IF
     END DO
     IF(nSpecAnalyze.GT.1)THEN
-      TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+      IF(NumSpec(iSpec).NE.0) THEN
+        TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+      ELSE
+        TempTotal(nSpecAnalyze)= 0.
+      END IF
     END IF
   END IF
 ELSE
@@ -2372,7 +2389,11 @@ IF(PartMPI%MPIRoot)THEN
     END IF
   END DO
   IF(nSpecAnalyze.GT.1)THEN
-    Temp(nSpecAnalyze)= Temp(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+    IF(NumSpec(iSpec).NE.0) THEN
+      Temp(nSpecAnalyze)= Temp(nSpecAnalyze) / NumSpec(nSpecAnalyze)
+    ELSE
+      Temp(nSpecAnalyze)= 0.
+    END IF
   END IF
 END IF
 #endif
