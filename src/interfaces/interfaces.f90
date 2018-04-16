@@ -52,19 +52,21 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 !> Check every face and set the correct identifier for selecting the corresponding Riemann solver
 !> possible connections are (Master <-> Slave direction is important):
-!>   - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
-!>   - PML        <-> vacuum       : RIEMANN_PML            = 1
-!>   - PML        <-> PML          : RIEMANN_PML            = 1
-!>   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
-!>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3
-!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4
+!>   - vaccuum    <-> vacuum       : RIEMANN_VACUUM            = 0
+!>   - PML        <-> vacuum       : RIEMANN_PML               = 1
+!>   - PML        <-> PML          : RIEMANN_PML               = 1
+!>   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC        = 2
+!>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC    = 3 ! for conservative fluxes (one flux)
+!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
+!>   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC_NC = 5 ! for non-conservative fluxes (two fluxes)
+!>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,       ONLY:nSides
 #ifndef PP_HDG
 USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
 #endif /*NOT HDG*/
-USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
+USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
 USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
 USE MOD_Mesh_Vars,       ONLY:SideToElem
@@ -108,8 +110,8 @@ DO SideID=1,nSides
   ! 2.) Check Dielectric Medium
   ! c), d) - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
   ! b)     - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
-  ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3
-  ! a2)    - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4
+  ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
+  ! a2)    - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN
@@ -117,10 +119,18 @@ DO SideID=1,nSides
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
         IF(isDielectricElem(ElemID))THEN
           ! a1) master is DIELECTRIC and slave PHYSICAL
-          InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+          IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
+            InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC_NC ! use two different Riemann solvers
+          ELSE
+            InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
+          END IF
         ELSE 
           ! a2) master is PHYSICAL and slave DIELECTRIC
-          InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+          IF(DielectricFluxNonConserving)THEN
+            InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
+          ELSE
+            InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
+          END IF
         END IF
       ELSE 
         ! b) dielectric region <-> dielectric region
@@ -148,7 +158,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterfaces
 
 
-SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo)
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo,GeometryName)
 !===================================================================================================================================
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
 !> Additionally, a radius can be supplied for determining if an element belongs to a special region or not
@@ -167,11 +177,12 @@ USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)               :: ElementIsInside  ! check whether and element DOF in inside/outside of a region or radius
-REAL,INTENT(IN)                  :: region(1:6)      ! MIN/MAX for x,y,z of bounding box region
-LOGICAL,INTENT(IN)               :: DoRadius         ! check if DOF is inside/outside of radius
-REAL,INTENT(IN)                  :: Radius           ! check if DOF is inside/outside of radius
-LOGICAL,INTENT(IN),OPTIONAL      :: DisplayInfo      ! output to stdOut with region size info
+LOGICAL,INTENT(IN)                     :: ElementIsInside ! Check whether and element DOF in inside/outside of a region or radius
+REAL,INTENT(IN)                        :: region(1:6)     ! MIN/MAX for x,y,z of bounding box region
+LOGICAL,INTENT(IN)                     :: DoRadius        ! Check if DOF is inside/outside of radius
+REAL,INTENT(IN)                        :: Radius          ! Check if DOF is inside/outside of radius
+LOGICAL,INTENT(IN),OPTIONAL            :: DisplayInfo     ! Output to stdOut with region size info
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: GeometryName    ! Name of special geometry with user-defined coordinates 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
@@ -179,16 +190,18 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 ! LOCAL VARIABLES
 INTEGER             :: iElem,i,j,k,m
 REAL                :: r
+LOGICAL                          :: DoGeometry ! Check if DOF is inside/outside of a rotationally symmetric geometry
+REAL              :: rInterpolated
 !===================================================================================================================================
-! Display debugging output by each rank
+! Display region information (how elements are checked + min-max region extensions)
 IF(PRESENT(DisplayInfo))THEN
   IF(DisplayInfo)THEN
-    IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
+    IF(ElementIsInside)THEN ! Display information regarding the orientation of the element-region-search
       SWRITE(UNIT_stdOut,'(A)')'  Checking for elements INSIDE region'
     ELSE
       SWRITE(UNIT_stdOut,'(A)')'  Checking for elements OUTSIDE region'
     END IF
-  CALL DisplayMinMax(region) ! display table with min-max info of region
+  CALL DisplayMinMax(region) ! Display table with min-max info of region
   END IF
 END IF
 
@@ -196,24 +209,28 @@ END IF
 ALLOCATE(isElem(1:PP_nElems))
 isElem=.FALSE.
 
-IF(ElementIsInside)THEN ! display information regarding the orientation of the element-region-search
+IF(ElementIsInside)THEN ! Display information regarding the orientation of the element-region-search
   isElem(:)=.TRUE.
 ELSE
   isElem(:)=.FALSE.
 END IF
 
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) use standard bounding box region
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded
 DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
   DO m=1,3 ! m=x,y,z
     IF ( (Elem_xGP(m,i,j,k,iElem) .LT. region(2*m-1)) .OR. & ! 1,3,5
          (Elem_xGP(m,i,j,k,iElem) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
-          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
     END IF
   END DO
 END DO; END DO; END DO; END DO !iElem,k,j,i
 
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) Additionally check radius (e.g. half sphere regions)
+! ----------------------------------------------------------------------------------------------------------------------------------
 ! if option 'DoRadius' is applied, elements are double checked if they are within a certain radius
 IF(DoRadius.AND.Radius.GT.0.0)THEN
   DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -221,13 +238,54 @@ IF(DoRadius.AND.Radius.GT.0.0)THEN
              Elem_xGP(2,i,j,k,iElem)**2+&
              Elem_xGP(3,i,j,k,iElem)**2  )
     ! check if r is larger than the supplied value .AND.
-    ! if r is not almost euqal to the radius
+    ! if r is not almost equal to the radius
     IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
-        isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+        isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
       END IF
     END IF
   END DO; END DO; END DO; END DO !iElem,k,j,i
+END IF
+
+! ----------------------------------------------------------------------------------------------------------------------------------
+! 3.) Additionally check special geometries (e.g. Lenses defined by rotationally symmetry geometries)
+! ----------------------------------------------------------------------------------------------------------------------------------
+IF(PRESENT(GeometryName))THEN
+  ! Set the geometrical coordinates (e.g. Axial symmetric with r(x) dependency)
+  CALL SetGeometry(GeometryName)
+
+  ! inquire if DOFs/Elems are within/outside of a region 
+  SELECT CASE(TRIM(GeometryName)) 
+  CASE('FH_lens')
+    ! loop every element and compare the DOF position
+    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
+      CALL InterpolateGeometry(Elem_xGP(1,i,j,k,iElem),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
+
+      ! calculate 2D radius for y-z-plane for comparison with interpolated lens radius
+      r = SQRT(&
+          Elem_xGP(2,i,j,k,iElem)**2+&
+          Elem_xGP(3,i,j,k,iElem)**2  )
+
+      ! check if r is larger than the interpolated radius of the geometry .AND.
+      ! if r is not almost equal to the radius invert the "isElem" logical value
+      IF(r.GT.rInterpolated.AND.(.NOT.ALMOSTEQUALRELATIVE(r,rInterpolated,1e-3)))THEN
+        IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+        END IF
+      END IF
+    END DO; END DO; END DO; END DO !iElem,k,j,i
+  CASE('FishEyeLens')
+    ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
+  CASE('default') 
+    ! Nothing to do, because the geometry is set by using the box coordinates
+  CASE DEFAULT
+    SWRITE(UNIT_stdOut,'(A)') ' '
+    SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
+    CALL abort(&
+        __STAMP__,&
+        'Error in CALL FindElementInRegion(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
+  END SELECT
 END IF
 
 END SUBROUTINE  FindElementInRegion
@@ -288,9 +346,9 @@ isFace_Master=-3.
 isFace_combined=-3.
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
-CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! includes Mortar sides 
+CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides 
 #ifdef MPI
-CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! includes Mortar sides
+CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! Includes Mortar sides
 
 ! 3.  MPI: communicate slave sides to master
 !         send Slave special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Master proc
@@ -301,7 +359,7 @@ CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -re
 
 
 
-! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the 
+! 4.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the 
 !     information is later used when fluxes are determined
 !         add isFace_Master to isFace_Slave and send
 ! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
@@ -371,7 +429,7 @@ REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2)!,firstSideID,lastSideID
+INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2)
 INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
 INTEGER                         :: firstMortarSideID,lastMortarSideID
@@ -752,5 +810,308 @@ InterfacesInitIsDone = .FALSE.
 SDEALLOCATE(InterfaceRiemann)
 END SUBROUTINE FinalizeInterfaces
 
+
+SUBROUTINE SetGeometry(GeometryName)
+!===================================================================================================================================
+!> Set the coordinates of the pre-defined geometry
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Interfaces_Vars, ONLY:GeometryIsSet,Geometry,GeometryMin,GeometryMax,GeometryNPoints
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL,ALLOCATABLE                :: temp_array(:)            !< temporary array
+REAL                            :: array_shift
+INTEGER                         :: I,J
+INTEGER                         :: dim_2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+CHARACTER(LEN=*)  ,INTENT(IN)   :: GeometryName             !< name of the pre-defined geometry
+!===================================================================================================================================
+IF(GeometryIsSet)RETURN
+
+SWRITE(UNIT_stdOut,'(A)') 'Selecting geometry: ['//TRIM(GeometryName)//']'
+SELECT CASE(TRIM(GeometryName)) 
+CASE('FH_lens')
+  array_shift=0.0 !-0.038812
+  !array_shift=347.6000
+  GeometryNPoints=106 !18
+  dim_2=2
+  ALLOCATE(Geometry(1:GeometryNPoints,1:dim_2)) ! 385 radial- and axis-coordinates for gyrotron tube radius along the axis
+  ALLOCATE(temp_array(1:GeometryNPoints*dim_2))
+  temp_array=(/&            ! this array will be re-shaped into [385,2] = [z,r] 
+    !-0.038812,0.000531 ,&
+    !-0.038415,0.010012 ,&
+    !-0.037116,0.018273 ,&
+    !-0.035497,0.028064 ,&
+    !-0.032961,0.038164 ,&
+    !-0.028610,0.046741 ,&
+    !-0.022700,0.058992 ,&
+    !-0.018341,0.068486 ,&
+    !-0.012759,0.078290 ,&
+    !-0.005938,0.090239 ,&
+    ! 0.001479,0.100000 ,&
+    ! 0.004412,0.088743 ,&
+    ! 0.005838,0.078656 ,&
+    ! 0.007845,0.065513 ,&
+    ! 0.010171,0.053900 ,&
+    ! 0.011571,0.041061 ,&
+    ! 0.012047,0.027301 ,&
+    ! 0.012527,0.013847 /)
+    0.0, 0.0, &
+0.014816715, 1.99670444, &
+0.059267674, 3.993106501, &
+0.133331455, 5.988367882, &
+0.237014201, 7.982623035, &
+0.370259774, 9.974796787, &
+0.5330791, 11.965063522, &
+0.72539951, 13.952507031, &
+0.947200545, 15.936944013, &
+1.198438389, 17.917952527, &
+1.479015859, 19.894791526, &
+1.78894558, 21.867539088, &
+2.128062215, 23.835147592, &
+2.496399114, 25.797812611, &
+2.893776762, 27.754568018, &
+3.320176754, 29.705334883, &
+3.775487266, 31.649585499, &
+4.259557482, 33.586690716, &
+4.772390912, 35.51665657, &
+5.313721801, 37.438487845, &
+5.883606031, 39.352383004, &
+6.481751181, 41.257355615, &
+7.108157782, 43.153413717, &
+7.76262568, 45.039940565, &
+8.444974215, 46.916426019, &
+9.155178358, 48.782794565, &
+9.892887299, 50.638129252, &
+10.658174646, 52.482614178, &
+11.450634535, 54.315269161, &
+12.270297113, 56.136167729, &
+13.116858274, 57.944626529, &
+13.9901344, 59.740261244, &
+14.890047927, 61.522906284, &
+15.816183031, 63.291742958, &
+16.768621298, 65.046925451, &
+17.746849304, 66.787507079, &
+18.750932064, 68.513605862, &
+19.780449875, 70.224494821, &
+20.852188411, 71.975995606, &
+21.923926639, 73.727495887, &
+22.995664868, 75.478996169, &
+24.067403096, 77.23049645, &
+25.139141325, 78.981996731, &
+26.210879553, 80.733497013, &
+27.282617782, 82.484997294, &
+28.35435601, 84.236497575, &
+29.426094235, 85.987997851, &
+30.497832455, 87.739498119, &
+31.569570676, 89.490998388, &
+32.641308897, 91.242498657, &
+33.713047117, 92.993998925, &
+34.784785338, 94.745499194, &
+35.856523559, 96.496999463, &
+36.928261779, 98.248499731, &
+38.0, 100.0, &
+38.498243083, 98.080926044, &
+38.987216136, 96.15937442, &
+39.466858851, 94.235473726, &
+39.937113175, 92.30935426, &
+40.39796875, 90.380955996, &
+40.849409285, 88.450239259, &
+41.291378608, 86.517337199, &
+41.723823144, 84.582383722, &
+42.146737013, 82.645304551, &
+42.56010212, 80.706076171, &
+42.96386685, 78.764835972, &
+43.357982733, 76.82171986, &
+43.742448366, 74.87663694, &
+44.117243934, 72.929583453, &
+44.482322763, 70.980700664, &
+44.837642126, 69.030124197, &
+45.183204585, 67.077746152, &
+45.518989127, 65.123584812, &
+45.844954386, 63.167784907, &
+46.161064061, 61.210478167, &
+46.467324017, 59.251539872, &
+46.763712601, 57.291013219, &
+47.050194074, 55.329045939, &
+47.326738936, 53.365762761, &
+47.593355114, 51.401026683, &
+47.850021726, 49.43490383, &
+48.096708937, 47.467544431, &
+48.333394428, 45.499061214, &
+48.560087212, 43.529309193, &
+48.776768186, 41.558377479, &
+48.983413646, 39.586418261, &
+49.180008392, 37.613528456, &
+49.366561602, 35.639561577, &
+49.543057295, 33.66462635, &
+49.709478068, 31.688876367, &
+49.865815696, 29.712386535, &
+50.012078877, 27.735016381, &
+50.148255745, 25.756892209, &
+50.27433531, 23.778168427, &
+50.390315494, 21.798896834, &
+50.49620446, 19.818948929, &
+50.591995523, 17.838462951, &
+50.677684152, 15.857593528, &
+50.7532738, 13.876359719, &
+50.818772099, 11.894656063, &
+50.874178088, 9.912630568, &
+50.919493685, 7.930437493, &
+50.954726488, 5.948063962, &
+50.979884484, 3.965431569, &
+50.99497289, 1.982692481, &
+51.0, 0.0/)
+  !Geometry=RESHAPE(temp_array, (/385, 2/))
+  Geometry=TRANSPOSE(RESHAPE(temp_array, (/dim_2,GeometryNPoints/)))
+  Geometry=Geometry/1000.
+!DO I=1,GeometryNPoints
+  !DO J=1,dim_2
+   !SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') Geometry(I,J)
+  !END DO
+   !SWRITE(UNIT_stdOut,'(A)') ' '
+  !!READ*
+!END DO
+  Geometry(:,1)=Geometry(:,1)-array_shift
+
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MIN="
+  ALLOCATE(GeometryMin(1:dim_2))
+  DO I=1,dim_2
+    GeometryMin(I)=MINVAL(Geometry(:,I))
+    SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMin(I)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ' '
+
+  ALLOCATE(GeometryMax(1:dim_2))
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MAX="
+  DO I=1,dim_2
+    GeometryMax(I)=MAXVAL(Geometry(:,I))
+    SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMax(I)
+  END DO
+  SWRITE(UNIT_stdOut,'(A)') ' '
+
+  !!!!               ! use X points for averaged gradient
+  !!!!               PMLGradientEntry=0
+  !!!!               PMLGradientExit =0
+  !!!!               ! average taper radius for entry (lower z-coordinate)
+  !!!!               DO I=1,PMLNGradientPoints(1)-1
+  !!!!               PMLGradientEntry = PMLGradientEntry + (Geometry(I+1,2)-Geometry(I,2))/(Geometry(I+1,1)-Geometry(I,1))
+  !!!!               END DO
+  !!!!               ! average taper radius for exit (upper z-coordinate)
+  !!!!               DO I=1,PMLNGradientPoints(2)-1
+  !!!!               PMLGradientExit  = PMLGradientExit  + (Geometry(GeometryNPoints-I+1,2)-Geometry(GeometryNPoints-I,2))/&
+  !!!!                                                     (Geometry(GeometryNPoints-I+1,1)-Geometry(GeometryNPoints-I,1))
+  !!!!               END DO
+  !!!!               PMLGradientEntry = PMLGradientEntry/(PMLNGradientPoints(1)-1)
+  !!!!               PMLGradientExit  = PMLGradientExit /(PMLNGradientPoints(2)-1)
+
+CASE('FishEyeLens')
+  ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
+CASE('default') 
+  ! Nothing to do, because the geometry is set by using the box coordinates
+CASE DEFAULT
+  SWRITE(UNIT_stdOut,'(A)') ' '
+  SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
+  CALL abort(&
+  __STAMP__,&
+  'Error in CALL SetGeometry(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
+END SELECT
+
+GeometryIsSet=.TRUE.
+
+
+END SUBROUTINE SetGeometry
+
+
+SUBROUTINE InterpolateGeometry(x_IN,dim_x,dim_y,x_OUT)
+!===================================================================================================================================
+!> Set the coordinates of the pre-defined geometry
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Interfaces_Vars, ONLY:GeometryIsSet,Geometry,GeometryMin,GeometryMax,GeometryNPoints
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!REAL,ALLOCATABLE                :: temp_array(:)            !< temporary array
+INTEGER                         :: I,J
+INTEGER                         :: location
+REAL                            :: x1,x2,y1,y2,m
+INTEGER                         :: location_Upper,location_Lower
+!INTEGER                         :: GeometryNPoints,dim_2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL,INTENT(IN)                  :: x_IN
+INTEGER,INTENT(IN)               :: dim_x,dim_y
+! OUTPUT VARIABLES
+!CHARACTER(LEN=*)  ,INTENT(IN)   :: GeometryName             !< name of the pre-defined geometry
+REAL,INTENT(OUT)                 :: x_OUT ! radius
+!===================================================================================================================================
+
+IF(     x_IN .LE. GeometryMin(dim_x) )THEN
+  !x_OUT=GeometryMin(dim_y)
+  x_OUT=HUGE(1.0)
+  RETURN
+ELSEIF( x_IN .GE. GeometryMax(dim_x) )THEN
+  !x_OUT=GeometryMax(dim_y)
+  x_OUT=HUGE(1.0)
+  RETURN
+ELSE ! interpolate
+  location = MINLOC(ABS(Geometry(:,dim_x)-x_IN),1) !Determines the location of the element in the array with min value
+  IF(x_IN.LE.Geometry(location,dim_x))THEN ! location is upper of x_IN
+    IF(location.LE.GeometryNPoints)THEN
+      location_Upper = location
+      location_Lower = location-1
+    ELSE
+      CALL abort(&
+      __STAMP__,&
+      'InterpolateGeometry Error when location is upper of x_IN: interpolated outside of array dimension?!')
+    END IF
+  ELSEIF(x_IN.GE.Geometry(location,dim_x))THEN ! location is lower of x_IN
+    IF(location.GE.1)THEN
+      location_Upper = location+1
+      location_Lower = location
+    ELSE
+      CALL abort(&
+      __STAMP__,&
+      'InterpolateGeometry Error when location is lower of x_IN: interpolated outside of array dimension?!')
+    END IF
+  ELSE
+    CALL abort(&
+    __STAMP__,&
+    'InterpolateGeometry Error location: interpolated outside of array dimension?!')
+  END IF
+
+  ! sanity check
+  IF((location.LT.1).OR.(location.GT.GeometryNPoints))THEN
+    CALL abort(&
+    __STAMP__,&
+    'InterpolateGeometry Error: interpolated outside of array dimension?!')
+  END IF
+  ! do the actual interpolation
+  x1 = Geometry(location_Lower,dim_x)
+  x2 = Geometry(location_Upper,dim_x)
+  y1 = Geometry(location_Lower,dim_y)
+  y2 = Geometry(location_Upper,dim_y)
+  ! calc gradient
+  m=(y2-y1)/(x2-x1)
+END IF
+
+
+! linear interpolation
+x_OUT = y1 + m*(x_IN-x1)
+
+
+
+
+END SUBROUTINE InterpolateGeometry
 
 END MODULE MOD_Interfaces

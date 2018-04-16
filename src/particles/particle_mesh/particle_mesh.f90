@@ -389,6 +389,7 @@ INTEGER           :: flip,p,q
 REAL              :: SideCoord(1:3,0:1,0:1)
 REAL              :: SideCoord_tmp(1:3,0:1,0:1)
 CHARACTER(32)     :: hilf
+CHARACTER(LEN=255) :: FileString
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -506,33 +507,37 @@ END DO
 
 !-- write debug-mesh
 IF (WriteTriaDebugMesh) THEN
-  nSides=nElems*6
+  nSides=6
   WRITE(UNIT=hilf,FMT='(I4.4)') myRank
-  OPEN(UNIT   = 103, &
-         FILE   = 'Tria-debugmesh_'//TRIM(hilf)//'.tec' ,&
-         STATUS = 'UNKNOWN')
-  WRITE(103,*) 'TITLE="Tria-debugmesh" '
-  WRITE(103,'(102a)') 'VARIABLES ="x","y","z"'
-  WRITE(103,*) 'ZONE NODES=',4*nSides,', ELEMENTS=',2*nSides,'DATAPACKING=POINT, ZONETYPE=FEQUADRILATERAL'
-  ! Write nodes
-  DO iElem=1,nElems
-    DO iLocSide=1,6
-      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,1,iLocSide,iElem)
-      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,2,iLocSide,iElem)
-      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,3,iLocSide,iElem)
-      WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,4,iLocSide,iElem)
-    END DO
-  END DO
-  ! Write sides
-  nSides=0
-  DO iElem=1,nElems
-    DO iLocSide=1,6
-      WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+2,nSides*4+3,nSides*4+3 !1. tria
-      WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+3,nSides*4+4,nSides*4+4 !2. tria
-      nSides=nSides+1
-    END DO
-  END DO
-  CLOSE(103)
+  FileString='TRIA-DebugMesh_PROC'//TRIM(hilf)//'.vtu'
+  CALL WriteTriaDataToVTK(nSides,nElems,GEO%NodeCoords(1:3,1:4,1:6,1:nElems),FileString)
+  !nSides=nElems*6
+  !WRITE(UNIT=hilf,FMT='(I4.4)') myRank
+  !OPEN(UNIT   = 103, &
+  !       FILE   = 'Tria-debugmesh_'//TRIM(hilf)//'.tec' ,&
+  !       STATUS = 'UNKNOWN')
+  !WRITE(103,*) 'TITLE="Tria-debugmesh" '
+  !WRITE(103,'(102a)') 'VARIABLES ="x","y","z"'
+  !WRITE(103,*) 'ZONE NODES=',4*nSides,', ELEMENTS=',2*nSides,'DATAPACKING=POINT, ZONETYPE=FEQUADRILATERAL'
+  !! Write nodes
+  !DO iElem=1,nElems
+  !  DO iLocSide=1,6
+  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,1,iLocSide,iElem)
+  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,2,iLocSide,iElem)
+  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,3,iLocSide,iElem)
+  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,4,iLocSide,iElem)
+  !  END DO
+  !END DO
+  !! Write sides
+  !nSides=0
+  !DO iElem=1,nElems
+  !  DO iLocSide=1,6
+  !    WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+2,nSides*4+3,nSides*4+3 !1. tria
+  !    WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+3,nSides*4+4,nSides*4+4 !2. tria
+  !    nSides=nSides+1
+  !  END DO
+  !END DO
+  !CLOSE(103)
 END IF !WriteTriaDebugMesh
 
 !--- Save whether Side is concave or convex
@@ -558,6 +563,162 @@ CALL TriaWeirdElementCheck()
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE TRIANGLE GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitTriaParticleGeometry
+
+
+SUBROUTINE WriteTriaDataToVTK(nSides,nElems,Coord,FileString)
+!===================================================================================================================================
+!> Routine writing data to VTK Triangles (cell type = 5)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)          :: nSides               !< Number of sides per element
+INTEGER,INTENT(IN)          :: nElems               !< Number of elements
+REAL   ,INTENT(IN)          :: Coord(1:3,1:4,1:nSides,1:nElems)
+CHARACTER(LEN=*),INTENT(IN) :: FileString           ! < Output file name
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER            :: i,j,k,iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,str_len,iSide
+INTEGER            :: INT
+INTEGER            :: Vertex(3,nSides*nElems*2)
+INTEGER            :: NodeID,CellID,CellType
+CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
+CHARACTER(LEN=200) :: Buffer
+CHARACTER(LEN=1)   :: lf!,components_string
+!CHARACTER(LEN=255) :: VarNameString
+REAL(KIND=4)       :: Float
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE TRIA DATA TO VTX XML BINARY (VTU) FILE..."
+IF(nSides.LT.1)THEN
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+  RETURN
+END IF
+
+! Line feed character
+lf = char(10)
+
+! Write file
+OPEN(UNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
+! Write header
+Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
+nVTKElems=nSides*nElems*4 ! number of Nodes
+nVTKCells=nSides*2*nElems ! number of Triangles
+
+Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+WRITE(TempStr1,'(I16)')nVTKElems
+WRITE(TempStr2,'(I16)')nVTKCells
+Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
+'" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify point data
+Buffer='      <PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=0
+WRITE(StrOffset,'(I16)')Offset
+!IF (nVal .GT.0)THEN
+!  DO iVar=1,nVal
+!    IF (VarNamePartCombine(iVar).EQ.0) THEN
+!      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNamePartVisu(iVar))//&
+!      '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+!      Offset=Offset+SIZEOF(INT)+nVTKElems*SIZEOF(FLOAT)
+!      WRITE(StrOffset,'(I16)')Offset
+!    ELSE IF (VarNamePartCombine(iVar).EQ.1) THEN
+!      str_len = LEN_TRIM(VarNamePartVisu(iVar))
+!      write(components_string,'(I1)') VarNamePartCombineLen(iVar)
+!      !IF(FileType.EQ.'DSMCHOState')THEN
+!      !  VarNameString = VarNamePartVisu(iVar)(1:str_len-4)//VarNamePartVisu(iVar)(str_len-2:str_len)
+!      !ELSE
+!        VarNameString = VarNamePartVisu(iVar)(1:str_len-1)
+!      !END IF
+!      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameString)//&
+!      '" NumberOfComponents="'//components_string//'" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf
+!      WRITE(ivtk) TRIM(Buffer)
+!      Offset=Offset+SIZEOF(INT)+nVTKElems*SIZEOF(FLOAT)*VarNamePartCombineLen(iVar)
+!      WRITE(StrOffset,'(I16)')Offset
+!    END IF
+!  END DO
+!END IF
+Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify cell data
+Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify coordinate data
+Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=Offset+SIZEOF(INT)+3*nVTKElems*SIZEOF(FLOAT)
+WRITE(StrOffset,'(I16)')Offset
+Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify necessary cell data
+Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Connectivity
+Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=Offset+SIZEOF(INT)+nVTKCells*3*SIZEOF(INT)
+WRITE(StrOffset,'(I16)')Offset
+! Offsets
+Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=Offset+SIZEOF(INT)+nVTKCells*SIZEOF(INT)
+WRITE(StrOffset,'(I16)')Offset
+! Elem types
+Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='      </Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='    </Piece>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='  </UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Prepare append section
+Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Write leading data underscore
+Buffer='_';WRITE(ivtk) TRIM(Buffer)
+
+! Write binary raw data into append section
+! Point data
+nBytes = nVTKElems*SIZEOF(FLOAT)
+!DO iVal=1,nVal
+!  IF (VarNamePartCombine(iVal).EQ.0) THEN
+!    WRITE(ivtk) nBytes,REAL(Value(1:nParts,iVal),4)
+!  ELSEIF(VarNamePartCombine(iVal).EQ.1) THEN
+!    WRITE(ivtk) nBytes*VarNamePartCombineLen(iVal),REAL(Value(1:nParts,iVal:iVal+VarNamePartCombineLen(iVal)-1),4)
+!  ENDIF
+!END DO
+! Points
+nBytes = nBytes * 3
+WRITE(ivtk) nBytes
+WRITE(ivtk) REAL(Coord,4)
+! Connectivity
+NodeID = -1
+CellID = 1
+DO iElem=1,nElems
+  DO iSide=1,6
+    ! nodes 1,2,3 and nodes 1,3,4 forming one triangle
+    ! nodes indexes start with 0 in vtk
+    Vertex(:,CellID) = (/NodeID+1,NodeID+2,NodeID+3/)
+    Vertex(:,CellID+1) = (/NodeID+1,NodeID+3,NodeID+4/)
+    CellID=CellID+2
+    NodeID=NodeID+4
+  END DO
+END DO
+nBytes = 3*nVTKCells*SIZEOF(INT)
+WRITE(ivtk) nBytes
+WRITE(ivtk) Vertex(:,:)
+! Offset
+nBytes = nVTKCells*SIZEOF(INT)
+WRITE(ivtk) nBytes
+WRITE(ivtk) (Offset,Offset=3,3*nVTKCells,3)
+! Cell type
+CellType = 5  ! VTK_TRIANGLE 
+!CellType = 6  ! VTK_TRIANGLE_STRIP
+WRITE(ivtk) nBytes
+WRITE(ivtk) (CellType,iElem=1,nVTKCells)
+! Write footer
+Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
+CLOSE(ivtk)
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+
+END SUBROUTINE WriteTriaDataToVTK
 
 
 SUBROUTINE FinalizeParticleMesh()

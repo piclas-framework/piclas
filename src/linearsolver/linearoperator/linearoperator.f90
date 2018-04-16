@@ -27,12 +27,15 @@ INTERFACE VectorDotProduct
   MODULE PROCEDURE VectorDotProduct
 END INTERFACE
 
+#ifdef IMPA
 INTERFACE EvalResidual
   MODULE PROCEDURE EvalResidual
 END INTERFACE
+#endif
 #endif /*NOT HDG*/
 
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES) 
+#if defined(IMPA) || defined(ROS)
 INTERFACE PartVectorDotProduct
   MODULE PROCEDURE PartVectorDotProduct
 END INTERFACE
@@ -40,14 +43,20 @@ END INTERFACE
 INTERFACE PartMatrixVector
   MODULE PROCEDURE PartMatrixVector
 END INTERFACE
-#endif
+#endif /*ROS OR IMPA*/
+#endif /*PARTICLES*/
 
 #ifndef PP_HDG
-PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL,EvalResidual
+PUBLIC :: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
+#ifdef IMPA
+PUBLIC :: EvalResidual
+#endif /*IMPA*/
 #endif /*NOT HDG*/
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES)
+#if defined(IMPA) || defined(ROS)
 PUBLIC:: PartVectorDotProduct,PartMatrixVector
-#endif
+#endif /*ROS OR IMPA*/
+#endif 
 !===================================================================================================================================
 
 CONTAINS
@@ -87,24 +96,43 @@ CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 ! y = (I-Coeff*R)*x = x - Coeff*R*x 
 IF(DoParabolicDamping)THEN
   !rTmp=1.0-(fDamping-1.0)*dt*sdTCFLOne
+#ifdef IMPA
   rTmp=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+#else
+  ! use the inverse of coefficient because of inverse definition
+  rTmp=(1.0-(fDamping-1.0)*1./coeff*sdTCFLOne)
+#endif
   DO iElem=1,PP_nElems
     DO k=0,PP_N
       DO j=0,PP_N
         DO i=0,PP_N
           locMass=mass(1,i,j,k,iElem)
+#ifdef IMPA
           DO iVar=1,6
             Y(iVar,i,j,k,iElem) = locMass*(     U(iVar,i,j,k,iElem) - Coeff*Ut(iVar,i,j,k,iElem))
           END DO ! iVar=1,6
           DO iVar=7,PP_nVar
             Y(iVar,i,j,k,iElem) = locMass*(rTmp*U(iVar,i,j,k,iElem) - Coeff*Ut(iVar,i,j,k,iElem))
           END DO ! iVar=7,PP_nVar
+#else 
+          ! Rosenbrock, CAUTION: coeff = coeff_inv
+          DO iVar=1,6
+            Y(iVar,i,j,k,iElem) = locMass*(     coeff*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
+          END DO ! iVar=1,6
+          DO iVar=7,PP_nVar
+            Y(iVar,i,j,k,iElem) = locMass*(rTmp*coeff*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
+          END DO ! iVar=7,PP_nVar
+#endif
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N
   END DO ! iElem=1,PP_nElems
 ELSE
+#ifdef IMPA
   Y = mass*(U - Coeff*Ut)
+#else
+  Y = mass*(coeff* U - Ut)
+#endif
 END IF
 END SUBROUTINE MatrixVector
 
@@ -147,14 +175,21 @@ INTEGER          :: i,j,k,iElem,iVar
 
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
-#ifndef PP_HDG
+#if !defined(PP_HDG) && !defined(ROS)
 CALL CalcSource(t,1.0,ImplicitSource)
-#endif
+#endif /*NO ROSENBROCK and no HDG*/
 
 IF(DoParabolicDamping)THEN
   rTmp(1:6)=1.0
+#ifdef IMPA
   rTmp( 7 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
   rTmp( 8 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+#else
+  rTmp(1:6)=1.0
+  ! Here, we have to use the inverse because the coeff is the inverse
+  rTmp( 7 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne) 
+  rTmp( 8 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)
+#endif
 ELSE
   rTmp(1:8)=1.0
 END IF
@@ -165,10 +200,18 @@ DO iElem=1,PP_nElems
       DO i=0,PP_N
         locMass=mass(1,i,j,k,iElem)
         DO iVar=1,PP_nVar
+#if ROS
+          ! matrix vector for rosenbrock-type RK. 
+          Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
+                                         -rTmp(iVar)*coeff*U(iVar,i,j,k,iElem)   &
+                                         +                 Ut(iVar,i,j,k,iElem)  )
+#else
+          ! non-rosenbrock RK
           Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
                                          -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
                                          +    coeff*Ut(iVar,i,j,k,iElem)         &
                                          +coeff*ImplicitSource(iVar,i,j,k,iElem) )
+#endif
         END DO ! iVar=1,PP_nVar
       END DO ! i=0,PP_N
     END DO ! j=0,PP_N
@@ -177,7 +220,7 @@ END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE MatrixVectorSource
 
-
+#ifdef IMPA
 SUBROUTINE EvalResidual(t,Coeff,Norm_R0)
 !===================================================================================================================================
 ! Compute Initial norm for linear solver by calling MatrixVectorSource and VectorDotProduct
@@ -210,6 +253,7 @@ CALL VectorDotProduct(Y,Y,Norm_R0)
 Norm_R0=SQRT(Norm_R0)
 
 END SUBROUTINE EvalResidual
+#endif 
 
 
 SUBROUTINE VectorDotProduct(a,b,resu)
@@ -324,7 +368,8 @@ END SUBROUTINE DENSE_MATMUL
 #endif /*NOT HDG*/
 
 
-#if defined(PARTICLES) && defined(IMPA)
+#if defined(PARTICLES) 
+#if defined(IMPA) || defined(ROS)
 SUBROUTINE PartVectorDotProduct(a,b,resu)
 !===================================================================================================================================
 ! Computes Dot Product for vectors a and b: resu=a.b
@@ -369,8 +414,10 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,PartDtFrac
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
+USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck
+USE MOD_Particle_Vars,           ONLY:PartPosRef,PartState,PEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -387,7 +434,7 @@ REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
 REAL               :: LorentzFacInv
 !REAL               :: FieldAtParticle(1:6)
-!REAL               :: typ_v_abs, XK_V, sign_XK_V
+REAL               :: typ_v_abs, XK_V, sign_XK_V
 !===================================================================================================================================
 
 CALL PartVectorDotProduct(X,X,X_abs)
@@ -397,14 +444,25 @@ ELSE
   EpsFD= rEps0*0.1
 END IF
 
-!CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
-!CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
-!sign_XK_V=SIGN(1.,Xk_V)
-!EpsFD= rEps0/X_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
+! CALL PartVectorDotProduct(X,X,X_abs)
+! IF(X_abs.NE.0.)THEN
+!   CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
+!   CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
+!   sign_XK_V=SIGN(1.,Xk_V)
+!   EpsFD= rEps0/X_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
+! ELSE
+!   EpsFD= rEps0*0.1
+! END IF
+
+! ! Bassi gang 
+! CALL PartVectorDotProduct(PartXK(1:6,PartID),PartXK(1:6,PartID),Xk_v)
+! CALL PartVectorDotProduct(X,X,X_abs)
+! EpsFD=rEps0  * SQRT(1.+XK_V)/X_abs
 
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-!CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
+! CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(PartID,1:6))
 !PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)
 CASE(0)
@@ -429,7 +487,12 @@ PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
 PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
 PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
+#if ROS
+!Y(1:6) = (Coeff*X(1:6) - (1./EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+Y(1:6) = (X(1:6) - (coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+#else
 Y(1:6) = (X(1:6) - (PartDtFrac(PartID)*coeff/EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
+#endif
 
 ! compiler warnings
 IF(1.EQ.2)THEN
@@ -437,7 +500,8 @@ IF(1.EQ.2)THEN
 END IF
 
 END SUBROUTINE PartMatrixVector
-#endif
+#endif /*IMPA or ROS*/
+#endif /*PARTICLES*/
 
 
 END MODULE MOD_LinearOperator

@@ -417,7 +417,7 @@ END SUBROUTINE LoadBalance
 !   #ifndef PP_HDG
 !   USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
 !   #endif /*PP_HDG*/
-!   #if defined(LSERK) || defined(IMPA) || defined(IMEX)
+!   #if defined(LSERK) || defined(IMPA) || defined(ROS)
 !   #if (PP_TimeDiscMethod!=110)
 !   USE MOD_TimeDisc_Vars,          ONLY:nRKStages
 !   #endif

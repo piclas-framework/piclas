@@ -571,7 +571,7 @@ SUBROUTINE FinalizePML()
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t
 USE MOD_PML_Vars,            ONLY: ElemToPML,PMLToElem,DoPML,isPMLElem,isPMLFace,PMLToFace,FaceToPML
-USE MOD_PML_Vars,            ONLY: PMLRamp,PMLInterToFace,FaceToPMLInter,isPMLInterFace
+USE MOD_PML_Vars,            ONLY: PMLRamp,PMLInterToFace,FaceToPMLInter,isPMLInterFace,PMLZetaEff
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -596,6 +596,7 @@ SDEALLOCATE(isPMLFace)
 SDEALLOCATE(isPMLInterFace)
 SDEALLOCATE(FaceToPMLInter)
 SDEALLOCATE(PMLInterToFace)
+SDEALLOCATE(PMLZetaEff)
 END SUBROUTINE FinalizePML
 
 END MODULE MOD_PML

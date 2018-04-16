@@ -12,8 +12,12 @@ stages:
 cache:
   key: "$CI_COMMIT_SHA"
   paths: 
-    - build_gnu/    
-    - build_intel/    
+    - build_gnu/
+    - build_intel/
+    - build_gnu_maxwell/
+    - build_intel_maxwell/
+    - build_gnu_poisson/
+    - build_intel_poisson/
     - reggie/
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -27,7 +31,7 @@ checkout_reggie:
     - rm -rf reggie || true
     - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
 
-build_gnu:
+build_gnu_default:
   stage: build
   tags:
     - withmodules
@@ -35,13 +39,45 @@ build_gnu:
     - module load env/gnu ; rm -rf build_gnu || true 
     - mkdir -p build_gnu ; cd build_gnu ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
 
-build_intel:
+build_intel_default:
   stage: build
   tags:
     - withmodules
   script:
     - module load env/intel ; rm -rf build_intel || true 
     - mkdir -p build_intel ; cd build_intel ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+
+build_gnu_maxwell:
+  stage: build
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; rm -rf build_gnu_maxwell || true 
+    - mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell ; cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+
+build_intel_maxwell:
+  stage: build
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; rm -rf build_intel_maxwell || true 
+    - mkdir -p build_intel_maxwell ; cd build_intel_maxwell ; cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+
+build_gnu_poisson:
+  stage: build
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; rm -rf build_gnu_poisson || true 
+    - mkdir -p build_gnu_poisson ; cd build_gnu_poisson ; cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+
+build_intel_poisson:
+  stage: build
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; rm -rf build_intel_poisson || true 
+    - mkdir -p build_intel_poisson ; cd build_intel_poisson ; cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "clean": delete build folders if previous builds fail and exit
@@ -53,6 +89,10 @@ clean:
   script:
     - rm -rf build_gnu
     - rm -rf build_intel
+    - rm -rf build_gnu_maxwell
+    - rm -rf build_intel_maxwell
+    - rm -rf build_gnu_poisson
+    - rm -rf build_intel_poisson
     - rm -rf share
     - rm -rf reggie
   when: on_failure
@@ -60,19 +100,47 @@ clean:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu:
+gnu_default:
   stage: reggie_checkin
   tags:
     - withmodules
   script:
     - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
 
-intel:
+intel_default:
   stage: reggie_checkin
   tags:
     - withmodules
   script:
     - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
+
+gnu_maxwell:
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu_maxwell ; python ../reggie/reggie.py ../regressioncheck/checks/checkin_maxwell/maxwell -e ./bin/boltzplatz
+
+intel_maxwell:
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel_maxwell ; python ../reggie/reggie.py ../regressioncheck/checks/checkin_maxwell/maxwell -e ./bin/boltzplatz
+
+gnu_poisson:
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu_poisson ; python ../reggie/reggie.py ../regressioncheck/checks/checkin_poisson/poisson -e ./bin/boltzplatz
+
+intel_poisson:
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel_poisson ; python ../reggie/reggie.py ../regressioncheck/checks/checkin_poisson/poisson -e ./bin/boltzplatz
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

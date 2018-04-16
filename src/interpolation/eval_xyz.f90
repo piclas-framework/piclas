@@ -408,7 +408,7 @@ USE MOD_Globals_Vars
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps
 USE MOD_Mesh_Vars,               ONLY:offsetElem
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,LastPartPos
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -543,7 +543,7 @@ __STAMP__&
       IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
       IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
 #endif

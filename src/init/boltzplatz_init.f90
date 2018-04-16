@@ -65,12 +65,12 @@ USE MOD_Dielectric,         ONLY:InitDielectric
 USE MOD_Filter,             ONLY:InitFilter
 USE MOD_Analyze,            ONLY:InitAnalyze
 USE MOD_RecordPoints,       ONLY:InitRecordPoints
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver,       ONLY:InitLinearSolver
-#endif /*IMEX*/
-#ifdef IMEX
-USE MOD_CSR,                ONLY:InitCSR
-#endif /*IMEX*/
+#endif /*ROS or IMPA*/
+!#ifdef IMEX
+!USE MOD_CSR,                ONLY:InitCSR
+!#endif /*IMEX*/
 USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution
 #ifdef MPI
 USE MOD_MPI,                ONLY:InitMPIvars
@@ -85,7 +85,7 @@ USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
 USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
 USE MOD_Particle_MPI,       ONLY:InitParticleMPI
-#if defined(IMPA) || (PP_TimeDiscMethod==110)
+#if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver,     ONLY:InitPartSolver
 #endif
 #endif
@@ -154,15 +154,15 @@ CALL InitDielectric() ! Dielectric media
 CALL InitDG()
 CALL InitFilter()
 !CALL InitTimeDisc()
-#if defined(IMEX) || defined(IMPA)
+#if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
-#endif /*IMEX*/
-#if defined(IMEX)
-CALL InitCSR()
-#endif /*IMEX*/
+#endif /*ROS /IMEX*/
+!#if defined(IMEX)
+!CALL InitCSR()
+!#endif /*IMEX*/
 #ifdef PARTICLES
 CALL InitParticles()
-#if defined(IMPA) 
+#if defined(IMPA) || defined(ROS)
 CALL InitPartSolver()
 #endif
 !CALL GetSideType
@@ -229,9 +229,9 @@ USE MOD_HDG,                       ONLY:FinalizeHDG
 USE MOD_Filter,                    ONLY:FinalizeFilter
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
 USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
-#ifdef IMEX
+#if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver,              ONLY:FinalizeLinearSolver
-USE MOD_CSR,                       ONLY:FinalizeCSR
+!USE MOD_CSR,                       ONLY:FinalizeCSR
 #endif /*IMEX*/
 !USE MOD_TimeDisc,                  ONLY:FinalizeTimeDisc
 #ifdef MPI
@@ -254,9 +254,6 @@ USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
 #endif /*MPI*/
 #endif /*PARTICLES*/
-#if (PP_TimeDiscMethod==104)
-USE MOD_LinearSolver_Vars,ONLY:nNewton
-#endif
 USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -273,8 +270,8 @@ CALL ClearElemData(ElementOut)
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
 CALL FinalizeDG()
-#ifdef IMEX
-CALL FinalizeCSR()
+#if defined(IMPA) || defined(ROS)
+!CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
 #endif /*IMEX*/
 #ifndef PP_HDG
