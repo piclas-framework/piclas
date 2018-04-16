@@ -168,7 +168,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ElemIndexFD=0
         ALLOCATE( ElemIsDone(FD_nElems) )
         ElemIsDone=.FALSE.
-        SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(TTMFile)
+        SWRITE(UNIT_stdOut,'(A,A)') " Reading TTM data from file (TTMFile): ",TRIM(TTMFile)
 #ifdef MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
           CALL abort(&
@@ -455,7 +455,7 @@ IF(io_error.NE.0)THEN
   __STAMP__&
   ,'Cannot open specified File (ttm data) from '//TRIM(TTMLogFile))
 END IF
-SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(TTMLogFile)
+SWRITE(UNIT_stdOut,'(A,A)') " Reading TTM log info from file (TTMLogFile): ",TRIM(TTMLogFile)
 iLine=1
 DO !iLine=1,1 ! header lines: currently 1 -> adjust?
   READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp

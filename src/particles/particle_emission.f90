@@ -1775,7 +1775,7 @@ __STAMP__&
     !------------------SpaceIC-case: IMD--------------------------------------------------------------------------------------------
     CASE('IMD') ! read IMD particle position from *.chkpt file
       ! set velocity distribution to read external data
-      SWRITE(UNIT_stdOut,'(A,A)') " Reading from file: ",TRIM(IMDAtomFile)
+      SWRITE(UNIT_stdOut,'(A,A)') " Reading IMD atom data from file (IMDAtomFile): ",TRIM(IMDAtomFile)
       IF(TRIM(IMDAtomFile).NE.'no file found')THEN
         Species(FractNbr)%Init(iInit)%velocityDistribution='IMD'
 #ifdef MPI
