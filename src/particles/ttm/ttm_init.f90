@@ -396,7 +396,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               ! 'dt_HDG_cold(TimeStep)'
               ! dtHDGTTM=0.2./w_peTTM
               IF(INT(TTM_Cell_11(iElem),4).EQ.0)THEN ! when no atoms are present, then no electron density is calculated
-                TTM_Cell_15(iElem) = -1.0
+                TTM_Cell_15(iElem) = 0.0
               ELSE
                 TTM_Cell_15(iElem) = 0.2 / TTM_Cell_13(iElem) ! 13 depends on 12 which depends only on 11
               END IF
@@ -404,7 +404,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               ! 'dt_HDG_warm(TimeStep)'
               ! dtHDGTTMwarm=0.2./w_peTTMwarm
               IF(TTM_Cell_14(iElem).LE.0)THEN
-                TTM_Cell_16(iElem) = -1.0
+                TTM_Cell_16(iElem) = 0.0
               ELSE
                 TTM_Cell_16(iElem) = 0.2 / TTM_Cell_14(iElem) 
               END IF
@@ -416,7 +416,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               ! 'lambda_D(DebyeLength)'
               ! lambda_D_TTM=sqrt(eps0*kB*TeTTM./(K_to_eV*neTTM*e^2)) or sqrt(eps0*kB*TeTTM_in_K./(neTTM*e^2))
               IF(INT(TTM_Cell_11(iElem),4).EQ.0)THEN ! when no atoms are present, then no electron density is calculated
-                TTM_Cell_18(iElem) = -1.0
+                TTM_Cell_18(iElem) = 0.0
               ELSE
                 TTM_Cell_18(iElem) = SQRT( eps0*BoltzmannConst*TTM_Cell_17(iElem)/&
                     (TTM_Cell_12(iElem)*ElectronCharge**2)) ! 12 depends only on 11
