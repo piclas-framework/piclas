@@ -67,6 +67,10 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER\n'
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'   , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Validate the charge after each deposition'//&
                                                        'and produces an output in std.out','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcDebyeLength'   ,  'Flag to compute the Debye length (min and max) in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcHDGTimeStep'   ,  'Flag to compute the HDG time step (min and max) in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcElectronDensity', 'Flag to compute the electron density in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPlasmaFreqeuncy', 'Flag to compute the electron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCharge'         , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Flag to compute the whole deposited charge,'//&
                                                        ' absolute and relative charge error','.FALSE.')
