@@ -183,7 +183,7 @@ USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 #endif
 USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
-USE MOD_IO_HDF5,            ONLY: AddToElemData,ElementOut
+USE MOD_IO_HDF5,            ONLY:AddToElemData,ElementOut
 #ifdef MPI
 USE MOD_io_hdf5
 USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight,DoLoadBalance

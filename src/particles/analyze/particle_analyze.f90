@@ -145,14 +145,15 @@ SUBROUTINE InitParticleAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars            ,ONLY: DoAnalyze,CalcEpot
+USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot
 USE MOD_Particle_Analyze_Vars 
-USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars           ,ONLY: nSpecies
-USE MOD_PICDepo_Vars            ,ONLY: DoDeposition
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars             ,ONLY: Adsorption
 #endif
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -185,6 +186,43 @@ IF(DoDeposition) THEN
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
+
+!--------------------------------------------------------------------------------------------------------------------
+! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
+! Debye Length
+CalcDebyeLength       = GETLOGICAL('CalcDebyeLength','.FALSE.')
+IF(CalcDebyeLength)THEN
+  ALLOCATE( DebyeLengthCell(1:PP_nElems) )
+  DebyeLengthCell=0.0
+  CALL AddToElemData(ElementOut,'DebyeLengthCell',RealArray=DebyeLengthCell(1:PP_nElems))
+END IF
+
+! HDG Time Step Approximation
+CalcHDGTimeStep       = GETLOGICAL('CalcHDGTimeStep','.FALSE.')
+IF(CalcHDGTimeStep)THEN
+  ALLOCATE( HDGTimeStepCell(1:PP_nElems) )
+  HDGTimeStepCell=0.0
+  CALL AddToElemData(ElementOut,'HDGTimeStepCell',RealArray=HDGTimeStepCell(1:PP_nElems))
+END IF
+
+! Electron Density
+CalcElectronDensity   = GETLOGICAL('CalcElectronDensity','.FALSE.')
+IF(CalcElectronDensity) THEN
+  ALLOCATE( ElectronDensityCell(1:PP_nElems) )
+  ElectronDensityCell=0.0
+  CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
+END IF
+
+! Plasma Frequency
+CalcPlasmaFreqeuncy   = GETLOGICAL('CalcPlasmaFreqeuncy','.FALSE.')
+IF(CalcPlasmaFreqeuncy)THEN
+  ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
+  PlasmaFrequencyCell=0.0
+  CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
+END IF
+!--------------------------------------------------------------------------------------------------------------------
+
+
 CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
 CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
 CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')

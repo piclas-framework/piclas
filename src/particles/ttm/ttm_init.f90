@@ -63,7 +63,7 @@ SUBROUTINE InitTTM()
 ! IMD TTM data format and target arrays for data input (from ASCII data file *.ttm) are shown below
 ! -------------------------------------------------------------------------------------------------------------------------------
 ! The properties and array index are chosen as follows
-!        1      2    3       4  5      6       7       8       9    10   11       ->  TTM_FD(1:11,ix,iy,iz) -> TTM_DG
+!        1      2    3       4  5      6       7       8       9    10   11       ->  TTM_FD(1:11,ix,iy,iz) -> TTM_Cell_XX
 !  1 2 3 4      5    6       7  8      9       10      11      12   13   14 15    ->  tmp_array(1:15)
 ! #x y z natoms temp md_temp xi source v_com.x v_com.y v_com.z fd_k fd_g Z  proc
 ! -------------------------------------------------------------------------------------------------------------------------------
@@ -72,28 +72,28 @@ SUBROUTINE InitTTM()
 ! 1.)  x:         0 to Nx-1 FD cells in x-direction                          [-]                not stored
 ! 2.)  y:         0 to Ny-1 FD cells in y-direction                          [-]                not stored
 ! 3.)  z:         0 to Nz-1 FD cells in z-direction                          [-]                not stored
-! 4.)  natoms:    number of atoms in the FD cell                             [-]                stored in TTM_FD(1,.. -> TTM_DG(1,..
-! 5.)  temp:      temperature of the electrons (fluid model)                 [eV]               stored in TTM_FD(2,.. -> TTM_DG(2,..
-! 6.)  md_temp:   temperature of the atoms (MD simulated discrete atoms)     [eV]               stored in TTM_FD(3,.. -> TTM_DG(3,..
-! 7.)  xi: ?                                                                 [?]                stored in TTM_FD(4,.. -> TTM_DG(4,..
-! 8.)  source:    energy input source, e.g., laser energy density per volume [?]                stored in TTM_FD(5,.. -> TTM_DG(5,..
-! 9.)  v_com.x:   barycentric velocity of all MD atoms in x-direction        [Ångström/10,18fs] stored in TTM_FD(6,.. -> TTM_DG(6,..
-! 10.) v_com.y:   barycentric velocity of all MD atoms in y-direction        [Ångström/10,18fs] stored in TTM_FD(7,.. -> TTM_DG(7,..
-! 11.) v_com.z:   barycentric velocity of all MD atoms in z-direction        [Ångström/10,18fs] stored in TTM_FD(8,.. -> TTM_DG(8,..
-! 12.) fd_k:      heat conduction coefficient                                [?]                stored in TTM_FD(9,.. -> TTM_DG(9,..
-! 13.) fd_g:      electron-phonon coupling coefficient                       [?]                stored in TTM_FD(10,. -> TTM_DG(10,.
-! 14.) Z:         averged charge of the atoms within the FD cell             [e]                stored in TTM_FD(11,. -> TTM_DG(11,.
+! 4.)  natoms:    number of atoms in the FD cell                             [-]                stored in TTM_FD(1,.. -> TTM_Cell_1
+! 5.)  temp:      temperature of the electrons (fluid model)                 [eV]               stored in TTM_FD(2,.. -> TTM_Cell_2
+! 6.)  md_temp:   temperature of the atoms (MD simulated discrete atoms)     [eV]               stored in TTM_FD(3,.. -> TTM_Cell_3
+! 7.)  xi: ?                                                                 [?]                stored in TTM_FD(4,.. -> TTM_Cell_4
+! 8.)  source:    energy input source, e.g., laser energy density per volume [?]                stored in TTM_FD(5,.. -> TTM_Cell_5
+! 9.)  v_com.x:   barycentric velocity of all MD atoms in x-direction        [Ångström/10,18fs] stored in TTM_FD(6,.. -> TTM_Cell_6
+! 10.) v_com.y:   barycentric velocity of all MD atoms in y-direction        [Ångström/10,18fs] stored in TTM_FD(7,.. -> TTM_Cell_7
+! 11.) v_com.z:   barycentric velocity of all MD atoms in z-direction        [Ångström/10,18fs] stored in TTM_FD(8,.. -> TTM_Cell_8
+! 12.) fd_k:      heat conduction coefficient                                [?]                stored in TTM_FD(9,.. -> TTM_Cell_9
+! 13.) fd_g:      electron-phonon coupling coefficient                       [?]                stored in TTM_FD(10,. -> TTM_Cell_10
+! 14.) Z:         averged charge of the atoms within the FD cell             [e]                stored in TTM_FD(11,. -> TTM_Cell_11
 ! 15.) proc:      rank number of MPI process                                 [-]                not stored
 
 ! Derived quantities are Debye length, warm/cold plasma frequency, HDG time steps estimation
-! n_e(ElectronDensity)           = N[natoms]*charge[Z]/TTMCellVolume              -> TTM_DG(12,.
-! omega_pe_cold(PlasmaFrequency) = w_peTTM=sqrt(neTTM*e^2/(me0*eps0 ))            -> TTM_DG(13,.
-! omega_pe_warm(PlasmaFrequency) = w_peTTMwarm = w_peTTM + 3 * kB * TeTTM / me0   -> TTM_DG(14,.
-! dt_HDG_cold(TimeStep)          = dtHDGTTM=0.2./w_peTTM                          -> TTM_DG(15,.
-! dt_HDG_warm(TimeStep)'         = dtHDGTTMwarm=0.2./w_peTTMwarm                  -> TTM_DG(16,.
-! T_e(ElectronTempInKelvin)      = T[eV]/8.621738E-5 (eV -> K)                    -> TTM_DG(17,.
+! n_e(ElectronDensity)           = N[natoms]*charge[Z]/TTMCellVolume              -> TTM_Cell_12
+! omega_pe_cold(PlasmaFrequency) = w_peTTM=sqrt(neTTM*e^2/(me0*eps0 ))            -> TTM_Cell_13
+! omega_pe_warm(PlasmaFrequency) = w_peTTMwarm = w_peTTM + 3 * kB * TeTTM / me0   -> TTM_Cell_14
+! dt_HDG_cold(TimeStep)          = dtHDGTTM=0.2./w_peTTM                          -> TTM_Cell_15
+! dt_HDG_warm(TimeStep)'         = dtHDGTTMwarm=0.2./w_peTTMwarm                  -> TTM_Cell_16
+! T_e(ElectronTempInKelvin)      = T[eV]/8.621738E-5 (eV -> K)                    -> TTM_Cell_17
 ! lambda_D(DebyeLength)          = sqrt(eps0*kB*TeTTM      ./(K_to_eV*neTTM*e^2)) 
-!                                = sqrt(eps0*kB*TeTTM_in_K./(         neTTM*e^2)) -> TTM_DG(18,.
+!                                = sqrt(eps0*kB*TeTTM_in_K./(         neTTM*e^2)) -> TTM_Cell_18
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -101,13 +101,27 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_TTM_Vars
-USE MOD_Restart_Vars,       ONLY:DoRestart
+USE MOD_Restart_Vars          ,ONLY: DoRestart
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif /* MPI*/
-USE MOD_Mesh_Vars,          ONLY:ElemBaryNGeo
-USE MOD_Particle_Vars,      ONLY:BoltzmannConst
-USE MOD_Equation_Vars,      ONLY:eps0
+USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Vars         ,ONLY: BoltzmannConst
+USE MOD_Equation_Vars         ,ONLY: eps0
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+
+
+
+
+USE MOD_Restart_Vars,            ONLY:RestartFile
+USE MOD_TTM_Vars,                ONLY:DoImportTTMFile
+!USE MOD_IO_HDF5,                 ONLY:AddToElemData,ElementOut
+USE MOD_TTM_Vars,                ONLY:TTM_Cell_1,TTM_Cell_2,TTM_Cell_3,TTM_Cell_4,TTM_Cell_5,TTM_Cell_6,TTM_Cell_7,TTM_Cell_8
+USE MOD_TTM_Vars,                ONLY:TTM_Cell_9,TTM_Cell_10,TTM_Cell_11,TTM_Cell_12,TTM_Cell_13,TTM_Cell_14,TTM_Cell_15
+USE MOD_TTM_Vars,                ONLY:TTM_Cell_16,TTM_Cell_17,TTM_Cell_18
+USE MOD_StringTools,             ONLY:STRICMP
+USE MOD_IO_hdf5
+USE MOD_HDF5_Input
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -118,7 +132,7 @@ USE MOD_Equation_Vars,      ONLY:eps0
 ! LOCAL VARIABLES
 INTEGER        :: ioUnit
 INTEGER        :: IndNum
-INTEGER        :: i,j,k,ix,iy,iz
+INTEGER        :: i,j,ix,iy,iz
 INTEGER        :: io_error
 INTEGER        :: iLineTTM
 INTEGER        :: iElem,iElemFD
@@ -128,10 +142,14 @@ REAL           :: fd_hx,fd_hy,fd_hz
 REAL           :: dt_HDG_min(1:2),dt_HDG_max(1:2)
 REAL           :: omega_pe_min(1:2),omega_pe_max(1:2)
 REAL           :: lambda_D_min,lambda_D_max
+
+INTEGER                        :: nVal(15),iVar,nRestartVars
+REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
+CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:) ! Element data variable names
 !===================================================================================================================================
 IF(TTMInitIsDone)THEN
-   SWRITE(UNIT_stdOut,'(A)') "InitTTM already called."
-   RETURN
+  SWRITE(UNIT_stdOut,'(A)') "InitTTM already called."
+  RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT TTM (IMD Two-Temperature Model) ...'
@@ -156,10 +174,10 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("FD_nElems") ,' | ', FD_nElems   ,' | ',TRIM("OUTPUT"),' | '
         TTMCellVolume=fd_hx*fd_hy*fd_hz
         SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("TTM mesh cell volume"),' | ',TTMCellVolume,' | ',&
-          TRIM("OUTPUT"),' | '
+            TRIM("OUTPUT"),' | '
         TTMTotalVolume=REAL(FD_nElems)*TTMCellVolume
         SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("TTM mesh total volume"),' | ',TTMTotalVolume,' | ',&
-          TRIM("OUTPUT"),' | '
+            TRIM("OUTPUT"),' | '
         ALLOCATE( TTM_FD(1:11,TTMGridFDdim(1),TTMGridFDdim(2),TTMGridFDdim(3)) )
         TTM_FD=0.0
         ALLOCATE( ElemBaryFD(3,FD_nElems) )
@@ -172,15 +190,15 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
 #ifdef MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
           CALL abort(&
-          __STAMP__&
-          ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
+              __STAMP__&
+              ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
         END IF
 #endif /*MPI*/
         OPEN(NEWUNIT=ioUnit,FILE=TRIM(TTMFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
         IF(io_error.NE.0)THEN
           CALL abort(&
-          __STAMP__&
-          ,'Cannot open specified File (ttm data) from '//TRIM(TTMFile))
+              __STAMP__&
+              ,'Cannot open specified File (ttm data) from '//TRIM(TTMFile))
         END IF
         ! get index of *.ttm data file, e.g., "5" (corresponds to specific time stamp calculated from timestep)
         IndNum=INDEX(TTMFile, '/',BACK = .TRUE.)
@@ -195,11 +213,11 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
             END IF
           END IF
         END IF
-    
+
         READ(StrTmp,*,iostat=io_error)  i
         TTMNumber = i
         SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("TTMNumber")     ,' | ', TTMNumber   ,' | ',TRIM("OUTPUT"),' | '
-    
+
         iLineTTM=0
         DO i=1,1 ! header lines: currently 1 -> adjust?
           READ(ioUnit,'(A)',IOSTAT=io_error)StrTmp
@@ -215,20 +233,20 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
             END DO
             SWRITE(UNIT_stdOut,'(A1)') ']'
             CALL abort(&
-            __STAMP__&
-            ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
+                __STAMP__&
+                ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
           ELSE IF(io_error<0)THEN
             SWRITE(UNIT_stdOut,'(A,I10,A)') " End of file reached: ",iLineTTM+1," -> EXIT"
             EXIT
           ELSE ! io_error = 0
           END IF
           iLineTTM=iLineTTM+1 ! *.ttm data file: line counter
-   
+
           ! FD index values go from 0 to N_ijk-1 
           ix=INT(tmp_array(1),4)+1 ! FD grid index in x
           iy=INT(tmp_array(2),4)+1 ! FD grid index in y
           iz=INT(tmp_array(3),4)+1 ! FD grid index in z
-    
+
           IF( (ix.LE.TTMGridFDdim(1)) .AND. (iy.LE.TTMGridFDdim(2)) .AND. (iz.LE.TTMGridFDdim(3)) ) THEN
             TTM_FD(1:11,ix,iy,iz) = tmp_array(4:14)
             ElemIndexFD(1,iLineTTM)=ix
@@ -248,9 +266,9 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           SWRITE(UNIT_stdOut,'(A,I10)') ' FD_nElems = ',FD_nElems
           SWRITE(UNIT_stdOut,'(A,I10)') ' ix*iy*iz  = ',ix*iy*iz
           CALL abort(&
-          __STAMP__&
-          ,'Number of FD elements FD_nElems does not comply with the number of FD elements read from *.ttm file ['&
-          //TRIM(TTMFile)//']')
+              __STAMP__&
+              ,'Number of FD elements FD_nElems does not comply with the number of FD elements read from *.ttm file ['&
+              //TRIM(TTMFile)//']')
         END IF
         CLOSE(ioUnit)
         SWRITE(UNIT_stdOut,'(A,I10,A)') " Read ",iLineTTM," lines from file (+1 header line)"
@@ -258,12 +276,89 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("TTM FD grid y"),' | ',iy,' | ',TRIM("OUTPUT"),' | '
         SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("TTM FD grid z"),' | ',iz,' | ',TRIM("OUTPUT"),' | '
         SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("TTM FD grid points"),' | ',iLineTTM,' | ',TRIM("OUTPUT"),' | '
-    
+
         IF(FD_nElems.EQ.PP_nElems)THEN ! same number of nodes in FD grid points and DG bary centres -> assume they coincide
           SWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells within the DG mesh in order to map the values ...'
           ! the local DG solution in physical and reference space
-          ALLOCATE( TTM_DG(1:18,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
-          TTM_DG=0.0 ! initialize
+
+          ALLOCATE( TTM_Cell_1(1:PP_nElems) )
+          TTM_Cell_1=0.0
+          CALL AddToElemData(ElementOut,'TTM_N[natoms]'           ,RealArray=TTM_Cell_1(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_2(1:PP_nElems) )
+          TTM_Cell_2=0.0
+          CALL AddToElemData(ElementOut,'TTM_T_e[temp]'           ,RealArray=TTM_Cell_2(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_3(1:PP_nElems) )
+          TTM_Cell_3=0.0
+          CALL AddToElemData(ElementOut,'TTM_T_i[md_temp]'        ,RealArray=TTM_Cell_3(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_4(1:PP_nElems) )
+          TTM_Cell_4=0.0
+          CALL AddToElemData(ElementOut,'TTM_[xi]'                ,RealArray=TTM_Cell_4(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_5(1:PP_nElems) )
+          TTM_Cell_5=0.0
+          CALL AddToElemData(ElementOut,'TTM_[source]'            ,RealArray=TTM_Cell_5(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_6(1:PP_nElems) )
+          TTM_Cell_6=0.0
+          CALL AddToElemData(ElementOut,'TTM_[v_com.x]'           ,RealArray=TTM_Cell_6(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_7(1:PP_nElems) )
+          TTM_Cell_7=0.0
+          CALL AddToElemData(ElementOut,'TTM_[v_com.y]'           ,RealArray=TTM_Cell_7(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_8(1:PP_nElems) )
+          TTM_Cell_8=0.0
+          CALL AddToElemData(ElementOut,'TTM_[v_com.z]'           ,RealArray=TTM_Cell_8(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_9(1:PP_nElems) )
+          TTM_Cell_9=0.0
+          CALL AddToElemData(ElementOut,'TTM_[fd_k]'              ,RealArray=TTM_Cell_9(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_10(1:PP_nElems) )
+          TTM_Cell_10=0.0
+          CALL AddToElemData(ElementOut,'TTM_[fd_g]'              ,RealArray=TTM_Cell_10(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_11(1:PP_nElems) )
+          TTM_Cell_11=0.0
+          CALL AddToElemData(ElementOut,'TTM_charge[Z]'           ,RealArray=TTM_Cell_11(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_12(1:PP_nElems) )
+          TTM_Cell_12=0.0
+          CALL AddToElemData(ElementOut,'TTM_n_e(ElectronDensity)',RealArray=TTM_Cell_12(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_13(1:PP_nElems) )
+          TTM_Cell_13=0.0
+          CALL AddToElemData(ElementOut,'TTM_omega_pe_cold(PlasmaFrequency)',RealArray=TTM_Cell_13(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_14(1:PP_nElems) )
+          TTM_Cell_14=0.0
+          CALL AddToElemData(ElementOut,'TTM_omega_pe_warm(PlasmaFrequency)',RealArray=TTM_Cell_14(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_15(1:PP_nElems) )
+          TTM_Cell_15=0.0
+          CALL AddToElemData(ElementOut,'TTM_dt_HDG_cold(TimeStep)',RealArray=TTM_Cell_15(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_16(1:PP_nElems) )
+          TTM_Cell_16=0.0
+          CALL AddToElemData(ElementOut,'TTM_dt_HDG_warm(TimeStep)',RealArray=TTM_Cell_16(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_17(1:PP_nElems) )
+          TTM_Cell_17=0.0
+          CALL AddToElemData(ElementOut,'TTM_T_e(ElectronTempInKelvin)',RealArray=TTM_Cell_17(1:PP_nElems))
+
+          ALLOCATE( TTM_Cell_18(1:PP_nElems) )
+          TTM_Cell_18=0.0
+          CALL AddToElemData(ElementOut,'TTM_lambda_D(DebyeLength)',RealArray=TTM_Cell_18(1:PP_nElems))
+
+
+
+
+
+
+
           DO iElem=1,PP_nElems
             DO iELemFD=1,FD_nElems
               IF(ElemIsDone(iElemFD))CYCLE ! the element has already been found
@@ -271,117 +366,64 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               IF(ALMOSTEQUALRELATIVE(ElemBaryNGeo(2,iElem),ElemBaryFD(2,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
               IF(ALMOSTEQUALRELATIVE(ElemBaryNGeo(3,iElem),ElemBaryFD(3,iElemFD),TTMElemBaryTolerance).EQV..FALSE.) CYCLE
               ElemIsDone(iElemFD)=.TRUE.
-              DO i=0,PP_N ! set all DG DOF values equal to FD cell value
-                DO j=0,PP_N ! set all DG DOF values equal to FD cell value
-                  DO k=0,PP_N ! set all DG DOF values equal to FD cell value
-                    TTM_DG(1:11,i,j,k,iElem)=TTM_FD(1:11,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
-                    ! set derived quantities
-                    ! 'n_e(ElectronDensity)'
-                    ! N[natoms]*charge[Z]/TTMCellVolume
-                    TTM_DG(12,i,j,k,iElem) = TTM_DG(11,i,j,k,iElem)*TTM_DG(1,i,j,k,iElem)/TTMCellVolume
 
-                    ! 'omega_pe_cold(PlasmaFrequency)'
-                    ! w_peTTM=sqrt(neTTM*e^2/(me0*eps0 ))
-                    TTM_DG(13,i,j,k,iElem) = SQRT(TTM_DG(12,i,j,k,iElem)*ElectronCharge**2/(ElectronMass*eps0))
+              ! Map FD data to DG cell data (cell constant value)
+              TTM_Cell_1( iElem)=TTM_FD( 1,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_2( iElem)=TTM_FD( 2,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_3( iElem)=TTM_FD( 3,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_4( iElem)=TTM_FD( 4,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_5( iElem)=TTM_FD( 5,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_6( iElem)=TTM_FD( 6,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_7( iElem)=TTM_FD( 7,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_8( iElem)=TTM_FD( 8,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_9( iElem)=TTM_FD( 9,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_10(iElem)=TTM_FD(10,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
+              TTM_Cell_11(iElem)=TTM_FD(11,ElemIndexFD(1,iElemFD),ElemIndexFD(2,iElemFD),ElemIndexFD(3,iElemFD))
 
-                    ! 'omega_pe_warm(PlasmaFrequency)'
-                    ! w_peTTMwarm = w_peTTM + 3 * kB * TeTTM / me0
-                    TTM_DG(14,i,j,k,iElem) = TTM_DG(13,i,j,k,iElem) + 3 * BoltzmannConst *TTM_DG(2 ,i,j,k,iElem) / ElectronMass
+              ! set derived quantities
+              ! 'n_e(ElectronDensity)'
+              ! N[natoms]*charge[Z]/TTMCellVolume
+              TTM_Cell_12(iElem) = TTM_Cell_11(iElem)*TTM_Cell_1(iElem)/TTMCellVolume
 
-                    ! 'dt_HDG_cold(TimeStep)'
-                    ! dtHDGTTM=0.2./w_peTTM
-                    IF(INT(TTM_DG(11,i,j,k,iElem),4).EQ.0)THEN ! when no atoms are present, then no electron density is calculated
-                      TTM_DG(15,i,j,k,iElem) = -1.0
-                    ELSE
-                      TTM_DG(15,i,j,k,iElem) = 0.2 / TTM_DG(13,i,j,k,iElem) ! 13 depends on 12 which depends only on 11
-                    END IF
+              ! 'omega_pe_cold(PlasmaFrequency)'
+              ! w_peTTM=sqrt(neTTM*e^2/(me0*eps0 ))
+              TTM_Cell_13(iElem) = SQRT(TTM_Cell_12(iElem)*ElectronCharge**2/(ElectronMass*eps0))
 
-                    ! 'dt_HDG_warm(TimeStep)'
-                    ! dtHDGTTMwarm=0.2./w_peTTMwarm
-                    IF(TTM_DG(14,i,j,k,iElem).LE.0)THEN
-                      TTM_DG(16,i,j,k,iElem) = -1.0
-                    ELSE
-                      TTM_DG(16,i,j,k,iElem) = 0.2 / TTM_DG(14,i,j,k,iElem) 
-                    END IF
+              ! 'omega_pe_warm(PlasmaFrequency)'
+              ! w_peTTMwarm = w_peTTM + 3 * kB * TeTTM / me0
+              TTM_Cell_14(iElem) = TTM_Cell_13(iElem) + 3 * BoltzmannConst * TTM_Cell_2(iElem) / ElectronMass
 
-                    ! 'T_e(ElectronTempInKelvin)'
-                    ! eV -> K
-                    TTM_DG(17,i,j,k,iElem) = TTM_DG(2 ,i,j,k,iElem)/8.621738E-5
+              ! 'dt_HDG_cold(TimeStep)'
+              ! dtHDGTTM=0.2./w_peTTM
+              IF(INT(TTM_Cell_11(iElem),4).EQ.0)THEN ! when no atoms are present, then no electron density is calculated
+                TTM_Cell_15(iElem) = -1.0
+              ELSE
+                TTM_Cell_15(iElem) = 0.2 / TTM_Cell_13(iElem) ! 13 depends on 12 which depends only on 11
+              END IF
 
-                    ! 'lambda_D(DebyeLength)'
-                    ! lambda_D_TTM=sqrt(eps0*kB*TeTTM./(K_to_eV*neTTM*e^2)) or sqrt(eps0*kB*TeTTM_in_K./(neTTM*e^2))
-                    IF(INT(TTM_DG(11,i,j,k,iElem),4).EQ.0)THEN ! when no atoms are present, then no electron density is calculated
-                      TTM_DG(18,i,j,k,iElem) = -1.0
-                    ELSE
-                      TTM_DG(18,i,j,k,iElem) = SQRT( eps0*BoltzmannConst*TTM_DG(17,i,j,k,iElem)/&
-                                                    (TTM_DG(12,i,j,k,iElem)*ElectronCharge**2)) ! 12 depends only on 11
-                    END IF
-                  END DO
-                END DO
-              END DO
+              ! 'dt_HDG_warm(TimeStep)'
+              ! dtHDGTTMwarm=0.2./w_peTTMwarm
+              IF(TTM_Cell_14(iElem).LE.0)THEN
+                TTM_Cell_16(iElem) = -1.0
+              ELSE
+                TTM_Cell_16(iElem) = 0.2 / TTM_Cell_14(iElem) 
+              END IF
+
+              ! 'T_e(ElectronTempInKelvin)'
+              ! eV -> K
+              TTM_Cell_17(iElem) = TTM_Cell_2(iElem)/8.621738E-5
+
+              ! 'lambda_D(DebyeLength)'
+              ! lambda_D_TTM=sqrt(eps0*kB*TeTTM./(K_to_eV*neTTM*e^2)) or sqrt(eps0*kB*TeTTM_in_K./(neTTM*e^2))
+              IF(INT(TTM_Cell_11(iElem),4).EQ.0)THEN ! when no atoms are present, then no electron density is calculated
+                TTM_Cell_18(iElem) = -1.0
+              ELSE
+                TTM_Cell_18(iElem) = SQRT( eps0*BoltzmannConst*TTM_Cell_17(iElem)/&
+                    (TTM_Cell_12(iElem)*ElectronCharge**2)) ! 12 depends only on 11
+              END IF
             END DO
           END DO
 
-          ! get min/max plasma frequency
-          SWRITE(UNIT_StdOut,'(A)')' TTM - Plasma Frequency'
-          omega_pe_min(1:2)=HUGE(1.)
-          omega_pe_max(1:2)=0.0
-          DO iElem=1,PP_nElems
-            IF(TTM_DG(13,0,0,0,iElem).GT.0.0)THEN!time step for cold electrons
-              omega_pe_min(1)=MIN(omega_pe_min(1),TTM_DG(13,0,0,0,iElem))
-              omega_pe_max(1)=MAX(omega_pe_max(1),TTM_DG(13,0,0,0,iElem))
-            END IF
-            IF(TTM_DG(14,0,0,0,iElem).GT.0.0)THEN!time step for warm electrons
-              omega_pe_min(2)=MIN(omega_pe_min(2),TTM_DG(14,0,0,0,iElem))
-              omega_pe_max(2)=MAX(omega_pe_max(2),TTM_DG(14,0,0,0,iElem))
-            END IF
-          END DO
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: omega_pe_min'),&
-                                                             ' | ',omega_pe_min(1),' | ',TRIM("OUTPUT"),' | '
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: omega_pe_max'),&
-                                                             ' | ',omega_pe_max(1),' | ',TRIM("OUTPUT"),' | '
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: omega_pe_min'),&
-                                                             ' | ',omega_pe_min(2),' | ',TRIM("OUTPUT"),' | '
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: omega_pe_max'),&
-                                                             ' | ',omega_pe_max(2),' | ',TRIM("OUTPUT"),' | '
-
-          ! get min/max HDG timestep (0.2 / plasma frequency)
-          SWRITE(UNIT_StdOut,'(A)')' TTM - HDG Time Step approximation'
-          dt_HDG_min(1:2)=HUGE(1.)
-          dt_HDG_max(1:2)=0.0
-          DO iElem=1,PP_nElems
-            IF(TTM_DG(15,0,0,0,iElem).GT.0.0)THEN!time step for cold electrons
-              dt_HDG_min(1)=MIN(dt_HDG_min(1),TTM_DG(15,0,0,0,iElem))
-              dt_HDG_max(1)=MAX(dt_HDG_max(1),TTM_DG(15,0,0,0,iElem))
-            END IF
-            IF(TTM_DG(16,0,0,0,iElem).GT.0.0)THEN!time step for warm electrons
-              dt_HDG_min(2)=MIN(dt_HDG_min(2),TTM_DG(16,0,0,0,iElem))
-              dt_HDG_max(2)=MAX(dt_HDG_max(2),TTM_DG(16,0,0,0,iElem))
-            END IF
-          END DO
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: dt_HDG_min'),&
-                                                             ' | ',dt_HDG_min(1),' | ',TRIM("OUTPUT"),' | '
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: dt_HDG_max'),&
-                                                             ' | ',dt_HDG_max(1),' | ',TRIM("OUTPUT"),' | '
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: dt_HDG_min'),&
-                                                             ' | ',dt_HDG_min(2),' | ',TRIM("OUTPUT"),' | '
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: dt_HDG_max'),&
-                                                             ' | ',dt_HDG_max(2),' | ',TRIM("OUTPUT"),' | '
-            
-          ! get min/max debye length
-          SWRITE(UNIT_StdOut,'(A)')' TTM - Debye length'
-          lambda_D_min=HUGE(1.)
-          lambda_D_max=0.0
-          DO iElem=1,PP_nElems
-            IF(TTM_DG(18,0,0,0,iElem).GT.0.0)THEN!time step for cold electrons
-              lambda_D_min=MIN(lambda_D_min,TTM_DG(18,0,0,0,iElem))
-              lambda_D_max=MAX(lambda_D_max,TTM_DG(18,0,0,0,iElem))
-            END IF
-          END DO
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_min'),&
-                                                             ' | ',lambda_D_min,' | ',TRIM("OUTPUT"),' | '
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_max'),&
-                                                             ' | ',lambda_D_max,' | ',TRIM("OUTPUT"),' | '
 
 
 
@@ -400,8 +442,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           SWRITE(UNIT_stdOut,'(A,I10)') "FD_nElems=",FD_nElems
           SWRITE(UNIT_stdOut,'(A,I10)') "PP_nElems=",PP_nElems
           CALL abort(&
-          __STAMP__&
-          ,'Error interpolating ttm data (FD grid) to DG solution. FD_nElems.NE.PP_nElems. Different elements not implemented')
+              __STAMP__&
+              ,'Error interpolating ttm data (FD grid) to DG solution. FD_nElems.NE.PP_nElems. Different elements not implemented')
         END IF
       END IF
     ELSE
@@ -409,8 +451,201 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
     END IF
   ELSE
     SWRITE(UNIT_stdOut,'(A)')' INIT TTM: data will be read from restart file!'
-  END IF
-END IF
+
+
+    IF(MPIRoot)THEN
+      nRestartVars=0
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
+      CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
+      CALL CloseDataFile()
+      IF (ALLOCATED(VarNamesElemData_loc)) THEN
+        ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
+        ElemData_loc = RESHAPE(tmp,(/nVal(1),nVal(2)/))
+        DO iVar=1,nVal(1) ! Search for ElemTime
+          ! check the variable names
+          IF(STRICMP(VarNamesElemData_loc(iVar),"TTM_N[natoms]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_1(1:PP_nElems) )
+            TTM_Cell_1 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_N[natoms]'                      ,RealArray=TTM_Cell_1( 1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_T_e[temp]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_2(1:PP_nElems) )
+            TTM_Cell_2 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_T_e[temp]'                      ,RealArray=TTM_Cell_2(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_T_i[md_temp]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_3(1:PP_nElems) )
+            TTM_Cell_3 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_T_i[md_temp]'                   ,RealArray=TTM_Cell_3(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_[xi]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_4(1:PP_nElems) )
+            TTM_Cell_4 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_[xi]'                           ,RealArray=TTM_Cell_4(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_[source]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_5(1:PP_nElems) )
+            TTM_Cell_5 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_[source]'                       ,RealArray=TTM_Cell_5(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_[v_com.x]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_6(1:PP_nElems) )
+            TTM_Cell_6 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_[v_com.x]'                       ,RealArray=TTM_Cell_6(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_[v_com.y]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_7(1:PP_nElems) )
+            TTM_Cell_7 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_[v_com.y]'                       ,RealArray=TTM_Cell_7(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_[v_com.z]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_8(1:PP_nElems) )
+            TTM_Cell_8 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_[v_com.z]'                       ,RealArray=TTM_Cell_8(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_[fd_k]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_9(1:PP_nElems) )
+            TTM_Cell_9 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_[fd_k]'                          ,RealArray=TTM_Cell_9(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_[fd_g]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_10(1:PP_nElems) )
+            TTM_Cell_10 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_[fd_g]'                          ,RealArray=TTM_Cell_10(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_charge[Z]")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_11(1:PP_nElems) )
+            TTM_Cell_11 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_charge[Z]'                       ,RealArray=TTM_Cell_11(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_n_e(ElectronDensity)")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_12(1:PP_nElems) )
+            TTM_Cell_12 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_n_e(ElectronDensity)'            ,RealArray=TTM_Cell_12(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_omega_pe_cold(PlasmaFrequency)")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_13(1:PP_nElems) )
+            TTM_Cell_13 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_omega_pe_cold(PlasmaFrequency)'  ,RealArray=TTM_Cell_13(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_omega_pe_warm(PlasmaFrequency)")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_14(1:PP_nElems) )
+            TTM_Cell_14 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_omega_pe_warm(PlasmaFrequency)'  ,RealArray=TTM_Cell_14(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_dt_HDG_cold(TimeStep)")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_15(1:PP_nElems) )
+            TTM_Cell_15 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_dt_HDG_cold(TimeStep)'           ,RealArray=TTM_Cell_15(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_dt_HDG_warm(TimeStep)")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_16(1:PP_nElems) )
+            TTM_Cell_16 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_dt_HDG_warm(TimeStep)'           ,RealArray=TTM_Cell_16(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_T_e(ElectronTempInKelvin)")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_17(1:PP_nElems) )
+            TTM_Cell_17 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_T_e(ElectronTempInKelvin)'       ,RealArray=TTM_Cell_17(1:PP_nElems))
+
+          ELSEIF (STRICMP(VarNamesElemData_loc(iVar),"TTM_lambda_D(DebyeLength)")) THEN
+            nRestartVars=nRestartVars+1
+            ALLOCATE( TTM_Cell_18(1:PP_nElems) )
+            TTM_Cell_18 = REAL(ElemData_loc(iVar,:))
+            CALL AddToElemData(ElementOut,'TTM_lambda_D(DebyeLength)'           ,RealArray=TTM_Cell_18(1:PP_nElems))
+          END IF
+        END DO
+        DEALLOCATE(ElemData_loc)
+        DEALLOCATE(VarNamesElemData_loc)
+        DEALLOCATE(tmp)
+      END IF
+      SWRITE(UNIT_stdOut,'(A,I5,A,I5,A)')' Found ',nRestartVars,' of ',18,' TTM elem data arrays in restart file.'
+    ELSE
+      CALL abort(&
+          __STAMP__&
+          ,' Cannot read TTM cell data in parallel on restart. Use only one processor!')
+
+    END IF ! MPIRoot
+  END IF ! DoRestart.EQV..FALSE.
+
+  ! get min/max plasma frequency
+  SWRITE(UNIT_StdOut,'(A)')' TTM - Plasma Frequency'
+  omega_pe_min(1:2)=HUGE(1.)
+  omega_pe_max(1:2)=0.0
+  DO iElem=1,PP_nElems
+    IF(TTM_Cell_13(iElem).GT.0.0)THEN!time step for cold electrons
+      omega_pe_min(1)=MIN(omega_pe_min(1),TTM_Cell_13(iElem))
+      omega_pe_max(1)=MAX(omega_pe_max(1),TTM_Cell_13(iElem))
+    END IF
+    IF(TTM_Cell_14(iElem).GT.0.0)THEN!time step for warm electrons
+      omega_pe_min(2)=MIN(omega_pe_min(2),TTM_Cell_14(iElem))
+      omega_pe_max(2)=MAX(omega_pe_max(2),TTM_Cell_14(iElem))
+    END IF
+  END DO
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: omega_pe_min'),&
+      ' | ',omega_pe_min(1),' | ',TRIM("OUTPUT"),' | '
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: omega_pe_max'),&
+      ' | ',omega_pe_max(1),' | ',TRIM("OUTPUT"),' | '
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: omega_pe_min'),&
+      ' | ',omega_pe_min(2),' | ',TRIM("OUTPUT"),' | '
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: omega_pe_max'),&
+      ' | ',omega_pe_max(2),' | ',TRIM("OUTPUT"),' | '
+
+  ! get min/max HDG timestep (0.2 / plasma frequency)
+  SWRITE(UNIT_StdOut,'(A)')' TTM - HDG Time Step approximation'
+  dt_HDG_min(1:2)=HUGE(1.)
+  dt_HDG_max(1:2)=0.0
+  DO iElem=1,PP_nElems
+    IF(TTM_Cell_15(iElem).GT.0.0)THEN!time step for cold electrons
+      dt_HDG_min(1)=MIN(dt_HDG_min(1),TTM_Cell_15(iElem))
+      dt_HDG_max(1)=MAX(dt_HDG_max(1),TTM_Cell_15(iElem))
+    END IF
+    IF(TTM_Cell_16(iElem).GT.0.0)THEN!time step for warm electrons
+      dt_HDG_min(2)=MIN(dt_HDG_min(2),TTM_Cell_16(iElem))
+      dt_HDG_max(2)=MAX(dt_HDG_max(2),TTM_Cell_16(iElem))
+    END IF
+  END DO
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: dt_HDG_min'),&
+      ' | ',dt_HDG_min(1),' | ',TRIM("OUTPUT"),' | '
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: dt_HDG_max'),&
+      ' | ',dt_HDG_max(1),' | ',TRIM("OUTPUT"),' | '
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: dt_HDG_min'),&
+      ' | ',dt_HDG_min(2),' | ',TRIM("OUTPUT"),' | '
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: dt_HDG_max'),&
+      ' | ',dt_HDG_max(2),' | ',TRIM("OUTPUT"),' | '
+
+  ! get min/max debye length
+  SWRITE(UNIT_StdOut,'(A)')' TTM - Debye length'
+  lambda_D_min=HUGE(1.)
+  lambda_D_max=0.0
+  DO iElem=1,PP_nElems
+    IF(TTM_Cell_18(iElem).GT.0.0)THEN!time step for cold electrons
+      lambda_D_min=MIN(lambda_D_min,TTM_Cell_18(iElem))
+      lambda_D_max=MAX(lambda_D_max,TTM_Cell_18(iElem))
+    END IF
+  END DO
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_min'),&
+      ' | ',lambda_D_min,' | ',TRIM("OUTPUT"),' | '
+  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_max'),&
+      ' | ',lambda_D_max,' | ',TRIM("OUTPUT"),' | '
+END IF !DoImportTTMFile.EQV..TRUE.
 
 
 TTMInitIsDone=.TRUE.
@@ -571,18 +806,19 @@ REAL    :: CellElectronTemperature
 REAL    :: MaxElectronTemp_eV
 !===================================================================================================================================
 ! 1.) reconstruct ions and determine charge
+SWRITE(UNIT_stdOut,*)'1.) Reconstructing ions and determining charge'
 ElemCharge(1:PP_nElems)=0
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
     IF(ANY(PartSpecies(iPart).EQ.IMDSpeciesID(:)))THEN ! 
-      IF(TTM_DG(11,0,0,0,PEM%Element(iPart)).EQ.0)THEN ! this would create uncharged atoms -> force singly charged ions
+      IF(TTM_Cell_11(PEM%Element(iPart)).EQ.0)THEN ! this would create uncharged atoms -> force singly charged ions
         ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+1
         location = MINLOC(ABS(IMDSpeciesCharge-1),1) !Determines the location of the element in the array with min value
       ELSE
         ! get the TTM cell charge avergae value and select and upper and lower charge number
-        ChargeLower       = INT(TTM_DG(11,0,0,0,PEM%Element(iPart))) ! use first DOF (0,0,0) because the data is const. in each cell
+        ChargeLower       = INT(TTM_Cell_11(PEM%Element(iPart))) ! use first DOF (0,0,0) because the data is const. in each cell
         ChargeUpper       = ChargeLower+1
-        ChargeProbability = REAL(ChargeUpper)-TTM_DG(11,0,0,0,PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
+        ChargeProbability = REAL(ChargeUpper)-TTM_Cell_11(PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
         ! distribute the charge using random numbers
         CALL RANDOM_NUMBER(iRan)
         IF(iRan.LT.ChargeProbability)THEN ! select the lower charge number
@@ -599,7 +835,8 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 
 ! 2.) reconstruct electrons
-MaxElectronTemp_eV=MAXVAL(TTM_DG(2,0,0,0,:))
+SWRITE(UNIT_stdOut,*)'2.) Reconstructing electrons'
+MaxElectronTemp_eV=MAXVAL(TTM_Cell_2(:))
 ElecSpecIndx = -1
 DO iSpec = 1, nSpecies
   IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
@@ -632,10 +869,10 @@ DO iElem=1,PP_nElems
       IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
     END IF
     PEM%Element(ParticleIndexNbr) = iElem
-    IF(TTM_DG(2,0,0,0,iElem).LE.0.0)THEN ! not enough atoms in FD cell for averaging a temperature: use max value for electrons
+    IF(TTM_Cell_2(iElem).LE.0.0)THEN ! not enough atoms in FD cell for averaging a temperature: use max value for electrons
       CellElectronTemperature=(MaxElectronTemp_eV*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
     ELSE
-      CellElectronTemperature=(TTM_DG(2,0,0,0,iElem)*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
+      CellElectronTemperature=(TTM_Cell_2(iElem)*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
     END IF
     CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
                                   Temperature=CellElectronTemperature)
@@ -663,7 +900,24 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(TTM_FD)
-SDEALLOCATE(TTM_DG)
+SDEALLOCATE(TTM_Cell_1)
+SDEALLOCATE(TTM_Cell_2)
+SDEALLOCATE(TTM_Cell_3)
+SDEALLOCATE(TTM_Cell_4)
+SDEALLOCATE(TTM_Cell_5)
+SDEALLOCATE(TTM_Cell_6)
+SDEALLOCATE(TTM_Cell_7)
+SDEALLOCATE(TTM_Cell_8)
+SDEALLOCATE(TTM_Cell_9)
+SDEALLOCATE(TTM_Cell_10)
+SDEALLOCATE(TTM_Cell_11)
+SDEALLOCATE(TTM_Cell_12)
+SDEALLOCATE(TTM_Cell_13)
+SDEALLOCATE(TTM_Cell_14)
+SDEALLOCATE(TTM_Cell_15)
+SDEALLOCATE(TTM_Cell_16)
+SDEALLOCATE(TTM_Cell_17)
+SDEALLOCATE(TTM_Cell_18)
 SDEALLOCATE(ElemBaryFD)
 SDEALLOCATE(ElemIndexFD)
 SDEALLOCATE(ElemIsDone)

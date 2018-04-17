@@ -43,10 +43,17 @@ INTEGER,ALLOCATABLE           :: nPartInTmp(:)                       ! Number of
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       ! energy and temperature of input particle
 REAL,ALLOCATABLE              :: PartEkinOut(:)                      ! energy and temperature of input particle
 REAL,ALLOCATABLE              :: PartEKinInTmp(:)                    ! energy and temperature of input particle
+
+! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
 LOGICAL                       :: CalcDebyeLength                     ! Flag to compute the Debye length (min and max) in each cell
 LOGICAL                       :: CalcHDGTimeStep                     ! Flag to compute the HDG time step (min and max) in each cell
 LOGICAL                       :: CalcElectronDensity                 ! Flag to compute the electron density in each cell
 LOGICAL                       :: CalcPlasmaFreqeuncy                 ! Flag to compute the electron frequency in each cell
+REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  ! Debye length cell value
+REAL,ALLOCATABLE              :: HDGTimeStepCell(:)                  ! Approximated HDG Time Step per cell
+REAL,ALLOCATABLE              :: ElectronDensityCell(:)              ! Electron density per cell
+REAL,ALLOCATABLE              :: PlasmaFrequencyCell(:)              ! plasma electron frequency per cell
+
 LOGICAL                       :: CalcCharge                          ! Compute the whole deposited charge and abs and relative
                                                                      ! charge error
 LOGICAL                       :: DoVerifyCharge                      ! validate the charge after each deposition and produces
