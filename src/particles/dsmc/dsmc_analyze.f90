@@ -469,13 +469,16 @@ DO iSurfSide=1,SurfMesh%nSides
         END IF
         MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
         IF(calcWallModel) THEN
+          ! calculate accomodation coefficient
           IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
             MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0.
           ELSE
             MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
                                                       / SampWall(iSurfSide)%State(12+iSpec,p,q))
           END IF
+          ! calculate coverage
           MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
+          ! calculate recombination coefficient
           DO iReact=1,Adsorption%RecombNum
             IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
               MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec)

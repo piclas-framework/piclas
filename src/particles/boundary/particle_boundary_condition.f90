@@ -163,7 +163,7 @@ CASE(2) !PartBound%ReflectiveBC)
         SELECT CASE (adsorbindex)
         CASE(1,2)
           ! 1: adsorption (is either removed or set to be on surface)
-          ! 2: Eley-Rideal reaction (particle is removed and inserted product inserted in surface flux)
+          ! 2: Eley-Rideal reaction (particle is removed and product inserted in surface flux)
           IF (KeepWallParticles.AND.(adsorbindex.EQ.1)) THEN
             PDM%ParticleAtWall(iPart) = .TRUE.
           ELSE
@@ -1760,9 +1760,9 @@ __STAMP__&
       SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
                                             * ( PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
       SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                            * ( PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+                                            * ( PartState(PartID,5)) * Species(PartSpecies(PartID))%MacroParticleFactor
       SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                            * ( PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+                                            * ( PartState(PartID,6)) * Species(PartSpecies(PartID))%MacroParticleFactor
     END IF
     !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
     PDM%ParticleInside(PartID) = .FALSE.

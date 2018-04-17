@@ -5237,9 +5237,10 @@ __STAMP__&
             TransArray(1) = EtraOld
             TransArray(2) = EtraWall
             TransArray(3) = EtraNew
-            TransArray(4) = PartState(PartID,4)-VelXold
-            TransArray(5) = PartState(PartID,5)-VelYold
-            TransArray(6) = PartState(PartID,6)-VelZold
+            ! negative because from surface away
+            TransArray(4) = -(PartState(PartID,4)-VelXold)
+            TransArray(5) = -(PartState(PartID,5)-VelYold)
+            TransArray(6) = -(PartState(PartID,6)-VelZold)
             IF (CollisMode.GT.1) THEN
               ! set rotational energies
               ErotWall = 0
