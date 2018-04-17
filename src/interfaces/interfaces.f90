@@ -299,7 +299,7 @@ IF(PRESENT(GeometryName))THEN
     SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
     CALL abort(&
         __STAMP__,&
-        'Error in CALL FindElementInRegion(): GeometryName is not defined!')
+        'Error in CALL FindElementInRegion(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
   END SELECT
 END IF
 
@@ -1037,7 +1037,7 @@ CASE DEFAULT
   SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
   CALL abort(&
   __STAMP__,&
-  'Error in CALL SetGeometry(GeometryName): GeometryName is not defined!')
+  'Error in CALL SetGeometry(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
 END SELECT
 
 GeometryIsSet=.TRUE.

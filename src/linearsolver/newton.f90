@@ -365,6 +365,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     SWRITE(UNIT_stdOut,'(A12,I10)') ' Iteration:', nFullNewtonIter
   END IF
   IF(FullEisenstatWalker.GT.0)THEN
+    ! to enforce quadratic convergence, the tolerance of the linearsolver has to be reduced in a 
+    ! quadratic approach. this quadratic degrease can be to strong for the newton for the particles,
+    ! hence, this decrease should be still linear (cause the particle newton is a outer iteration)
     IF(nFullNewtonIter.EQ.1)THEN
       relTolerance=etaMax
     ELSE
@@ -398,9 +401,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   IF (t.GE.DelayTime) THEN
     ! now, we have an initial guess for the field  can compute the first particle movement
     IF(FullEisenstatWalker.GT.1)THEN
-      ! to enforce quadratic convergence, the tolerance of the linearsolver has to be reduced in a 
-      ! quadratic approach. this quadratic degrease can be to strong for the newton for the particles,
-      ! hence, this decrease should be still linear (cause the particle newton is a outer iteration)
       IF(PartNewtonLinTolerance)THEN
         etaA=FullgammaEW*Norm_R/(Norm_Rold) ! here the square
         !SWRITE(*,*) 'etaA ', etaA
@@ -418,6 +418,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
         END IF
         relTolerancePart=MIN(etaMax,MAX(etaC,0.5*taut/Norm_R))
       ELSE
+        ! Default new tolerance
         relTolerancePart=relTolerance
       END IF
     ELSE
