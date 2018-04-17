@@ -492,6 +492,7 @@ USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntin
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,DielectricMuR,ElemToDielectric,isDielectricInterFace
 USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
+USE MOD_Globals         ,ONLY: abort
 #ifdef MPI
 USE MOD_Globals
 #endif
