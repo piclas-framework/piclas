@@ -171,7 +171,7 @@ USE MOD_LoadBalance_Vars ,ONLY: PartDistri
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile
 USE MOD_Restart_Vars     ,ONLY: RestartFile
 #endif /*PARTICLES*/
-USE MOD_ReadInTools      ,ONLY: GETINT
+USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -206,6 +206,14 @@ INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 #endif /*PARTICLES*/
 !===================================================================================================================================
 WeightDistributionMethod = GETINT('WeightDistributionMethod','1')
+IF(.NOT.ElemTimeExists)THEN
+  ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+  IF (ParticleMPIWeight.LT.0) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR: Particle weight cannot be negative!')
+  END IF
+END IF !.NOT.ElemTimeExists
 
 WeightSum = 0.0
 CurWeight = 0.0
@@ -568,7 +576,7 @@ CASE(4)
   ! predistribute elements
   curiElem = 1
   TargetWeight=WeightSum/REAL(nProcessors)
-  SWRITE(*,*) 'TargetWeight', TargetWeight,ParticleMPIWeight
+  SWRITE(*,*) 'TargetWeight', TargetWeight !,ParticleMPIWeight
   offsetElemMPI(nProcessors)=nGlobalElems
   DO iProc=0, nProcessors-1
     offsetElemMPI(iProc)=curiElem - 1 
