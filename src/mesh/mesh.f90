@@ -83,8 +83,6 @@ CALL prms%CreateIntArrayOption('BoundaryType',        "Type of boundary conditio
                                                       multiple=.TRUE.)
 CALL prms%CreateLogicalOption( 'writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
 
-CALL prms%CreateIntOption(     'WeightDistributionMethod',           "TODO-DEFINE-PARAMETER",'1')
-
 END SUBROUTINE DefineParametersMesh
 
 SUBROUTINE InitMesh()

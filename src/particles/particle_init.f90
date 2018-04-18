@@ -1515,8 +1515,11 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
     END IF
     Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
-    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) &
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
+    ELSE
+      Species(iSpec)%Init(iInit)%initialParticleNumber = 0 !dummy
+    END IF
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
     Species(iSpec)%Init(iInit)%RadiusICGyro          = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
@@ -1573,10 +1576,12 @@ __STAMP__&
 
     !----------- various checks/calculations after read-in of Species(i)%Init(iInit)%-data ----------------------------------!
     !--- Check if Initial ParticleInserting is really used
-    IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
-      .AND. Species(iSpec)%Init(iInit)%UseForInit) THEN
+    !IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
+    !  .AND. 
+    IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
       IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
-      .AND. (ABS(Species(iSpec)%Init(iInit)%PartDensity).LE.0.) ) THEN
+      .AND. (Species(iSpec)%Init(iInit)%PartDensity.EQ.0.) &
+      .AND. Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0 ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
         SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
         SWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit
