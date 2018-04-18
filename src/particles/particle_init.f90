@@ -1583,7 +1583,7 @@ __STAMP__&
     !  .AND. 
     IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
       IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
-      .AND. (ABS(Species(iSpec)%Init(iInit)%PartDensity).LE.0.) &
+      .AND. (Species(iSpec)%Init(iInit)%PartDensity.EQ.0.) &
       .AND. Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0 ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
         SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
