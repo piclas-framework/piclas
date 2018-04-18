@@ -59,7 +59,7 @@ CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "TODO-DEFINE-P
 CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Weight of particles for elem loads\n"//&
                                                                   "(only used if ElemTime does not exist or DoLoadBalance=F)."&
                                                                , value='0.02')
-CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads.", value='1')
+CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads. (def.: 1 or -1)")
 
 END SUBROUTINE DefineParametersLoadBalance
 
