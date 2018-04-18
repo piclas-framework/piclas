@@ -1085,7 +1085,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'SimulationTime',&
     'InitializationWallTime'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
-CHARACTER(LEN=1000):: tmpStr2 
+CHARACTER(LEN=1000)                      :: tmpStr2 
+CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -1101,7 +1102,7 @@ IF(WriteHeader)THEN ! create new file
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
   tmpStr=""
   DO I=1,nOutputVar
-    WRITE(tmpStr(I),'(A)')' "'//TRIM(StrVarNames(I))//'" '
+    WRITE(tmpStr(I),'(A)')delimiter//'"'//TRIM(StrVarNames(I))//'"'
   END DO
   WRITE(formatStr,'(A1)')'('
   DO I=1,nOutputVar
@@ -1125,9 +1126,19 @@ ELSE !
   END IF
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(formatStr,'(A1,I2,A14)')'(',nOutputVar,'(1X,E21.14E3))'
-    WRITE(tmpStr2,formatStr)(/time_loc, MinWeight, MaxWeight, CurrentImbalance, TargetWeight, REAL(nLoadBalanceSteps), WeightSum, &
-        SimulationEfficiency,PID,SimulationTime,InitializationWallTime/)
+    WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+    WRITE(tmpStr2,formatStr)&
+              " ",time_loc, &
+        delimiter,MinWeight, &
+        delimiter,MaxWeight, &
+        delimiter,CurrentImbalance, &
+        delimiter,TargetWeight, &
+        delimiter,REAL(nLoadBalanceSteps), &
+        delimiter,WeightSum, &
+        delimiter,SimulationEfficiency,&
+        delimiter,PID,&
+        delimiter,SimulationTime,&
+        delimiter,InitializationWallTime
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit) 
   ELSE

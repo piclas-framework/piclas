@@ -395,7 +395,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
 
               ! 'dt_HDG_cold(TimeStep)'
               ! dtHDGTTM=0.2./w_peTTM
-              IF(INT(TTM_Cell_11(iElem),4).EQ.0)THEN ! when no atoms are present, then no electron density is calculated
+              IF(INT(TTM_Cell_11(iElem),4).EQ.0.0)THEN ! when no atoms are present, then no electron density is calculated
                 TTM_Cell_15(iElem) = 0.0
               ELSE
                 TTM_Cell_15(iElem) = 0.2 / TTM_Cell_13(iElem) ! 13 depends on 12 which depends only on 11
@@ -403,7 +403,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
 
               ! 'dt_HDG_warm(TimeStep)'
               ! dtHDGTTMwarm=0.2./w_peTTMwarm
-              IF(TTM_Cell_14(iElem).LE.0)THEN
+              IF(TTM_Cell_14(iElem).LE.0.0)THEN
                 TTM_Cell_16(iElem) = 0.0
               ELSE
                 TTM_Cell_16(iElem) = 0.2 / TTM_Cell_14(iElem) 
@@ -912,7 +912,6 @@ IMPLICIT NONE
 !INTEGER(KIND=8),INTENT(IN),OPTIONAL :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='InitialTTMdata.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=250)                        :: formatStr
@@ -942,8 +941,9 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
            'z' /)
 
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
-CHARACTER(LEN=1000):: tmpStr2 
-INTEGER        :: iElem
+CHARACTER(LEN=1000)                      :: tmpStr2 
+INTEGER                                  :: iElem
+CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -951,7 +951,7 @@ IF(.NOT.MPIRoot)RETURN
 OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
 tmpStr=""
 DO I=1,nOutputVar
-  WRITE(tmpStr(I),'(A)')' "'//TRIM(StrVarNames(I))//'" '
+  WRITE(tmpStr(I),'(A)')delimiter//'"'//TRIM(StrVarNames(I))//'"'
 END DO
 WRITE(formatStr,'(A1)')'('
 DO I=1,nOutputVar
@@ -962,39 +962,39 @@ DO I=1,nOutputVar
   END IF
 END DO
 WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
-write(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
-write(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+tmpStr2(1:1) = " "
+WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 CLOSE(ioUnit) 
 
 ! write the data lines for each element
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
 
-  WRITE(formatStr,'(A1,I2,A14)')'(',nOutputVar,'(1X,E21.14E3))'
+  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
   DO iElem=1,PP_nElems
-    WRITE(tmpStr2,formatStr)(/&
-        TTM_Cell_1(iElem),&
-        TTM_Cell_2(iElem),&
-        TTM_Cell_3(iElem),&
-        TTM_Cell_4(iElem),&
-        TTM_Cell_5(iElem),&
-        TTM_Cell_6(iElem),&
-        TTM_Cell_7(iElem),&
-        TTM_Cell_8(iElem),&
-        TTM_Cell_9(iElem),&
-        TTM_Cell_10(iElem),&
-        TTM_Cell_11(iElem),&
-        TTM_Cell_12(iElem),&
-        TTM_Cell_13(iElem),&
-        TTM_Cell_14(iElem),&
-        TTM_Cell_15(iElem),&
-        TTM_Cell_16(iElem),&
-        TTM_Cell_17(iElem),&
-        TTM_Cell_18(iElem),&
-        ElemBaryNGeo(1,iElem),&
-        ElemBaryNGeo(2,iElem),&
-        ElemBaryNGeo(3,iElem)&
-        /)
+    WRITE(tmpStr2,formatStr)&
+        " ",TTM_Cell_1(iElem),&
+        delimiter,TTM_Cell_2(iElem),&
+        delimiter,TTM_Cell_3(iElem),&
+        delimiter,TTM_Cell_4(iElem),&
+        delimiter,TTM_Cell_5(iElem),&
+        delimiter,TTM_Cell_6(iElem),&
+        delimiter,TTM_Cell_7(iElem),&
+        delimiter,TTM_Cell_8(iElem),&
+        delimiter,TTM_Cell_9(iElem),&
+        delimiter,TTM_Cell_10(iElem),&
+        delimiter,TTM_Cell_11(iElem),&
+        delimiter,TTM_Cell_12(iElem),&
+        delimiter,TTM_Cell_13(iElem),&
+        delimiter,TTM_Cell_14(iElem),&
+        delimiter,TTM_Cell_15(iElem),&
+        delimiter,TTM_Cell_16(iElem),&
+        delimiter,TTM_Cell_17(iElem),&
+        delimiter,TTM_Cell_18(iElem),&
+        delimiter,ElemBaryNGeo(1,iElem),&
+        delimiter,ElemBaryNGeo(2,iElem),&
+        delimiter,ElemBaryNGeo(3,iElem)
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   END DO
   CLOSE(ioUnit) 
