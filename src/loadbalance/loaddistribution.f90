@@ -1085,6 +1085,7 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'SimulationTime',&
     'InitializationWallTime'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
+CHARACTER(LEN=1000):: tmpStr2 
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -1110,8 +1111,11 @@ IF(WriteHeader)THEN ! create new file
       WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
     END IF
   END DO
-  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')'
-  write(ioUnit,formatStr)tmpStr
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
   CLOSE(ioUnit) 
 ELSE ! 
   IF(.NOT.PRESENT(time))THEN
@@ -1121,12 +1125,13 @@ ELSE !
   END IF
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(formatStr,'(A1,I1,A14)')'(',nOutputVar,'(1X,E21.14E3))'
-    WRITE(ioUnit,formatStr)(/time_loc, MinWeight, MaxWeight, CurrentImbalance, TargetWeight, REAL(nLoadBalanceSteps), WeightSum, &
+    WRITE(formatStr,'(A1,I2,A14)')'(',nOutputVar,'(1X,E21.14E3))'
+    WRITE(tmpStr2,formatStr)(/time_loc, MinWeight, MaxWeight, CurrentImbalance, TargetWeight, REAL(nLoadBalanceSteps), WeightSum, &
         SimulationEfficiency,PID,SimulationTime,InitializationWallTime/)
+    WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit) 
   ELSE
-    SWRITE(UNIT_StdOut,'(A)')"ElemTimeStatistics.csv does not exist. cannot write load balance info!"
+    SWRITE(UNIT_StdOut,'(A)')"ElemTimeStatistics.csv does not exist. Cannot write load balance info!"
   END IF
 END IF
 END SUBROUTINE WriteElemTimeStatistics

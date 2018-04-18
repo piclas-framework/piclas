@@ -645,6 +645,13 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
       ' | ',lambda_D_min,' | ',TRIM("OUTPUT"),' | '
   SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_max'),&
       ' | ',lambda_D_max,' | ',TRIM("OUTPUT"),' | '
+
+
+
+  ! Fill .csv file for analysis
+  CALL WriteTTMdataToCSV()
+
+
 END IF !DoImportTTMFile.EQV..TRUE.
 
 
@@ -881,6 +888,121 @@ END DO
 
 
 END SUBROUTINE InitIMD_TTM_Coupling
+
+
+!----------------------------------------------------------------------------------------------------------------------------------!
+!> Write TTM info to InitialTTMdata.csv file
+!----------------------------------------------------------------------------------------------------------------------------------!
+SUBROUTINE WriteTTMdataToCSV()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc   ,ONLY: PP_nElems
+USE MOD_Globals   ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Globals   ,ONLY: abort
+USE MOD_Mesh_Vars ,ONLY: ElemBaryNGeo
+USE MOD_TTM_Vars  ,ONLY: TTM_Cell_1,TTM_Cell_2,TTM_Cell_3,TTM_Cell_4,TTM_Cell_5,TTM_Cell_6,TTM_Cell_7,TTM_Cell_8
+USE MOD_TTM_Vars  ,ONLY: TTM_Cell_9,TTM_Cell_10,TTM_Cell_11,TTM_Cell_12,TTM_Cell_13,TTM_Cell_14,TTM_Cell_15
+USE MOD_TTM_Vars  ,ONLY: TTM_Cell_16,TTM_Cell_17,TTM_Cell_18
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+!LOGICAL,INTENT(IN)                  :: WriteHeader
+!REAL,INTENT(IN),OPTIONAL            :: time
+!INTEGER(KIND=8),INTENT(IN),OPTIONAL :: iter
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                     :: time_loc
+CHARACTER(LEN=22),PARAMETER              :: outfile='InitialTTMdata.csv'
+INTEGER                                  :: ioUnit,I
+CHARACTER(LEN=250)                        :: formatStr
+INTEGER,PARAMETER                        :: nOutputVar=21
+
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+          'TTM_N[natoms]'           , &
+          'TTM_T_e[temp]'           , &
+          'TTM_T_i[md_temp]'        , &
+          'TTM_[xi]'                , &
+          'TTM_[source]'            , &
+          'TTM_[v_com.x]'           , &
+          'TTM_[v_com.y]'           , &
+          'TTM_[v_com.z]'           , &
+          'TTM_[fd_k]'              , &
+          'TTM_[fd_g]'              , &
+          'TTM_charge[Z]'           , &
+          'TTM_n_e(ElectronDensity)', &
+          'TTM_omega_pe_cold(PlasmaFrequency)', &
+          'TTM_omega_pe_warm(PlasmaFrequency)', &
+          'TTM_dt_HDG_cold(TimeStep)',          &
+          'TTM_dt_HDG_warm(TimeStep)',          &
+          'TTM_T_e(ElectronTempInKelvin)',      &
+          'TTM_lambda_D(DebyeLength)',          &
+           'x',&
+           'y',&
+           'z' /)
+
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
+CHARACTER(LEN=1000):: tmpStr2 
+INTEGER        :: iElem
+!===================================================================================================================================
+IF(.NOT.MPIRoot)RETURN
+
+! write the header line
+OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
+tmpStr=""
+DO I=1,nOutputVar
+  WRITE(tmpStr(I),'(A)')' "'//TRIM(StrVarNames(I))//'" '
+END DO
+WRITE(formatStr,'(A1)')'('
+DO I=1,nOutputVar
+  IF(I.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
+    WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
+  ELSE
+    WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
+  END IF
+END DO
+WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+write(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+write(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+CLOSE(ioUnit) 
+
+! write the data lines for each element
+IF(FILEEXISTS(outfile))THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
+
+  WRITE(formatStr,'(A1,I2,A14)')'(',nOutputVar,'(1X,E21.14E3))'
+  DO iElem=1,PP_nElems
+    WRITE(tmpStr2,formatStr)(/&
+        TTM_Cell_1(iElem),&
+        TTM_Cell_2(iElem),&
+        TTM_Cell_3(iElem),&
+        TTM_Cell_4(iElem),&
+        TTM_Cell_5(iElem),&
+        TTM_Cell_6(iElem),&
+        TTM_Cell_7(iElem),&
+        TTM_Cell_8(iElem),&
+        TTM_Cell_9(iElem),&
+        TTM_Cell_10(iElem),&
+        TTM_Cell_11(iElem),&
+        TTM_Cell_12(iElem),&
+        TTM_Cell_13(iElem),&
+        TTM_Cell_14(iElem),&
+        TTM_Cell_15(iElem),&
+        TTM_Cell_16(iElem),&
+        TTM_Cell_17(iElem),&
+        TTM_Cell_18(iElem),&
+        ElemBaryNGeo(1,iElem),&
+        ElemBaryNGeo(2,iElem),&
+        ElemBaryNGeo(3,iElem)&
+        /)
+    WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+  END DO
+  CLOSE(ioUnit) 
+ELSE
+  SWRITE(UNIT_StdOut,'(A)')"InitialTTMdata.csv does not exist. Cannot write TTM info!"
+END IF
+!END IF
+END SUBROUTINE WriteTTMdataToCSV
 
 
 SUBROUTINE FinalizeTTM() 
