@@ -4570,7 +4570,7 @@ REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nV
 ! load balance
 REAL                        :: tLBStart,tLBEnd
 #endif /*MPI*/
-TYPE(tSurfFluxPart),POINTER :: currentSurfFluxPart
+TYPE(tSurfFluxPart),POINTER :: currentSurfFluxPart => NULL()
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -5315,8 +5315,6 @@ __STAMP__&
                 currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
                 IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%nextSurfFluxPart)) THEN
                   currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart
-                  Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart  => NULL()
-                  Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => NULL()
                   EXIT
                 END IF
               END DO
@@ -5326,6 +5324,10 @@ __STAMP__&
         END IF ! wallmodel or liquidsim
       END IF ! useDSMC or liquid
 #endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
+      IF (ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
+        Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart  => NULL()
+        Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => NULL()
+      END IF
     END IF
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
