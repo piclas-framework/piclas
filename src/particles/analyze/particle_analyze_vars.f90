@@ -46,12 +46,15 @@ REAL,ALLOCATABLE              :: PartEKinInTmp(:)                    ! energy an
 
 ! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
 LOGICAL                       :: CalcDebyeLength                     ! Flag to compute the Debye length (min and max) in each cell
-LOGICAL                       :: CalcHDGTimeStep                     ! Flag to compute the HDG time step (min and max) in each cell
+LOGICAL                       :: CalcPICTimeStep                     ! Flag to compute the PIC time step (min and max) in each cell
 LOGICAL                       :: CalcElectronDensity                 ! Flag to compute the electron density in each cell
-LOGICAL                       :: CalcPlasmaFreqeuncy                 ! Flag to compute the electron frequency in each cell
+LOGICAL                       :: CalcElectronTemperature             ! Flag to compute the electron temperature in each cell
+!LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons 
+LOGICAL                       :: CalcPlasmaFrequency                 ! Flag to compute the electron frequency in each cell
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  ! Debye length cell value
-REAL,ALLOCATABLE              :: HDGTimeStepCell(:)                  ! Approximated HDG Time Step per cell
+REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  ! Approximated PIC Time Step per cell
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              ! Electron density per cell
+REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          ! Electron temperature per cell
 REAL,ALLOCATABLE              :: PlasmaFrequencyCell(:)              ! plasma electron frequency per cell
 
 LOGICAL                       :: CalcCharge                          ! Compute the whole deposited charge and abs and relative

@@ -411,7 +411,7 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
-USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles
+USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
 USE MOD_DSMC_Vars              ,ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
@@ -644,6 +644,10 @@ IF (DoAnalyze)  THEN
 #endif /*MPI*/
 #endif /*PARTICLES*/
 END IF
+
+#ifdef PARTICLES
+IF(OutPut .OR. ForceAnalyze) CALL CalculatePartElemData()
+#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC & LD 
