@@ -4556,7 +4556,6 @@ REAL                        :: point(2),origin(2),veloR,vTot,phi,radius,preFac,p
 INTEGER                     :: dir(3), nReject, allowedRejections
 LOGICAL                     :: AcceptPos, noAdaptive
 !variables used for sampling of of energies and impulse of emitted particles from surfaces
-INTEGER,ALLOCATABLE         :: PartInsIndexes(:,:)
 INTEGER                     :: PartsEmitted
 REAL                        :: TransArray(1:6),IntArray(1:6)
 REAL                        :: VelXold, VelYold, VelZold, VeloReal
@@ -4571,34 +4570,13 @@ REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nV
 ! load balance
 REAL                        :: tLBStart,tLBEnd
 #endif /*MPI*/
+TYPE(tSurfFluxPart),POINTER :: currentSurfFluxPart
 !===================================================================================================================================
-! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
-IF ( useDSMC .OR. LiquidSimFlag) THEN
-  IF ( (DSMC%WallModel.GT.0 .AND. SolidSimFlag) .OR. LiquidSimFlag) THEN
-    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      DO iSpec=1,nSpecies
-        DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-          currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-          IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
-            IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
-              ALLOCATE(PartInsIndexes(1:2,1:PDM%maxParticleNumber))
-            ELSE
-              ALLOCATE(PartInsIndexes(1:4,1:PDM%maxParticleNumber))
-            END IF
-            EXIT
-          END IF
-        END DO
-        IF (ALLOCATED(PartInsIndexes)) EXIT
-      END DO
-    END IF
-  END IF
-END IF
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
       noAdaptive=.TRUE.
-      IF (ALLOCATED(PartInsIndexes)) PartInsIndexes(:,:) = 0
       PartsEmitted = 0
     ELSE
       noAdaptive=.FALSE.
@@ -4972,15 +4950,79 @@ __STAMP__&
           END IF
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
-            IF (noAdaptive) THEN
-              IF (ALLOCATED(PartInsIndexes)) THEN
-                PartInsIndexes(1,PartsEmitted+iPart) = ParticleIndexNbr
-                PartInsIndexes(2,PartsEmitted+iPart) = iSide
-                IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
-                  PartInsIndexes(3,PartsEmitted+iPart) = iSample
-                  PartInsIndexes(4,PartsEmitted+iPart) = jSample
-                END IF
+#if (PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)
+            IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
+              NbrOfSurfFluxParts=1
+              ALLOCATE(currentSurfFluxPart)
+              firstSurfFluxPart => currentSurfFluxPart
+              IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
+                Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
+                Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
               END IF
+            ELSE
+              NbrOfSurfFluxParts=NbrOfSurfFluxParts+1
+              ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+              currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+              IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
+                Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
+              END IF
+              Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+            END IF
+            currentSurfFluxPart%PartIdx = ParticleIndexNbr
+#endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
+            IF (noAdaptive) THEN
+              ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
+              ! create linked list of surfaceflux-particle-info for sampling case
+              IF ( useDSMC .OR. LiquidSimFlag) THEN
+                IF ( (DSMC%WallModel.GT.0 .AND. SolidSimFlag) .OR. LiquidSimFlag) THEN
+                  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
+                      .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+                    IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+#if (PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)
+                      IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
+                        ALLOCATE(currentSurfFluxPart)
+                        firstSurfFluxPart => currentSurfFluxPart
+                        IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
+                          Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
+                          Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                        END IF
+                      ELSE IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
+                        currentSurfFluxPart => firstSurfFluxPart
+                        IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
+                          Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
+                          Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                        END IF
+                      ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
+                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        END IF
+                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
+                        Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                      ELSE
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
+                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        END IF
+                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                      END IF
+                      currentSurfFluxPart%PartIdx = ParticleIndexNbr
+#endif /*(PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)*/
+! careful this part is always done, so association of pointer "currentSurfFluxPart" has to be done in every timedisc but in
+! different ways
+                      IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
+                        IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
+                        currentSurfFluxPart%SideInfo(1) = iSide
+                        currentSurfFluxPart%SideInfo(2) = iSample
+                        currentSurfFluxPart%SideInfo(3) = jSample
+                      ELSE
+                        IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1))
+                        currentSurfFluxPart%SideInfo(1) = iSide
+                      END IF
+                    END IF ! reflective bc
+                  END IF ! sampling is on (CalcSurfaceVal)
+                END IF ! wallmodel or liquidsim
+              END IF ! useDSMC or liquid
               IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
                 PartState(ParticleIndexNbr,4:5) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
               ELSE IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !PartState is used as drift for case of MB-distri!
@@ -5210,63 +5252,80 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
       END IF
-      IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
-        ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
-        ! only allocated if sampling and surface model enabled
-        IF (ALLOCATED(PartInsIndexes)) THEN
-          DO iPart = 1,PartsEmitted
-            PartID = PartInsIndexes(1,iPart)
-            SurfSideID = PartInsIndexes(2,iPart)
-            IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
-              p = 1
-              q = 1
-            ELSE
-              p = PartInsIndexes(3,iPart)
-              q = PartInsIndexes(4,iPart)
-            END IF
-            ! set velocities and translational energies
-            VelXold  = PartBound%WallVelo(1,CurrentBC)
-            VelYold  = PartBound%WallVelo(2,CurrentBC)
-            VelZold  = PartBound%WallVelo(3,CurrentBC)
-            EtraOld = 0.0
-            EtraWall = EtraOld
-            VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + PartState(PartID,5) * PartState(PartID,5) &
-                            + PartState(PartID,6) * PartState(PartID,6))
-            EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
-            ! fill Transarray
-            TransArray(1) = EtraOld
-            TransArray(2) = EtraWall
-            TransArray(3) = EtraNew
-            ! negative because from surface away
-            TransArray(4) = -(PartState(PartID,4)-VelXold)
-            TransArray(5) = -(PartState(PartID,5)-VelYold)
-            TransArray(6) = -(PartState(PartID,6)-VelZold)
-            IF (CollisMode.GT.1) THEN
-              ! set rotational energies
-              ErotWall = 0
-              ErotOld  = ErotWall
-              ErotNew  = PartStateIntEn(PartID,2)
-              ! fill rotational internal array
-              IntArray(1) = ErotOld
-              IntArray(2) = ErotWall
-              IntArray(3) = ErotNew
-              ! set vibrational energies
-              EvibWall = 0 ! calculated and added in particle desorption calculation
-              EvibOld  = EvibWall ! calculated and added in particle desorption calculation
-              EvibNew  = PartStateIntEn(PartID,1)
-              ! fill vibrational internal array
-              IntArray(4) = EvibOld
-              IntArray(5) = EvibWall
-              IntArray(6) = EvibNew
-            ELSE
-              IntArray(:) = 0.
-            END IF
-            ! sample values
-            CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
-                (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
-          END DO
-        END IF
-      END IF
+#if (PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)
+      IF ( useDSMC .OR. LiquidSimFlag) THEN
+        IF ( (DSMC%WallModel.GT.0 .AND. SolidSimFlag) .OR. LiquidSimFlag) THEN
+          IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
+              .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+#endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
+            IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
+              ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
+              ! only allocated if sampling and surface model enabled
+              currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart
+              DO WHILE(ASSOCIATED(currentSurfFluxPart))
+                PartID     = currentSurfFluxPart%PartIdx
+                SurfSideID = currentSurfFluxPart%SideInfo(1)
+                IF (TriaTracking.OR.(nSurfSample.EQ.1)) THEN
+                  p = 1
+                  q = 1
+                ELSE
+                  p = currentSurfFluxPart%SideInfo(2)
+                  q = currentSurfFluxPart%SideInfo(3)
+                END IF
+                ! set velocities and translational energies
+                VelXold  = PartBound%WallVelo(1,CurrentBC)
+                VelYold  = PartBound%WallVelo(2,CurrentBC)
+                VelZold  = PartBound%WallVelo(3,CurrentBC)
+                EtraOld = 0.0
+                EtraWall = EtraOld
+                VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + PartState(PartID,5) * PartState(PartID,5) &
+                                + PartState(PartID,6) * PartState(PartID,6))
+                EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
+                ! fill Transarray
+                TransArray(1) = EtraOld
+                TransArray(2) = EtraWall
+                TransArray(3) = EtraNew
+                ! negative because from surface away
+                TransArray(4) = -(PartState(PartID,4)-VelXold)
+                TransArray(5) = -(PartState(PartID,5)-VelYold)
+                TransArray(6) = -(PartState(PartID,6)-VelZold)
+                IF (CollisMode.GT.1) THEN
+                  ! set rotational energies
+                  ErotWall = 0
+                  ErotOld  = ErotWall
+                  ErotNew  = PartStateIntEn(PartID,2)
+                  ! fill rotational internal array
+                  IntArray(1) = ErotOld
+                  IntArray(2) = ErotWall
+                  IntArray(3) = ErotNew
+                  ! set vibrational energies
+                  EvibWall = 0 ! calculated and added in particle desorption calculation
+                  EvibOld  = EvibWall ! calculated and added in particle desorption calculation
+                  EvibNew  = PartStateIntEn(PartID,1)
+                  ! fill vibrational internal array
+                  IntArray(4) = EvibOld
+                  IntArray(5) = EvibWall
+                  IntArray(6) = EvibNew
+                ELSE
+                  IntArray(:) = 0.
+                END IF
+                ! sample values
+                CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
+                    (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
+                currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%nextSurfFluxPart)) THEN
+                  currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart
+                  Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart  => NULL()
+                  Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => NULL()
+                  EXIT
+                END IF
+              END DO
+            END IF ! reflective bc
+#if (PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)
+          END IF ! sampling is on (CalcSurfaceVal)
+        END IF ! wallmodel or liquidsim
+      END IF ! useDSMC or liquid
+#endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
     END IF
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
