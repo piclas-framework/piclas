@@ -141,21 +141,6 @@ DEALLOCATE(PreSum, send_count, recv_count, split)
 END SUBROUTINE SingleStepOptimalPartition
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 SUBROUTINE ApplyWeightDistributionMethod(ElemTimeExists)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Description
@@ -171,7 +156,7 @@ USE MOD_LoadBalance_Vars ,ONLY: PartDistri
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile
 USE MOD_Restart_Vars     ,ONLY: RestartFile
 #endif /*PARTICLES*/
-USE MOD_ReadInTools      ,ONLY: GETINT
+USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -205,13 +190,19 @@ INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 #endif /*PARTICLES*/
 !===================================================================================================================================
-WeightDistributionMethod = GETINT('WeightDistributionMethod','1')
-
 WeightSum = 0.0
 CurWeight = 0.0
 
 ! Load balancing for particles: read in particle data
 #ifdef PARTICLES
+IF(.NOT.ElemTimeExists)THEN
+  ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+  IF (ParticleMPIWeight.LT.0) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR: Particle weight cannot be negative!')
+  END IF
+END IF !.NOT.ElemTimeExists
 CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
 CALL DatasetExists(File_ID,'PartInt',PartIntExists)
 IF(PartIntExists)THEN
@@ -222,29 +213,34 @@ END IF
 CALL CloseDataFile() 
 #endif /*PARTICLES*/
 ALLOCATE(PartsInElem(1:nGlobalElems))
+PartsInElem=0
 
-DO iElem = 1, nGlobalElems
 #ifdef PARTICLES
-  locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
-  PartsInElem(iElem)=locnPart
-  IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
-#else
-  PartsInElem(iElem)=0
-  IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = 1.0
+IF (PartIntExists) THEN
+  DO iElem = 1, nGlobalElems
+    locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
+    PartsInElem(iElem)=locnPart
+    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
+  END DO
+ELSE !.NOT.PartIntExists
 #endif /*PARTICLES*/
-  WeightSum = WeightSum + ElemGlobalTime(iElem)
-END DO
+  IF(.NOT.ElemTimeExists) ElemGlobalTime(:) = 1.0
+#ifdef PARTICLES
+END IF
+#endif /*PARTICLES*/
+WeightSum = SUM(ElemGlobalTime(:))
 !IF(WeightSum.LE.0.0) CALL abort(&
 !__STAMP__, &
 !' LoadBalance: WeightSum = ',RealInfoOpt=WeightSum)
 
-
-
-
-
-
-
-
+IF (.NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)) THEN
+  WeightDistributionMethod = GETINT('WeightDistributionMethod','-1') !-1 is optimum distri for const. elem-weight
+  IF (WeightDistributionMethod.NE.-1) THEN
+    SWRITE(*,*) 'WARNING: WeightDistributionMethod.NE.-1 with neither particles nor ElemTimes!'
+  END IF
+ELSE
+  WeightDistributionMethod = GETINT('WeightDistributionMethod','1')
+END IF
 
 SELECT CASE(WeightDistributionMethod)
 CASE(-1) ! same as in no-restart: the elements are equally distributed
@@ -568,7 +564,7 @@ CASE(4)
   ! predistribute elements
   curiElem = 1
   TargetWeight=WeightSum/REAL(nProcessors)
-  SWRITE(*,*) 'TargetWeight', TargetWeight,ParticleMPIWeight
+  SWRITE(*,*) 'TargetWeight', TargetWeight !,ParticleMPIWeight
   offsetElemMPI(nProcessors)=nGlobalElems
   DO iProc=0, nProcessors-1
     offsetElemMPI(iProc)=curiElem - 1 

@@ -40,7 +40,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 !===================================================================================================================================
   USE MOD_Globals,                ONLY : abort
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species, PEM
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,7 +56,11 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 !===================================================================================================================================
   SELECT CASE (init_or_sf)
   CASE(1) !iInit
-    Telec=SpecDSMC(iSpecies)%Init(iInit)%Telec
+    IF (Species(iSpecies)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
+      TElec=SpecDSMC(iSpecies)%Init(iInit)%TElec
+    ELSE
+      TElec=Species(iSpecies)%Init(iInit)%ElemTElec(PEM%Element(iPart))
+    END IF
   CASE(2) !SurfaceFlux
     Telec=SpecDSMC(iSpecies)%Surfaceflux(iInit)%Telec
   CASE DEFAULT

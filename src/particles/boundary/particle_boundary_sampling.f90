@@ -21,7 +21,7 @@ END INTERFACE
 INTERFACE FinalizeParticleBoundarySampling
   MODULE PROCEDURE FinalizeParticleBoundarySampling
 END INTERFACE
- 
+
 INTERFACE WriteSurfSampleToHDF5
   MODULE PROCEDURE WriteSurfSampleToHDF5
 END INTERFACE
@@ -42,7 +42,7 @@ PUBLIC::ExchangeSurfData
 
 CONTAINS
 
-SUBROUTINE InitParticleBoundarySampling() 
+SUBROUTINE InitParticleBoundarySampling()
 !===================================================================================================================================
 ! init of particle boundary sampling
 ! default: use for sampling same polynomial degree as NGeo
@@ -145,10 +145,9 @@ SurfMesh%SideIDToSurfID(1:nTotalSides)=-1
 SurfMesh%nSides=0
 DO iSide=1,nBCSides
   IF(BC(iSide).EQ.0) CYCLE
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nSides = SurfMesh%nSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
-    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
 
@@ -156,10 +155,9 @@ END DO
 SurfMesh%nTotalSides=SurfMesh%nSides
 DO iSide=nSides+1,nTotalSides
   IF(BC(iSide).EQ.0) CYCLE
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nTotalSides = SurfMesh%nTotalSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nTotalSides
-    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nTotalSides
   END IF
 END DO
 
@@ -940,7 +938,7 @@ SUBROUTINE ExchangeSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY:nSpecies
+USE MOD_Particle_Vars               ,ONLY:nSpecies,LiquidSimFlag
 USE MOD_DSMC_Vars                   ,ONLY:Adsorption,DSMC,useDSMC
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
@@ -963,12 +961,11 @@ IF(useDSMC) THEN
   IF (DSMC%WallModel.GT.0) calcWallModel=.TRUE.
 END IF
 
-IF(calcWallModel)THEN
-  ! additional array entries for Coverage, Accomodation and recombination coefficient
-  nValues = (SurfMesh%SampSize+(nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
-ELSE
-  nValues = SurfMesh%SampSize*nSurfSample**2
-END IF
+nValues = SurfMesh%SampSize*nSurfSample**2
+! additional array entries for Coverage, Accomodation and recombination coefficient
+IF(calcWallModel) nValues = nValues + ((nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
+! additional array entries for liquid surfaces
+IF(LiquidSimFlag) nValues = nValues + (nSpecies+1)*nSurfSample**2
 !
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -980,7 +977,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
                 , 1009                                         &
                 , SurfCOMM%COMM                                &
-                , SurfExchange%RecvRequest(iProc)              & 
+                , SurfExchange%RecvRequest(iProc)              &
                 , IERROR )
 END DO ! iProc
 
@@ -1005,6 +1002,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
             iPos=iPos+nSpecies
           END DO
         END IF
+        IF (LiquidSimFlag) THEN
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies+1)= SampWall(SurfSideID)%Evaporation(:,p,q)
+          iPos=iPos+nSpecies+1
+        END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
@@ -1012,6 +1013,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       SampWall(SurfSideID)%Adsorption(:,:,:)=0.
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
       SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
+    END IF
+    IF (LiquidSimFlag) THEN
+      SampWall(SurfSideID)%Evaporation(:,:,:)=0.
     END IF
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
@@ -1021,13 +1025,13 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   MessageSize=SurfExchange%nSidesSend(iProc)*nValues
   CALL MPI_ISEND( SurfSendBuf(iProc)%content               &
-                , MessageSize                              & 
+                , MessageSize                              &
                 , MPI_DOUBLE_PRECISION                     &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
                 , 1009                                     &
-                , SurfCOMM%COMM                            &   
+                , SurfCOMM%COMM                            &
                 , SurfExchange%SendRequest(iProc)          &
-                , IERROR )                                     
+                , IERROR )
 END DO ! iProc                                                
 
 ! 4) Finish Received number of particles
@@ -1070,6 +1074,11 @@ DO iProc=1,SurfCOMM%nMPINeighbors
             iPos=iPos+nSpecies
           END DO
         END IF
+        IF (LiquidSimFlag) THEN
+          SampWall(SurfSideID)%Evaporation(:,p,q)=SampWall(SurfSideID)%Evaporation(:,p,q) &
+                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies+1)
+          iPos=iPos+nSpecies+1
+        END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
@@ -1079,10 +1088,10 @@ END DO ! iProc
 END SUBROUTINE ExchangeSurfData
 #endif /*MPI*/
 
-SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime) 
+SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
-! write the final values of the surface sampling to a HDF5 state file
-! additional performs all the final required computations
+!> write the final values of the surface sampling to a HDF5 state file
+!> additional performs all the final required computations
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1145,8 +1154,8 @@ nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 IF(SurfCOMM%MPIOutputRoot)THEN
 #endif
   CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-  Statedummy = 'DSMCSurfState'  
-  
+  Statedummy = 'DSMCSurfState'
+
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
@@ -1178,9 +1187,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+3) ='ForceZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
-  
+
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
-  
+
   CALL CloseDataFile()
   DEALLOCATE(Str2DVarNames)
 #ifdef MPI
@@ -1210,7 +1219,7 @@ CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
                     nVal=      (/nVar2D      ,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/nVarCount   ,          0,          0,offsetSurfSide/),&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
-                  
+
 CALL CloseDataFile()
 
 IF(SurfCOMM%MPIOutputROOT)THEN

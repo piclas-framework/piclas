@@ -14,8 +14,6 @@ LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcNumSpec                           ! Calculate the number of simulated particles per species
 LOGICAL                       :: CalcCollRates                         ! Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                         ! Calculate the reaction rate per reaction
-LOGICAL                       :: CalcEpot                              ! Computation of the energy stored in the electric and
-                                                                       ! magnetic field
 LOGICAL                       :: CalcEkin                              ! Compute the kinetic energy of each species
 LOGICAL                       :: CalcEint                              ! Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                              ! Computation of the temperature (trans, rot, vib, total)

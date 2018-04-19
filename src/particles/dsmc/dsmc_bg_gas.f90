@@ -84,7 +84,7 @@ __STAMP__&
       PEM%pNumber(PEM%Element(PositionNbr)) + 1
     END IF
   END DO
-  CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart,1,.TRUE.) ! Properties of BG gas are stored in iInit=0
+  CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart,1) ! Properties of BG gas are stored in iInit=0
   PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart 
 
@@ -99,7 +99,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,useVTKFileBGG,BGGdataAtElem
+  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -138,8 +138,8 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
   END DO
   
   ! Setting Number of BGGas Particles per Cell
-  IF (useVTKFileBGG) THEN
-    BGGas%BGColl_SpecPartNum = BGGdataAtElem(7,iElem) * GEO%Volume(iElem)      &
+  IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0) THEN
+    BGGas%BGColl_SpecPartNum = Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity(iElem) * GEO%Volume(iElem)      &
                                                / Species(BGGas%BGGasSpecies)%MacroParticleFactor
   ELSE
     BGGas%BGColl_SpecPartNum = BGGas%BGGasDensity * GEO%Volume(iElem)      &

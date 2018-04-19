@@ -71,6 +71,10 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 7-9   E_vib (pre, wall, re)
                                                                        ! 10-12 Forces in x, y, z direction
                                                                        ! 13-12+nSpecies Wall-Collision counter
+  REAL,ALLOCATABLE                      :: Evaporation(:,:,:)          ! Sampling of Evaporation relevant values
+                                                                       ! 1:Enthalpie released/annihilated upon
+                                                                       ! evaporation/condensation
+                                                                       ! 2-nSpecies+1: Evaporation particle numbers for species
   REAL,ALLOCATABLE                      :: Adsorption(:,:,:)           ! Sampling of Adsorption relevant values
                                                                        ! 1:Enthalpie released/annihilated upon adsorption/desorption
                                                                        ! 2-nSpecies+1: Coverages for certain species
@@ -155,6 +159,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
   LOGICAL , ALLOCATABLE                  :: Adaptive(:)
   INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
+  INTEGER , ALLOCATABLE                  :: AdaptiveMacroRestartFileID(:)
   REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
   REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?

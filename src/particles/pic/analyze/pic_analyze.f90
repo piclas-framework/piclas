@@ -34,7 +34,7 @@ USE MOD_Mesh_Vars,            ONLY:nElems, sJ
 USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
-#if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA)
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
 #else
 USE MOD_PICDepo_Vars,         ONLY:PartSource
@@ -65,7 +65,7 @@ DO iElem=1,nElems
   ChargeLoc=0. 
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA)
     ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #else
     ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
@@ -115,7 +115,7 @@ USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
-#if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA)
 USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
 #else
 USE MOD_PICDepo_Vars,           ONLY:PartSource
@@ -145,7 +145,7 @@ DO iElem=1,PP_nElems
   ! compute the deposited charge
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if defined(IMEX) || (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+#if defined(IMPA)
 #ifdef PP_HDG
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
 #else /* DG */

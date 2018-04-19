@@ -56,6 +56,7 @@ CALL prms%CreateIntOption(      'maxFullNewtonIter' , 'Number of outer Newton it
 CALL prms%CreateRealOption(     'eps_FullNewton'   , 'Tolerance for outer Newton in implicit PIC.', '1e-3')
 CALL prms%CreateIntOption(      'FullEisenstatWalker' , 'EisenstatWalker: for Field>1, Field+Particle>2', '0')
 CALL prms%CreateRealOption(     'FullgammaEW'   , 'Drop of tolerance in EW during outer Newton.', '0.9')
+CALL prms%CreateRealOption(     'Fulletamax'   , 'Fulletamax', '0.9999')
 
 CALL prms%CreateLogicalOption(  'DoPrintConvInfo' , 'Print Convergence information for implicit PIC.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'DoFieldUpdate' , 'Disable call of field solver for implicit PIC.', '.TRUE.')
@@ -75,9 +76,9 @@ CALL prms%CreateIntOption(      'PrecondType' , 'Preconditioner: 1-FD-BJ,2-BJ,3-
 #endif /*maxwell*/
 CALL prms%CreateIntOption(      'PrecondMethod' , 'Switch if blas or loop for BJ preconditioner', '0')
 CALL prms%CreateIntOption(      'DebugMatrix' , 'Write: 1-BJ-Jacobian and 2-BJ-Jacobian+Inv to dat-file per element.', '0')
+CALL prms%CreateLogicalOption(  'UpdatePrecond' , 'Update preconditioner by changed time-step', '.FALSE.')
 
 CALL prms%SetSection("Linear Solver Particle")
-
 CALL prms%CreateRealOption(     'EpsPartNewton'   , 'Tolerance of the inner ParticleNewton.', '0.001')
 CALL prms%CreateRealOption(     'EpsPartLinSolver'   , 'Tolerance for GMRES(6x6) in ParticleNewton', '0.0')
 CALL prms%CreateIntOption(      'nPartNewtonIter' , 'Max. number of iteration in ParticleNewton.', '20')
@@ -85,7 +86,9 @@ CALL prms%CreateIntOption(      'FreezePartInNewton' , 'Fix matrix for n-iterati
 CALL prms%CreateRealOption(     'PartgammaEW'   , 'Drop of tolerance in particle-ew', '0.9')
 CALL prms%CreateRealOption(     'scaleps'   , 'Scaling factor for finite difference which approximates matrix-vector prod.', '1.')
 CALL prms%CreateLogicalOption(  'DoFullNewton' , 'Switch between normal Newton or optimized Newton with subiteration.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'PartNewtonLinTolerance' , 'Use linear or square decrease of tolerance for particle Newton', '.TRUE.')
 CALL prms%CreateIntOption(      'Part-ImplicitMethod' , 'Selection criterion for implicit particles. Only per species.', '1')
+CALL prms%CreateIntOption(      'nKDimPart' , 'Size up Krylov-subspace in GMRES(6) for particles. .', '6')
 
 END SUBROUTINE DefineParametersLinearSolver
 
@@ -143,13 +146,6 @@ ImplicitSource=0.
 ALLOCATE(LinSolverRHS  (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 LinSolverRHS=0.
 
-!#if (PP_TimeDiscMethod==100)
-!  ALLOCATE(FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1))
-!#endif
-!#if (PP_TimeDiscMethod==102)
-!  ALLOCATE(FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:6))
-!#endif 
-
 #if (PP_TimeDiscMethod==104)
 !ALLOCATE(Q(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)) LinSolverRHS
 ! the time derivative computed at the actual Newton iteration value "xk"
@@ -162,42 +158,43 @@ EisenstatWalker=GETLOGICAL('EisenstatWalker','.FALSE.')
 gammaEW=GETREAL('gammaEW','0.9')
 #endif
 
+nRestarts             = GETINT('nRestarts','1')
 #ifndef PP_HDG
 nDofGlobalMPI=nDofGlobal
 #ifdef MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
-#endif /*NOT HDG*/
 
-nRestarts             = GETINT('nRestarts','1')
 eps_LinearSolver      = GETREAL('eps_LinearSolver','1e-3')
 epsTilde_LinearSolver = eps_LinearSolver!GETREAL('epsTilde_LinearSolver')
 eps2_LinearSolver     = eps_LinearSolver *eps_LinearSolver 
 maxIter_LinearSolver  = GETINT('maxIter_LinearSolver','60')
+#endif /*NOT HDG*/
 
 nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
 
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
+#if defined(ROS) && !defined(PP_HDG) 
+ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
+#endif /*ROS and NOT HDG*/
+#if IMPA
 maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
 TotalFullNewtonIter  = 0
 Eps_FullNewton       = GETREAL('eps_FullNewton','1e-3')
 Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
-DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
+Fulletamax           = GETREAL('Fulletamax','0.9999')
 #ifndef PP_HDG
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
-#endif
+#endif /*NOT HDG*/
 #ifdef PARTICLES
-DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 ! allocate explicit particle source
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 ALLOCATE(ExplicitPartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ExplicitPartSource=0.
 PartNewtonRelaxation= GETREAL('PartNewtonRelaxation','1.')
-#endif
 ! flag to enforce updatenextfree position in all rk stages
 DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
 ! UpdateNextFreePosition in each interation
@@ -212,7 +209,13 @@ ELSE
 END IF
 IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif /*PARTICLES*/
-#endif
+#endif /*IMPA*/
+#ifdef PARTICLES
+#if defined(ROS) || defined(IMPA)
+DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
+#endif /*ROS or IMPA*/
+#endif /*PARTICLES*/
+
 
 #ifndef PP_HDG
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -1600,7 +1603,7 @@ SUBROUTINE FinalizeLinearSolver()
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 #ifdef PARTICLES
 USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
 USE MOD_LinearSolver_Vars,ONLY:ExplicitPartSource
@@ -1621,7 +1624,7 @@ LinearSolverInitIsDone = .FALSE.
 SDEALLOCATE(ImplicitSource)
 SDEALLOCATE(LinSolverRHS)
 CALL FinalizePredictor
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if IMPA
 #ifdef PARTICLES
 SDEALLOCATE(ExplicitPartSource)
 CALL FinalizePartSolver()
