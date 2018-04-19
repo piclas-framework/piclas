@@ -3504,6 +3504,7 @@ PICTimeStepCell=0
 
 ! loop over all elements and compute the PIC-timestep with the plasma frequency 
 DO iElem=1,PP_nElems
+  IF(PlasmaFrequencyCell(iElem).LE.0) CYCLE
   PICTimeStepCell(iElem) = 0.2 / PlasmaFrequencyCell(iElem)
 END DO ! iElem=1,PP_nElems
 
@@ -3538,6 +3539,7 @@ DebyeLengthCell=0.
 
 ! loop over all elements and compute the plasma frequency with the use of the electron density
 DO iElem=1,PP_nElems
+  IF(ElectronDensityCell(iElem).LE.0.) CYCLE
   DebyeLengthCell(iElem)=SQRT((eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/(ElectronDensityCell(iElem)*ElectronCharge**2))
 END DO ! iElem=1,PP_nElems
 
