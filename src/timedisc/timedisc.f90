@@ -350,30 +350,6 @@ tFuture=MIN(time+Analyze_dt,tEnd)
 IF(DoRestart) CALL EvalGradient()
 #endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
-#ifdef PARTICLES
-IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
-#endif /*PARTICLES*/
-IF(DoWriteStateToHDF5)THEN 
-!  #ifdef PARTICLES
-!    CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
-!  #endif /*PARTICLES*/
-  CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
-#if USE_QDS_DG
-  IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
-#endif /*USE_QDS_DG*/
-END IF
-
-! if measurement of particle tracking time
-#ifdef PARTICLES
-IF(MeasureTrackTime)THEN
-  nTracks=0
-  tTracking=0
-  tLocalization=0
-END IF
-#endif /*PARTICLES*/
-
-! No computation needed if tEnd=tStart!
-IF(time.EQ.tEnd)RETURN
 
 #if defined(PARTICLES) && defined(MPI)
 IF ((TRIM(DepositionType).EQ."shape_function")             &
@@ -416,6 +392,32 @@ tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so 
 tEndDiff=tEnd-time            ! dito for end time
 dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
 CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
+
+
+#ifdef PARTICLES
+IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
+#endif /*PARTICLES*/
+IF(DoWriteStateToHDF5)THEN 
+!  #ifdef PARTICLES
+!    CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
+!  #endif /*PARTICLES*/
+  CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+#if USE_QDS_DG
+  IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+#endif /*USE_QDS_DG*/
+END IF
+
+! if measurement of particle tracking time
+#ifdef PARTICLES
+IF(MeasureTrackTime)THEN
+  nTracks=0
+  tTracking=0
+  tLocalization=0
+END IF
+#endif /*PARTICLES*/
+
+! No computation needed if tEnd=tStart!
+IF(time.EQ.tEnd)RETURN
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! iterations starting up from here
