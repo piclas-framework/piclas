@@ -2416,9 +2416,10 @@ CASE(1) ! molecular adsorption
     TransArray(1) = EtraOld
     TransArray(2) = EtraWall
     TransArray(3) = EtraNew
-    TransArray(4) = PartState(PartID,4)-VelXold
-    TransArray(5) = PartState(PartID,5)-VelYold
-    TransArray(6) = PartState(PartID,6)-VelZold
+    ! must be old_velocity-new_velocity
+    TransArray(4) = VelXold-PartState(PartID,4)
+    TransArray(5) = VelYold-PartState(PartID,5)
+    TransArray(6) = VelZold-PartState(PartID,6)
   
     !---- Internal energy accommodation
     IF (CollisMode.GT.1) THEN
@@ -2527,9 +2528,10 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
     TransArray(1) = EtraOld
     TransArray(2) = EtraWall
     TransArray(3) = EtraNew
-    TransArray(4) = PartState(PartID,4)-VelXold
-    TransArray(5) = PartState(PartID,5)-VelYold
-    TransArray(6) = PartState(PartID,6)-VelZold
+    ! must be old_velocity-new_velocity
+    TransArray(4) = VelXold-PartState(PartID,4)
+    TransArray(5) = VelYold-PartState(PartID,5)
+    TransArray(6) = VelZold-PartState(PartID,6)
   
     !---- Internal energy accommodation
     IF (CollisMode.GT.1) THEN
@@ -2719,9 +2721,10 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle species change at contact an
     TransArray(1) = EtraOld
     TransArray(2) = EtraWall
     TransArray(3) = EtraNew
-    TransArray(4) = PartState(PartID,4)-VelXold
-    TransArray(5) = PartState(PartID,5)-VelYold
-    TransArray(6) = PartState(PartID,6)-VelZold
+    ! must be old_velocity-new_velocity
+    TransArray(4) = VelXold-PartState(PartID,4)
+    TransArray(5) = VelYold-PartState(PartID,5)
+    TransArray(6) = VelZold-PartState(PartID,6)
   
     !---- Internal energy accommodation
     IF (CollisMode.GT.1) THEN
@@ -3057,9 +3060,10 @@ CASE(1) ! molecular condensation
     TransArray(1) = EtraOld
     TransArray(2) = EtraWall
     TransArray(3) = EtraNew
-    TransArray(4) = PartState(PartID,4)-VelXold
-    TransArray(5) = PartState(PartID,5)-VelYold
-    TransArray(6) = PartState(PartID,6)-VelZold
+    ! must be old_velocity-new_velocity
+    TransArray(4) = VelXold-PartState(PartID,4)
+    TransArray(5) = VelYold-PartState(PartID,5)
+    TransArray(6) = VelZold-PartState(PartID,6)
   
     !---- Internal energy accommodation
     IF (CollisMode.GT.1) THEN
