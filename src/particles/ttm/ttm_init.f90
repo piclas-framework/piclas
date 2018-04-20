@@ -101,25 +101,20 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_TTM_Vars
-USE MOD_Restart_Vars          ,ONLY: DoRestart
+USE MOD_Restart_Vars      ,ONLY: DoRestart
 #ifdef MPI
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /* MPI*/
-USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Vars         ,ONLY: BoltzmannConst
-USE MOD_Equation_Vars         ,ONLY: eps0
-USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
-
-
-
-
-USE MOD_Restart_Vars,            ONLY:RestartFile
-USE MOD_TTM_Vars,                ONLY:DoImportTTMFile
-!USE MOD_IO_HDF5,                 ONLY:AddToElemData,ElementOut
-USE MOD_TTM_Vars,                ONLY:TTM_Cell_1,TTM_Cell_2,TTM_Cell_3,TTM_Cell_4,TTM_Cell_5,TTM_Cell_6,TTM_Cell_7,TTM_Cell_8
-USE MOD_TTM_Vars,                ONLY:TTM_Cell_9,TTM_Cell_10,TTM_Cell_11,TTM_Cell_12,TTM_Cell_13,TTM_Cell_14,TTM_Cell_15
-USE MOD_TTM_Vars,                ONLY:TTM_Cell_16,TTM_Cell_17,TTM_Cell_18
-USE MOD_StringTools,             ONLY:STRICMP
+USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Vars     ,ONLY: BoltzmannConst
+USE MOD_Equation_Vars     ,ONLY: eps0
+USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
+USE MOD_Restart_Vars      ,ONLY: RestartFile
+USE MOD_TTM_Vars          ,ONLY: DoImportTTMFile
+USE MOD_TTM_Vars          ,ONLY: TTM_Cell_1,TTM_Cell_2,TTM_Cell_3,TTM_Cell_4,TTM_Cell_5,TTM_Cell_6,TTM_Cell_7,TTM_Cell_8
+USE MOD_TTM_Vars          ,ONLY: TTM_Cell_9,TTM_Cell_10,TTM_Cell_11,TTM_Cell_12,TTM_Cell_13,TTM_Cell_14,TTM_Cell_15
+USE MOD_TTM_Vars          ,ONLY: TTM_Cell_16,TTM_Cell_17,TTM_Cell_18
+USE MOD_StringTools       ,ONLY: STRICMP
 USE MOD_IO_hdf5
 USE MOD_HDF5_Input
 ! IMPLICIT VARIABLE HANDLING
@@ -353,12 +348,6 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           TTM_Cell_18=0.0
           CALL AddToElemData(ElementOut,'TTM_lambda_D(DebyeLength)',RealArray=TTM_Cell_18(1:PP_nElems))
 
-
-
-
-
-
-
           DO iElem=1,PP_nElems
             DO iELemFD=1,FD_nElems
               IF(ElemIsDone(iElemFD))CYCLE ! the element has already been found
@@ -390,8 +379,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               TTM_Cell_13(iElem) = SQRT(TTM_Cell_12(iElem)*ElectronCharge**2/(ElectronMass*eps0))
 
               ! 'omega_pe_warm(PlasmaFrequency)'
-              ! w_peTTMwarm = w_peTTM + 3 * kB * TeTTM / me0
-              TTM_Cell_14(iElem) = TTM_Cell_13(iElem) + 3 * BoltzmannConst * TTM_Cell_2(iElem) / ElectronMass
+              ! w_peTTMwarm = w_peTTM + 3 * kB * TeTTM_in_K / me0
+              TTM_Cell_14(iElem) = TTM_Cell_13(iElem) + 3 * BoltzmannConst * TTM_Cell_2(iElem) / ElectronMass / 8.621738E-5
 
               ! 'dt_PIC_cold(TimeStep)'
               ! dtPICTTM=0.2./w_peTTM
@@ -423,11 +412,6 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               END IF
             END DO
           END DO
-
-
-
-
-
           SWRITE(UNIT_stdOut,'(A)') ' Done.'
           IF(ANY(ElemIsDone).EQV..FALSE.)THEN
             SWRITE(UNIT_stdOut,'(A)') " NOT all IMD TTM FD cells have been located within the DG grid!"
@@ -451,8 +435,6 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
     END IF
   ELSE
     SWRITE(UNIT_stdOut,'(A)')' INIT TTM: data will be read from restart file!'
-
-
     IF(MPIRoot)THEN
       nRestartVars=0
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
@@ -646,11 +628,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
   SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_max'),&
       ' | ',lambda_D_max,' | ',TRIM("OUTPUT"),' | '
 
-
-
   ! Fill .csv file for analysis
   CALL WriteTTMdataToCSV()
-
 
 END IF !DoImportTTMFile.EQV..TRUE.
 
@@ -786,16 +765,16 @@ SUBROUTINE InitIMD_TTM_Coupling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars,   ONLY:ElectronCharge
 USE MOD_PreProc
 USE MOD_TTM_Vars
-USE MOD_Particle_Vars, ONLY:PDM,PEM,BoltzmannConst,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
-USE MOD_Eval_xyz,      ONLY:eval_xyz_elemcheck
-USE MOD_Mesh_Vars,     ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_DSMC_Vars,     ONLY:CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission, ONLY:CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars,     ONLY:useDSMC
-USE MOD_Eval_xyz,      ONLY:Eval_XYZ_Poly
+USE MOD_Globals_Vars  ,ONLY: ElectronCharge
+USE MOD_Particle_Vars ,ONLY: PDM,PEM,BoltzmannConst,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
+USE MOD_Eval_xyz      ,ONLY: eval_xyz_elemcheck
+USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars     ,ONLY: useDSMC
+USE MOD_Eval_xyz      ,ONLY: Eval_XYZ_Poly
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
