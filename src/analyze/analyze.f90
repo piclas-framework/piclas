@@ -126,10 +126,16 @@ IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
+
+! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms  =GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
+
+! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
 WRITE(DefStr,'(i4)') 2*(PP_N+1)
 NAnalyze=GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
+
+! Get the time step for performing analyzes and integer for skipping certain steps
 Analyze_dt=GETREAL('Analyze_dt','0.')
 nSkipAnalyze=GETINT('nSkipAnalyze','1')
 doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
