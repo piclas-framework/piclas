@@ -102,7 +102,7 @@ TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
   CALL ReadTimeAverage(TimeAverageFile)
   DoDeposition=.FALSE.
-  DepositionType='NONE'
+  DepositionType='constant'
   RETURN
 END IF
 
