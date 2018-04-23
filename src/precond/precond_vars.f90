@@ -17,6 +17,9 @@ INTEGER               :: PrecondType
 INTEGER               :: DebugMatrix
 LOGICAL               :: doVol,doSurf
 LOGICAL               :: UpdatePrecond
+#ifdef MPI
+LOGICAL               :: UpdatePrecondLB
+#endif /*MPI*/
 LOGICAL               :: PrecondInitIsDone
 REAL,ALLOCATABLE      :: invBJ(:,:,:,:,:,:)  !inverse of block Jacobian for each DOF (1:PP_nVar,1:PP_nVar,0:N,0:N,0:N,1:PP_nElems)
 REAL,ALLOCATABLE      :: invJ(:,:,:,:,:)  ! inverse of Jacobian (1:PP_nVar,0:N,0:N,0:N,1:PP_nElems)
