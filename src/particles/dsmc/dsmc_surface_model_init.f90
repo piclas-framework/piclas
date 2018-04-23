@@ -1782,13 +1782,13 @@ IF (ALLOCATED(SurfCoverageSendBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfCoverageSendBuf(iProc)%content)
   END DO
-  DEALLOCATE(SurfDistSendBuf)
+  DEALLOCATE(SurfCoverageSendBuf)
 END IF
 IF (ALLOCATED(SurfCoverageRecvBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfCoverageRecvBuf(iProc)%content)
   END DO
-  DEALLOCATE(SurfDistRecvBuf)
+  DEALLOCATE(SurfCoverageRecvBuf)
 END IF
 #endif /*MPI*/
 
