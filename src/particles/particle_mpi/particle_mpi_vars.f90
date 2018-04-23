@@ -28,6 +28,7 @@ INTEGER,ALLOCATABLE :: PartHaloSideToProc(:,:)                               ! c
 INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
 LOGICAL                                  :: printMPINeighborWarnings         ! print warning messages or not
+LOGICAL                                  :: printBezierControlPointsWarnings ! print warning messages or not
 INTEGER                                  :: iMessage                         ! Number of MPI-Messages for Debug purpose
 
 TYPE tPartMPIGROUP
