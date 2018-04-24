@@ -1055,6 +1055,7 @@ USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,SimulationTime,InitializationWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Globals          ,ONLY: abort
+USE MOD_Globals          ,ONLY: nProcessors
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -1067,9 +1068,10 @@ REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=50)                        :: formatStr
-INTEGER,PARAMETER                        :: nOutputVar=11
+INTEGER,PARAMETER                        :: nOutputVar=12
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time', &
+    'Procs', &
     'MinWeight', &
     'MaxWeight', &
     'CurrentImbalance', &
@@ -1126,6 +1128,7 @@ ELSE !
     WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
     WRITE(tmpStr2,formatStr)&
               " ",time_loc, &
+        delimiter,REAL(nProcessors), &
         delimiter,MinWeight, &
         delimiter,MaxWeight, &
         delimiter,CurrentImbalance, &
