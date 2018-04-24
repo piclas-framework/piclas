@@ -246,6 +246,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,tTotal
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
 #endif /*MPI*/
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
@@ -495,6 +496,9 @@ DO !iter_t=0,MaxIter
   !END IF
 
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
+#if USE_LOADBALANCE
+  IF (tAnalyzeDiff.LE.LoadBalanceSample*dt .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
+#endif /*USE_LOADBALANCE*/
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
   IF ( dt .LT. 0. ) THEN
@@ -571,9 +575,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_LD_DSMC(time)
 #endif
   ! calling the analyze routines
-!#ifdef MPI
-!     CALL LoadMeasure() ! this is deprecated, because LoadSum is not used anywhere
-!#endif /*MPI*/
   iter=iter+1
   iter_loc=iter_loc+1
   time=time+dt
@@ -611,6 +612,7 @@ DO !iter_t=0,MaxIter
 #if !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
+    ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad(PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
@@ -712,7 +714,10 @@ DO !iter_t=0,MaxIter
     IF (tAnalyze > tEnd) tAnalyze = tEnd
 #ifdef MPI
     tTotal=0. ! Moved from LoadMeasure
+#if USE_LOADBALANCE
     IF(DoLoadBalance)THEN
+      PerformLBSample=.FALSE.
+      ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
       CALL LoadBalance(PerformLoadBalance)
       !#ifndef PP_HDG
@@ -729,9 +734,11 @@ DO !iter_t=0,MaxIter
       !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
       END IF
-    ELSE 
+    ELSE
+      PerformLBSample=.FALSE.
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
     END IF
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
   END IF   

@@ -205,7 +205,7 @@ ELSE
   stotalParts=1.0/REAL(PP_nElems)
   nPartsPerElem=1
 END IF
-tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
+tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)!+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
 IF(DoRefMapping)THEN
   helpSum=SUM(nTracksPerElem)
   IF(SUM(nTracksPerEleM).GT.0) THEN
@@ -473,7 +473,7 @@ SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars,    ONLY:ElemTime
+USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -484,34 +484,37 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-WeightSum=SUM(ElemTime)
-
-IF(ALMOSTZERO(WeightSum))THEN
-  IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., WeightSum=',WeightSum
-END IF
-
-CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-
-WeightSum    = TargetWeight ! Set total weight for writing to file
-TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
-
-!IF(ALMOSTZERO(WeightSum))CALL abort( __STAMP__&
-    !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)
-
-! new computation of current imbalance
-IF(ABS(TargetWeight).LE.0.0)THEN
-  SWRITE(UNIT_stdOut,'(A,F8.2,A1)')' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
-  CurrentImbalance = HUGE(1.0)
+IF(.NOT. PerformLBSample) THEN
+  WeightSum=0.
+  TargetWeight=0.
+  CurrentImbalance = 0.
 ELSE
-  CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+  WeightSum=SUM(ElemTime)
+
+  IF(ALMOSTZERO(WeightSum))THEN
+    IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., WeightSum=',WeightSum
+  END IF
+
+  CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+
+  WeightSum    = TargetWeight ! Set total weight for writing to file
+  TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+
+  !IF(ALMOSTZERO(WeightSum))CALL abort( __STAMP__&
+      !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)
+
+  ! new computation of current imbalance
+  IF(ABS(TargetWeight).EQ.0.)THEN
+    CurrentImbalance = 0.
+  ELSE IF(ABS(TargetWeight).LT.0.0)THEN
+    SWRITE(UNIT_stdOut,'(A,F8.2,A1)')' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
+    CurrentImbalance = HUGE(1.0)
+  ELSE
+    CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+  END IF
 END IF
-
-
-! old stuff
-!CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
-!CurrentImbalance=MaxWeight/TargetWeight
 
 END SUBROUTINE ComputeImbalance
 
