@@ -98,6 +98,7 @@
 
 !#define DEBUGMESH
 
+! define side indeces used in sidetype array
 #define PLANAR_RECT    0
 #define PLANAR_NONRECT 1
 #define BILINEAR       2
@@ -138,6 +139,10 @@
 #define LB_UNFP          12
 #define LB_DGANALYZE     13
 #define LB_PARTANALYZE   14
+#define LB_SURF          15
+#define LB_SURFFLUX      16
+
+#define LB_NTIMES        16
 
 ! DSMC_analyze indeces used in arrays
 #define DSMC_VELOX       1

@@ -60,6 +60,8 @@ CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Weight of par
                                                                   "(only used if ElemTime does not exist or DoLoadBalance=F)."&
                                                                , value='0.02')
 CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads. (def.: 1 or -1)")
+CALL prms%CreateIntOption(     'LoadBalanceSample'           ,  "Number of iterations used for calculation of elemtime information"&
+                                                               , value='10')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -97,9 +99,11 @@ END IF
 !DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
 nLoadBalanceSteps = 0
+LoadBalanceSample  = GETINT('LoadBalanceSample')
+PerformLBSample = .FALSE.
 
-ALLOCATE( tTotal(1:14)   )
-ALLOCATE( tCurrent(1:14) )
+ALLOCATE( tTotal(1:LB_NTIMES)   )
+ALLOCATE( tCurrent(1:LB_NTIMES) )
 !ALLOCATE( LoadSum(1:14)  )
 !  1 -tDG
 !     2 -tDGComm ! (not used for ElemTime!)
@@ -119,7 +123,6 @@ ALLOCATE( tCurrent(1:14) )
 
 tCartMesh=0.
 tTracking=0.
-tSurfaceFlux=0.
 
 tTotal=0.
 !LoadSum=0.
@@ -150,7 +153,7 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold!,nLoadIter!,LoadSum
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
-USE MOD_LoadBalance_Vars       ,ONLY: tSurfaceFlux,nSurfacefluxPerElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
@@ -248,7 +251,7 @@ DO iElem=1,PP_nElems
                   + tParts * nPartsPerElem(iElem)*sTotalParts    &
                   + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
                   + tTracking * nTracksPerElem(iElem)*sTotalTracks &
-                  + tSurfaceFlux * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
+                  + tTotal(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
   IF(   (TRIM(DepositionType).EQ.'shape_function')             &
    .OR. (TRIM(DepositionType).EQ.'shape_function_1d')          &    
    .OR. (TRIM(DepositionType).EQ.'shape_function_cylindrical') &    
@@ -282,7 +285,6 @@ nSurfacefluxPerElem=0
 
 tCartMesh  =0.
 tTracking  =0.
-tSurfaceFlux =0.
 #endif /*PARTICLES*/
 
 !tTotal     =0.

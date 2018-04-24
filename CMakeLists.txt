@@ -92,6 +92,7 @@ SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3
 OPTION(BOLTZPLATZ_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(BOLTZPLATZ_BUILDPOSTI "Build POSTI toolset" OFF)
 OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
+CMAKE_DEPENDENT_OPTION(BOLTZPLATZ_LOADBALANCE "Use LoadBalance timemeasurement" ON "BOLTZPLATZ_MPI" OFF)
 OPTION(BOLTZPLATZ_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(BOLTZPLATZ_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
 SET(BOLTZPLATZ_BUILD_HDF5 OFF  CACHE BOOL "Compile and build hdf5 library")
@@ -532,6 +533,16 @@ IF(BOLTZPLATZ_MPI)
   ADD_DEFINITIONS(-DMPI)
   MESSAGE(STATUS "Building Boltzplatz with MPI")
   MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
+ENDIF()
+
+# ========================================================================
+# LOADBALANCE
+# =========================================================================
+IF(BOLTZPLATZ_LOADBALANCE)
+  MESSAGE(STATUS "Building Boltzplatz with LoadBalance")
+  ADD_DEFINITIONS(-DUSE_LOADBALANCE=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_LOADBALANCE=0)
 ENDIF()
 
 # ========================================================================= 

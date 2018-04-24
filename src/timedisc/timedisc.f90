@@ -1418,6 +1418,9 @@ USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDeso
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1428,7 +1431,13 @@ IMPLICIT NONE
 REAL                  :: timeEnd, timeStart
 INTEGER :: iPart
 REAL    :: RandVal, dtFrac
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
   IF (DoSurfaceFlux) THEN
     ! Calculate desobing particles for Surfaceflux
@@ -1440,7 +1449,15 @@ REAL    :: RandVal, dtFrac
       !CALL AnalyzePartitionTemp()
     END IF
     IF (LiquidSimFlag) CALL Evaporation()
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
     CALL ParticleSurfaceflux()
+
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%dtFracPush(iPart)) THEN
@@ -1461,6 +1478,9 @@ REAL    :: RandVal, dtFrac
         END IF
       END IF
     END DO
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ELSE
     LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
     LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
@@ -1469,10 +1489,17 @@ REAL    :: RandVal, dtFrac
     PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
     PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
     PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
+
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbOfParticles()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
@@ -1490,15 +1517,30 @@ REAL    :: RandVal, dtFrac
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
 #ifdef MPI
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_TRACK,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! send number of particles
   CALL SendNbOfParticles()
   ! finish communication of number of particles and send particles
   CALL MPIParticleSend()
   ! finish communication
   CALL MPIParticleRecv()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
+
   CALL DSMC_Update_Wall_Vars()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   CALL ParticleInserting()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   IF (CollisMode.NE.0) THEN
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
@@ -1511,6 +1553,10 @@ REAL    :: RandVal, dtFrac
     __STAMP__&
     ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
   END IF
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_UNFP,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   CALL DSMC_main()
 
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
@@ -1519,6 +1565,9 @@ REAL    :: RandVal, dtFrac
                                          + DSMC_RHS(1:PDM%ParticleVecLength,2)
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE TimeStep_DSMC
 #endif
