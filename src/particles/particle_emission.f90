@@ -4358,10 +4358,12 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
+#ifdef CODE_ANALYZE
     IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
       IPWRITE(*,'(I4,A,2(x,I0),A,3(x,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ' &
                                             , nType0(iSF,iSpec),nType1(iSF,iSpec),nType2(iSF,iSpec)
     END IF
+#endif /*CODE_ANALYZE*/
 
     !--- 3b: ReduceNoise initialization
     IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
