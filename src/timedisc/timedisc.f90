@@ -617,7 +617,9 @@ DO !iter_t=0,MaxIter
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
     CALL ComputeElemLoad(PerformLoadBalance,time)
+#ifdef maxwell
     UpdatePrecondLB=PerformLoadBalance
+#endif /*maxwell*/
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
@@ -2047,9 +2049,9 @@ USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
-#ifdef MPI
+#if defined(maxwell) && defined(MPI)
 USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
-#endif /*MPI*/
+#endif /*maxwell && MPI*/
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
@@ -3260,7 +3262,9 @@ USE MOD_DG_Vars,                 ONLY:U,Un
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
 #ifdef MPI
+#if defined(MPI) && defined(maxwell)
 USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+#endif /*MPI && maxwell*/
 #endif /*MPI*/
 USE MOD_Precond_Vars,            ONLY:UpdatePrecond
 USE MOD_LinearOperator,          ONLY:MatrixVector
