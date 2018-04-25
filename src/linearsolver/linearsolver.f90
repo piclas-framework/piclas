@@ -1603,12 +1603,20 @@ SUBROUTINE FinalizeLinearSolver()
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS
-#if IMPA
 #ifdef PARTICLES
+#if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
-USE MOD_LinearSolver_Vars,ONLY:ExplicitPartSource
-#endif /*PARTICLES*/
 #endif
+#ifdef IMPA
+USE MOD_LinearSolver_Vars,ONLY:ExplicitPartSource
+#endif
+#endif /*PARTICLES*/
+#ifndef PP_HDG
+#if defined(ROS) || defined(IMPA)
+USE MOD_Precond,              ONLY:FinalizePrecond
+USE MOD_LinearSolver_Vars,ONLY:FieldStage,mass
+#endif /*ROS or IMPA*/
+#endif /*NOT HDG*/
 USE MOD_Predictor    ,ONLY:FinalizePredictor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1624,13 +1632,23 @@ LinearSolverInitIsDone = .FALSE.
 SDEALLOCATE(ImplicitSource)
 SDEALLOCATE(LinSolverRHS)
 CALL FinalizePredictor
-#if IMPA
 #ifdef PARTICLES
+#ifdef IMPA
 SDEALLOCATE(ExplicitPartSource)
-CALL FinalizePartSolver()
-#endif /*PARTICLES*/
 #endif
+#if defined(IMPA) || defined(ROS)
+CALL FinalizePartSolver()
+#endif
+#endif /*PARTICLES*/
+#ifndef PP_HDG
+#if defined(ROS) || defined(IMPA)
+SDEALLOCATE(FieldStage)
+SDEALLOCATE(mass)
+CALL FinalizePrecond()
+#endif /*ROS or IMPA*/
+#endif /*NOT HDG*/
 !SDEALLOCATE(FieldSource)
+
 END SUBROUTINE FinalizeLinearSolver
 
 END MODULE MOD_LinearSolver
