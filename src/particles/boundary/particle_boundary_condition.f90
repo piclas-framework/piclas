@@ -83,8 +83,6 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
 INTEGER                              :: WallModeltype, adsorbindex
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-#endif
 LOGICAL                              :: isSpeciesSwap
 !===================================================================================================================================
 
@@ -626,6 +624,8 @@ USE MOD_TImeDisc_Vars,          ONLY:tend,time
 USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
+#elif (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars,          ONLY:PDM
 #endif
 USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
@@ -865,7 +865,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 !lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
-#if defined(LSERK)
+#if defined(LSERK) || (PP_TimeDiscMethod==509)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
    ! correction for Runge-Kutta (correct position!!)
 !---------- old ----------
@@ -878,6 +878,7 @@ PartTrajectory=PartTrajectory/lengthPartTrajectory
 !-------------------------
 IF (.NOT.ALMOSTZERO(DOT_PRODUCT(WallVelo,WallVelo))) THEN
   PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
+#if defined(LSERK)
 ELSE
   Pt_temp(PartID,1:3)=Pt_temp(PartID,1:3)-2.*DOT_PRODUCT(Pt_temp(PartID,1:3),n_loc)*n_loc
   IF (Symmetry) THEN !reflect also force history for symmetry
@@ -885,8 +886,9 @@ ELSE
   ELSE
     Pt_temp(PartID,4:6)=0. !produces best result compared to analytical solution in plate capacitor...
   END IF
-END IF
 #endif  /*LSERK*/
+END IF
+#endif  /*LSERK || (PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
 ! rotate the Runge-Kutta coefficients into the new system 
@@ -1024,7 +1026,7 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies,WriteMacroSurfaceValues
-#if defined(LSERK)
+#if defined(LSERK) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,          ONLY:PDM
 #endif
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
@@ -1562,7 +1564,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 !lengthPartTrajectory=lengthPartTrajectory!+epsilontol
 
-#if defined(LSERK)
+#if defined(LSERK) || (PP_TimeDiscMethod==509)
 PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 #endif
 

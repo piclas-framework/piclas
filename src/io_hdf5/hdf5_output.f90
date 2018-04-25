@@ -521,6 +521,9 @@ USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usev
 USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
+#if (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
+#endif /*(PP_TimeDiscMethod==509)*/
 #ifdef MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*MPI*/
@@ -672,9 +675,19 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
         PartData(iPart,1)=PartState(pcount,1)
         PartData(iPart,2)=PartState(pcount,2)
         PartData(iPart,3)=PartState(pcount,3)
+#if (PP_TimeDiscMethod==509)
+        IF (velocityOutputAtTime) THEN
+          PartData(iPart,4)=velocityAtTime(pcount,1)
+          PartData(iPart,5)=velocityAtTime(pcount,2)
+          PartData(iPart,6)=velocityAtTime(pcount,3)
+        ELSE
+#endif /*(PP_TimeDiscMethod==509)*/
         PartData(iPart,4)=PartState(pcount,4)
         PartData(iPart,5)=PartState(pcount,5)
         PartData(iPart,6)=PartState(pcount,6)
+#if (PP_TimeDiscMethod==509)
+        END IF
+#endif /*(PP_TimeDiscMethod==509)*/
         PartData(iPart,7)=REAL(PartSpecies(pcount))
         IF (withDSMC.AND.(.NOT.(useLD))) THEN
         !IF (withDSMC) THEN

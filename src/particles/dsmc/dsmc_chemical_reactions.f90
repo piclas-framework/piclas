@@ -414,6 +414,8 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
       END IF
       !Set new Species of new particle
       PDM%ParticleInside(React3Inx) = .true.
+      PDM%IsNewPart(React3Inx) = .true.
+      PDM%dtFracPush(React3Inx) = .FALSE.
       PartSpecies(React3Inx) = ProductReac(3)
       PartState(React3Inx,1:3) = PartState(React1Inx,1:3)
       IF(DoRefMapping)THEN ! here Nearst-GP is missing

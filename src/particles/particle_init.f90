@@ -115,6 +115,10 @@ CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-P
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
                                                                  , '100000')
+#if (PP_TimeDiscMethod==509)
+CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
+#endif
+
 ! IMD things
 CALL prms%CreateRealOption(     'IMDTimeScale'                       , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Time unit of input file', '10.18e-15')
@@ -1078,6 +1082,10 @@ REAL                  :: particlenumber_tmp
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
+#if (PP_TimeDiscMethod==509)
+velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
+#endif
+
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 !print*, "SFSDRWE#"
@@ -1089,6 +1097,17 @@ __STAMP__&
 END IF
 Pt_temp=0.
 #endif 
+#if (PP_TimeDiscMethod==509)
+IF (velocityOutputAtTime) THEN
+  ALLOCATE(velocityAtTime(1:PDM%maxParticleNumber,1:3), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'ERROR in particle_init.f90: Cannot allocate velocityAtTime array!')
+  END IF
+  velocityAtTime=0.
+END IF
+#endif /*(PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
@@ -2811,6 +2830,11 @@ TYPE(tSurfFluxPart),POINTER :: current,tmp
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
+#if (PP_TimeDiscMethod==509)
+IF (velocityOutputAtTime) THEN
+  SDEALLOCATE(velocityAtTime)
+END IF
+#endif /*(PP_TimeDiscMethod==509)*/
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)

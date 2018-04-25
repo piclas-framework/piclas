@@ -28,7 +28,7 @@ INTERFACE TimeStepPoissonByLSERK
 END INTERFACE
 #endif
 
-#if (PP_TimeDiscMethod==500)
+#if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
 INTERFACE TimeStepPoisson
   MODULE PROCEDURE TimeStepPoisson
 END INTERFACE
@@ -39,7 +39,7 @@ PUBLIC :: TimeDisc
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 PUBLIC :: TimeStepPoissonByLSERK
 #endif
-#if (PP_TimeDiscMethod==500)
+#if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
 PUBLIC :: TimeStepPoisson
 #endif
 !===================================================================================================================================
@@ -196,6 +196,8 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-5, Poisson'
 #elif (PP_TimeDiscMethod==506)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14, Poisson'
+#elif (PP_TimeDiscMethod==509)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==1000)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LD-Only'
 #elif (PP_TimeDiscMethod==1001)
@@ -219,6 +221,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,SimulationTime
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
+#if (PP_TimeDiscMethod==509)
+USE MOD_TimeDisc_Vars          ,ONLY: dt_old
+#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
@@ -298,6 +303,9 @@ USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
 USE MOD_LinearSolver_Vars      ,ONLY: TotalPartIterLinearSolver
 #endif /*IMPA || ROS*/
 #endif /*PARTICLES*/
+#if (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
+#endif /*(PP_TimeDiscMethod==509)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -500,8 +508,19 @@ DO !iter_t=0,MaxIter
   !ELSE
   !  IF(time.GT.4e-8) dt_Min=MIN(dt_Min*1.2,2e-8)
   !END IF
-
+#if (PP_TimeDiscMethod==509)
+  IF (iter.GT.0) THEN
+    dt_old=dt
+  END IF
+#endif /*(PP_TimeDiscMethod==509)*/
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
+#if (PP_TimeDiscMethod==509)
+  IF (iter.EQ.0) THEN
+    dt_old=dt
+  ELSE IF (ABS(dt-dt_old).GT.1.0E-6*dt_old) THEN
+    SWRITE(UNIT_StdOut,'(A,G0)')'WARNING: dt changed from last iter by a relative difference of ',(dt-dt_old)/dt_old
+  END IF
+#endif /*(PP_TimeDiscMethod==509)*/
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
   IF ( dt .LT. 0. ) THEN
@@ -560,10 +579,10 @@ DO !iter_t=0,MaxIter
   CALL TimeStepByEulerStaticExp(time) ! O1 Euler Static Explicit
 #elif (PP_TimeDiscMethod==201)
   CALL TimeStepByEulerStaticExpAdapTS(time) ! O1 Euler Static Explicit with adaptive TimeStep
-#elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=506)
+#elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 #ifdef PP_HDG
-#if (PP_TimeDiscMethod==500)
-  CALL TimeStepPoisson(time) ! Euler Explicit, Poisson
+#if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
+  CALL TimeStepPoisson(time) ! Euler Explicit or leapfrog, Poisson
 #else
   CALL TimeStepPoissonByLSERK(time,iter,tEndDiff) ! Runge Kutta Explicit, Poisson
 #endif
@@ -4460,18 +4479,19 @@ END SUBROUTINE TimeStepByEulerStaticExpAdapTS
 #endif
 
 #ifdef PP_HDG
-#if (PP_TimeDiscMethod==500)
+#if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
 SUBROUTINE TimeStepPoisson(t)
 !===================================================================================================================================
-! Hesthaven book, page 64
-! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
-! This procedure takes the current time t, the time step dt and the solution at
-! the current time U(t) and returns the solution at the next time level.
+! Euler (500) or Leapfrog (509) -push with HDG
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals,                 ONLY: Abort, LocalTime
 USE MOD_DG_Vars,                 ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY: dt,iter
+#if (PP_TimeDiscMethod==509)
+USE MOD_TimeDisc_Vars,           ONLY: dt_old
+#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG,                     ONLY: HDG
 USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping!,MeasureTrackTime
 #ifdef PARTICLES
@@ -4479,7 +4499,10 @@ USE MOD_PICDepo,                 ONLY: Deposition
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
 !USE MOD_Particle_Vars,           ONLY : Time
-USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux
+USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
+#if (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
+#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_part_RHS,                ONLY: CalcPartRHS
 !USE MOD_part_boundary,           ONLY : ParticleBoundary
 USE MOD_part_emission,           ONLY: ParticleInserting, ParticleSurfaceflux
@@ -4493,6 +4516,7 @@ USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPa
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars,      ONLY:  DoExternalParts
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_LoadBalance_Vars,        ONLY: tCurrent
 #endif
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
@@ -4508,12 +4532,16 @@ REAL,INTENT(IN)       :: t
 ! LOCAL VARIABLES
 INTEGER :: iPart
 REAL    :: RandVal, dtFrac
+#ifdef MPI
+! load balance
+REAL           :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
-!Time = t
-
+#ifdef PARTICLES
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
 #ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
   PartMPIExchange%nMPIParticles=0
   IF(DoExternalParts)THEN
     ! as we do not have the shape function here, we have to deallocate something
@@ -4542,59 +4570,121 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #endif /*MPI*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
+#endif /*PARTICLES*/
 
-! EM field
 CALL HDG(t,U,iter)
 
+#ifdef PARTICLES
+! set last data already here, since surfaceflux moved before interpolation
+#ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+#endif /*MPI*/
 IF (t.GE.DelayTime) THEN
-  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-  !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
-  CALL CalcPartRHS()
-END IF
-
-IF (DoSurfaceFlux) THEN
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-  IF (t.GE.DelayTime) THEN
+  IF (DoSurfaceFlux) THEN
     CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
   END IF
-  IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
-    DO iPart=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        IF (.NOT.PDM%dtFracPush(iPart)) THEN
-          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
-          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
-          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dt
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dt
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dt
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
+  !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+  CALL CalcPartRHS()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+#endif /*MPI*/
+END IF
+
+! particles
+IF (t.GE.DelayTime) THEN
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+      IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
+        CALL RANDOM_NUMBER(RandVal)
+        dtFrac = dt * RandVal
+        PDM%IsNewPart(iPart)=.FALSE. !no IsNewPart-treatment for surffluxparts
+      ELSE
+        dtFrac = dt
+#if (PP_TimeDiscMethod==509)
+        IF (PDM%IsNewPart(iPart)) THEN
+          !-- v(n) => v(n-0.5) by a(n):
+          PartState(iPart,4) = PartState(iPart,4) - Pt(iPart,1) * dt*0.5
+          PartState(iPart,5) = PartState(iPart,5) - Pt(iPart,2) * dt*0.5
+          PartState(iPart,6) = PartState(iPart,6) - Pt(iPart,3) * dt*0.5
+          PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
-          CALL RANDOM_NUMBER(RandVal)
-          dtFrac = dt * RandVal
-          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
-          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
-          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+          IF (ABS(dt-dt_old).GT.1.0E-6*dt_old) THEN
+            PartState(iPart,4:6)  = PartState(iPart,4:6) + Pt(iPart,1:3) * (dt_old-dt)*0.5
+          END IF
+        END IF
+#endif /*(PP_TimeDiscMethod==509)*/
+      END IF
+#if (PP_TimeDiscMethod==509)
+      IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart) .AND. .NOT.DoForceFreeSurfaceFlux) THEN
+        !-- x(BC) => x(n+1) by v(BC+X):
+        PartState(iPart,1) = PartState(iPart,1) + ( PartState(iPart,4) + Pt(iPart,1) * dtFrac*0.5 ) * dtFrac
+        PartState(iPart,2) = PartState(iPart,2) + ( PartState(iPart,5) + Pt(iPart,2) * dtFrac*0.5 ) * dtFrac
+        PartState(iPart,3) = PartState(iPart,3) + ( PartState(iPart,6) + Pt(iPart,3) * dtFrac*0.5 ) * dtFrac
+        !-- v(BC) => v(n+0.5) by a(BC):
+        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * (dtFrac - dt*0.5)
+        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * (dtFrac - dt*0.5)
+        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * (dtFrac - dt*0.5)
+        PDM%dtFracPush(iPart) = .FALSE.
+      ELSE IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoForceFreeSurfaceFlux
+        !-- x(n) => x(n+1) by v(n+0.5)=v(BC)
+        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
+        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
+        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+        PDM%dtFracPush(iPart) = .FALSE.
+      ELSE
+        !-- v(n-0.5) => v(n+0.5) by a(n):
+        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dt
+        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dt
+        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dt
+        !-- x(n) => x(n+1) by v(n+0.5):
+        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
+        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
+        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
+      END IF
+#else /*(PP_TimeDiscMethod==500)*/
+        !-- x(n) => x(n+1) by v(n):
+        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
+        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
+        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+      IF (DoForceFreeSurfaceFlux .AND. DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
+        PDM%dtFracPush(iPart) = .FALSE.
+      ELSE
+        !-- v(n) => v(n+1) by a(n):
+        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dtFrac
+        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dtFrac
+        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dtFrac
+        IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
           PDM%dtFracPush(iPart) = .FALSE.
         END IF
       END IF
-    END DO
-  END IF
-ELSE
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-  IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
-    PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
-    PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
-    PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
-    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + Pt(1:PDM%ParticleVecLength,1) * dt
-    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + Pt(1:PDM%ParticleVecLength,2) * dt
-    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + Pt(1:PDM%ParticleVecLength,3) * dt
-  END IF
+#endif /*(PP_TimeDiscMethod==500)*/
+    END IF
+  END DO
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 
 IF (t.GE.DelayTime) THEN
@@ -4612,10 +4702,49 @@ IF (t.GE.DelayTime) THEN
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()  ! finish communication
 #endif
+#if (PP_TimeDiscMethod==509)
+  IF (velocityOutputAtTime) THEN
+#ifdef MPI
+    PartMPIExchange%nMPIParticles=0
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+    CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
+    CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
+#endif /*MPI*/
+    CALL HDG(t,U,iter)
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
+    !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+    CALL CalcPartRHS()
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+    DO iPart=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        !-- v(n+0.5) => v(n+1) by a(n+1):
+        velocityAtTime(iPart,1:3) = PartState(iPart,4:6) + Pt(iPart,1:3) * dt*0.5
+      END IF
+    END DO
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+#endif /*MPI*/
+  END IF !velocityOutputAtTime
+#endif /*(PP_TimeDiscMethod==509)*/
   CALL ParticleCollectCharges()
 END IF
 
-
+#ifdef MPI
+PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
+#endif
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
@@ -4626,7 +4755,14 @@ IF (doParticleMerge) THEN
 END IF
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   CALL UpdateNextFreePosition()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 
 IF (doParticleMerge) THEN
@@ -4637,7 +4773,14 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   CALL UpdateNextFreePosition()
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+#endif /*MPI*/
 END IF
 
 IF (useDSMC) THEN
@@ -4651,8 +4794,10 @@ IF (useDSMC) THEN
                                            + DSMC_RHS(1:PDM%ParticleVecLength,3)
   END IF
 END IF
+#endif /*PARTICLES*/
+
 END SUBROUTINE TimeStepPoisson
-#endif /*(PP_TimeDiscMethod==500)*/
+#endif /*(PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)*/
 
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 SUBROUTINE TimeStepPoissonByLSERK(t,iter,tEndDiff)

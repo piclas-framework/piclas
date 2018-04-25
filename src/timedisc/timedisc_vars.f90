@@ -29,6 +29,9 @@ LOGICAL          :: DoDisplayEmissionWarnings
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 REAL             :: TimeDG, TimeParticle
 REAL             :: dt_Min
+#if IMPA || defined(ROS) || (PP_TimeDiscMethod==509)
+REAL             :: dt_old
+#endif /*IMPA || defined(ROS) || (PP_TimeDiscMethod==509)*/
 #if (PP_TimeDiscMethod==201)
 REAL             :: dt_temp
 INTEGER          :: MaximumIterNum
@@ -387,10 +390,9 @@ REAL,PARAMETER  :: RK3_b(1:2) = (/RK3_b1,RK3_b2/)
 #if IMPA
 ! || (PP_TimeDiscMethod==131)
 REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
-REAL               :: dt_old
 #endif
 #ifdef ROS
-REAL             :: dt_inv, dt_old
+REAL             :: dt_inv
 #endif /*ROSENBROCK RK*/
 #if (PP_TimeDiscMethod==130) 
 ! coefficients of Ianelli-Baker RO2-2
