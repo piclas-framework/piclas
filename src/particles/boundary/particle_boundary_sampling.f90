@@ -875,8 +875,8 @@ END DO ! iProc
 ! fill list with received side ids
 ! store the receiving data
 DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
   ALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList(SurfExchange%nSidesRecv(iProc)))
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
   iPos=1
   DO iRecvSide=1,SurfExchange%nSidesRecv(iProc)
     NativeElemID   =INT(SurfRecvBuf(iProc)%content(iPos))
