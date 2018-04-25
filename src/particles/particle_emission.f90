@@ -3977,12 +3977,12 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = 0
     END IF
   END DO !iSF
-  IF (nAdaptiveBC.GT.0) THEN
-    IF( (MINVAL(sum_pressurefraction(:)).LT.0.99).OR.(MAXVAL(sum_pressurefraction(:)).GT.1.01) ) CALL abort( &
+END DO ! iSpec
+IF (nAdaptiveBC.GT.0) THEN
+  IF( (MINVAL(sum_pressurefraction(:)).LT.0.99).OR.(MAXVAL(sum_pressurefraction(:)).GT.1.01) ) CALL abort( &
 __STAMP__&
 , 'Sum of all pressurefractions .NE. 1')
-  END IF
-END DO ! iSpec
+END IF
 
 SDEALLOCATE(Adaptive_BC_Map)
 SDEALLOCATE(Adaptive_Found_Flag)
