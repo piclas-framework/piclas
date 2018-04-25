@@ -4952,26 +4952,6 @@ __STAMP__&
           END IF
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
-#if (PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)
-            IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
-              NbrOfSurfFluxParts=1
-              ALLOCATE(currentSurfFluxPart)
-              firstSurfFluxPart => currentSurfFluxPart
-              IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-                Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-              END IF
-            ELSE
-              NbrOfSurfFluxParts=NbrOfSurfFluxParts+1
-              ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
-              currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
-              IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-              END IF
-              Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-            END IF
-            currentSurfFluxPart%PartIdx = ParticleIndexNbr
-#endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
             IF (noAdaptive) THEN
               ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
               ! create linked list of surfaceflux-particle-info for sampling case
@@ -4980,7 +4960,6 @@ __STAMP__&
                   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
                       .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
                     IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
-#if (PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)
                       IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
                         ALLOCATE(currentSurfFluxPart)
                         firstSurfFluxPart => currentSurfFluxPart
@@ -5009,9 +4988,6 @@ __STAMP__&
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                       END IF
                       currentSurfFluxPart%PartIdx = ParticleIndexNbr
-#endif /*(PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)*/
-! careful this part is always done, so association of pointer "currentSurfFluxPart" has to be done in every timedisc but in
-! different ways
                       IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
                         IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
                         currentSurfFluxPart%SideInfo(1) = iSide
@@ -5254,12 +5230,6 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
       END IF
-#if (PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)
-      IF ( useDSMC .OR. LiquidSimFlag) THEN
-        IF ( (DSMC%WallModel.GT.0 .AND. SolidSimFlag) .OR. LiquidSimFlag) THEN
-          IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
-              .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-#endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
             IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (PartsEmitted.GT.0)) THEN
               ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
               ! only allocated if sampling and surface model enabled
@@ -5321,11 +5291,6 @@ __STAMP__&
                 END IF
               END DO
             END IF ! reflective bc
-#if (PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)
-          END IF ! sampling is on (CalcSurfaceVal)
-        END IF ! wallmodel or liquidsim
-      END IF ! useDSMC or liquid
-#endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
       IF (ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
         Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart  => NULL()
         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => NULL()

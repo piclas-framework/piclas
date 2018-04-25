@@ -337,7 +337,11 @@ IF(DoRestart)THEN
     IF(DG_SolutionUExists)THEN
       CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     ELSE
-      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      CALL abort(&
+__STAMP__&
+,' DG_SolutionU does not exist in restart-file!')
+      !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
+      !CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     END IF
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
     IF(DG_SolutionLambdaExists)THEN
