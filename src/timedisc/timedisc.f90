@@ -240,7 +240,9 @@ USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #ifdef MPI
 #ifdef maxwell
+#if defined(ROS) || defined(IMPA)
 USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
+#endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*MPI*/
 #endif /*PP_HDG*/
@@ -618,7 +620,9 @@ DO !iter_t=0,MaxIter
 #endif
     CALL ComputeElemLoad(PerformLoadBalance,time)
 #ifdef maxwell
+#if defined(ROS) || defined(IMPA)
     UpdatePrecondLB=PerformLoadBalance
+#endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*MPI*/
     ! future time
