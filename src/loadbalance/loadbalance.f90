@@ -354,11 +354,11 @@ ElemTime=0.
 
 IF( NewImbalance.GT.CurrentImbalance ) THEN
   SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful!'
+END IF
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' OldImbalance: ', CurrentImbalance
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: ', NewImbalance
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    ', MaxWeight
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight: '   , MinWeight
-END IF
 
 #ifdef PARTICLES
 IF(   (TRIM(DepositionType).EQ.'shape_function')             &

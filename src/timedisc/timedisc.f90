@@ -497,7 +497,9 @@ DO !iter_t=0,MaxIter
 
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
 #if USE_LOADBALANCE
-  IF (tAnalyzeDiff.LE.LoadBalanceSample*dt .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
+  IF ((tAnalyzeDiff.LE.LoadBalanceSample*dt &                                 ! all iterations in LoadbalanceSample interval
+      .OR. (ALMOSTEQUALRELATIVE(tAnalyzeDiff,LoadBalanceSample*dt,1e-5))) &   ! make sure to get the first iteration in interval
+      .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
 #endif /*USE_LOADBALANCE*/
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
@@ -618,11 +620,11 @@ DO !iter_t=0,MaxIter
     ! future time
     nAnalyze=nAnalyze+1
     tFuture=tZero+REAL(nAnalyze)*Analyze_dt
-#ifdef MPI
+#if USE_LOADBALANCE
     IF(iAnalyze.EQ.nSkipAnalyze .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #else
     IF( iAnalyze.EQ.nSkipAnalyze .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
       IF(CountNbOfLostParts)THEN
 #ifdef MPI
@@ -715,18 +717,13 @@ DO !iter_t=0,MaxIter
 #ifdef MPI
     tTotal=0. ! Moved from LoadMeasure
 #if USE_LOADBALANCE
-    IF(DoLoadBalance)THEN
-      PerformLBSample=.FALSE.
-      ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
+    IF(DoLoadBalance.AND.PerformLBSample)THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
       CALL LoadBalance(PerformLoadBalance)
-      !#ifndef PP_HDG
-      !      dt_Min=CALCTIMESTEP()
-      !#endif /*PP_HDG*/
       IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
           CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
       IF(PerformLoadBalance) THEN
-        ! ONLY recalculate the timestep when the mesh is changed!
+        ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
         !CALL InitTimeStep() ! re-calculate time step after load balance is performed
         RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
         RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
@@ -735,13 +732,13 @@ DO !iter_t=0,MaxIter
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
       END IF
     ELSE
-      PerformLBSample=.FALSE.
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
     END IF
+    PerformLBSample=.FALSE.
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
-  END IF   
+  END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t
 !CALL FinalizeAnalyze
