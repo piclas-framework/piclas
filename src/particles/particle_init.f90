@@ -2805,9 +2805,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)
 TYPE(tSurfFluxPart),POINTER :: current,tmp
-#endif /*(PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)*/
 !===================================================================================================================================
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -2829,7 +2827,6 @@ SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
-#if (PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)
 current => firstSurfFluxPart
 DO WHILE (associated(current))
   DEALLOCATE(current%SideInfo)
@@ -2838,7 +2835,6 @@ DO WHILE (associated(current))
   NULLIFY(current)
   current => tmp
 END DO
-#endif /*(PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)*/
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartBound%SourceBoundName)

@@ -227,9 +227,6 @@ TYPE tSurfFluxPart
 END TYPE tSurfFluxPart
 
 TYPE(tSurfFluxPart), POINTER             :: firstSurfFluxPart => null()
-#if (PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512) 
-INTEGER                                  :: NbrOfSurfFluxParts
-#endif /*(PP_TimeDiscMethod==510) || (PP_TimeDiscMethod==511) || (PP_TimeDiscMethod==512)*/
 
 TYPE typeSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
