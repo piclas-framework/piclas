@@ -4699,12 +4699,14 @@ USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPa
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars,      ONLY:  DoExternalParts
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
-USE MOD_LoadBalance_Vars,        ONLY: tCurrent
 USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 #endif
 USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking,      ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 USE MOD_HDG           ,ONLY: HDG
 ! IMPLICIT VARIABLE HANDLING
@@ -4740,9 +4742,9 @@ iStage=1
 
 ! first RK step
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_LOADBALANCE
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 !Time=t
 RKdtFrac = RK_c(2)
 RKdtFracTotal=RKdtFrac
@@ -4750,7 +4752,6 @@ RKdtFracTotal=RKdtFrac
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
 #ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
   PartMPIExchange%nMPIParticles=0
   IF(DoExternalParts)THEN
     ! as we do not have the shape function here, we have to deallocate something
@@ -4766,7 +4767,13 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
     CALL MPIParticleSend()
   END IF
 #endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
   IF(DoExternalParts)THEN
     ! finish communication
@@ -4777,54 +4784,60 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
 CALL HDG(t,U,iter)
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! calling the analyze routines
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
 LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
 LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 IF (t.GE.DelayTime) THEN
   IF (DoSurfaceFlux) THEN
     CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
   END IF
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
   !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL CalcPartRHS()
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 ! particles
 IF (t.GE.DelayTime) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       !-- Pt is not known only for new Surfaceflux-Parts -> change IsNewPart back to F for other Parts
@@ -4888,10 +4901,9 @@ __STAMP__&
       END IF !IsNewPart
     END IF
   END DO
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (t.GE.DelayTime) THEN ! removed .OR.(iter.EQ.0) because particles have not moved
@@ -4918,9 +4930,9 @@ END IF
 DO iStage=2,nRKStages
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_LOADBALANCE
   CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
   IF (iStage.NE.nRKStages) THEN
     RKdtFrac = RK_c(iStage+1)-RK_c(iStage)
     RKdtFracTotal=RKdtFracTotal+RKdtFrac
@@ -4931,9 +4943,9 @@ DO iStage=2,nRKStages
 
   ! deposition 
   IF (t.GE.DelayTime) THEN
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
 #ifdef MPI
     ! here: finish deposition with delta kernal
@@ -4943,46 +4955,40 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
     CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 #endif /*PARTICLES*/
 
-  CALL HDG(tStage,U,iter)
+  CALL HDG(t,U,iter)
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 #ifdef PARTICLES
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
   ! set last data already here, since surfaceflux moved before interpolation
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
   LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
   LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF (t.GE.DelayTime) THEN
     IF (DoSurfaceFlux) CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
     ! forces on particle
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+#endif /*USE_LOADBALANCE*/
     !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
     CALL CalcPartRHS()
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
-#endif /*MPI*/
 
     ! particle step
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%IsNewPart(iPart)) THEN
@@ -5038,10 +5044,9 @@ DO iStage=2,nRKStages
         END IF !IsNewPart
       END IF
     END DO
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
     ! particle tracking
 #ifdef MPI
@@ -5077,14 +5082,13 @@ IF (doParticleMerge) THEN
 END IF
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_UNFP,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (doParticleMerge) THEN
@@ -5095,25 +5099,30 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_UNFP,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
     CALL DSMC_main()
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                            + DSMC_RHS(1:PDM%ParticleVecLength,1)
     PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
                                            + DSMC_RHS(1:PDM%ParticleVecLength,2)
     PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                            + DSMC_RHS(1:PDM%ParticleVecLength,3)
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 #endif /*PARTICLES*/

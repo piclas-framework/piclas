@@ -205,7 +205,7 @@ ELSE
   stotalParts=1.0/REAL(PP_nElems)
   nPartsPerElem=1
 END IF
-tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)!+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
+tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)+tTotal(LB_DSMC)!+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
 IF(DoRefMapping)THEN
   helpSum=SUM(nTracksPerElem)
   IF(SUM(nTracksPerElem).GT.0) THEN
