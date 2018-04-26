@@ -6146,7 +6146,8 @@ USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
+USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
+USE MOD_LoadBalance_vars,       ONLY:nPartsPerBCElem
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6165,13 +6166,14 @@ REAL                          :: tLBStart
 !===================================================================================================================================
 ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
 Source=0.0
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     ElemID = PEM%Element(i)
     IF(.NOT.IsTracingBCElem(ElemID))CYCLE
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
+    nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + 1
     !ElemID = BC2AdaptiveElemMap(ElemID)
     iSpec = PartSpecies(i)
     Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6)
@@ -6188,11 +6190,11 @@ DO i=1,PDM%ParticleVecLength
       END IF
     END IF
     Source(11,ElemID, iSpec) = Source(11,ElemID, iSpec) + 1.0
-#if USE_LOADBALANCE
-    CALL LBElemPauseTime(ElemID,tLBStart)
-#endif /*USE_LOADBALANCE*/
   END IF
 END DO
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 Theta=0.001
 

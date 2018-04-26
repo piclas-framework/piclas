@@ -81,6 +81,7 @@ INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nDeposPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nTracksPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nSurfacefluxPerElem(:)
+INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerBCElem(:)
 
 
 END MODULE MOD_LoadBalance_Vars

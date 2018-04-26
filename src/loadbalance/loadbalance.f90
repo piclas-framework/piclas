@@ -153,7 +153,7 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold!,nLoadIter!,LoadSum
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
-USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
@@ -172,7 +172,7 @@ INTEGER               :: iElem
 REAL                  :: tDG, tPML
 #ifdef PARTICLES
 INTEGER(KIND=8)       :: HelpSum
-REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes
+REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes, sTotalBCParts
 REAL                  :: tParts
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -235,6 +235,13 @@ helpSum=SUM(nSurfacefluxPerElem)
 IF(helpSum.GT.0) THEN
   stotalSurfacefluxes=1.0/REAL(helpSum)
 END IF
+helpSum=SUM(nPartsPerBCElem)
+IF(helpSum.GT.0) THEN
+  stotalBCParts=1.0/REAL(helpSum)
+ELSE
+  stotalBCParts=1.0/REAL(PP_nElems)
+  nPartsPerBCElem=1
+END IF
 #endif /*PARTICLES*/
 
 DO iElem=1,PP_nElems
@@ -257,6 +264,7 @@ DO iElem=1,PP_nElems
   !                                     nTracksPerElem(iElem),sTotalTracks,1.0/sTotalTracks
   !END IF
   ElemTime(iElem) = ElemTime(iElem)                              &
+                  + tTotal(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts &
                   + tParts * nPartsPerElem(iElem)*sTotalParts    &
                   + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
                   + tTracking * nTracksPerElem(iElem)*sTotalTracks &
@@ -291,6 +299,7 @@ nTracksPerElem=0
 nDeposPerElem=0
 nPartsPerElem=0
 nSurfacefluxPerElem=0
+nPartsPerBCElem=0
 
 tCartMesh  =0.
 tTracking  =0.
