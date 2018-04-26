@@ -187,7 +187,7 @@ USE MOD_IO_HDF5,            ONLY:AddToElemData,ElementOut
 #ifdef MPI
 USE MOD_io_hdf5
 USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight,DoLoadBalance
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem
+USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem,nPartsPerBCElem
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem
 #endif /*PARTICLES*/
@@ -387,6 +387,9 @@ nTracksPerElem=0
 SDEALLOCATE(nSurfacefluxPerElem)
 ALLOCATE(nSurfacefluxPerElem(1:nElems))
 nSurfacefluxPerElem=0
+SDEALLOCATE(nPartsPerBCElem)
+ALLOCATE(nPartsPerBCElem(1:nElems))
+nPartsPerBCElem=0
 #endif /*PARTICLES*/
 ! --
 #else /* MPI */

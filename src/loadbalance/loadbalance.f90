@@ -153,8 +153,8 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold!,nLoadIter!,LoadSum
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
-USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
@@ -172,7 +172,7 @@ INTEGER               :: iElem
 REAL                  :: tDG, tPML
 #ifdef PARTICLES
 INTEGER(KIND=8)       :: HelpSum
-REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes
+REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes, sTotalBCParts
 REAL                  :: tParts
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -208,7 +208,16 @@ END IF
 tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)!+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
 IF(DoRefMapping)THEN
   helpSum=SUM(nTracksPerElem)
-  IF(SUM(nTracksPerEleM).GT.0) THEN
+  IF(SUM(nTracksPerElem).GT.0) THEN
+    sTotalTracks=1.0/REAL(helpSum)
+  ELSE
+    stotalTracks=1.0/REAL(PP_nElems)
+    nTracksPerElem=1
+  END IF
+ELSE IF(TriaTracking)THEN
+  tTracking = tTotal(LB_TRACK)
+  helpSum=SUM(nTracksPerElem)
+  IF(SUM(nTracksPerElem).GT.0) THEN
     sTotalTracks=1.0/REAL(helpSum)
   ELSE
     stotalTracks=1.0/REAL(PP_nElems)
@@ -225,6 +234,13 @@ END IF
 helpSum=SUM(nSurfacefluxPerElem)
 IF(helpSum.GT.0) THEN
   stotalSurfacefluxes=1.0/REAL(helpSum)
+END IF
+helpSum=SUM(nPartsPerBCElem)
+IF(helpSum.GT.0) THEN
+  stotalBCParts=1.0/REAL(helpSum)
+ELSE
+  stotalBCParts=1.0/REAL(PP_nElems)
+  nPartsPerBCElem=1
 END IF
 #endif /*PARTICLES*/
 
@@ -248,6 +264,7 @@ DO iElem=1,PP_nElems
   !                                     nTracksPerElem(iElem),sTotalTracks,1.0/sTotalTracks
   !END IF
   ElemTime(iElem) = ElemTime(iElem)                              &
+                  + tTotal(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts &
                   + tParts * nPartsPerElem(iElem)*sTotalParts    &
                   + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
                   + tTracking * nTracksPerElem(iElem)*sTotalTracks &
@@ -282,6 +299,7 @@ nTracksPerElem=0
 nDeposPerElem=0
 nPartsPerElem=0
 nSurfacefluxPerElem=0
+nPartsPerBCElem=0
 
 tCartMesh  =0.
 tTracking  =0.

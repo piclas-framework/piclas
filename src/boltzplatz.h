@@ -141,8 +141,10 @@
 #define LB_PARTANALYZE   14
 #define LB_SURF          15
 #define LB_SURFFLUX      16
+#define LB_ADAPTIVE      17
+#define LB_DSMCANALYZE   18
 
-#define LB_NTIMES        16
+#define LB_NTIMES        18
 
 ! DSMC_analyze indeces used in arrays
 #define DSMC_VELOX       1
