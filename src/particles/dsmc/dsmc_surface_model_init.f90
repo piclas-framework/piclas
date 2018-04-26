@@ -1137,7 +1137,9 @@ Adsorption%NumOfDissocReact = 0
 Adsorption%NumOfAssocReact = 0
 Adsorption%NumOfExchReact = 0
 
+#if !(USE_LOADBALANCE)
 IF (SurfMesh%SurfOnProc .OR. MPIRoot) THEN
+#endif
   ! Adsorption constants
   ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
             Adsorption%Ads_Prefactor(1:nSpecies))
@@ -1493,7 +1495,9 @@ __STAMP__&
   ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
   Adsorption%TST_Calc(:,:) = .FALSE.
   IF (CalcTST_Case.GT.0) CALL Init_TST_Coeff(CalcTST_Case)
+#if !(USE_LOADBALANCE)
 END IF ! SurfMesh%SurfOnProc .OR. MPIRoot
+#endif
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
