@@ -11,12 +11,18 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                             :: DoLoadBalance                              ! DoLoadBalance
+INTEGER                             :: LoadBalanceSample                          ! Number of samples for loadbalance
+LOGICAL                             :: PerformLBSample                            ! Flag for enabling time measurement in current
+                                                                                  ! timestep (automatically set depending on LB
+                                                                                  ! sampling method)
 LOGICAL                             :: InitLoadBalanceIsDone                      ! switch for checking
 
 ! time measurement
 REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
+                                                                                  ! measured elem-independent and later weighted
 !REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
+                                                                                  ! measured elem-independent and later weighted
 !                                                                                 !  1 -tDG
 !                                                                                 !  2 -tDGComm
 !                                                                                 !  3 -tPML
@@ -31,6 +37,8 @@ REAL,ALLOCATABLE                    :: tCurrent(:)                              
 !                                                                                 ! 12 -UNFP
 !                                                                                 ! 13 -DGAnalyze
 !                                                                                 ! 14 -PartAnalyze
+!                                                                                 ! 15 -tSurf
+!                                                                                 ! 16 -tSurfflux
 
 ! counter
 REAL(KIND=8)                        :: nTotalParts                                ! number of particles in time of tTotal
@@ -67,7 +75,6 @@ REAL                                :: targetWeight                             
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                                :: tCartMesh                                  ! time for CartMesh deposition
 REAL                                :: tTracking                                  ! time for relocation of particles
-REAL                                :: tSurfaceFlux                               ! time not measured elem-independent
 REAL,ALLOCATABLE                    :: ElemTime(:)
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)

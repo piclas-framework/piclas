@@ -60,6 +60,8 @@ CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Weight of par
                                                                   "(only used if ElemTime does not exist or DoLoadBalance=F)."&
                                                                , value='0.02')
 CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads. (def.: 1 or -1)")
+CALL prms%CreateIntOption(     'LoadBalanceSample'           ,  "Number of iterations used for calculation of elemtime information"&
+                                                               , value='10')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -97,9 +99,11 @@ END IF
 !DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
 nLoadBalanceSteps = 0
+LoadBalanceSample  = GETINT('LoadBalanceSample')
+PerformLBSample = .FALSE.
 
-ALLOCATE( tTotal(1:14)   )
-ALLOCATE( tCurrent(1:14) )
+ALLOCATE( tTotal(1:LB_NTIMES)   )
+ALLOCATE( tCurrent(1:LB_NTIMES) )
 !ALLOCATE( LoadSum(1:14)  )
 !  1 -tDG
 !     2 -tDGComm ! (not used for ElemTime!)
@@ -119,7 +123,6 @@ ALLOCATE( tCurrent(1:14) )
 
 tCartMesh=0.
 tTracking=0.
-tSurfaceFlux=0.
 
 tTotal=0.
 !LoadSum=0.
@@ -150,7 +153,7 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold!,nLoadIter!,LoadSum
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
-USE MOD_LoadBalance_Vars       ,ONLY: tSurfaceFlux,nSurfacefluxPerElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
@@ -202,7 +205,7 @@ ELSE
   stotalParts=1.0/REAL(PP_nElems)
   nPartsPerElem=1
 END IF
-tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
+tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)!+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
 IF(DoRefMapping)THEN
   helpSum=SUM(nTracksPerElem)
   IF(SUM(nTracksPerEleM).GT.0) THEN
@@ -248,7 +251,7 @@ DO iElem=1,PP_nElems
                   + tParts * nPartsPerElem(iElem)*sTotalParts    &
                   + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
                   + tTracking * nTracksPerElem(iElem)*sTotalTracks &
-                  + tSurfaceFlux * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
+                  + tTotal(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
   IF(   (TRIM(DepositionType).EQ.'shape_function')             &
    .OR. (TRIM(DepositionType).EQ.'shape_function_1d')          &    
    .OR. (TRIM(DepositionType).EQ.'shape_function_cylindrical') &    
@@ -282,7 +285,6 @@ nSurfacefluxPerElem=0
 
 tCartMesh  =0.
 tTracking  =0.
-tSurfaceFlux =0.
 #endif /*PARTICLES*/
 
 !tTotal     =0.
@@ -352,11 +354,11 @@ ElemTime=0.
 
 IF( NewImbalance.GT.CurrentImbalance ) THEN
   SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful!'
+END IF
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' OldImbalance: ', CurrentImbalance
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: ', NewImbalance
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    ', MaxWeight
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight: '   , MinWeight
-END IF
 
 #ifdef PARTICLES
 IF(   (TRIM(DepositionType).EQ.'shape_function')             &
@@ -471,7 +473,7 @@ SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars,    ONLY:ElemTime
+USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -482,34 +484,37 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-WeightSum=SUM(ElemTime)
-
-IF(ALMOSTZERO(WeightSum))THEN
-  IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., WeightSum=',WeightSum
-END IF
-
-CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-
-WeightSum    = TargetWeight ! Set total weight for writing to file
-TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
-
-!IF(ALMOSTZERO(WeightSum))CALL abort( __STAMP__&
-    !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)
-
-! new computation of current imbalance
-IF(ABS(TargetWeight).LE.0.0)THEN
-  SWRITE(UNIT_stdOut,'(A,F8.2,A1)')' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
-  CurrentImbalance = HUGE(1.0)
+IF(.NOT. PerformLBSample) THEN
+  WeightSum=0.
+  TargetWeight=0.
+  CurrentImbalance = 0.
 ELSE
-  CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+  WeightSum=SUM(ElemTime)
+
+  IF(ALMOSTZERO(WeightSum))THEN
+    IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., WeightSum=',WeightSum
+  END IF
+
+  CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_ALLREDUCE(WeightSum,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+
+  WeightSum    = TargetWeight ! Set total weight for writing to file
+  TargetWeight = TargetWeight/nProcessors ! Calculate the average value that is supposed to be the optimally distributed weight
+
+  !IF(ALMOSTZERO(WeightSum))CALL abort( __STAMP__&
+      !,' ERROR: after ALLREDUCE, weight sum cannot be zero! WeightSum=',RealInfoOpt=WeightSum)
+
+  ! new computation of current imbalance
+  IF(ABS(TargetWeight).EQ.0.)THEN
+    CurrentImbalance = 0.
+  ELSE IF(ABS(TargetWeight).LT.0.0)THEN
+    SWRITE(UNIT_stdOut,'(A,F8.2,A1)')' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
+    CurrentImbalance = HUGE(1.0)
+  ELSE
+    CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
+  END IF
 END IF
-
-
-! old stuff
-!CurrentImbalance = MAX( MaxWeight-TargetWeight, ABS(MinWeight-TargetWeight)  )/ TargetWeight
-!CurrentImbalance=MaxWeight/TargetWeight
 
 END SUBROUTINE ComputeImbalance
 

@@ -275,7 +275,7 @@ IF (DoRestart) THEN
   SDEALLOCATE(ElemGlobalTime)
   ALLOCATE(ElemGlobalTime(1:nGlobalElems))
   ElemGlobalTime=0.
-  IF(MPIRoot .AND. DoLoadBalance)THEN
+  IF(MPIRoot)THEN
     ALLOCATE(ElemTime_local(1:nGlobalElems))
     nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
     offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
@@ -297,11 +297,14 @@ IF (DoRestart) THEN
     ElemGlobalTime = ElemTime_local
     DEALLOCATE(ElemTime_local)
     ! if the elemtime is 0.0, the value must be changed in order to prevent a division by zero
-    IF(MINVAL(ElemGlobalTime).LE.0.0)ElemGlobalTime=1.0
+    IF(MAXVAL(ElemGlobalTime).LE.0.0) THEN
+      ElemGlobalTime = 1.0
+      ElemTimeExists = .FALSE.
+    END IF
   END IF
 
   ! 2) Distribute logical information ElemTimeExists
-  IF (DoLoadBalance) CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 
   ! Distribute the elements according to the selected distribution method
   CALL ApplyWeightDistributionMethod(ElemTimeExists)
@@ -350,7 +353,7 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
 
   ! new computation of current imbalance
-  TargetWeight=TargetWeight/nProcessors
+  TargetWeight=SUM(WeightSum_proc)/nProcessors
   NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
 
   IF(TargetWeight.LE.0.0) CALL abort(&

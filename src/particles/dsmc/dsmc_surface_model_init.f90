@@ -1707,6 +1707,7 @@ SDEALLOCATE(Adsorption%Coordination)
 SDEALLOCATE(Adsorption%DiCoord)
 SDEALLOCATE(Adsorption%Ads_Powerfactor)
 SDEALLOCATE(Adsorption%Ads_Prefactor)
+SDEALLOCATE(Adsorption%TST_calc)
 ! surfaces distribution variables (currently wallmodel=3)
 IF (ALLOCATED(SurfDistInfo)) THEN
 DO iSurfSide=1,SurfMesh%nSides
@@ -1764,6 +1765,7 @@ SDEALLOCATE(SurfExchange%nSurfDistSidesSend)
 SDEALLOCATE(SurfExchange%nSurfDistSidesRecv)
 SDEALLOCATE(SurfExchange%SurfDistSendRequest)
 SDEALLOCATE(SurfExchange%SurfDistRecvRequest)
+SDEALLOCATE(SurfExchange%NbrOfPos)
 IF (ALLOCATED(SurfDistSendBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfDistSendBuf(iProc)%content_int)
@@ -1782,13 +1784,13 @@ IF (ALLOCATED(SurfCoverageSendBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfCoverageSendBuf(iProc)%content)
   END DO
-  DEALLOCATE(SurfDistSendBuf)
+  DEALLOCATE(SurfCoverageSendBuf)
 END IF
 IF (ALLOCATED(SurfCoverageRecvBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfCoverageRecvBuf(iProc)%content)
   END DO
-  DEALLOCATE(SurfDistRecvBuf)
+  DEALLOCATE(SurfCoverageRecvBuf)
 END IF
 #endif /*MPI*/
 

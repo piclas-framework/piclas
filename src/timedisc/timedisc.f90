@@ -246,6 +246,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,tTotal
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
 #endif /*MPI*/
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
@@ -497,6 +498,11 @@ DO !iter_t=0,MaxIter
   !END IF
 
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
+#if USE_LOADBALANCE
+  IF ((tAnalyzeDiff.LE.LoadBalanceSample*dt &                                 ! all iterations in LoadbalanceSample interval
+      .OR. (ALMOSTEQUALRELATIVE(tAnalyzeDiff,LoadBalanceSample*dt,1e-5))) &   ! make sure to get the first iteration in interval
+      .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
+#endif /*USE_LOADBALANCE*/
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
   IF ( dt .LT. 0. ) THEN
@@ -573,9 +579,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_LD_DSMC(time)
 #endif
   ! calling the analyze routines
-!#ifdef MPI
-!     CALL LoadMeasure() ! this is deprecated, because LoadSum is not used anywhere
-!#endif /*MPI*/
   iter=iter+1
   iter_loc=iter_loc+1
   time=time+dt
@@ -613,16 +616,17 @@ DO !iter_t=0,MaxIter
 #if !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
+    ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad(PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
     tFuture=tZero+REAL(nAnalyze)*Analyze_dt
-#ifdef MPI
+#if USE_LOADBALANCE
     IF(iAnalyze.EQ.nSkipAnalyze .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #else
     IF( iAnalyze.EQ.nSkipAnalyze .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
       IF(CountNbOfLostParts)THEN
 #ifdef MPI
@@ -714,16 +718,14 @@ DO !iter_t=0,MaxIter
     IF (tAnalyze > tEnd) tAnalyze = tEnd
 #ifdef MPI
     tTotal=0. ! Moved from LoadMeasure
-    IF(DoLoadBalance)THEN
+#if USE_LOADBALANCE
+    IF(DoLoadBalance.AND.PerformLBSample)THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
       CALL LoadBalance(PerformLoadBalance)
-      !#ifndef PP_HDG
-      !      dt_Min=CALCTIMESTEP()
-      !#endif /*PP_HDG*/
       IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
           CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
       IF(PerformLoadBalance) THEN
-        ! ONLY recalculate the timestep when the mesh is changed!
+        ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
         !CALL InitTimeStep() ! re-calculate time step after load balance is performed
         RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
         RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
@@ -731,12 +733,14 @@ DO !iter_t=0,MaxIter
       !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
       END IF
-    ELSE 
+    ELSE
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
     END IF
+    PerformLBSample=.FALSE.
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
-  END IF   
+  END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t
 !CALL FinalizeAnalyze
@@ -1420,6 +1424,9 @@ USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDeso
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1430,7 +1437,13 @@ IMPLICIT NONE
 REAL                  :: timeEnd, timeStart
 INTEGER :: iPart
 REAL    :: RandVal, dtFrac
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
   IF (DoSurfaceFlux) THEN
     ! Calculate desobing particles for Surfaceflux
@@ -1442,7 +1455,15 @@ REAL    :: RandVal, dtFrac
       !CALL AnalyzePartitionTemp()
     END IF
     IF (LiquidSimFlag) CALL Evaporation()
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
     CALL ParticleSurfaceflux()
+
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%dtFracPush(iPart)) THEN
@@ -1463,6 +1484,9 @@ REAL    :: RandVal, dtFrac
         END IF
       END IF
     END DO
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ELSE
     LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
     LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
@@ -1471,10 +1495,17 @@ REAL    :: RandVal, dtFrac
     PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
     PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
     PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
+
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbOfParticles()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
@@ -1492,15 +1523,30 @@ REAL    :: RandVal, dtFrac
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
 #ifdef MPI
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_TRACK,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! send number of particles
   CALL SendNbOfParticles()
   ! finish communication of number of particles and send particles
   CALL MPIParticleSend()
   ! finish communication
   CALL MPIParticleRecv()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
+
   CALL DSMC_Update_Wall_Vars()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   CALL ParticleInserting()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   IF (CollisMode.NE.0) THEN
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
@@ -1513,6 +1559,10 @@ REAL    :: RandVal, dtFrac
     __STAMP__&
     ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
   END IF
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_UNFP,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   CALL DSMC_main()
 
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
@@ -1521,6 +1571,9 @@ REAL    :: RandVal, dtFrac
                                          + DSMC_RHS(1:PDM%ParticleVecLength,2)
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE TimeStep_DSMC
 #endif
