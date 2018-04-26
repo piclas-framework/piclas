@@ -379,8 +379,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               TTM_Cell_13(iElem) = SQRT(TTM_Cell_12(iElem)*ElectronCharge**2/(ElectronMass*eps0))
 
               ! 'omega_pe_warm(PlasmaFrequency)'
-              ! w_peTTMwarm = w_peTTM + 3 * kB * TeTTM / me0
-              TTM_Cell_14(iElem) = TTM_Cell_13(iElem) + 3 * BoltzmannConst * TTM_Cell_2(iElem) / ElectronMass
+              ! w_peTTMwarm = w_peTTM + 3 * kB * TeTTM_in_K / me0
+              TTM_Cell_14(iElem) = TTM_Cell_13(iElem) + 3 * BoltzmannConst * TTM_Cell_2(iElem) / ElectronMass / 8.621738E-5
 
               ! 'dt_PIC_cold(TimeStep)'
               ! dtPICTTM=0.2./w_peTTM
