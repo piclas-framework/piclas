@@ -154,7 +154,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold!,nLoadIter!,LoadSum
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
@@ -208,7 +208,16 @@ END IF
 tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)!+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
 IF(DoRefMapping)THEN
   helpSum=SUM(nTracksPerElem)
-  IF(SUM(nTracksPerEleM).GT.0) THEN
+  IF(SUM(nTracksPerElem).GT.0) THEN
+    sTotalTracks=1.0/REAL(helpSum)
+  ELSE
+    stotalTracks=1.0/REAL(PP_nElems)
+    nTracksPerElem=1
+  END IF
+ELSE IF(TriaTracking)THEN
+  tTracking = tTotal(LB_TRACK)
+  helpSum=SUM(nTracksPerElem)
+  IF(SUM(nTracksPerElem).GT.0) THEN
     sTotalTracks=1.0/REAL(helpSum)
   ELSE
     stotalTracks=1.0/REAL(PP_nElems)

@@ -51,6 +51,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts,CountNbOfLostParts,nLostParts,TrackInfo
 #if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,            ONLY:PerformLBSample,nTracksPerElem
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -84,7 +85,7 @@ REAL                             :: tLBStart
 DO i = 1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
+    !CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
     nTracks=nTracks+1
     nCurrentParts=nCurrentParts+1
@@ -242,7 +243,8 @@ DO i = 1,PDM%ParticleVecLength
         CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
           ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
 #if USE_LOADBALANCE
-        IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
+        IF (OldElemID.LE.PP_nElems .AND. PerformLBSample) nTracksPerElem(OldElemID)=nTracksPerElem(OldElemID)+1
+        !IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
         IF(ElemID.NE.OldElemID)THEN
           DoneSideID(1) = SideID
@@ -260,7 +262,8 @@ DO i = 1,PDM%ParticleVecLength
       END IF
     END DO
 #if USE_LOADBALANCE
-    IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
+    IF (PEM%Element(i).LE.PP_nElems .AND. PerformLBSample) nTracksPerElem(PEM%Element(i))=nTracksPerElem(PEM%Element(i))+1
+    !IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
 END DO
