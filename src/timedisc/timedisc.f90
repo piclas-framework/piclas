@@ -1558,11 +1558,14 @@ REAL                  :: tLBStart
     ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
   END IF
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_UNFP,tLBStart)
+  CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
   CALL DSMC_main()
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,1)
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
