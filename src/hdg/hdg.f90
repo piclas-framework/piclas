@@ -344,27 +344,30 @@ SUBROUTINE HDGLinear(t,U_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
-USE MOD_Equation_Vars,     ONLY:IniExactFunc
-USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP
-USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars,ONLY:wGP
-USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
-USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
+USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
+USE MOD_Equation_Vars          ,ONLY: IniExactFunc
+USE MOD_Equation_Vars          ,ONLY: chitens_face
+USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
+USE MOD_Interpolation_Vars     ,ONLY: wGP
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
-USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-USE MOD_LoadBalance_Vars,            ONLY:tCurrent
+USE MOD_MPI                    ,ONLY: FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
+USE MOD_Mesh_Vars              ,ONLY: nMPISides,nMPIsides_YOUR,nMPIsides_MINE
+USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
 #endif /*MPI*/ 
 #if (PP_nVar==1)
-USE MOD_Equation_Vars,     ONLY:E
+USE MOD_Equation_Vars          ,ONLY: E
 #elif (PP_nVar==3)
-USE MOD_Equation_Vars,     ONLY:B
+USE MOD_Equation_Vars          ,ONLY: B
 #else
-USE MOD_Equation_Vars,     ONLY:B, E
+USE MOD_Equation_Vars          ,ONLY: B, E
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -387,14 +390,13 @@ INTEGER :: startbuf,endbuf
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
-#ifdef MPI
-! load balance
-REAL    :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL    :: tLBStart,tLBEnd ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 DO iVar = 1, PP_nVar
   !Dirichlet boundary conditions
 #if (PP_nVar!=1)
@@ -529,28 +531,24 @@ DO iVar = 1, PP_nVar
 END DO
 #endif
 
-
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-
-  tLBStart = LOCALTIME() ! LB Time Start
-  startbuf=nSides-nMPISides+1
-  endbuf=nSides-nMPISides+nMPISides_MINE
-  IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-  CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-  IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-  IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
+startbuf=nSides-nMPISides+1
+endbuf=nSides-nMPISides+nMPISides_MINE
+IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
+CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
+IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
+IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
-    ! SOLVE 
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+! SOLVE 
 DO iVar=1, PP_nVar
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
   !POST PROCESSING
@@ -596,10 +594,9 @@ END DO
   END DO; END DO; END DO !i,j,k
   CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE HDGLinear
 
