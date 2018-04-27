@@ -224,11 +224,7 @@ CALL prms%CreateIntOption(      'Particles-DSMC-maxSurfCollisNumber'    ,  'TODO
                                                                            ' Sampling', '0')
 CALL prms%CreateIntOption(      'Particles-DSMC-NumberOfBCs'            ,  'TODO-DEFINE-PARAMETER\n'//&
                                                                            'Count of BC to be analyzed', '1')
-CALL prms%CreateIntOption(      'Particles-DSMC-SurfCollisBC'           ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'BCs to be analyzed (0 = all)'&
-                                                                        ,  '0')
-CALL prms%CreateIntArrayOption( 'Particles-SurfCollisBC'                ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'BCs to be analyzed (def.: 0 = all)?')
+CALL prms%CreateIntArrayOption( 'Particles-DSMC-SurfCollisBC'           ,  'BCs to be analyzed (def.: 0 = all)')
 CALL prms%CreateIntOption(      'Particles-CalcSurfCollis_NbrOfSpecies' ,  'TODO-DEFINE-PARAMETER\n'//&
                                                                            'Count of Species for wall  collisions (0: all)'&
                                                                            , '0')
