@@ -446,6 +446,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_TimeDisc_Vars          ,ONLY: tEnd
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -466,16 +469,15 @@ INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*MPI*/
 #endif /*PARTICLES*/
-#ifdef MPI
-! load balance
-REAL                          :: tLBStart,tLBEnd
-#endif /*MPI*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: CalcTime
+#if USE_LOADBALANCE
+REAL                          :: tLBStart,tLBEnd ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -517,9 +519,9 @@ END IF
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 #if (PP_nVar>=6)
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
@@ -554,18 +556,17 @@ IF (CalcPoyntingInt) THEN
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #endif
 #endif
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 ! fill recordpoints buffer
 #if defined(LSERK) || defined(IMPA) || (PP_TimeDiscMethod==110)
 IF(RP_onProc) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 #ifdef LSERK
   IF(RPSkip)THEN
     RPSkip=.FALSE.
@@ -575,10 +576,9 @@ IF(RP_onProc) THEN
 #else
   CALL RecordPoints(iter,t,forceAnalyze,Output)
 #endif /*LSERK*/
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 #endif
 
@@ -616,9 +616,9 @@ IF (DoAnalyze)  THEN
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
 #endif
 #else /*pure DGSEM */
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   ! analyze field
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
@@ -644,10 +644,9 @@ IF (DoAnalyze)  THEN
 #else
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(t)
 #endif
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 END IF
 
@@ -660,9 +659,9 @@ IF(OutPut .OR. ForceAnalyze) CALL CalculatePartElemData()
 !----------------------------------------------------------------------------------------------------------------------------------
 ! update of time here
 #ifdef PARTICLES
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 
 ! write volume data for DSMC macroscopic values 
 IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
@@ -795,10 +794,9 @@ IF(OutPut .AND. MeasureTrackTime)THEN
   tTracking=0.
   tLocalization=0.
 END IF ! only during output like Doftime
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PARTANALYZE)=tCurrent(LB_PARTANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
