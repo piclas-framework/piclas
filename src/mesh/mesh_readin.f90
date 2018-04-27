@@ -186,7 +186,7 @@ USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
 USE MOD_IO_HDF5,            ONLY:AddToElemData,ElementOut
 #ifdef MPI
 USE MOD_io_hdf5
-USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight,DoLoadBalance
+USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight
 USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem,nPartsPerBCElem
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem
@@ -315,7 +315,7 @@ ELSE
     offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
   END DO
   offsetElemMPI(nProcessors)=nGlobalElems
-END IF ! IF(DoRestart.AND.DoLoadBalance)
+END IF ! IF(DoRestart)
 
 
 
