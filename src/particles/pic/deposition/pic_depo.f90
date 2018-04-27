@@ -1155,7 +1155,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
 ! only required for shape function??
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
-USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh,ElemTime
+USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh
 #endif  /*MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBElemPauseTime,LBElemPauseTime_avg
