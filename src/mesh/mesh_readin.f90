@@ -347,7 +347,6 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   DO iProc=0,nProcessors-1
     WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
   END DO
-  SDEALLOCATE(ElemGlobalTime)
   MaxWeight = MAXVAL(WeightSum_proc)
   MinWeight = MINVAL(WeightSum_proc)
   ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
@@ -365,6 +364,7 @@ ELSE
   MinWeight = -1.
 END IF
 
+SDEALLOCATE(ElemGlobalTime)
 
 
 
