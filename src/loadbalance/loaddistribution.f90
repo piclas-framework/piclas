@@ -241,33 +241,41 @@ END IF
 
 SELECT CASE(WeightDistributionMethod)
 CASE(-1) ! same as in no-restart: the elements are equally distributed
-  nElems=nGlobalElems/nProcessors
-  iElem=nGlobalElems-nElems*nProcessors
-  DO iProc=0,nProcessors-1
-    offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
-  END DO
-  offsetElemMPI(nProcessors)=nGlobalElems
+  IF(MPIRoot)THEN
+    nElems=nGlobalElems/nProcessors
+    iElem=nGlobalElems-nElems*nProcessors
+    DO iProc=0,nProcessors-1
+      offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
+    END DO
+    offsetElemMPI(nProcessors)=nGlobalElems
+  END IF
+  ! Send the load distribution to all other procs
+  CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(0) ! old scheme
-  IF(nGlobalElems.EQ.nProcessors) THEN
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc) = iProc
-    END DO
-  ELSE
-    curiElem = 1
-    WeightSum=WeightSum/REAL(nProcessors)
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc)=curiElem - 1
-      DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
-        CurWeight=CurWeight+ElemGlobalTime(iElem)
-        IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
-          curiElem = iElem + 1
-          EXIT
-        END IF
+  IF(MPIRoot)THEN
+    IF(nGlobalElems.EQ.nProcessors) THEN
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc) = iProc
       END DO
-    END DO
+    ELSE
+      curiElem = 1
+      WeightSum=WeightSum/REAL(nProcessors)
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc)=curiElem - 1
+        DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
+          CurWeight=CurWeight+ElemGlobalTime(iElem)
+          IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
+            curiElem = iElem + 1
+            EXIT
+          END IF
+        END DO
+      END DO
+    END IF
+    offsetElemMPI(nProcessors)=nGlobalElems
   END IF
-  offsetElemMPI(nProcessors)=nGlobalElems
+  ! Send the load distribution to all other procs
+  CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(1)
   ! 1: last Proc receives the least load
