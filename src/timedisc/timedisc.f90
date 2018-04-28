@@ -827,10 +827,9 @@ REAL                          :: timeStart,timeEnd
 #ifdef PP_POIS
 REAL                          :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif /*PP_POIS*/
-#ifdef MPI
-! load balance
-REAL                          :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL                          :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 ! RK coefficients
@@ -862,20 +861,18 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #endif /*MPI*/
 END IF
 
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 IF (t.GE.DelayTime) THEN
   ! forces on particle
   ! can be used to hide sending of number of particles
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
 END IF
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_INTERPOLATION)=tCurrent(LB_INTERPOLATION)+tLBEnd-tLBStart
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
@@ -901,18 +898,17 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL Deposition(doInnerParts=.FALSE.)
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 
 ! field solver
 ! time measurement in weakForm
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.TRUE.)
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 IF(DoPML) THEN
   CALL CalcPMLSource()
   CALL PMLTimeDerivative()
@@ -923,10 +919,9 @@ IF(DoQDS) THEN
   CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.,doPrintInfo=.TRUE.)
 END IF
 #endif /*USE_QDS_DG*/
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PML)=tCurrent(LB_PML)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PML,tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL DivCleaningDamping()
 
 #ifdef PP_POIS
@@ -942,9 +937,9 @@ CALL DivCleaningDamping_Pois()
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 ! first RK step
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! EM field
 Ut_temp = Ut 
@@ -956,14 +951,9 @@ Phi = Phi + Phit*b_dt(1)
 CALL EvalGradient()
 #endif /*PP_POIS*/
 
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-#endif /*MPI*/
-
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 !PML auxiliary variables
 IF(DoPML) THEN
   U2t_temp = U2t
@@ -975,17 +965,12 @@ IF(DoQDS) THEN
   UQDS = UQDS + UQDSt*b_dt(1)
 END IF
 #endif /*USE_QDS_DG*/
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PML)=tCurrent(LB_PML)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_PML,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 
 #ifdef PARTICLES
-! particles
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
 LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
 LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
@@ -1009,20 +994,21 @@ IF (t.GE.DelayTime) THEN
                                        + Pt(1:PDM%ParticleVecLength,2)*b_dt(1)
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                        + Pt(1:PDM%ParticleVecLength,3)*b_dt(1)
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
   CALL IRecvNbofParticles()
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PARTCOMM)=tCurrent(LB_PARTCOMM)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   IF(DoRefMapping)THEN
@@ -1034,18 +1020,15 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
     CALL CPU_TIME(TimeEnd)
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_TRACK,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
   CALL SendNbOfParticles()
-  !CALL MPIParticleSend()
-  !CALL MPIParticleRecv()
-  !PartMPIExchange%nMPIParticles=0
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PARTCOMM)=tCurrent(LB_PARTCOMM)+tLBEnd-tLBStart
 #endif /*MPI*/
-  !CALL Filter(U)
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
@@ -1054,53 +1037,53 @@ DO iStage=2,nRKStages
 #ifdef PARTICLES
   ! deposition  
   IF (t.GE.DelayTime) THEN 
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-     tLBStart = LOCALTIME() ! LB Time Start
+    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
 #endif /*MPI*/
-     CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-     tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(LB_INTERPOLATION)=tCurrent(LB_INTERPOLATION)+tLBEnd-tLBStart
-     tLBStart = LOCALTIME() ! LB Time Start
-     CALL MPIParticleSend()
-     tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(LB_PARTCOMM)=tCurrent(LB_PARTCOMM)+tLBEnd-tLBStart
-     tLBStart = LOCALTIME() ! LB Time Start
+    CALL MPIParticleSend()
 #endif /*MPI*/
-!    ! deposition  
-     CALL Deposition(doInnerParts=.TRUE.)
-#ifdef MPI
-     tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-     tLBStart = LOCALTIME() ! LB Time Start
-     CALL MPIParticleRecv()
-     tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(LB_PARTCOMM)=tCurrent(LB_PARTCOMM)+tLBEnd-tLBStart
-     ! second buffer
-     tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
-     CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
-     CALL CalcPartRHS()
-#ifdef MPI
-     tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(LB_INTERPOLATION)=tCurrent(LB_INTERPOLATION)+tLBEnd-tLBStart
-     tLBStart = LOCALTIME() ! LB Time Start
-     ! null here, careful
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
-     CALL Deposition(doInnerParts=.FALSE.)
-     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+    !    ! deposition  
+    CALL Deposition(doInnerParts=.TRUE.)
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-     tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-     ! null here, careful
-     PartMPIExchange%nMPIParticles=0
+    CALL MPIParticleRecv()
 #endif /*MPI*/
-!    IF (usevMPF) THEN 
-!      CALL !DepositionMPF()
-!    ELSE 
-!      CALL Deposition()
-!    END IF
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
+    CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
+    CALL CalcPartRHS()
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+    CALL Deposition(doInnerParts=.FALSE.)
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+#ifdef MPI
+    ! null here, careful
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+    !    IF (usevMPF) THEN 
+    !      CALL !DepositionMPF()
+    !    ELSE 
+    !      CALL Deposition()
+    !    END IF
   END IF
 #ifdef MPI
   CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB !why not rigth after "tStage=t+dt*RK_c(iStage)"?! 
@@ -1109,9 +1092,9 @@ DO iStage=2,nRKStages
 
   ! field solver
   CALL DGTimeDerivative_weakForm(t,tStage,0,doSource=.TRUE.)
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF(DoPML) THEN
     CALL CalcPMLSource()
     CALL PMLTimeDerivative()
@@ -1122,11 +1105,9 @@ DO iStage=2,nRKStages
     CALL QDSTimeDerivative(t,t,0,doSource=.TRUE.)
   END IF
 #endif /*USE_QDS_DG*/
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PML)=tCurrent(LB_PML)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PML,tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL DivCleaningDamping()
 #ifdef PP_POIS
   CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
@@ -1139,10 +1120,9 @@ DO iStage=2,nRKStages
   ! field step
   Ut_temp = Ut - Ut_temp*RK_a(iStage)
   U = U + Ut_temp*b_dt(iStage)
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 #ifdef PP_POIS
   Phit_temp = Phit - Phit_temp*RK_a(iStage)
@@ -1151,9 +1131,9 @@ DO iStage=2,nRKStages
 #endif
 
   !PML auxiliary variables
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF(DoPML)THEN
     U2t_temp = U2t - U2t_temp*RK_a(iStage)
     U2 = U2 + U2t_temp*b_dt(iStage)
@@ -1164,17 +1144,16 @@ DO iStage=2,nRKStages
     UQDS = UQDS + UQDSt_temp*b_dt(iStage)
   END IF
 #endif /*USE_QDS_DG*/
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PML)=tCurrent(LB_PML)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PML,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 #ifdef PARTICLES
   ! particle step
   IF (t.GE.DelayTime) THEN
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
     LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
     LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
@@ -1203,17 +1182,15 @@ DO iStage=2,nRKStages
                                        + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(iStage)
     PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                        + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-    ! particle tracking
-    tLBStart = LOCALTIME() ! LB Time Start
     CALL IRecvNbofParticles()
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(LB_PARTCOMM)=tCurrent(LB_PARTCOMM)+tLBEnd-tLBStart
-    ! actual tracking
-    tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
@@ -1224,17 +1201,15 @@ DO iStage=2,nRKStages
       CALL CPU_TIME(TimeEnd)
       tTracking=tTracking+TimeEnd-TimeStart
     END IF
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_TRACK,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
-    tLBStart = LOCALTIME() ! LB Time Start
     CALL SendNbOfParticles()
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(LB_PARTCOMM)=tCurrent(LB_PARTCOMM)+tLBEnd-tLBStart
-    !CALL MPIParticleSend()
-    !CALL MPIParticleRecv()
-    !PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 #endif /*PARTICLES*/
 
@@ -1247,58 +1222,57 @@ END IF
 
 #ifdef PARTICLES
 IF (t.GE.DelayTime) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleInserting()
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tLocalization=tLocalization+TimeEnd-TimeStart
   END IF
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_EMISSION)=tCurrent(LB_EMISSION)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
   CALL MPIParticleSend()
   CALL MPIParticleRecv()
   PartMPIExchange%nMPIParticles=0
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PARTCOMM)=tCurrent(LB_PARTCOMM)+tLBEnd-tLBStart
 #endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF 
 
 IF (doParticleMerge) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
   END IF
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_SPLITMERGE)=tCurrent(LB_SPLITMERGE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBSart)
+#endif /*USE_LOADBALANCE*/
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL UpdateNextFreePosition()
 END IF
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_UNFP)=tCurrent(LB_UNFP)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_UNFP,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 IF (doParticleMerge) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL StartParticleMerge()  
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
@@ -1306,23 +1280,21 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_SPLITMERGE)=tCurrent(LB_SPLITMERGE)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_UNFP)=tCurrent(LB_UNFP)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_UNFP,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
     CALL DSMC_main()
     PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                            + DSMC_RHS(1:PDM%ParticleVecLength,1)
@@ -1330,10 +1302,10 @@ IF (useDSMC) THEN
                                            + DSMC_RHS(1:PDM%ParticleVecLength,2)
     PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                            + DSMC_RHS(1:PDM%ParticleVecLength,3)
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(LB_DSMC)=tCurrent(LB_DSMC)+tLBEnd-tLBStart
-#endif /*MPI*/
+
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 #endif /*PARTICLES*/
