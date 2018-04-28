@@ -383,6 +383,8 @@ ElemTime=0.
 
 IF( NewImbalance.GT.CurrentImbalance ) THEN
   SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful!'
+ELSE
+  SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful!'
 END IF
 SWRITE(UNIT_stdOut,'(A25,E15.7)') ' OldImbalance: ', CurrentImbalance
 SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: ', NewImbalance
@@ -390,11 +392,8 @@ SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    ', MaxWeight
 SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:    ', MinWeight
 
 #ifdef PARTICLES
-IF(   (TRIM(DepositionType).EQ.'shape_function')             &
- .OR. (TRIM(DepositionType).EQ.'shape_function_1d')          &    
- .OR. (TRIM(DepositionType).EQ.'shape_function_cylindrical') &    
- .OR. (TRIM(DepositionType).EQ.'shape_function_simple')      &    
- .OR. (TRIM(DepositionType).EQ.'shape_function_spherical') )THEN
+! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles
@@ -543,6 +542,11 @@ ELSE
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
   END IF
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' CurrentImbalance: ', CurrentImbalance
+
 END IF
 
 END SUBROUTINE ComputeImbalance
