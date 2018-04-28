@@ -1159,6 +1159,7 @@ USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh
 #endif  /*MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBElemPauseTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Vars,       ONLY: PerformLBSample
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -2293,8 +2294,10 @@ CASE('cartmesh_volumeweighting')
   IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
 #if USE_LOADBALANCE
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCartMesh=tCartMesh+tLBEnd-tLBStart
+  IF(PerformLBSample)THEN
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCartMesh=tCartMesh+tLBEnd-tLBStart
+  END IF
 #endif /*USE_LOADBALANCE*/
 
   ! Step 2: Interpolation of densities onto grid
@@ -2402,8 +2405,10 @@ CASE('cartmesh_splines')
   IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
 #if USE_LOADBALANCE
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCartMesh=tCartMesh+tLBEnd-tLBStart
+  IF(PerformLBSample)THEN
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCartMesh=tCartMesh+tLBEnd-tLBStart
+  END IF
 #endif /*USE_LOADBALANCE*/
 
   ! Step 2: Interpolation of densities onto grid
