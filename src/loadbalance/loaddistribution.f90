@@ -198,7 +198,7 @@ CurWeight = 0.0
 #ifdef PARTICLES
 IF(.NOT.ElemTimeExists)THEN
   ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-  IF (ParticleMPIWeight.LT.0) THEN
+  IF (ParticleMPIWeight.LE.0.0) THEN
     CALL abort(&
 __STAMP__&
 ,' ERROR: Particle weight cannot be negative!')
