@@ -196,14 +196,13 @@ CurWeight = 0.0
 
 ! Load balancing for particles: read in particle data
 #ifdef PARTICLES
-IF(.NOT.ElemTimeExists)THEN
-  ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-  IF (ParticleMPIWeight.LE.0.0) THEN
-    CALL abort(&
-__STAMP__&
-,' ERROR: Particle weight cannot be negative!')
-  END IF
-END IF !.NOT.ElemTimeExists
+! Read particle MPI weight in order to determine the ElemTime when no time measurement is performed
+ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+IF (ParticleMPIWeight.LE.0.0) THEN
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: Particle weight cannot be negative!')
+END IF
 CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
 CALL DatasetExists(File_ID,'PartInt',PartIntExists)
 IF(PartIntExists)THEN

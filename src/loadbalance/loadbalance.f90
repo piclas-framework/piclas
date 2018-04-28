@@ -286,6 +286,12 @@ ELSE ! no time measurement and particles are present: simply add the ParticleMPI
     ElemTime(iElem) = ElemTime(iElem) &
         + nPartsPerElem(iElem)*ParticleMPIWeight + 1.0
   END DO ! iElem=1,PP_nElems
+  IF((MAXVAL(nPartsPerElem).GT.0).AND.(MAXVAL(ElemTime).LE.1.0))THEN
+    IPWRITE (*,*) "parts, time =", MAXVAL(nPartsPerElem),MAXVAL(ElemTime)
+    CALL abort(&
+        __STAMP__&
+        ,' ERROR: MAXVAL(nPartsPerElem).GT.0 but MAXVAL(ElemTime).LE.1.0 with ParticleMPIWeight=',RealInfoOpt=ParticleMPIWeight)
+  END IF
 #endif /*PARTICLES*/
 END IF
 

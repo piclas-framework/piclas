@@ -4725,10 +4725,9 @@ REAL           :: tStage,b_dt(1:nRKStages)
 REAL           :: Pa_rebuilt_coeff(1:nRKStages),Pa_rebuilt(1:3,1:nRKStages),Pv_rebuilt(1:3,1:nRKStages),v_rebuilt(1:3,0:nRKStages-1)
 INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
-#ifdef MPI
-! load balance
-REAL           :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL           :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 DO iStage_loc=1,nRKStages
