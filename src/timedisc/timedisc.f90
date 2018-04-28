@@ -805,6 +805,9 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars,       ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*MPI*/
 #endif /*PARTICLES*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1260,7 +1263,7 @@ IF (doParticleMerge) THEN
 END IF
 
 #if USE_LOADBALANCE
-CALL LBStartTime(tLBSart)
+CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL UpdateNextFreePosition()
