@@ -443,7 +443,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
       IF (ALLOCATED(VarNamesElemData_loc)) THEN
         ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
         ElemData_loc = RESHAPE(tmp,(/nVal(1),nVal(2)/))
-        DO iVar=1,nVal(1) ! Search for ElemTime
+        DO iVar=1,nVal(1)
           ! check the variable names
           IF(STRICMP(VarNamesElemData_loc(iVar),"TTM_N[natoms]")) THEN
             nRestartVars=nRestartVars+1
