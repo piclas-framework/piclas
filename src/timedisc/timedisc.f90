@@ -2136,6 +2136,9 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 #ifdef MPI
 USE MOD_LoadBalance_Vars,        ONLY: tCurrent
 #endif /*MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
