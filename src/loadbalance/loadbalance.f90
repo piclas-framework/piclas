@@ -537,7 +537,8 @@ ELSE
   IF(ABS(TargetWeight).EQ.0.)THEN
     CurrentImbalance = 0.
   ELSE IF(ABS(TargetWeight).LT.0.0)THEN
-    SWRITE(UNIT_stdOut,'(A,F8.2,A1)')' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
+    SWRITE(UNIT_stdOut,'(A,F8.2,A1)')&
+        ' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
     CurrentImbalance = HUGE(1.0)
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
