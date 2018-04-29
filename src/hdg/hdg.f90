@@ -391,7 +391,7 @@ INTEGER :: startbuf,endbuf
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
 #if USE_LOADBALANCE
-REAL    :: tLBStart,tLBEnd ! load balance
+REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -631,6 +631,9 @@ USE MOD_Mesh_Vars,         ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 USE MOD_Equation_Vars,     ONLY:E
 #endif
 USE MOD_TimeDisc_Vars,     ONLY:IterDisplayStep,DoDisplayIter
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -654,7 +657,13 @@ INTEGER :: startbuf,endbuf
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
+#if USE_LOADBALANCE
+REAL    :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 #if (PP_nVar!=1)
   WRITE(*,*) 'Nonlinear Newton solver only available with EQ-system Poisson!!'
   STOP
@@ -735,6 +744,9 @@ DO BCsideID=1,nNeumannBCSides
   RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
 END DO
 
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
   startbuf=nSides-nMPISides+1
   endbuf=nSides-nMPISides+nMPISides_MINE
@@ -745,6 +757,9 @@ END DO
   IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
   IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! SOLVE 
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
@@ -923,6 +938,9 @@ END IF
 CALL PostProcessGradient(U_out(PP_nVar,:,:),lambda(PP_nVar,:,:),E)
 #endif
 
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END SUBROUTINE HDGNewton
 
 SUBROUTINE CheckNonLinRes(RHS,lambda, converged,Norm_R2)
