@@ -842,9 +842,7 @@ END DO
 iStage=1
 
 #ifdef PARTICLES
-#ifdef MPI
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
-#endif /*MPI*/
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
@@ -1088,9 +1086,7 @@ DO iStage=2,nRKStages
     !      CALL Deposition()
     !    END IF
   END IF
-#ifdef MPI
   CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB !why not rigth after "tStage=t+dt*RK_c(iStage)"?! 
-#endif /*MPI*/
 #endif /*PARTICLES*/
 
   ! field solver
@@ -2448,13 +2444,11 @@ CALL LBPauseTime(LB_DG,tLBStart)
       SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
       SWRITE(UNIT_StdOut,'(A)') ' compute last stage value.   '
     END IF
-#ifdef MPI
     IF(iStage.EQ.2)THEN
       CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.)
     ELSE
       CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.)
     END IF
-#endif /*MPI*/
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -3719,13 +3713,11 @@ DO iStage=2,nRKStages
       SWRITE(UNIT_StdOut,'(A)') '-----------------------------'
       SWRITE(UNIT_StdOut,'(A)') ' Implicit step.   '
     END IF
-#ifdef MPI
     IF(iStage.EQ.2)THEN
       CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.)
     ELSE
       CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.)
     END IF
-#endif /*MPI*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4636,39 +4628,39 @@ SUBROUTINE TimeStepPoissonByLSERK(t,iter,tEndDiff)
 ! the current time U(t) and returns the solution at the next time level.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY: Abort, LocalTime
+USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
-USE MOD_Analyze,               ONLY: PerformAnalyze
-USE MOD_TimeDisc_Vars,         ONLY: dt,iStage,RKdtFrac,RKdtFracTotal
-USE MOD_TimeDisc_Vars,         ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_DG_Vars,               ONLY: U
+USE MOD_Analyze                ,ONLY: PerformAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
+USE MOD_DG_Vars                ,ONLY: U
 #ifdef PARTICLES
-USE MOD_PICDepo,               ONLY: Deposition
-USE MOD_PICInterpolation,      ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,         ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, & 
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, & 
                                      doParticleMerge,PartPressureCell,DoSurfaceFlux
-USE MOD_part_RHS,              ONLY: CalcPartRHS
-USE MOD_part_emission,         ONLY: ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                  ONLY: DSMC_main
-USE MOD_DSMC_Vars,             ONLY: useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,         ONLY: StartParticleMerge
-USE MOD_PIC_Analyze,           ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
+USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 #ifdef MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars,      ONLY:  DoExternalParts
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
-USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY:  DoExternalParts
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
-USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
-USE MOD_part_tools,             ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking,      ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBSplitTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges
 #endif /*PARTICLES*/
-USE MOD_HDG           ,ONLY: HDG
+USE MOD_HDG                    ,ONLY: HDG
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4701,9 +4693,7 @@ iStage=1
 
 ! first RK step
 #ifdef PARTICLES
-#if USE_LOADBALANCE
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
-#endif /*USE_LOADBALANCE*/
 !Time=t
 RKdtFrac = RK_c(2)
 RKdtFracTotal=RKdtFrac
@@ -4889,9 +4879,7 @@ END IF
 DO iStage=2,nRKStages
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
-#if USE_LOADBALANCE
   CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB
-#endif /*USE_LOADBALANCE*/
   IF (iStage.NE.nRKStages) THEN
     RKdtFrac = RK_c(iStage+1)-RK_c(iStage)
     RKdtFracTotal=RKdtFracTotal+RKdtFrac
