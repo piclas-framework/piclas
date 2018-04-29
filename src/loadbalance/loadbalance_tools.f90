@@ -61,7 +61,6 @@ REAL,INTENT(INOUT)  :: tLBStart
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL                :: tLBEnd
 !===================================================================================================================================
 IF(.NOT. PerformLBSample) RETURN
 tLBStart = LOCALTIME() ! LB Time Start
@@ -168,7 +167,7 @@ tLBEnd = LOCALTIME() ! LB Time End
 ElemTime(ELemID)=ElemTime(ElemID)+tLBEnd-tLBStart
 END SUBROUTINE LBElemPauseTime
 
-SUBROUTINE LBElemPauseTime_avg(ElemID,tLBStart)
+SUBROUTINE LBElemPauseTime_avg(tLBStart)
 !===================================================================================================================================
 !> calculates end time and adds time to Elemtime(ElemID)
 !> does not reset tLBstart
@@ -181,7 +180,6 @@ USE MOD_Mesh_Vars        ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)  :: ElemID
 REAL,INTENT(IN)     :: tLBStart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -191,7 +189,7 @@ REAL                :: tLBEnd
 !===================================================================================================================================
 IF(.NOT. PerformLBSample) RETURN
 tLBEnd = LOCALTIME() ! LB Time End
-ElemTime(ELemID)=ElemTime(ElemID)+(tLBEnd-tLBStart)/nElems
+ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
 END SUBROUTINE LBElemPauseTime_avg
 
 

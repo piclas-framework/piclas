@@ -1341,7 +1341,7 @@ CASE('cell_volweight')
     BGMSourceCellVol(1,1,1,iElem,:) = BGMSourceCellVol(1,1,1,iElem,1:4)/CellVolWeight_Volumes(1,1,1,iElem)   
   END DO
 #if USE_LOADBALANCE
-  CALL LBElemPauseTime_avg(iElem,tLBStart) ! average over the number of elems
+  CALL LBElemPauseTime_avg(tLBStart) ! average over the number of elems
 #endif /*USE_LOADBALANCE*/
 
   DO iElem = 1, nElems
