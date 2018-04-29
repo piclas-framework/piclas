@@ -188,8 +188,8 @@ INTEGER                        :: locnPart
 LOGICAL                        :: PartIntExists
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
-REAL                           :: TargetWeight_loc
 #endif /*PARTICLES*/
+REAL                           :: TargetWeight_loc
 !===================================================================================================================================
 WeightSum = 0.0
 CurWeight = 0.0
