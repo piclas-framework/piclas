@@ -87,7 +87,7 @@ DO i = 1,PDM%ParticleVecLength
 !#if USE_LOADBALANCE
 !    CALL LBStartTime(tLBStart)
 !#endif /*USE_LOADBALANCE*/
-    IF (MeasrueTrackTime) nTracks=nTracks+1
+    IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
     TrackInfo%CurrElem = ElemID
@@ -285,7 +285,7 @@ USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo
 USE MOD_Particle_Boundary_Vars,      ONLY:nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionAuxBC
 USE MOD_Utils,                       ONLY:InsertionSort
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks, CountNbOfLostParts , nLostParts
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -358,7 +358,7 @@ DO iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    nTracks=nTracks+1
+    IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
 #ifdef CODE_ANALYZE
@@ -1047,7 +1047,7 @@ USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_TimeDisc_Vars,           ONLY:iStage,RK_inflow
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime
+USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
