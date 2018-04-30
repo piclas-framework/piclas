@@ -120,9 +120,6 @@ ALLOCATE( tCurrent(1:LB_NTIMES) )
 ! 13 -DGAnalyze
 ! 14 -PartAnalyze
 
-
-tCartMesh=0.
-
 tTotal=0.
 !LoadSum=0.
 tCurrent=0.
@@ -151,7 +148,7 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold                                             
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tCartMesh
+USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
@@ -253,7 +250,7 @@ IF(PerformLBSample) THEN
     ElemTime(iElem) = ElemTime(iElem)                              &
         + tTotal(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts &
         + tParts * nPartsPerElem(iElem)*sTotalParts    &
-        + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
+        + tTotal(LB_CARTMESHDEPO) * nPartsPerElem(iElem)*sTotalParts &
         + tTotal(LB_TRACK) * nTracksPerElem(iElem)*sTotalTracks &
         + tTotal(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
@@ -294,8 +291,6 @@ nDeposPerElem=0
 nPartsPerElem=0
 nSurfacefluxPerElem=0
 nPartsPerBCElem=0
-
-tCartMesh  =0.
 #endif /*PARTICLES*/
 
 !tTotal     =0.

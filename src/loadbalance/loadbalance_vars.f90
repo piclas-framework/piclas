@@ -71,7 +71,6 @@ REAL                                :: targetWeight                             
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                                :: tCartMesh                                  ! time for CartMesh deposition
 REAL,ALLOCATABLE                    :: ElemTime(:)
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)

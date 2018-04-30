@@ -1155,10 +1155,10 @@ USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
 ! only required for shape function??
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
-USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh
+USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBElemPauseTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Vars,       ONLY: PerformLBSample
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1233,10 +1233,10 @@ SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   ElemSource=0.0
-  DO iElem=1,PP_nElems
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+  DO iElem=1,PP_nElems
     DO iPart=firstPart,lastPart
       !IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(.NOT.DoParticle(iPart)) CYCLE
@@ -1265,21 +1265,21 @@ CASE('nearest_blurrycenter')
 !#endif                                            
     PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(iElem,4) 
 #if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+    CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem=1,PP_nElems
   IF(.NOT.doInnerParts)THEN
-    DO iElem=1,PP_nElems
 #if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart) ! Start time measurement
+    CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+    DO iElem=1,PP_nElems
 !#if (PP_nVar==8)
       PartSource(1:4,:,:,:,iElem) = PartSource(1:4,:,:,:,iElem) / GEO%Volume(iElem)
 !#else
 !      PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem) / GEO%Volume(iElem)
 !#endif
 #if USE_LOADBALANCE
-      CALL LBElemPauseTime(iElem,tLBStart)
+      CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
@@ -1344,10 +1344,10 @@ CASE('cell_volweight')
   CALL LBElemPauseTime_avg(tLBStart) ! average over the number of elems
 #endif /*USE_LOADBALANCE*/
 
-  DO iElem = 1, nElems
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+  DO iElem = 1, nElems
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
@@ -1367,7 +1367,7 @@ CASE('cell_volweight')
      END DO !ll
    END DO !kk
 #if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+   CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
  END DO !iEle
  DEALLOCATE(BGMSourceCellVol)
@@ -1378,7 +1378,7 @@ CASE('epanechnikov')
     !IF (PDM%ParticleInside(iPart)) THEN
     IF (DoParticle(iPart)) THEN
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+      CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 !      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
       IF (usevMPF) THEN
@@ -1446,7 +1446,7 @@ CASE('epanechnikov')
         PartSource(1:4,:,:,:,iElem) = PartSource(1:4,:,:,:,iElem)*alpha
       END IF
 #if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+    CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
     END DO
     DEALLOCATE(tempgridsource)
@@ -2071,10 +2071,10 @@ CASE('shape_function_cylindrical','shape_function_spherical')
 
 CASE('delta_distri')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
-  DO iElem=1,PP_nElems
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+  DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
       ! IF (PDM%ParticleInside(iPart)) THEN
       IF (DoParticle(iPart)) THEN
@@ -2128,14 +2128,14 @@ CASE('delta_distri')
       END IF ! ParticleInside of domain
     END DO ! ParticleVecLength
 #if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+    CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem
   IF(.NOT.DoInnerParts)THEN
-    DO iElem=1,PP_nElems
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+    DO iElem=1,PP_nElems
       DO k=0,NDepo
         DO j=0,NDepo
           DO i=0,NDepo
@@ -2148,7 +2148,7 @@ CASE('delta_distri')
                                                         ,PartSource(1:4,0:PP_N ,0:PP_N ,0:PP_N, iElem))
       END IF
 #if USE_LOADBALANCE
-      CALL LBElemPauseTime(iElem,tLBStart)
+      CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
     END DO ! loop over all elems
   END IF ! DoInnerParts
@@ -2163,10 +2163,10 @@ CASE('nearest_gausspoint')
     a = (PP_N+1)/2
     b = a-1
   END IF
-  DO iElem=1,PP_nElems
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+  DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
      ! IF (PDM%ParticleInside(iPart)) THEN
       IF (DoParticle(iPart)) THEN
@@ -2223,14 +2223,14 @@ CASE('nearest_gausspoint')
       END IF ! Particle inside
     END DO ! iPart
 #if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+    CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem=1,PP_nElems
   IF(.NOT.DoInnerParts)THEN
-    DO iElem=1,PP_nElems
 #if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart) ! Start time measurement
+    CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+    DO iElem=1,PP_nElems
       DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
       ! get densities by dividing by gauss volume
 !#if (PP_nVar==8)
@@ -2240,7 +2240,7 @@ CASE('nearest_gausspoint')
 !#endif
       END DO; END DO; END DO
 #if USE_LOADBALANCE
-      CALL LBElemPauseTime(iElem,tLBStart)
+      CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
     END DO ! iElem=1,PP_nElems
   END IF
@@ -2286,6 +2286,9 @@ CASE('cartmesh_volumeweighting')
   END DO
   BGMSource(:,:,:,:) = BGMSource(:,:,:,:) / BGMVolume
 
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_CARTMESHDEPO,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
   ! should be treated in this way, unforunately, we would negelct the periodic stuff
   !IF(.NOT.DoInnerParts)
@@ -2293,18 +2296,12 @@ CASE('cartmesh_volumeweighting')
 #else
   IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
-#if USE_LOADBALANCE
-  IF(PerformLBSample)THEN
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCartMesh=tCartMesh+tLBEnd-tLBStart
-  END IF
-#endif /*USE_LOADBALANCE*/
 
   ! Step 2: Interpolation of densities onto grid
-  DO iElem = 1, nElems
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+  DO iElem = 1, nElems
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
@@ -2340,7 +2337,7 @@ CASE('cartmesh_volumeweighting')
      END DO !ll
    END DO !kk
 #if USE_LOADBALANCE
-   CALL LBElemPauseTime(iElem,tLBStart)
+   CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
  END DO !iElem
  !DEALLOCATE(BGMSource)
@@ -2398,24 +2395,21 @@ CASE('cartmesh_splines')
   END DO
   BGMSource(:,:,:,:) = BGMSource(:,:,:,:) / BGMVolume
 
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_CARTMESHDEPO,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
   !IF(.NOT.DoInnerParts)THEN has to be communicated each time :(
   CALL MPISourceExchangeBGM()
 #else
   IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
-#if USE_LOADBALANCE
-  IF(PerformLBSample)THEN
-    tLBEnd = LOCALTIME() ! LB Time End
-    tCartMesh=tCartMesh+tLBEnd-tLBStart
-  END IF
-#endif /*USE_LOADBALANCE*/
 
   ! Step 2: Interpolation of densities onto grid
-  DO iElem = 1, nElems
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
+  CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+  DO iElem = 1, nElems
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
@@ -2442,7 +2436,7 @@ CASE('cartmesh_splines')
       END DO !ll
     END DO !kk
 #if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+    CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO !iElem
  !DEALLOCATE(BGMSource)
