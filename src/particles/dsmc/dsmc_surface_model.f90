@@ -52,6 +52,9 @@ USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall, PartBound
 USE MOD_TImeDisc_Vars,          ONLY : tend,time
 USE MOD_Mesh_Vars,              ONLY : BC
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,      ONLY : LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -60,14 +63,23 @@ IMPLICIT NONE
 INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites, SideID, PartboundID
 REAL                             :: maxPart
 REAL                             :: coverage_tmp, coverage_corrected
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 
 IF (DSMC%WallModel.GT.0) THEN
   IF (.NOT.SurfMesh%SurfOnProc) RETURN
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF (.NOT.KeepWallParticles) THEN
 #ifdef MPI
 ! 1. communicate number of particles that were adsorbed on halo-sides of neighbour procs
     CALL ExchangeAdsorbNum()
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_SURFCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif
     ! adjust coverages of all species on surfaces
     DO iSpec = 1,nSpecies
@@ -168,6 +180,9 @@ IF (DSMC%WallModel.GT.0) THEN
     CALL CalcDesorbProb()
     CALL CalcAdsorbProb()
   END IF
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! 6. communicate surface state to halo sides of neighbours
 #ifdef MPI
