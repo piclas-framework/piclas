@@ -87,6 +87,18 @@ USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
+#ifdef PARTICLES
+! Read particle MPI weight in order to determine the ElemTime when no time measurement is performed
+! Must be read in init (only once) and before the first load balance is determined because if no ElemTimes are used they are
+! calculated with ParticleMPIWeight 
+ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+IF (ParticleMPIWeight.LE.0.0) THEN
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: Particle weight cannot be negative!')
+END IF
+#endif /*PARTICLES*/
+
 IF(nProcessors.EQ.1)THEN
   DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
   SWRITE(UNIT_StdOut,'(a3,a45,a3,L33,a3,a7,a3)')' | ',TRIM("No LoadBalance (nProcessors=1): DoLoadBalance")       ,' | ',&
