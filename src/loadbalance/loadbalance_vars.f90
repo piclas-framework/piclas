@@ -42,8 +42,6 @@ REAL,ALLOCATABLE                    :: tCurrent(:)                              
 
 ! counter
 REAL(KIND=8)                        :: nTotalParts                                ! number of particles in time of tTotal
-!INTEGER                             :: nLoadIter                                  ! number of load iter 
-!INTEGER                             :: nCurrentParts                              ! number of current particles
 INTEGER                             :: nLoadBalance                               ! number of load balances
 INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
 REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs
@@ -74,7 +72,6 @@ REAL                                :: targetWeight                             
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                                :: tCartMesh                                  ! time for CartMesh deposition
-REAL                                :: tTracking                                  ! time for relocation of particles
 REAL,ALLOCATABLE                    :: ElemTime(:)
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)

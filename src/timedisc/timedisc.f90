@@ -1428,13 +1428,13 @@ REAL                  :: tLBStart
     END IF
     IF (LiquidSimFlag) CALL Evaporation()
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_SURF,tLBStart)
+    CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
     CALL ParticleSurfaceflux()
 
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_EMISSION,tLBStart)
+    CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -1476,7 +1476,7 @@ REAL                  :: tLBStart
   ! open receive buffer for number of particles
   CALL IRecvNbOfParticles()
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
@@ -1485,7 +1485,13 @@ REAL                  :: tLBStart
     CALL ParticleRefTracking()
   ELSE
     IF (TriaTracking) THEN
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL ParticleTriaTracking()
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_TRACK,tLBStart)
+#endif /*USE_LOADBALANCE*/
     ELSE
       CALL ParticleTracing()
     END IF
@@ -1495,9 +1501,6 @@ REAL                  :: tLBStart
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
 #ifdef MPI
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_TRACK,tLBStart)
-#endif /*USE_LOADBALANCE*/
   ! send number of particles
   CALL SendNbOfParticles()
   ! finish communication of number of particles and send particles
@@ -1505,15 +1508,15 @@ REAL                  :: tLBStart
   ! finish communication
   CALL MPIParticleRecv()
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 
   CALL DSMC_Update_Wall_Vars()
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SURF,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL ParticleInserting()
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_EMISSION,tLBStart)

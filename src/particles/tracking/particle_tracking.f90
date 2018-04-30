@@ -49,10 +49,10 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts,CountNbOfLostParts,nLostParts,TrackInfo
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts,TrackInfo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,            ONLY:PerformLBSample,nTracksPerElem
-USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
+!USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -77,18 +77,17 @@ REAL                             :: det(6,2),detM,ratio,minRatio
 REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
-#if USE_LOADBALANCE
-REAL                             :: tLBStart
-#endif /*USE_LOADBALANCE*/
+!#if USE_LOADBALANCE
+!REAL                             :: tLBStart
+!#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 DO i = 1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
-#if USE_LOADBALANCE
-    !CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    nTracks=nTracks+1
-    nCurrentParts=nCurrentParts+1
+!#if USE_LOADBALANCE
+!    CALL LBStartTime(tLBStart)
+!#endif /*USE_LOADBALANCE*/
+    IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
     TrackInfo%CurrElem = ElemID
@@ -286,7 +285,7 @@ USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo
 USE MOD_Particle_Boundary_Vars,      ONLY:nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionAuxBC
 USE MOD_Utils,                       ONLY:InsertionSort
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -359,8 +358,7 @@ DO iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    nTracks=nTracks+1
-    nCurrentParts=nCurrentParts+1
+    IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
 #ifdef CODE_ANALYZE
@@ -682,9 +680,7 @@ DO iPart=1,PDM%ParticleVecLength
                 PartisDone=.TRUE.
               END IF
 #if USE_LOADBALANCE
-              IF(OldElemID.LE.PP_nElems)THEN
-                CALL LBElemSplitTime(OldElemID,tLBStart)
-              END IF
+              IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
               EXIT
             END IF
@@ -814,9 +810,7 @@ DO iPart=1,PDM%ParticleVecLength
                   END IF
                   !PartTrajectory=PartTrajectory/lengthPartTrajectory
 #if USE_LOADBALANCE
-                  IF(OldElemID.LE.PP_nElems)THEN
-                    CALL LBElemSplitTime(OldElemID,tLBStart)
-                  END IF
+                  IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
                   !EXIT
                 END IF
@@ -943,9 +937,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF ! markTol
 #if USE_LOADBALANCE
-    IF(PEM%Element(iPart).LE.PP_nElems)THEN
-      CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
-    END IF
+    IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
 !    IF(markTol)THEN
 !      CALL PartInElemCheck(iPart,ElemID,isHit)
@@ -1046,7 +1038,7 @@ USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
-USE MOD_LoadBalance_Vars,        ONLY:nTracksPerElem,tTracking
+USE MOD_LoadBalance_Vars,        ONLY:nTracksPerElem
 #endif
 #if defined(IMPA)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
@@ -1055,7 +1047,7 @@ USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_TimeDisc_Vars,           ONLY:iStage,RK_inflow
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime
+USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1081,7 +1073,7 @@ LOGICAL                           :: PartisDone,PartIsMoved
 REAL                              :: lengthPartTrajectory0
 ! load balance
 #if USE_LOADBALANCE
-REAL                              :: tLBStart,tLBEnd ! load balance
+REAL                              :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
@@ -1244,9 +1236,9 @@ DO iPart=1,PDM%ParticleVecLength
     DO iBGMElem=1,nBGMElems
       IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
       ElemID=ListDistance(iBGMElem)
-#ifdef MPI
+#if USE_LOADBALANCE
       IF(ElemID.LE.PP_nElems) nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
@@ -1387,8 +1379,7 @@ __STAMP__ &
       END IF ! inner eps to large
     END IF
 #if USE_LOADBALANCE
-    tLBEnd = LOCALTIME() ! LB Time End
-    tTracking = tTracking +tLBEnd-tLBStart
+    CALL LBPauseTime(LB_TRACK,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
 END DO ! iPart

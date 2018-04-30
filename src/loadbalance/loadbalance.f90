@@ -134,7 +134,6 @@ ALLOCATE( tCurrent(1:LB_NTIMES) )
 
 
 tCartMesh=0.
-tTracking=0.
 
 tTotal=0.
 !LoadSum=0.
@@ -164,7 +163,7 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold                                             
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
+USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem,tCartMesh
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
@@ -213,7 +212,7 @@ IF(PerformLBSample) THEN
   stotalDepos=1.0
   sTotalTracks=1.0
   stotalSurfacefluxes=1.0
-
+  ! calculate and weight particle number per element
   helpSum=SUM(nPartsPerElem)
   IF(helpSum.GT.0) THEN
     stotalParts=1.0/REAL(helpSum)
@@ -221,8 +220,10 @@ IF(PerformLBSample) THEN
     stotalParts=1.0/REAL(PP_nElems)
     nPartsPerElem=1
   END IF
-  tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)+tTotal(LB_DSMC)!+tTotal(LB_PARTANALYZE) ! interpolation+unfp+analyze
-  IF(DoRefMapping)THEN
+  ! sum of particle dependant load balance time 
+  tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)+tTotal(LB_DSMC) !interpolation+push+unfp+dsmc(analyze)
+  ! set and weight tracks per element
+  IF (DoRefMapping .OR. TriaTracking) THEN
     helpSum=SUM(nTracksPerElem)
     IF(SUM(nTracksPerElem).GT.0) THEN
       sTotalTracks=1.0/REAL(helpSum)
@@ -230,27 +231,18 @@ IF(PerformLBSample) THEN
       stotalTracks=1.0/REAL(PP_nElems)
       nTracksPerElem=1
     END IF
-  ELSE IF(TriaTracking)THEN
-    tTracking = tTotal(LB_TRACK)
-    helpSum=SUM(nTracksPerElem)
-    IF(SUM(nTracksPerElem).GT.0) THEN
-      sTotalTracks=1.0/REAL(helpSum)
-    ELSE
-      stotalTracks=1.0/REAL(PP_nElems)
-      nTracksPerElem=1
-    END IF
-  ELSE
-    stotalTracks=1.0/REAL(PP_nElems)
-    nTracksPerElem=1
   END IF
+  ! set and weight depositions per element
   helpSum=SUM(nDeposPerElem)
   IF(helpSum.GT.0) THEN
     stotalDepos=1.0/REAL(helpSum)
   END IF
+  ! calculate and weight number of surface fluxes (during setvelo,setinterenergies...)
   helpSum=SUM(nSurfacefluxPerElem)
   IF(helpSum.GT.0) THEN
     stotalSurfacefluxes=1.0/REAL(helpSum)
   END IF
+  ! calculate weight number of particles used in sampling of bc element for adaptive particle bcs
   helpSum=SUM(nPartsPerBCElem)
   IF(helpSum.GT.0) THEN
     stotalBCParts=1.0/REAL(helpSum)
@@ -262,9 +254,6 @@ IF(PerformLBSample) THEN
 
   DO iElem=1,PP_nElems
     ElemTime(iElem) = ElemTime(iElem) + tDG
-    !IF(ElemTime(iElem).GT.1000) THEN
-    !  IPWRITE(*,*) 'ElemTime already above 1000'
-    !END IF
 #ifndef PP_HDG
     IF(DoPML)THEN
       IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tPML
@@ -272,18 +261,12 @@ IF(PerformLBSample) THEN
 #endif /*PP_HDG*/
 
 #ifdef PARTICLES
-    !IF(tParts * nPartsPerElem(iElem)*sTotalParts.GT.1000)THEN
-    !  IPWRITE(*,*) 'tParts above 1000',tParts * nPartsPerElem(iElem)*sTotalParts,nPartsPerElem(iElem),sTotalParts,1.0/sTotalParts
-    !END IF
-    !IF(tTracking * nTracksPerElem(iElem)*sTotalTracks.GT.1000)THEN
-    !  IPWRITE(*,*) 'tTracking above 1000',tTracking * nTracksPerElem(iElem)*sTotalTracks,&
-    !                                     nTracksPerElem(iElem),sTotalTracks,1.0/sTotalTracks
-    !END IF
+    ! add particle LB times to elements with respective weightings
     ElemTime(iElem) = ElemTime(iElem)                              &
         + tTotal(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts &
         + tParts * nPartsPerElem(iElem)*sTotalParts    &
         + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
-        + tTracking * nTracksPerElem(iElem)*sTotalTracks &
+        + tTotal(LB_TRACK) * nTracksPerElem(iElem)*sTotalTracks &
         + tTotal(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
@@ -325,7 +308,6 @@ nSurfacefluxPerElem=0
 nPartsPerBCElem=0
 
 tCartMesh  =0.
-tTracking  =0.
 #endif /*PARTICLES*/
 
 !tTotal     =0.
@@ -424,81 +406,6 @@ SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTim
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance
-
-
-!   SUBROUTINE LoadMeasure() 
-!   !----------------------------------------------------------------------------------------------------------------------------------!
-!   ! Performs the load measure stuff
-!   !----------------------------------------------------------------------------------------------------------------------------------!
-!   ! MODULES                                                                                                                          !
-!   !----------------------------------------------------------------------------------------------------------------------------------!
-!   USE MOD_Globals
-!   USE MOD_Preproc
-!   USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter
-!   #ifdef PARTICLES
-!   USE MOD_LoadBalance_Vars,       ONLY:nTotalParts
-!   USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
-!   #endif /*PARTICLES*/
-!   #ifndef PP_HDG
-!   USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
-!   #endif /*PP_HDG*/
-!   #if defined(LSERK) || defined(IMPA) || defined(ROS)
-!   #if (PP_TimeDiscMethod!=110)
-!   USE MOD_TimeDisc_Vars,          ONLY:nRKStages
-!   #endif
-!   #endif
-!   !----------------------------------------------------------------------------------------------------------------------------------!
-!   IMPLICIT NONE
-!   ! INPUT VARIABLES 
-!   !----------------------------------------------------------------------------------------------------------------------------------!
-!   ! OUTPUT VARIABLES
-!   !-----------------------------------------------------------------------------------------------------------------------------------
-!   ! LOCAL VARIABLES
-!   REAL                :: nLocalParts
-!   !===================================================================================================================================
-!   
-!   nloadIter=nloaditer+1
-!   tTotal=tTotal+tCurrent
-!   
-!   #ifdef PARTICLES
-!   #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-!       nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
-!   #else
-!       nLocalParts=REAL(nCurrentParts)
-!   #endif /*TimeDiscMethod*/
-!     nTotalParts=nTotalParts+nLocalParts
-!   #else
-!     nLocalParts=0
-!   #endif /*PARTICLES*/
-!   
-!   ! compute load sum
-!   ! dg
-!   LoadSum(LB_DG)    =LoadSum(LB_DG)    +tCurrent(LB_DG)    /REAL(PP_nElems)
-!   LoadSum(LB_DGCOMM)=LoadSum(LB_DGCOMM)+tCurrent(LB_DGCOMM)/REAL(PP_nElems)
-!   #ifndef PP_HDG
-!   IF(DoPML)THEN
-!     IF(nPMLElems.GT.0) LoadSum(LB_PML)=LoadSum(LB_PML)+tCurrent(LB_PML)/REAL(nPMLElems)
-!   END IF
-!   #endif /*PP_HDG*/
-!   
-!   LoadSum(LB_DGANALYZE)=LoadSum(LB_DGANALYZE)+tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
-!   
-!   #ifdef PARTICLES
-!   ! particles
-!   IF(nLocalParts.GT.0)THEN
-!     nLocalParts=1.0/nLocalParts
-!     LoadSum(LB_EMISSION:LB_UNFP)=LoadSum(LB_EMISSION:LB_UNFP)+tCurrent(LB_EMISSION:LB_UNFP)*nLocalParts
-!     LoadSum(LB_PARTANALYZE)=LoadSum(LB_PARTANALYZE)+tCurrent(LB_PARTANALYZE)*nLocalParts
-!   END IF
-!   #endif /*PARTICLES*/
-!   
-!   ! last operation
-!   tCurrent=0.
-!   #ifdef PARTICLES
-!   nCurrentParts=0
-!   #endif /*PARTICLES*/
-!   
-!   END SUBROUTINE LoadMeasure
 
 
 SUBROUTINE ComputeImbalance()
