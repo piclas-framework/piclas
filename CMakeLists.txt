@@ -538,9 +538,13 @@ ENDIF()
 # ========================================================================
 # LOADBALANCE
 # =========================================================================
-IF(BOLTZPLATZ_LOADBALANCE)
-  MESSAGE(STATUS "Building Boltzplatz with LoadBalance")
-  ADD_DEFINITIONS(-DUSE_LOADBALANCE=1)
+IF(BOLTZPLATZ_MPI)
+  IF(BOLTZPLATZ_LOADBALANCE)
+    MESSAGE(STATUS "Building Boltzplatz with LoadBalance")
+    ADD_DEFINITIONS(-DUSE_LOADBALANCE=1)
+  ELSE()
+    ADD_DEFINITIONS(-DUSE_LOADBALANCE=0)
+  ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_LOADBALANCE=0)
 ENDIF()
