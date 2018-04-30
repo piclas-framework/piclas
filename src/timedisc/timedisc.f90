@@ -1485,7 +1485,13 @@ REAL                  :: tLBStart
     CALL ParticleRefTracking()
   ELSE
     IF (TriaTracking) THEN
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL ParticleTriaTracking()
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_TRACK,tLBStart)
+#endif /*USE_LOADBALANCE*/
     ELSE
       CALL ParticleTracing()
     END IF
@@ -1495,9 +1501,6 @@ REAL                  :: tLBStart
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
 #ifdef MPI
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_TRACK,tLBStart)
-#endif /*USE_LOADBALANCE*/
   ! send number of particles
   CALL SendNbOfParticles()
   ! finish communication of number of particles and send particles
