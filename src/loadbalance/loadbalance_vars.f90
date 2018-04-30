@@ -20,28 +20,10 @@ LOGICAL                             :: InitLoadBalanceIsDone                    
 ! time measurement
 REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
                                                                                   ! measured elem-independent and later weighted
-!REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
                                                                                   ! measured elem-independent and later weighted
-!                                                                                 !  1 -tDG
-!                                                                                 !  2 -tDGComm
-!                                                                                 !  3 -tPML
-!                                                                                 !  4 -tEmission
-!                                                                                 !  5 -tTrack
-!                                                                                 !  6 -tInterpolation
-!                                                                                 !  7 -tDeposition
-!                                                                                 !  8 -tDSMC
-!                                                                                 !  9 -tPush
-!                                                                                 ! 10 -tPartComm
-!                                                                                 ! 11 -tSplit&Merge
-!                                                                                 ! 12 -UNFP
-!                                                                                 ! 13 -DGAnalyze
-!                                                                                 ! 14 -PartAnalyze
-!                                                                                 ! 15 -tSurf
-!                                                                                 ! 16 -tSurfflux
-
+                                                                                  ! for indeces look into boltzplatz.h
 ! counter
-REAL(KIND=8)                        :: nTotalParts                                ! number of particles in time of tTotal
 INTEGER                             :: nLoadBalance                               ! number of load balances
 INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
 REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs

@@ -409,7 +409,7 @@ IF(DoWriteStateToHDF5)THEN
 #endif /*USE_QDS_DG*/
 END IF
 
-! if measurement of particle tracking time
+! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
 IF(MeasureTrackTime)THEN
   nTracks=0

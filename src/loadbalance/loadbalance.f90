@@ -53,15 +53,20 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("LoadBalance")
 
-CALL prms%CreateLogicalOption( 'DoLoadBalance'                 ,  "Flag for doing LoadBalance.", '.FALSE.')
-CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "TODO-DEFINE-PARAMETER\n"//&
-                                                                  "Threshold for load-balancing" , value='0.10')
-CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Weight of particles for elem loads\n"//&
-                                                                  "(only used if ElemTime does not exist or DoLoadBalance=F)."&
-                                                               , value='0.02')
-CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads. (def.: 1 or -1)")
-CALL prms%CreateIntOption(     'LoadBalanceSample'           ,  "Number of iterations used for calculation of elemtime information"&
-                                                               , value='10')
+CALL prms%CreateLogicalOption( 'DoLoadBalance'                 ,  "Set flag for doing LoadBalance.", '.FALSE.')
+CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "Define threshold for dynamic load-balancing.\n"//&
+  "Restart performed if (Maxweight-Targetweight)/Targetweight > defined value." , value='0.10')
+CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Define weight of particles for elem loads.\n"//&
+  "(only used if ElemTime does not exist or DoLoadBalance=F).", value='0.02')
+CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads. (def.: 1 or -1)\n"//&
+                                                                 " 1:\n"//&
+                                                                 " 2:\n"//&
+                                                                 " 3:\n"//&
+                                                                 " 4:\n"//&
+                                                                 " 5:\n"//&
+                                                                 " 6:\n")
+CALL prms%CreateIntOption(     'LoadBalanceSample'           ,  "Define number of iterations (before analyze_dt)"//&
+  " that are used for calculation of elemtime information" , value='10')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -104,28 +109,11 @@ PerformLBSample = .FALSE.
 
 ALLOCATE( tTotal(1:LB_NTIMES)   )
 ALLOCATE( tCurrent(1:LB_NTIMES) )
-!ALLOCATE( LoadSum(1:14)  )
-!  1 -tDG
-!     2 -tDGComm ! (not used for ElemTime!)
-!  3 -tPML/QDS
-!     4 -tEmission ! (not used for ElemTime!)
-!     5 -tTrack ! (not used for ElemTime!)
-!  6 -tInterpolation/RHS
-!  7 -tDeposition (only used with shapefunctions for ElemTime!)
-!     8 -tDSMC ! (not used for ElemTime!)
-!  9 -tPush
-!    10 -tPartComm ! (not used for ElemTime!)
-!    11 -tSplit&Merge ! (not used for ElemTime!)
-! 12 -UNFP
-! 13 -DGAnalyze
-! 14 -PartAnalyze
+! Allocation length (1:number of loadbalance times)
+! look into boltzplatz.h for more info about time names
 
 tTotal=0.
-!LoadSum=0.
 tCurrent=0.
-
-nTotalParts=0 
-!nLoadIter  =0
 
 InitLoadBalanceIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
@@ -177,15 +165,16 @@ REAL                  :: tParts
 
 ! If elem times are calculated by time measurement (PerformLBSample)
 IF(PerformLBSample) THEN
-  ! time measurement over whole dt_analyze 
-  tTotal   = tTotal+tCurrent ! Moved from LoadMeasure
+  ! time measurement over LBSample before dt_analyze for all elements of one proc
+  tTotal   = tTotal+tCurrent
   tCurrent = 0.
 
   ! number of load balance calls to Compute Elem Load
   nLoadBalance=nLoadBalance+1
 
-  ! time per dg elem
+  ! time used in dg routines
   tDG=(tTotal(LB_DG)+tTotal(LB_DGANALYZE))/REAL(PP_nElems)
+  ! time used in pml routines
   tPML=0.
 #ifndef PP_HDG
   IF(DoPML)THEN
@@ -237,6 +226,7 @@ IF(PerformLBSample) THEN
   END IF
 #endif /*PARTICLES*/
 
+  ! distribute times of different routines on elements with respective weightings
   DO iElem=1,PP_nElems
     ElemTime(iElem) = ElemTime(iElem) + tDG
 #ifndef PP_HDG
@@ -292,12 +282,6 @@ nPartsPerElem=0
 nSurfacefluxPerElem=0
 nPartsPerBCElem=0
 #endif /*PARTICLES*/
-
-!tTotal     =0.
-!LoadSum    =0.
-!tCurrent   =0.
-!nTotalParts=0.
-!nLoadIter  =0
 
 END SUBROUTINE ComputeElemLoad
 
@@ -473,7 +457,6 @@ IMPLICIT NONE
 
 SDEALLOCATE( tTotal  )
 SDEALLOCATE( tCurrent  )
-!SDEALLOCATE( LoadSum )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
