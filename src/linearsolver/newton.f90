@@ -317,7 +317,7 @@ END IF
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DEPOSTION,tLBStart)
+  CALL LBSplitTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE
@@ -524,7 +524,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
 #if USE_LOADBALANCE
-      CALL LBSplitTime(LB_DEPOSTION,tLBStart)
+      CALL LBSplitTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE
