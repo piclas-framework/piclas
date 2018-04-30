@@ -144,8 +144,9 @@
 #define LB_ADAPTIVE      17
 #define LB_DSMCANALYZE   18
 #define LB_SURFCOMM      19
+#define LB_CARTMESHDEPO  20
 
-#define LB_NTIMES        19
+#define LB_NTIMES        20
 
 ! DSMC_analyze indeces used in arrays
 #define DSMC_VELOX       1
