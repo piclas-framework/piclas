@@ -115,31 +115,28 @@ CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-P
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
                                                                  , '100000')
+CALL prms%SetSection("IMD")
 ! IMD things
-CALL prms%CreateRealOption(     'IMDTimeScale'                       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Time unit of input file', '10.18e-15')
-CALL prms%CreateRealOption(     'IMDLengthScale'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Global IMD length scale' , '1.0e-10')
-CALL prms%CreateStringOption(   'IMDAtomFile'                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Laser data file name containing'//&
-                                                                ' PartState(1:6)' &
+CALL prms%CreateRealOption(     'IMDTimeScale'                , 'Time unit of input file.\n The default value is'//&
+                                                                ' ~10.18 fs which comes from the unit system in IMD', '10.18e-15')
+CALL prms%CreateRealOption(     'IMDLengthScale'              , 'Length unit scale used by IMD which is 1 angstrom'&
+                                                              , '1.0e-10')
+CALL prms%CreateStringOption(   'IMDAtomFile'                 , 'IMD data file containing the atomic states for PartState(1:6)'&
                                                               , 'no file found')
-CALL prms%CreateStringOption(   'IMDCutOff'                   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Cut-off type for IMD data reduction:\n'//&
+CALL prms%CreateStringOption(   'IMDCutOff'                   , 'Atom cut-off parameter for reducing the number of improrted '//&
+                                                                'IMD particles\n'//&
                                                                 '1.) no_cutoff\n'//&
                                                                 '2.) Epot\n'//&
                                                                 '3.) coordinates\n'//&
-                                                                '4.) velocity', 'no cutoff')
-CALL prms%CreateRealOption(     'IMDCutOffxValue'              , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "Cut-off coordinate for"//&
+                                                                '4.) velocity', 'no_cutoff')
+CALL prms%CreateRealOption(     'IMDCutOffxValue'              ,"Cut-off coordinate for"//&
                                                                 " IMDCutOff='coordiantes'" &
                                                               , '-999.9')
-CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Count of IMD species', '1')
-CALL prms%CreateStringOption(   'IMDInputFile'                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Laser data file name containing '//&
+CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'Count of IMD species', '1')
+CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file name containing '//&
                                                                 'PartState(1:6) ' &
                                                               , 'no file found')
+CALL prms%SetSection("VMPF")
                               
 ! vmpf stuff
 CALL prms%CreateLogicalOption(  'Part-vMPF'                      , 'TODO-DEFINE-PARAMETER\n'//&

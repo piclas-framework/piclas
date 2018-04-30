@@ -124,7 +124,7 @@
 ! format
 #define WRITEFORMAT '(E25.14E3)'
 
-! Load Balance (LB) position in array for measuring the time that is spent of specific operations
+! Load Balance (LB) position in array for measuring the time that is spent on specific operations
 #define LB_DG            1
 #define LB_DGCOMM        2
 #define LB_PML           3

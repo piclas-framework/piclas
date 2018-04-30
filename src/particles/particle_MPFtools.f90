@@ -45,12 +45,12 @@ SUBROUTINE StartParticleMerge()
 ! Particle Merge routine
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,          ONLY: LocalTime
-USE MOD_Particle_Vars,    ONLY: doParticleMerge, nSpecies,vMPFMergeParticleTarget,vMPF_SpecNumElem,vMPFSplitParticleTarget
-USE MOD_Mesh_Vars,        ONLY: nElems
-#ifdef MPI
-USE MOD_LoadBalance_Vars, ONLY: ElemTime
-#endif /*MPI*/
+USE MOD_Globals           ,ONLY: LocalTime
+USE MOD_Particle_Vars     ,ONLY: doParticleMerge, nSpecies,vMPFMergeParticleTarget,vMPF_SpecNumElem,vMPFSplitParticleTarget
+USE MOD_Mesh_Vars         ,ONLY: nElems
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,27 +60,25 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iSpec
-#ifdef MPI
-! load balance
+#if USE_LOADBALANCE
 REAL                             :: tLBStart,tLBEnd
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 DO iElem = 1, nElems
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
   DO iSpec= 1, nSpecies
     IF ((vMPFMergeParticleTarget.GT.0).AND.(vMPF_SpecNumElem(iElem,iSpec).GT.vMPFMergeParticleTarget*2)) THEN
       CALL MergeParticles(iElem, vMPFMergeParticleTarget, vMPF_SpecNumElem(iElem,iSpec), iSpec)
     ELSE IF((vMPFSplitParticleTarget.GT.0).AND.(vMPF_SpecNumElem(iElem,iSpec).LT.vMPFSplitParticleTarget/2) &
-              .AND.(vMPF_SpecNumElem(iElem,iSpec).GT.2)) THEN
-      CALL MergeParticles(iElem, vMPFSplitParticleTarget, vMPF_SpecNumElem(iElem,iSpec), iSpec)
-    END IF
-  END DO
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
-#endif /*MPI*/
+      .AND.(vMPF_SpecNumElem(iElem,iSpec).GT.2)) THEN
+    CALL MergeParticles(iElem, vMPFSplitParticleTarget, vMPF_SpecNumElem(iElem,iSpec), iSpec)
+  END IF
+END DO
+#if USE_LOADBALANCE
+CALL LBElemSplitTime(iElem,tLBStart) ! save time to elem and reset tLBStart variable
+#endif /*USE_LOADBALANCE*/
 END DO
 doParticleMerge=.false.
 END SUBROUTINE StartParticleMerge

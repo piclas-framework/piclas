@@ -183,10 +183,9 @@ USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 #endif
 USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
-USE MOD_IO_HDF5,            ONLY: AddToElemData,ElementOut
+USE MOD_IO_HDF5
 #ifdef MPI
-USE MOD_io_hdf5
-USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight,DoLoadBalance
+USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight
 USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem,nPartsPerBCElem
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem
@@ -315,7 +314,7 @@ ELSE
     offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
   END DO
   offsetElemMPI(nProcessors)=nGlobalElems
-END IF ! IF(DoRestart.AND.DoLoadBalance)
+END IF ! IF(DoRestart)
 
 
 
@@ -347,7 +346,6 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   DO iProc=0,nProcessors-1
     WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
   END DO
-  SDEALLOCATE(ElemGlobalTime)
   MaxWeight = MAXVAL(WeightSum_proc)
   MinWeight = MINVAL(WeightSum_proc)
   ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
@@ -359,12 +357,19 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   IF(TargetWeight.LE.0.0) CALL abort(&
       __STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
+  SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance:     ', NewImbalance
 ELSE
+  SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
   NewImbalance = -1.
   MaxWeight = -1.
   MinWeight = -1.
 END IF
 
+SDEALLOCATE(ElemGlobalTime)
 
 
 

@@ -32,11 +32,16 @@ INTERFACE LBElemPauseTime
   MODULE PROCEDURE LBElemPauseTime
 END INTERFACE
 
+INTERFACE LBElemPauseTime_avg
+  MODULE PROCEDURE LBElemPauseTime_avg
+END INTERFACE
+
 PUBLIC::LBStartTime
 PUBLIC::LBSplitTime
 PUBLIC::LBPauseTime
 PUBLIC::LBElemSplitTime
 PUBLIC::LBElemPauseTime
+PUBLIC::LBElemPauseTime_avg
 
 CONTAINS
 
@@ -56,7 +61,6 @@ REAL,INTENT(INOUT)  :: tLBStart
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL                :: tLBEnd
 !===================================================================================================================================
 IF(.NOT. PerformLBSample) RETURN
 tLBStart = LOCALTIME() ! LB Time Start
@@ -162,6 +166,32 @@ IF(.NOT. PerformLBSample) RETURN
 tLBEnd = LOCALTIME() ! LB Time End
 ElemTime(ELemID)=ElemTime(ElemID)+tLBEnd-tLBStart
 END SUBROUTINE LBElemPauseTime
+
+SUBROUTINE LBElemPauseTime_avg(tLBStart)
+!===================================================================================================================================
+!> calculates end time and adds time to Elemtime(ElemID)
+!> does not reset tLBstart
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals          ,ONLY: LOCALTIME
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
+USE MOD_Mesh_Vars        ,ONLY: nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+REAL,INTENT(IN)     :: tLBStart
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+REAL                :: tLBEnd
+!===================================================================================================================================
+IF(.NOT. PerformLBSample) RETURN
+tLBEnd = LOCALTIME() ! LB Time End
+ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
+END SUBROUTINE LBElemPauseTime_avg
+
 
 
 END MODULE MOD_LoadBalance_Tools

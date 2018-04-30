@@ -188,22 +188,21 @@ INTEGER                        :: locnPart
 LOGICAL                        :: PartIntExists
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
-REAL                           :: TargetWeight_loc
 #endif /*PARTICLES*/
+REAL                           :: TargetWeight_loc
 !===================================================================================================================================
 WeightSum = 0.0
 CurWeight = 0.0
 
 ! Load balancing for particles: read in particle data
 #ifdef PARTICLES
-IF(.NOT.ElemTimeExists)THEN
-  ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-  IF (ParticleMPIWeight.LT.0) THEN
-    CALL abort(&
-__STAMP__&
-,' ERROR: Particle weight cannot be negative!')
-  END IF
-END IF !.NOT.ElemTimeExists
+! Read particle MPI weight in order to determine the ElemTime when no time measurement is performed
+ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+IF (ParticleMPIWeight.LE.0.0) THEN
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: Particle weight cannot be negative!')
+END IF
 CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
 CALL DatasetExists(File_ID,'PartInt',PartIntExists)
 IF(PartIntExists)THEN
@@ -241,33 +240,41 @@ END IF
 
 SELECT CASE(WeightDistributionMethod)
 CASE(-1) ! same as in no-restart: the elements are equally distributed
-  nElems=nGlobalElems/nProcessors
-  iElem=nGlobalElems-nElems*nProcessors
-  DO iProc=0,nProcessors-1
-    offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
-  END DO
-  offsetElemMPI(nProcessors)=nGlobalElems
+  IF(MPIRoot)THEN
+    nElems=nGlobalElems/nProcessors
+    iElem=nGlobalElems-nElems*nProcessors
+    DO iProc=0,nProcessors-1
+      offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
+    END DO
+    offsetElemMPI(nProcessors)=nGlobalElems
+  END IF
+  ! Send the load distribution to all other procs
+  CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(0) ! old scheme
-  IF(nGlobalElems.EQ.nProcessors) THEN
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc) = iProc
-    END DO
-  ELSE
-    curiElem = 1
-    WeightSum=WeightSum/REAL(nProcessors)
-    DO iProc=0, nProcessors-1
-      offsetElemMPI(iProc)=curiElem - 1
-      DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
-        CurWeight=CurWeight+ElemGlobalTime(iElem)
-        IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
-          curiElem = iElem + 1
-          EXIT
-        END IF
+  IF(MPIRoot)THEN
+    IF(nGlobalElems.EQ.nProcessors) THEN
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc) = iProc
       END DO
-    END DO
+    ELSE
+      curiElem = 1
+      WeightSum=WeightSum/REAL(nProcessors)
+      DO iProc=0, nProcessors-1
+        offsetElemMPI(iProc)=curiElem - 1
+        DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
+          CurWeight=CurWeight+ElemGlobalTime(iElem)
+          IF (CurWeight.GE.WeightSum*(iProc+1)) THEN
+            curiElem = iElem + 1
+            EXIT
+          END IF
+        END DO
+      END DO
+    END IF
+    offsetElemMPI(nProcessors)=nGlobalElems
   END IF
-  offsetElemMPI(nProcessors)=nGlobalElems
+  ! Send the load distribution to all other procs
+  CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(1)
   ! 1: last Proc receives the least load
@@ -1083,6 +1090,7 @@ USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,SimulationTime,InitializationWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Globals          ,ONLY: abort
+USE MOD_Globals          ,ONLY: nProcessors
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -1095,9 +1103,10 @@ REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=50)                        :: formatStr
-INTEGER,PARAMETER                        :: nOutputVar=11
+INTEGER,PARAMETER                        :: nOutputVar=12
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time', &
+    'Procs', &
     'MinWeight', &
     'MaxWeight', &
     'CurrentImbalance', &
@@ -1109,6 +1118,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'SimulationTime',&
     'InitializationWallTime'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
+CHARACTER(LEN=1000)                      :: tmpStr2 
+CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -1124,7 +1135,7 @@ IF(WriteHeader)THEN ! create new file
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
   tmpStr=""
   DO I=1,nOutputVar
-    WRITE(tmpStr(I),'(A)')' "'//TRIM(StrVarNames(I))//'" '
+    WRITE(tmpStr(I),'(A)')delimiter//'"'//TRIM(StrVarNames(I))//'"'
   END DO
   WRITE(formatStr,'(A1)')'('
   DO I=1,nOutputVar
@@ -1134,8 +1145,12 @@ IF(WriteHeader)THEN ! create new file
       WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
     END IF
   END DO
-  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')'
-  write(ioUnit,formatStr)tmpStr
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
   CLOSE(ioUnit) 
 ELSE ! 
   IF(.NOT.PRESENT(time))THEN
@@ -1145,12 +1160,24 @@ ELSE !
   END IF
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(formatStr,'(A1,I1,A14)')'(',nOutputVar,'(1X,E21.14E3))'
-    WRITE(ioUnit,formatStr)(/time_loc, MinWeight, MaxWeight, CurrentImbalance, TargetWeight, REAL(nLoadBalanceSteps), WeightSum, &
-        SimulationEfficiency,PID,SimulationTime,InitializationWallTime/)
+    WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+    WRITE(tmpStr2,formatStr)&
+              " ",time_loc, &
+        delimiter,REAL(nProcessors), &
+        delimiter,MinWeight, &
+        delimiter,MaxWeight, &
+        delimiter,CurrentImbalance, &
+        delimiter,TargetWeight, &
+        delimiter,REAL(nLoadBalanceSteps), &
+        delimiter,WeightSum, &
+        delimiter,SimulationEfficiency,&
+        delimiter,PID,&
+        delimiter,SimulationTime,&
+        delimiter,InitializationWallTime
+    WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit) 
   ELSE
-    SWRITE(UNIT_StdOut,'(A)')"ElemTimeStatistics.csv does not exist. cannot write load balance info!"
+    SWRITE(UNIT_StdOut,'(A)')"ElemTimeStatistics.csv does not exist. Cannot write load balance info!"
   END IF
 END IF
 END SUBROUTINE WriteElemTimeStatistics
