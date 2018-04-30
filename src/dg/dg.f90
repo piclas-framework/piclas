@@ -251,9 +251,9 @@ LOGICAL,INTENT(IN)              :: doSource
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
+#if USE_LOADBALANCE
 REAL                            :: tLBStart
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
