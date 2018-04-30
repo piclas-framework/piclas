@@ -476,7 +476,7 @@ LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: CalcTime
 #if USE_LOADBALANCE
-REAL                          :: tLBStart,tLBEnd ! load balance
+REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 

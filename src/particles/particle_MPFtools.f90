@@ -61,7 +61,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iSpec
 #if USE_LOADBALANCE
-REAL                             :: tLBStart,tLBEnd
+REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #if USE_LOADBALANCE

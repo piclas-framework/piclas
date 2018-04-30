@@ -236,7 +236,9 @@ USE MOD_FillMortar,       ONLY:U_Mortar,Flux_Mortar
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_LoadBalance_Vars, ONLY:tCurrent
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,ONLY:LBStartTime,LBPauseTime,LBSplitTime
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -250,28 +252,29 @@ LOGICAL,INTENT(IN)              :: doSource
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef MPI
-! load balance
-REAL                            :: tLBStart,tLBEnd
+REAL                            :: tLBStart
 #endif /*MPI*/
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
-tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
-tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
 CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
-tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
@@ -287,34 +290,29 @@ IF(DoPML) U2t=0. ! set U2t for auxiliary variables to zero
 CALL VolInt(Ut,dofirstElems=.TRUE.)
 
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 ! Complete send / receive
-tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
-#endif /*MPI*/
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
 CALL StartReceiveMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 ! fill the global surface flux list
-tLBStart = LOCALTIME() ! LB Time Start
 CALL FillFlux(t,tDeriv,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.TRUE.)
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
-tLBStart = LOCALTIME() ! LB Time Start
 CALL StartSendMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
 !CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
-tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
@@ -327,21 +325,21 @@ CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.FALSE.)
 CALL VolInt(Ut,dofirstElems=.FALSE.)
 
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 ! Complete send / receive
-tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DGCOMM)=tCurrent(LB_DGCOMM)+tLBEnd-tLBStart
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 !FINALIZE Fluxes for MPI Sides
-tLBStart = LOCALTIME() ! LB Time Start
 CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
 CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.TRUE.)
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif
 
 ! swap and map to physical space
@@ -350,10 +348,9 @@ CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 ! Add Source Terms
 IF(doSource) CALL CalcSource(tStage,1.0,Ut)
 
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
 #endif /*PP_HDG*/
@@ -378,6 +375,9 @@ USE MOD_Interpolation, ONLY: ApplyJacobian
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,ONLY:LBStartTime,LBPauseTime,LBSplitTime
+#endif /*USE_LOADBALANCE*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -390,19 +390,33 @@ INTEGER,INTENT(IN)              :: tDeriv
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iElem,i,j,k,iVar
+#ifdef MPI
+REAL    :: tLBStart
+#endif /*MPI*/
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
-
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 !CALL ProlongToFace(Phi,Phi_Minus,Phi_slave,doMPiSides=.TRUE.)
 CALL StartReceiveMPIData(4,Phi_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL ProlongToFace_Pois(Phi,Phi_master,Phi_slave,doMPiSides=.TRUE.)
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 !CALL StartExchangeMPIData(Phi_slave,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
 CALL StartSendMPIData(4,Phi_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 ! Send YOUR - receive MINE
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
@@ -413,24 +427,34 @@ Phit=0.
 CALL VolInt_Pois(Phit)
 !print*,'Phi',Phit(:,1,1,1,4)
 !read*
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 
 #ifdef MPI
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
-#endif /*MPI*/
 
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
-#ifdef MPI
 ! fill the global surface flux list
 CALL StartReceiveMPIData(4,FluxPhi,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL FillFlux_Pois(FluxPhi,doMPISides=.TRUE.)
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 !CALL StartExchangeMPIData(FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
 CALL StartSendMPIData(4,FluxPhi,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
 !CALL StartExchangeMPIData(4,FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1)
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
@@ -442,8 +466,14 @@ CALL SurfInt_Pois(FluxPhi,Phit,doMPISides=.FALSE.)
 !CALL VolInt(Ut)
 
 #ifdef MPI
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 !FINALIZE Fluxes for MPI Sides
 CALL SurfInt_Pois(FluxPhi,Phit,doMPISides=.TRUE.)
 #endif
@@ -463,6 +493,9 @@ END DO ! iElem=1,nElems
 
 ! Add Source Terms
 CALL CalcSource_Pois(tStage)
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE DGTimeDerivative_weakForm_Pois
 

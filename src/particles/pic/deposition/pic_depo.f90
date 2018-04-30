@@ -1199,7 +1199,7 @@ REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
 LOGICAL                          :: DoCycle
 #if USE_LOADBALANCE
-REAL                             :: tLBStart,tLBEnd ! load balance
+REAL                             :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !============================================================================================================================
 
