@@ -58,15 +58,17 @@ CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "Define thresh
   "Restart performed if (Maxweight-Targetweight)/Targetweight > defined value." , value='0.10')
 CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Define weight of particles for elem loads.\n"//&
   "(only used if ElemTime does not exist or DoLoadBalance=F).", value='0.02')
-CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads. (def.: 1 or -1)\n"//&
-                                                                 " 1:\n"//&
-                                                                 " 2:\n"//&
-                                                                 " 3:\n"//&
-                                                                 " 4:\n"//&
-                                                                 " 5:\n"//&
-                                                                 " 6:\n")
+CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem to procs.\n"//&
+  "DEFAULT: 1 if Elemtime exits else -1\n"//&
+  "-1: elements are equally distributed\n"//&
+  " 0: distribute to procs using elemloads\n"//&
+  " 1: distribute to procs using elemloads, last proc recieves least\n"//&
+  " 2: NOT WORKING\n"//&
+  " 3: TODO DEFINE\n"//&
+  " 4: TODO DEFINE\n"//&
+  " 5/6: iterative smoothing of loads towards last proc\n")
 CALL prms%CreateIntOption(     'LoadBalanceSample'           ,  "Define number of iterations (before analyze_dt)"//&
-  " that are used for calculation of elemtime information" , value='10')
+  " that are used for calculation of elemtime information" , value='1')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -109,11 +111,10 @@ IF(nProcessors.EQ.1)THEN
   SWRITE(UNIT_StdOut,'(a3,a45,a3,L33,a3,a7,a3)')' | ',TRIM("No LoadBalance (nProcessors=1): DoLoadBalance")       ,' | ',&
       DoLoadBalance   ,' | ',TRIM("INFO"),' | '
   DeviationThreshold=HUGE(1.0)
-ELSE 
+ELSE
   DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
   DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 END IF
-!DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
 nLoadBalanceSteps = 0
 LoadBalanceSample  = GETINT('LoadBalanceSample')
@@ -134,7 +135,7 @@ END SUBROUTINE InitLoadBalance
 
 
 
-SUBROUTINE ComputeElemLoad(PerformLoadbalance,time) 
+SUBROUTINE ComputeElemLoad(PerformLoadbalance,time)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! compute the element load
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -146,7 +147,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tTotal,tCurrent
 #ifndef PP_HDG
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold                                             
+USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem
@@ -258,7 +259,7 @@ IF(PerformLBSample) THEN
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
       ElemTime(iElem) = ElemTime(iElem)                              &
-          + tTotal(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos 
+          + tTotal(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos
     END IF
 #endif /*PARTICLES*/
   END DO ! iElem=1,PP_nElems
