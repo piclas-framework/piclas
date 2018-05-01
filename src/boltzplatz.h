@@ -126,25 +126,25 @@
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations
 #define LB_DG            1
-#define LB_DGCOMM        2
-#define LB_PML           3
-#define LB_EMISSION      4
-#define LB_TRACK         5
-#define LB_INTERPOLATION 6
-#define LB_DEPOSITION    7
-#define LB_DSMC          8
-#define LB_PUSH          9
-#define LB_PARTCOMM      10
-#define LB_SPLITMERGE    11
-#define LB_UNFP          12
-#define LB_DGANALYZE     13
-#define LB_PARTANALYZE   14
-#define LB_SURF          15
-#define LB_SURFFLUX      16
-#define LB_ADAPTIVE      17
-#define LB_DSMCANALYZE   18
+#define LB_DGANALYZE     2
+#define LB_DGCOMM        3
+#define LB_PML           4
+#define LB_EMISSION      5
+#define LB_TRACK         6
+#define LB_INTERPOLATION 7
+#define LB_DEPOSITION    8
+#define LB_CARTMESHDEPO  9
+#define LB_PUSH          10
+#define LB_PARTANALYZE   11
+#define LB_PARTCOMM      12
+#define LB_DSMC          13
+#define LB_DSMCANALYZE   14
+#define LB_SPLITMERGE    15
+#define LB_UNFP          16
+#define LB_SURF          17
+#define LB_SURFFLUX      18
 #define LB_SURFCOMM      19
-#define LB_CARTMESHDEPO  20
+#define LB_ADAPTIVE      20
 
 #define LB_NTIMES        20
 

@@ -214,7 +214,9 @@ USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
-USE MOD_LoadBalance_Vars,        ONLY:tcurrent
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -236,10 +238,9 @@ INTEGER                    :: nFullNewtonIter
 INTEGER                    :: iPart,iCounter
 REAL                       :: tmpFac
 INTEGER                    :: AdaptIterRelaxation
-#ifdef MPI
-! load balance
-REAL                       :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL                       :: tLBStart
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,relTolerancePart,Criterion
 LOGICAL                    :: IsConverged
@@ -267,13 +268,16 @@ IF (t.GE.DelayTime) THEN
 END IF
 
 #ifdef MPI
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! here: could use deposition as hiding, not done yet
   IF(DoPartRelaxation)THEN
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
     IF(DoRefMapping)THEN
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
@@ -281,10 +285,6 @@ END IF
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     END IF
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
-#endif /*MPI*/
   END IF
   DO iPart=1,PDM%ParticleVecLength
     IF(PartIsImplicit(iPart))THEN
@@ -292,6 +292,9 @@ END IF
     END IF
   END DO
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! finish communication of number of particles and send particles
@@ -300,31 +303,26 @@ END IF
   CALL MPIParticleRecv()
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
   ! map particle from gamma v to v
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! compute particle source terms on field solver of implicit particles :)
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 !END IF
 #endif /*PARTICLES*/
 
@@ -478,8 +476,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     IF(.NOT.DoFullNewton)THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! open receive buffer for number of particles
       CALL IRecvNbofParticles()
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! here: could use deposition as hiding, not done yet
       IF(DoPartRelaxation)THEN
         IF(DoRefMapping)THEN
@@ -495,6 +499,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
         END IF
       END DO
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! send number of particles
       CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! finish communication of number of particles and send particles
@@ -502,32 +509,27 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       ! finish communication
       CALL MPIParticleRecv()
       PartMPIExchange%nMPIParticles=0
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
       ! map particle from gamma v to v
-#ifdef MPI
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! compute particle source terms on field solver of implicit particles :)
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
     END IF ! .NOT.DoFullNewton
   END IF
 #endif /*PARTICLES*/
@@ -637,8 +639,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     IF (t.GE.DelayTime) THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! open receive buffer for number of particles
       CALL IRecvNbofParticles()
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! here: could use deposition as hiding, not done yet
       IF(DoPartRelaxation)THEN
         IF(DoRefMapping)THEN
@@ -654,6 +662,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
         END IF
       END DO
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! send number of particles
       CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! finish communication of number of particles and send particles
@@ -661,32 +672,27 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       ! finish communication
       CALL MPIParticleRecv()
       PartMPIExchange%nMPIParticles=0
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
       ! map particle from gamma v to v
-#ifdef MPI
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-       tLBEnd = LOCALTIME() ! LB Time End
-       tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-       tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! compute particle source terms on field solver of implicit particles :)
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
-#ifdef MPI
-       tLBEnd = LOCALTIME() ! LB Time End
-       tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-       tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
     END IF
     ! update the Norm with all the new information of current state
     CALL ImplicitNorm(tStage,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel)
