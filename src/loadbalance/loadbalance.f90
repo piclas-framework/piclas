@@ -199,6 +199,7 @@ IF(PerformLBSample) THEN
   stotalDepos=1.0
   sTotalTracks=1.0
   stotalSurfacefluxes=1.0
+  stotalSurfaceParts=1.0
   ! calculate and weight particle number per element
   helpSum=SUM(nPartsPerElem)
   IF(helpSum.GT.0) THEN
