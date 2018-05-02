@@ -150,7 +150,7 @@ USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
-USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem,nSurfacePartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
@@ -171,7 +171,7 @@ INTEGER               :: iElem
 REAL                  :: tDG, tPML
 #ifdef PARTICLES
 INTEGER(KIND=8)       :: HelpSum
-REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes, sTotalBCParts
+REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes,sTotalBCParts,sTotalSurfaceParts
 REAL                  :: tParts
 #endif /*PARTICLES*/
 !====================================================================================================================================
@@ -237,6 +237,11 @@ IF(PerformLBSample) THEN
     stotalBCParts=1.0/REAL(PP_nElems)
     nPartsPerBCElem=1
   END IF
+  ! calculate and weight number of surfaces (catalytic, liquid) used for evaporation and surface chemistry
+  helpSum=SUM(nSurfacePartsPerElem)
+  IF(helpSum.GT.0) THEN
+    stotalSurfaceParts=1.0/REAL(helpSum)
+  END IF
 #endif /*PARTICLES*/
 
   ! distribute times of different routines on elements with respective weightings
@@ -255,7 +260,8 @@ IF(PerformLBSample) THEN
         + tParts * nPartsPerElem(iElem)*sTotalParts    &
         + tTotal(LB_CARTMESHDEPO) * nPartsPerElem(iElem)*sTotalParts &
         + tTotal(LB_TRACK) * nTracksPerElem(iElem)*sTotalTracks &
-        + tTotal(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes
+        + tTotal(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
+        + tTotal(LB_SURF) * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
       ElemTime(iElem) = ElemTime(iElem)                              &
@@ -294,6 +300,7 @@ nDeposPerElem=0
 nPartsPerElem=0
 nSurfacefluxPerElem=0
 nPartsPerBCElem=0
+nSurfacePartsPerElem=0
 #endif /*PARTICLES*/
 
 END SUBROUTINE ComputeElemLoad
