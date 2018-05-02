@@ -1290,11 +1290,11 @@ END IF
 
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
+
+    CALL DSMC_main()
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-
-    CALL DSMC_main()
     PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                            + DSMC_RHS(1:PDM%ParticleVecLength,1)
     PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
