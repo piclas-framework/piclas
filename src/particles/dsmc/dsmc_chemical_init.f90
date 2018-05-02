@@ -144,6 +144,11 @@ __STAMP__&
         DoScat = .true.
         ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')        ! Passen diese Zeilen so?
         ChemReac%ELb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELb','148.975')
+        ChemReac%TLU_FileName               = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName','0'))
+        IF(TRIM(ChemReac%TLU_FileName).EQ.'0') THEN
+          CALL abort(__STAMP__,&
+            'Input Error: No file containing table lookup data for scattering simulation has been found.')
+        END IF 
       ELSE
         ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
         ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
@@ -1165,13 +1170,12 @@ SUBROUTINE Init_TLU_Data
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,          ONLY : TLU_Data
+  USE MOD_DSMC_Vars,          ONLY : TLU_Data, ChemReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 
 !-- parameters
 INTEGER,PARAMETER             :: unit1=20
-CHARACTER(LEN=200), PARAMETER :: file1='Test_Lookup_komplett.txt'
 DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
 DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
 
@@ -1179,12 +1183,11 @@ DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
 INTEGER                       :: io_error1,read_error,iLine
 CHARACTER(LEN=1000000)        :: string1
 CHARACTER(LEN=10)             :: stringSelect
-INTEGER                       :: N_b, N_E, idx_b, idx_E
-DOUBLE PRECISION              :: real1, real2, E_min, E_max, delta_E
-DOUBLE PRECISION, ALLOCATABLE :: scatteringAngle(:,:),delta_b(:)
+INTEGER                       :: N_b, N_E
+DOUBLE PRECISION              :: real1, real2
 !===================================================================================================================================
 
-OPEN(UNIT=unit1,file=TRIM(file1),STATUS='old',ACTION='READ',IOSTAT=io_error1)
+OPEN(UNIT=unit1,file=TRIM(ChemReac%TLU_FileName),STATUS='old',ACTION='READ',IOSTAT=io_error1)
 IF ( io_error1 .EQ. 0) THEN
   !----------------------------------Schleife ueber alle Zeilen in file1----------------------------------!
   iLine=0

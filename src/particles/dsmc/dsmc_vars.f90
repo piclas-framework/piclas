@@ -484,6 +484,7 @@ TYPE tChemReactions
    REAL,  ALLOCATABLE             :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
    LOGICAL, ALLOCATABLE           :: DoScat(:)              ! Do Scattering Calculation by Lookup table
+   CHARACTER(LEN=200),ALLOCATABLE :: TLU_FileName           ! Name of file containing table lookup data for Scattering
    INTEGER                       :: RecombParticle = 0      ! P. Index for Recombination, if zero -> no recomb particle avaible
    INTEGER                       :: nPairForRec
    REAL, ALLOCATABLE             :: Hab(:)                  ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs

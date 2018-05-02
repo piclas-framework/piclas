@@ -50,7 +50,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! LOCAL VARIABLES
   INTEGER                             :: iPType, SpecToExec, NbrOfReaction
   INTEGER(KIND=8)                     :: SpecNum1, SpecNum2
-  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, BGGasDensity_new, sigma_tot, Ekin
+  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, BGGasDensity_new, sigma_tot
   REAL(KIND=8)                        :: Volume
   LOGICAL                             :: DoSimpleElectronColl
 #if (PP_TimeDiscMethod==42)

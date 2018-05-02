@@ -100,16 +100,12 @@ SUBROUTINE DSMC_Scat_Col(iPair, iElem)
 ! which is interpolated from a lookup table.
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, PairE_vMPF, TLU_Data, ChemReac
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, PartState, usevMPF, PartMPF!, GEO
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, TLU_Data, ChemReac
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
   USE MOD_part_tools,             ONLY : DiceUnitVector
   USE MOD_DSMC_ChemReact,         ONLY : simpleCEX
 
-! Vorschlag
-!  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC_RHS
-!  USE MOD_DSMC_Vars,              ONLY : ChemReac
-!  USE MOD_Particle_Vars,          ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -125,19 +121,16 @@ SUBROUTINE DSMC_Scat_Col(iPair, iElem)
   REAL                          :: CRelax, CRelay, CRelaz                      ! pre-collisional relativ velo
   REAL                          :: CRelaxN, CRelayN, CRelazN                   ! post-collisional relativ velo
   REAL                          :: b, bmax                                     ! impact parameters
-  REAL                          :: CRela2                                      ! squared relativ velocity
   REAL                          :: Ekin
   REAL                          :: ScatAngle, RotAngle                         ! scattering and rotational angle
-  REAL                          :: sigma_el, sigma_tot, sigma_eff,sigma_CEX, s_Test, s_Test_CEX    ! cross-sections
+  REAL                          :: sigma_el, sigma_tot                         ! cross-sections
   REAL                          :: P_CEX                                       ! charge exchange probability
-  INTEGER                       :: iVec, iReac
+  INTEGER                       :: iReac
   REAL                          :: uRan2, uRan3, uRanRot, uRanVHS
   REAL                          :: Pi, aEL, bEL, aCEX, bCEX
-!  INTEGER                       :: React1Inx, React2Inx
 !===================================================================================================================================
   Pi = ACOS(-1.0)
 
-  ! Korrekte Uebergabe????? von bekomme ich das richtige NbrOfReaction???
   aCEX = ChemReac%CEXa(ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),1))
   bCEX = ChemReac%CEXb(ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),1))
   aEL  = ChemReac%ELa(ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),1))
@@ -246,7 +239,7 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
   REAL, INTENT (OUT)             :: ScatAngle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                           :: i_f, i_f_jp1, j_f, i_f_j
+  REAL                           :: i_f_jp1, j_f, i_f_j
   INTEGER                        :: I_j,I_jp1,J
   REAL                           :: w_i_j,w_i_jp1,w_j
   INTEGER                        :: szb,szE
