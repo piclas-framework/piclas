@@ -286,6 +286,8 @@ DO iRefState=1,nTmp
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
     BeamWaveNumber=2.*PI/WaveLength
     BeamOmegaW=BeamWaveNumber*c
+    SWRITE(UNIT_stdOut,'(A,E25.13,A)') ' BeamOmegaW is ', BeamOmegaW       , ' [Hz]'
+    SWRITE(UNIT_stdOut,'(A,E25.13,A)') ' BeamPeriod is ', 2.*PI/BeamOmegaW , ' [s]'
 
     ! set wave vector: direction of traveling wave
     WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')

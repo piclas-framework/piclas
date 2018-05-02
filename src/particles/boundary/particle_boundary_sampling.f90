@@ -217,7 +217,7 @@ IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
   AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
   AnalyzeSurfCollis%NumberOfBCs = GETINT('Particles-DSMC-NumberOfBCs','1')
   IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
-    AnalyzeSurfCollis%BCs = GETINT('Particles-DSMC-SurfCollisBC','0') ! 0 means all...
+    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-DSMC-SurfCollisBC',1,'0') ! 0 means all...
   ELSE
     DEALLOCATE(AnalyzeSurfCollis%BCs)
     ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
@@ -227,7 +227,7 @@ IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       hilf2=TRIM(hilf2)//TRIM(hilf)
       IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
     END DO
-    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
+    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-DSMC-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
   END IF
   ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
   ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
