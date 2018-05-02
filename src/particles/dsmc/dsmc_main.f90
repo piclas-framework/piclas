@@ -53,7 +53,7 @@ SUBROUTINE DSMC_main()
   USE MOD_Restart_Vars,          ONLY : RestartTime
 #endif
 #if USE_LOADBALANCE
-  USE MOD_LoadBalance_tools,     ONLY : LBStartTime, LBElemSplitTime
+  USE MOD_LoadBalance_tools,     ONLY : LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -72,16 +72,15 @@ SUBROUTINE DSMC_main()
   REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
   DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
   DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
   DSMCSumOfFormedParticles = 0
 
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas 
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   DO iElem = 1, nElems ! element/cell main loop
 #if (PP_TimeDiscMethod==1001)
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
@@ -162,10 +161,10 @@ SUBROUTINE DSMC_main()
 #if (PP_TimeDiscMethod==1001)
     END IF  ! --- END DSMC Cell?
 #endif
-#if USE_LOADBALANCE
-    CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
   END DO ! iElem Loop
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 ! Output!
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
