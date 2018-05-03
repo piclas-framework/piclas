@@ -29,12 +29,7 @@ INTERFACE LoadBalance
   MODULE PROCEDURE LoadBalance
 END INTERFACE
 
-!INTERFACE LoadMeasure 
-  !MODULE PROCEDURE LoadMeasure
-!END INTERFACE
-
 PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance
-!PUBLIC::LoadMeasure
 PUBLIC::ComputeElemLoad
 #endif /*MPI*/
 
@@ -120,12 +115,9 @@ nLoadBalanceSteps = 0
 LoadBalanceSample  = GETINT('LoadBalanceSample')
 PerformLBSample = .FALSE.
 
-ALLOCATE( tTotal(1:LB_NTIMES)   )
 ALLOCATE( tCurrent(1:LB_NTIMES) )
 ! Allocation length (1:number of loadbalance times)
 ! look into boltzplatz.h for more info about time names
-
-tTotal=0.
 tCurrent=0.
 
 InitLoadBalanceIsDone=.TRUE.
@@ -143,7 +135,7 @@ SUBROUTINE ComputeElemLoad(PerformLoadbalance,time)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tTotal,tCurrent
+USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tCurrent
 #ifndef PP_HDG
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
@@ -168,37 +160,25 @@ LOGICAL,INTENT(OUT)           :: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iElem
-REAL                  :: tDG, tPML
 #ifdef PARTICLES
 INTEGER(KIND=8)       :: HelpSum
 REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxes,sTotalBCParts,sTotalSurfaceParts
-REAL                  :: tParts
 #endif /*PARTICLES*/
 !====================================================================================================================================
 
 ! If elem times are calculated by time measurement (PerformLBSample)
 IF(PerformLBSample) THEN
-  ! time measurement over LBSample before dt_analyze for all elements of one proc
-  tTotal   = tTotal+tCurrent
-  tCurrent = 0.
 
   ! number of load balance calls to Compute Elem Load
   nLoadBalance=nLoadBalance+1
 
-  ! time used in dg routines
-  tDG=(tTotal(LB_DG)+tTotal(LB_DGANALYZE))/REAL(PP_nElems)
-  ! time used in pml routines
-  tPML=0.
-#ifndef PP_HDG
-  IF(DoPML)THEN
-    IF(nPMLElems.GT.0) tPML=tTotal(LB_PML)/REAL(nPMLElems)
-  END IF
-#endif /*PP_HDG*/
-
 #ifdef PARTICLES
+  ! ----------------------------------------------
+  ! calculate weightings
   stotalDepos=1.0
   sTotalTracks=1.0
   stotalSurfacefluxes=1.0
+  stotalBCParts=1.0
   stotalSurfaceParts=1.0
   ! calculate and weight particle number per element
   helpSum=SUM(nPartsPerElem)
@@ -208,8 +188,6 @@ IF(PerformLBSample) THEN
     stotalParts=1.0/REAL(PP_nElems)
     nPartsPerElem=1
   END IF
-  ! sum of particle dependant load balance time 
-  tParts = tTotal(LB_INTERPOLATION)+tTotal(LB_PUSH)+tTotal(LB_UNFP)+tTotal(LB_DSMC) !interpolation+push+unfp+dsmc(analyze)
   ! set and weight tracks per element
   IF (DoRefMapping .OR. TriaTracking) THEN
     helpSum=SUM(nTracksPerElem)
@@ -243,30 +221,36 @@ IF(PerformLBSample) THEN
   IF(helpSum.GT.0) THEN
     stotalSurfaceParts=1.0/REAL(helpSum)
   END IF
+  ! ----------------------------------------------
 #endif /*PARTICLES*/
 
   ! distribute times of different routines on elements with respective weightings
   DO iElem=1,PP_nElems
-    ElemTime(iElem) = ElemTime(iElem) + tDG
+    ! time used in dg routines
+    ElemTime(iElem) = ElemTime(iElem) + (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
 #ifndef PP_HDG
+    ! time used in pml routines
     IF(DoPML)THEN
-      IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tPML
+      IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_PML)/REAL(nPMLElems)
     END IF
 #endif /*PP_HDG*/
 
 #ifdef PARTICLES
     ! add particle LB times to elements with respective weightings
-    ElemTime(iElem) = ElemTime(iElem)                              &
-        + tTotal(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts &
-        + tParts * nPartsPerElem(iElem)*sTotalParts    &
-        + tTotal(LB_CARTMESHDEPO) * nPartsPerElem(iElem)*sTotalParts &
-        + tTotal(LB_TRACK) * nTracksPerElem(iElem)*sTotalTracks &
-        + tTotal(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
-        + tTotal(LB_SURF) * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
+    ElemTime(iElem) = ElemTime(iElem)                                            &
+        + tCurrent(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts           &
+        + tCurrent(LB_INTERPOLATION) * nPartsPerElem(iElem)*sTotalParts          &
+        + tCurrent(LB_PUSH) * nPartsPerElem(iElem)*sTotalParts                   &
+        + tCurrent(LB_UNFP) * nPartsPerElem(iElem)*sTotalParts                   &
+        + tCurrent(LB_DSMC) * nPartsPerElem(iElem)*sTotalParts                   &
+        + tCurrent(LB_CARTMESHDEPO) * nPartsPerElem(iElem)*sTotalParts           &
+        + tCurrent(LB_TRACK) * nTracksPerElem(iElem)*sTotalTracks                &
+        + tCurrent(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
+        + tCurrent(LB_SURF) * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
       ElemTime(iElem) = ElemTime(iElem)                              &
-          + tTotal(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos
+          + tCurrent(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos
     END IF
 #endif /*PARTICLES*/
   END DO ! iElem=1,PP_nElems
@@ -303,6 +287,7 @@ nSurfacefluxPerElem=0
 nPartsPerBCElem=0
 nSurfacePartsPerElem=0
 #endif /*PARTICLES*/
+tCurrent = 0.
 
 END SUBROUTINE ComputeElemLoad
 
@@ -476,7 +461,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-SDEALLOCATE( tTotal  )
 SDEALLOCATE( tCurrent  )
 InitLoadBalanceIsDone = .FALSE.
 

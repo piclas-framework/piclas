@@ -245,7 +245,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #ifdef MPI
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,tTotal
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
 #endif /*MPI*/
 #if defined(IMPA) || defined(ROS)
@@ -717,8 +717,6 @@ DO !iter_t=0,MaxIter
     iter_loc=0
     tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
-#ifdef MPI
-    tTotal=0. ! Moved from LoadMeasure
 #if USE_LOADBALANCE
     IF(DoLoadBalance.AND.PerformLBSample)THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
@@ -739,7 +737,6 @@ DO !iter_t=0,MaxIter
     END IF
     PerformLBSample=.FALSE.
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
