@@ -1482,13 +1482,7 @@ REAL                  :: tLBStart
     CALL ParticleRefTracking()
   ELSE
     IF (TriaTracking) THEN
-#if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
       CALL ParticleTriaTracking()
-#if USE_LOADBALANCE
-      CALL LBPauseTime(LB_TRACK,tLBStart)
-#endif /*USE_LOADBALANCE*/
     ELSE
       CALL ParticleTracing()
     END IF

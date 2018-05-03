@@ -189,13 +189,10 @@ IF(PerformLBSample) THEN
     nPartsPerElem=1
   END IF
   ! set and weight tracks per element
-  IF (DoRefMapping .OR. TriaTracking) THEN
+  IF (DoRefMapping) THEN
     helpSum=SUM(nTracksPerElem)
     IF(SUM(nTracksPerElem).GT.0) THEN
       sTotalTracks=1.0/REAL(helpSum)
-    ELSE
-      stotalTracks=1.0/REAL(PP_nElems)
-      nTracksPerElem=1
     END IF
   END IF
   ! set and weight depositions per element
