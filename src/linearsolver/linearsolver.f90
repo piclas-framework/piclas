@@ -103,6 +103,7 @@ USE MOD_LinearSolver_Vars
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
 USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone
 USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
+USE MOD_Mesh_Vars,            ONLY:nGlobalElems  
 #ifndef PP_HDG
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Mesh_Vars,            ONLY:sJ
@@ -139,6 +140,7 @@ nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
 #endif /*NOT HDG*/
+nDOFGlobalMPI_inv = 1./(REAL(nDOFelem)*REAL(nGlobalElems))  
 
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
