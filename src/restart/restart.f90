@@ -39,6 +39,10 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Restart")
 !CALL prms%CreateLogicalOption('ResetTime', "Override solution time to t=0 on restart.", '.FALSE.')
+#if USE_LOADBALANCE
+CALL prms%CreateLogicalOption('DoInitialAutoRestart',"Set Flag for doing automatic initial restart with loadbalancing routines "// &
+  " after first 'LoadBalanceSample'-number of iterations. Restart is done if Imbalance > 'Load-DeviationThreshold'.", '.FALSE.')
+#endif /*USE_LOADBALANCE*/
 END SUBROUTINE DefineParametersRestart
 
 
@@ -49,6 +53,9 @@ SUBROUTINE InitRestart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+#if USE_LOADBALANCE
+USE MOD_ReadInTools,        ONLY: GETLOGICAL
+#endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input,         ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
@@ -84,6 +91,9 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
 ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
+#if USE_LOADBALANCE
+  DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
+#endif /*USE_LOADBALANCE*/
 END IF
 
 ! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time

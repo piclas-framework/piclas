@@ -247,6 +247,9 @@ USE MOD_Equation               ,ONLY: EvalGradient
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
+#if USE_LOADBALANCE
+USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
@@ -489,7 +492,15 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*PARTICLES*/
 
-  tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+#if USE_LOADBALANCE
+  IF (DoInitialAutoRestart) THEN
+    tAnalyzeDiff=MINVAL((/tAnalyze-time,LoadBalanceSample*dt-time/))
+  ELSE
+#endif /*USE_LOADBALANCE*/
+    tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+#if USE_LOADBALANCE
+  END IF
+#endif /*USE_LOADBALANCE*/
   tEndDiff=tEnd-time            ! dito for end time
 
   !IF(time.LT.3e-8)THEN
@@ -736,6 +747,7 @@ DO !iter_t=0,MaxIter
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
     END IF
     PerformLBSample=.FALSE.
+    IF (DoInitialAutoRestart) DoInitialAutoRestart=.FALSE.
 #endif /*USE_LOADBALANCE*/
     CalcTimeStart=BOLTZPLATZTIME()
   END IF !dt_analyze
