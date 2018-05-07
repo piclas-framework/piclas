@@ -1205,7 +1205,7 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,comm
 !   END IF
 
 nVarCount=0
-WRITE(H5_Name,'(A,I3.3,A)') 'SurfaceData'
+WRITE(H5_Name,'(A)') 'SurfaceData'
 DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
                     nValGlobal=(/nVar2D_Total,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&

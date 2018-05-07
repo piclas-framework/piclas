@@ -430,6 +430,8 @@ END SUBROUTINE InitDSMCSurfModel
 
 SUBROUTINE InitSurfCoverage()
 !===================================================================================================================================
+!> check if restart is done and if surface data is given in state file
+!> if not then
 !> Surface coverage is initialized either from given surface init file or from constant values for each given particle boundary.
 !> Therefore, the ini file is checked if state file is specified. If not coverage is initialized from parameter else
 !> .h5 file is read and used for init. If file has wrong entries programm aborts.
@@ -439,9 +441,10 @@ SUBROUTINE InitSurfCoverage()
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
 USE MOD_ReadInTools            ,ONLY: GETSTR,GETREAL
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Vars ,ONLY: offSetSurfSide, nSurfBC
@@ -461,7 +464,32 @@ LOGICAL                          :: exists
 INTEGER                          :: nSpecies_HDF5, nVarSurf_HDF5, nSurfSides_HDF5, N_HDF5, nSurfBC_HDF5
 INTEGER                          :: nVar2D, nVar2D_Spec, nVar2D_Total
 CHARACTER(LEN=255),ALLOCATABLE   :: SurfBCName_HDF5(:)
+LOGICAL                          :: SurfCalcDataExists, WallmodelExists
+INTEGER                          :: WallModel_HDF5
 !===================================================================================================================================
+
+IF (DoRestart) THEN
+  ! check if datasets for restarting from state exists in state file used for restart
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)!MPI_COMM_WORLD)
+  WallmodelExists=.FALSE.
+  CALL DatasetExists(File_ID,'WallModel',WallmodelExists,attrib=.TRUE.)
+  IF (WallmodelExists) THEN
+    CALL GetDataSize(File_ID,'WallModel',nDims,HSize,attrib=.TRUE.)
+    WallModel_HDF5 = INT(HSize(1),4)
+    IF (WallModel_HDF5.NE.DSMC%WallModel) WallmodelExists=.FALSE.
+  END IF
+  SurfCalcDataExists=.FALSE.
+  CALL DatasetExists(File_ID,'SurfCalcData',SurfCalcDataExists)
+  CALL CloseDataFile()
+  IF (SurfCalcDataExists.AND.WallmodelExists) THEN
+    IF (SurfMesh%SurfOnProc) THEN
+      ! write zeros into global coverage array for each surface
+      Adsorption%Coverage(:,:,:,:) = 0.
+    END IF
+    ! return as coverage is set in restart.f90
+    RETURN
+  END IF
+END IF ! DoRestart
 
 SurfaceFileName=GETSTR('Particles-SurfCoverageFile')
 ! If no surface file is given, initialize from ini parameters else use values from file
