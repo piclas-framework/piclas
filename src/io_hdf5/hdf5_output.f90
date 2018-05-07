@@ -1011,6 +1011,7 @@ REAL,ALLOCATABLE               :: SurfCalcData(:,:,:,:,:)
 ! first check if wallmodel defined and greater than 0 before writing any surface things into state
 IF(.NOT.useDSMC) RETURN
 IF(DSMC%WallModel.EQ.0) RETURN
+IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 ! only pocs with real surfaces (not halo) in own proc write out
 #ifdef MPI
@@ -1080,11 +1081,23 @@ DO iSurfSide = 1,SurfMesh%nSides
 END DO
 
 WRITE(H5_Name,'(A)') 'SurfCalcData'
-CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
+!#ifdef MPI
+!CALL GatheredWriteArray(FileName,create=.FALSE.,&
+!                        DataSetName=H5_Name, rank=5,&
+!                        nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides,nSpecies/),&
+!                        nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nSides      ,nSpecies/),&
+!                        offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
+!                        collective=.TRUE.,  RealArray=SurfCalcData)
+!#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+!CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=5,&
                 nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides,nSpecies/),&
                 nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nSides      ,nSpecies/),&
                 offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
-                collective=.TRUE.,  RealArray=SurfCalcData(:,:,:,:,:))
+                collective=.TRUE.,  RealArray=SurfCalcData)
+CALL CloseDataFile()
+!#endif /*MPI*/                          
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(SurfCalcData)
 
@@ -1108,7 +1121,7 @@ IF (DSMC%WallModel.EQ.3) THEN
           DO iCoord = 1,Coordinations
             nSites = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%nSites(iCoord)
             nSitesRemain = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%SitesRemain(iCoord)
-            locnSurfPart = nSites - nSitesRemain
+            locnSurfPart = locnSurfpart + nSites - nSitesRemain
           END DO
         END DO
       END DO
@@ -1122,7 +1135,7 @@ IF (DSMC%WallModel.EQ.3) THEN
   CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER,MPI_SUM,SurfCOMM%OutputCOMM,iError)
   offsetnSurfPart=recvbuf(1)
   sendbuf(1)=recvbuf(1)+locnSurfPart
-  CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER,nProcessors-1,SurfCOMM%OutputCOMM,iError) !last proc knows global number
+  CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER,SurfCOMM%nOutputProcs-1,SurfCOMM%OutputCOMM,iError) !last proc knows global number
   !global numbers
   nSurfPart_glob=sendbuf(1)
 #else
@@ -1131,7 +1144,7 @@ IF (DSMC%WallModel.EQ.3) THEN
 #endif
 
   ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
-  ALLOCATE(SurfPartData(offsetnSurfPart:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
+  ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
   iOffset = offsetnSurfPart
   DO iSurfSide = 1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
@@ -1150,10 +1163,10 @@ IF (DSMC%WallModel.EQ.3) THEN
             ! set the surfpartdata array values
             DO iPart = 1, (nSites - nSitesRemain)
               UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(nSites+1-iPart)
-              SurfPartData(iOffset+(iPart-1),1) = UsedSiteMapPos
-              SurfPartData(iOffset+(iPart-1),2) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos)
+              SurfPartData(iOffset+iPart,1) = UsedSiteMapPos
+              SurfPartData(iOffset+iPart,2) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos)
             END DO
-            iOffset = iOffset + nSites - nSitesRemain + 1
+            iOffset = iOffset + nSites - nSitesRemain
           END DO
         END DO
       END DO
@@ -1184,26 +1197,28 @@ IF (DSMC%WallModel.EQ.3) THEN
     CALL CloseDataFile()
 #ifdef MPI
   END IF
+  CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif
 
   ! write array with data into state file
-#ifdef MPI
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='SurfPartInt', rank=5,&
-                          nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
-                          nVal=      (/SurfMesh%nSides      ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
-                          offset=    (/offsetSurfSide       ,0          ,0          ,0            ,0              /),&
-                          collective=.TRUE.,IntegerArray=SurfPartInt(:,:,:,:,:))
-
-  CALL DistributedWriteArray(FileName,&
-                             DataSetName='SurfPartData', rank=2              ,&
-                             nValGlobal=(/nSurfPart_glob ,SurfPartDataSize/) ,&
-                             nVal=      (/locnSurfPart   ,SurfPartDataSize/) ,&
-                             offset=    (/offsetnSurfPart,0               /) ,&
-                             collective=.TRUE.,offSetDim=1                   ,&
-                             communicator=SurfCOMM%OutputCOMM,IntegerArray=SurfPartData(:,:))
-#else
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+!#ifdef MPI
+!  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+!                          DataSetName='SurfPartInt', rank=5,&
+!                          nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
+!                          nVal=      (/SurfMesh%nSides      ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
+!                          offset=    (/offsetSurfSide       ,0          ,0          ,0            ,0              /),&
+!                          collective=.TRUE.,IntegerArray=SurfPartInt(:,:,:,:,:))
+!
+!  CALL DistributedWriteArray(FileName,&
+!                             DataSetName='SurfPartData', rank=2              ,&
+!                             nValGlobal=(/nSurfPart_glob ,SurfPartDataSize/) ,&
+!                             nVal=      (/locnSurfPart   ,SurfPartDataSize/) ,&
+!                             offset=    (/offsetnSurfPart,0               /) ,&
+!                             collective=.FALSE.,offSetDim=1                   ,&
+!                             communicator=SurfCOMM%OutputCOMM,IntegerArray=SurfPartData(:,:))
+!#else
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+  !CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName='SurfPartInt', rank=5,&
                         nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
                         nVal=      (/SurfMesh%nSides      ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
@@ -1215,7 +1230,7 @@ IF (DSMC%WallModel.EQ.3) THEN
                         offset=    (/offsetnSurfPart,0               /) ,&
                         collective=.TRUE.,IntegerArray=SurfPartData(:,:))
   CALL CloseDataFile()
-#endif /*MPI*/                          
+!#endif /*MPI*/                          
   SDEALLOCATE(StrVarNames)
   SDEALLOCATE(StrVarNamesData)
   SDEALLOCATE(SurfPartInt)
