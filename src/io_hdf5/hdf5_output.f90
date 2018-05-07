@@ -323,6 +323,9 @@ END IF
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
+#ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif /*MPI*/
 #endif /*Particles*/
 
 CALL WriteAdditionalElemData(FileName,ElementOut)
