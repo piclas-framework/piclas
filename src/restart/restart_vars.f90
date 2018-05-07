@@ -16,6 +16,8 @@ INTEGER            :: N_Restart = 0
 INTEGER            :: nElems_Restart
 LOGICAl            :: RestartInitIsDone   = .FALSE.
 LOGICAl            :: DoRestart           = .FALSE.
+LOGICAl            :: DoInitialAutoRestart= .FALSE.
+INTEGER            :: InitialAutoRestartSample
 LOGICAl            :: BuildNewMesh        = .TRUE.
 LOGICAl            :: WriteNewMesh        = .TRUE.
 LOGICAL            :: InterpolateSolution =.FALSE.
