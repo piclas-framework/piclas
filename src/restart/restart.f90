@@ -41,7 +41,13 @@ CALL prms%SetSection("Restart")
 !CALL prms%CreateLogicalOption('ResetTime', "Override solution time to t=0 on restart.", '.FALSE.')
 #if USE_LOADBALANCE
 CALL prms%CreateLogicalOption('DoInitialAutoRestart',"Set Flag for doing automatic initial restart with loadbalancing routines "// &
-  " after first 'LoadBalanceSample'-number of iterations. Restart is done if Imbalance > 'Load-DeviationThreshold'.", '.FALSE.')
+  "after first 'InitialAutoRestartSample'-number of iterations.\n"// &
+  "Restart is done if Imbalance > 'Load-DeviationThreshold'."&
+  , '.FALSE.')
+CALL prms%CreateIntOption('InitialAutoRestartSample',"Define number of iterations at simulation start used for elemtime "// &
+ "sampling before performing automatic initial restart.\n"// &
+ "IF 0 than one iteration is sampled and statefile written has zero timeflag.\n"// &
+  " DEFAULT: LoadBalanceSample.")
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE DefineParametersRestart
 
@@ -54,7 +60,8 @@ SUBROUTINE InitRestart()
 USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
-USE MOD_ReadInTools,        ONLY: GETLOGICAL
+USE MOD_ReadInTools,        ONLY: GETLOGICAL, GETINT
+USE MOD_LoadBalance_Vars,   ONLY: LoadBalanceSample
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
@@ -67,6 +74,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(20)               :: hilf
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(&
@@ -93,6 +101,8 @@ ELSE
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
 #if USE_LOADBALANCE
   DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
+  WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
+  InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
 #endif /*USE_LOADBALANCE*/
 END IF
 

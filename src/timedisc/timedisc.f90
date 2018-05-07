@@ -248,7 +248,7 @@ USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
 #if USE_LOADBALANCE
-USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
+USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #if defined(IMPA) || defined(ROS)
@@ -313,6 +313,9 @@ REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
 #ifdef MPI
 LOGICAL                      :: PerformLoadBalance
+#if USE_LOADBALANCE
+INTEGER                      :: tmp_LoadBalanceSample
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
@@ -494,6 +497,8 @@ DO !iter_t=0,MaxIter
 
 #if USE_LOADBALANCE
   IF (DoInitialAutoRestart) THEN
+    tmp_LoadbalanceSample = LoadBalanceSample
+    LoadBalanceSample = InitialAutoRestartSample
     tAnalyzeDiff=MINVAL((/tAnalyze-time,LoadBalanceSample*dt-time/))
   ELSE
 #endif /*USE_LOADBALANCE*/
@@ -747,7 +752,10 @@ DO !iter_t=0,MaxIter
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
     END IF
     PerformLBSample=.FALSE.
-    IF (DoInitialAutoRestart) DoInitialAutoRestart=.FALSE.
+    IF (DoInitialAutoRestart) THEN
+      DoInitialAutoRestart=.FALSE.
+      LoadBalanceSample = tmp_LoadBalanceSample
+    END IF
 #endif /*USE_LOADBALANCE*/
     CalcTimeStart=BOLTZPLATZTIME()
   END IF !dt_analyze
