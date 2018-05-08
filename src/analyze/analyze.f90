@@ -57,6 +57,7 @@ CALL prms%CreateIntOption(    'nSkipAnalyze'     , '(Skip Analyze-Dt)')
 CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'Flag if time averaging should be performed')
 CALL prms%CreateStringOption( 'VarNameAvg'       , 'Count of time average variables',multiple=.TRUE.)
 CALL prms%CreateStringOption( 'VarNameFluc'      , 'Count of fluctuation variables',multiple=.TRUE.)
+CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAverage is performed')
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&

@@ -390,7 +390,7 @@ REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 REAL               :: dt_old
 #endif
 #ifdef ROS
-REAL             :: dt_inv
+REAL             :: dt_inv, dt_old
 #endif /*ROSENBROCK RK*/
 #if (PP_TimeDiscMethod==130) 
 ! coefficients of Ianelli-Baker RO2-2

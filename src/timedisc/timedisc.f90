@@ -238,6 +238,13 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
+#ifdef MPI
+#ifdef maxwell
+#if defined(ROS) || defined(IMPA)
+USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
+#endif /*ROS or IMPA*/
+#endif /*maxwell*/
+#endif /*MPI*/
 #endif /*PP_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation               ,ONLY: EvalGradient
@@ -635,6 +642,11 @@ DO !iter_t=0,MaxIter
 #endif
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad(PerformLoadBalance,time)
+#ifdef maxwell
+#if defined(ROS) || defined(IMPA)
+    UpdatePrecondLB=PerformLoadBalance
+#endif /*ROS or IMPA*/
+#endif /*maxwell*/
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
@@ -2091,6 +2103,9 @@ USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
+#if defined(maxwell) && defined(MPI)
+USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+#endif /*maxwell && MPI*/
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
@@ -2187,6 +2202,9 @@ LOGICAL            :: ishit
 #if USE_LOADBALANCE
 REAL               :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+#ifdef MPI
+LOGICAL            :: UpdatePrecondLoc
+#endif /*MPI*/
 !===================================================================================================================================
 
 #ifndef PP_HDG
@@ -2196,10 +2214,16 @@ IF (iter==0)THEN
   CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
   dt_old=dt
 ELSE
+  UpdatePrecondLoc=.FALSE.
+#ifdef MPI
+  IF(UpdatePrecondLB) UpdatePrecondLoc=.TRUE.
+  UpdatePrecondLb=.FALSE.
+#endif /*MPI*/
   IF(UpdatePrecond)THEN
-    IF(dt.NE.dt_old) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
+    IF(dt.NE.dt_old) UpdatePrecondLoc=.TRUE.
     dt_old=dt
   END IF
+  IF(UpdatePrecondLoc) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 END IF
 #endif /*maxwell*/
 #endif /*DG*/
@@ -3304,13 +3328,19 @@ SUBROUTINE TimeStepByRosenbrock(t)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv
+USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv,dt_old
 USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma !,RKdtFrac, RK_inc,RK_inflow,RK_fillSF
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage,DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
+#ifdef MPI
+#if defined(MPI) && defined(maxwell)
+USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+#endif /*MPI && maxwell*/
+#endif /*MPI*/
+USE MOD_Precond_Vars,            ONLY:UpdatePrecond
 USE MOD_LinearOperator,          ONLY:MatrixVector
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_DG_Vars,                 ONLY:Ut
@@ -3399,6 +3429,9 @@ INTEGER            :: iPart,nParts
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#ifdef MPI
+LOGICAL            :: UpdatePrecondLoc
+#endif /*MPI*/
 !===================================================================================================================================
 
 coeff=dt*RK_gamma
@@ -3406,8 +3439,22 @@ coeff_inv=1./coeff
 dt_inv=1.
 #ifndef PP_HDG
 #ifdef maxwell
-! caution hard coded 
-IF (iter==0) CALL BuildPrecond(t,t,0,coeff_inv,dt=dt_inv)
+! caution hard coded
+IF (iter==0)THEN
+  CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
+  dt_old=dt
+ELSE
+  UpdatePrecondLoc=.FALSE.
+#ifdef MPI
+  IF(UpdatePrecondLB) UpdatePrecondLoc=.TRUE.
+  UpdatePrecondLb=.FALSE.
+#endif /*MPI*/
+  IF(UpdatePrecond)THEN
+    IF(dt.NE.dt_old) UpdatePrecondLoc=.TRUE.
+    dt_old=dt
+  END IF
+  IF(UpdatePrecondLoc) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
+END IF
 #endif /*maxwell*/
 #endif /*DG*/
 dt_inv=dt_inv/dt

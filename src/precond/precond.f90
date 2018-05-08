@@ -504,7 +504,8 @@ SUBROUTINE FinalizePrecond()
 ! Finalizes variables 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Precond_Vars,ONLY:invP,PrecondInitIsDone,PrecondType
+USE MOD_Precond_Vars,ONLY:invP,PrecondInitIsDone,PrecondType,neighborElemID
+USE MOD_Precond_Vars,ONLY:invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
 USE MOD_SparseILU   ,ONLY:FinalizeSparseILU
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -514,21 +515,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(invP)
-!IF(PrecondType.EQ.210)THEN
-!  DEALLCOATE(dRdXi)
-!  DEALLCOATE(dRdEta)
-!  DEALLCOATE(dRdZeta)
-!  DEALLCOATE(invXi)
-!  DEALLCOATE(invEta)
-!  DEALLCOATE(dRdXi)
-!!SDEALLCOATE(dRdEta)
-!!SDEALLCOATE(dRdZeta)
-!!SDEALLCOATE(invXi)
-!!SDEALLCOATE(invEta)
-!!SDEALLCOATE(invZeta)
-!END IF
+SDEALLOCATE(neighborElemID)
+SDEALLOCATE(invXi)
+SDEALLOCATE(invEta)
+SDEALLOCATE(invZeta)
+SDEALLOCATE(dRdXi)
+SDEALLOCATE(dRdEta)
+SDEALLOCATE(dRdZeta)
 PrecondInitIsDone = .FALSE.
-IF(PrecondType.EQ.22) CALL FinalizeSparseILU
 IF(PrecondType.EQ.3) CALL FinalizeSparseILU
 
 END SUBROUTINE FinalizePrecond
