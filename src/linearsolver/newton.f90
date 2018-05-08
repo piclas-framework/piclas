@@ -768,14 +768,14 @@ END DO ! funny pseudo Newton for all implicit
 !IF(PartRelaxationFac0.NE.0) DoPartRelaxation=.TRUE.
 
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
-!IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
-!  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
-!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
-!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R as absolute           : ',Norm_R*nDOFGlobalMPI_inv
-!  IF(MPIRoot) CALL abort(&
-! __STAMP__&
-!   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
-!END IF
+IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
+  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
+  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
+  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R as absolute           : ',Norm_R*nDOFGlobalMPI_inv
+  IF(MPIRoot) CALL abort(&
+ __STAMP__&
+   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
+END IF
 
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
 
