@@ -347,9 +347,10 @@ Norm_R=Norm_R0
 !Norm_Diff=HUGE(1.0)
 !Norm_Diff_old=HUGE(1.0)
 IF(DoPrintConvInfo.AND.MPIRoot)THEN
+  WRITE(UNIT_stdOut,'(A18       )') ' ----------------------'
+  WRITE(UNIT_stdOut,'(A18       )') ' Init Newton'
   WRITE(UNIT_stdOut,'(A18,E24.12)') ' Norm_R0:         ',Norm_R0
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Delta_Norm_R0:   ',Delta_Norm_R0
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Delta_Norm_Rel0: ',Delta_Norm_Rel0
+  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Norm_R0 per DOF  ',Norm_R0*nDOFGlobalMPI_inv
 END IF
 IF(FullEisenstatWalker.GT.0)THEN
   etaMax=fulletamax !0.9999
@@ -732,8 +733,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Tolerance        ',Eps_FullNewton
     WRITE(UNIT_StdOut,'(A20,E24.15,2x,E24.15)') ' Norm , Norm_0    ',Norm_R, Norm_R0
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm / Norm_0    ',Norm_R/ Norm_R0
-    WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_R     ',Delta_Norm_R
-    WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_Rel   ',Delta_Norm_Rel
+    WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm per DOF     ',Norm_R*nDOFGlobalMPI_inv
+    !WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_R     ',Delta_Norm_R
+    !WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_Rel   ',Delta_Norm_Rel
     !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff        ',Norm_Diff
     !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff/Norm_0 ',Norm_Diff/Norm_R0
   END IF 
@@ -771,7 +773,7 @@ totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
 IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
   SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
   SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
-  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R as absolute           : ',Norm_R*nDOFGlobalMPI_inv
+  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R per DOF               : ',Norm_R*nDOFGlobalMPI_inv
   IF(MPIRoot) CALL abort(&
  __STAMP__&
    ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
