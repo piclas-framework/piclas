@@ -1100,35 +1100,37 @@ WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites o
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Max_Surfsites_own,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) ! write only if mpiroot of all comms
 SWRITE(UNIT_stdOut,'(A3,A,I0)') ' > ','Surface sites for all catalytic boundaries: ', Max_SurfSites_own
 
-ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
-        ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &
-        ,SurfExchange%SurfDistSendRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
-        ,SurfExchange%SurfDistRecvRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
-        ,SurfExchange%NbrOfPos(1:SurfCOMM%nMPINeighbors))
-! allocate send and receive buffer
-ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
-ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
-DO iProc=1,SurfCOMM%nMPINeighbors
-  SurfExchange%nSurfDistSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
-  SurfExchange%nSurfDistSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
-  IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfExchange%nSurfDistSidesRecv(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
-    ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosRecv(1:SurfExchange%nSurfDistSidesRecv(iProc)))
-    SurfExchange%NbrOfPos(iProc)%nPosRecv = 0
-  END IF
-  IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(SurfExchange%nSurfDistSidesSend(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
-    ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosSend(1:SurfExchange%nSurfDistSidesSend(iProc)))
-    SurfExchange%NbrOfPos(iProc)%nPosSend = 0
-  END IF
-END DO ! iProc
+IF (SurfMesh%SurfOnProc) THEN
+  ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
+          ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &
+          ,SurfExchange%SurfDistSendRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
+          ,SurfExchange%SurfDistRecvRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
+          ,SurfExchange%NbrOfPos(1:SurfCOMM%nMPINeighbors))
+  ! allocate send and receive buffer
+  ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
+  ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SurfExchange%nSurfDistSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
+    SurfExchange%nSurfDistSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
+    IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
+      ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfExchange%nSurfDistSidesRecv(iProc)))
+      SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
+      ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosRecv(1:SurfExchange%nSurfDistSidesRecv(iProc)))
+      SurfExchange%NbrOfPos(iProc)%nPosRecv = 0
+    END IF
+    IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
+      ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(SurfExchange%nSurfDistSidesSend(iProc)))
+      SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+      ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosSend(1:SurfExchange%nSurfDistSidesSend(iProc)))
+      SurfExchange%NbrOfPos(iProc)%nPosSend = 0
+    END IF
+  END DO ! iProc
 
-! communicate the number of surface sites for surfdist communication
-CALL ExchangeSurfDistSize()
-! fill halo surface distribution through mpi communication
-CALL ExchangeSurfDistInfo()
+  ! communicate the number of surface sites for surfdist communication
+  CALL ExchangeSurfDistSize()
+  ! fill halo surface distribution through mpi communication
+  CALL ExchangeSurfDistInfo()
+END IF
 #endif /*MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
