@@ -422,7 +422,7 @@ END IF
 IF (DSMC%WallModel.EQ.1) Adsorption%RecombNum = 0
 IF (DSMC%WallModel.EQ.2) Adsorption%RecombNum = 1
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
-  CALL Init_ChemistrySampling()
+  IF(SurfMesh%SurfOnProc) CALL Init_ChemistrySampling()
 END IF
 
 END SUBROUTINE InitDSMCSurfModel
