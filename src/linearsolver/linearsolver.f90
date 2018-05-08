@@ -501,7 +501,8 @@ SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance,Norm_R0_in)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars,              ONLY:U
+USE MOD_DG_Vars,              ONLY:U,Ut
+USE MOD_LinearSolver_Vars,    ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 USE MOD_LinearOperator,       ONLY:MatrixVector,  VectorDotProduct,MatrixVectorSource
@@ -570,7 +571,7 @@ ELSE
 END IF
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-IF(Norm_R0.LT.1e-14) RETURN
+IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
 P  = R0
 R  = R0
@@ -580,6 +581,8 @@ ELSE
   AbortCrit = Norm_R0*eps_LinearSolver
 END IF
 
+print*,'Norm_R0-init',Norm_R0,Norm_R0*nDOFGlobalMPI_inv
+print*,'AbortCrit',AbortCrit
 
 DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner interation
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
@@ -636,20 +639,22 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     ! test if success
     IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12)) THEN
       U=Un
+      print*,'SUM(ABS(U))',SUM(ABS(U))
+      print*,'SUM(ABS(Ut))',SUM(ABS(Ut))
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
-#ifdef DLINANALYZE
-      CALL CPU_TIME(tE)
+!#ifdef DLINANALYZE
+!      CALL CPU_TIME(tE)
       ! Debug Ausgabe, Anzahl der Iterationen...
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Restarts           : ',Restart
-      SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
-      SWRITE(UNIT_stdOut,'(A22,I5)')      ' Restarts           : ',Restart
-      SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in BiCGSTAB   : ',tE-tS
-      SWRITE(UNIT_stdOut,'(A23,E16.8)')   ' Norm_R0            : ',Norm_R0
+!      SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in BiCGSTAB   : ',tE-tS
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
-#endif /* DLINANALYZE */
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R^0.5         : ',SQRT(Norm_R)
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_R*nDOFGlobalMPI_inv
+!      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
+!#endif /* DLINANALYZE */
       RETURN
     ENDIF
   END DO ! iterLinSolver
@@ -874,7 +879,7 @@ SUBROUTINE LinearSolver_GMRES_P(t,coeff,relTolerance,Norm_R0_in)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY: U
-USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource
+USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource,nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nInnerIter
 USE MOD_LinearOperator,       ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -939,9 +944,11 @@ IF(PRESENT(Norm_R0_in))THEN
 ELSE
   Norm_R0=Norm_R
 END IF
+
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-IF(Norm_R0.LT.1e-14) RETURN
+print*,'Norm_R0-initial',Norm_R0,Norm_R0*nDOFGlobalMPI_inv
+IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-12) RETURN
 
 ! define relative abort criteria, Norm_R0 is computed outside
 IF(PRESENT(relTolerance))THEN
@@ -949,6 +956,8 @@ IF(PRESENT(relTolerance))THEN
 ELSE
   AbortCrit = Norm_R0*eps_LinearSolver
 END IF
+
+print*,'AbortCrit',AbortCrit
 
 ! GMRES(m)  inner loop
 V(:,:,:,:,:,1)=R0/Norm_R
@@ -992,7 +1001,8 @@ DO WHILE (Restart<nRestarts)
     H(m,m)=Bet
     Gam(m+1)=-S(m)*Gam(m)
     Gam(m)=C(m)*Gam(m)
-    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) THEN !converge or max Krylov reached
+    ! converge or max Krylov reached
+    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim) .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-12))THEN 
       DO nn=m,1,-1
          Alp(nn)=Gam(nn) 
          DO o=nn+1,m
@@ -1003,18 +1013,19 @@ DO WHILE (Restart<nRestarts)
       DO nn=1,m
         Un=Un+Alp(nn)*Vt(:,:,:,:,:,nn)
       END DO !nn
-      IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
+      IF (ABS(Gam(m+1)).LE.AbortCrit .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-12)) THEN !converged
         totalIterLinearSolver=totalIterLinearSolver+nInnerIter
         U=Un
-#ifdef DLINANALYZE
-        CALL CPU_TIME(tE)
+!#ifdef DLINANALYZE
+!        CALL CPU_TIME(tE)
         SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
         SWRITE(UNIT_stdOut,'(A22,I5)')      ' nRestarts          : ',Restart
-        SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in GMRES      : ',tE-tS
-        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Gam(1)
-        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Gam(m+1)
-        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
-#endif /* DLINANALYZE */
+!        SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in GMRES      : ',tE-tS
+        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0 !Gam(1)
+        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',ABS(Gam(m+1))
+        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',ABS(Gam(m+1))*nDOFGlobalMPI_inv
+!        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
+!#endif /* DLINANALYZE */
         RETURN
       END IF  ! converged
     ELSE ! no convergence, next iteration   ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) 
@@ -1426,6 +1437,7 @@ SUBROUTINE LinearSolver_BiCGSTABl(t,Coeff,relTolerance,Norm_R0_in)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
+USE MOD_LinearSolver_Vars,    ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts,ldim
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -1484,13 +1496,17 @@ ELSE
 END IF
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-IF(Norm_R0.LT.1e-14) RETURN
+IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-12) RETURN
 
 IF(PRESENT(relTolerance))THEN
   AbortCrit = Norm_R0*relTolerance
 ELSE
   AbortCrit = Norm_R0*eps_LinearSolver
 END IF
+
+print*,'Norm_R0-init',Norm_R0 , Norm_R0*nDOFGlobalMPI_inv
+print*,'AbortCrit', AbortCrit
+
 ! starting direction accoring to old paper
 P(:,:,:,:,:,0) = 0.
 R(:,:,:,:,:,0) = R0
@@ -1567,8 +1583,10 @@ DO WHILE(Restart.LT.nRestarts)
       U=U+Un
       nInnerIter=nInnerIter+iterLinSolver*ldim
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
-      !SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
-      !SWRITE(UNIT_stdOut,'(A22,I5)')      ' Restarts           : ',Restart
+      SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
+      SWRITE(UNIT_stdOut,'(A22,I5)')      ' Restarts           : ',Restart
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0 !Gam(1)
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
       RETURN
     END IF
   END DO ! iterLinearSolver

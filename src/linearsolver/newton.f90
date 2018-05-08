@@ -75,6 +75,8 @@ REAL                       :: NormArray(3), GlobalNormArray(3)
 #endif /*MPI*/
 !===================================================================================================================================
 
+print*,'compute implicit norm for outer newton..'
+
 Norm_R         =0.
 Delta_Norm_R   =0.
 Delta_Norm_Rel =0.
@@ -82,7 +84,11 @@ Delta_Norm_Rel =0.
 ! compute error-norm-version1, non-optimized
 CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
 ImplicitSource=0.
+print*,'WFT-LinSolverRHS0',SUM(ABS(LinSolverRHS))
 CALL CalcSource(t,1.,ImplicitSource)
+print*,'WFT-soure',SUM(ABS(ImplicitSource))
+print*,'WFT-LinSolverRHS',SUM(ABS(LinSolverRHS))
+print*,'WFT-ut',SUM(ABS(ut))
 
 IF(DoParabolicDamping)THEN
   rTmp(1:6)=1.0
@@ -311,6 +317,7 @@ END IF
   tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+  print*,'deopodgdsadg'
   ! compute particle source terms on field solver of implicit particles :)
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
@@ -347,10 +354,12 @@ Norm_R=Norm_R0
 !Norm_Diff=HUGE(1.0)
 !Norm_Diff_old=HUGE(1.0)
 IF(DoPrintConvInfo.AND.MPIRoot)THEN
-  WRITE(UNIT_stdOut,'(A18       )') ' ----------------------'
-  WRITE(UNIT_stdOut,'(A18       )') ' Init Newton'
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Norm_R0:         ',Norm_R0
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Norm_R0 per DOF  ',Norm_R0*nDOFGlobalMPI_inv
+  WRITE(UNIT_stdOut,'(A20       )') ' ----------------------'
+  WRITE(UNIT_stdOut,'(A20       )') ' Init Newton'
+  WRITE(UNIT_stdOut,'(A20,E24.12)') ' Norm_R0:          ',Norm_R0
+  WRITE(UNIT_stdOut,'(A20,E24.12)') ' Norm_R0 per DOF   ',Norm_R0*nDOFGlobalMPI_inv
+  WRITE(UNIT_stdOut,'(A20,E24.12)') ' AbortNormRelative ',Norm_R*eps_FullNewton
+  WRITE(UNIT_stdOut,'(A20,E24.12)') ' AbortNormAbs      ',1e-12
 END IF
 IF(FullEisenstatWalker.GT.0)THEN
   etaMax=fulletamax !0.9999
@@ -557,6 +566,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ELSE
     CALL LinearSolver(tStage,coeff,relTolerance )
   END IF
+  print*,'testU',SUM(ABS(U))
 #else
     IF(FullEisenstatWalker.GT.0) THEN
       IF(useRelativeAbortCrit) EpsCG=relTolerance 
@@ -576,6 +586,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     ! compute norm and field step
     Norm_Rold=Norm_R
     Rold=R
+    print*,'asdgasdg'
     CALL ImplicitNorm(tStage,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel)
     IF(nFullNewtonIter.GT.5)THEN
       IF(Norm_R/Norm_Rold.GT.1.0000000)THEN
@@ -725,9 +736,11 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 
   ! absolute norm
   IF(Norm_R*nDOFGlobalMPI_inv.LT.1e-12) IsConverged=.TRUE.
+  !IF(Norm_R*nDOFGlobalMPI_inv.LT.eps_FullNewton) IsConverged=.TRUE.
   ! relative norm
   IF(Norm_R.LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
 
+  print*,'testU-2',SUM(ABS(U))
   IF(DoPrintConvInfo.AND.MPIRoot)THEN
     WRITE(UNIT_StdOut,'(A20,I0)')               ' Piccardi-iter    ',nFullNewtonIter
     WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Tolerance        ',Eps_FullNewton
