@@ -183,7 +183,7 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
 #ifndef PP_HDG
 USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:FieldStage,nDOFGlobalMPI_inv
+USE MOD_LinearSolver_Vars,       ONLY:FieldStage
 USE MOD_LinearOperator,          ONLY:EvalResidual
 USE MOD_Predictor,               ONLY:Predictor,PredictorType
 #else
@@ -191,7 +191,7 @@ USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 #endif /*PP_HDG*/
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
@@ -770,8 +770,8 @@ END DO ! funny pseudo Newton for all implicit
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
 !IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
 !  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
-!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' NormDiff and NormDiff/Norm_R0: ',Norm_Diff, Norm_Diff/Norm_R0
 !  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
+!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R as absolute           : ',Norm_R*nDOFGlobalMPI_inv
 !  IF(MPIRoot) CALL abort(&
 ! __STAMP__&
 !   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)

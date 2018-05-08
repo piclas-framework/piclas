@@ -140,7 +140,8 @@ nDOFside=PP_nVar*nGP2D
 nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
 #endif /*NOT HDG*/
-nDOFGlobalMPI_inv = 1./(REAL(nDOFelem)*REAL(nGlobalElems))  
+! compute this value with DG and HDG. The use within HDG requires the volume DOF identically to the Maxwell case
+nDOFGlobalMPI_inv = 1./(REAL(PP_nVar)*((PP_N+1)**3)*REAL(nGlobalElems))  
 
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
