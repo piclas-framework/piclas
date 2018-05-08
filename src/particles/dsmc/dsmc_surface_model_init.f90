@@ -1566,11 +1566,9 @@ END DO
 #ifdef MPI
 ! Reallocate buffer for mpi communication of sampling
 DO iProc=1,SurfCOMM%nMPINeighbors
-  SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
-  RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
-  SDEALLOCATE(SurfSendBuf(iProc)%content)
-  SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
+    SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
+    SDEALLOCATE(SurfSendBuf(iProc)%content)
     ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
     !ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
@@ -1578,6 +1576,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
+    RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
+    SDEALLOCATE(SurfRecvBuf(iProc)%content)
     ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
     !ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
