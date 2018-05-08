@@ -1156,7 +1156,7 @@ USE MOD_Eval_xyz               ,ONLY: eval_xyz_elemcheck
 !USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
 USE MOD_Globals
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBElemPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1175,6 +1175,9 @@ REAL                          :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 DSMC%SampNum = DSMC%SampNum + 1
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 SELECT CASE(TRIM(HODSMC%SampleType))
  CASE('cartmesh_volumeweighting')
   ! Step 1: Deposition of all particles onto background mesh -> densities
@@ -1366,9 +1369,6 @@ CASE('cell_mean')
   kk = 1 ; ll = 1 ; mm = 1
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
       iSpec = PartSpecies(i)
       iElem = PEM%Element(i)
       DSMC_HOSolution(1:3,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(1:3,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)
@@ -1385,9 +1385,6 @@ CASE('cell_mean')
         END IF
       END IF
       !DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) + 1.0 
-#if USE_LOADBALANCE
-      CALL LBElemPauseTime(PEM%Element(i),tLBStart)
-#endif /*USE_LOADBALANCE*/
     END IF
   END DO
 CASE('cell_volweight')
@@ -1508,6 +1505,9 @@ CASE DEFAULT
 __STAMP__&
 ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END SUBROUTINE DSMCHO_data_sampling
 
 

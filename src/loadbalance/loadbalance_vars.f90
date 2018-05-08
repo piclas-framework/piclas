@@ -18,8 +18,6 @@ LOGICAL                             :: PerformLBSample                          
 LOGICAL                             :: InitLoadBalanceIsDone                      ! switch for checking
 
 ! time measurement
-REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
-                                                                                  ! measured elem-independent and later weighted
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
                                                                                   ! measured elem-independent and later weighted
                                                                                   ! for indeces look into boltzplatz.h

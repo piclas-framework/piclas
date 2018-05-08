@@ -72,7 +72,6 @@ SUBROUTINE DSMC_main()
   REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-
   DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
   DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
   DSMC_RHS(1:PDM%ParticleVecLength,3) = 0

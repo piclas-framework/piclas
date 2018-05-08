@@ -245,8 +245,11 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #ifdef MPI
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,tTotal
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
+#if USE_LOADBALANCE
+USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
@@ -310,6 +313,9 @@ REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
 #ifdef MPI
 LOGICAL                      :: PerformLoadBalance
+#if USE_LOADBALANCE
+INTEGER                      :: tmp_LoadBalanceSample
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
@@ -489,7 +495,17 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*PARTICLES*/
 
-  tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+#if USE_LOADBALANCE
+  IF (DoInitialAutoRestart) THEN
+    tmp_LoadbalanceSample = LoadBalanceSample
+    LoadBalanceSample = InitialAutoRestartSample
+    tAnalyzeDiff=MINVAL((/tAnalyze-time,LoadBalanceSample*dt-time/))
+  ELSE
+#endif /*USE_LOADBALANCE*/
+    tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+#if USE_LOADBALANCE
+  END IF
+#endif /*USE_LOADBALANCE*/
   tEndDiff=tEnd-time            ! dito for end time
 
   !IF(time.LT.3e-8)THEN
@@ -717,10 +733,8 @@ DO !iter_t=0,MaxIter
     iter_loc=0
     tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
-#ifdef MPI
-    tTotal=0. ! Moved from LoadMeasure
 #if USE_LOADBALANCE
-    IF(DoLoadBalance.AND.PerformLBSample)THEN
+    IF((DoLoadBalance.AND.PerformLBSample) .OR. (DoInitialAutoRestart.AND.PerformLBSample))THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
       CALL LoadBalance(PerformLoadBalance)
       IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
@@ -738,8 +752,14 @@ DO !iter_t=0,MaxIter
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
     END IF
     PerformLBSample=.FALSE.
+    IF (DoInitialAutoRestart) THEN
+      DoInitialAutoRestart=.FALSE.
+      LoadBalanceSample = tmp_LoadBalanceSample
+      tAnalyze=Analyze_dt
+      nAnalyze=1
+      iAnalyze=1
+    END IF
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
@@ -1485,13 +1505,7 @@ REAL                  :: tLBStart
     CALL ParticleRefTracking()
   ELSE
     IF (TriaTracking) THEN
-#if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
       CALL ParticleTriaTracking()
-#if USE_LOADBALANCE
-      CALL LBPauseTime(LB_TRACK,tLBStart)
-#endif /*USE_LOADBALANCE*/
     ELSE
       CALL ParticleTracing()
     END IF
