@@ -788,13 +788,13 @@ USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,           ONLY: Phi,Phit,nTotalPhi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_PICDepo,                 ONLY: Deposition!, DepositionMPF
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, & 
                                         doParticleMerge,PartPressureCell
 USE MOD_part_RHS,                ONLY: CalcPartRHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
@@ -1033,7 +1033,11 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTracing()
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1223,7 +1227,11 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTracing()
+      IF (TriaTracking) THEN
+        CALL ParticleTriaTracking()
+      ELSE
+        CALL ParticleTracing()
+      END IF
     END IF
     IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
@@ -1570,7 +1578,7 @@ USE MOD_part_MPFtools,    ONLY : StartParticleMerge
 USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
@@ -2087,8 +2095,8 @@ USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
 USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
 USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
@@ -2549,7 +2557,11 @@ DO iStage=2,nRKStages
       ! tracking routines has to be extended for optional flag, like deposition
       CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ELSE
-      CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+      IF (TriaTracking) THEN
+        CALL ParticleTriaTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+      ELSE
+        CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+      END IF
     END IF
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
@@ -2724,7 +2736,11 @@ DO iStage=2,nRKStages
         CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ELSE
         !CALL ParticleTracing()
-        CALL ParticleTracing(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+        IF (TriaTracking) THEN
+          CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+        ELSE
+          CALL ParticleTracing(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+        END IF
       END IF
 #ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
@@ -3132,7 +3148,11 @@ IF (t.GE.DelayTime) THEN
     CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   ELSE
     !CALL ParticleTracing()
-    CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    ELSE
+      CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    END IF
   END IF
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
@@ -3300,8 +3320,8 @@ USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
 USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
@@ -3799,7 +3819,11 @@ DO iStage=2,nRKStages
       ! tracking routines has to be extended for optional flag, like deposition
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTracing()
+      IF (TriaTracking) THEN
+        CALL ParticleTriaTracking()
+      ELSE
+        CALL ParticleTracing()
+      END IF
     END IF
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
@@ -3971,7 +3995,11 @@ IF (t.GE.DelayTime) THEN
     ! tracking routines has to be extended for optional flag, like deposition
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTracing()
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
   END IF
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
@@ -4183,7 +4211,11 @@ END IF
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTracing()
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -4496,7 +4528,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 #endif
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
+USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,TriaTracking !,MeasureTrackTime
 USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -4604,7 +4636,11 @@ IF (t.GE.DelayTime) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTracing()
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
   END IF
   CALL ParticleInserting()
 #ifdef MPI
@@ -4689,7 +4725,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 USE MOD_LoadBalance_Vars,        ONLY: tCurrent
 USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 #endif
-USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
+USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping,TriaTracking
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking,      ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges
 #endif /*PARTICLES*/
@@ -4888,7 +4924,11 @@ IF (t.GE.DelayTime) THEN ! removed .OR.(iter.EQ.0) because particles have not mo
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTracing()
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking()
+    ELSE
+      CALL ParticleTracing()
+    END IF
   END IF
   CALL ParticleInserting()
 #ifdef MPI
@@ -5037,7 +5077,11 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTracing()
+      IF (TriaTracking) THEN
+        CALL ParticleTriaTracking()
+      ELSE
+        CALL ParticleTracing()
+      END IF
     END IF
     CALL ParticleInserting()
 #ifdef MPI

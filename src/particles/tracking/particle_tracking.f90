@@ -36,7 +36,7 @@ PUBLIC::ParticleCollectCharges
 CONTAINS
 
 
-SUBROUTINE ParticleTriaTracking()
+SUBROUTINE ParticleTriaTracking(doParticle_In)
 !===================================================================================================================================
 ! Routine for tracking of moving particles, calculate intersection and boundary interaction
 ! in case of no reference tracking (dorefmapping = false) and using Triangles (TriTracking = true)
@@ -57,10 +57,12 @@ USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                          :: i
 INTEGER                          :: ElemID,flip,OldElemID
 INTEGER                          :: LocalSide
@@ -81,8 +83,15 @@ REAL                             :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
 
+IF(PRESENT(DoParticle_IN))THEN
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
+ELSE
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+
 DO i = 1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(i)) THEN
+  !IF (PDM%ParticleInside(i)) THEN
+  IF(DoParticle(i))THEN
 #ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -159,7 +168,7 @@ DO i = 1,PDM%ParticleVecLength
                  LocalSide = iLocSide
                 END IF
               END IF
-            END DO
+            END DO 
             IF(.NOT.PDM%ParticleInside(i))THEN
               WRITE(*,*)'Particle',i,' lost completely!'
               WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
