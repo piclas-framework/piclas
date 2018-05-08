@@ -734,7 +734,7 @@ DO !iter_t=0,MaxIter
     tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
 #if USE_LOADBALANCE
-    IF(DoLoadBalance.AND.PerformLBSample)THEN
+    IF((DoLoadBalance.AND.PerformLBSample) .OR. (DoInitialAutoRestart.AND.PerformLBSample))THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
       CALL LoadBalance(PerformLoadBalance)
       IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
@@ -755,6 +755,9 @@ DO !iter_t=0,MaxIter
     IF (DoInitialAutoRestart) THEN
       DoInitialAutoRestart=.FALSE.
       LoadBalanceSample = tmp_LoadBalanceSample
+      tAnalyze=Analyze_dt
+      nAnalyze=1
+      iAnalyze=1
     END IF
 #endif /*USE_LOADBALANCE*/
     CalcTimeStart=BOLTZPLATZTIME()
