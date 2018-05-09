@@ -6138,7 +6138,9 @@ DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     ElemID = PEM%Element(i)
     IF(.NOT.IsTracingBCElem(ElemID))CYCLE
+#if USE_LOADBALANCE
     nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + 1
+#endif /*USE_LOADBALANCE*/
     !ElemID = BC2AdaptiveElemMap(ElemID)
     iSpec = PartSpecies(i)
     Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6)
