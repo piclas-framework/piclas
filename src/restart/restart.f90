@@ -267,7 +267,7 @@ INTEGER                  :: Indx, Indy, UsedSiteMapPos, nVar, nfreeArrayindeces,
 INTEGER                  :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
 INTEGER                  :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
 INTEGER                  :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, Wallmodel_HDF5
-LOGICAL                  :: SurfCalcDataExists, WallmodelExists, SurfPartIntExists, SurfPartDataExists, current_not_free
+LOGICAL                  :: SurfCalcDataExists, WallmodelExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree
 #endif /*PARTICLES*/
 #if USE_QDS_DG
 CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
@@ -1058,28 +1058,29 @@ __STAMP__&
                           ! Name        :  nfreeArrayindeces   (lastfreeIndx)                   Adsorbates
                           ! current     :  1 2                   3           |      4  5  6  7  8  9 10 11
                           ! UsedSiteMap :  1 7                   8           |     11  9 10  3  4  5  2  6
-                          lastfreeIndx = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(iCoord)
-                          nfreeArrayindeces = lastpart-firstpart+1
-                          DO current = 1,nfreeArrayindeces
+                          lastfreeIndx = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(iCoord)
+                          nfreeArrayindeces = lastfreeIndx - ( lastpart - (firstpart-1) )
+                          DO current = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(iCoord)
                             UsedSiteMapPos =  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current)
                             IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos).GT.0) THEN
-                              current_not_free = .TRUE.
+                              MoveToLastFree = .TRUE.
                               ! move value to end of array and end of array to current array index
-                              DO WHILE (current_not_free)
+                              DO WHILE (MoveToLastFree)
                                 SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current) = &
                                     SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(lastfreeIndx)
                                 SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(lastfreeIndx) = &
                                     UsedSiteMapPos
                                 UsedSiteMapPos =  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(current)
-                                IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos).LT.1) THEN
-                                  current_not_free = .FALSE.
+                                IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos).EQ.0) THEN
+                                  MoveToLastFree = .FALSE.
                                 END IF
                                 lastfreeIndx = lastfreeIndx - 1
-                              END DO ! end not empty
+                                IF (lastfreeIndx .EQ. nfreeArrayindeces) EXIT
+                              END DO ! current Indx not empty
                             END IF
                             IF (lastfreeIndx .EQ. nfreeArrayindeces) EXIT
-                          END DO ! current = 1,nfreeArrayindeces
-                          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(iCoord) = lastfreeIndx
+                          END DO ! current = 1,nSites
+                          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(iCoord) = nfreeArrayindeces
                         END DO
                       END DO
                     END DO
