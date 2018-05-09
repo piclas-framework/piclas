@@ -3423,13 +3423,14 @@ tLBStart = LOCALTIME() ! LB Time Start
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
 #endif /*MPI*/
-#endif
+#endif /*PARTICLES*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 1 - initialization && first linear solver 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 tStage=t
 
+#ifdef PARTICLES
 ! compute number of emitted particles during Rosenbrock-Step
 IF(t.GE.DelayTime)THEN
   ! surface flux
@@ -3511,7 +3512,7 @@ IF(t.GE.DelayTime)THEN
   END IF
 END IF
 
-#ifdef PARTICLES
+
 IF((t.GE.DelayTime).OR.(iter.EQ.0))THEN
 ! communicate shape function particles for deposition
 #ifdef MPI
