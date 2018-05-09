@@ -17,12 +17,6 @@ PRIVATE
 #ifndef PP_HDG
 INTERFACE LinearSolver
   MODULE PROCEDURE LinearSolver
-!  MODULE PROCEDURE LinearSolver_GMRES_P
-!  MODULE PROCEDURE LinearSolver_StabBiCGSTAB  
-!  MODULE PROCEDURE LinearSolver_StabBiCGSTAB_P
-!  MODULE PROCEDURE LinearSolver_BiCGSTAB_P
-!  MODULE PROCEDURE LinearSolver_BiCGSTAB_PM
-!  MODULE PROCEDURE LinearSolver_BiCGSTAB
 END INTERFACE
 
 PUBLIC:: LinearSolver
@@ -382,7 +376,17 @@ INTEGER                  :: iterLinSolver,Restart
 ! preconditioner
 REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: TvecQt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#ifdef IMPLICIT_ANALYZE
+REAL                     :: tS,tE,tStart,tend
+REAL                     :: tDG, tPrecond
+#endif /* IMPLICIT_ANALYZE */
 !==================================================================================================================================
+
+#ifdef IMPLICIT_ANALYZE
+tPrecond=0.
+tDG=0.
+CALL CPU_TIME(tS)
+#endif /* IMPLICIT_ANALYZE */
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
@@ -428,16 +432,42 @@ END IF
 DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
   DO iterLinSolver=1, maxIter_LinearSolver
     ! Preconditioner
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(P,Pt)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+    ! matrix vector
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL MatrixVector(t,coeff,Pt,V)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tDG=tDG+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
     CALL VectorDotProduct(V,R0,alpha) ! sig,alpha turned compared to BiCGSTAB ! caution
     CALL VectorDotProduct(R,R0,sigma)
     alpha = sigma / alpha
     Q=Tvec - alpha*V
     ! Preconditioner
     TvecQt=Tvec+Q
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(TvecQt,TvecQt)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+    ! matrix vector
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL MatrixVector(t,coeff,TvecQt,V) ! we are using V because it is not needed again
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tDG=tDG+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
     Un=Un+alpha*TvecQt
     ! R_j+1=R_j + alpha A(uj+qj)
     R = R - alpha*V
@@ -452,7 +482,7 @@ DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
       U=Un
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
       CALL CPU_TIME(tE)
       ! Debug Ausgabe, Anzahl der Iterationen...
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
@@ -460,8 +490,9 @@ DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
       SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in CGS        : ',tE-tS
       SWRITE(UNIT_stdOut,'(A23,E16.8)')   ' Norm_R0            : ',Norm_R0
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_R*nDOFGlobalMPI_inv
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
       RETURN
     ENDIF
   END DO ! iterLinSolver
@@ -530,11 +561,17 @@ REAL                     :: AbortCrit
 ! preconditioner
 REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
 REAL                     :: tS,tE,tStart,tend
 REAL                     :: tDG, tPrecond
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
 !===================================================================================================================================
+
+#ifdef IMPLICIT_ANALYZE
+tPrecond=0.
+tDG=0.
+CALL CPU_TIME(tS)
+#endif /* IMPLICIT_ANALYZE */
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
@@ -546,12 +583,6 @@ REAL                     :: tDG, tPrecond
 !    = U^n + dt*Sources^n+1 -( I - dt*DG_Operator ) U^n
 !    = dt*Source^n+1  + dt*DG_Operator U^n 
 !    = dt*Ut + dt*Source^n+1
-
-#ifdef DLINANALYZE
-tPrecond=0.
-tDG=0.
-CALL CPU_TIME(tS)
-#endif /* DLINANALYZE */
 
 ! store here for later use
 Un   = U ! here, n stands for U^n
@@ -583,43 +614,42 @@ END IF
 DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner interation
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
     ! Preconditioner
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tStart)
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(P,Pt)
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tPrecond=tPrecond+tend-tStart
     ! matrix vector
     CALL CPU_TIME(tStart)
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     CALL MatrixVector(t,coeff,Pt,V)
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tDG=tDG+tend-tStart
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     CALL VectorDotProduct(V,R0,sigma)
-    !CALL VectorDotProduct(R,R0,alpha)
 
     alpha=alpha/sigma
     S = R - alpha*V
 
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tStart)
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     ! Preconditioner
     CALL Preconditioner(S,St)
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tPrecond=tPrecond+tend-tStart
     CALL CPU_TIME(tStart)
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     ! matrix vector
     CALL MatrixVector(t,coeff,St,TVec)
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tDG=tDG+tend-tStart
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
 
     CALL VectorDotProduct(TVec,TVec,Norm_T2)
     CALL VectorDotProduct(TVec,S,omega)
@@ -637,18 +667,16 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
       U=Un
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
-!#ifdef DLINANALYZE
-!      CALL CPU_TIME(tE)
-      ! Debug Ausgabe, Anzahl der Iterationen...
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tE)
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Restarts           : ',Restart
-!      SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in BiCGSTAB   : ',tE-tS
+      SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in BiCGSTAB   : ',tE-tS
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R^0.5         : ',SQRT(Norm_R)
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_R*nDOFGlobalMPI_inv
-!      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
-!#endif /* DLINANALYZE */
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
+#endif /* IMPLICIT_ANALYZE */
       RETURN
     ENDIF
   END DO ! iterLinSolver
@@ -718,9 +746,17 @@ INTEGER                  :: chance
 ! preconditioner
 REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#ifdef IMPLICIT_ANALYZE
 REAL                     :: tS,tE,tStart,tend
-REAL                     :: tDG
+REAL                     :: tDG, tPrecond
+#endif /* IMPLICIT_ANALYZE */
 !===================================================================================================================================
+
+#ifdef IMPLICIT_ANALYZE
+tPrecond=0.
+tDG=0.
+CALL CPU_TIME(tS)
+#endif /* IMPLICIT_ANALYZE */
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
@@ -733,9 +769,7 @@ REAL                     :: tDG
 !    = dt*DG_Operator U^n 
 !    = dt * Ut
 
-
 ! store here for later use
-CALL CPU_TIME(tS)
 Un   = U ! here, n stands for U^n
 Uold = U
 chance=0
@@ -768,14 +802,22 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   
   DO iter=1,maxIter_LinearSolver
     ! Preconditioner
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(P,Pt)
-    CALL CPU_TIME(tend)
     ! matrix vector
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
     CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
+    ! matrix vector
     CALL MatrixVector(t,coeff,Pt,V)
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tDG=tDG+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
     CALL VectorDotProduct(V,R0,sigma) 
 !    CALL VectorDotProduct(V,V,Norm_V) 
 !    Norm_V = SQRT(Norm_V)
@@ -786,16 +828,24 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
       CALL VectorDotProduct(S,S,Norm_S)
       !Norm_S = SQRT(Norm_S)
       !IF((Norm_S.GT.AbortCrit).OR.(Norm_S.GT.1e-12))THEN
-      IF((Norm_S.GT.AbortCrit2).OR.(Norm_S*nDOFGlobalMPI_inv.GT.1e-14))THEN
+      IF((Norm_S.GT.AbortCrit2).OR.(SQRT(Norm_S)*nDOFGlobalMPI_inv.GT.1e-14))THEN
         ! Preconditioner
+#ifdef IMPLICIT_ANALYZE
         CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
         CALL Preconditioner(S,St)
+        ! matrix vector
+#ifdef IMPLICIT_ANALYZE
         CALL CPU_TIME(tend)
+        tPrecond=tPrecond+tend-tStart
         ! matrix vector
         CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
         CALL MatrixVector(t,coeff,St,TVec)
+#ifdef IMPLICIT_ANALYZE
         CALL CPU_TIME(tend)
         tDG=tDG+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
         CALL VectorDotProduct(TVec,TVec,Norm_T2)
         CALL VectorDotProduct(TVec,S,omega)
         omega=omega/Norm_T2
@@ -807,15 +857,18 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
         P=R+beta*(P-omega*V)
         CALL VectorDotProduct(R,R,Norm_R)
         Norm_R=SQRT(Norm_R)
-        IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12)) THEN
+        IF((Norm_R.LE.AbortCrit).OR.(Norm_R*nDOFGlobalMPI_inv.LT.1.E-14)) THEN
           U=Un 
           totalIterLinearSolver=totalIterLinearSolver+iter
+#ifdef IMPLICIT_ANALYZE
           CALL CPU_TIME(tE)
           ! Debug Ausgabe, Anzahl der Iterationen...
           SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',iter
           SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' T in STABBiCGSTAB  : ',tE-tS
           SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
           SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
+          SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_R*nDOFGlobalMPI_inv
+#endif /* IMPLICIT_ANALYZE */
           RETURN
         ENDIF ! Norm_R < AbortCrit
       ELSE ! Norm_S .LT. 1e-12
@@ -827,6 +880,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
         IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12)) THEN
           U=Un
           totalIterLinearSolver=totalIterLinearSolver+iter
+#ifdef IMPLICIT_ANALYZE
           ! Debug Ausgabe, Anzahl der Iterationen...
           CALL CPU_TIME(tE)
           ! Debug Ausgabe, Anzahl der Iterationen...
@@ -834,6 +888,8 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
           SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' T in STABBiCGSTAB  : ',tE-tS
           SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
           SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
+          SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_R*nDOFGlobalMPI_inv
+#endif /* IMPLICIT_ANALYZE */
           RETURN
         ENDIF ! Norm_R < AbortCrit
       END IF ! Norm_S
@@ -900,11 +956,19 @@ INTEGER                  :: Restart
 INTEGER                  :: m,nn,o
 ! preconditoner + Vt
 REAL                     :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
 REAL                     :: tS,tE, tS2,tE2,t1,t2
 real                     :: tstart,tend,tPrecond,tDG
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
 !===================================================================================================================================
+
+#ifdef IMPLICIT_ANALYZE
+! time measurement
+CALL CPU_TIME(tS)
+! start GMRES
+tPrecond=0.
+tDG=0.
+#endif /* IMPLICIT_ANALYZE */
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
@@ -916,14 +980,6 @@ real                     :: tstart,tend,tPrecond,tDG
 !    = U^n + dt*Sources^n -( I - dt*DG_Operator ) U^n
 !    = dt*DG_Operator U^n 
 !    = dt * Ut
-
-#ifdef DLINANALYZE
-! time measurement
-CALL CPU_TIME(tS)
-! start GMRES
-tPrecond=0.
-tDG=0.
-#endif /* DLINANALYZE */
 
 Restart=0
 nInnerIter=0
@@ -960,21 +1016,21 @@ DO WHILE (Restart<nRestarts)
   DO m=1,nKDim
     nInnerIter=nInnerIter+1
     ! Preconditioner
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tStart)
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(V(:,:,:,:,:,m),Vt(:,:,:,:,:,m))
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tPrecond=tPrecond+tend-tStart
     CALL CPU_TIME(tStart)
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     ! matrix vector
     CALL MatrixVector(t,coeff,Vt(:,:,:,:,:,m),W)
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tDG=tDG+tend-tStart
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
     ! Gram-Schmidt
     DO nn=1,m
       CALL VectorDotProduct(V(:,:,:,:,:,nn),W,H(nn,m))
@@ -1009,16 +1065,16 @@ DO WHILE (Restart<nRestarts)
       IF (ABS(Gam(m+1)).LE.AbortCrit .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-14)) THEN !converged
         totalIterLinearSolver=totalIterLinearSolver+nInnerIter
         U=Un
-!#ifdef DLINANALYZE
-!        CALL CPU_TIME(tE)
+#ifdef IMPLICIT_ANALYZE
+        CALL CPU_TIME(tE)
         SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
         SWRITE(UNIT_stdOut,'(A22,I5)')      ' nRestarts          : ',Restart
-!        SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in GMRES      : ',tE-tS
+        SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in GMRES      : ',tE-tS
         SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0 !Gam(1)
         SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',ABS(Gam(m+1))
         SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',ABS(Gam(m+1))*nDOFGlobalMPI_inv
-!        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
-!#endif /* DLINANALYZE */
+        SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
+#endif /* IMPLICIT_ANALYZE */
         RETURN
       END IF  ! converged
     ELSE ! no convergence, next iteration   ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) 
@@ -1093,7 +1149,17 @@ REAL                     :: R0t(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Tvect(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#ifdef IMPLICIT_ANALYZE
+REAL                     :: tS,tE,tStart,tend
+REAL                     :: tDG, tPrecond
+#endif /* IMPLICIT_ANALYZE */
 !===================================================================================================================================
+
+#ifdef IMPLICIT_ANALYZE
+tPrecond=0.
+tDG=0.
+CALL CPU_TIME(tS)
+#endif /* IMPLICIT_ANALYZE */
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
@@ -1147,10 +1213,27 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
     ! Preconditioner
     ! right preconditioner before Maxtrix-Vector
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(Pt,V)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL MatrixVector(t,coeff,V,V) ! or V,Vt and V=Vt
     ! left preconditioner
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tDG=tDG+tend-tStart
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(V,Vt)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
 
     ! compute preconditioned alpha
     CALL VectorDotProduct(Rt,R0t,alpha)
@@ -1164,10 +1247,27 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
 
     ! next Matrix Vector
     ! right precondtioner
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(St,Tvec) 
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL MatrixVector(t,coeff,Tvec,TVec) ! or Tvec,Tvect;  Tvec=TvecT
     ! left preconditioner
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tDG=tDG+tend-tStart
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(Tvec,Tvect)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
 
     ! compute omega
     CALL VectorDotProduct(TVect,TVect,Norm_T2)
@@ -1193,7 +1293,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
       U=Un+deltaX
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
       CALL CPU_TIME(tE)
       ! Debug Ausgabe, Anzahl der Iterationen...
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
@@ -1201,8 +1301,9 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
       SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in BiCGSTAB   : ',tE-tS
       SWRITE(UNIT_stdOut,'(A23,E16.8)')   ' Norm_R0            : ',Norm_R0
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_R*nDOFGlobalMPI_inv
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
       RETURN
     ENDIF
     Norm_R = Norm_RN
@@ -1284,7 +1385,17 @@ REAL                     :: R0t(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Tvect(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#ifdef IMPLICIT_ANALYZE
+REAL                     :: tS,tE,tStart,tend
+REAL                     :: tDG, tPrecond
+#endif /* IMPLICIT_ANALYZE */
 !===================================================================================================================================
+
+#ifdef IMPLICIT_ANALYZE
+tPrecond=0.
+tDG=0.
+CALL CPU_TIME(tS)
+#endif /* IMPLICIT_ANALYZE */
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
@@ -1334,10 +1445,21 @@ Norm_R = Norm_R0
 
 DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner interation
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
-    ! Preconditioner
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL MatrixVector(t,coeff,Pt,V) ! or V,Vt and V=Vt
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tDG=tDG+tend-tStart
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     ! left preconditioner
     CALL Preconditioner(V,Vt)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
 
     ! compute preconditioned alpha
     CALL VectorDotProduct(Rt,R0t,alpha)
@@ -1350,9 +1472,21 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     St = Rt - alpha*Vt
 
     ! next Matrix Vector
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL MatrixVector(t,coeff,St,TVec) ! or Tvec,Tvect;  Tvec=TvecT
     ! left preconditioner
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tDG = tDG + tend -tStart
+    CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
     CALL Preconditioner(Tvec,Tvect)
+#ifdef IMPLICIT_ANALYZE
+    CALL CPU_TIME(tend)
+    tPrecond=tPrecond+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
 
     ! compute omega
     CALL VectorDotProduct(TVect,TVect,Norm_T2)
@@ -1377,7 +1511,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
       U=Un
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
-#ifdef DLINANALYZE
+#ifdef IMPLICIT_ANALYZE
       CALL CPU_TIME(tE)
       ! Debug Ausgabe, Anzahl der Iterationen...
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
@@ -1385,8 +1519,9 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
       SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in BiCGSTAB   : ',tE-tS
       SWRITE(UNIT_stdOut,'(A23,E16.8)')   ' Norm_R0            : ',Norm_R0
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_R*nDOFGlobalMPI_inv
       SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
-#endif /* DLINANALYZE */
+#endif /* IMPLICIT_ANALYZE */
       RETURN
     ENDIF
     Norm_R = Norm_RN
@@ -1460,7 +1595,17 @@ REAL                     :: AbortCrit
 ! preconditioner
 REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                     :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#ifdef IMPLICIT_ANALYZE
+REAL                     :: tS,tE,tStart,tend
+REAL                     :: tDG, tPrecond
+#endif /* IMPLICIT_ANALYZE */
 !===================================================================================================================================
+
+#ifdef IMPLICIT_ANALYZE
+tPrecond=0.
+tDG=0.
+CALL CPU_TIME(tS)
+#endif /* IMPLICIT_ANALYZE */
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
@@ -1517,18 +1662,42 @@ DO WHILE(Restart.LT.nRestarts)
         P(:,:,:,:,:,m) = R(:,:,:,:,:,m) - beta * P(:,:,:,:,:,m)
       END DO ! m
       ! Preconditioner
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
       CALL Preconditioner(P(:,:,:,:,:,nn),Pt)
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tend)
+      tPrecond=tPrecond+tend-tStart
+      CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
       ! matrix vector
       CALL MatrixVector(t,coeff,Pt,P(:,:,:,:,:,nn+1))
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tend)
+      tDG=tDG+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
       CALL VectorDotProduct(P(:,:,:,:,:,nn+1),R0,phi(nn))
       alpha=Norm_R0/phi(nn)
       DO m=0,nn
         R(:,:,:,:,:,m) = R(:,:,:,:,:,m) - alpha * P(:,:,:,:,:,m+1)
       END DO ! m
       ! Preconditioner
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
       CALL Preconditioner(R(:,:,:,:,:,nn),Rt)
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tend)
+      tPrecond=tPrecond+tend-tStart
+      CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
       ! matrix vector
       CALL MatrixVector(t,coeff,Rt,R(:,:,:,:,:,nn+1))
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tend)
+      tDG=tDG+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
       deltaX=deltaX+alpha*P(:,:,:,:,:,0)
     END DO ! nn
     ! mod. G.-S.
@@ -1569,14 +1738,26 @@ DO WHILE(Restart.LT.nRestarts)
     Norm_Abort=SQRT(Norm_Abort)
     IF((Norm_Abort.LE.AbortCrit).OR.(Norm_Abort*nDOFGlobalMPI_inv.LT.1.E-14)) THEN
       ! invert preconditioner
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tStart)
+#endif /* IMPLICIT_ANALYZE */
       CALL Preconditioner(deltaX,U)
+#ifdef IMPLICIT_ANALYZE
+      CALL CPU_TIME(tend)
+      tPrecond=tPrecond+tend-tStart
+#endif /* IMPLICIT_ANALYZE */
       U=U+Un
       nInnerIter=nInnerIter+iterLinSolver*ldim
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
+#ifdef IMPLICIT_ANALYZE
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Iter LinSolver     : ',nInnerIter
       SWRITE(UNIT_stdOut,'(A22,I5)')      ' Restarts           : ',Restart
-      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0 !Gam(1)
-      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
+      SWRITE(UNIT_stdOut,'(A22,I5)')      ' ldim               : ',ldim
+      SWRITE(UNIT_stdOut,'(A22,F16.9)')   ' Time in BiCGSTAB(l): ',tEnd-tS
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_Abort
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R per DOF     : ',Norm_Abort*nDOFGlobalMPI_inv
+      SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Ratio Precond/DG   : ',tPrecond/tDG
+#endif /* IMPLICIT_ANALYZE */
       RETURN
     END IF
   END DO ! iterLinearSolver

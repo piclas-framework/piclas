@@ -347,12 +347,12 @@ Norm_R=Norm_R0
 !Norm_Diff=HUGE(1.0)
 !Norm_Diff_old=HUGE(1.0)
 IF(DoPrintConvInfo.AND.MPIRoot)THEN
-  WRITE(UNIT_stdOut,'(A20       )') ' ----------------------'
-  WRITE(UNIT_stdOut,'(A20       )') ' Init Newton'
-  WRITE(UNIT_stdOut,'(A20,E24.12)') ' Norm_R0:          ',Norm_R0
-  WRITE(UNIT_stdOut,'(A20,E24.12)') ' Norm_R0 per DOF   ',Norm_R0*nDOFGlobalMPI_inv
-  WRITE(UNIT_stdOut,'(A20,E24.12)') ' AbortNormRelative ',Norm_R*eps_FullNewton
-  WRITE(UNIT_stdOut,'(A20,E24.12)') ' AbortNormAbs      ',1e-12
+  WRITE(UNIT_stdOut,'(A22       )') ' ----------------------'
+  WRITE(UNIT_stdOut,'(A22       )') ' Init Newton'
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Norm_R0:           ',Norm_R0
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Norm_R0 per DOF    ',Norm_R0*nDOFGlobalMPI_inv
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Abort NormRelative ',Norm_R*eps_FullNewton
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Abort per DOF      ',1e-12
 END IF
 IF(FullEisenstatWalker.GT.0)THEN
   etaMax=fulletamax !0.9999
