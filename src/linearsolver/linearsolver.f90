@@ -143,7 +143,6 @@ nDOFGlobal=nDOFelem*PP_nElems
 ! compute this value with DG and HDG. The use within HDG requires the volume DOF identically to the Maxwell case
 nDOFGlobalMPI_inv = 1./(REAL(PP_nVar)*((PP_N+1)**3)*REAL(nGlobalElems))  
 
-
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ImplicitSource=0.
 ALLOCATE(LinSolverRHS  (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
@@ -218,7 +217,6 @@ IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 #endif /*ROS or IMPA*/
 #endif /*PARTICLES*/
-
 
 #ifndef PP_HDG
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -356,6 +354,7 @@ SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance,Norm_R0_in)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
+USE MOD_LinearSolver_Vars,    ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 USE MOD_LinearOperator,       ONLY:MatrixVector, VectorDotProduct,MatrixVectorSource
@@ -413,7 +412,7 @@ ELSE
 END IF
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-IF(Norm_R0.LT.1e-14) RETURN
+IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
 ! Init
 P=R0
@@ -449,7 +448,7 @@ DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
     CALL VectorDotProduct(R,R,Norm_R)
     Norm_R=SQRT(Norm_R)
     ! test if success
-    IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12))THEN
+    IF((Norm_R.LE.AbortCrit).OR.(Norm_R*nDOFGlobalMPI_inv.LE.1e-14))THEN
       U=Un
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
@@ -581,14 +580,11 @@ ELSE
   AbortCrit = Norm_R0*eps_LinearSolver
 END IF
 
-print*,'Norm_R0-init',Norm_R0,Norm_R0*nDOFGlobalMPI_inv
-print*,'AbortCrit',AbortCrit
-
 DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner interation
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
     ! Preconditioner
 #ifdef DLINANALYZE
-        CALL CPU_TIME(tStart)
+    CALL CPU_TIME(tStart)
 #endif /* DLINANALYZE */
     CALL Preconditioner(P,Pt)
 #ifdef DLINANALYZE
@@ -637,10 +633,8 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     CALL VectorDotProduct(R,R,Norm_R)
     Norm_R=SQRT(Norm_R)
     ! test if success
-    IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12)) THEN
+    IF((Norm_R.LE.AbortCrit).OR.(Norm_R*nDOFGlobalMPI_inv.LE.1e-14))THEN
       U=Un
-      print*,'SUM(ABS(U))',SUM(ABS(U))
-      print*,'SUM(ABS(Ut))',SUM(ABS(Ut))
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
 !#ifdef DLINANALYZE
@@ -695,6 +689,7 @@ SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance,Norm_R0_in)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY: U
+USE MOD_LinearSolver_Vars,       ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,       ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource
 USE MOD_LinearOperator,          ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -760,7 +755,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
     END IF
     ! absolute tolerance check, if initial solution already matches old solution or 
     ! RHS is zero. Maybe it is here better to use relTolerance?
-    IF(Norm_R0.LT.1e-14) RETURN
+    IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
   END IF
   P=R0
   R=R0
@@ -791,7 +786,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
       CALL VectorDotProduct(S,S,Norm_S)
       !Norm_S = SQRT(Norm_S)
       !IF((Norm_S.GT.AbortCrit).OR.(Norm_S.GT.1e-12))THEN
-      IF((Norm_S.GT.AbortCrit2).OR.(Norm_S.GT.1e-12))THEN
+      IF((Norm_S.GT.AbortCrit2).OR.(Norm_S*nDOFGlobalMPI_inv.GT.1e-14))THEN
         ! Preconditioner
         CALL CPU_TIME(tStart)
         CALL Preconditioner(S,St)
@@ -879,6 +874,7 @@ SUBROUTINE LinearSolver_GMRES_P(t,coeff,relTolerance,Norm_R0_in)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY: U
+USE MOD_LinearSolver_Vars,    ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource,nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nInnerIter
@@ -947,7 +943,6 @@ END IF
 
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-print*,'Norm_R0-initial',Norm_R0,Norm_R0*nDOFGlobalMPI_inv
 IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-12) RETURN
 
 ! define relative abort criteria, Norm_R0 is computed outside
@@ -956,8 +951,6 @@ IF(PRESENT(relTolerance))THEN
 ELSE
   AbortCrit = Norm_R0*eps_LinearSolver
 END IF
-
-print*,'AbortCrit',AbortCrit
 
 ! GMRES(m)  inner loop
 V(:,:,:,:,:,1)=R0/Norm_R
@@ -1002,7 +995,7 @@ DO WHILE (Restart<nRestarts)
     Gam(m+1)=-S(m)*Gam(m)
     Gam(m)=C(m)*Gam(m)
     ! converge or max Krylov reached
-    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim) .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-12))THEN 
+    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim) .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-14))THEN 
       DO nn=m,1,-1
          Alp(nn)=Gam(nn) 
          DO o=nn+1,m
@@ -1013,7 +1006,7 @@ DO WHILE (Restart<nRestarts)
       DO nn=1,m
         Un=Un+Alp(nn)*Vt(:,:,:,:,:,nn)
       END DO !nn
-      IF (ABS(Gam(m+1)).LE.AbortCrit .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-12)) THEN !converged
+      IF (ABS(Gam(m+1)).LE.AbortCrit .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-14)) THEN !converged
         totalIterLinearSolver=totalIterLinearSolver+nInnerIter
         U=Un
 !#ifdef DLINANALYZE
@@ -1067,6 +1060,7 @@ SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff,relTolerance,Norm_R0_in)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
+USE MOD_LinearSolver_Vars,    ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -1130,7 +1124,7 @@ ELSE
 END IF
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-IF(Norm_R0.LT.1e-14) RETURN
+IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
 R = R0
 IF(PRESENT(relTolerance))THEN
@@ -1194,7 +1188,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     CALL VectorDotProduct(R,R,Norm_R)
     Norm_R=SQRT(Norm_R)
     ! test if success
-    IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12)) THEN
+    IF((Norm_R.LE.AbortCrit).OR.(Norm_R*nDOFGlobalMPI_inv.LT.1.E-14)) THEN
       CALL Preconditioner(deltaX,deltaX)
       U=Un+deltaX
       nInnerIter=nInnerIter+iterLinSolver
@@ -1256,6 +1250,7 @@ SUBROUTINE LinearSolver_BiCGStab_LP(t,Coeff,relTolerance,Norm_R0_in)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
+USE MOD_LinearSolver_Vars,    ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts
 !USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
@@ -1319,7 +1314,7 @@ ELSE
 END IF
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-IF(Norm_R0.LT.1e-14) RETURN
+IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
 R = R0
 IF(PRESENT(relTolerance))THEN
@@ -1336,7 +1331,6 @@ Pt = R0t
 Rt = R0t
 CALL VectorDotProduct(R0t,R0t,Norm_R0)
 Norm_R = Norm_R0
-
 
 DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner interation
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
@@ -1379,7 +1373,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     CALL VectorDotProduct(R,R,Norm_R)
     Norm_R=SQRT(Norm_R)
     ! test if success
-    IF((Norm_R.LE.AbortCrit).OR.(Norm_R.LT.1.E-12)) THEN
+    IF((Norm_R.LE.AbortCrit).OR.(Norm_R*nDOFGlobalMPI_inv.LT.1.E-14)) THEN
       U=Un
       nInnerIter=nInnerIter+iterLinSolver
       totalIterLinearSolver=totalIterLinearSolver+nInnerIter
@@ -1496,7 +1490,7 @@ ELSE
 END IF
 ! absolute tolerance check, if initial solution already matches old solution or 
 ! RHS is zero. Maybe it is here better to use relTolerance?
-IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-12) RETURN
+IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
 IF(PRESENT(relTolerance))THEN
   AbortCrit = Norm_R0*relTolerance
@@ -1504,16 +1498,12 @@ ELSE
   AbortCrit = Norm_R0*eps_LinearSolver
 END IF
 
-print*,'Norm_R0-init',Norm_R0 , Norm_R0*nDOFGlobalMPI_inv
-print*,'AbortCrit', AbortCrit
-
 ! starting direction accoring to old paper
 P(:,:,:,:,:,0) = 0.
 R(:,:,:,:,:,0) = R0
 Norm_R0=1.0d0
 alpha=0.0d0
 omega=1.0d0
-
 
 DO WHILE(Restart.LT.nRestarts)
   DO iterLinSolver=1,maxIter_LinearSolver
@@ -1577,7 +1567,7 @@ DO WHILE(Restart.LT.nRestarts)
     END DO ! nn
     CALL VectorDotProduct(R(:,:,:,:,:,0),R(:,:,:,:,:,0),Norm_Abort)
     Norm_Abort=SQRT(Norm_Abort)
-    IF((Norm_Abort.LE.AbortCrit).OR.(Norm_Abort.LT.1.E-12)) THEN
+    IF((Norm_Abort.LE.AbortCrit).OR.(Norm_Abort*nDOFGlobalMPI_inv.LT.1.E-14)) THEN
       ! invert preconditioner
       CALL Preconditioner(deltaX,U)
       U=U+Un

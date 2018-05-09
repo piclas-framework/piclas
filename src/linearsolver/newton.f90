@@ -75,8 +75,6 @@ REAL                       :: NormArray(3), GlobalNormArray(3)
 #endif /*MPI*/
 !===================================================================================================================================
 
-print*,'compute implicit norm for outer newton..'
-
 Norm_R         =0.
 Delta_Norm_R   =0.
 Delta_Norm_Rel =0.
@@ -84,11 +82,7 @@ Delta_Norm_Rel =0.
 ! compute error-norm-version1, non-optimized
 CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
 ImplicitSource=0.
-print*,'WFT-LinSolverRHS0',SUM(ABS(LinSolverRHS))
 CALL CalcSource(t,1.,ImplicitSource)
-print*,'WFT-soure',SUM(ABS(ImplicitSource))
-print*,'WFT-LinSolverRHS',SUM(ABS(LinSolverRHS))
-print*,'WFT-ut',SUM(ABS(ut))
 
 IF(DoParabolicDamping)THEN
   rTmp(1:6)=1.0
@@ -317,7 +311,6 @@ END IF
   tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-  print*,'deopodgdsadg'
   ! compute particle source terms on field solver of implicit particles :)
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
@@ -566,7 +559,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ELSE
     CALL LinearSolver(tStage,coeff,relTolerance )
   END IF
-  print*,'testU',SUM(ABS(U))
 #else
     IF(FullEisenstatWalker.GT.0) THEN
       IF(useRelativeAbortCrit) EpsCG=relTolerance 
@@ -586,7 +578,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     ! compute norm and field step
     Norm_Rold=Norm_R
     Rold=R
-    print*,'asdgasdg'
     CALL ImplicitNorm(tStage,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel)
     IF(nFullNewtonIter.GT.5)THEN
       IF(Norm_R/Norm_Rold.GT.1.0000000)THEN
@@ -740,27 +731,13 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ! relative norm
   IF(Norm_R.LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
 
-  print*,'testU-2',SUM(ABS(U))
   IF(DoPrintConvInfo.AND.MPIRoot)THEN
     WRITE(UNIT_StdOut,'(A20,I0)')               ' Piccardi-iter    ',nFullNewtonIter
     WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Tolerance        ',Eps_FullNewton
     WRITE(UNIT_StdOut,'(A20,E24.15,2x,E24.15)') ' Norm , Norm_0    ',Norm_R, Norm_R0
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm / Norm_0    ',Norm_R/ Norm_R0
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm per DOF     ',Norm_R*nDOFGlobalMPI_inv
-    !WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_R     ',Delta_Norm_R
-    !WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_Rel   ',Delta_Norm_Rel
-    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff        ',Norm_Diff
-    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff/Norm_0 ',Norm_Diff/Norm_R0
   END IF 
-
-  ! IF(nFullNewtonIter.GT.5)THEN
-  !   IF(ALMOSTZERO(Norm_Diff_old+Norm_Diff))THEN
-  !     SWRITE(UNIT_StdOut,'(A20)') ' Convergence problem '
-  !     SWRITE(UNIT_StdOut,'(A20,I10)')    ' Iteration          ', nFullNewtonIter
-  !     SWRITE(UNIT_StdOut,'(A20,E24.15)') ' Old     Norm-Diff: ', Norm_Diff_old
-  !     SWRITE(UNIT_StdOut,'(A20,E24.15)') ' Current Norm_Diff: ', Norm_Diff
-  !   END IF
-  ! END IF
 
 #ifdef PARTICLES
   IF(DoPartRelaxation)THEN
