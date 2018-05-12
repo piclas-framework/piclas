@@ -1439,7 +1439,6 @@ SUBROUTINE RestartHDG(U_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation,          ONLY:CalcSourceHDG
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
 USE MOD_Basis              ,ONLY: getSPDInverse, GetInverse
 #ifdef MPI

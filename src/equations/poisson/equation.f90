@@ -454,7 +454,10 @@ END SUBROUTINE DivCleaningDamping
 
 SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
+! TODO: currently particles are enforced, which means that they over-write the exact function solution because
+! the combination of both has not been specified
+! How should this function work???
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,ONLY:Abort
@@ -502,7 +505,7 @@ CASE(103)
   dr1dx2(:)= r1+dr1dx(:)*dx1
   dr2dx2(:)= r2+dr2dx(:)*dx2
   resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
-                          -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
+      -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
 CASE DEFAULT
   resu=0.
   !  CALL abort(__STAMP__,&
