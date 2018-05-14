@@ -245,11 +245,8 @@ __STAMP__&
 
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
 TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
-#else
-TriaTracking       = .FALSE.
-#endif
+
 IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
   CALL abort(&
 __STAMP__&
