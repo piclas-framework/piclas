@@ -102,7 +102,7 @@ TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
   CALL ReadTimeAverage(TimeAverageFile)
   DoDeposition=.FALSE.
-  DepositionType='NONE'
+  DepositionType='constant'
   RETURN
 END IF
 
@@ -596,7 +596,7 @@ CASE('shape_function','shape_function_simple')
     LastAnalyzeSurfCollis%NumberOfBCs = GETINT('PIC-SFResampleNumberOfBCs','1')
     ALLOCATE(LastAnalyzeSurfCollis%BCs(1:LastAnalyzeSurfCollis%NumberOfBCs))
     IF (LastAnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
-      LastAnalyzeSurfCollis%BCs = GETINT('PIC-SFResampleSurfCollisBC','0') ! 0 means all...
+      LastAnalyzeSurfCollis%BCs = GETINTARRAY('PIC-SFResampleSurfCollisBC',1,'0') ! 0 means all...
     ELSE     
       hilf2=''
       DO iBC=1,LastAnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...

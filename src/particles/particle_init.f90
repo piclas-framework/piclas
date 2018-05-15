@@ -221,11 +221,7 @@ CALL prms%CreateIntOption(      'Particles-DSMC-maxSurfCollisNumber'    ,  'TODO
                                                                            ' Sampling', '0')
 CALL prms%CreateIntOption(      'Particles-DSMC-NumberOfBCs'            ,  'TODO-DEFINE-PARAMETER\n'//&
                                                                            'Count of BC to be analyzed', '1')
-CALL prms%CreateIntOption(      'Particles-DSMC-SurfCollisBC'           ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'BCs to be analyzed (0 = all)'&
-                                                                        ,  '0')
-CALL prms%CreateIntArrayOption( 'Particles-SurfCollisBC'                ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'BCs to be analyzed (def.: 0 = all)?')
+CALL prms%CreateIntArrayOption( 'Particles-DSMC-SurfCollisBC'           ,  'BCs to be analyzed (def.: 0 = all)')
 CALL prms%CreateIntOption(      'Particles-CalcSurfCollis_NbrOfSpecies' ,  'TODO-DEFINE-PARAMETER\n'//&
                                                                            'Count of Species for wall  collisions (0: all)'&
                                                                            , '0')
@@ -1092,7 +1088,7 @@ ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,' Cannot allocate ParStage arrays!')
+  ,' Cannot allocate PartStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
@@ -1163,7 +1159,7 @@ ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,' Cannot allocate ParStage arrays!')
+  ,' Cannot allocate PartStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
@@ -2802,14 +2798,29 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)
 TYPE(tSurfFluxPart),POINTER :: current,tmp
-#endif /*(PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)*/
 !===================================================================================================================================
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
+#if defined(ROS) || defined(IMPA)
+SDEALLOCATE(PartStage)
+SDEALLOCATE(PartStateN)
+SDEALLOCATE(PartQ)
+SDEALLOCATE(PartDtFrac)
+#endif /*defined(ROS) || defined(IMPA)*/
+#if defined(IMPA)
+SDEALLOCATE(F_PartXk)
+SDEALLOCATE(F_PartX0)
+SDEALLOCATE(Norm_F_PartXk_old)
+SDEALLOCATE(Norm_F_PartXk)
+SDEALLOCATE(Norm_F_PartX0)
+SDEALLOCATE(PartDeltaX)
+SDEALLOCATE(PartLambdaAccept)
+SDEALLOCATE(DoPartInNewton)
+SDEALLOCATE(PartIsImplicit)
+#endif /*defined(IMPA)*/
 !SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartPosRef)
 SDEALLOCATE(RandomVec)
@@ -2826,7 +2837,6 @@ SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
-#if (PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)
 current => firstSurfFluxPart
 DO WHILE (associated(current))
   DEALLOCATE(current%SideInfo)
@@ -2835,7 +2845,6 @@ DO WHILE (associated(current))
   NULLIFY(current)
   current => tmp
 END DO
-#endif /*(PP_TimeDiscMethod!=510) && (PP_TimeDiscMethod!=511) && (PP_TimeDiscMethod!=512)*/
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartBound%SourceBoundName)

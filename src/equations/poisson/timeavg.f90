@@ -76,6 +76,7 @@ ELSE
     'Timeaveraging has not been implemented for FV yet!')
 #endif
 END IF
+nSkipAvg=GETINT('nSkipAvg','1')
 
 ! Define variables to be averaged
 nMaxVarAvg=5
@@ -260,6 +261,7 @@ UAvg = 0.
 UFluc = 0.
 dtOld=0.
 dtAvg=0.
+iterAvg=1
 
 DEALLOCATE(VarNamesAvgList,VarNamesAvgIni,VarNamesFlucIni,VarNamesFlucList)
 END SUBROUTINE InitTimeAverage
@@ -303,7 +305,7 @@ USE MOD_Mesh_Vars        ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output      ,ONLY: WriteTimeAverage
 USE MOD_Equation_Vars    ,ONLY: E
 USE MOD_Timeaverage_Vars ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
-                               ,VarnamesAvgOut,VarNamesFlucOut
+                               ,VarnamesAvgOut,VarNamesFlucOut,iterAvg,nSkipAvg
 #ifdef PARTICLES
 USE MOD_Timeaverage_Vars ,ONLY: PowerDensity,DoPowerDensity
 USE MOD_Particle_Vars,    ONLY: nSpecies
@@ -325,6 +327,15 @@ REAL                            :: tmpVars(nVarAvg,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                         :: iSpec,iSpec2,iCounter
 #endif /*Particles*/
 !----------------------------------------------------------------------------------------------------------------------------------
+IF (iterAvg.EQ.nSkipAvg .AND. .NOT.Finalize) THEN
+  iterAvg = 1
+ELSE IF (Finalize) THEN
+  iterAvg = 0
+ELSE
+  iterAvg = iterAvg+1
+  RETURN
+END IF
+
 dtStep = (dtOld+dt)*0.5
 IF(Finalize) dtStep = dt*0.5
 dtAvg  = dtAvg+dtStep

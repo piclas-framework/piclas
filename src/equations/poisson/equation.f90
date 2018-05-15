@@ -486,7 +486,7 @@ USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition,DepositionType
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Equation_Vars      ,ONLY: eps0
@@ -536,7 +536,7 @@ CASE DEFAULT
 END SELECT ! ExactFunction
 
 #ifdef PARTICLES
-IF(DoDeposition)THEN
+IF(DoDeposition .OR. (TRIM(DepositionType).EQ.'constant'))THEN
   source_e=0.
   IF (PRESENT(Phi)) THEN
     RegionID=0
