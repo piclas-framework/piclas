@@ -197,6 +197,7 @@ REAL                            :: Cent(3)
 REAL                            :: r1,r2
 REAL                            :: r_2D,r_3D,varphi,r_bary
 REAL                            :: cos_theta
+REAL                            :: eps1,eps2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(0)
@@ -336,19 +337,25 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
   !                                                epsR_2 != 1 for x > 0 (dielectric region)
   ! DielectricRadiusValue is used as distance between dielectric interface and position of chargeed point particle
   ! set radius and angle for DOF position x(1:3)
+  ! Limitations:
+  ! only valid for eps_2 = 1 
+  ! and q = 1
   r_2D   = SQRT(x(1)**2+x(2)**2)
   r1 = SQRT(r_2D**2 + (DielectricRadiusValue-x(3))**2)
   r2 = SQRT(r_2D**2 + (DielectricRadiusValue+x(3))**2)
+
+  eps2=1.0
+  eps1=DielectricEpsR
 
   IF(x(3).GT.0.0)THEN
     IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
       print*, "HERE?!?!?!"
     END IF
-    resu(1:PP_nVar) = (1./DielectricEpsR)*(&
-                                   1./r1 - ((1-DielectricEpsR)/(1+DielectricEpsR))*&
-                                   1./r2 )
+    resu(1:PP_nVar) = (1./eps1)*(&
+                                   1./r1 + ((eps1-eps2)/(eps1+eps2))*&
+                                   1./r2 )/(4*PI)
   ELSE
-    resu(1:PP_nVar) = (2./(1.+DielectricEpsR)) * 1./r1
+    resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
   END IF
 
 CASE DEFAULT
@@ -460,20 +467,21 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 ! How should this function work???
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort
+USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_Mesh_Vars,           ONLY:Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,        ONLY:PartSource,DoDeposition
-USE MOD_Particle_Mesh_Vars,  ONLY:GEO,NbrOfRegions
-USE MOD_Particle_Vars,       ONLY:RegionElectronRef
-USE MOD_Equation_Vars,       ONLY:eps0
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
+USE MOD_Equation_Vars      ,ONLY: eps0
 #if IMPA
-USE MOD_LinearSolver_Vars,   ONLY:ExplicitPartSource
+USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-USE MOD_Equation_Vars,       ONLY:IniExactFunc
-USE MOD_Equation_Vars,       ONLY:IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Dielectric_vars    ,ONLY: DoDielectric,DielectricEpsR,isDielectricElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -520,18 +528,18 @@ IF(DoDeposition)THEN
   IF (PRESENT(Phi)) THEN
     RegionID=0
     IF (NbrOfRegions .GT. 0) RegionID=GEO%ElemToRegion(iElem)
-      IF (RegionID .NE. 0) THEN
-        source_e = Phi-RegionElectronRef(2,RegionID)
-        IF (source_e .LT. 0.) THEN
-          source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-                   * EXP( (source_e) / RegionElectronRef(3,RegionID) )
-        ELSE
-          source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
-                   * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
-        END IF
-        !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-        !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+    IF (RegionID .NE. 0) THEN
+      source_e = Phi-RegionElectronRef(2,RegionID)
+      IF (source_e .LT. 0.) THEN
+        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+            * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+      ELSE
+        source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+            * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
       END IF
+      !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+      !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+    END IF
   END IF
 #if IMPA
   resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
@@ -540,6 +548,16 @@ IF(DoDeposition)THEN
 #endif
 END IF
 #endif /*PARTICLES*/
+
+! for dielectric regions apply the scaling factor Eps_R (which is const. in HDG due to current implementation)
+IF(DoDielectric)THEN
+  IF(isDielectricElem(iElem))THEN
+    !WRITE (*,*) "resu =", resu
+    !resu(1)= resu(1)/DielectricEpsR
+    !WRITE (*,*) "resu =", resu
+    !WRITE (*,*) " " 
+  END IF
+END IF
 END SUBROUTINE CalcSourceHDG
 
 

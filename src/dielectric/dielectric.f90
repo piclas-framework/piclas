@@ -250,16 +250,20 @@ DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(Eps
 ! check if MPI local values differ for HDG only (variable dielectric values are not implemented)
 #ifdef PP_HDG
 IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricEps(:,:,:,:)),MINVAL(DielectricEps(:,:,:,:)),1e-8))THEN
-  CALL abort(&
-  __STAMP__&
-  ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Eps_R=',&
-  RealInfoOpt=MAXVAL(DielectricEps(:,:,:,:))-MINVAL(DielectricEps(:,:,:,:)))
+  IF(nDielectricElems.GT.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Eps_R=',&
+    RealInfoOpt=MAXVAL(DielectricEps(:,:,:,:))-MINVAL(DielectricEps(:,:,:,:)))
+  END IF
 END IF
 IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricMu(:,:,:,:)),MINVAL(DielectricMu(:,:,:,:)),1e-8))THEN
-  CALL abort(&
-  __STAMP__&
-  ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Mu_R=',&
-  RealInfoOpt=MAXVAL(DielectricMu(:,:,:,:))-MINVAL(DielectricMu(:,:,:,:)))
+  IF(nDielectricElems.GT.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Mu_R=',&
+    RealInfoOpt=MAXVAL(DielectricMu(:,:,:,:))-MINVAL(DielectricMu(:,:,:,:)))
+  END IF
 END IF
 #endif /*PP_HDG*/
 END SUBROUTINE SetDielectricVolumeProfile
