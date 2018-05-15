@@ -351,10 +351,23 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
     IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
       print*, "HERE?!?!?!"
     END IF
+    IF((r1.LE.0.0).OR.(r2.LE.0.0))THEN
+      SWRITE(*,*) "r1=",r1
+      SWRITE(*,*) "r2=",r2
+      CALL abort(&
+          __STAMP__&
+          ,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
+    END IF
     resu(1:PP_nVar) = (1./eps1)*(&
                                    1./r1 + ((eps1-eps2)/(eps1+eps2))*&
                                    1./r2 )/(4*PI)
   ELSE
+    IF(r1.LE.0.0)THEN
+      SWRITE(*,*) "r1=",r1
+      CALL abort(&
+          __STAMP__&
+          ,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
+    END IF
     resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
   END IF
 
@@ -465,6 +478,8 @@ SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because
 ! the combination of both has not been specified
 ! How should this function work???
+! for dielectric regions DO NOT apply the scaling factor Eps_R here (which is const. in HDG due to current implementation) because
+! it is in the tensor "chitens"
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
@@ -520,8 +535,6 @@ CASE DEFAULT
   !'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 
-
-
 #ifdef PARTICLES
 IF(DoDeposition)THEN
   source_e=0.
@@ -549,15 +562,6 @@ IF(DoDeposition)THEN
 END IF
 #endif /*PARTICLES*/
 
-! for dielectric regions apply the scaling factor Eps_R (which is const. in HDG due to current implementation)
-IF(DoDielectric)THEN
-  IF(isDielectricElem(iElem))THEN
-    !WRITE (*,*) "resu =", resu
-    !resu(1)= resu(1)/DielectricEpsR
-    !WRITE (*,*) "resu =", resu
-    !WRITE (*,*) " " 
-  END IF
-END IF
 END SUBROUTINE CalcSourceHDG
 
 

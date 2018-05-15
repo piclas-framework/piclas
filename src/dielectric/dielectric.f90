@@ -426,12 +426,6 @@ INTEGER :: i,j,k,iElem
 INTEGER :: p,q,flip,locSideID,SideID
 REAL    :: Invdummy(3,3)
 !===================================================================================================================================
-IF(.NOT.mpiroot)THEN
-  CALL abort(&
-       __STAMP__,&
-       'dielectric HDG not implemented for MPI!')
-END IF
-
 DO iElem=1,PP_nElems
   ! cycle the loop if no dielectric element is connected to the side
   IF(.NOT.isDielectricElem(iElem)) CYCLE
