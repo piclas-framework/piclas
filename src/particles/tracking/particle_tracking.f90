@@ -1472,14 +1472,23 @@ DO WHILE(DoTracing)
   IF(GEO%nPeriodicVectors.GT.0.AND.CartesianPeriodic)THEN
     ! call here function for mapping of partpos and lastpartpos
     CALL PeriodicMovement(PartID,PeriMoved)
+    ! the position and trajectory has to be recomputed
+    IF(PeriMoved)THEN
+      IF(GEO%nPeriodicVectors.EQ.3) CYCLE
+      PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+      lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                               +PartTrajectory(2)*PartTrajectory(2) &
+                               +PartTrajectory(3)*PartTrajectory(3) )
+    ELSE
+      IF(GEO%nPeriodicVectors.EQ.3) RETURN
+    END IF
   ELSE
     PeriMoved=.FALSE.
   END IF
   locAlpha=-1.0
   nInter=0
   DO iLocSide=firstSide,LastSide
-    ! track particle vector until the final particle position is achieved
-    ! check if particle can intersect wit current side
+    ! track particle vector until the final particle position is achieved ! check if particle can intersect wit current side
     IF(BCElem(ElemID)%ElemToSideDistance(ilocSide).GT.lengthPartTrajectory0) EXIT
     SideID=BCElem(ElemID)%BCSideID(ilocSide)
     BCSideID=PartBCSideList(SideID)
