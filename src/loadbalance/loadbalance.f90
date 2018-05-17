@@ -56,12 +56,10 @@ CALL prms%SetSection("LoadBalance")
 CALL prms%CreateLogicalOption( 'DoLoadBalance'                 ,  "Flag for doing LoadBalance.", '.FALSE.')
 CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "TODO-DEFINE-PARAMETER\n"//&
                                                                   "Threshold for load-balancing" , value='0.10')
-CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "TODO-DEFINE-PARAMETER\n"//&
-                                                                  "Necessary for particle load balancing.", value='0.02')
-CALL prms%CreateIntOption(     'Particles-WeightMethod'        ,  "TODO-DEFINE-PARAMETER\n"//&
-                                                                  "method to compute the particle weight", value='1')
-CALL prms%CreateIntOption(     'Particles-WeightAverageMethod' ,  "TODO-DEFINE-PARAMETER\n"//&
-                                                                  "method to average the particle weight", value='1')
+CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Weight of particles for elem loads\n"//&
+                                                                  "(only used if ElemTime does not exist or DoLoadBalance=F)."&
+                                                               , value='0.02')
+CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem loads. (def.: 1 or -1)")
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -99,21 +97,6 @@ END IF
 !DeviationThreshold  = 1.0+DeviationThreshold
 nLoadBalance = 0
 nLoadBalanceSteps = 0
-
-ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-IF (ParticleMPIWeight.LT.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,' ERROR: Particle weight cannot be negative!')
-END IF
-
-PartWeightMethod  = GETINT('Particles-WeightMethod','1')
-WeightAverageMethod = GETINT('Particles-WeightAverageMethod','1')
-IF ( (WeightAverageMethod.NE.1) .AND. (WeightAverageMethod.NE.2) ) THEN
-  CALL abort(&
-      __STAMP__&
-      ,' ERROR: WeightAverageMethod must be 1 (per iter) or 2 (per dt_analyze)!')
-END IF
 
 ALLOCATE( tTotal(1:14)   )
 ALLOCATE( tCurrent(1:14) )

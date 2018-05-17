@@ -40,10 +40,6 @@ INTEGER                             :: nLoadBalance                             
 INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
 REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs
 INTEGER,ALLOCATABLE                 :: PartDistri(:)                              ! Part distribution of all procs
-INTEGER                             :: PartWeightMethod                           ! method to compute the particle weight
-INTEGER                             :: WeightAverageMethod                        ! method to average the particle weight
-!                                                                                 ! (1: iter, 2: dt_Analyze)
-!                                                                                 ! nSkipAnalyze is greater than 1
 REAL                                :: MaxWeight                                  ! Maximum Weight of proc on domain
 REAL                                :: MinWeight                                  ! Minimum Weight of proc on domain
 REAL                                :: CurrentImbalance
@@ -54,7 +50,7 @@ TYPE tData
   INTEGER              :: numOfCalls
   TYPE(tData), POINTER :: nextData => null()
 END TYPE tData
-TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI for WeightAverageMethod 5 and 6
+TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI for WeightDistributionMethod 5 and 6
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing

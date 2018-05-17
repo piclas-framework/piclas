@@ -507,11 +507,12 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)   :: t,coeff,Norm_B
 REAL,INTENT(IN)   :: B(1:6)
-REAL,INTENT(INOUT):: AbortCrit
+REAL,INTENT(IN)   :: AbortCrit
 REAL,INTENT(OUT)  :: DeltaX(1:6)
 INTEGER,INTENT(IN):: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL              :: AbortCritLoc
 REAL              :: V(1:6,1:nKDimPart)
 REAL              :: W(1:6)
 REAL              :: R0(1:6)
@@ -535,19 +536,18 @@ tPMV=0.
 
 Restart=0
 nPartInnerIter=0
-!Un(:)=PartState(PartID,:)
-!IF(iter.EQ.0) THEN
-!  AbortCrit=epsPartlinSolver
-!ELSE
-IF (.NOT.EisenstatWalker) THEN
-  AbortCrit=epsPartlinSolver
-END IF
-
 DeltaX=0.
+
 ! ignore particles with zero change
 ! maybe a large tolerance is feasible, e.g. eps_Mach?
 IF(ABS(Norm_B).EQ.0.) RETURN
-AbortCrit=Norm_B*AbortCrit
+
+! select eisenstat-walker
+IF (.NOT.EisenstatWalker) THEN
+  AbortCritLoc=Norm_B*epsPartlinSolver
+ELSE
+  AbortCritLoc=Norm_B*AbortCrit
+END IF
 R0=B
 Norm_R0=Norm_B
 
@@ -585,7 +585,7 @@ DO WHILE (Restart<nRestarts)
     H(m,m)=Bet
     Gam(m+1)=-S(m)*Gam(m)
     Gam(m)=C(m)*Gam(m)
-    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDimPart)) THEN !converge or max Krylov reached
+    IF ((ABS(Gam(m+1)).LE.AbortCritloc) .OR. (m.EQ.nKDimPart)) THEN !converge or max Krylov reached
     !IF (m.EQ.nKDimPart) THEN !converge or max Krylov reached
       DO nn=m,1,-1
          Alp(nn)=Gam(nn) 
@@ -597,7 +597,7 @@ DO WHILE (Restart<nRestarts)
       DO nn=1,m
         DeltaX=DeltaX+Alp(nn)*V(:,nn)
       END DO !nn
-      !IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
+      !IF (ABS(Gam(m+1)).LE.AbortCritloc) THEN !converged
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
         ! already back transformed,...more storage...but its ok
 #ifdef DLINANALYZE
