@@ -1659,6 +1659,19 @@ CASE('shape_function','shape_function_simple')
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
 #endif /*MPI*/
+
+    !-- add const. PartSource (only once, i.e., during call with .NOT.DoInnerParts)
+    IF (PartSourceConstExists) THEN
+      DO iElem = 1, nElems
+        DO kk = 0, PP_N
+          DO ll = 0, PP_N
+            DO mm = 0, PP_N
+              PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) + PartSourceConst(1:4,mm,ll,kk,iElem)
+            END DO !mm
+          END DO !ll
+        END DO !kk
+      END DO !iElem
+    END IF !PartSourceConstExists
   END IF !.NOT.DoInnerParts
 
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
@@ -2485,18 +2498,6 @@ CASE DEFAULT
   __STAMP__&
   ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
-
-IF (PartSourceConstExists) THEN
-  DO iElem = 1, nElems
-    DO kk = 0, PP_N
-      DO ll = 0, PP_N
-        DO mm = 0, PP_N               
-          PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) + PartSourceConst(1:4,mm,ll,kk,iElem)
-        END DO !mm
-      END DO !ll
-    END DO !kk
-  END DO !iElem
-END IF !PartSourceConstExists
 
 RETURN
 END SUBROUTINE Deposition
