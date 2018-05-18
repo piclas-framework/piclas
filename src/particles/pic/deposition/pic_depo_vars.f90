@@ -14,6 +14,7 @@ LOGICAL                               :: DoDeposition       ! flag to switch dep
 REAL,ALLOCATABLE                      :: PartSource(:,:,:,:,:)  ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
 LOGICAL                               :: PartSourceConstExists
 REAL,ALLOCATABLE                      :: PartSourceConst(:,:,:,:,:)  ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
+LOGICAL,ALLOCATABLE                   :: PartSourceConstElem(:)  ! flag if values are set for resp. elem
 REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE                   :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                      :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)

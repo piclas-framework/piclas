@@ -1142,6 +1142,13 @@ __STAMP__&
 ,'ERROR in pic_depo.f90: Cannot allocate PartSourceConst!')
   END IF
   PartSourceConst=0.
+  ALLOCATE(PartSourceConstElem(nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,'ERROR in pic_depo.f90: Cannot allocate PartSourceConstElem!')
+  END IF
+  PartSourceConstElem=.FALSE.
 END IF
 OutputSource = GETLOGICAL('PIC-OutputSource','F')
 
@@ -2488,6 +2495,7 @@ END SELECT
 
 IF (PartSourceConstExists) THEN
   DO iElem = 1, nElems
+    IF (.NOT.PartSourceConstElem(iElem)) CYCLE
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N               
@@ -3486,7 +3494,8 @@ SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac,const)
 ! actual deposition of single charge on DOFs via shapefunction
 !============================================================================================================================
 ! use MODULES                                                                                               
-USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, PartSourceConst
+USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP
+USE MOD_PICDepo_Vars,           ONLY:PartSourceConst,PartSourceConstElem
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_PreProc,                ONLY:PP_N
@@ -3564,6 +3573,7 @@ DO kk = kmin,kmax
                 S1 = S*S1
               END DO
               IF (const) THEN
+                PartSourceConstElem(ElemID)=.TRUE.
                 IF (SourceSize.EQ.1) THEN
                   PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
@@ -3598,7 +3608,8 @@ SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac,const)
 !============================================================================================================================
 ! use MODULES                                                                                               
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
-USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
+USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf
+USE MOD_PICDepo_Vars,           ONLY:PartSourceConst, PartSourceConstElem
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
 #ifdef MPI
@@ -3658,6 +3669,7 @@ DO ElemID=1,PP_nElems
       S1 = S*S1
     END DO
     IF (const) THEN
+      PartSourceConstElem(ElemID)=.TRUE.
       IF (SourceSize.EQ.1) THEN
         PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
