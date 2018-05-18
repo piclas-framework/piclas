@@ -4818,7 +4818,7 @@ USE MOD_DG_Vars,               ONLY: U
 USE MOD_PICDepo,               ONLY: Deposition
 USE MOD_PICInterpolation,      ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,         ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, & 
-                                     doParticleMerge,PartPressureCell,DoSurfaceFlux
+                                     doParticleMerge,PartPressureCell,DoSurfaceFlux,DoForceFreeSurfaceFlux
 USE MOD_part_RHS,              ONLY: CalcPartRHS
 USE MOD_part_emission,         ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                  ONLY: DSMC_main
@@ -4982,6 +4982,7 @@ IF (t.GE.DelayTime) THEN
       ELSE !IsNewPart: no Pt_temp history available!
         IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !SF, new in current RKStage
           CALL RANDOM_NUMBER(RandVal)
+          IF (DoForceFreeSurfaceFlux) Pt(iPart,1:3)=0.
         ELSE
           CALL abort(&
 __STAMP__&
@@ -5016,7 +5017,7 @@ __STAMP__&
         PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal
         PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)*RandVal
         PDM%dtFracPush(iPart) = .FALSE.
-        PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
+        IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
     END IF
   END DO
@@ -5138,6 +5139,7 @@ DO iStage=2,nRKStages
                ! -> rebuild Pt_tmp-coefficients assuming F=const. (value at last Pos) in previous stages
             RandVal=1. !"normal" particles (i.e. not from SurfFlux) are pushed with whole timestep!
           END IF
+          IF (DoForceFreeSurfaceFlux) Pt(iPart,1:3)=0.
           Pa_rebuilt(:,:)=0.
           DO iStage_loc=1,iStage
             Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
@@ -5166,7 +5168,7 @@ DO iStage=2,nRKStages
           PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)*RandVal
           PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal
           PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)*RandVal
-          PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
+          IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
       END IF
     END DO
