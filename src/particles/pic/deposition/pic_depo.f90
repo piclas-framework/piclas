@@ -549,6 +549,9 @@ CASE('shape_function','shape_function_simple')
           ,' Volume of SFdepoLayersXX is zero for Layer ',iSFfix)
         SFdepoLayersPartNum(iSFfix) = SFdepoLayersPartNum(iSFfix)*r_sf &
           * SFdepoLayersChargedens/SFdepoLayersMPF(iSFfix)
+        IF (SFdepoLayersPartNum(iSFfix)+1.0 .GT. HUGE(iSFfix)) CALL abort(__STAMP__, &
+          ' ERROR in SFdepoLayer: number of to-be inserted particles exceeds max INT. Layer/factor: ',iSFfix, &
+          (SFdepoLayersPartNum(iSFfix)+1.0)/REAL(HUGE(iSFfix)))
         SWRITE(*,'(E12.5,A,I0)') SFdepoLayersPartNum(iSFfix), &
           ' additional particles will be inserted for SFdepoLayer ',iSFfix
         IF (ChangeOccured) THEN
