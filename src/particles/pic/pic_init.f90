@@ -119,7 +119,6 @@ CALL prms%CreateIntOption(      'PIC-NbrOfSFdepoFixes'     , 'TODO-DEFINE-PARAME
                                                              ' planar BCs', '0')
 CALL prms%CreateLogicalOption(  'PrintSFDepoWarnings'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                                     'Print the shapefunction warnings', '.FALSE.')
-CALL prms%CreateLogicalOption(  'ConstantSFdepoLayers'      , 'Do deposition of SFdepoLayers just once', '.FALSE.')
 CALL prms%CreateRealOption(     'PIC-SFdepoFixesEps'       , 'TODO-DEFINE-PARAMETER\n'//&
                                                                     'Epsilon for defined planes', '0.')
 CALL prms%CreateRealArrayOption('PIC-SFdepoFixes[$]-Basepoint'  , 'TODO-DEFINE-PARAMETER\n', '0. , 0. , 0.', numberedmulti=.TRUE.)
@@ -146,6 +145,7 @@ CALL prms%CreateIntArrayOption( 'PIC-SFdepoFixLink[$]'     , 'TODO-DEFINE-PARAME
 CALL prms%CreateIntOption(      'PIC-NbrOfSFdepoLayers'  ,    'TODO-DEFINE-PARAMETER\n'//&
                                                                     'Number of const. source layer for sf-depo'//&
                                                               ' at planar BCs', '0')
+CALL prms%CreateLogicalOption(  'PIC-ConstantSFdepoLayers'      , 'Do deposition of SFdepoLayers just once', '.FALSE.')
 CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-Basepoint'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-Normal', 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-xmin'  , 'TODO-DEFINE-PARAMETER\n'//&

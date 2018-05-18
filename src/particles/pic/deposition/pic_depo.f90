@@ -199,9 +199,6 @@ CASE('shape_function','shape_function_simple')
   NbrOfSFdepoFixes = GETINT('PIC-NbrOfSFdepoFixes','0')
   PrintSFDepoWarnings=GETLOGICAL('PrintSFDepoWarnings','.FALSE.')
   IF (NbrOfSFdepoFixes.GT.0) THEN
-    SFdepoLayersAlreadyDone=.FALSE.
-    ConstantSFdepoLayers=GETLOGICAL('ConstantSFdepoLayers','.FALSE.')
-    IF (ConstantSFdepoLayers) PartSourceConstExists=.TRUE.
     SFdepoFixesEps = GETREAL('PIC-SFdepoFixesEps','0.')
     SDEALLOCATE(SFdepoFixesGeo)
     SDEALLOCATE(SFdepoFixesChargeMult)
@@ -363,6 +360,9 @@ CASE('shape_function','shape_function_simple')
         'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersRadius!')
     END IF
     SFdepoLayersRadius=0. !not used for cuboid...
+    SFdepoLayersAlreadyDone=.FALSE.
+    ConstantSFdepoLayers=GETLOGICAL('PIC-ConstantSFdepoLayers','.FALSE.')
+    IF (ConstantSFdepoLayers) PartSourceConstExists=.TRUE.
     DO iSFfix=1,NbrOfSFdepoLayers
 #if !(defined (PP_HDG) && (PP_nVar==1))
       CALL abort(__STAMP__, &
