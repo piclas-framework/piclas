@@ -12,6 +12,8 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                               :: DoDeposition       ! flag to switch deposition on/off
 REAL,ALLOCATABLE                      :: PartSource(:,:,:,:,:)  ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
+LOGICAL                               :: PartSourceConstExists
+REAL,ALLOCATABLE                      :: PartSourceConst(:,:,:,:,:)  ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
 REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE                   :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                      :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
@@ -71,7 +73,9 @@ INTEGER                               :: NbrOfSFdepoFixLinks               !Numb
 INTEGER , ALLOCATABLE                 :: SFdepoFixLinks(:,:)               !1:nLinks;1:3 (2 fixes are linked with each other!)
                                                                            !             (:,3 is fraction of 180 deg)
 INTEGER                               :: NbrOfSFdepoLayers                 !Number of const. source layer for sf-depo at planar BCs
-LOGICAL                               :: PrintSFDepoWarnings               ! flag to print the warnings
+LOGICAL                               :: PrintSFDepoWarnings               !flag to print the warnings
+LOGICAL                               :: ConstantSFdepoLayers              !depo just once
+LOGICAL                               :: SFdepoLayersAlreadyDone           !flag for skipping the depo (i.e., when layers are const.)
 REAL    , ALLOCATABLE                 :: SFdepoLayersGeo(:,:,:)            !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoLayersBounds(:,:,:)         !1:nFixes;1:2(min,max);1:3(x,y,z)
 LOGICAL , ALLOCATABLE                 :: SFdepoLayersUseFixBounds(:)       !use alls planes of SFdepoFixes as additional bounds?
