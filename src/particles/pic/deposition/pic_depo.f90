@@ -310,6 +310,7 @@ CASE('shape_function','shape_function_simple')
     SDEALLOCATE(SFdepoLayersSpace)
     SDEALLOCATE(SFdepoLayersBaseVector)
     SDEALLOCATE(SFdepoLayersSpec)
+    SDEALLOCATE(SFdepoLayersMPF)
     SDEALLOCATE(SFdepoLayersPartNum)
     SDEALLOCATE(SFdepoLayersRadius)
     ALLOCATE(SFdepoLayersGeo(1:NbrOfSFdepoLayers,1:2,1:3),STAT=ALLOCSTAT)  !1:nLayers;1:2(base,normal);1:3(x,y,z)
@@ -341,6 +342,11 @@ CASE('shape_function','shape_function_simple')
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(__STAMP__, &
         'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersSpec!')
+    END IF
+    ALLOCATE(SFdepoLayersMPF(1:NbrOfSFdepoLayers),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersMPF!')
     END IF
     ALLOCATE(SFdepoLayersPartNum(1:NbrOfSFdepoLayers),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
@@ -531,12 +537,14 @@ CASE('shape_function','shape_function_simple')
       END SELECT
       SFdepoLayersChargedens = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-Chargedens','1.')
       SFdepoLayersSpec(iSFFix) = GETINT('PIC-SFdepoLayers'//TRIM(hilf)//'-Spec','1')
+      WRITE(UNIT=hilf2,FMT='(E16.8)') Species(SFdepoLayersSpec(iSFfix))%MacroParticleFactor
+      SFdepoLayersMPF(iSFfix)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-MPF',TRIM(hilf2))
       IF (.NOT.LayerOutsideOfBounds) THEN
         SFdepoLayersGeo(iSFfix,2,:) = SFdepoLayersGeo(iSFfix,2,:)*r_sf
         IF (SFdepoLayersPartNum(iSFfix).LE.0.) CALL abort(__STAMP__&
           ,' Volume of SFdepoLayersXX is zero for Layer ',iSFfix)
         SFdepoLayersPartNum(iSFfix) = SFdepoLayersPartNum(iSFfix)*r_sf &
-          * SFdepoLayersChargedens/Species(SFdepoLayersSpec(iSFFix))%MacroParticleFactor
+          * SFdepoLayersChargedens/SFdepoLayersMPF(iSFfix)
         SWRITE(*,'(E12.5,A,I0)') SFdepoLayersPartNum(iSFfix), &
           ' additional particles will be inserted for SFdepoLayer ',iSFfix
         IF (ChangeOccured) THEN
@@ -1563,7 +1571,7 @@ CASE('shape_function','shape_function_simple')
           CYCLE !outside of bounds
         END IF
         CALL calcSfSource(1 &
-          ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*Species(SFdepoLayersSpec(iLayer))%MacroParticleFactor*w_sf &
+          ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*SFdepoLayersMPF(iLayer)*w_sf &
           ,Vec1,Vec2,Vec3,layerPartPos,iPart)
       END DO ! iPart
     END DO ! iLayer=1,NbrOfSFdepoLayers

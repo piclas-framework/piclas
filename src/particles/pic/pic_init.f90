@@ -174,6 +174,8 @@ CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-Chargedens'        , 'TODO-
 CALL prms%CreateIntOption(      'PIC-SFdepoLayers[$]-Spec'        ,    'TODO-DEFINE-PARAMETER\n'//&
                                                                                    'Particle species for respective'//&
                                                                        ' layer','1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-MPF'        ,    'MPF for respective'//&
+                                                                       ' layer (def.: MPF of resp. species)', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'PIC-SFResampleAnalyzeSurfCollis'  , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateIntArrayOption( 'PIC-SFResampleSurfCollisBC',        'TODO-DEFINE-PARAMETER\n'//&

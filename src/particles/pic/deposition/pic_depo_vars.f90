@@ -78,6 +78,7 @@ LOGICAL , ALLOCATABLE                 :: SFdepoLayersUseFixBounds(:)       !use 
 CHARACTER(LEN=256),ALLOCATABLE        :: SFdepoLayersSpace(:)              !name of space (cuboid or cylinder)
 REAL    , ALLOCATABLE                 :: SFdepoLayersBaseVector(:,:,:)     !1:nFixes;1:2;1:3(x,y,z)
 INTEGER , ALLOCATABLE                 :: SFdepoLayersSpec(:)               !species of particles for respective layer
+REAL    , ALLOCATABLE                 :: SFdepoLayersMPF(:)                !MPF for layerParts
 REAL    , ALLOCATABLE                 :: SFdepoLayersPartNum(:)            !number of particles in volume
 REAL    , ALLOCATABLE                 :: SFdepoLayersRadius(:)             !radius for cylinder-space
 LOGICAL                               :: SFResampleAnalyzeSurfCollis
