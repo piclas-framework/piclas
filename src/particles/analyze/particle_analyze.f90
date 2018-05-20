@@ -2999,6 +2999,9 @@ USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+USE MOD_Equation_Vars         ,ONLY: c2_inv
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3041,6 +3044,12 @@ IF(.NOT.fexist) THEN
     WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
     WRITE(iunit,'(A1)',ADVANCE='NO') ','
     WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'gamma', ' '
+#endif
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'Element '
     CLOSE(iunit)
   END IF
 ELSE
@@ -3056,6 +3065,10 @@ ELSE
         WRITE(iunit,'(A1)',ADVANCE='NO') ','
         WRITE(iunit,104,ADVANCE='NO') PartState(i,iPartState)
       END DO
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+        WRITE(iunit,'(A1)',ADVANCE='NO') ','
+        WRITE(iunit,104,ADVANCE='NO') 1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv))
+#endif
       WRITE(iunit,'(A1)',ADVANCE='NO') ','
       WRITE(iunit,'(I12)',ADVANCE='NO') PEM%Element(i)
       WRITE(iunit,'(A)') ' '
