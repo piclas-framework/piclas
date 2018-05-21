@@ -173,7 +173,7 @@ CALL SetDielectricVolumeProfile()
          'dielectric HDG not implemented for MPI! TODO: Set HDG diffusion tensor [chitens] on faces with MPI and/or mortar sides')
   END IF
   CALL SetDielectricFaceProfile_HDG()
-  IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
+  !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
     ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
     IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
@@ -183,7 +183,7 @@ CALL SetDielectricVolumeProfile()
     END IF
     ! get the axial electric field strength in x-direction of the dielectric sphere setup
     Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
-  END IF
+  !END IF
 #endif /*PP_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell

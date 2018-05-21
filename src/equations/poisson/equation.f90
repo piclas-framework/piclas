@@ -285,6 +285,8 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
 CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric field E_0: adjusted from CASE(200)
   ! R = DielectricRadiusValue
   ! DielectricRatio = eps/eps0
+
+  ! for BC, not ElemID will be given
   IF(.NOT.PRESENT(ElemID))THEN
     resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
     RETURN
@@ -313,7 +315,6 @@ CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric 
                        !( (DielectricRadiusValue**3) / (x(3)**(3.)) ) - 1 )*(Dielectric_E_0 * x(3))
                        !( (DielectricRadiusValue**3) / ((x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
 
-
     ! marcel
     resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
 
@@ -323,6 +324,37 @@ CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric 
     !resu(1:PP_nVar) = -Dielectric_E_0*(x(3) - sign(1.0,x(3))*((DielectricRatio-1)/(DielectricRatio+2))*((2**3)/(x(3)**2)) )
     !resu(1:PP_nVar) =( ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
                        !( (2.0**3) / ((x(3)**3) ) - 1 )*(Dielectric_E_0 * x(3))
+  ELSE
+    SWRITE(*,*) "ElemID                ",ElemID
+    SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
+    SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID)
+    SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
+    CALL abort(&
+    __STAMP__&
+    ,'Dielectric sphere. Invalid radius for exact function!')
+  END IF
+CASE(301) ! like CASE=300, but only in positive z-direction the dielectric region is assumed
+  ! R = DielectricRadiusValue
+  ! DielectricRatio = eps/eps0
+
+  ! for BC, not ElemID will be given
+  IF(.NOT.PRESENT(ElemID))THEN
+    IF(x(3).GT.0.0)THEN ! inside dielectric
+      !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+      resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
+    ELSE
+      resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*&
+          (-DielectricRadiusValue*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3)-DielectricRadiusValue)) + 1)
+    END IF
+    RETURN
+  END IF
+
+  ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
+  IF(     (ABS(ElemBaryNGeo(3,ElemID)).LT.2.0*DielectricRadiusValue).AND.(ElemBaryNGeo(3,ElemID).GT.0.0))THEN ! inside box: DOF and element bary center
+    resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
+  ELSEIF( (ABS(ElemBaryNGeo(3,ElemID)).GT.DielectricRadiusValue).OR.(ElemBaryNGeo(3,ElemID).LT.0.0) )THEN ! outside sphere
+    resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*&
+        (-DielectricRadiusValue*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3)-DielectricRadiusValue)) + 1)
   ELSE
     SWRITE(*,*) "ElemID                ",ElemID
     SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
