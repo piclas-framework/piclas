@@ -360,7 +360,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF((CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem)).LT.(GEO%Volume(iElem)**(1./3.))) &
+    IF((CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem)).LT.(GEO%CharLength(iElem))) &
                                                                         .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
       ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:3))
       TreeNode%PNum_Node = nPart
