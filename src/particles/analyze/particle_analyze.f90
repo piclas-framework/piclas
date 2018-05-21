@@ -199,7 +199,9 @@ ELSE
 END IF
 
 !--------------------------------------------------------------------------------------------------------------------
-! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
+! get derived particle properties 
+! (Note that for IMD/TTM initialization these values are calculated from the TTM grid values)
+!--------------------------------------------------------------------------------------------------------------------
 ! Debye Length
 CalcDebyeLength       = GETLOGICAL('CalcDebyeLength','.FALSE.')
 IF(CalcDebyeLength)THEN
