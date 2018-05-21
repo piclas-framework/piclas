@@ -21,16 +21,20 @@ INTERFACE FinalizeLoadBalance
   MODULE PROCEDURE FinalizeLoadBalance
 END INTERFACE
 
+#if USE_LOADBALANCE
 INTERFACE ComputeElemLoad
   MODULE PROCEDURE ComputeElemLoad
 END INTERFACE
+#endif /*USE_LOADBALANCE*/
 
 INTERFACE LoadBalance
   MODULE PROCEDURE LoadBalance
 END INTERFACE
 
 PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance
+#if USE_LOADBALANCE
 PUBLIC::ComputeElemLoad
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 
 PUBLIC::DefineParametersLoadBalance
@@ -48,12 +52,16 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("LoadBalance")
 
-CALL prms%CreateLogicalOption( 'DoLoadBalance'                 ,  "Set flag for doing LoadBalance.", '.FALSE.')
+#if USE_LOADBALANCE
+CALL prms%CreateLogicalOption( 'DoLoadBalance'                ,  "Set flag for doing dynamic LoadBalance.", '.FALSE.')
+CALL prms%CreateIntOption(     'LoadBalanceSample'            ,  "Define number of iterations (before analyze_dt)"//&
+  " that are used for calculation of elemtime information"    , value='1')
 CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "Define threshold for dynamic load-balancing.\n"//&
   "Restart performed if (Maxweight-Targetweight)/Targetweight > defined value." , value='0.10')
-CALL prms%CreateRealOption(    'Particles-MPIWeight'           ,  "Define weight of particles for elem loads.\n"//&
+#endif /*USE_LOADBALANCE*/
+CALL prms%CreateRealOption(    'Particles-MPIWeight'          ,  "Define weight of particles for elem loads.\n"//&
   "(only used if ElemTime does not exist or DoLoadBalance=F).", value='0.02')
-CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for distributing the elem to procs.\n"//&
+CALL prms%CreateIntOption(     'WeightDistributionMethod'     ,  "Method for distributing the elem to procs.\n"//&
   "DEFAULT: 1 if Elemtime exits else -1\n"//&
   "-1: elements are equally distributed\n"//&
   " 0: distribute to procs using elemloads\n"//&
@@ -62,8 +70,6 @@ CALL prms%CreateIntOption(     'WeightDistributionMethod'      ,  "Method for di
   " 3: TODO DEFINE\n"//&
   " 4: TODO DEFINE\n"//&
   " 5/6: iterative smoothing of loads towards last proc\n")
-CALL prms%CreateIntOption(     'LoadBalanceSample'           ,  "Define number of iterations (before analyze_dt)"//&
-  " that are used for calculation of elemtime information" , value='1')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -101,6 +107,7 @@ IF (ParticleMPIWeight.LE.0.0) THEN
 END IF
 #endif /*PARTICLES*/
 
+#if USE_LOADBALANCE
 IF(nProcessors.EQ.1)THEN
   DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
   SWRITE(UNIT_StdOut,'(a3,a45,a3,L33,a3,a7,a3)')' | ',TRIM("No LoadBalance (nProcessors=1): DoLoadBalance")       ,' | ',&
@@ -110,15 +117,22 @@ ELSE
   DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
   DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 END IF
+LoadBalanceSample  = GETINT('LoadBalanceSample')
+#else
+DoLoadBalance=.FALSE. ! deactivate loadbalance if no preproc flag is set
+DeviationThreshold=HUGE(1.0)
+LoadBalanceSample  = 0
+#endif /*USE_LOADBALANCE*/
 nLoadBalance = 0
 nLoadBalanceSteps = 0
-LoadBalanceSample  = GETINT('LoadBalanceSample')
 PerformLBSample = .FALSE.
 
+#if USE_LOADBALANCE
 ALLOCATE( tCurrent(1:LB_NTIMES) )
 ! Allocation length (1:number of loadbalance times)
 ! look into boltzplatz.h for more info about time names
 tCurrent=0.
+#endif /*USE_LOADBALANCE*/
 
 InitLoadBalanceIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
@@ -126,7 +140,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitLoadBalance
 
 
-
+#if USE_LOADBALANCE
 SUBROUTINE ComputeElemLoad(PerformLoadbalance,time)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! compute the element load
@@ -287,6 +301,7 @@ nSurfacePartsPerElem=0
 tCurrent = 0.
 
 END SUBROUTINE ComputeElemLoad
+#endif /*USE_LOADBALANCE*/
 
 
 SUBROUTINE LoadBalance(PerformLoadBalance)

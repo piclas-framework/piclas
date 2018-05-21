@@ -441,14 +441,11 @@ USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 #endif /*CODE_ANALYZE*/
-#ifdef MPI
-USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
-#endif /*MPI*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_TimeDisc_Vars          ,ONLY: tEnd
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,ONLY: LBStartTime,LBPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

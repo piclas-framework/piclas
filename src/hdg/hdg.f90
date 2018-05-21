@@ -356,7 +356,6 @@ USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
 USE MOD_MPI_Vars
 USE MOD_MPI                    ,ONLY: FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
 USE MOD_Mesh_Vars              ,ONLY: nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
 #endif /*MPI*/ 
 #if (PP_nVar==1)
 USE MOD_Equation_Vars          ,ONLY: E

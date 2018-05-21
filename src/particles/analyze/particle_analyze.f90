@@ -384,7 +384,6 @@ USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 #ifdef MPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBSplitTime, LBPauseTime
-USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/

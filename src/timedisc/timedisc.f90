@@ -251,10 +251,10 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #ifdef MPI
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
-USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
 #if USE_LOADBALANCE
+USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
@@ -640,8 +640,10 @@ DO !iter_t=0,MaxIter
 #if !defined(LSERK) && !defined(IMPA) && !defined(ROS)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
+#if USE_LOADBALANCE
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad(PerformLoadBalance,time)
+#endif /*USE_LOADBALANCE*/
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
     UpdatePrecondLB=PerformLoadBalance
@@ -806,9 +808,6 @@ USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
 USE MOD_Equation,                ONLY: CalcSource
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
-#ifdef MPI
-USE MOD_LoadBalance_Vars,        ONLY: tCurrent
-#endif /*MPI*/
 #ifdef PP_POIS
 USE MOD_Equation,                ONLY: DivCleaningDamping_Pois,EvalGradient
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm_Pois
@@ -2164,9 +2163,6 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
-#ifdef MPI
-USE MOD_LoadBalance_Vars,        ONLY: tCurrent
-#endif /*MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -3396,9 +3392,6 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
-#ifdef MPI
-USE MOD_LoadBalance_Vars,        ONLY: tCurrent
-#endif /*MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
