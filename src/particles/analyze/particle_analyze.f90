@@ -3388,7 +3388,6 @@ SUBROUTINE CalculateIonizationCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Preproc                ,ONLY:PP_nElems
@@ -3402,11 +3401,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER              :: iPart, iElem
 REAL                 :: charge
-REAL                 :: n_i ! ion density
-REAL                 :: n_n ! neutral density
+REAL                 :: n_i ! ion density: Note that the volume in the density is dropped due to the ratio
+REAL                 :: n_n ! neutral density: Note that the volume in the density is dropped due to the ratio
 !===================================================================================================================================
 ! nullify
 IonizationCell = 0.
+! Note that the volume in the density is dropped due to the ratio
 n_i            = 0.
 n_n            = 0.
 
@@ -3414,14 +3414,14 @@ n_n            = 0.
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
-    charge = Species(PartSpecies(iPart))%ChargeIC
+    charge = Species(PartSpecies(iPart))%ChargeIC/1.60217653E-19
     IF(charge.LT.0.0)THEN ! ignore electrons (and any particles with negative charge)
       CYCLE ! next particle
     ELSEIF(charge.GT.0.0)THEN ! ion particle
       IF(usevMPF) THEN
-        n_i = n_i + PartMPF(iPart)
+        n_i = n_i + PartMPF(iPart) * charge
       ELSE
-        n_i = n_i + Species(PartSpecies(iPart))%MacroParticleFactor
+        n_i = n_i + Species(PartSpecies(iPart))%MacroParticleFactor * charge
       END IF
     ELSE ! neutral particle
       IF(usevMPF) THEN
@@ -3433,12 +3433,12 @@ DO iPart=1,PDM%ParticleVecLength
   END IF ! ParticleInside
 END DO ! iPart
 
-! loop over all elements and divide by volume 
+! loop over all elements and divide by volume (Note that the volume in the density is dropped due to the ratio)
 DO iElem=1,PP_nElems
   IF(ABS(n_i + n_n).LE.0.0)THEN ! no particles in cell
     IonizationCell(iElem) = 0.0
   ELSE
-    IonizationCell(iElem) = n_i / ((n_i + n_n)*GEO%Volume(iElem))
+    IonizationCell(iElem) = n_i / (n_i + n_n)
   END IF
 END DO ! iElem=1,PP_nElems
 
