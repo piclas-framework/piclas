@@ -74,7 +74,7 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy'     , 'Flag to calculate P
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
                                                             'and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Flag to compute the ionization degree in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPoitnsPerDebyeLength', 'Flag to compute the points per Debye length in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Flag to compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Flag to compute the Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Flag to compute the HDG time step in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Flag to compute the electron temperature in each cell','.FALSE.')
@@ -205,8 +205,8 @@ END IF
 ! p:        Polynomial degree
 ! lambda_D: Debye length
 ! L_cell:   Characteristic ceill length -> V_cell^(1/3)
-CalcPoitnsPerDebyeLength       = GETLOGICAL('CalcPoitnsPerDebyeLength','.FALSE.')
-IF(CalcPoitnsPerDebyeLength)THEN
+CalcPointsPerDebyeLength       = GETLOGICAL('CalcPointsPerDebyeLength','.FALSE.')
+IF(CalcPointsPerDebyeLength)THEN
   ALLOCATE( PPDCell(1:PP_nElems) )
   PPDCell=0.0
   CALL AddToElemData(ElementOut,'PPDCell',RealArray=PPDCell(1:PP_nElems))
@@ -222,7 +222,7 @@ END IF
 
 ! Debye Length
 CalcDebyeLength       = GETLOGICAL('CalcDebyeLength','.FALSE.')
-IF(CalcPoitnsPerDebyeLength) CalcDebyeLength=.TRUE.
+IF(CalcPointsPerDebyeLength) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
   DebyeLengthCell=0.0
@@ -3669,7 +3669,7 @@ SUBROUTINE CalculatePartElemData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronDensity&
-                                    ,CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPoitnsPerDebyeLength
+                                    ,CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3697,7 +3697,7 @@ IF(CalcDebyeLength) CALL CalculateDebyeLengthCell()
 IF(CalcPICTimeStep) CALL CalculatePICTimeStepCell()
 
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
-IF(CalcPoitnsPerDebyeLength) CALL CalculatePPDCell()
+IF(CalcPointsPerDebyeLength) CALL CalculatePPDCell()
 
 ! Ionization degree
 IF(CalcIonizationDegree) CALL CalculateIonizationCell()
