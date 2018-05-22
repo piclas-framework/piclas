@@ -409,7 +409,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                     :: iElem
-  TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
+  TYPE(tTreeNode),INTENT(INOUT), POINTER     :: TreeNode
   TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

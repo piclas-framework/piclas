@@ -691,7 +691,7 @@ SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COM
 ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90>)
 ADD_DEPENDENCIES(boltzplatzlibF90 HDF5)
 
-ADD_LIBRARY(userblocklib OBJECT ./src/output/read_userblock.c)
+ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
 SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(userblocklib PROPERTIES COMPILE_FLAGS "-fPIC")
 
