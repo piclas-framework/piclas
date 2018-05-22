@@ -1515,25 +1515,6 @@ CASE('shape_function','shape_function_simple')
     END DO ! iPart
   END IF ! usevMPF
   IF(.NOT.DoInnerParts)THEN
-    Vec1(1:3) = 0.
-    Vec2(1:3) = 0.
-    Vec3(1:3) = 0.
-#ifdef MPI
-    IF (NbrOfextParticles .GT. 0) THEN
-      IF (GEO%nPeriodicVectors.EQ.1) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-      END IF
-      IF (GEO%nPeriodicVectors.EQ.2) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-      END IF
-      IF (GEO%nPeriodicVectors.EQ.3) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-        Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-      END IF
-    END IF
-#endif /*MPI*/
 
     !-- layer particles (only once, i.e., during call with .NOT.DoInnerParts)
     DO iLayer=1,NbrOfSFdepoLayers
