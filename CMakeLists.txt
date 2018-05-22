@@ -576,7 +576,7 @@ ENDIF()
 
 function(add_exec target)
   ADD_EXECUTABLE(${target} ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o boltzplatzlib ${linkedlibs})
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o boltzplatzlib userblocklib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
   SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
@@ -688,13 +688,15 @@ ENDIF()
 # define libs
 ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )
 SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
-ADD_LIBRARY(userblocklib OBJECT ./src/output/read_userblock.c)
-SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
-ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90> $<TARGET_OBJECTS:userblocklib>)
+ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90>)
 ADD_DEPENDENCIES(boltzplatzlibF90 HDF5)
 
+ADD_LIBRARY(userblocklib OBJECT ./src/output/read_userblock.c)
+SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
+SET_TARGET_PROPERTIES(userblocklib PROPERTIES COMPILE_FLAGS "-fPIC")
+
 add_exec(boltzplatz ./src/boltzplatz.f90)
-ADD_DEPENDENCIES(boltzplatz boltzplatzlib HDF5)
+ADD_DEPENDENCIES(boltzplatz boltzplatzlib userblocklib HDF5)
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -745,7 +747,7 @@ ENDIF()
 # Userblock
 # =========================================================================
 ADD_CUSTOM_COMMAND(TARGET boltzplatzlib PRE_BUILD COMMAND 
-  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}")
 
 # =========================================================================
 # generate .boltzplatz in $HOME
