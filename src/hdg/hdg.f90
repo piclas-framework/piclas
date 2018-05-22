@@ -89,7 +89,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: i,j,k,p,q,r,iElem,jElem,SideID
-INTEGER :: BCType,BCstate,RegionID
+INTEGER :: BCType,BCState,RegionID
 REAL    :: D(0:PP_N,0:PP_N)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -378,7 +378,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: i,j,k,r,p,q,iElem, iVar!,iter
-INTEGER :: BCsideID,BCType,BCstate,SideID,iLocSide
+INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol)
 !LOGICAL :: converged
@@ -410,13 +410,13 @@ DO iVar = 1, PP_nVar
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCstate,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
       END DO; END DO !p,q
     CASE(4) ! exact BC = Dirichlet BC !!
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-  !      CALL ExactFunc(BCstate,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
+  !      CALL ExactFunc(BCState,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
        lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID))) &
          +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
@@ -425,8 +425,8 @@ DO iVar = 1, PP_nVar
 !read*
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCstate,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
-!print*,"t=",t,"r=",r,"BCstate=",BCstate,"Face_xGP(:,p,q,SideID)=",Face_xGP(:,p,q,SideID)
+        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
+!print*,"t=",t,"r=",r,"BCState=",BCState,"Face_xGP(:,p,q,SideID)=",Face_xGP(:,p,q,SideID)
 !print*,lambda(iVar,r:r,SideID)
 !read*
        !lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
@@ -645,7 +645,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: i,j,k,r,p,q,iElem, iter,RegionID
-INTEGER :: BCsideID,BCType,BCstate,SideID,iLocSide
+INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
 LOGICAL :: converged, beLinear
@@ -679,7 +679,7 @@ DO BCsideID=1,nDirichletBCSides
     ! Determine the exact BC state
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      CALL ExactFunc(BCstate,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
+      CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
     END DO; END DO !p,q
   CASE(4) ! exact BC = Dirichlet BC !!
     ! SPECIAL BC: BCState specifies exactfunc to be used!!
