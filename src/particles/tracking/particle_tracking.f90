@@ -1676,6 +1676,9 @@ IF(BC(SideID).GT.0)THEN
     TriNumTemp = 0
   END IF
   IF (TriaTracking) THEN
+    IF (TriNumTemp.NE.1 .AND. TriNumTemp.NE.2) CALL abort(&
+__STAMP__ &
+,'ERROR in SelectInterSectionType for TriaTracking. TriNum is:',TriNumTemp)
     CALL IntersectionWithWall(PartTrajectory,lengthPartTrajectory,alpha,PartID,hitlocSide,ElemID,TriNumtemp)
   END IF
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
