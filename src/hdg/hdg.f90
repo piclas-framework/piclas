@@ -58,6 +58,9 @@ CALL prms%CreateIntOption(      'maxIterCG'              , 'TODO-DEFINE-PARAMETE
 CALL prms%CreateLogicalOption(  'OnlyPostProc'           , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateLogicalOption(  'ExactLambda'            , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 
+CALL prms%CreateIntOption(      'HDG_N'                  , 'TODO-DEFINE-PARAMETER \nDefault: 2*N')
+CALL prms%CreateLogicalOption(  'HDG_MassOverintegration', 'TODO-DEFINE-PARAMETER', '.FALSE.')
+
 END SUBROUTINE DefineParametersHDG
 
 SUBROUTINE InitHDG()
@@ -75,11 +78,14 @@ USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides,SurfElem,SideToElem
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
-USE MOD_Particle_Mesh_Vars, ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Equation_Vars      ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
+USE MOD_Interpolation_Vars ,ONLY: xGP,wBary
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -88,9 +94,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,p,q,r,iElem,jElem,SideID
-INTEGER :: BCType,BCState,RegionID
-REAL    :: D(0:PP_N,0:PP_N)
+INTEGER           :: i,j,k,p,q,r,iElem,jElem,SideID
+INTEGER           :: BCType,BCState,RegionID
+REAL              :: D(0:PP_N,0:PP_N)
+CHARACTER(LEN=40) :: DefStr
+REAL,ALLOCATABLE  :: SurfElem_HDGN(:,:,:)
+REAL,ALLOCATABLE  :: SurfElem_N(:,:,:)
+REAL,ALLOCATABLE  :: Fdiag_HDGN(:,:,:),Fdiag_N(:,:,:)
+REAL,ALLOCATABLE  :: Vdm_GaussHDGN_GaussN(:,:)
+REAL,ALLOCATABLE  :: Vdm_GaussN_GaussHDGN(:,:)
+REAL,ALLOCATABLE  :: xGP_HDGN(:),wGP_HDGN(:),wBary_HDGN(:)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    SWRITE(*,*) "InitHDG already called."
@@ -149,6 +162,19 @@ maxIterCG=GETINT('maxIterCG','500')
 
 OnlyPostProc=GETLOGICAL('OnlyPostProc','.FALSE.')
 ExactLambda=GETLOGICAL('ExactLambda','.FALSE.')
+
+! Mass matrix overintegration
+HDG_MassOverintegration=GETLOGICAL('HDG_MassOverintegration','.FALSE.')
+IF(HDG_MassOverintegration)THEN
+  WRITE(DefStr,'(i4)') 2*(PP_N) ! randomly chosen
+  HDG_N=GETINT('HDG_N',DefStr)
+  IF(HDG_N.LT.PP_N)THEN
+    CALL abort(&
+        __STAMP__&
+        ,' Do NOT underintegrate!')
+  END IF
+END IF
+
 
 !boundary conditions
 nDirichletBCsides=0
@@ -274,21 +300,91 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
 END IF
 
 ALLOCATE(Fdiag(nGP_face,nSides))
-DO SideID=1,nSides
-  DO q=0,PP_N; DO p=0,PP_N
+
+IF(HDG_MassOverintegration)THEN
+  ALLOCATE(SurfElem_N(1,0:PP_N ,0:PP_N ))
+  ALLOCATE(SurfElem_HDGN(1,0:HDG_N,0:HDG_N))
+
+  ALLOCATE(Vdm_GaussHDGN_GaussN(0:PP_N ,0:HDG_N))
+  ALLOCATE(Vdm_GaussN_GaussHDGN(0:HDG_N,0:PP_N ))
+
+  ALLOCATE(Fdiag_HDGN(1,0:HDG_N,0:HDG_N))
+  ALLOCATE(Fdiag_N(1,0:PP_N,0:PP_N ))
+  ALLOCATE(xGP_HDGN(0:HDG_N))
+  ALLOCATE(wGP_HDGN(0:HDG_N))
+  ALLOCATE(wBary_HDGN(0:HDG_N))
+
+  CALL LegendreGaussNodesAndWeights(HDG_N,xGP_HDGN,wGP_HDGN) 
+  CALL BarycentricWeights(HDG_N,xGP_HDGN,wBary_HDGN)
+
+  ! from Gauss (HDG_N) to Gauss (N)
+  CALL InitializeVandermonde(HDG_N,  PP_N, wBary_HDGN, xGP_HDGN, xGP     , Vdm_GaussHDGN_GaussN)
+
+  ! from Gauss (N) to Gauss (HDG_N)
+  CALL InitializeVandermonde(PP_N , HDG_N, wBary     , xGP     , xGP_HDGN, Vdm_GaussN_GaussHDGN)
+
+  DO SideID=1,nSides
+    DO q=0, PP_N; DO p=0, PP_N
+      SurfElem_N(1,p,q)=SurfElem(p,q,SideID)
+    END DO; END DO
+    !WRITE (*,*) "SurfElem_N =", SurfElem_N
+    CALL ChangeBasis2D(1, PP_N, HDG_N, Vdm_GaussN_GaussHDGN , SurfElem_N(1:1,:,:), SurfElem_HDGN(1:1,:,:))
+    !WRITE (*,*) "SurfElem_HDGN =", SurfElem_HDGN
+
+    DO q=0,HDG_N; DO p=0,HDG_N
+      Fdiag_HDGN(1,p,q)=SurfElem_HDGN(1,p,q)*wGP_HDGN(p)*wGP_HDGN(q) !*2 ! mit *2 ist es besser ?! bei N=1 und HDG_N=2
+    END DO; END DO !p,q
+    !WRITE (*,*) "Fdiag_HDGN(1:1,:,:)      =", Fdiag_HDGN(1:1,:,:)
+    CALL ChangeBasis2D(1, HDG_N, PP_N, Vdm_GaussHDGN_GaussN , Fdiag_HDGN(1:1,:,:), Fdiag_N(1:1,:,:)) ! <---- defekt weil zu klein?
+
+    !WRITE (*,*) "Fdiag_N(1:1,:,:)         =", Fdiag_N(1:1,:,:)
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1)+p+1
+      Fdiag(r,SideID)=Fdiag_N(1,p,q)
+    END DO; END DO !p,q
+    !WRITE (*,*) " " 
+    !WRITE (*,*) "----"
+    !WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
+    !exit
+    
+    iElem= SideToElem(S2E_ELEM_ID,SideID)  
+    jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
+    IF(jElem.EQ.-1)THEN
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem) 
+    ELSEIF(iElem.EQ.-1)THEN
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem) 
+    ELSE
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
+    END IF
+  END DO
+  SDEALLOCATE(SurfElem_N)
+  SDEALLOCATE(SurfElem_HDGN)
+  SDEALLOCATE(Vdm_GaussHDGN_GaussN)
+  SDEALLOCATE(Fdiag_HDGN)
+  SDEALLOCATE(Fdiag_N)
+  SDEALLOCATE(Vdm_GaussN_GaussHDGN)
+  SDEALLOCATE(xGP_HDGN)
+  SDEALLOCATE(wGP_HDGN)
+  SDEALLOCATE(wBary_HDGN)
+ELSE ! Standard mass matrix
+  DO SideID=1,nSides
+    DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1)+p+1
       Fdiag(r,SideID)=SurfElem(p,q,SideID)*wGP(p)*wGP(q)
-  END DO; END DO !p,q
-  iElem= SideToElem(S2E_ELEM_ID,SideID)  
-  jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
-  IF(jElem.EQ.-1)THEN
-    Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem) 
-  ELSEIF(iElem.EQ.-1)THEN
-    Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem) 
-  ELSE
-    Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
-  END IF
-END DO
+    END DO; END DO !p,q
+    !WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
+    !read*
+    iElem= SideToElem(S2E_ELEM_ID,SideID)  
+    jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
+    IF(jElem.EQ.-1)THEN
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem) 
+    ELSEIF(iElem.EQ.-1)THEN
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem) 
+    ELSE
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
+    END IF
+  END DO
+END IF
 
 CALL BuildPrecond()
 
