@@ -1,6 +1,5 @@
 stages:
   - build
-  - error_clean
   - reggie_checkin
   - reggie_feature_checkin
   - reggie_DSMC_nightly
@@ -78,24 +77,6 @@ build_intel_poisson:
   script:
     - module load env/intel ; rm -rf build_intel_poisson || true 
     - mkdir -p build_intel_poisson ; cd build_intel_poisson ; cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "clean": delete build folders if previous builds fail and exit
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-clean:
-  stage: error_clean
-  tags:
-    - withmodules
-  script:
-    - rm -rf build_gnu
-    - rm -rf build_intel
-    - rm -rf build_gnu_maxwell
-    - rm -rf build_intel_maxwell
-    - rm -rf build_gnu_poisson
-    - rm -rf build_intel_poisson
-    - rm -rf share
-    - rm -rf reggie
-  when: on_failure
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
