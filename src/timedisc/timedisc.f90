@@ -2149,8 +2149,10 @@ LOGICAL            :: ishit
 #ifdef MPI
 ! load balance
 REAL               :: tLBStart,tLBEnd
-LOGICAL            :: UpdatePrecondLoc
 #endif /*MPI*/
+#ifndef PP_HDG
+LOGICAL            :: UpdatePrecondLoc
+#endif /*DG*/
 !===================================================================================================================================
 
 #ifndef PP_HDG
