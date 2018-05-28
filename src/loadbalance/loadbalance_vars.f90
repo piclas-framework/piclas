@@ -11,31 +11,17 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                             :: DoLoadBalance                              ! DoLoadBalance
+INTEGER                             :: LoadBalanceSample                          ! Number of samples for loadbalance
+LOGICAL                             :: PerformLBSample                            ! Flag for enabling time measurement in current
+                                                                                  ! timestep (automatically set depending on LB
+                                                                                  ! sampling method)
 LOGICAL                             :: InitLoadBalanceIsDone                      ! switch for checking
 
 ! time measurement
-REAL,ALLOCATABLE                    :: tTotal(:)                                  ! time measurement over whole dt_analyze 
-!REAL,ALLOCATABLE                    :: LoadSum(:)                                 ! sum of load per step over whole dt_analyze 
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
-!                                                                                 !  1 -tDG
-!                                                                                 !  2 -tDGComm
-!                                                                                 !  3 -tPML
-!                                                                                 !  4 -tEmission
-!                                                                                 !  5 -tTrack
-!                                                                                 !  6 -tInterpolation
-!                                                                                 !  7 -tDeposition
-!                                                                                 !  8 -tDSMC
-!                                                                                 !  9 -tPush
-!                                                                                 ! 10 -tPartComm
-!                                                                                 ! 11 -tSplit&Merge
-!                                                                                 ! 12 -UNFP
-!                                                                                 ! 13 -DGAnalyze
-!                                                                                 ! 14 -PartAnalyze
-
+                                                                                  ! measured elem-independent and later weighted
+                                                                                  ! for indeces look into boltzplatz.h
 ! counter
-REAL(KIND=8)                        :: nTotalParts                                ! number of particles in time of tTotal
-!INTEGER                             :: nLoadIter                                  ! number of load iter 
-!INTEGER                             :: nCurrentParts                              ! number of current particles
 INTEGER                             :: nLoadBalance                               ! number of load balances
 INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
 REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs
@@ -65,15 +51,14 @@ REAL                                :: targetWeight                             
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                                :: tCartMesh                                  ! time for CartMesh deposition
-REAL                                :: tTracking                                  ! time for relocation of particles
-REAL                                :: tSurfaceFlux                               ! time not measured elem-independent
 REAL,ALLOCATABLE                    :: ElemTime(:)
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nDeposPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nTracksPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nSurfacefluxPerElem(:)
+INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerBCElem(:)
+INTEGER(KIND=8),ALLOCATABLE         :: nSurfacePartsPerElem(:)
 
 
 END MODULE MOD_LoadBalance_Vars
