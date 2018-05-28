@@ -3,11 +3,8 @@
 *.i90
 *.mod
 *.swp
-*.mk
 *.optrpt
 *.pyc
-src/deplist.mk
-src/srcfiles_pp.mk
 bin/*
 ini/*
 lib/*
