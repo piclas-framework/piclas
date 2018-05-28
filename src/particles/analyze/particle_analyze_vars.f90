@@ -51,6 +51,11 @@ LOGICAL                       :: CalcElectronDensity                 ! Flag to c
 LOGICAL                       :: CalcElectronTemperature             ! Flag to compute the electron temperature in each cell
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons 
 LOGICAL                       :: CalcPlasmaFrequency                 ! Flag to compute the electron frequency in each cell
+LOGICAL                       :: CalcPointsPerDebyeLength            ! Flag to compute the points per Debye length:
+!                                                                    ! PPD=(p+1)lambda_D/L_cell
+LOGICAL                       :: CalcIonizationDegree                ! Flag to compute the ionization degree per cell
+REAL,ALLOCATABLE              :: IonizationCell(:)                   ! ionization degree cell value
+REAL,ALLOCATABLE              :: PPDCell(:)                          ! Points per Debye length cell value
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  ! Debye length cell value
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  ! Approximated PIC Time Step per cell
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              ! Electron density per cell

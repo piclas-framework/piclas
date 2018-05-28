@@ -277,7 +277,7 @@ IF(PRESENT(GeometryName))THEN
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('FishEyeLens')
     ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
-  CASE('aquajet') ! radius only in x-y (not z)
+  CASE('DielectricResonatorAntenna') ! radius only in x-y (not z)
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
           Elem_xGP(2,i,j,k,iElem)**2  )
@@ -1028,7 +1028,7 @@ CASE('FH_lens')
 
 CASE('FishEyeLens')
   ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
-CASE('aquajet') ! radius only in x-y (not z)
+CASE('DielectricResonatorAntenna') ! radius only in x-y (not z)
   ! nothing to set, because rotationally symmetry (defined by a radius in x-y)
 CASE('default') 
   ! Nothing to do, because the geometry is set by using the box coordinates
