@@ -2280,7 +2280,6 @@ tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(LB_DG)=tCurrent(LB_DG)+tLBEnd-tLBStart
 #endif /*MPI*/
 
-print*,'source------0',SUM(ABS(ImplicitSource))
 
 IF(t.GE.DelayTime)THEN
 #ifdef MPI
