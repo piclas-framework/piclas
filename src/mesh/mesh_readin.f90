@@ -276,6 +276,7 @@ IF (DoRestart) THEN
   ElemGlobalTime=0.
   IF(MPIRoot)THEN
     ALLOCATE(ElemTime_local(1:nGlobalElems))
+    ElemTime_local=0.0
     nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
     offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
