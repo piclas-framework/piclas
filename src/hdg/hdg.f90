@@ -327,24 +327,27 @@ IF(HDG_MassOverintegration)THEN
     DO q=0, PP_N; DO p=0, PP_N
       SurfElem_N(1,p,q)=SurfElem(p,q,SideID)
     END DO; END DO
-    !WRITE (*,*) "SurfElem_N =", SurfElem_N
+    WRITE (*,*) "SurfElem_N =", SurfElem_N
     CALL ChangeBasis2D(1, PP_N, HDG_N, Vdm_GaussN_GaussHDGN , SurfElem_N(1:1,:,:), SurfElem_HDGN(1:1,:,:))
-    !WRITE (*,*) "SurfElem_HDGN =", SurfElem_HDGN
+    WRITE (*,*) "SurfElem_HDGN =", SurfElem_HDGN
 
     DO q=0,HDG_N; DO p=0,HDG_N
-      Fdiag_HDGN(1,p,q)=SurfElem_HDGN(1,p,q)*wGP_HDGN(p)*wGP_HDGN(q) !*2 ! mit *2 ist es besser ?! bei N=1 und HDG_N=2
+      Fdiag_HDGN(1,p,q)=SurfElem_HDGN(1,p,q)*wGP_HDGN(p)*wGP_HDGN(q) !*2.0 ! mit *2 ist es besser ?! bei N=1 und HDG_N=2
     END DO; END DO !p,q
-    !WRITE (*,*) "Fdiag_HDGN(1:1,:,:)      =", Fdiag_HDGN(1:1,:,:)
+    WRITE (*,*) "Fdiag_HDGN(1:1,:,:)      =", Fdiag_HDGN(1:1,:,:)
+    WRITE (*,*) "SUM(Fdiag_HDGN(1:1,:,:)) =", SUM(Fdiag_HDGN(1:1,:,:))
     CALL ChangeBasis2D(1, HDG_N, PP_N, Vdm_GaussHDGN_GaussN , Fdiag_HDGN(1:1,:,:), Fdiag_N(1:1,:,:)) ! <---- defekt weil zu klein?
 
-    !WRITE (*,*) "Fdiag_N(1:1,:,:)         =", Fdiag_N(1:1,:,:)
+    WRITE (*,*) "Fdiag_N(1:1,:,:)         =", Fdiag_N(1:1,:,:)
+    WRITE (*,*) "SUM(Fdiag_N(1:1,:,:)) =", SUM(Fdiag_N(1:1,:,:))
+    WRITE (*,*) "SUM(Fdiag_N(1:1,:,:))*2.0 =", SUM(Fdiag_N(1:1,:,:))*2.0
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1)+p+1
       Fdiag(r,SideID)=Fdiag_N(1,p,q)
     END DO; END DO !p,q
-    !WRITE (*,*) " " 
-    !WRITE (*,*) "----"
-    !WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
+    WRITE (*,*) " " 
+    WRITE (*,*) "----"
+    WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
     !exit
     
     iElem= SideToElem(S2E_ELEM_ID,SideID)  
@@ -373,6 +376,7 @@ ELSE ! Standard mass matrix
       Fdiag(r,SideID)=SurfElem(p,q,SideID)*wGP(p)*wGP(q)
     END DO; END DO !p,q
     !WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
+    !WRITE (*,*) "SUM(Fdiag(:,SideID)) =", SUM(Fdiag(:,SideID))
     !read*
     iElem= SideToElem(S2E_ELEM_ID,SideID)  
     jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
