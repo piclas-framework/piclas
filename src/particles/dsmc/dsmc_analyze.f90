@@ -1155,6 +1155,9 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_Eval_xyz               ,ONLY: eval_xyz_elemcheck
 !USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
 USE MOD_Globals
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1167,8 +1170,14 @@ INTEGER                       :: iPart, iElem, iLoopx, iLoopy, iLoopz, k, l, m, 
 REAL, ALLOCATABLE             :: BGMSource(:,:,:,:,:), alphaSum(:,:,:,:),BGMSourceCellVol(:,:,:,:,:,:)
 REAL, ALLOCATABLE             :: alphaSumCellVol(:,:,:,:,:), Source(:,:,:,:,:,:)
 REAL                          :: alpha1, alpha2, alpha3, TSource(1:11)
+#if USE_LOADBALANCE
+REAL                          :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 DSMC%SampNum = DSMC%SampNum + 1
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 SELECT CASE(TRIM(HODSMC%SampleType))
  CASE('cartmesh_volumeweighting')
   ! Step 1: Deposition of all particles onto background mesh -> densities
@@ -1496,6 +1505,9 @@ CASE DEFAULT
 __STAMP__&
 ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DSMC,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END SUBROUTINE DSMCHO_data_sampling
 
 
