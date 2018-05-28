@@ -238,13 +238,13 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
-#ifdef MPI
+#if USE_LOADBALANCE
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
 USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 #endif /*PP_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation               ,ONLY: EvalGradient
@@ -643,12 +643,12 @@ DO !iter_t=0,MaxIter
 #if USE_LOADBALANCE
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad(PerformLoadBalance,time)
-#endif /*USE_LOADBALANCE*/
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
     UpdatePrecondLB=PerformLoadBalance
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
@@ -828,9 +828,9 @@ USE MOD_part_MPFtools,           ONLY: StartParticleMerge
 USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
+USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY: DoExternalParts
-USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars,       ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
@@ -873,7 +873,7 @@ END DO
 iStage=1
 
 #ifdef PARTICLES
-CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
+CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
@@ -2102,9 +2102,6 @@ USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
-#if defined(maxwell) && defined(MPI)
-USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
-#endif /*maxwell && MPI*/
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
@@ -2165,6 +2162,9 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#ifdef maxwell
+USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+#endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2198,9 +2198,9 @@ LOGICAL            :: ishit
 #if USE_LOADBALANCE
 REAL               :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
+#ifdef maxwell
 LOGICAL            :: UpdatePrecondLoc
-#endif /*MPI*/
+#endif /*maxwell*/
 !===================================================================================================================================
 
 #ifndef PP_HDG
@@ -2211,10 +2211,10 @@ IF (iter==0)THEN
   dt_old=dt
 ELSE
   UpdatePrecondLoc=.FALSE.
-#ifdef MPI
+#if USE_LOADBALANCE
   IF(UpdatePrecondLB) UpdatePrecondLoc=.TRUE.
   UpdatePrecondLb=.FALSE.
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
   IF(UpdatePrecond)THEN
     IF(dt.NE.dt_old) UpdatePrecondLoc=.TRUE.
     dt_old=dt
@@ -3332,9 +3332,6 @@ USE MOD_DG_Vars,                 ONLY:U,Un
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
 #ifdef MPI
-#if defined(MPI) && defined(maxwell)
-USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
-#endif /*MPI && maxwell*/
 #endif /*MPI*/
 USE MOD_Precond_Vars,            ONLY:UpdatePrecond
 USE MOD_LinearOperator,          ONLY:MatrixVector
@@ -3393,7 +3390,10 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBSplitTime,LBPauseTime
+#ifdef maxwell
+USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+#endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3422,9 +3422,9 @@ INTEGER            :: iPart,nParts
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
+#ifdef maxwell
 LOGICAL            :: UpdatePrecondLoc
-#endif /*MPI*/
+#endif /*maxwell*/
 !===================================================================================================================================
 
 coeff=dt*RK_gamma
@@ -3438,10 +3438,10 @@ IF (iter==0)THEN
   dt_old=dt
 ELSE
   UpdatePrecondLoc=.FALSE.
-#ifdef MPI
+#if USE_LOADBALANCE
   IF(UpdatePrecondLB) UpdatePrecondLoc=.TRUE.
   UpdatePrecondLb=.FALSE.
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
   IF(UpdatePrecond)THEN
     IF(dt.NE.dt_old) UpdatePrecondLoc=.TRUE.
     dt_old=dt
