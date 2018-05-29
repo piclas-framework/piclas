@@ -231,7 +231,7 @@ END IF
 END SUBROUTINE SelectImplicitParticles
 
 
-SUBROUTINE ParticleNewton(t,coeff,doParticle_In,opt_In,AbortTol_In)
+SUBROUTINE ParticleNewton(t,coeff,Mode,doParticle_In,opt_In,AbortTol_In)
 !===================================================================================================================================
 ! Allocate global variable 
 !===================================================================================================================================
@@ -272,6 +272,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: opt_In
 REAL,INTENT(IN),OPTIONAL      :: AbortTol_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)           :: Mode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 LOGICAL                      :: opt
@@ -388,16 +389,12 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 DoNewton=.FALSE.
+Mode=0
 IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 #ifdef MPI
 !set T if at least 1 proc has to do newton
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
 #endif /*MPI*/
-
-!#ifdef MPI
-!!set T if at least 1 proc has to do newton
-!CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
-!#endif /*MPI*/
 
 IF(DoPrintConvInfo)THEN
   ! newton per particle 
@@ -412,6 +409,11 @@ IF(DoPrintConvInfo)THEN
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
   SWRITE(UNIT_StdOut,'(A,I0)') ' Initial particle number in newton: ',Counter
+END IF
+
+IF(.NOT.DoNewton)THEN
+  Mode=1
+  RETURN
 END IF
 
 AbortCritLinSolver=0.999
