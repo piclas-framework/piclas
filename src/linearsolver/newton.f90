@@ -233,7 +233,7 @@ REAL,INTENT(INOUT)         :: coeff
 REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff,Norm_Diff_old, Delta_Norm_R0,Delta_Norm_Rel0 
 REAL                       :: Delta_Norm_R, Delta_Norm_Rel
 REAL                       :: etaA,etaB,etaC,etaMax,taut
-INTEGER                    :: nFullNewtonIter
+INTEGER                    :: nFullNewtonIter,Mode
 #ifdef PARTICLES
 INTEGER                    :: iPart,iCounter
 REAL                       :: tmpFac, relToleranceOld
@@ -446,7 +446,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     IF(DoPrintConvInfo)THEN
       SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' PartNewton-Tol   :', relTolerancePart
     END IF
-    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+    CALL ParticleNewton(tstage,coeff,Mode,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
                        ,AbortTol_In=relTolerancePart)
     !END IF
     ! particle relaxation betweeen old and new position
@@ -744,6 +744,15 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm / Norm_0    ',Norm_R/ Norm_R0
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm per DOF     ',Norm_R*nDOFGlobalMPI_inv
   END IF 
+
+#ifdef PARTICLES
+  ! check for particle simulations without a field update:
+  ! If all particles are converged and no further particle Newton iteration is required,
+  ! the method has to detect convergence because the norm will not change.
+  IF(.NOT.DoFieldUpdate)THEN 
+    IF(Mode.EQ.1) IsConverged=.TRUE.
+  END IF
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
   IF(DoPartRelaxation)THEN
