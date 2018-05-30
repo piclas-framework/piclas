@@ -309,11 +309,9 @@ ALLOCATE(getNewElem%Side(6))
 DO iLocSide=1,6
   getNewElem%Side(iLocSide)%sp=>getNewSide()
 END DO
-NULLIFY(getNewElem%CurvedNode)
 getNewElem%ind=0
 getNewElem%Zone=0
 getNewElem%Type=0
-getNewElem%nCurvedNodes=0
 END FUNCTION GETNEWELEM
 
 
@@ -392,10 +390,6 @@ DO iElem=FirstElemInd,LastElemInd
     NULLIFY(aElem%Node(iNode)%np)
   END DO
   DEALLOCATE(aElem%Node)
-  DO iNode=1,aElem%nCurvedNodes
-    NULLIFY(aElem%curvedNode(iNode)%np)
-  END DO
-  IF(ASSOCIATED(aElem%CurvedNode)) DEALLOCATE(aElem%curvedNode)
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     DO iNode=1,4
