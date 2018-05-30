@@ -141,6 +141,7 @@ INTEGER          :: nAnalyzeSides=0         !< marker for each side (BC,analyze 
 INTEGER          :: nMPISides=0             !< number of MPI sides in mesh
 INTEGER          :: nMPISides_MINE=0        !< number of MINE MPI sides (on local processor)
 INTEGER          :: nMPISides_YOUR=0        !< number of YOUR MPI sides (on neighbour processors)
+INTEGER          :: nNodes=0                !< SIZE of Nodes pointer array, number of unique nodes
 INTEGER          :: nBCs=0                  !< number of BCs in mesh
 INTEGER          :: nUserBCs=0              !< number of BC in inifile
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -202,6 +203,7 @@ TYPE tElem
   INTEGER                      :: ind             !< global element index
   INTEGER                      :: Type            !< element type (linear/bilinear/curved)
   INTEGER                      :: Zone
+  TYPE(tNodePtr),POINTER       :: Node(:)
   TYPE(tSidePtr),POINTER       :: Side(:)
 END TYPE tElem
 
@@ -218,6 +220,7 @@ TYPE tSide
   INTEGER                      :: nMortars        !< number of slave mortar sides associated with master mortar
   INTEGER                      :: MortarType      !< type of mortar: Type1 : 1-4 , Type 2: 1-2 in eta, Type 2: 1-2 in xi
   TYPE(tSidePtr),POINTER       :: MortarSide(:)   !< array of side pointers to slave mortar sides
+  TYPE(tNodePtr),POINTER       :: Node(:)
   TYPE(tElem),POINTER          :: Elem
   TYPE(tSide),POINTER          :: connection
 END TYPE tSide
@@ -228,6 +231,7 @@ TYPE tNode
 END TYPE tNode
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE(tElemPtr),POINTER         :: Elems(:)
+TYPE(tNodePtr),POINTER         :: Nodes(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL          :: MeshInitIsDone =.FALSE.
 !===================================================================================================================================
@@ -260,8 +264,13 @@ IMPLICIT NONE
 TYPE(tSide),POINTER :: getNewSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 !< LOCAL VARIABLES
+INTEGER             :: iNode
 !===================================================================================================================================
 ALLOCATE(getNewSide)
+ALLOCATE(getNewSide%Node(4))
+DO iNode=1,4
+  NULLIFY(getNewSide%Node(iNode)%np)
+END DO
 NULLIFY(getNewSide%Elem)
 NULLIFY(getNewSide%MortarSide)
 NULLIFY(getNewSide%connection)
@@ -289,18 +298,71 @@ IMPLICIT NONE
 TYPE(tElem),POINTER :: getNewElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 !< LOCAL VARIABLES
-INTEGER             :: iLocSide
+INTEGER             :: iNode,iLocSide
 !===================================================================================================================================
 ALLOCATE(getNewElem)
+ALLOCATE(getNewElem%Node(8))
+DO iNode=1,8
+  NULLIFY(getNewElem%Node(iNode)%np)
+END DO
 ALLOCATE(getNewElem%Side(6))
 DO iLocSide=1,6
   getNewElem%Side(iLocSide)%sp=>getNewSide()
 END DO
+NULLIFY(getNewElem%CurvedNode)
 getNewElem%ind=0
 getNewElem%Zone=0
 getNewElem%Type=0
+getNewElem%nCurvedNodes=0
 END FUNCTION GETNEWELEM
 
+
+SUBROUTINE createSides(Elem)
+!===================================================================================================================================
+! if element nodes already assigned, create Sides using CGNS standard
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+TYPE(tElem),POINTER :: Elem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+!side 1
+Elem%Side(1)%sp%Node(1)%np=>Elem%Node(1)%np
+Elem%Side(1)%sp%Node(2)%np=>Elem%Node(4)%np
+Elem%Side(1)%sp%Node(3)%np=>Elem%Node(3)%np
+Elem%Side(1)%sp%Node(4)%np=>Elem%Node(2)%np
+!side 2                                    
+Elem%Side(2)%sp%Node(1)%np=>Elem%Node(1)%np
+Elem%Side(2)%sp%Node(2)%np=>Elem%Node(2)%np
+Elem%Side(2)%sp%Node(3)%np=>Elem%Node(6)%np
+Elem%Side(2)%sp%Node(4)%np=>Elem%Node(5)%np
+!side 3                                    
+Elem%Side(3)%sp%Node(1)%np=>Elem%Node(2)%np
+Elem%Side(3)%sp%Node(2)%np=>Elem%Node(3)%np
+Elem%Side(3)%sp%Node(3)%np=>Elem%Node(7)%np
+Elem%Side(3)%sp%Node(4)%np=>Elem%Node(6)%np
+!side 4                                    
+Elem%Side(4)%sp%Node(1)%np=>Elem%Node(3)%np
+Elem%Side(4)%sp%Node(2)%np=>Elem%Node(4)%np
+Elem%Side(4)%sp%Node(3)%np=>Elem%Node(8)%np
+Elem%Side(4)%sp%Node(4)%np=>Elem%Node(7)%np
+!side 5                                    
+Elem%Side(5)%sp%Node(1)%np=>Elem%Node(1)%np
+Elem%Side(5)%sp%Node(2)%np=>Elem%Node(5)%np
+Elem%Side(5)%sp%Node(3)%np=>Elem%Node(8)%np
+Elem%Side(5)%sp%Node(4)%np=>Elem%Node(4)%np
+!side 6                                                
+Elem%Side(6)%sp%Node(1)%np=>Elem%Node(5)%np
+Elem%Side(6)%sp%Node(2)%np=>Elem%Node(6)%np
+Elem%Side(6)%sp%Node(3)%np=>Elem%Node(7)%np
+Elem%Side(6)%sp%Node(4)%np=>Elem%Node(8)%np
+END SUBROUTINE createSides
 
 
 SUBROUTINE deleteMeshPointer()
@@ -318,7 +380,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER       :: FirstElemInd,LastElemInd
 INTEGER       :: iElem,iLocSide
-INTEGER       :: iMortar
+INTEGER       :: iMortar,iNode
 TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide
 !===================================================================================================================================
@@ -326,17 +388,36 @@ FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+  DO iNode=1,8
+    NULLIFY(aElem%Node(iNode)%np)
+  END DO
+  DEALLOCATE(aElem%Node)
+  DO iNode=1,aElem%nCurvedNodes
+    NULLIFY(aElem%curvedNode(iNode)%np)
+  END DO
+  IF(ASSOCIATED(aElem%CurvedNode)) DEALLOCATE(aElem%curvedNode)
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
+    DO iNode=1,4
+      NULLIFY(aSide%Node(iNode)%np)
+    END DO
+    DEALLOCATE(aSide%Node)
     DO iMortar=1,aSide%nMortars
       NULLIFY(aSide%MortarSide(iMortar)%sp)
     END DO
+    IF(ASSOCIATED(aSide%MortarSide)) DEALLOCATE(aSide%MortarSide)
     DEALLOCATE(aSide)
   END DO
   DEALLOCATE(aElem%Side)
   DEALLOCATE(aElem)
 END DO
 DEALLOCATE(Elems)
+DO iNode=1,nNodes
+  IF(ASSOCIATED(Nodes(iNode)%np))THEN
+    DEALLOCATE(Nodes(iNode)%np)
+  END IF
+END DO
+DEALLOCATE(Nodes)
 END SUBROUTINE deleteMeshPointer
 
 
