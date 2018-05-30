@@ -473,13 +473,13 @@ END DO
 IF(DoPrintConvInfo)THEN
   IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
     SWRITE(UNIT_stdOut,'(A,2x,I10,2x,I10)') ' PartNewton-not done!',nInnerPartNewton,Counter
-    DO iPart=1,PDM%ParticleVecLength
-      IF(DoPartInNewton(iPart))THEN
-        SWRITE(UNIT_stdOut,'(A20,2x,I10)') ' Failed Particle: ',iPart
-        SWRITE(UNIT_stdOut,'(A20,6(2x,E24.12))') ' Failed Position: ',PartState(iPart,1:6)
-        SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' Relative Norm:   ', Norm_F_PartXK(iPart)/Norm_F_PartX0(iPart)
-      END IF ! ParticleInside
-    END DO ! iPart
+!    DO iPart=1,PDM%ParticleVecLength
+!      IF(DoPartInNewton(iPart))THEN
+!        SWRITE(UNIT_stdOut,'(A20,2x,I10)') ' Failed Particle: ',iPart
+!        SWRITE(UNIT_stdOut,'(A20,6(2x,E24.12))') ' Failed Position: ',PartState(iPart,1:6)
+!        SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' Relative Norm:   ', Norm_F_PartXK(iPart)/Norm_F_PartX0(iPart)
+!      END IF ! ParticleInside
+!    END DO ! iPart
   ELSE
     SWRITE(UNIT_stdOut,'(A20,2x,I10,2x,I10)') ' PartNewton:',nInnerPartNewton,Counter
   END IF
