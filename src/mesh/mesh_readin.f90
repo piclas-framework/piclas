@@ -647,7 +647,7 @@ DO iElem=FirstElemInd,LastElemInd
     IF(.NOT.ASSOCIATED(Nodes(iNodeP)%np))THEN
       ALLOCATE(Nodes(iNodeP)%np)
       Nodes(iNodeP)%np%ind = NodeID
-      Nodes(iNodeP)%np%x   = NodeCoords_indx(:,iNode)
+      Nodes(iNodeP)%np%x   = NodeCoords_indx(:,iNode-offsetNodeID)
     END IF
     aElem%Node(jNode)%np=>Nodes(iNodeP)%np
   END DO
