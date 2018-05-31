@@ -149,22 +149,24 @@ SUBROUTINE BuildPrecond(t,tStage,tDeriv,alpha,dt)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Basis             ,ONLY:GetInverse
-USE MOD_Precond_Vars      ,ONLy:invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
-USE MOD_LinearSolver_Vars ,ONLY:nDOFelem,mass,nDOFLine
-USE MOD_Precond_Vars      ,ONLY:invP,PrecondType,DebugMatrix
-USE MOD_Jac_ex            ,ONLY:Jac_ex, Jac_Ex_Neighbor,Jac_ex1D
-USE MOD_Jac_FD            ,ONLY:Jac_FD_slow!,Jac_FD
-USE MOD_JacDG             ,ONLY:BuildJacDG
-USE MOD_DG,                ONLY: DGTimeDerivative_WeakForm
-USE MOD_SparseILU,         ONLY: BuildILU0
-USE MOD_ILU,               ONLY: BuildBILU0BCSR
-USE MOD_CSR,               ONLY: CSR
-!USE MOD_CSR_Vars,      ONLY: DiagonalEntries
+USE MOD_Basis             ,ONLY: GetInverse
+USE MOD_Precond_Vars      ,ONLY: invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
+USE MOD_LinearSolver_Vars ,ONLY: nDOFelem,mass,nDOFLine
+USE MOD_Precond_Vars      ,ONLY: invP,PrecondType,DebugMatrix
+USE MOD_Jac_ex            ,ONLY: Jac_ex, Jac_Ex_Neighbor,Jac_ex1D
+USE MOD_Jac_FD            ,ONLY: Jac_FD_slow                               
+USE MOD_JacDG             ,ONLY: BuildJacDG
+USE MOD_DG                ,ONLY: DGTimeDerivative_WeakForm
+USE MOD_SparseILU         ,ONLY: BuildILU0
+USE MOD_ILU               ,ONLY: BuildBILU0BCSR
+USE MOD_CSR               ,ONLY: CSR
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_LoadBalance_Vars,  ONLY: ElemTime
 #endif /*MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLBSample
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -348,9 +350,11 @@ DO iElem=1,PP_nElems
   END SELECT
   CALL CPU_TIME(TimeEnd(2))
   TotalTime=TotalTime+(TimeEnd-TimeStart)
-#ifdef MPI
-  ElemTime(iElem)=ElemTime(iElem)+SUM(TimeEnd(1:2)-TimeStart(1:2))
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  IF(PerformLBSample)THEN
+    ElemTime(iElem)=ElemTime(iElem)+SUM(TimeEnd(1:2)-TimeStart(1:2))
+  END IF
+#endif /*USE_LOADBALANCE*/
   IF((PrecondType.LE.2).AND.DebugMatrix.NE.0)THEN
     CALL CheckBJPrecond(Ploc1,Ploc,invP(:,:,iElem),iElem,TotalTime(3))
   END IF ! DebugMatrix
@@ -500,7 +504,8 @@ SUBROUTINE FinalizePrecond()
 ! Finalizes variables 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Precond_Vars,ONLY:invP,PrecondInitIsDone,PrecondType
+USE MOD_Precond_Vars,ONLY:invP,PrecondInitIsDone,PrecondType,neighborElemID
+USE MOD_Precond_Vars,ONLY:invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
 USE MOD_SparseILU   ,ONLY:FinalizeSparseILU
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -510,21 +515,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(invP)
-!IF(PrecondType.EQ.210)THEN
-!  DEALLCOATE(dRdXi)
-!  DEALLCOATE(dRdEta)
-!  DEALLCOATE(dRdZeta)
-!  DEALLCOATE(invXi)
-!  DEALLCOATE(invEta)
-!  DEALLCOATE(dRdXi)
-!!SDEALLCOATE(dRdEta)
-!!SDEALLCOATE(dRdZeta)
-!!SDEALLCOATE(invXi)
-!!SDEALLCOATE(invEta)
-!!SDEALLCOATE(invZeta)
-!END IF
+SDEALLOCATE(neighborElemID)
+SDEALLOCATE(invXi)
+SDEALLOCATE(invEta)
+SDEALLOCATE(invZeta)
+SDEALLOCATE(dRdXi)
+SDEALLOCATE(dRdEta)
+SDEALLOCATE(dRdZeta)
 PrecondInitIsDone = .FALSE.
-IF(PrecondType.EQ.22) CALL FinalizeSparseILU
 IF(PrecondType.EQ.3) CALL FinalizeSparseILU
 
 END SUBROUTINE FinalizePrecond

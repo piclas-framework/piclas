@@ -197,6 +197,7 @@ REAL                            :: Cent(3)
 REAL                            :: r1,r2
 REAL                            :: r_2D,r_3D,varphi,r_bary
 REAL                            :: cos_theta
+REAL                            :: eps1,eps2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(0)
@@ -227,6 +228,8 @@ CASE(103) ! dipole
   r1=SQRT(SUM((x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   r2=SQRT(SUM((x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   resu(:)=IniAmplitude*(1/r2-1/r1)
+CASE(104) ! solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0
+  resu(1) = ( COS(x(1))+SIN(x(1)) )*( COS(x(2))+SIN(x(2)) )*( COSH(SQRT(2.0)*x(3))+SINH(SQRT(2.0)*x(3)) )
 CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book: 
   ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
   ! E_0       : constant electric field in z-direction far away from sphere
@@ -282,6 +285,8 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
 CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric field E_0: adjusted from CASE(200)
   ! R = DielectricRadiusValue
   ! DielectricRatio = eps/eps0
+
+  ! for BC, not ElemID will be given
   IF(.NOT.PRESENT(ElemID))THEN
     resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
     RETURN
@@ -310,7 +315,6 @@ CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric 
                        !( (DielectricRadiusValue**3) / (x(3)**(3.)) ) - 1 )*(Dielectric_E_0 * x(3))
                        !( (DielectricRadiusValue**3) / ((x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
 
-
     ! marcel
     resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue**2*((DielectricRatio-1.)/(DielectricRatio))/(x(3)**2) + 1)
 
@@ -329,24 +333,74 @@ CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric 
     __STAMP__&
     ,'Dielectric sphere. Invalid radius for exact function!')
   END IF
+CASE(301) ! like CASE=300, but only in positive z-direction the dielectric region is assumed
+  ! R = DielectricRadiusValue
+  ! DielectricRatio = eps/eps0
+
+  ! for BC, not ElemID will be given
+  IF(.NOT.PRESENT(ElemID))THEN
+    IF(x(3).GT.0.0)THEN ! inside dielectric
+      !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
+      resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
+    ELSE
+      resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*&
+          (-DielectricRadiusValue*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3)-DielectricRadiusValue)) + 1)
+    END IF
+    RETURN
+  END IF
+
+  ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
+  IF(     (ABS(ElemBaryNGeo(3,ElemID)).LT.2.0*DielectricRadiusValue).AND.(ElemBaryNGeo(3,ElemID).GT.0.0))THEN ! inside box: DOF and element bary center
+    resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
+  ELSEIF( (ABS(ElemBaryNGeo(3,ElemID)).GT.DielectricRadiusValue).OR.(ElemBaryNGeo(3,ElemID).LT.0.0) )THEN ! outside sphere
+    resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*&
+        (-DielectricRadiusValue*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3)-DielectricRadiusValue)) + 1)
+  ELSE
+    SWRITE(*,*) "ElemID                ",ElemID
+    SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
+    SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID)
+    SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
+    CALL abort(&
+    __STAMP__&
+    ,'Dielectric sphere. Invalid radius for exact function!')
+  END IF
 
 CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
   !                                                epsR_2 != 1 for x > 0 (dielectric region)
   ! DielectricRadiusValue is used as distance between dielectric interface and position of chargeed point particle
   ! set radius and angle for DOF position x(1:3)
+  ! Limitations:
+  ! only valid for eps_2 = 1 
+  ! and q = 1
   r_2D   = SQRT(x(1)**2+x(2)**2)
   r1 = SQRT(r_2D**2 + (DielectricRadiusValue-x(3))**2)
   r2 = SQRT(r_2D**2 + (DielectricRadiusValue+x(3))**2)
+
+  eps2=1.0
+  eps1=DielectricEpsR
 
   IF(x(3).GT.0.0)THEN
     IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
       print*, "HERE?!?!?!"
     END IF
-    resu(1:PP_nVar) = (1./DielectricEpsR)*(&
-                                   1./r1 - ((1-DielectricEpsR)/(1+DielectricEpsR))*&
-                                   1./r2 )
+    IF((r1.LE.0.0).OR.(r2.LE.0.0))THEN
+      SWRITE(*,*) "r1=",r1
+      SWRITE(*,*) "r2=",r2
+      CALL abort(&
+          __STAMP__&
+          ,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
+    END IF
+    resu(1:PP_nVar) = (1./eps1)*(&
+                                   1./r1 + ((eps1-eps2)/(eps1+eps2))*&
+                                   1./r2 )/(4*PI)
   ELSE
-    resu(1:PP_nVar) = (2./(1.+DielectricEpsR)) * 1./r1
+    IF(r1.LE.0.0)THEN
+      SWRITE(*,*) "r1=",r1
+      CALL abort(&
+          __STAMP__&
+          ,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
+    END IF
+    resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
   END IF
 
 CASE DEFAULT
@@ -452,23 +506,29 @@ END SUBROUTINE DivCleaningDamping
 
 SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
+! TODO: currently particles are enforced, which means that they over-write the exact function solution because
+! the combination of both has not been specified
+! How should this function work???
+! for dielectric regions DO NOT apply the scaling factor Eps_R here (which is const. in HDG due to current implementation) because
+! it is in the tensor "chitens"
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort
+USE MOD_Globals            ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_Mesh_Vars,           ONLY:Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,        ONLY:PartSource,DoDeposition
-USE MOD_Particle_Mesh_Vars,  ONLY:GEO,NbrOfRegions
-USE MOD_Particle_Vars,       ONLY:RegionElectronRef
-USE MOD_Equation_Vars,       ONLY:eps0
+USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition,DepositionType
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
+USE MOD_Equation_Vars      ,ONLY: eps0
 #if IMPA
-USE MOD_LinearSolver_Vars,   ONLY:ExplicitPartSource
+USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-USE MOD_Equation_Vars,       ONLY:IniExactFunc
-USE MOD_Equation_Vars,       ONLY:IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Dielectric_vars    ,ONLY: DoDielectric,DielectricEpsR,isDielectricElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -490,43 +550,41 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
   ! empty
 CASE(103)
- x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
- dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
- dx2=(x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
- r1=SQRT(SUM(dx1**2))
- r2=SQRT(SUM(dx2**2))
- dr1dx(:)= r1*dx1
- dr2dx(:)= r2*dx2
- dr1dx2(:)= r1+dr1dx(:)*dx1
- dr2dx2(:)= r2+dr2dx(:)*dx2
- resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
-                         -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
+  x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
+  dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
+  dx2=(x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))
+  r1=SQRT(SUM(dx1**2))
+  r2=SQRT(SUM(dx2**2))
+  dr1dx(:)= r1*dx1
+  dr2dx(:)= r2*dx2
+  dr1dx2(:)= r1+dr1dx(:)*dx1
+  dr2dx2(:)= r2+dr2dx(:)*dx2
+  resu(1)=- IniAmplitude*( SUM((r1*dr1dx2(:)-2*dr1dx(:)**2)/(r1*r1*r1)) &
+      -SUM((r2*dr2dx2(:)-2*dr2dx(:)**2)/(r2*r2*r2)) )
 CASE DEFAULT
   resu=0.
-!  CALL abort(__STAMP__,&
-             !'Exactfunction not specified!',999,999.)
+  !  CALL abort(__STAMP__,&
+  !'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 
-
-
 #ifdef PARTICLES
-IF(DoDeposition)THEN
+IF(DoDeposition .OR. (TRIM(DepositionType).EQ.'constant'))THEN
   source_e=0.
   IF (PRESENT(Phi)) THEN
     RegionID=0
     IF (NbrOfRegions .GT. 0) RegionID=GEO%ElemToRegion(iElem)
-      IF (RegionID .NE. 0) THEN
-        source_e = Phi-RegionElectronRef(2,RegionID)
-        IF (source_e .LT. 0.) THEN
-          source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-                   * EXP( (source_e) / RegionElectronRef(3,RegionID) )
-        ELSE
-          source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
-                   * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
-        END IF
-        !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-        !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+    IF (RegionID .NE. 0) THEN
+      source_e = Phi-RegionElectronRef(2,RegionID)
+      IF (source_e .LT. 0.) THEN
+        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+            * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+      ELSE
+        source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+            * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
       END IF
+      !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+      !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+    END IF
   END IF
 #if IMPA
   resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
@@ -535,6 +593,7 @@ IF(DoDeposition)THEN
 #endif
 END IF
 #endif /*PARTICLES*/
+
 END SUBROUTINE CalcSourceHDG
 
 
