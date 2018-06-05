@@ -26,6 +26,7 @@ INTEGER              :: nDofGlobal, nDofGlobalMPI                               
 LOGICAL              :: LinearSolverInitIsDone=.FALSE.                              ! init routine
 INTEGER              :: nGP2D,nGP3D                ! (N+1)**2, (N+1)**3             ! number of GP points on face, volume
 INTEGER              :: nDOFside,nDOFelem          ! nVar*nGP2D, nVar*nGP3D         ! number of GP*nvar
+REAL                 :: nDOFGlobalMPI_inv                                              ! inverse number of global dof 
 INTEGER              :: nDOFLine                                                    ! number of 1D DOFs
 INTEGER              :: maxIter_LinearSolver                                        ! limit of iter for linear solver
 INTEGER              :: totalIterLinearSolver,nInnerIter                            ! global counter of iterations

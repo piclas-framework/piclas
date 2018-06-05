@@ -52,6 +52,9 @@ USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, SampWall, PartBound
 USE MOD_TImeDisc_Vars,          ONLY : tend,time
 USE MOD_Mesh_Vars,              ONLY : BC
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,      ONLY : LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -60,14 +63,23 @@ IMPLICIT NONE
 INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites, SideID, PartboundID
 REAL                             :: maxPart
 REAL                             :: coverage_tmp, coverage_corrected
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 
 IF (DSMC%WallModel.GT.0) THEN
   IF (.NOT.SurfMesh%SurfOnProc) RETURN
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF (.NOT.KeepWallParticles) THEN
 #ifdef MPI
 ! 1. communicate number of particles that were adsorbed on halo-sides of neighbour procs
     CALL ExchangeAdsorbNum()
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_SURFCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif
     ! adjust coverages of all species on surfaces
     DO iSpec = 1,nSpecies
@@ -168,6 +180,9 @@ IF (DSMC%WallModel.GT.0) THEN
     CALL CalcDesorbProb()
     CALL CalcAdsorbProb()
   END IF
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! 6. communicate surface state to halo sides of neighbours
 #ifdef MPI
@@ -186,9 +201,13 @@ SUBROUTINE Calc_PartNum_Wall_Desorb()
 !===================================================================================================================================
 !> calculation of desorbing particle number when mean desorption probabilities are used (wallmodel 1)
 !===================================================================================================================================
-USE MOD_Particle_Vars,          ONLY : nSpecies, Species
-USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
+USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
+#if USE_LOADBALANCE
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -196,6 +215,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                          :: iSurfSide, iSpec, p, q, NPois, WallPartNum
 REAL                             :: PartAds, PartDes, RanNum, Tpois
+#if USE_LOADBALANCE
+INTEGER                          :: globSide, ElemID
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 #if (PP_TimeDiscMethod==42)
@@ -206,6 +228,13 @@ CALL CalcDesorbProb()
 
 DO iSpec = 1,nSpecies
   DO iSurfSide = 1,SurfMesh%nSides
+#if USE_LOADBALANCE
+    IF(PerformLBSample) THEN
+      globSide = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+      ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
+      nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
+    END IF
+#endif /*USE_LOADBALANCE*/
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
         IF (Adsorption%Coverage(p,q,iSurfSide,iSpec).GT.0) THEN
@@ -217,7 +246,7 @@ DO iSpec = 1,nSpecies
                       * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                       / Species(iSpec)%MacroParticleFactor
 
-          IF ((DSMC%WallModel.EQ.1) .OR. (DSMC%WallModel.EQ.3)) THEN
+          IF (DSMC%WallModel.EQ.1) THEN
             PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
           END IF
             IF (PartDes.GT.PartAds) THEN
@@ -931,6 +960,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 #if (PP_TimeDiscMethod==42)  
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #endif
+#if USE_LOADBALANCE
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
  IMPLICIT NONE
 !===================================================================================================================================
@@ -974,6 +1007,9 @@ INTEGER                           :: IDRearrange
 INTEGER                           :: iSampleReact
 #endif
 INTEGER                           :: NumDesorbLH(1:nSpecies,1:Adsorption%RecombNum)
+#if USE_LOADBALANCE
+INTEGER                           :: ElemID
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
@@ -999,6 +1035,9 @@ DO SurfSideID = 1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
   IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+#if USE_LOADBALANCE
+  IF(PerformLBSample) ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
+#endif /*USE_LOADBALANCE*/
 ! special TPD (temperature programmed desorption) temperature adjustment part
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
@@ -1045,6 +1084,9 @@ DO subsurfxi = 1,nSurfSample
     Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain(Coord)+AdsorbID)
     iSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos)
     adsorbates(iSpec) = adsorbates(iSpec) + 1
+#if USE_LOADBALANCE
+    IF(PerformLBSample) nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
+#endif /*USE_LOADBALANCE*/
   END DO
   END DO
 

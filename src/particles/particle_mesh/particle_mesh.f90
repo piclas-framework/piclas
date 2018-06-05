@@ -175,6 +175,9 @@ CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
 CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
     ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
     ,'.FALSE.')
+CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
+    ,  ' Print warning if MINVAL(BezierControlPoints3d(iDir,:,:,newSideID)) and global boundaries are too close ' &
+    ,'.FALSE.')
 
 CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between '//& 
 'Bezierclipping and BezierNewton.' , '1.570796326')
@@ -755,6 +758,7 @@ SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
+SDEALLOCATE(GEO%CharLength)
 SDEALLOCATE(GEO%DeltaEvMPF)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
@@ -1440,7 +1444,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
+USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Mesh_Vars,                          ONLY:ElemBaryNGeo
@@ -1507,6 +1511,7 @@ StartT=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.FALSE.')
+printBezierControlPointsWarnings = GETLOGICAL('printBezierControlPointsWarnings','.FALSE.')
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
@@ -2779,8 +2784,14 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)
 ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+      __STAMP__&
+      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+END IF
+ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+      __STAMP__&
+      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%CharLength!')
 END IF
 usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 IF(usevMPF) THEN
@@ -2797,8 +2808,9 @@ DO iElem=1,nElems
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   GEO%Volume(iElem) = 0.
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    GEO%Volume(iElem) = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+    GEO%Volume(iElem)     = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
   END DO; END DO; END DO
+  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
 END DO
 
 GEO%LocalVolume=SUM(GEO%Volume)
@@ -4313,6 +4325,7 @@ nBilinear                  = 0
 nCurved                    = 0
 nBCElems                   = 0
 nCurvedElems               = 0
+nLinearElems               = 0
 #ifdef MPI
 nPlanarRectangularHalo     = 0
 nPlanarNonRectangularHalo  = 0
@@ -4824,15 +4837,16 @@ SUBROUTINE DuplicateSlavePeriodicSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE  MOD_GLobals
-USE MOD_Mesh_Vars,               ONLY:MortarType,BC,NGeo,nBCs,nSides,BoundaryType,MortarSlave2MasterInfo,nElems,XCL_NGeo
-USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,nPartPeriodicSides,GEO &
+USE MOD_Mesh_Vars              ,ONLY: MortarType,BC,NGeo,nBCs,nSides,BoundaryType,MortarSlave2MasterInfo,nElems,XCL_NGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,nPartPeriodicSides,GEO &
                                      ,nTotalBCSides,nPartSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Mesh_Vars,               ONLY:NGeoElevated
-USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals,RotateMasterToSlave,GetBezierControlPoints3D
-USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Mesh_Vars              ,ONLY: NGeoElevated
+USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals,RotateMasterToSlave,GetBezierControlPoints3D
+USE MOD_Particle_Surfaces_vars ,ONLY: BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-USE MOD_Particle_Tracking_Vars,  ONLY:CartesianPeriodic
+USE MOD_Particle_Tracking_Vars ,ONLY: CartesianPeriodic
+USE MOD_Particle_MPI_Vars      ,ONLY: printBezierControlPointsWarnings
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -5023,22 +5037,25 @@ IF(MapPeriodicSides)THEN
           IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
             IPWRITE(UNIT_stdOut,*) ' Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
             CALL abort(&
-             __STAMP__&
-             , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+                __STAMP__&
+                , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
           END IF
-        !ELSE
-        !  IPWRITE(UNIT_stdOut,*) ' WARNING: Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
+        ELSE
+          IF(printBezierControlPointsWarnings)THEN
+            IPWRITE(UNIT_stdOut,*) ' WARNING: Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
+          END IF
         END IF
         IF(.NOT.ALMOSTEQUALRELATIVE(MinMax(2),MinMaxGlob(iDir+3),1e-10))THEN
           IF(MinMax(2).GT.MinMaxGlob(iDir+3)) THEN
             IPWRITE(UNIT_stdOut,*) ' Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
             CALL abort(&
-             __STAMP__&
-             , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+                __STAMP__&
+                , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
           END IF
-        !ELSE
-        !    IPWRITE(UNIT_stdOut,*) ' WARNING: Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
-
+        ELSE
+          IF(printBezierControlPointsWarnings)THEN
+            IPWRITE(UNIT_stdOut,*) ' WARNING: Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
+          END IF
         END IF
       END DO
 

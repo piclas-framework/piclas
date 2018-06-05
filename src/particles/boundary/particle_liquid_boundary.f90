@@ -111,11 +111,15 @@ SUBROUTINE Evaporation()
 !===================================================================================================================================
 !> calculation of evaporating particle number when particles are deleted at condensation and inserted at evaporation
 !===================================================================================================================================
-USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species
-USE MOD_DSMC_Vars,              ONLY : Liquid
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
-USE MOD_Mesh_Vars,              ONLY : BC
-USE MOD_TimeDisc_Vars,          ONLY : dt
+USE MOD_Particle_Vars          ,ONLY: nSpecies, BoltzmannConst, Species
+USE MOD_DSMC_Vars              ,ONLY: Liquid
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+#if USE_LOADBALANCE
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
@@ -125,6 +129,9 @@ INTEGER                          :: iSurfSide, iSpec, p, q, Npois
 REAL                             :: PartEvap, RanNum, Tpois
 REAL                             :: LiquidSurfTemp
 REAL                             :: pressure_vapor, A, B, C
+#if USE_LOADBALANCE
+INTEGER                          :: globSide, ElemID
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 #if (PP_TimeDiscMethod==42)
@@ -135,6 +142,13 @@ DO iSpec = 1,nSpecies
   DO iSurfSide = 1,SurfMesh%nSides
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))) CYCLE
     IF (PartBound%LiquidSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) ))).NE.iSpec) CYCLE
+#if USE_LOADBALANCE
+    IF(PerformLBSample) THEN
+      globSide = SurfMesh%SurfSideToGlobSideMap(iSurfSide)
+      ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
+      nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
+    END IF
+#endif /*USE_LOADBALANCE*/
     LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfSideToGlobSideMap(iSurfSide))))
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
