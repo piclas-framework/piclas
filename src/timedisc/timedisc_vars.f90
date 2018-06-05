@@ -33,7 +33,7 @@ REAL             :: dt_Min
 REAL             :: dt_temp
 INTEGER          :: MaximumIterNum
 #endif
-#if (PP_TimeDiscMethod==100)||(PP_TimeDiscMethod==501)
+#if (PP_TimeDiscMethod==100)
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
