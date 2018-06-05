@@ -12,6 +12,8 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PP_HDG
+INTEGER             :: HDG_N
+LOGICAL             :: HDG_MassOverintegration
 INTEGER             :: nGP_vol              !=(PP_N+1)**3
 INTEGER             :: nGP_face             !=(PP_N+1)**2
                     
