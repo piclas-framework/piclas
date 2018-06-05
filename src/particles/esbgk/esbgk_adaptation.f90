@@ -147,7 +147,7 @@ INTEGER                      :: PartNumChildNode(8), MergeTemp(8), NodeAveraging
 REAL                         :: NodeVolumeTemp(8), vBulk(3,8), NodeAveragingTemp(8,5,BGKAveragingLength)
 LOGICAL                      :: ForceESBGK
 !===================================================================================================================================
-IF (TreeNode%PNum_Node.LE.80) THEN
+IF (TreeNode%PNum_Node.LE.8.*BGKMinPartPerCell) THEN
   ForceESBGK = .TRUE.
 ELSE
   ForceESBGK = .FALSE.
@@ -260,7 +260,7 @@ IF(ForceESBGK) THEN
       NodeVolumeTemp(iLoop) = 0.0
     END IF
   END DO
-  IF (PartNumChildNode(8).LT.9) THEN
+  IF (PartNumChildNode(8).LT.BGKMinPartPerCell) THEN
     DO iLoop = 1, 7
      iLoop2 = iLoop
      IF (PartNumChildNode(iLoop).GT.0) EXIT

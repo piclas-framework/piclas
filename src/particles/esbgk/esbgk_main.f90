@@ -140,12 +140,16 @@ SUBROUTINE BGKEuler_main()
 !> description
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Globals
+USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
+USE MOD_Mesh_Vars          ,ONLY: nElems, MeshFile
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_Vars      ,ONLY: PEM, PartState
-USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS
+USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS, DSMC, SamplingActive
 USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellAdaptation
 USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_Euler
+USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
+USE MOD_Restart_Vars       ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -154,7 +158,7 @@ USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_Euler
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart
+INTEGER               :: iElem, nPart, iLoop, iPart, nOutput
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 REAL                  :: vBulk(3)
 !===================================================================================================================================
@@ -178,6 +182,29 @@ DO iElem = 1, nElems
   CALL ESBGK_Euler(iPartIndx_Node(1:nPart), nPart, iElem, GEO%Volume(iElem), vBulk)
   DEALLOCATE(iPartIndx_Node)
 END DO
+
+IF((.NOT.WriteMacroVolumeValues) .AND. (.NOT.WriteMacroSurfaceValues)) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+    SamplingActive=.TRUE.
+    SWRITE(*,*)'Sampling active'
+  END IF
+END IF
+
+IF(SamplingActive) THEN
+  CALL DSMCHO_data_sampling()
+  IF(DSMC%NumOutput.NE.0) THEN
+    nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
+    IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
+      DSMC%NumOutput = DSMC%NumOutput - 1
+      ! Skipping outputs immediately after the first few iterations
+      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
+        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+        IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
+
+      END IF
+    END IF
+  END IF
+END IF
 
 END SUBROUTINE BGKEuler_main
 

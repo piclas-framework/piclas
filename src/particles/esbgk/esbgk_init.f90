@@ -18,7 +18,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitESBGK, DefineParametersBGK, ESBGK_BuildTransGaussNums
+PUBLIC :: InitESBGK, DefineParametersBGK, ESBGK_BuildTransGaussNumsEnCon
 !===================================================================================================================================
 
 CONTAINS
@@ -46,14 +46,12 @@ CALL prms%CreateIntOption(      'Particles-ESBGKModel'  ,         'TODO-DEFINE-P
                                 '2: Exact\n'//&
                                 '3: MetropolisHastings', '1')
 CALL prms%CreateRealOption(     'Particles-UnifiedBGK-Ces'  ,     'TODO-DEFINE-PARAMETER', '1000.0')
-CALL prms%CreateIntOption(      'Particles-BGKAveragingLength'  , 'TODO-DEFINE-PARAMETER', '5')
 CALL prms%CreateLogicalOption(  'Particles-BGKDoAveraging',       'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-BGKDoAveragingCorrection',       'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-BGKUseQuantVibEn',       'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateRealOption(     'Particles-BGKAcceleration'  ,     'TODO-DEFINE-PARAMETER', '-9.81')
 CALL prms%CreateLogicalOption(  'Particles-BGK-DoBGKCellSplitting',       'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateRealOption(     'Particles-BGKCriticalDens'  ,     'TODO-DEFINE-PARAMETER', '1.0')
-CALL prms%CreateRealOption(     'Particles-BGKPhasePreFactor'  ,     'TODO-DEFINE-PARAMETER', '1.0')
+CALL prms%CreateLogicalOption(  'Particles-BGK-DoVibRelaxation',       'TODO-DEFINE-PARAMETER','.FALSE.')
 
 END SUBROUTINE DefineParametersBGK
 
@@ -114,7 +112,7 @@ BGKDoAveragingCorrect = GETLOGICAL('Particles-BGKDoAveragingCorrection','.FALSE.
 BGKUseQuantVibEn = GETLOGICAL('Particles-BGKUseQuantVibEn','.FALSE.')
 IF (BGKDoAveraging) CALL BGK_init_Averaging()
 BGKAcceleration = GETREAL('Particles-BGKAcceleration','-9.81')
-
+BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation','.TRUE.')
 DoBGKCellSplitting = GETLOGICAL('Particles-BGK-DoBGKCellSplitting','.FALSE.')
 !IF (DoBGKCellSplitting) THEN
 !  DoBGKCellAdaptation = .FALSE.
@@ -124,25 +122,13 @@ DoBGKCellSplitting = GETLOGICAL('Particles-BGK-DoBGKCellSplitting','.FALSE.')
 !    ElemSplitCells(iElem)%Splitnum(1:3) = (/1,1,1/)
 !  END DO
 !!END IF
-BGKCriticalDens = GETREAL('Particles-BGKCriticalDens','1.0')
-BGKPhasePreFactor = GETREAL('Particles-BGKPhasePreFactor','1.0')
-!Init PHI
-ALLOCATE(BGKPhiPhase(0:PP_N,0:PP_N,0:PP_N,nElems), BGKForcePhase(1:3,0:PP_N,0:PP_N,0:PP_N,nElems))
-BGKPhiPhase=0.
-BGKForcePhase= 0.
-ALLOCATE(BGKPhiPhase2(0:PP_N,0:PP_N,0:PP_N,nElems), BGKForcePhase2(1:3,0:PP_N,0:PP_N,0:PP_N,nElems))
-BGKPhiPhase2=0.
-BGKForcePhase2= 0.
-ALLOCATE(D_BGK(0:PP_N,0:PP_N))
-D_BGK=0.
-CALL PolynomialDerivativeMatrix(PP_N,xGP,D_BGK)
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
 END SUBROUTINE InitESBGK
 
 
-SUBROUTINE ESBGK_BuildTransGaussNums(nPart, iRanPart)
+SUBROUTINE ESBGK_BuildTransGaussNumsEnCon(nPart, iRanPart)
 !===================================================================================================================================
 ! Performs FP Momentum Evaluation
 !===================================================================================================================================
@@ -180,7 +166,7 @@ DO iLoop = 1, nPart
   iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)/varianceiRan(1:3)
 END DO
 
-END SUBROUTINE ESBGK_BuildTransGaussNums
+END SUBROUTINE ESBGK_BuildTransGaussNumsEnCon
 
 
 

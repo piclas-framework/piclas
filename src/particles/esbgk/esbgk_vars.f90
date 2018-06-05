@@ -31,13 +31,7 @@ LOGICAL                                        :: BGKUseQuantVibEn
 REAL                                           :: BGKMinCFL = 1.0
 INTEGER                                        :: BGKAdaptTimeStep
 REAL                                           :: BGKAcceleration
-REAL                                           :: BGKCriticalDens
-REAL                                           :: BGKPhasePreFactor
-REAL,ALLOCATABLE                               :: BGKPhiPhase(:,:,:,:)
-REAL,ALLOCATABLE                               :: BGKForcePhase(:,:,:,:,:)
-REAL,ALLOCATABLE                               :: BGKPhiPhase2(:,:,:,:)
-REAL,ALLOCATABLE                               :: BGKForcePhase2(:,:,:,:,:)
-REAL,ALLOCATABLE                               :: D_BGK(:,:)
+LOGICAL                         	       :: BGKDoVibRelaxation
 
 LOGICAL                                        :: DoBGKCellSplitting
 TYPE tElemSplitCells
