@@ -48,6 +48,7 @@ CALL prms%CreateIntOption(      'Particles-ESBGKModel'  ,         'TODO-DEFINE-P
 CALL prms%CreateRealOption(     'Particles-UnifiedBGK-Ces'  ,     'TODO-DEFINE-PARAMETER', '1000.0')
 CALL prms%CreateLogicalOption(  'Particles-BGKDoAveraging',       'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-BGKDoAveragingCorrection',       'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateIntOption(      'Particles-BGKAveragingLength'  ,  'TODO-DEFINE-PARAMETER', '5')
 CALL prms%CreateLogicalOption(  'Particles-BGKUseQuantVibEn',       'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateRealOption(     'Particles-BGKAcceleration'  ,     'TODO-DEFINE-PARAMETER', '-9.81')
 CALL prms%CreateLogicalOption(  'Particles-BGK-DoBGKCellSplitting',       'TODO-DEFINE-PARAMETER','.FALSE.')
