@@ -18,8 +18,8 @@ INTERFACE InitParticleMesh
   MODULE PROCEDURE InitParticleMesh
 END INTERFACE
 
-INTERFACE InitTriaParticleGeometry
-  MODULE PROCEDURE InitTriaParticleGeometry
+INTERFACE InitParticleGeometry
+  MODULE PROCEDURE InitParticleGeometry
 END INTERFACE
 
 INTERFACE FinalizeParticleMesh
@@ -97,7 +97,7 @@ PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactE
 PUBLIC::InsideElemBoundingBox
 PUBLIC::PartInElemCheck
 PUBLIC::ParticleInsideQuad3D
-PUBLIC::InitTriaParticleGeometry
+PUBLIC::InitParticleGeometry
 PUBLIC::MarkAuxBCElems
 PUBLIC::BoundsOfElement
 !===================================================================================================================================
@@ -211,7 +211,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking, WriteTriaDebugMesh
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
-USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
+USE MOD_Mesh_Vars,              ONLY:nElems,nSides,nNodes,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
 USE MOD_Mesh_Vars,              ONLY:useCurveds,NGeo
@@ -238,6 +238,7 @@ __STAMP__&
 nTotalSides=nSides
 nTotalBCSides=nSides
 nTotalElems=nElems
+nTotalNodes=nNodes
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
         ,PartSideToElem(1:5,1:nTotalSides)        &
         ,PartElemToElemGlob(1:4,1:6,1:nTotalElems)&
@@ -365,16 +366,18 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleMesh
 
 
-SUBROUTINE InitTriaParticleGeometry()
+SUBROUTINE InitParticleGeometry()
 !===================================================================================================================================
-! Subroutine for particle initialization 
+! Subroutine for particle geometry initialization (GEO container)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
+USE MOD_ReadInTools
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY : nElems, XCL_NGeo, NGeo
-USE MOD_Particle_Mesh_Vars, ONLY : GEO, PartElemToSide
-USE MOD_Particle_Tracking_Vars, ONLY:WriteTriaDebugMesh
+USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
+USE MOD_Mesh_Vars              ,ONLY: Elems, offsetElem, ElemToSide
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, FindNeighbourElems
+USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -383,163 +386,118 @@ USE MOD_Particle_Tracking_Vars, ONLY:WriteTriaDebugMesh
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, iLocSide, nSides
-INTEGER           :: NodeNum
+INTEGER           :: iElem, iLocSide, iNode, jNode, GlobSideID, iCoord,k,l
+INTEGER           :: nStart, NodeNum
+INTEGER           :: ALLOCSTAT
+INTEGER           :: NodeMap(4,6),nSides
+INTEGER           :: TempNumNodes(1:nNodes), TempElems(1:500), TempNumElems
 REAL              :: A(3,3),detcon
-INTEGER           :: flip,p,q
-REAL              :: SideCoord(1:3,0:1,0:1)
-REAL              :: SideCoord_tmp(1:3,0:1,0:1)
+LOGICAL           :: ElemExists
+REAL,ALLOCATABLE  :: Coords(:,:,:,:)
 CHARACTER(32)     :: hilf
 CHARACTER(LEN=255) :: FileString
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE TRIANGLE GEOMETRY INFORMATION...'
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+NodeMap(:,1)=(/1,3,4,2/)
+NodeMap(:,2)=(/1,2,6,5/)
+NodeMap(:,3)=(/2,4,8,6/)
+NodeMap(:,4)=(/4,3,7,8/)
+NodeMap(:,5)=(/1,5,7,3/)
+NodeMap(:,6)=(/5,6,8,7/)
+ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
+         GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
+         GEO%NodeCoords(1:3,1:nNodes),         &
+         GEO%ConcaveElemSide(1:6,1:nElems), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+ CALL abort(__STAMP__&
+ ,'ERROR in InitParticleGeometry: Cannot allocate GEO%... stuff!')
+END IF
 
-ALLOCATE(GEO%NodeCoords(1:3,1:4,1:6,1:nElems), &
-         GEO%ConcaveElemSide(1:6,1:nElems))
-GEO%NodeCoords(:,:,:,:)=0.
+GEO%ElemToNodeID(:,:)=0
+GEO%ElemSideNodeID(:,:,:)=0
+GEO%NodeCoords(:,:)=0.
 GEO%ConcaveElemSide(:,:)=.FALSE.
-
+iNode=0
 DO iElem=1,nElems
-  DO iLocSide=1,6
-!-----------------------------------------------------------------------------------------------------------------------------------
-    SELECT CASE(iLocSide)
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(XI_MINUS)
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,0,q,p,iElem)
-        END DO !p
-      END DO !q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(XI_PLUS)
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo,p,q,iElem)
-        END DO !p
-      END DO !q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(ETA_MINUS)
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p,0,q,iElem)
-        END DO !p
-      END DO !q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(ETA_PLUS)
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo-p,NGeo,q,iElem)
-        END DO !p
-      END DO !q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(ZETA_MINUS)
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord_tmp(1:3,q,p)=XCL_NGeo(1:3,p,q,0,iElem)
-        END DO !p
-      END DO !q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(ZETA_PLUS)
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p,q,NGeo,iElem)
-        END DO !p
-      END DO ! q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    END SELECT
-!-----------------------------------------------------------------------------------------------------------------------------------
-    flip=PartElemToSide(E2S_FLIP,iLocSide,iElem)
-    ! master side, flip=0
-    ! slave side,  flip=1,..,4
-!-----------------------------------------------------------------------------------------------------------------------------------
-    SELECT CASE(flip)
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(0) ! master side
-     SideCoord(:,:,:)=SideCoord_tmp
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord(:,p,q)=SideCoord_tmp(:,p,q)
-        END DO ! p
-      END DO ! q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-q,p)
-        END DO ! p
-      END DO ! q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-p,NGeo-q)
-        END DO ! p
-      END DO ! q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          SideCoord(:,p,q)=SideCoord_tmp(:,q,NGeo-p)
-        END DO ! p
-      END DO ! q
-!-----------------------------------------------------------------------------------------------------------------------------------
-    END SELECT
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
-    GEO%NodeCoords(1:3,1,iLocSide,iElem) = SideCoord(:,0   ,0   )
-    GEO%NodeCoords(1:3,2,iLocSide,iElem) = SideCoord(:,NGeo,0   )
-    GEO%NodeCoords(1:3,3,iLocSide,iElem) = SideCoord(:,NGeo,NGeo)
-    GEO%NodeCoords(1:3,4,iLocSide,iElem) = SideCoord(:,0   ,NGeo)
-    !write(*,*)'Element: ',iElem
-    !write(*,*)'Side: ',iLocSide
-    !write(*,*)'SideID: ', PartElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    !write(*,*)'flip: ',flip
-    !write(*,*)'Coords 1 ',GEO%NodeCoords(1:3,1,iLocSide,iElem)
-    !write(*,*)'Coords 2 ',GEO%NodeCoords(1:3,2,iLocSide,iElem)
-    !write(*,*)'Coords 3 ',GEO%NodeCoords(1:3,3,iLocSide,iElem)
-    !write(*,*)'Coords 4 ',GEO%NodeCoords(1:3,4,iLocSide,iElem)
-    !read(*,*)
+  DO jNode=1,8
+    Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
+  END DO
+END DO
+DO iElem=1,nElems
+  !--- Save corners of sides
+  DO jNode=1,8
+    IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
+      iNode=iNode+1
+      Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
+      GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
+    END IF
+    GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
   END DO
 END DO
 
-!-- write debug-mesh
-IF (WriteTriaDebugMesh) THEN
-  nSides=6
-  WRITE(UNIT=hilf,FMT='(I4.4)') myRank
-  FileString='TRIA-DebugMesh_PROC'//TRIM(hilf)//'.vtu'
-  CALL WriteTriaDataToVTK(nSides,nElems,GEO%NodeCoords(1:3,1:4,1:6,1:nElems),FileString)
-  !nSides=nElems*6
-  !WRITE(UNIT=hilf,FMT='(I4.4)') myRank
-  !OPEN(UNIT   = 103, &
-  !       FILE   = 'Tria-debugmesh_'//TRIM(hilf)//'.tec' ,&
-  !       STATUS = 'UNKNOWN')
-  !WRITE(103,*) 'TITLE="Tria-debugmesh" '
-  !WRITE(103,'(102a)') 'VARIABLES ="x","y","z"'
-  !WRITE(103,*) 'ZONE NODES=',4*nSides,', ELEMENTS=',2*nSides,'DATAPACKING=POINT, ZONETYPE=FEQUADRILATERAL'
-  !! Write nodes
-  !DO iElem=1,nElems
-  !  DO iLocSide=1,6
-  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,1,iLocSide,iElem)
-  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,2,iLocSide,iElem)
-  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,3,iLocSide,iElem)
-  !    WRITE(103,'(3(F0.10,1X))')GEO%NodeCoords(1:3,4,iLocSide,iElem)
-  !  END DO
-  !END DO
-  !! Write sides
-  !nSides=0
-  !DO iElem=1,nElems
-  !  DO iLocSide=1,6
-  !    WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+2,nSides*4+3,nSides*4+3 !1. tria
-  !    WRITE(103,'(4(I0,1X))')nSides*4+1,nSides*4+3,nSides*4+4,nSides*4+4 !2. tria
-  !    nSides=nSides+1
-  !  END DO
-  !END DO
-  !CLOSE(103)
-END IF !WriteTriaDebugMesh
+#if (PP_TimeDiscMethod==1001 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==48)
+FindNeighbourElems=.TRUE.
+#endif
+
+IF (FindNeighbourElems) THEN
+  ALLOCATE(GEO%ElemsOnNode(1:nNodes))
+  GEO%ElemsOnNode(:)=0
+  DO iElem=1,nElems
+    !--- Save corners of sides
+    DO jNode=1,8
+      GEO%ElemsOnNode(GEO%ElemToNodeID(jNode,iElem)) = GEO%ElemsOnNode(GEO%ElemToNodeID(jNode,iElem)) + 1
+    END DO
+  END DO
+  TempNumNodes(:)=0
+  ALLOCATE(GEO%NodeToElem(1:nNodes))
+  ALLOCATE(GEO%NumNeighborElems(1:nElems))
+  ALLOCATE(GEO%ElemToNeighElems(1:nElems))
+  DO jNode=1,nNodes
+    ALLOCATE(GEO%NodeToElem(jNode)%ElemID(1:GEO%ElemsOnNode(jNode)))
+  END DO
+  DO iElem=1,nElems
+    DO jNode=1,8
+      TempNumNodes(GEO%ElemToNodeID(jNode,iElem)) = TempNumNodes(GEO%ElemToNodeID(jNode,iElem)) + 1
+      GEO%NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(TempNumNodes(GEO%ElemToNodeID(jNode,iElem)))=iElem
+    END DO
+  END DO
+  DO iElem=1,nElems
+    TempElems(:) = 0
+    TempNumElems = 0
+    DO jNode=1,8
+      DO k=1, GEO%ElemsOnNode(GEO%ElemToNodeID(jNode,iElem))
+        ElemExists=.false.
+        IF (GEO%NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(k).NE.iELEM) THEN
+          DO l=1, TempNumElems
+            IF(GEO%NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(k).EQ.TempElems(l)) THEN
+              ElemExists=.true.
+              EXIT
+            END IF
+          END DO
+          IF(.NOT.ElemExists) THEN
+            TempNumElems = TempNumElems + 1
+            TempElems(TempNumElems) = GEO%NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(k)
+          END IF
+        END IF
+      END DO
+    END DO
+    ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:TempNumElems))
+    GEO%NumNeighborElems(iElem)=TempNumElems
+    GEO%ElemToNeighElems(iElem)%ElemID(1:TempNumElems) = TempElems(1:TempNumElems)
+  END DO
+END IF
+
+DO iElem=1,nElems
+  DO iLocSide=1,6
+    nStart=MAX(0,ElemToSide(E2S_FLIP,iLocSide,iElem)-1)
+    GEO%ElemSideNodeID(1:4,iLocSide,iElem)=(/Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart  ,4)+1,iLocSide))%np%NodeID,&
+                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+1,4)+1,iLocSide))%np%NodeID,&
+                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+2,4)+1,iLocSide))%np%NodeID,&
+                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
+  END DO
+END DO
 
 !--- Save whether Side is concave or convex
 DO iElem = 1,nElems
@@ -547,8 +505,8 @@ DO iElem = 1,nElems
     !--- Check whether the bilinear side is concave
     !--- Node Number 4 and triangle 1-2-3
     DO NodeNum = 1,3               ! for all 3 nodes of triangle
-      A(:,NodeNum) = GEO%NodeCoords(:,NodeNum,iLocSide,iElem) &
-                   - GEO%NodeCoords(:,4      ,iLocSide,iElem)
+      A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,iElem)) &
+                   - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,iLocSide,iElem))
     END DO
     !--- concave if detcon < 0:
     detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
@@ -558,12 +516,25 @@ DO iElem = 1,nElems
   END DO
 END DO
 
-!--- check for elements with intersecting sides (e.g. very flat elements)
-CALL TriaWeirdElementCheck()
+!-- write debug-mesh
+IF (WriteTriaDebugMesh) THEN
+  nSides=6
+  WRITE(UNIT=hilf,FMT='(I4.4)') myRank
+  FileString='TRIA-DebugMesh_PROC'//TRIM(hilf)//'.vtu'
+  ALLOCATE(Coords(1:3,1:4,1:nSides,1:nElems))
+  DO iElem = 1,nElems ; DO iLocSide = 1,nSides ; DO iNode = 1,4
+    Coords(:,iNode,iLocSide,iElem)=GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+  END DO ; END DO ; END DO
+  CALL WriteTriaDataToVTK(nSides,nElems,Coords(1:3,1:4,1:6,1:nElems),FileString)
+  SDEALLOCATE(Coords)
+END IF !WriteTriaDebugMesh
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE TRIANGLE GEOMETRY INFORMATION DONE!'
+!--- check for elements with intersecting sides (e.g. very flat elements)
+CALL WeirdElementCheck()
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitTriaParticleGeometry
+END SUBROUTINE InitParticleGeometry
 
 
 SUBROUTINE WriteTriaDataToVTK(nSides,nElems,Coord,FileString)
@@ -759,8 +730,13 @@ SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%DeltaEvMPF)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
+
+SDEALLOCATE(GEO%ElemToNodeID)
+SDEALLOCATE(GEO%ElemSideNodeID)
 SDEALLOCATE(GEO%NodeCoords)
 SDEALLOCATE(GEO%ConcaveElemSide)
+SDEALLOCATE(GEO%ElemsOnNode)
+
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
@@ -1354,7 +1330,7 @@ REAL                          :: A(1:3,1:4), cross(3)
      NegCheck = .FALSE.
      !--- A = vector from particle to node coords
      DO NodeNum = 1,4
-       A(:,NodeNum) = GEO%NodeCoords(:,NodeNum,iLocSide,ElemID) - PartStateLoc(1:3)
+       A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
      END DO
 
      !--- compute cross product for vector 1 and 3
@@ -2575,7 +2551,7 @@ ALLOCATE(Distance    (1:maxnBGMElems) &
 END SUBROUTINE AddHALOCellsToFIBGM
 
 
-SUBROUTINE TriaWeirdElementCheck()
+SUBROUTINE WeirdElementCheck()
 !===================================================================================================================================
 ! Calculate whether element edges intersect other sides
 ! If this is the case it means that part of the element is turned inside-out
@@ -2615,15 +2591,15 @@ DO iElem = 1, nElems ! go through all elements
     IF (.not.WEIRD) THEN  ! if one is found there is no need to continue
       IF (GEO%ConcaveElemSide(iLocSide,iElem)) THEN  ! only concave elements need to be checked
         ! build vector from node 1 to node 3
-        vec(:) = GEO%NodeCoords(:,3,iLocSide,iElem) &
-               - GEO%NodeCoords(:,1,iLocSide,iElem)
+        vec(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(3,iLocSide,iElem)) &
+               - GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem))
         ! check all other sides
         DO kLocSide = iLocSide + 1, 6
           IF (GEO%ConcaveElemSide(kLocSide,iElem)) THEN  ! only concave elements need to be checked
             ! build 4 vectors from point 1 of edge to 4 nodes of kLocSide
             DO iNode = 1,4
-              Node(:,iNode) = GEO%NodeCoords(:,1,iLocSide,iElem) &
-                            - GEO%NodeCoords(:,iNode,kLocSide,iElem)
+              Node(:,iNode) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem)) &
+                            - GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,kLocSide,iElem))
             END DO
             ! Compute whether any of the triangle intersects with the vector vec:
             ! If all three volumes built by the vector vec and the vectors Node
@@ -2637,14 +2613,14 @@ DO iElem = 1, nElems ! go through all elements
             TRICHECK = .FALSE.
             TRIABSCHECK = .FALSE.
             DO iNode = 1,3
-              det(:) = GEO%NodeCoords(:,1,iLocSide,iElem) &
-                     - GEO%NodeCoords(:,iNode,kLocSide,iElem)
+              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem)) &
+                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,kLocSide,iElem))
               IF (SUM(abs(det(:))).EQ.0) THEN
                 TRICHECK = .TRUE.
                 IF(iNode.NE.2)TRIABSCHECK = .TRUE.
               END IF
-              det(:) = GEO%NodeCoords(:,3,iLocSide,iElem) &
-                     - GEO%NodeCoords(:,iNode,kLocSide,iElem)
+              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(3,iLocSide,iElem)) &
+                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,kLocSide,iElem))
               IF (SUM(abs(det(:))).EQ.0) THEN
                 TRICHECK = .TRUE.
                 IF(iNode.NE.2)TRIABSCHECK = .TRUE.
@@ -2668,11 +2644,11 @@ DO iElem = 1, nElems ! go through all elements
             TRICHECK = .FALSE.
             IF (.not.TRIABSCHECK) THEN
               ! Node 4 needs to be checked separately (see above)
-              det(:) = GEO%NodeCoords(:,1,iLocSide,iElem) &
-                     - GEO%NodeCoords(:,4,kLocSide,iElem)
+              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem)) &
+                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,kLocSide,iElem))
               IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
-              det(:) = GEO%NodeCoords(:,3,iLocSide,iElem) &
-                     - GEO%NodeCoords(:,4,kLocSide,iElem)
+              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(3,iLocSide,iElem)) &
+                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,kLocSide,iElem))
               IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
               IF (.not.TRICHECK) THEN
                 det(1) = ((Node(2,1) * Node(3,3) - Node(3,1) * Node(2,3)) * vec(1)  + &
@@ -2714,7 +2690,7 @@ IF(WeirdElems.GT.0) THEN
   END DO
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE TriaWeirdElementCheck
+END SUBROUTINE WeirdElementCheck
 
 
 SUBROUTINE InitElemVolumes()

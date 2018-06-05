@@ -226,7 +226,8 @@ TYPE tSide
 END TYPE tSide
 
 TYPE tNode
-  INTEGER                      :: ind=0         !< global unique node index
+  INTEGER                      :: NodeID=0        !< local proc specific node index
+  INTEGER                      :: ind=0           !< global unique node index
   REAL                         :: x(3)=0.
 END TYPE tNode
 !-----------------------------------------------------------------------------------------------------------------------------------
