@@ -1244,7 +1244,6 @@ DO iElem = 1,nElems
     END IF
     IF(TriaTracking)THEN
       SendMsg%ConcaveElemSide(:,ElemIndex(iElem))=GEO%ConcaveElemSide(:,iElem)
-      SendMsg%ElemSideNodeID(1,iNode,ElemIndex(iElem))=NodeIndex(GEO%ElemToNodeID(iNode,iElem))
       DO iNode=1,8
         IF(NodeIndex(GEO%ElemToNodeID(iNode,iElem)).GT.0) THEN
           SendMsg%ElemToNodeID(iNode,ElemIndex(iElem))=NodeIndex(GEO%ElemToNodeID(iNode,iElem))
