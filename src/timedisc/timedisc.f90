@@ -4817,6 +4817,7 @@ iStage=1
 #ifdef PARTICLES
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 !Time=t
+tStage=t
 RKdtFrac = RK_c(2)
 RKdtFracTotal=RKdtFrac
 
@@ -4866,7 +4867,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
 END IF
 #endif /*PARTICLES*/
 
-CALL HDG(t,U,iter)
+CALL HDG(tStage,U,iter)
 
 ! calling the analyze routines
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
@@ -5027,7 +5028,7 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-  CALL HDG(t,U,iter)
+  CALL HDG(tStage,U,iter)
 
 #ifdef PARTICLES
   ! set last data already here, since surfaceflux moved before interpolation
