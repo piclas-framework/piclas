@@ -422,7 +422,7 @@ END IF
 IF (DSMC%WallModel.EQ.1) Adsorption%RecombNum = 0
 IF (DSMC%WallModel.EQ.2) Adsorption%RecombNum = 1
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
-  CALL Init_ChemistrySampling()
+  IF(SurfMesh%SurfOnProc) CALL Init_ChemistrySampling()
 END IF
 
 END SUBROUTINE InitDSMCSurfModel
@@ -430,6 +430,8 @@ END SUBROUTINE InitDSMCSurfModel
 
 SUBROUTINE InitSurfCoverage()
 !===================================================================================================================================
+!> check if restart is done and if surface data is given in state file
+!> if not then
 !> Surface coverage is initialized either from given surface init file or from constant values for each given particle boundary.
 !> Therefore, the ini file is checked if state file is specified. If not coverage is initialized from parameter else
 !> .h5 file is read and used for init. If file has wrong entries programm aborts.
@@ -439,9 +441,10 @@ SUBROUTINE InitSurfCoverage()
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, PDM
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
 USE MOD_ReadInTools            ,ONLY: GETSTR,GETREAL
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Vars ,ONLY: offSetSurfSide, nSurfBC
@@ -461,7 +464,32 @@ LOGICAL                          :: exists
 INTEGER                          :: nSpecies_HDF5, nVarSurf_HDF5, nSurfSides_HDF5, N_HDF5, nSurfBC_HDF5
 INTEGER                          :: nVar2D, nVar2D_Spec, nVar2D_Total
 CHARACTER(LEN=255),ALLOCATABLE   :: SurfBCName_HDF5(:)
+LOGICAL                          :: SurfCalcDataExists, WallmodelExists
+INTEGER                          :: WallModel_HDF5
 !===================================================================================================================================
+
+IF (DoRestart) THEN
+  ! check if datasets for restarting from state exists in state file used for restart
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)!MPI_COMM_WORLD)
+  WallmodelExists=.FALSE.
+  CALL DatasetExists(File_ID,'WallModel',WallmodelExists,attrib=.TRUE.)
+  IF (WallmodelExists) THEN
+    CALL ReadAttribute(File_ID,'WallModel',1,IntegerScalar=WallModel_HDF5)
+    IF (WallModel_HDF5.NE.DSMC%WallModel) WallmodelExists=.FALSE.
+  END IF
+  SurfCalcDataExists=.FALSE.
+  CALL DatasetExists(File_ID,'SurfCalcData',SurfCalcDataExists)
+  CALL CloseDataFile()
+  IF (SurfCalcDataExists.AND.WallmodelExists) THEN
+    SWRITE(UNIT_StdOut, '(A)')' Surface will be initialized from Restartfile'
+    IF (SurfMesh%SurfOnProc) THEN
+      ! write zeros into global coverage array for each surface
+      Adsorption%Coverage(:,:,:,:) = 0.
+    END IF
+    ! return as coverage is set in restart.f90
+    RETURN
+  END IF
+END IF ! DoRestart
 
 SurfaceFileName=GETSTR('Particles-SurfCoverageFile')
 ! If no surface file is given, initialize from ini parameters else use values from file
@@ -1014,52 +1042,54 @@ END DO
 END DO
 
 ! Use Coverage information to distribute adsorbates randomly on surface
-DO iSurfSide = 1,SurfMesh%nSides
-SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
-PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
-DO iSubSurf = 1,nSurfSample
-DO jSubSurf = 1,nSurfSample
-  DO iSpec = 1,nSpecies
-    ! adjust coverage to actual discrete value
-    Adsorbates = INT(Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) &
-                * SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Adsorption%Coordination(PartboundID,iSpec)))
-    Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = REAL(Adsorbates) &
-        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3))
-    IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Adsorption%Coordination(PartboundID,iSpec)).LT.Adsorbates) THEN
-      CALL abort(&
-__STAMP__&
-,'Error in Init_SurfDist: Too many Adsorbates! - Choose lower Coverages for coordination:', &
-Adsorption%Coordination(PartboundID,iSpec))
-    END IF
-    ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
-    dist = 1
-    Coord = Adsorption%Coordination(PartboundID,iSpec)
-    Surfnum = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Coord)
-    DO WHILE (dist.LE.Adsorbates)
-      CALL RANDOM_NUMBER(RanNum)
-      Surfpos = 1 + INT(Surfnum * RanNum)
-      UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%Species(UsedSiteMapPos) = iSpec
-      ! assign bond order of respective surface atoms in the surface lattice
-      DO iInterAtom = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom
-        xpos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
-        ypos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
-          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) + 1
+IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
+  DO iSurfSide = 1,SurfMesh%nSides
+  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  PartboundID = PartBound%MapToPartBC(BC(SideID))
+  IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+  DO iSubSurf = 1,nSurfSample
+  DO jSubSurf = 1,nSurfSample
+    DO iSpec = 1,nSpecies
+      ! adjust coverage to actual discrete value
+      Adsorbates = INT(Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) &
+                  * SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Adsorption%Coordination(PartboundID,iSpec)))
+      Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = REAL(Adsorbates) &
+          / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3))
+      IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Adsorption%Coordination(PartboundID,iSpec)).LT.Adsorbates) THEN
+        CALL abort(&
+  __STAMP__&
+  ,'Error in Init_SurfDist: Too many Adsorbates! - Choose lower Coverages for coordination:', &
+  Adsorption%Coordination(PartboundID,iSpec))
+      END IF
+      ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
+      dist = 1
+      Coord = Adsorption%Coordination(PartboundID,iSpec)
+      Surfnum = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Coord)
+      DO WHILE (dist.LE.Adsorbates)
+        CALL RANDOM_NUMBER(RanNum)
+        Surfpos = 1 + INT(Surfnum * RanNum)
+        UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%Species(UsedSiteMapPos) = iSpec
+        ! assign bond order of respective surface atoms in the surface lattice
+        DO iInterAtom = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom
+          xpos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
+          ypos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
+            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder(iSpec,xpos,ypos) + 1
+        END DO
+        ! rearrange UsedSiteMap-Surfpos-array
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
+            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
+        Surfnum = Surfnum - 1
+        dist = dist + 1
       END DO
-      ! rearrange UsedSiteMap-Surfpos-array
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
-          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
-      Surfnum = Surfnum - 1
-      dist = dist + 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Coord) = Surfnum
     END DO
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Coord) = Surfnum
   END DO
-END DO
-END DO
-END DO
+  END DO
+  END DO
+END IF
 
 #ifdef MPI
 #ifdef CODE_ANALYZE
@@ -1070,35 +1100,37 @@ WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites o
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Max_Surfsites_own,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) ! write only if mpiroot of all comms
 SWRITE(UNIT_stdOut,'(A3,A,I0)') ' > ','Surface sites for all catalytic boundaries: ', Max_SurfSites_own
 
-ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
-        ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &
-        ,SurfExchange%SurfDistSendRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
-        ,SurfExchange%SurfDistRecvRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
-        ,SurfExchange%NbrOfPos(1:SurfCOMM%nMPINeighbors))
-! allocate send and receive buffer
-ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
-ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
-DO iProc=1,SurfCOMM%nMPINeighbors
-  SurfExchange%nSurfDistSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
-  SurfExchange%nSurfDistSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
-  IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfExchange%nSurfDistSidesRecv(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
-    ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosRecv(1:SurfExchange%nSurfDistSidesRecv(iProc)))
-    SurfExchange%NbrOfPos(iProc)%nPosRecv = 0
-  END IF
-  IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(SurfExchange%nSurfDistSidesSend(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
-    ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosSend(1:SurfExchange%nSurfDistSidesSend(iProc)))
-    SurfExchange%NbrOfPos(iProc)%nPosSend = 0
-  END IF
-END DO ! iProc
+IF (SurfMesh%SurfOnProc) THEN
+  ALLOCATE(SurfExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
+          ,SurfExchange%nSurfDistSidesRecv(1:SurfCOMM%nMPINeighbors) &
+          ,SurfExchange%SurfDistSendRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
+          ,SurfExchange%SurfDistRecvRequest(1:2,1:SurfCOMM%nMPINeighbors)  &
+          ,SurfExchange%NbrOfPos(1:SurfCOMM%nMPINeighbors))
+  ! allocate send and receive buffer
+  ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
+  ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SurfExchange%nSurfDistSidesSend(iProc) = SurfExchange%nSidesRecv(iProc)
+    SurfExchange%nSurfDistSidesRecv(iProc) = SurfExchange%nSidesSend(iProc)
+    IF(SurfExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
+      ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfExchange%nSurfDistSidesRecv(iProc)))
+      SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
+      ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosRecv(1:SurfExchange%nSurfDistSidesRecv(iProc)))
+      SurfExchange%NbrOfPos(iProc)%nPosRecv = 0
+    END IF
+    IF(SurfExchange%nSurfDistSidesSend(iProc).NE.0) THEN
+      ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(SurfExchange%nSurfDistSidesSend(iProc)))
+      SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+      ALLOCATE(SurfExchange%NbrOfPos(iProc)%nPosSend(1:SurfExchange%nSurfDistSidesSend(iProc)))
+      SurfExchange%NbrOfPos(iProc)%nPosSend = 0
+    END IF
+  END DO ! iProc
 
-! communicate the number of surface sites for surfdist communication
-CALL ExchangeSurfDistSize()
-! fill halo surface distribution through mpi communication
-CALL ExchangeSurfDistInfo()
+  ! communicate the number of surface sites for surfdist communication
+  CALL ExchangeSurfDistSize()
+  ! fill halo surface distribution through mpi communication
+  CALL ExchangeSurfDistInfo()
+END IF
 #endif /*MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
@@ -1137,7 +1169,9 @@ Adsorption%NumOfDissocReact = 0
 Adsorption%NumOfAssocReact = 0
 Adsorption%NumOfExchReact = 0
 
+#if !(USE_LOADBALANCE)
 IF (SurfMesh%SurfOnProc .OR. MPIRoot) THEN
+#endif
   ! Adsorption constants
   ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
             Adsorption%Ads_Prefactor(1:nSpecies))
@@ -1493,7 +1527,9 @@ __STAMP__&
   ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
   Adsorption%TST_Calc(:,:) = .FALSE.
   IF (CalcTST_Case.GT.0) CALL Init_TST_Coeff(CalcTST_Case)
+#if !(USE_LOADBALANCE)
 END IF ! SurfMesh%SurfOnProc .OR. MPIRoot
+#endif
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
@@ -1532,11 +1568,9 @@ END DO
 #ifdef MPI
 ! Reallocate buffer for mpi communication of sampling
 DO iProc=1,SurfCOMM%nMPINeighbors
-  SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
-  RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
-  SDEALLOCATE(SurfSendBuf(iProc)%content)
-  SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
+    SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
+    SDEALLOCATE(SurfSendBuf(iProc)%content)
     ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
     !ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
@@ -1544,6 +1578,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
+    RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
+    SDEALLOCATE(SurfRecvBuf(iProc)%content)
     ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
     !ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
@@ -1707,6 +1743,7 @@ SDEALLOCATE(Adsorption%Coordination)
 SDEALLOCATE(Adsorption%DiCoord)
 SDEALLOCATE(Adsorption%Ads_Powerfactor)
 SDEALLOCATE(Adsorption%Ads_Prefactor)
+SDEALLOCATE(Adsorption%TST_calc)
 ! surfaces distribution variables (currently wallmodel=3)
 IF (ALLOCATED(SurfDistInfo)) THEN
 DO iSurfSide=1,SurfMesh%nSides
@@ -1764,6 +1801,7 @@ SDEALLOCATE(SurfExchange%nSurfDistSidesSend)
 SDEALLOCATE(SurfExchange%nSurfDistSidesRecv)
 SDEALLOCATE(SurfExchange%SurfDistSendRequest)
 SDEALLOCATE(SurfExchange%SurfDistRecvRequest)
+SDEALLOCATE(SurfExchange%NbrOfPos)
 IF (ALLOCATED(SurfDistSendBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfDistSendBuf(iProc)%content_int)
