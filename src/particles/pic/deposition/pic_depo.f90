@@ -1297,7 +1297,6 @@ CASE('cell_volweight')
       ELSE
         Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
       END IF ! usevMPF
-#endif
       iElem = PEM%Element(iPart)
       IF(DoRefMapping)THEN
         TempPartPos(1:3)=PartPosRef(1:3,iPart)
