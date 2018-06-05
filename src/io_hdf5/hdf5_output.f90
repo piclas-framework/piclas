@@ -531,6 +531,9 @@ USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
 #ifdef MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*MPI*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 USE MOD_LoadBalance_Vars  ,ONLY: nPartsPerElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -693,6 +696,13 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
         END IF
 #endif /*(PP_TimeDiscMethod==509)*/
         PartData(iPart,7)=REAL(PartSpecies(pcount))
+#ifdef CODE_ANALYZE
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(pcount.EQ.PARTOUT)THEN
+            PartData(iPart,7)=-PartData(iPart,7)
+          END IF
+        END IF
+#endif /*CODE_ANALYZE*/
         IF (withDSMC.AND.(.NOT.(useLD))) THEN
         !IF (withDSMC) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN

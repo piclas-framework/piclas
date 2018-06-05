@@ -13,6 +13,17 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+TYPE tTLU_Data
+  DOUBLE PRECISION                        :: Emin
+  DOUBLE PRECISION                        :: Emax
+  DOUBLE PRECISION                        :: deltaE
+  DOUBLE PRECISION , ALLOCATABLE          :: deltabj(:)
+  DOUBLE PRECISION , ALLOCATABLE          :: ChiTable(:,:)
+END TYPE 
+
+TYPE(tTLU_Data)              :: TLU_Data
+
+
 REAL                          :: Debug_Energy(2)=0.0        ! debug variable energy conservation
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
@@ -470,6 +481,10 @@ TYPE tChemReactions
    REAL,  ALLOCATABLE             :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: MEXb(:)                ! MEX const. factor (g-dep. cross section in Angstrom (nReactions)
+   REAL,  ALLOCATABLE             :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+   REAL,  ALLOCATABLE             :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+   LOGICAL, ALLOCATABLE           :: DoScat(:)              ! Do Scattering Calculation by Lookup table
+   CHARACTER(LEN=200),ALLOCATABLE :: TLU_FileName           ! Name of file containing table lookup data for Scattering
    INTEGER                       :: RecombParticle = 0      ! P. Index for Recombination, if zero -> no recomb particle avaible
    INTEGER                       :: nPairForRec
    REAL, ALLOCATABLE             :: Hab(:)                  ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs

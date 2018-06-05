@@ -50,7 +50,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! LOCAL VARIABLES
   INTEGER                             :: iPType, SpecToExec, NbrOfReaction
   INTEGER(KIND=8)                     :: SpecNum1, SpecNum2
-  REAL                                :: aCEX, bCEX, aMEX, bMEX, BGGasDensity_new
+  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, BGGasDensity_new, sigma_tot
   REAL(KIND=8)                        :: Volume
   LOGICAL                             :: DoSimpleElectronColl
 #if (PP_TimeDiscMethod==42)
@@ -238,6 +238,31 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       bCEX = ChemReac%CEXb(NbrOfReaction)
       aMEX = ChemReac%MEXa(NbrOfReaction)
       bMEX = ChemReac%MEXb(NbrOfReaction)
+      aEL = ChemReac%ELa(NbrOfReaction)
+      bEL = ChemReac%ELb(NbrOfReaction)
+      IF (ChemReac%DoScat(NbrOfReaction)) THEN
+        IF (Coll_pData(iPair)%CRela2.EQ.0) THEN 
+          sigma_tot = 0
+        ELSE
+          !Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+          sigma_tot = ((aCEX+0.5*aEL)*0.5*LOG10(Coll_pData(iPair)%CRela2)+bCEX+0.5*bEL)
+          !write (*,*) "CRela2=", Coll_pData(iPair)%CRela2
+          !write (*,*) "CASE(16) !Atom-Atomic CEX/MEX Ion", sigma_tot , ((aCEX+aMEX)*0.5*LOG10(Coll_pData(iPair)%CRela2) + bCEX+bMEX)
+        END IF
+      ELSE
+        IF (Coll_pData(iPair)%CRela2.EQ.0) THEN
+          sigma_tot = 0
+        ELSE
+          ! equation based on empirical equation, probably by J.S. Miller et al (J.Appl.Phys.91,984-991 (2002))
+          ! probably: sigma_tot = sigma_CEX+sigma_MEX
+          ! originally: sigma_CEX = 87.3 - 13.6*LOG10(E(in eV) with LAB energy E in electronvolt.
+          ! here: equation is modified in order to use only CRela2 --> has influence on the input values
+          ! --> E/1.6021766208E-19 --> sigma_CEX = -168.316 - 13.6*LOG10(E(in Joule))
+          ! --> E=0.5*m_Xe_ion*CRela2 --> sigma_CEX = 171.2 - 13.6*LOG10(CRela2)
+          ! --> due to the formulation of the euation in the next line, the value of aCEX, 13.6, has to be doubled in the input file
+          sigma_tot = ((aCEX+aMEX)*0.5*LOG10(Coll_pData(iPair)%CRela2) + bCEX+bMEX)
+        END IF
+      END IF
       SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
       SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       IF (Coll_pData(iPair)%CRela2.eq.0.) THEN !avoid log(0)
@@ -248,7 +273,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
             !* CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
             * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
               ! weighting Fact, here only one MPF is used!!!
-            * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * ((aCEX+aMEX)*0.5*LOG10(Coll_pData(iPair)%CRela2) + bCEX+bMEX) &
+            * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot &
               ! CEX/MEX-relation to relative velo
             * dt / Volume                   ! timestep (should be sclaed in time disc)  divided by cell volume
         ELSE
@@ -257,7 +282,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
             * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
               ! weighting Fact, here only one MPF is used!!!
             / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
-            * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * ((aCEX+aMEX)*0.5*LOG10(Coll_pData(iPair)%CRela2) + bCEX+bMEX) &
+            * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot  &
               ! CEX/MEX-relation to relative velo
             * dt / Volume                   ! timestep (should be sclaed in time disc)  divided by cell volume
         END IF
